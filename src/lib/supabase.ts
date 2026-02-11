@@ -9,6 +9,14 @@ export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
     persistSession: true,
     autoRefreshToken: true,
   },
+  db: {
+    schema: 'public',
+  },
+  global: {
+    headers: {
+      'X-Client-Timezone': 'Pacific/Auckland',
+    },
+  },
 });
 
 
