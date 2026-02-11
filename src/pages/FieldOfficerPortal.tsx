@@ -494,25 +494,22 @@ export function FieldOfficerPortal({ onLogout }: FieldOfficerPortalProps) {
     autoDetectZone();
   }, [availableZones.length, gpsLocation, selectedZone]); // Only run on initial load
 
-  // Automatic GPS tracking with sticky zone verification AND welfare monitoring ping
+  // ✅ BATCH 3: STREAMLINED GPS TRACKING - Single interval handles all GPS operations
   useEffect(() => {
     if (availableZones.length === 0) return; // Wait for zones to load
 
-    let watchId: number | null = null;
-    let zoneCheckInterval: any = null;
-    let welfarePingInterval: any = null;
+    let gpsInterval: any = null;
 
     const checkAndUpdateZone = async (latitude: number, longitude: number, accuracy: number) => {
       if (accuracy >= 100) {
         console.log('⚠️ GPS accuracy too low for zone detection:', Math.round(accuracy) + 'm');
-        return; // Don't change zone if accuracy is poor
+        return;
       }
 
       const { verifyStickyZone, findZoneByLocation, setStickyZone, clearStickyZone, getStickyZone } = await import('@/lib/geofence');
       
       const stickyZone = getStickyZone();
       
-      // If no sticky zone exists, detect current zone (entering zone scenario)
       if (!stickyZone) {
         console.log('📍 No sticky zone - detecting current location zone...');
         const detectedZone = findZoneByLocation(
@@ -521,9 +518,8 @@ export function FieldOfficerPortal({ onLogout }: FieldOfficerPortalProps) {
         );
         
         if (detectedZone) {
-          // Set new zone
           setSelectedZone(prev => {
-            if (prev?.id === detectedZone.id) return prev; // Already set
+            if (prev?.id === detectedZone.id) return prev;
             
             if (detectedZone.name !== 'Other Location') {
               setStickyZone(detectedZone);
@@ -540,7 +536,6 @@ export function FieldOfficerPortal({ onLogout }: FieldOfficerPortalProps) {
             };
           });
         } else {
-          // No zone detected - explicitly set to "Other Location"
           const otherLocation = availableZones.find(z => z.name === 'Other Location');
           if (otherLocation) {
             setSelectedZone({
@@ -555,14 +550,12 @@ export function FieldOfficerPortal({ onLogout }: FieldOfficerPortalProps) {
         return;
       }
       
-      // Sticky zone exists - verify still in zone
       const isStillInZone = verifyStickyZone(
         { lat: latitude, lng: longitude },
         availableZones
       );
       
       if (!isStillInZone) {
-        // Officer left sticky zone - detect new zone
         console.log('🚶 Officer left zone, detecting new zone...');
         
         const newZone = findZoneByLocation(
@@ -571,11 +564,9 @@ export function FieldOfficerPortal({ onLogout }: FieldOfficerPortalProps) {
         );
         
         if (newZone) {
-          // Only update if zone actually changed
           setSelectedZone(prev => {
-            if (prev?.id === newZone.id) return prev; // No change
+            if (prev?.id === newZone.id) return prev;
             
-            // Zone changed
             if (newZone.name !== 'Other Location') {
               setStickyZone(newZone);
               console.log('✅ Zone changed:', newZone.name);
@@ -591,7 +582,6 @@ export function FieldOfficerPortal({ onLogout }: FieldOfficerPortalProps) {
             };
           });
         } else {
-          // No zone detected after leaving - set to "Other Location"
           const otherLocation = availableZones.find(z => z.name === 'Other Location');
           if (otherLocation) {
             setSelectedZone({
@@ -606,30 +596,24 @@ export function FieldOfficerPortal({ onLogout }: FieldOfficerPortalProps) {
       }
     };
 
-    const startGPSTracking = async () => {
-      if (!navigator.geolocation) {
-        console.warn('Geolocation not supported by this browser');
-        return;
-      }
+    const performGPSUpdate = () => {
+      if (!navigator.geolocation) return;
 
-      // High-accuracy GPS tracking (watchPosition provides continuous updates)
-      watchId = navigator.geolocation.watchPosition(
+      navigator.geolocation.getCurrentPosition(
         async (position) => {
           const { latitude, longitude, accuracy } = position.coords;
-          console.log(`📍 GPS Update: ${latitude.toFixed(6)}, ${longitude.toFixed(6)} (±${Math.round(accuracy)}m)`);
+          console.log(`📍 GPS: ${latitude.toFixed(6)}, ${longitude.toFixed(6)} (±${Math.round(accuracy)}m)`);
           
-          // Only store GPS if accuracy is acceptable (< 100m)
           if (accuracy < 100) {
-            // Store GPS in component state for zone checks
             setGpsLocation({ lat: latitude, lng: longitude, accuracy });
+            await checkAndUpdateZone(latitude, longitude, accuracy);
             
-            // Check zone immediately on GPS change
-            checkAndUpdateZone(latitude, longitude, accuracy);
+            // Record welfare ping
+            console.log(`💓 Welfare ping recorded`);
+            recordGPSUpdate(latitude, longitude, accuracy);
           } else {
-            console.log('⚠️ GPS accuracy too low, waiting for better signal:', Math.round(accuracy) + 'm');
+            console.log(`⏭️ GPS accuracy too low: ${Math.round(accuracy)}m - skipping update`);
           }
-          
-          // ❌ REMOVED: Do NOT record GPS here - let welfarePingInterval handle it at 30s intervals
         },
         (error) => {
           console.warn('GPS error:', error.message);
@@ -640,36 +624,21 @@ export function FieldOfficerPortal({ onLogout }: FieldOfficerPortalProps) {
           maximumAge: 0,
         }
       );
-
-      // ❌ REMOVED: Redundant zone check interval - zone is checked immediately when GPS updates
-      
-      // Welfare monitoring ping at configured interval (default 30s)
-      // This is the ONLY place GPS updates are recorded to database
-      welfarePingInterval = setInterval(() => {
-        if (gpsLocation && gpsLocation.accuracy < 100) {
-          console.log(`💓 Welfare ping: ${gpsLocation.lat.toFixed(6)}, ${gpsLocation.lng.toFixed(6)} (±${Math.round(gpsLocation.accuracy)}m)`);
-          recordGPSUpdate(gpsLocation.lat, gpsLocation.lng, gpsLocation.accuracy);
-        } else if (gpsLocation) {
-          console.log(`⏭️ Skipping welfare ping - GPS accuracy too low: ${Math.round(gpsLocation.accuracy)}m`);
-        }
-      }, gpsPingInterval * 1000);
-
-      console.log(`✅ GPS tracking started with ${gpsPingInterval}s welfare ping interval`);
     };
 
-    startGPSTracking();
+    // ✅ STREAMLINED: Single interval at welfare ping rate
+    // Handles: GPS update + Zone check + Welfare monitoring
+    console.log(`✅ Starting streamlined GPS tracking (${gpsPingInterval}s interval)`);
+    performGPSUpdate(); // Initial update
+    gpsInterval = setInterval(performGPSUpdate, gpsPingInterval * 1000);
 
     return () => {
-      if (watchId !== null) {
-        navigator.geolocation.clearWatch(watchId);
+      if (gpsInterval) {
+        clearInterval(gpsInterval);
         console.log('🔴 GPS tracking stopped');
       }
-      if (welfarePingInterval) {
-        clearInterval(welfarePingInterval);
-        console.log('🔴 Welfare monitoring stopped');
-      }
     };
-  }, [recordGPSUpdate, availableZones, gpsLocation, gpsPingInterval]); // Include welfare ping interval
+  }, [recordGPSUpdate, availableZones, gpsPingInterval]);
 
 
 
