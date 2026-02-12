@@ -50,6 +50,8 @@ interface VehicleDetailsPopupProps {
   isFlagged?: boolean;
   isBreaching?: boolean;
   photoUrl?: string;
+  homelessStatus?: 'none' | 'claimed' | 'confirmed'; // ✅ Phase 2: Homeless status from canonical_vehicles
+  homelessNotes?: string; // ✅ Phase 2: Admin notes about homeless status
   onClose: () => void;
   onRetake?: () => void; // New: Allows user to retake the photo
   onUpdateDetails: (details: {
@@ -81,6 +83,8 @@ export function VehicleDetailsPopup({
   isFlagged,
   isBreaching,
   photoUrl,
+  homelessStatus = 'none', // ✅ Phase 2: Default to 'none'
+  homelessNotes,
   onClose,
   onRetake,
   onUpdateDetails,
@@ -335,6 +339,49 @@ export function VehicleDetailsPopup({
               <Badge variant="outline" className="text-sm font-bold border-2 border-green-500 bg-green-50 dark:bg-green-950/30 text-green-700 dark:text-green-300">
                 ✅ 📊 {priorObservationsCount} prior observation{priorObservationsCount !== 1 ? 's' : ''} in system
               </Badge>
+            </div>
+          )}
+
+          {/* ✅ PHASE 2: Homeless Status Badges */}
+          {homelessStatus === 'confirmed' && (
+            <div className="mb-4 p-4 bg-purple-50 dark:bg-purple-950/30 border-2 border-purple-500 rounded-xl">
+              <div className="flex items-center gap-3">
+                <Home className="h-6 w-6 text-purple-600" />
+                <div>
+                  <p className="font-bold text-purple-900 dark:text-purple-100">
+                    🏠 Homeless Status: CONFIRMED
+                  </p>
+                  <p className="text-sm text-purple-700 dark:text-purple-300 mt-1">
+                    FC Act 2011 exemption applies • Admin verified
+                  </p>
+                  {homelessNotes && (
+                    <p className="text-xs text-purple-600 dark:text-purple-400 mt-2 italic">
+                      "{homelessNotes}"
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {homelessStatus === 'claimed' && (
+            <div className="mb-4 p-4 bg-amber-50 dark:bg-amber-950/30 border-2 border-amber-500 rounded-xl">
+              <div className="flex items-center gap-3">
+                <AlertTriangle className="h-6 w-6 text-amber-600" />
+                <div>
+                  <p className="font-bold text-amber-900 dark:text-amber-100">
+                    🏠 Homeless Status: PENDING REVIEW
+                  </p>
+                  <p className="text-sm text-amber-700 dark:text-amber-300 mt-1">
+                    Officer reported homeless claim • Awaiting admin verification
+                  </p>
+                  {homelessNotes && (
+                    <p className="text-xs text-amber-600 dark:text-amber-400 mt-2 italic">
+                      "{homelessNotes}"
+                    </p>
+                  )}
+                </div>
+              </div>
             </div>
           )}
 

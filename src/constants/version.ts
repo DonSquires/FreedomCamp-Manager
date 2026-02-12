@@ -6,9 +6,24 @@
  * - PATCH (third digit): Minor amendments
  */
 
-export const APP_VERSION = '2.5.0004';
+export const APP_VERSION = '2.5.0005';
 
 export const VERSION_HISTORY = [
+  {
+    version: '2.5.0005',
+    date: '2025-02-12',
+    changes: [
+      '🎯 PHASE 2 COMPLETE: Homeless Data Consolidation Frontend',
+      '✅ Database migration applied - triggers now sync homeless status to canonical_vehicles',
+      '🏠 VehicleDetailsPopup shows homeless badges (confirmed = purple, claimed = amber)',
+      '⚖️ ComplianceResultModal displays FC Act 2011 exemption when confirmed',
+      '🔄 process-field-scan Edge Function returns full homeless data from canonical',
+      '📊 Single source of truth working: canonical_vehicles.homeless_status',
+      '🎨 Officer-reported claims show "Pending Admin Review" in amber',
+      '✅ Admin-confirmed homeless show purple "FC Act Exempt" badge',
+      '📝 Homeless notes from admin displayed in both popup and compliance modal',
+    ],
+  },
   {
     version: '2.5.0004',
     date: '2025-02-12',

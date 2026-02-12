@@ -32,6 +32,8 @@ interface ComplianceResultModalProps {
   isHomeless?: boolean;
   hasHSIssue?: boolean;
   isFlagged?: boolean;
+  homelessStatus?: 'none' | 'claimed' | 'confirmed'; // ✅ Phase 2: Canonical homeless status
+  homelessNotes?: string; // ✅ Phase 2: Admin notes
   alerts: string[];
   onContinueScanning: () => void;
   onAddEvidence: () => void;
@@ -48,6 +50,8 @@ export function ComplianceResultModal({
   isHomeless,
   hasHSIssue,
   isFlagged,
+  homelessStatus = 'none', // ✅ Phase 2: Default to 'none'
+  homelessNotes,
   alerts,
   onContinueScanning,
   onAddEvidence,
@@ -153,6 +157,41 @@ export function ComplianceResultModal({
         </DialogHeader>
 
         <div className="px-6 pb-6 space-y-4">
+          {/* ✅ PHASE 2: Homeless Status Display */}
+          {homelessStatus === 'confirmed' && (
+            <div className="mt-4 p-4 bg-purple-100 dark:bg-purple-900/30 rounded-lg border-2 border-purple-500">
+              <p className="font-bold text-purple-900 dark:text-purple-100 flex items-center gap-2">
+                <Home className="h-5 w-5" />
+                FC Act 2011 Exemption Active
+              </p>
+              <p className="text-sm text-purple-700 dark:text-purple-300 mt-1">
+                This vehicle is confirmed homeless and exempt from overnight stay limits
+              </p>
+              {homelessNotes && (
+                <p className="text-xs text-purple-600 dark:text-purple-400 mt-2 italic">
+                  "{homelessNotes}"
+                </p>
+              )}
+            </div>
+          )}
+
+          {homelessStatus === 'claimed' && (
+            <div className="mt-4 p-4 bg-amber-100 dark:bg-amber-900/30 rounded-lg border-2 border-amber-500">
+              <p className="font-bold text-amber-900 dark:text-amber-100 flex items-center gap-2">
+                <Home className="h-5 w-5" />
+                Homeless Claim Pending Review
+              </p>
+              <p className="text-sm text-amber-700 dark:text-amber-300 mt-1">
+                Officer reported homeless status • Awaiting admin verification for FC Act exemption
+              </p>
+              {homelessNotes && (
+                <p className="text-xs text-amber-600 dark:text-amber-400 mt-2 italic">
+                  "{homelessNotes}"
+                </p>
+              )}
+            </div>
+          )}
+
           {/* Alerts */}
           {alerts.length > 0 && (
             <div className="space-y-2">
