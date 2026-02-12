@@ -38,6 +38,7 @@ export interface Notification {
     vehicleModel?: string;
     vehicleColor?: string;
     photoUrl?: string | null;
+    profilePhotoUrl?: string | null; // NEW: Vehicle's profile photo from canonical_vehicles
     zoneName?: string;
     priorVisits?: number;
     vehicleId?: string;
@@ -54,6 +55,8 @@ export interface Notification {
     consecutiveAllowed?: number;
     willBreachTonight?: boolean;
     breachSeverity?: 'warning' | 'critical';
+    homelessStatus?: 'confirmed' | 'claimed' | 'none';
+    homelessNotes?: string;
   };
 }
 
@@ -289,7 +292,7 @@ export function useNotifications() {
       // 1. Check if vehicle is flagged
       const { data: vehicle } = await supabase
         .from('canonical_vehicles')
-        .select('vehicle_id, plate_number, is_flagged, flagged_priority, flagged_reason, homeless_confirmed, homeless_confirmed_at')
+        .select('vehicle_id, plate_number, is_flagged, flagged_priority, flagged_reason, homeless_confirmed, homeless_confirmed_at, homeless_status, profile_photo')
         .eq('plate_number', plateNumber.toUpperCase())
         .maybeSingle();
 
@@ -306,25 +309,33 @@ export function useNotifications() {
           plateNumber: vehicle.plate_number,
           timestamp: new Date(),
           read: false,
-          metadata: metadata || {},
+          metadata: {
+            ...metadata,
+            profilePhotoUrl: vehicle.profile_photo || metadata?.photoUrl, // Use profile photo if available
+            homelessStatus: vehicle.homeless_status,
+          },
         });
       }
 
       // 2. Check for homeless status
-      if (vehicle?.homeless_confirmed) {
+      if (vehicle?.homeless_confirmed || vehicle?.homeless_status === 'confirmed' || vehicle?.homeless_status === 'claimed') {
         const notifId = `homeless_${plateNumber}_${Date.now()}`;
         notificationsList.push({
           id: notifId,
           type: 'homeless_confirmed',
           title: '🏕️ Homeless Vehicle',
-          message: `Vehicle ${plateNumber} is confirmed homeless`,
+          message: `Vehicle ${plateNumber} is ${vehicle.homeless_status === 'confirmed' ? 'confirmed homeless' : 'claiming homeless status'}`,
           severity: 'info',
           entityId: vehicle.vehicle_id,
           entityType: 'vehicle',
           plateNumber: vehicle.plate_number,
           timestamp: new Date(vehicle.homeless_confirmed_at || new Date()),
           read: false,
-          metadata: metadata || {},
+          metadata: {
+            ...metadata,
+            profilePhotoUrl: vehicle.profile_photo || metadata?.photoUrl,
+            homelessStatus: vehicle.homeless_status,
+          },
         });
       }
 
@@ -402,6 +413,8 @@ export function useNotifications() {
                 read: false,
                 metadata: {
                   ...metadata,
+                  profilePhotoUrl: vehicle?.profile_photo || thisVehicle.photo_url || metadata?.photoUrl,
+                  photoUrl: thisVehicle.photo_url || metadata?.photoUrl,
                   homelessStatus: thisVehicle.homeless_status,
                   homelessNotes: thisVehicle.homeless_notes,
                 },
@@ -438,6 +451,8 @@ export function useNotifications() {
                 read: false,
                 metadata: {
                   ...metadata,
+                  profilePhotoUrl: vehicle?.profile_photo || thisVehicle.photo_url || metadata?.photoUrl,
+                  photoUrl: thisVehicle.photo_url || metadata?.photoUrl,
                   nightsStayed: thisVehicle.nights_stayed,
                   nightsAllowed: thisVehicle.nights_allowed,
                   consecutiveNights: thisVehicle.consecutive_nights,
