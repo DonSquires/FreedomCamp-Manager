@@ -159,34 +159,73 @@ export function EnforcementHub() {
   };
 
   const loadActiveBreaches = async () => {
-    let query = supabase
+    // ✅ CLEAN ARCHITECTURE: Get non-compliant observations via compliance_results
+    // Join with canonical_vehicles for homeless status
+    let obsQuery = supabase
       .from('vehicle_observations_v2')
       .select(`
+        observation_id,
         plate_number,
         zone_id,
         organization_id,
-        is_breach,
-        breach_type,
-        breach_details,
         recorded_at,
-        zones (name),
-        canonical_vehicles (homeless_status, is_flagged)
+        zones (name)
       `)
-      .eq('is_breach', true)
       .gte('recorded_at', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString())
       .order('recorded_at', { ascending: false });
 
     if (user?.role !== 'master') {
-      query = query.eq('organization_id', user?.organization_id || '');
+      obsQuery = obsQuery.eq('organization_id', user?.organization_id || '');
     }
 
-    const { data: observations, error } = await query;
+    const { data: observations, error } = await obsQuery;
     if (error) throw error;
 
-    const breachMap = new Map<string, any>();
+    // Get compliance results for these observations
+    const observationIds = (observations || []).map(o => o.observation_id);
     
+    const { data: complianceData } = await supabase
+      .from('compliance_results')
+      .select('observation_id, is_compliant, violation_reasons, metrics_json')
+      .in('observation_id', observationIds)
+      .eq('is_compliant', false);
+    
+    const complianceMap = new Map(
+      (complianceData || []).map(c => [c.observation_id, c])
+    );
+    
+    // Get canonical vehicle data
+    const uniquePlates = [...new Set((observations || []).map(o => o.plate_number))];
+    const { data: canonicalData } = await supabase
+      .from('canonical_vehicles')
+      .select('plate_number, homeless_status, is_flagged')
+      .in('plate_number', uniquePlates);
+    
+    const canonicalMap = new Map(
+      (canonicalData || []).map(v => [v.plate_number, v])
+    );
+    
+    // Get monthly stays for breach details
+    const { data: staysData } = await supabase
+      .from('vehicle_monthly_stays')
+      .select('plate_number, zone_id, consecutive_nights, nights_stayed')
+      .in('plate_number', uniquePlates)
+      .gte('calendar_month', new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10));
+    
+    const staysMap = new Map(
+      (staysData || []).map(s => [`${s.plate_number}-${s.zone_id}`, s])
+    );
+    
+    const breachMap = new Map<string, any>();
+  
     (observations || []).forEach(obs => {
+      const compliance = complianceMap.get(obs.observation_id);
+      if (!compliance || compliance.is_compliant) return; // Skip compliant observations
+      
       const key = `${obs.plate_number}-${obs.zone_id}`;
+      const canonical = canonicalMap.get(obs.plate_number);
+      const stays = staysMap.get(key);
+      
       if (!breachMap.has(key)) {
         breachMap.set(key, {
           plate_number: obs.plate_number,
@@ -196,20 +235,20 @@ export function EnforcementHub() {
           total_observations: 0,
           breach_count: 0,
           last_breach_date: obs.recorded_at,
-          last_breach_type: obs.breach_type || 'overstay',
-          homeless_status: (obs.canonical_vehicles as any)?.homeless_status || null,
-          is_flagged: (obs.canonical_vehicles as any)?.is_flagged || false,
-          consecutive_nights: (obs.breach_details as any)?.consecutive_nights || 0,
-          nights_stayed: (obs.breach_details as any)?.nights_stayed || 0,
-          max_allowed_consecutive: (obs.breach_details as any)?.max_consecutive || 3,
-          max_allowed_monthly: (obs.breach_details as any)?.nights_per_month || 28,
+          last_breach_type: compliance.violation_reasons?.[0] || 'overstay',
+          homeless_status: canonical?.homeless_status || null,
+          is_flagged: canonical?.is_flagged || false,
+          consecutive_nights: stays?.consecutive_nights || 0,
+          nights_stayed: stays?.nights_stayed || 0,
+          max_allowed_consecutive: (compliance.metrics_json as any)?.max_consecutive || 3,
+          max_allowed_monthly: (compliance.metrics_json as any)?.nights_per_month || 28,
           has_active_enforcement: false,
           enforcement_status: null,
         });
       }
       const breach = breachMap.get(key);
       breach.total_observations++;
-      if (obs.is_breach) breach.breach_count++;
+      breach.breach_count++;
     });
 
     const breaches = Array.from(breachMap.values());
