@@ -39,9 +39,8 @@ import { LeadershipPackGenerator } from './LeadershipPackGenerator';
 import { PrivacyControlsPanel } from './PrivacyControlsPanel';
 import { BulkScanReview } from './BulkScanReview';
 import { IncidentReports } from './IncidentReports';
-import { EnforcementActions } from './EnforcementActions';
-import BreachAlertsReport from './BreachAlertsReport';
-import { FlaggedVehicles } from './FlaggedVehicles';
+import { EnforcementHub } from './EnforcementHub';
+import { SpecialVehiclesManagement } from './SpecialVehiclesManagement';
 import { PatrolManagement } from './PatrolManagement';
 import { InvestigationJobs } from './InvestigationJobs';
 import { UrgentFollowUps } from './UrgentFollowUps';
@@ -304,51 +303,27 @@ export function AdminPortal({ onLogout }: AdminPortalProps) {
             </Button>
 
             <Button
-              variant={activeTab === 'enforcement-actions' ? 'default' : 'ghost'}
+              variant={activeTab === 'enforcement-hub' ? 'default' : 'ghost'}
               className="w-full justify-start text-sm lg:text-base h-10 lg:h-9 touch-manipulation"
               onClick={() => {
-                setActiveTab('enforcement-actions');
+                setActiveTab('enforcement-hub');
                 setSidebarOpen(false);
               }}
             >
               <Shield className="h-4 w-4 mr-2 lg:mr-3" />
-              Enforcement Actions
+              Enforcement Hub
             </Button>
 
             <Button
-              variant={activeTab === 'flagged-vehicles' ? 'default' : 'ghost'}
+              variant={activeTab === 'special-vehicles' ? 'default' : 'ghost'}
               className="w-full justify-start text-sm lg:text-base h-10 lg:h-9 touch-manipulation"
               onClick={() => {
-                setActiveTab('flagged-vehicles');
+                setActiveTab('special-vehicles');
                 setSidebarOpen(false);
               }}
             >
-              <AlertTriangle className="h-4 w-4 mr-2 lg:mr-3" />
-              Flagged Vehicles
-            </Button>
-
-            <Button
-              variant={activeTab === 'breach-alerts' ? 'default' : 'ghost'}
-              className="w-full justify-start text-sm lg:text-base h-10 lg:h-9 touch-manipulation"
-              onClick={() => {
-                setActiveTab('breach-alerts');
-                setSidebarOpen(false);
-              }}
-            >
-              <AlertTriangle className="h-4 w-4 mr-2 lg:mr-3" />
-              Breach Alerts
-            </Button>
-
-            <Button
-              variant={activeTab === 'homeless-support' ? 'default' : 'ghost'}
-              className="w-full justify-start text-sm lg:text-base h-10 lg:h-9 touch-manipulation"
-              onClick={() => {
-                setActiveTab('homeless-support');
-                setSidebarOpen(false);
-              }}
-            >
-              <Heart className="h-4 w-4 mr-2 lg:mr-3" />
-              Homeless Support
+              <Flag className="h-4 w-4 mr-2 lg:mr-3" />
+              Special Vehicles
             </Button>
 
             <div className="text-xs font-semibold text-muted-foreground px-3 py-2 mt-3 lg:mt-4">
@@ -718,12 +693,8 @@ export function AdminPortal({ onLogout }: AdminPortalProps) {
               )}
 
               {activeTab === 'incident-reports' && <IncidentReports />}
-              {activeTab === 'enforcement-actions' && <EnforcementActions />}
-              {activeTab === 'flagged-vehicles' && <FlaggedVehicles />}
-              
-              {activeTab === 'breach-alerts' && <BreachAlertsReport />}
-
-              {activeTab === 'homeless-support' && <HomelessSupport />}
+              {activeTab === 'enforcement-hub' && <EnforcementHub />}
+              {activeTab === 'special-vehicles' && <SpecialVehiclesManagement />}
 
               {activeTab === 'investigation-jobs' && <InvestigationJobs />}
 
