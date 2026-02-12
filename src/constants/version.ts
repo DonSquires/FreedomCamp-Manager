@@ -6,9 +6,23 @@
  * - PATCH (third digit): Minor amendments
  */
 
-export const APP_VERSION = '2.5.0009';
+export const APP_VERSION = '2.5.0010';
 
 export const VERSION_HISTORY = [
+  {
+    version: '2.5.0010',
+    date: '2025-02-13',
+    changes: [
+      '🏗️ CLEAN ARCHITECTURE: Separated data gathering from reporting',
+      '📊 vehicle_observations_v2 stripped to pure observation data (photo, plate, location, notes)',
+      '🔗 Vehicle details now ONLY in canonical_vehicles (no duplication)',
+      '⚖️ Compliance results now ONLY in compliance_results table',
+      '✅ Section 1 (Data Gathering): Observation records what was seen',
+      '✅ Section 2 (Reporting): Compliance evaluates against matrix rules',
+      '🔄 Created vehicle_observations_with_details view for backward compatibility',
+      '🎯 process-field-scan refactored: create observation → evaluate compliance (separate steps)',
+    ],
+  },
   {
     version: '2.5.0009',
     date: '2025-02-12',

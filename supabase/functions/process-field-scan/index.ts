@@ -194,10 +194,8 @@ Deno.serve(async (req) => {
 
     console.log('✅ No same-day duplicate - proceeding with insertion');
 
-    // STEP 3: Create vehicle observation v2 (auto-populated by trigger)
-    console.log('📝 Step 3: Create observation v2...');
-    
-    const observationSelfContained = scanData.isSelfContained || scanData.hasGreenSticker || scanData.hasBlueSticker || false;
+    // STEP 3: Create vehicle observation v2 (PURE OBSERVATION DATA ONLY)
+    console.log('📝 Step 3: Create observation (Section 1: Data Gathering)...');
     
     const { data: observation, error: obsError } = await supabaseAdmin
       .from('vehicle_observations_v2')
@@ -207,23 +205,19 @@ Deno.serve(async (req) => {
         zone_id: scanData.zoneId,
         recorded_by: user.id,
         recorded_at: new Date().toISOString(),
-        // Vehicle details - will be auto-populated from canonical if not provided
-        vehicle_make: scanData.vehicleDetails?.make,
-        vehicle_model: scanData.vehicleDetails?.model,
-        vehicle_year: scanData.vehicleDetails?.year,
-        vehicle_color: scanData.vehicleDetails?.color,
-        self_contained: observationSelfContained,
-        self_contained_expiry: scanData.selfContainedExpiry,
-        // Photo
+        // Photo evidence
         photo: scanData.imageUrl,
-        // GPS
+        // GPS location
         gps_latitude: scanData.gpsLocation?.lat,
         gps_longitude: scanData.gpsLocation?.lng,
         gps_accuracy: scanData.gpsLocation?.accuracy,
         // Officer notes
         officer_notes: scanData.officerNotes,
         has_notes: !!scanData.officerNotes,
-        notes_reference_previous: false, // TODO: Check if officer viewed previous notes
+        notes_reference_previous: false,
+        // Homeless claim (if officer claims)
+        has_homeless_claim: !!scanData.officerNotes?.toLowerCase().includes('homeless'),
+        homeless_claim_notes: scanData.officerNotes || null,
       })
       .select()
       .single();
@@ -233,26 +227,102 @@ Deno.serve(async (req) => {
       throw obsError;
     }
 
-    console.log('✅ Observation created:', observation.observation_id);
+    console.log('✅ Observation created (pure data):', observation.observation_id);
 
-    // STEP 4: Run compliance check WITH compliance_results table population
-    console.log('⚖️ Step 4: Run compliance check with results table population...');
+    // STEP 4: Run compliance evaluation (Section 2: Reporting)
+    console.log('⚖️ Step 4: Evaluate compliance (Section 2: Separate from observation)...');
     let isCompliant = true;
     let complianceResult = null;
 
     try {
-      const { data: complianceData, error: complianceError } = await supabaseAdmin
-        .rpc('calculate_vehicle_compliance_with_results', {
-          p_plate_number: normalizedPlate,
-          p_zone_id: scanData.zoneId,
-          p_check_date: new Date().toISOString().split('T')[0],
-          p_observation_id: observation.observation_id // ✅ PASS observation_id to populate compliance_results
-        });
+      // Query zone compliance matrix
+      const { data: matrix } = await supabaseAdmin
+        .from('zone_compliance_matrix')
+        .select('*')
+        .eq('zone_id', scanData.zoneId)
+        .is('effective_to', null)
+        .single();
 
-      if (!complianceError && complianceData && complianceData.length > 0) {
-        isCompliant = complianceData[0].is_compliant;
-        complianceResult = complianceData[0];
-        console.log('✅ Compliance result saved to compliance_results table:', isCompliant, complianceResult);
+      if (!matrix) {
+        console.warn('⚠️ No compliance matrix found for zone:', scanData.zoneId);
+        isCompliant = true; // Default to compliant if no rules
+      } else {
+        // Query vehicle monthly stays
+        const { data: monthlyStays } = await supabaseAdmin
+          .from('vehicle_monthly_stays')
+          .select('*')
+          .eq('plate_number', normalizedPlate)
+          .eq('zone_id', scanData.zoneId)
+          .gte('calendar_month', new Date().toISOString().split('T')[0].substring(0, 7) + '-01')
+          .single();
+
+        // Evaluate compliance
+        const consecutiveNights = monthlyStays?.consecutive_nights || 0;
+        const nightsStayed = monthlyStays?.nights_stayed || 0;
+        const violations: string[] = [];
+
+        // Homeless exemption
+        if (canonicalVehicle.homeless_status === 'confirmed') {
+          isCompliant = true;
+          violations.push('FC Act Exempt - Confirmed Homeless');
+        } else {
+          // Check self-contained requirement
+          if (matrix.self_contained_required && !canonicalVehicle.self_contained) {
+            isCompliant = false;
+            violations.push('No self-contained certification');
+          }
+
+          // Check consecutive nights
+          if (matrix.max_consecutive_nights > 0 && consecutiveNights >= matrix.max_consecutive_nights) {
+            isCompliant = false;
+            violations.push(`Consecutive overstay: ${consecutiveNights}/${matrix.max_consecutive_nights} nights`);
+          }
+
+          // Check monthly nights
+          if (matrix.nights_per_month > 0 && nightsStayed >= matrix.nights_per_month) {
+            isCompliant = false;
+            violations.push(`Monthly overstay: ${nightsStayed}/${matrix.nights_per_month} nights`);
+          }
+
+          // Check day visit only
+          if (matrix.day_visit_only) {
+            const hour = new Date().getHours();
+            if (hour >= 20 || hour < 6) {
+              isCompliant = false;
+              violations.push('Day visit only zone - overnight stay prohibited');
+            }
+          }
+        }
+
+        // Insert compliance result (Section 2: Reporting)
+        const { data: insertedResult, error: resultError } = await supabaseAdmin
+          .from('compliance_results')
+          .insert({
+            observation_id: observation.observation_id,
+            zone_id: scanData.zoneId,
+            organization_id: scanData.organizationId,
+            matrix_id: matrix.id,
+            matrix_version: matrix.version,
+            is_compliant: isCompliant,
+            violation_reasons: violations,
+            metrics_json: {
+              consecutive_nights: consecutiveNights,
+              nights_stayed: nightsStayed,
+              max_consecutive_allowed: matrix.max_consecutive_nights,
+              max_monthly_allowed: matrix.nights_per_month,
+            },
+            matrix_snapshot: matrix,
+            evaluated_at: new Date().toISOString(),
+          })
+          .select()
+          .single();
+
+        if (resultError) {
+          console.error('⚠️ Failed to save compliance result:', resultError);
+        } else {
+          complianceResult = insertedResult;
+          console.log('✅ Compliance result saved to compliance_results table:', isCompliant);
+        }
       }
     } catch (complianceErr) {
       console.error('⚠️ Compliance check failed (non-critical):', complianceErr);
@@ -317,10 +387,10 @@ Deno.serve(async (req) => {
       } : null,
       compliance_result: complianceResult,
       vehicle_details: {
-        make: observation.vehicle_make,
-        model: observation.vehicle_model,
-        year: observation.vehicle_year,
-        color: observation.vehicle_color,
+        make: canonicalVehicle.vehicle_make,
+        model: canonicalVehicle.vehicle_model,
+        year: canonicalVehicle.vehicle_year,
+        color: canonicalVehicle.vehicle_color,
       },
       notes_summary: {
         total_notes: canonicalVehicle.total_notes,
