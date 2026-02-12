@@ -5,6 +5,7 @@
  * - Organization-wide view toggle
  * - Filter by breach/homeless/at-risk
  * - Visual highlighting for own scans
+ * - COMPREHENSIVE NULL SAFETY with staged loading
  */
 
 import { useState, useEffect } from 'react';
@@ -89,10 +90,32 @@ export function ScannedVehiclesList({
   
   const [orgScans, setOrgScans] = useState<OrgScan[]>([]);
   const [isLoadingOrgScans, setIsLoadingOrgScans] = useState(false);
+  const [isInitializing, setIsInitializing] = useState(true);
   
   const [scanToDelete, setScanToDelete] = useState<SessionScan | OrgScan | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  
+  // ✅ STAGE 1: Initial data validation and cleanup
+  useEffect(() => {
+    // Validate incoming scans data
+    const validScans = Array.isArray(scans) ? scans.filter(s => {
+      if (!s || typeof s !== 'object') {
+        console.warn('⚠️ Invalid scan detected and filtered:', s);
+        return false;
+      }
+      return true;
+    }) : [];
+    
+    console.log(`✅ ScannedVehiclesList initialized: ${validScans.length}/${scans?.length || 0} valid scans`);
+    
+    // Mark initialization complete after brief delay
+    const timer = setTimeout(() => {
+      setIsInitializing(false);
+    }, 100);
+    
+    return () => clearTimeout(timer);
+  }, [scans?.length]);
   
   // Update time remaining every minute
   useEffect(() => {
@@ -182,6 +205,7 @@ export function ScannedVehiclesList({
   };
   
   const getStatusColor = (scan: SessionScan | OrgScan) => {
+    if (!scan) return '';
     const isFlagged = 'isFlagged' in scan ? scan.isFlagged : scan.is_flagged;
     const isCompliant = 'isCompliant' in scan ? scan.isCompliant : scan.is_compliant;
     const isHomeless = 'isHomeless' in scan ? scan.isHomeless : scan.is_homeless;
@@ -200,6 +224,7 @@ export function ScannedVehiclesList({
   };
 
   const getStatusIcon = (scan: SessionScan | OrgScan) => {
+    if (!scan) return null;
     const isFlagged = 'isFlagged' in scan ? scan.isFlagged : scan.is_flagged;
     const isCompliant = 'isCompliant' in scan ? scan.isCompliant : scan.is_compliant;
     const isHomeless = 'isHomeless' in scan ? scan.isHomeless : scan.is_homeless;
@@ -211,6 +236,7 @@ export function ScannedVehiclesList({
   };
 
   const getStatusBadge = (scan: SessionScan | OrgScan) => {
+    if (!scan) return null;
     const isFlagged = 'isFlagged' in scan ? scan.isFlagged : scan.is_flagged;
     const isCompliant = 'isCompliant' in scan ? scan.isCompliant : scan.is_compliant;
     const isHomeless = 'isHomeless' in scan ? scan.isHomeless : scan.is_homeless;
@@ -224,6 +250,8 @@ export function ScannedVehiclesList({
   };
   
   const canEditDelete = (scan: SessionScan | OrgScan) => {
+    if (!scan) return { canEdit: false, canDelete: false, hoursRemaining: 0 };
+    
     if ('can_edit' in scan) {
       return {
         canEdit: scan.can_edit,
@@ -243,10 +271,69 @@ export function ScannedVehiclesList({
     };
   };
   
-  // ✅ DEFENSIVE: Filter out any null/undefined scans at the source
-  const displayedScans = (viewMode === 'my_scans' ? scans : orgScans).filter(
-    (scan): scan is SessionScan | OrgScan => scan != null && typeof scan === 'object'
-  );
+  // ✅ DEFENSIVE: Multi-stage validation and filtering
+  const getValidScans = (): (SessionScan | OrgScan)[] => {
+    try {
+      // STAGE 1: Select data source
+      const rawScans = viewMode === 'my_scans' ? scans : orgScans;
+      
+      // STAGE 2: Validate array
+      if (!Array.isArray(rawScans)) {
+        console.error('❌ Invalid scans data - not an array:', rawScans);
+        return [];
+      }
+      
+      // STAGE 3: Filter and validate each item
+      const validScans = rawScans.filter((scan): scan is SessionScan | OrgScan => {
+        // Check 1: Not null or undefined
+        if (scan == null) {
+          console.warn('⚠️ Null/undefined scan filtered');
+          return false;
+        }
+        
+        // Check 2: Is object
+        if (typeof scan !== 'object') {
+          console.warn('⚠️ Non-object scan filtered:', typeof scan);
+          return false;
+        }
+        
+        // Check 3: Has required properties
+        const hasPlateNumber = ('plateNumber' in scan && scan.plateNumber) || 
+                               ('plate_number' in scan && scan.plate_number);
+        
+        if (!hasPlateNumber) {
+          console.warn('⚠️ Scan missing plate number filtered:', scan);
+          return false;
+        }
+        
+        return true;
+      });
+      
+      return validScans;
+    } catch (error) {
+      console.error('❌ Error filtering scans:', error);
+      return [];
+    }
+  };
+  
+  const displayedScans = getValidScans();
+  
+  // ✅ EARLY RETURN: Show initialization loader
+  if (isInitializing) {
+    return (
+      <Card className="h-full flex flex-col border-2">
+        <CardHeader className="pb-3 border-b">
+          <CardTitle className="text-base">Scanned Vehicles</CardTitle>
+        </CardHeader>
+        <CardContent className="flex-1 flex items-center justify-center">
+          <div className="text-center py-12">
+            <Loader2 className="h-8 w-8 animate-spin text-primary mx-auto mb-3" />
+            <p className="text-sm text-muted-foreground">Initializing...</p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <>
@@ -335,185 +422,203 @@ export function ScannedVehiclesList({
           ) : (
             <ScrollArea className="h-full">
               <div className="p-3 space-y-2">
-                {displayedScans.map((scan) => {
-                  // ✅ DEFENSIVE: Double-check scan is valid
-                  if (!scan || typeof scan !== 'object') {
-                    console.error('Invalid scan object:', scan);
-                    return null;
-                  }
-                  // ✅ DEFENSIVE: Extract properties safely
-                  const editInfo = canEditDelete(scan);
-                  const plateNumber = (scan && typeof scan === 'object' && 'plateNumber' in scan) 
-                    ? scan.plateNumber 
-                    : (scan && typeof scan === 'object' && 'plate_number' in scan)
-                    ? scan.plate_number
-                    : 'UNKNOWN';
-                  const zoneName = 'zoneName' in scan ? scan.zoneName : scan.zone_name;
-                  const timestamp = 'timestamp' in scan ? scan.timestamp : scan.recorded_at;
-                  const scanId = 'id' in scan ? scan.id : scan.observation_id;
-                  const isOwnScan = 'is_own_scan' in scan ? scan.is_own_scan : true;
-                  const officerName = 'officer_name' in scan ? scan.officer_name : null;
-                  const vehicleMake = 'vehicleMake' in scan ? scan.vehicleMake : scan.vehicle_make;
-                  const vehicleModel = 'vehicleModel' in scan ? scan.vehicleModel : scan.vehicle_model;
-                  const vehicleColor = 'vehicleColor' in scan ? scan.vehicleColor : scan.vehicle_color;
-                  
-                  return (
-                    <div
-                      key={scanId}
-                      className={cn(
-                        'p-3 rounded-lg border-2 cursor-pointer transition-all hover:shadow-md active:scale-[0.98]',
-                        getStatusColor(scan),
-                        selectedScanId === scanId && 'ring-2 ring-primary shadow-lg'
-                      )}
-                      onClick={() => {
-                        if ('observation_id' in scan) {
-                          // Convert OrgScan to SessionScan for onSelectScan
-                          const sessionScan: SessionScan = {
-                            id: scan.observation_id,
-                            plateNumber: scan.plate_number,
-                            zoneName: scan.zone_name,
-                            zoneId: '', // Not available from org scan
-                            organizationId: organizationId || '',
-                            timestamp: scan.recorded_at,
-                            isCompliant: scan.is_compliant,
-                            isFlagged: scan.is_flagged,
-                            vehicleMake: scan.vehicle_make,
-                            vehicleModel: scan.vehicle_model,
-                            vehicleColor: scan.vehicle_color,
-                            observationId: scan.observation_id,
-                            detectionMethod: 'alpr',
-                            isSelfContained: false,
-                            isHomeless: scan.is_homeless,
-                            hasHSIssue: false,
-                            requiresFollowup: false,
-                          };
-                          onSelectScan(sessionScan);
-                        } else {
-                          onSelectScan(scan);
-                        }
-                      }}
-                    >
-                      <div className="flex items-start gap-3">
-                        <div className="shrink-0 mt-0.5">
-                          {getStatusIcon(scan)}
-                        </div>
-                        <div className="flex-1 min-w-0 space-y-2">
-                          {/* Plate Number - Prominent */}
-                          <div className="flex items-center justify-between gap-2">
-                            <p className="font-mono text-xl font-black tracking-tight">
-                              {plateNumber}
-                            </p>
-                            {getStatusBadge(scan)}
+                {displayedScans.map((scan, index) => {
+                  // ✅ COMPREHENSIVE VALIDATION: Triple-check before rendering
+                  try {
+                    // Validation 1: Null check
+                    if (!scan || typeof scan !== 'object') {
+                      console.error(`❌ Invalid scan at index ${index}:`, scan);
+                      return null;
+                    }
+                    
+                    // Validation 2: Extract plate number with fallback
+                    let plateNumber: string = 'UNKNOWN';
+                    if ('plateNumber' in scan && typeof scan.plateNumber === 'string') {
+                      plateNumber = scan.plateNumber;
+                    } else if ('plate_number' in scan && typeof scan.plate_number === 'string') {
+                      plateNumber = scan.plate_number;
+                    }
+                    
+                    // Validation 3: If still no plate number, skip this scan
+                    if (plateNumber === 'UNKNOWN') {
+                      console.error(`❌ Scan at index ${index} missing plate number:`, scan);
+                      return null;
+                    }
+                    
+                    // ✅ Safe extraction of all properties
+                    const editInfo = canEditDelete(scan);
+                    const zoneName = ('zoneName' in scan ? scan.zoneName : scan.zone_name) || 'Unknown Zone';
+                    const timestamp = ('timestamp' in scan ? scan.timestamp : scan.recorded_at) || new Date();
+                    const scanId = ('id' in scan ? scan.id : scan.observation_id) || `scan-${index}`;
+                    const isOwnScan = 'is_own_scan' in scan ? scan.is_own_scan : true;
+                    const officerName = 'officer_name' in scan ? scan.officer_name : null;
+                    const vehicleMake = 'vehicleMake' in scan ? scan.vehicleMake : scan.vehicle_make;
+                    const vehicleModel = 'vehicleModel' in scan ? scan.vehicleModel : scan.vehicle_model;
+                    const vehicleColor = 'vehicleColor' in scan ? scan.vehicleColor : scan.vehicle_color;
+                    
+                    // ✅ Render with validated data
+                    return (
+                      <div
+                        key={scanId}
+                        className={cn(
+                          'p-3 rounded-lg border-2 cursor-pointer transition-all hover:shadow-md active:scale-[0.98]',
+                          getStatusColor(scan),
+                          selectedScanId === scanId && 'ring-2 ring-primary shadow-lg'
+                        )}
+                        onClick={() => {
+                          if ('observation_id' in scan) {
+                            // Convert OrgScan to SessionScan for onSelectScan
+                            const sessionScan: SessionScan = {
+                              id: scan.observation_id,
+                              plateNumber: scan.plate_number,
+                              zoneName: scan.zone_name,
+                              zoneId: '', // Not available from org scan
+                              organizationId: organizationId || '',
+                              timestamp: scan.recorded_at,
+                              isCompliant: scan.is_compliant,
+                              isFlagged: scan.is_flagged,
+                              vehicleMake: scan.vehicle_make,
+                              vehicleModel: scan.vehicle_model,
+                              vehicleColor: scan.vehicle_color,
+                              observationId: scan.observation_id,
+                              detectionMethod: 'alpr',
+                              isSelfContained: false,
+                              isHomeless: scan.is_homeless,
+                              hasHSIssue: false,
+                              requiresFollowup: false,
+                            };
+                            onSelectScan(sessionScan);
+                          } else {
+                            onSelectScan(scan);
+                          }
+                        }}
+                      >
+                        <div className="flex items-start gap-3">
+                          <div className="shrink-0 mt-0.5">
+                            {getStatusIcon(scan)}
                           </div>
-
-                          {/* Vehicle Details */}
-                          {(vehicleMake || vehicleModel || vehicleColor) && (
-                            <p className="text-sm text-muted-foreground line-clamp-1">
-                              {[vehicleColor, vehicleMake, vehicleModel]
-                                .filter(Boolean)
-                                .join(' ')}
-                            </p>
-                          )}
-
-                          {/* Zone & Time */}
-                          <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                            <div className="flex items-center gap-1">
-                              <MapPin className="h-3 w-3" />
-                              <span className="truncate max-w-24">{zoneName}</span>
+                          <div className="flex-1 min-w-0 space-y-2">
+                            {/* Plate Number - Prominent */}
+                            <div className="flex items-center justify-between gap-2">
+                              <p className="font-mono text-xl font-black tracking-tight">
+                                {plateNumber}
+                              </p>
+                              {getStatusBadge(scan)}
                             </div>
-                            <div className="flex items-center gap-1">
-                              <Clock className="h-3 w-3" />
-                              <span>{formatDistanceToNow(new Date(timestamp), { addSuffix: true })}</span>
+
+                            {/* Vehicle Details */}
+                            {(vehicleMake || vehicleModel || vehicleColor) && (
+                              <p className="text-sm text-muted-foreground line-clamp-1">
+                                {[vehicleColor, vehicleMake, vehicleModel]
+                                  .filter(Boolean)
+                                  .join(' ')}
+                              </p>
+                            )}
+
+                            {/* Zone & Time */}
+                            <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                              <div className="flex items-center gap-1">
+                                <MapPin className="h-3 w-3" />
+                                <span className="truncate max-w-24">{zoneName}</span>
+                              </div>
+                              <div className="flex items-center gap-1">
+                                <Clock className="h-3 w-3" />
+                                <span>{formatDistanceToNow(new Date(timestamp), { addSuffix: true })}</span>
+                              </div>
                             </div>
-                          </div>
-                          
-                          {/* Officer Name (org view only) */}
-                          {viewMode === 'org_scans' && officerName && (
-                            <div className="flex items-center gap-1 text-xs">
-                              {isOwnScan ? (
-                                <Badge variant="secondary" className="text-xs">You</Badge>
-                              ) : (
-                                <Badge variant="outline" className="text-xs">{officerName}</Badge>
+                            
+                            {/* Officer Name (org view only) */}
+                            {viewMode === 'org_scans' && officerName && (
+                              <div className="flex items-center gap-1 text-xs">
+                                {isOwnScan ? (
+                                  <Badge variant="secondary" className="text-xs">You</Badge>
+                                ) : (
+                                  <Badge variant="outline" className="text-xs">{officerName}</Badge>
+                                )}
+                              </div>
+                            )}
+
+                            {/* Additional Status Indicators */}
+                            <div className="flex flex-wrap gap-1.5">
+                              {/* 24-hour edit window timer */}
+                              {editInfo.hoursRemaining > 0 && (
+                                <Badge 
+                                  variant={editInfo.hoursRemaining < 1 ? 'destructive' : 'outline'}
+                                  className="text-[10px] px-1.5 py-0.5"
+                                >
+                                  ⏱️ {Math.floor(editInfo.hoursRemaining)}h to edit
+                                </Badge>
+                              )}
+                              
+                              {'isSelfContained' in scan && scan.isSelfContained && (
+                                <Badge variant="outline" className="text-xs bg-white dark:bg-gray-900">
+                                  Self-Contained
+                                </Badge>
+                              )}
+                              {'hasHSIssue' in scan && scan.hasHSIssue && (
+                                <Badge variant="default" className="bg-orange-500 text-xs">
+                                  H&S Issue
+                                </Badge>
+                              )}
+                              {'priorObservationsCount' in scan && scan.priorObservationsCount && scan.priorObservationsCount > 0 && (
+                                <Badge variant="secondary" className="text-xs">
+                                  {scan.priorObservationsCount} prior
+                                </Badge>
                               )}
                             </div>
-                          )}
-
-                          {/* Additional Status Indicators */}
-                          <div className="flex flex-wrap gap-1.5">
-                            {/* 24-hour edit window timer */}
-                            {editInfo.hoursRemaining > 0 && (
-                              <Badge 
-                                variant={editInfo.hoursRemaining < 1 ? 'destructive' : 'outline'}
-                                className="text-[10px] px-1.5 py-0.5"
-                              >
-                                ⏱️ {Math.floor(editInfo.hoursRemaining)}h to edit
-                              </Badge>
-                            )}
                             
-                            {'isSelfContained' in scan && scan.isSelfContained && (
-                              <Badge variant="outline" className="text-xs bg-white dark:bg-gray-900">
-                                Self-Contained
-                              </Badge>
-                            )}
-                            {'hasHSIssue' in scan && scan.hasHSIssue && (
-                              <Badge variant="default" className="bg-orange-500 text-xs">
-                                H&S Issue
-                              </Badge>
-                            )}
-                            {'priorObservationsCount' in scan && scan.priorObservationsCount && scan.priorObservationsCount > 0 && (
-                              <Badge variant="secondary" className="text-xs">
-                                {scan.priorObservationsCount} prior
-                              </Badge>
+                            {/* Edit/Delete Actions (only if can edit) */}
+                            {editInfo.canEdit && (
+                              <div className="flex gap-2 pt-2" onClick={(e) => e.stopPropagation()}>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => onSelectScan('observation_id' in scan ? {
+                                    id: scan.observation_id,
+                                    plateNumber: scan.plate_number,
+                                    zoneName: scan.zone_name,
+                                    zoneId: '',
+                                    organizationId: organizationId || '',
+                                    timestamp: scan.recorded_at,
+                                    isCompliant: scan.is_compliant,
+                                    isFlagged: scan.is_flagged,
+                                    vehicleMake: scan.vehicle_make,
+                                    vehicleModel: scan.vehicle_model,
+                                    vehicleColor: scan.vehicle_color,
+                                    observationId: scan.observation_id,
+                                    detectionMethod: 'alpr',
+                                    isSelfContained: false,
+                                    isHomeless: scan.is_homeless,
+                                    hasHSIssue: false,
+                                    requiresFollowup: false,
+                                  } : scan)}
+                                  className="flex-1"
+                                >
+                                  <Edit className="h-3 w-3 mr-1" />
+                                  Edit
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="destructive"
+                                  onClick={() => {
+                                    setScanToDelete(scan);
+                                    setShowDeleteConfirm(true);
+                                  }}
+                                >
+                                  <Trash2 className="h-3 w-3 mr-1" />
+                                  Delete
+                                </Button>
+                              </div>
                             )}
                           </div>
-                          
-                          {/* Edit/Delete Actions (only if can edit) */}
-                          {editInfo.canEdit && (
-                            <div className="flex gap-2 pt-2" onClick={(e) => e.stopPropagation()}>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => onSelectScan('observation_id' in scan ? {
-                                  id: scan.observation_id,
-                                  plateNumber: scan.plate_number,
-                                  zoneName: scan.zone_name,
-                                  zoneId: '',
-                                  organizationId: organizationId || '',
-                                  timestamp: scan.recorded_at,
-                                  isCompliant: scan.is_compliant,
-                                  isFlagged: scan.is_flagged,
-                                  vehicleMake: scan.vehicle_make,
-                                  vehicleModel: scan.vehicle_model,
-                                  vehicleColor: scan.vehicle_color,
-                                  observationId: scan.observation_id,
-                                  detectionMethod: 'alpr',
-                                  isSelfContained: false,
-                                  isHomeless: scan.is_homeless,
-                                  hasHSIssue: false,
-                                  requiresFollowup: false,
-                                } : scan)}
-                                className="flex-1"
-                              >
-                                <Edit className="h-3 w-3 mr-1" />
-                                Edit
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="destructive"
-                                onClick={() => {
-                                  setScanToDelete(scan);
-                                  setShowDeleteConfirm(true);
-                                }}
-                              >
-                                <Trash2 className="h-3 w-3 mr-1" />
-                                Delete
-                              </Button>
-                            </div>
-                          )}
                         </div>
                       </div>
-                    </div>
-                  );
+                    );
+                  } catch (error) {
+                    // ✅ Error boundary for individual scan rendering
+                    console.error(`❌ Error rendering scan at index ${index}:`, error, scan);
+                    return null;
+                  }
                 })}
               </div>
             </ScrollArea>
@@ -529,9 +634,9 @@ export function ScannedVehiclesList({
             <AlertDialogDescription>
               Are you sure you want to delete this scan? This action cannot be undone.
               <br /><br />
-              <strong>Plate:</strong> {'plateNumber' in scanToDelete! ? scanToDelete!.plateNumber : scanToDelete?.plate_number}
+              <strong>Plate:</strong> {scanToDelete && ('plateNumber' in scanToDelete ? scanToDelete.plateNumber : scanToDelete.plate_number)}
               <br />
-              <strong>Zone:</strong> {'zoneName' in scanToDelete! ? scanToDelete!.zoneName : scanToDelete?.zone_name}
+              <strong>Zone:</strong> {scanToDelete && ('zoneName' in scanToDelete ? scanToDelete.zoneName : scanToDelete.zone_name)}
               <br /><br />
               <em className="text-xs text-muted-foreground">
                 Note: Deletion will be logged for audit purposes.
