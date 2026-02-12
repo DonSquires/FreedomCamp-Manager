@@ -6,9 +6,23 @@
  * - PATCH (third digit): Minor amendments
  */
 
-export const APP_VERSION = '2.3.0011';
+export const APP_VERSION = '2.3.0012';
 
 export const VERSION_HISTORY = [
+  {
+    version: '2.3.0012',
+    date: '2025-02-12',
+    changes: [
+      '🎯 Streamlined scanning workflow: Capture → Details → Compliance → Action',
+      '✅ Default mode now Details for better control',
+      '🔄 Simplified Details page: Only Cancel and Check buttons',
+      '📊 New Compliance Result modal shows status after Check',
+      '✓ Compliant: Continue OR Add Evidence options',
+      '⚠️ Breach/At-Risk: Go to Enforcement OR Continue',
+      'ℹ️ Informational alerts (Homeless, H&S, Flagged): Acknowledge only',
+      '📋 ScannedVehiclesList loads last 24 hours properly',
+    ],
+  },
   {
     version: '2.3.0011',
     date: '2025-02-12',
