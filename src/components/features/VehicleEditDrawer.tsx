@@ -573,8 +573,11 @@ export function VehicleEditDrawer({
             <Button
               variant="outline"
               size="sm"
-              className="h-10 text-xs flex-col gap-1 py-1"
-              onClick={onCreateIncident}
+              className="h-10 text-xs flex-col gap-1 py-1 touch-manipulation"
+              onClick={() => {
+                console.log('🔘 Incident button clicked');
+                onCreateIncident();
+              }}
             >
               <FileText className="h-4 w-4" />
               <span className="leading-none">Incident</span>
@@ -582,8 +585,11 @@ export function VehicleEditDrawer({
             <Button
               variant="outline"
               size="sm"
-              className="h-10 text-xs flex-col gap-1 py-1"
-              onClick={onCreateHSReport}
+              className="h-10 text-xs flex-col gap-1 py-1 touch-manipulation"
+              onClick={() => {
+                console.log('🔘 H&S button clicked');
+                onCreateHSReport();
+              }}
             >
               <Activity className="h-4 w-4" />
               <span className="leading-none">H&S</span>
@@ -591,8 +597,11 @@ export function VehicleEditDrawer({
             <Button
               variant="outline"
               size="sm"
-              className="h-10 text-xs flex-col gap-1 py-1"
-              onClick={onCreateMaintenanceReport}
+              className="h-10 text-xs flex-col gap-1 py-1 touch-manipulation"
+              onClick={() => {
+                console.log('🔘 Maintenance button clicked');
+                onCreateMaintenanceReport();
+              }}
             >
               <Wrench className="h-4 w-4" />
               <span className="leading-none">Maintenance</span>

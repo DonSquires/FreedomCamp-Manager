@@ -62,9 +62,7 @@ interface VehicleDetailsPopupProps {
     hasGreenSticker?: boolean;
     hasBlueSticker?: boolean;
   }) => Promise<void>;
-  onOpenEvidence: () => void;
-  onCheck: () => void;
-  onEdit: () => void;
+  onCheck: (selfContainedStatus: { isSelfContained: boolean; hasGreenSticker?: boolean; hasBlueSticker?: boolean }) => void;
 }
 
 export function VehicleDetailsPopup({
@@ -86,9 +84,7 @@ export function VehicleDetailsPopup({
   onClose,
   onRetake,
   onUpdateDetails,
-  onOpenEvidence,
   onCheck,
-  onEdit,
 }: VehicleDetailsPopupProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -651,22 +647,17 @@ export function VehicleDetailsPopup({
               </div>
             ) : (
               <>
-                <div className="grid grid-cols-2 gap-3">
-                  <Button
-                    onClick={onOpenEvidence}
-                    className="h-16 text-base font-bold bg-orange-600 hover:bg-orange-700"
-                  >
-                    <Camera className="h-5 w-5 mr-2" />
-                    → Evidence
-                  </Button>
-                  <Button
-                    onClick={onCheck}
-                    className="h-16 text-base font-bold bg-green-600 hover:bg-green-700 text-white"
-                  >
-                    <CheckCircle2 className="h-5 w-5 mr-2" />
-                    ✓ Check
-                  </Button>
-                </div>
+                <Button
+                  onClick={() => onCheck({
+                    isSelfContained: selfContained !== 'none',
+                    hasGreenSticker: selfContained === 'green',
+                    hasBlueSticker: selfContained === 'blue',
+                  })}
+                  className="w-full h-16 text-base font-bold bg-green-600 hover:bg-green-700 text-white"
+                >
+                  <CheckCircle2 className="h-5 w-5 mr-2" />
+                  ✓ Check
+                </Button>
                 
                 {/* Retake and Cancel Row */}
                 <div className="grid grid-cols-2 gap-3">

@@ -52,6 +52,7 @@ import { DuplicateScanModal } from './DuplicateScanModal';
 import { DrivingModeToggle } from './DrivingModeToggle';
 import { ScanFeedbackBubble, type BubbleType } from './ScanFeedbackBubble';
 import { ManualEntryModal, type ManualEntryData } from './ManualEntryModal';
+import { ComplianceResultModal } from './ComplianceResultModal';
 
 interface PlateCaptureProps {
   zoneId: string;
@@ -112,7 +113,8 @@ export function PlateCapture({
   const [drivingMode, setDrivingMode] = useState(false);
   const [drivingScanCount, setDrivingScanCount] = useState(0);
   // Handheld sub-modes: 'continuous' (auto-add to history) or 'collect_details' (popup before adding)
-  const [handheldMode, setHandheldMode] = useState<'continuous' | 'collect_details'>('continuous');
+  // DEFAULT TO DETAILS MODE for better workflow control
+  const [handheldMode, setHandheldMode] = useState<'continuous' | 'collect_details'>('collect_details');
   const [isProcessing, setIsProcessing] = useState(false);
   const [isInitializingCamera, setIsInitializingCamera] = useState(false);
   const [processingMethod, setProcessingMethod] = useState<'alpr' | 'ocr' | null>(null);
@@ -201,6 +203,17 @@ export function PlateCapture({
   const [showVehiclePopup, setShowVehiclePopup] = useState(false);
   const [waitForDetailsBeforeNext, setWaitForDetailsBeforeNext] = useState(false);
   const [currentVehicleDetails, setCurrentVehicleDetails] = useState<PlateDetectionResult | null>(null);
+  
+  // Compliance Result Modal State (shows after Check button)
+  const [showComplianceModal, setShowComplianceModal] = useState(false);
+  const [complianceResult, setComplianceResult] = useState<{
+    isCompliant: boolean;
+    isBreach: boolean;
+    isAtRisk: boolean;
+    alerts: string[];
+    plateNumber: string;
+    vehicleDetails?: PlateDetectionResult;
+  } | null>(null);
   
   // Workflow lock state - blocks camera when popup is active
   const [isWorkflowLocked, setIsWorkflowLocked] = useState(false);
@@ -2359,34 +2372,39 @@ export function PlateCapture({
             setCurrentVehicleDetails(null);
             setIsWorkflowLocked(false); // 🔓 Unlock camera after details updated
           }}
-          onOpenEvidence={() => {
-            // Open evidence collection with vehicle details
+
+          onCheck={async (selfContainedStatus) => {
+            // Record observation and show compliance result
             if (currentVehicleDetails) {
-              handleOpenEvidenceCollection(currentVehicleDetails);
-            }
-          }}
-          onCheck={() => {
-            // Record the observation with updated self-contained status
-            if (currentVehicleDetails) {
+              // Use self-contained status from popup (user-selected)
               const updatedDetails = {
                 ...currentVehicleDetails,
-                isSelfContained: selfContained !== 'none',
-                hasGreenSticker: selfContained === 'green',
-                hasBlueSticker: selfContained === 'blue',
+                isSelfContained: selfContainedStatus.isSelfContained,
+                hasGreenSticker: selfContainedStatus.hasGreenSticker,
+                hasBlueSticker: selfContainedStatus.hasBlueSticker,
               };
               
+              // Record to database
               if (handheldMode === 'collect_details') {
                 onPlateDetected(updatedDetails);
               }
-              // In driving mode with wait, observation already recorded
+              
+              // Close details popup
+              setShowVehiclePopup(false);
+              setCurrentVehicleDetails(null);
+              setIsWorkflowLocked(false);
+              
+              // Show compliance result
+              setComplianceResult({
+                isCompliant: updatedDetails.isCompliant ?? true,
+                isBreach: !updatedDetails.isCompliant,
+                isAtRisk: false, // TODO: Get from scan result
+                alerts: [], // TODO: Get alerts from scan
+                plateNumber: updatedDetails.plateNumber,
+                vehicleDetails: updatedDetails,
+              });
+              setShowComplianceModal(true);
             }
-            setShowVehiclePopup(false);
-            setCurrentVehicleDetails(null);
-            setIsWorkflowLocked(false); // 🔓 Unlock camera after check
-            toast.success('Observation recorded - camera unlocked');
-          }}
-          onEdit={() => {
-            // Already in edit mode
           }}
         />
       )}
@@ -2410,6 +2428,43 @@ export function PlateCapture({
           zoneName={zoneName}
           onSubmit={handleManualEntrySubmit}
           onCancel={handleManualEntryCancel}
+        />
+      )}
+
+      {/* Compliance Result Modal - Shows after Check button */}
+      {showComplianceModal && complianceResult && (
+        <ComplianceResultModal
+          open={showComplianceModal}
+          plateNumber={complianceResult.plateNumber}
+          isCompliant={complianceResult.isCompliant}
+          isBreach={complianceResult.isBreach}
+          isAtRisk={complianceResult.isAtRisk}
+          isHomeless={complianceResult.vehicleDetails?.isHomeless}
+          hasHSIssue={complianceResult.vehicleDetails?.hasHSIssue}
+          isFlagged={complianceResult.vehicleDetails?.isFlagged}
+          alerts={complianceResult.alerts}
+          onContinueScanning={() => {
+            setShowComplianceModal(false);
+            setComplianceResult(null);
+            toast.success('Ready to scan next vehicle');
+          }}
+          onAddEvidence={() => {
+            setShowComplianceModal(false);
+            // Open evidence collection with vehicle details
+            if (complianceResult.vehicleDetails) {
+              handleOpenEvidenceCollection(complianceResult.vehicleDetails);
+            }
+          }}
+          onGoToEnforcement={() => {
+            setShowComplianceModal(false);
+            toast.info('Opening enforcement workflow...');
+            // TODO: Navigate to enforcement page with vehicle context
+          }}
+          onAcknowledge={() => {
+            setShowComplianceModal(false);
+            setComplianceResult(null);
+            toast.success('Alert acknowledged - ready to continue');
+          }}
         />
       )}
     </div>

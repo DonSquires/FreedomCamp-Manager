@@ -30,6 +30,8 @@ import {
   AlertTriangle,
   Fingerprint,
   RefreshCw,
+  Activity,
+  Wrench,
 } from 'lucide-react';
 import { JDSLogo } from '@/components/layout/JDSLogo';
 import { ResponsiveContainer } from '@/components/layout/ResponsiveContainer';
@@ -1626,6 +1628,96 @@ export function FieldOfficerPortal({ onLogout }: FieldOfficerPortalProps) {
             My Incidents
           </Button>
 
+          {/* Standalone Report Creation */}
+          <div className="pt-4 border-t mt-4">
+            <p className="px-3 text-xs font-semibold text-muted-foreground mb-2">Create Reports</p>
+            
+            <Button
+              variant="ghost"
+              className="w-full justify-start h-12 text-base touch-manipulation"
+              onClick={() => {
+                // Create temporary scan for standalone report
+                const tempScan: SessionScan = {
+                  id: `temp-${Date.now()}`,
+                  plateNumber: '',
+                  zoneName: selectedZone?.name || '',
+                  zoneId: selectedZone?.id || '',
+                  organizationId: selectedZone?.orgId || '',
+                  timestamp: new Date(),
+                  isCompliant: true,
+                  isFlagged: false,
+                  detectionMethod: 'manual',
+                  isSelfContained: false,
+                  isHomeless: false,
+                  hasHSIssue: false,
+                  requiresFollowup: false,
+                };
+                setSelectedScan(tempScan);
+                setShowIncidentForm(true);
+                setSidebarOpen(false);
+              }}
+            >
+              <FileText className="h-5 w-5 mr-3" />
+              New Incident
+            </Button>
+
+            <Button
+              variant="ghost"
+              className="w-full justify-start h-12 text-base touch-manipulation"
+              onClick={() => {
+                const tempScan: SessionScan = {
+                  id: `temp-${Date.now()}`,
+                  plateNumber: '',
+                  zoneName: selectedZone?.name || '',
+                  zoneId: selectedZone?.id || '',
+                  organizationId: selectedZone?.orgId || '',
+                  timestamp: new Date(),
+                  isCompliant: true,
+                  isFlagged: false,
+                  detectionMethod: 'manual',
+                  isSelfContained: false,
+                  isHomeless: false,
+                  hasHSIssue: false,
+                  requiresFollowup: false,
+                };
+                setSelectedScan(tempScan);
+                setShowHSForm(true);
+                setSidebarOpen(false);
+              }}
+            >
+              <Activity className="h-5 w-5 mr-3" />
+              New H&S Report
+            </Button>
+
+            <Button
+              variant="ghost"
+              className="w-full justify-start h-12 text-base touch-manipulation"
+              onClick={() => {
+                const tempScan: SessionScan = {
+                  id: `temp-${Date.now()}`,
+                  plateNumber: '',
+                  zoneName: selectedZone?.name || '',
+                  zoneId: selectedZone?.id || '',
+                  organizationId: selectedZone?.orgId || '',
+                  timestamp: new Date(),
+                  isCompliant: true,
+                  isFlagged: false,
+                  detectionMethod: 'manual',
+                  isSelfContained: false,
+                  isHomeless: false,
+                  hasHSIssue: false,
+                  requiresFollowup: false,
+                };
+                setSelectedScan(tempScan);
+                setShowMaintenanceForm(true);
+                setSidebarOpen(false);
+              }}
+            >
+              <Wrench className="h-5 w-5 mr-3" />
+              New Maintenance
+            </Button>
+          </div>
+
           <Button
             variant={currentView === 'investigations' ? 'default' : 'ghost'}
             className="w-full justify-start h-12 text-base touch-manipulation"
@@ -1864,16 +1956,19 @@ export function FieldOfficerPortal({ onLogout }: FieldOfficerPortalProps) {
           }}
           onUpdate={handleUpdateScan}
           onCreateIncident={() => {
-            setShowEditDrawer(false);
+            console.log('🔄 Opening Incident form for scan:', selectedScan.plateNumber);
             setShowIncidentForm(true);
+            setShowEditDrawer(false);
           }}
           onCreateHSReport={() => {
-            setShowEditDrawer(false);
+            console.log('🔄 Opening H&S form for scan:', selectedScan.plateNumber);
             setShowHSForm(true);
+            setShowEditDrawer(false);
           }}
           onCreateMaintenanceReport={() => {
-            setShowEditDrawer(false);
+            console.log('🔄 Opening Maintenance form for scan:', selectedScan.plateNumber);
             setShowMaintenanceForm(true);
+            setShowEditDrawer(false);
           }}
         />
       )}
