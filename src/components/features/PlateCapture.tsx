@@ -370,26 +370,8 @@ export function PlateCapture({
     };
   }, [mode, selectedCameraId, availableCameras.length]);
 
-  // 🔄 CONTINUOUS MONITORING: Re-apply camera settings every 5 seconds while camera is active
-  // This prevents white balance and exposure drift that causes washed-out images
-  useEffect(() => {
-    if (!streamRef.current || mode !== 'camera') return;
-
-    console.log('📹 Starting continuous camera monitoring (prevents washout)');
-    
-    // Re-apply settings every 5 seconds
-    const monitorInterval = setInterval(() => {
-      if (streamRef.current) {
-        console.log('🔄 Re-applying camera settings (white balance + exposure check)');
-        applyAdvancedSettings();
-      }
-    }, 5000); // Every 5 seconds
-
-    return () => {
-      clearInterval(monitorInterval);
-      console.log('📹 Camera monitoring stopped');
-    };
-  }, [streamRef.current, mode]);
+  // ❌ REMOVED: Continuous monitoring approach didn't work for exposure control
+  // New approach: Apply settings ONCE with very aggressive anti-washout constraints
 
   // Driving mode auto-capture
   useEffect(() => {
@@ -615,149 +597,108 @@ export function PlateCapture({
     console.log('📷 Camera capabilities:', capabilities);
     
     try {
+      // ✅ AGGRESSIVE ANTI-WASHOUT STRATEGY
+      // Problem: Camera auto-adjusts to bright plates and overexposes
+      // Solution: FORCE manual settings that prevent overexposure
+      
       const constraints: any = {};
       const advanced: any[] = [];
       
-      // ✨ ENHANCED AUTO-FOCUS - Continuous focus for moving plates
-      if ('focusMode' in capabilities) {
-        if (capabilities.focusMode?.includes('continuous')) {
-          advanced.push({ focusMode: 'continuous' });
-          console.log('✅ Continuous auto-focus enabled (best for scanning)');
-        } else if (capabilities.focusMode?.includes('auto')) {
-          advanced.push({ focusMode: 'auto' });
-          console.log('✅ Auto-focus enabled');
+      // 1. FORCE MANUAL EXPOSURE (disable auto)
+      if ('exposureMode' in capabilities && capabilities.exposureMode?.includes('manual')) {
+        advanced.push({ exposureMode: 'manual' });
+        console.log('✅ Manual exposure mode enabled (prevents auto-overexposure)');
+        
+        // Set very low exposure time to prevent washout
+        if ('exposureTime' in capabilities) {
+          const { min, max } = capabilities.exposureTime as { min: number; max: number };
+          const lowExposure = min + (max - min) * 0.2; // 20% of range - very low
+          advanced.push({ exposureTime: lowExposure });
+          console.log('⚡ Exposure time set to minimum:', lowExposure, '(anti-washout)');
         }
-      } else {
-        console.log('⚠️ Focus mode control not available');
+      } else if ('exposureMode' in capabilities && capabilities.exposureMode?.includes('continuous')) {
+        advanced.push({ exposureMode: 'continuous' });
+        console.log('✅ Continuous exposure enabled');
       }
       
-      // Force minimum focus distance (close-up mode for plates)
-      if ('focusDistance' in capabilities) {
-        const { min } = capabilities.focusDistance as { min: number; max: number };
-        advanced.push({ focusDistance: min });
-        console.log('✅ Focus distance optimized for close-up (plates)');
-      }
-      
-      // ✨ ENHANCED AUTO-EXPOSURE - ALWAYS CONTINUOUS to prevent washout
-      if ('exposureMode' in capabilities) {
-        if (capabilities.exposureMode?.includes('continuous')) {
-          advanced.push({ exposureMode: 'continuous' });
-          console.log('✅ Continuous exposure enabled (prevents overexposure)');
-        } else if (capabilities.exposureMode?.includes('auto')) {
-          advanced.push({ exposureMode: 'auto' });
-          console.log('✅ Auto exposure enabled');
-        }
-      } else {
-        console.log('⚠️ Exposure mode control not available');
-      }
-      
-      // Night mode optimization - Increase exposure for low light
-      const hour = new Date().getHours();
-      const isNightTime = hour >= 19 || hour <= 6; // 7 PM to 6 AM
-      
+      // 2. AGGRESSIVE EXPOSURE COMPENSATION (negative = darker)
       if ('exposureCompensation' in capabilities) {
-        const { min, max } = capabilities.exposureCompensation as { min: number; max: number };
-        if (isNightTime) {
-          // Night: Increase exposure for low light conditions
-          const nightCompensation = Math.min(max, 1.5);
-          advanced.push({ exposureCompensation: nightCompensation });
-          console.log('🌙 Night mode: Exposure increased to', nightCompensation);
-        } else {
-          // Day: Slightly reduce exposure to prevent washout on reflective plates
-          const dayCompensation = Math.max(min, -1.0); // Stronger reduction to prevent white washout
-          advanced.push({ exposureCompensation: dayCompensation });
-          console.log('☀️ Day mode: Exposure reduced to', dayCompensation, '(anti-glare)');
+        const { min } = capabilities.exposureCompensation as { min: number; max: number };
+        // Use MINIMUM exposure compensation to prevent washout
+        advanced.push({ exposureCompensation: min });
+        console.log('🔽 Exposure compensation set to MINIMUM:', min, '(maximum darkness)');
+      }
+      
+      // 3. FORCE MANUAL WHITE BALANCE (disable auto)
+      if ('whiteBalanceMode' in capabilities && capabilities.whiteBalanceMode?.includes('manual')) {
+        advanced.push({ whiteBalanceMode: 'manual' });
+        console.log('✅ Manual white balance enabled (prevents auto-adjustment)');
+        
+        // Set neutral daylight temperature
+        if ('colorTemperature' in capabilities) {
+          const { min, max } = capabilities.colorTemperature as { min: number; max: number };
+          const midTemp = min + (max - min) * 0.5; // Neutral midpoint
+          advanced.push({ colorTemperature: midTemp });
+          console.log('🌡️ Color temperature set to neutral:', midTemp, 'K');
         }
+      } else if ('whiteBalanceMode' in capabilities && capabilities.whiteBalanceMode?.includes('continuous')) {
+        advanced.push({ whiteBalanceMode: 'continuous' });
+        console.log('✅ Continuous white balance enabled');
       }
       
-      // ✨ ENHANCED AUTO WHITE BALANCE - ALWAYS CONTINUOUS to prevent color shifts
-      if ('whiteBalanceMode' in capabilities) {
-        if (capabilities.whiteBalanceMode?.includes('continuous')) {
-          advanced.push({ whiteBalanceMode: 'continuous' });
-          console.log('✅ Continuous white balance enabled (prevents color washout)');
-        } else if (capabilities.whiteBalanceMode?.includes('auto')) {
-          advanced.push({ whiteBalanceMode: 'auto' });
-          console.log('✅ Auto white balance enabled');
-        }
-      } else {
-        console.log('⚠️ White balance mode control not available');
+      // 4. MINIMUM BRIGHTNESS (prevent overexposure)
+      if ('brightness' in capabilities) {
+        const { min, max } = capabilities.brightness as { min: number; max: number };
+        const lowBrightness = min + (max - min) * 0.1; // 10% of range - very low
+        advanced.push({ brightness: lowBrightness });
+        console.log('🔅 Brightness set to near-minimum:', lowBrightness, '(anti-washout)');
       }
       
-      // Manual white balance override for night (warmer tone)
-      if (isNightTime && 'colorTemperature' in capabilities) {
-        const { min, max } = capabilities.colorTemperature as { min: number; max: number };
-        // Warmer color temperature for artificial lighting
-        const nightTemp = min + (max - min) * 0.6; // 60% toward warm
-        advanced.push({ colorTemperature: nightTemp });
-        console.log('🌙 Night color temperature adjusted:', nightTemp, 'K');
+      // 5. MINIMUM ISO (reduce light sensitivity)
+      if ('iso' in capabilities) {
+        const { min } = capabilities.iso as { min: number; max: number };
+        advanced.push({ iso: min });
+        console.log('📉 ISO set to minimum:', min, '(low sensitivity)');
       }
       
-      // ✨ MAXIMIZE SHARPNESS - Critical for ALPR/OCR text recognition
+      // 6. REDUCE CONTRAST (handle bright/dark areas better)
+      if ('contrast' in capabilities) {
+        const { min, max } = capabilities.contrast as { min: number; max: number };
+        const lowContrast = min + (max - min) * 0.3; // 30% of range
+        advanced.push({ contrast: lowContrast });
+        console.log('📊 Contrast reduced:', lowContrast, '(smooth tones)');
+      }
+      
+      // 7. MAXIMUM SHARPNESS (text clarity)
       if ('sharpness' in capabilities) {
         const { max } = capabilities.sharpness as { max: number };
         advanced.push({ sharpness: max });
         console.log('✅ Sharpness maximized for text clarity');
       }
       
-      // Adaptive contrast based on time of day
-      if ('contrast' in capabilities) {
-        const { min, max } = capabilities.contrast as { min: number; max: number };
-        if (isNightTime) {
-          // Night: Higher contrast to separate plates from dark backgrounds
-          const nightContrast = min + (max - min) * 0.7; // 70% of range
-          advanced.push({ contrast: nightContrast });
-          console.log('🌙 Night contrast increased:', nightContrast);
-        } else {
-          // Day: Lower contrast to handle reflections better
-          const dayContrast = min + (max - min) * 0.4; // 40% of range
-          advanced.push({ contrast: dayContrast });
-          console.log('☀️ Day contrast reduced for anti-glare:', dayContrast);
+      // 8. CONTINUOUS AUTO-FOCUS (keep plates sharp)
+      if ('focusMode' in capabilities) {
+        if (capabilities.focusMode?.includes('continuous')) {
+          advanced.push({ focusMode: 'continuous' });
+          console.log('✅ Continuous auto-focus enabled');
         }
       }
       
-      // ✨ BRIGHTNESS - Boost for night scanning, reduce for day to prevent washout
-      if ('brightness' in capabilities) {
-        const { min, max } = capabilities.brightness as { min: number; max: number };
-        if (isNightTime) {
-          advanced.push({ brightness: max });
-          console.log('🌙 Night brightness maximized');
-        } else {
-          // Day: Reduce brightness to prevent overexposure
-          const dayBrightness = min + (max - min) * 0.3; // Lower brightness for bright conditions
-          advanced.push({ brightness: dayBrightness });
-          console.log('☀️ Day brightness reduced:', dayBrightness, '(anti-washout)');
-        }
-      }
-      
-      // ISO sensitivity - Higher for night, lower for day
-      if ('iso' in capabilities) {
-        const { min, max } = capabilities.iso as { min: number; max: number };
-        if (isNightTime) {
-          // Night: Higher ISO for light sensitivity
-          const nightISO = max;
-          advanced.push({ iso: nightISO });
-          console.log('🌙 Night ISO maximized:', nightISO);
-        } else {
-          // Day: Lower ISO for less noise and prevent overexposure
-          const dayISO = min;
-          advanced.push({ iso: dayISO });
-          console.log('☀️ Day ISO minimized:', dayISO, '(anti-washout)');
-        }
-      }
-      
-      // Apply all advanced constraints
+      // Apply all constraints in one go
       if (advanced.length > 0) {
         constraints.advanced = advanced;
         await track.applyConstraints(constraints);
-        const mode = isNightTime ? '🌙 NIGHT MODE' : '☀️ DAY MODE';
-        console.log(`✅ ${mode} camera settings applied (${advanced.length} optimizations)`);
-        toast.success(`Camera optimized for ${isNightTime ? 'night' : 'daytime'} scanning`, {
+        console.log(`✅ Applied ${advanced.length} AGGRESSIVE anti-washout settings`);
+        toast.success('Camera configured for license plate scanning', {
           duration: 2000,
         });
+      } else {
+        console.warn('⚠️ No advanced camera controls available');
+        toast.info('Using basic camera settings (limited controls on this device)');
       }
     } catch (error) {
-      console.warn('Some advanced settings not supported:', error);
-      toast.info('Using default camera settings (advanced features unavailable)');
+      console.error('❌ Failed to apply camera settings:', error);
+      toast.warning('Camera settings partially applied - some features unavailable');
     }
   };
 
@@ -926,7 +867,7 @@ export function PlateCapture({
     }
     
     // Process in background WITHOUT stopping camera
-    processImageInBackground(imageDataUrl, queueId);
+    processImageUnified(imageDataUrl, queueId, 'camera');
   };
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -952,27 +893,28 @@ export function PlateCapture({
       setProcessingQueue(prev => [...prev, newQueueItem]);
       setIsBackgroundProcessing(true);
       
-      // Process with metadata indicator that it's from file upload
-      processUploadedImage(imageDataUrl, queueId);
+      // Process file upload using unified function
+      processImageUnified(imageDataUrl, queueId, 'file_upload');
     };
     reader.readAsDataURL(file);
   };
 
-  const processImageInBackground = async (imageDataUrl: string, queueId: string) => {
-    // Processing happens in background - camera stays active
+  // 🔄 UNIFIED PROCESSING FUNCTION - Handles both camera captures and file uploads
+  const processImageUnified = async (
+    imageDataUrl: string, 
+    queueId: string,
+    sourceType: 'camera' | 'file_upload' = 'camera'
+  ) => {
     setProcessingMethod('alpr');
 
     try {
       // STEP 1: Upload photo IMMEDIATELY (before any processing)
-      // This ensures ALL photos are kept regardless of detection success
-      console.log('📸 Uploading photo to storage (before processing)...');
+      console.log(`📸 [${sourceType.toUpperCase()}] Uploading photo to storage...`);
       const fullImageUrl = await uploadToStorage(imageDataUrl);
       console.log('✅ Photo uploaded:', fullImageUrl);
 
-      // STEP 2: Process with Plate Recognizer ALPR
+      // STEP 2: Try Plate Recognizer ALPR first (primary method)
       console.log('🔍 Step 2: Processing with Plate Recognizer ALPR...');
-
-      // Call ALPR Edge Function with base64 data URL (server-side API key usage)
       const { data: alprData, error: alprError } = await supabase.functions.invoke('recognize-plate', {
         body: { image: imageDataUrl },
       });
@@ -982,13 +924,10 @@ export function PlateCapture({
         throw alprError;
       }
 
-      console.log('ALPR response:', alprData);
-
-      // Check if ALPR successfully detected a plate
-      if (alprData && alprData.success && alprData.plate_number && alprData.confidence > 0.6) {
-        // ALPR success - photo already uploaded
+      // ALPR success path
+      if (alprData?.success && alprData.plate_number && alprData.confidence > 0.6) {
+        console.log('✅ ALPR SUCCESS:', alprData.plate_number, `(${Math.round(alprData.confidence * 100)}%)`);
         
-        // Update queue with plate number
         setProcessingQueue(prev => 
           prev.map(item => 
             item.id === queueId 
@@ -997,17 +936,19 @@ export function PlateCapture({
           )
         );
         
-        // Show success feedback bubble
         setFeedbackType('success');
         setFeedbackMessage('Plate Read');
         setShowFeedbackBubble(true);
         setTimeout(() => setShowFeedbackBubble(false), 2000);
         
-        // Show success feedback (blue button for 3 seconds)
         setButtonFeedback('success');
         setTimeout(() => setButtonFeedback('idle'), 3000);
         
-        // Call complete scan processing
+        // Add source metadata to notes
+        const sourceNote = sourceType === 'file_upload' 
+          ? '📁 PHOTO UPLOADED FROM FILE • Processed with ALPR'
+          : undefined;
+        
         await processFieldScan({
           plateNumber: alprData.plate_number.toUpperCase(),
           confidence: alprData.confidence,
@@ -1022,110 +963,103 @@ export function PlateCapture({
           isSelfContained: alprData.has_green_sticker || alprData.has_blue_sticker,
           hasGreenSticker: alprData.has_green_sticker,
           hasBlueSticker: alprData.has_blue_sticker,
-          officerNotes: detectionResult.officerNotes, // Pass through metadata
+          officerNotes: sourceNote,
         });
-      } else {
-        // ALPR failed or low confidence - try OCR fallback
-        console.log('Plate Recognizer ALPR failed or low confidence, trying OnSpace AI OCR fallback...');
-        setProcessingMethod('ocr');
-        toast.info('Plate Recognizer confidence too low - trying AI OCR...');
-        
-        const { data: ocrData, error: ocrError } = await supabase.functions.invoke('extract-plate', {
-          body: { image: imageDataUrl },
-        });
-
-        if (ocrError) {
-          console.error('OCR error:', ocrError);
-          throw ocrError;
-        }
-
-        console.log('OCR response:', ocrData);
-
-        if (ocrData && ocrData.plate_number && ocrData.confidence_score > 0.5) {
-          // Update queue with plate number
-          setProcessingQueue(prev => 
-            prev.map(item => 
-              item.id === queueId 
-                ? { ...item, plateNumber: ocrData.plate_number.toUpperCase(), status: 'complete' as const } 
-                : item
-            )
-          );
-          
-          // Show success feedback bubble
-          setFeedbackType('success');
-          setFeedbackMessage('Plate Read');
-          setShowFeedbackBubble(true);
-          setTimeout(() => setShowFeedbackBubble(false), 2000);
-          
-          // Show success feedback (blue button for 3 seconds)
-          setButtonFeedback('success');
-          setTimeout(() => setButtonFeedback('idle'), 3000);
-          
-          // OCR success - photo already uploaded
-          
-          await processFieldScan({
-            plateNumber: ocrData.plate_number.toUpperCase(),
-            confidence: ocrData.confidence_score,
-            vehicleMake: ocrData.vehicle_make,
-            vehicleModel: ocrData.vehicle_model,
-            vehicleColor: ocrData.vehicle_color,
-            vehicleYear: ocrData.vehicle_year,
-            croppedImageUrl: null,
-            fullImageUrl,
-            gpsLocation,
-            detectionMethod: 'ocr',
-            officerNotes: detectionResult.officerNotes, // Pass through metadata
-          });
-        } else {
-          // Both ALPR and OCR failed - Auto-trigger manual entry modal
-          playSounds.error();
-          
-          // Show error feedback bubble (center of screen)
-          setFeedbackType('error');
-          setFeedbackMessage('No Plate Read');
-          setShowFeedbackBubble(true);
-          setTimeout(() => setShowFeedbackBubble(false), 3000);
-          
-          // ✨ NEW: Auto-trigger manual entry modal with captured photo
-          setFailedDetectionData({
-            image: imageDataUrl,
-            photoUrl: fullImageUrl,
-            gpsLocation: gpsLocation,
-          });
-          setShowManualEntryModal(true);
-          
-          // Show error feedback (red button with message)
-          setLastErrorMessage('Detection failed - manual entry required');
-          setButtonFeedback('error');
-          
-          // Update queue status
-          setProcessingQueue(prev => 
-            prev.map(item => 
-              item.id === queueId 
-                ? { ...item, status: 'error' as const } 
-                : item
-            )
-          );
-          
-          toast.info('Automatic detection failed - please enter details manually');
-        }
+        return; // Success - exit early
       }
+
+      // STEP 3: ALPR failed - try OCR fallback
+      console.log('⚠️ ALPR failed or low confidence, trying OnSpace AI OCR...');
+      setProcessingMethod('ocr');
+      toast.info('Trying AI OCR fallback...');
+      
+      const { data: ocrData, error: ocrError } = await supabase.functions.invoke('extract-plate', {
+        body: { image: imageDataUrl },
+      });
+
+      if (ocrError) throw ocrError;
+
+      // OCR success path
+      if (ocrData?.plate_number && ocrData.confidence_score > 0.5) {
+        console.log('✅ OCR SUCCESS:', ocrData.plate_number, `(${Math.round(ocrData.confidence_score * 100)}%)`);
+        
+        setProcessingQueue(prev => 
+          prev.map(item => 
+            item.id === queueId 
+              ? { ...item, plateNumber: ocrData.plate_number.toUpperCase(), status: 'complete' as const } 
+              : item
+          )
+        );
+        
+        setFeedbackType('success');
+        setFeedbackMessage('Plate Read');
+        setShowFeedbackBubble(true);
+        setTimeout(() => setShowFeedbackBubble(false), 2000);
+        
+        setButtonFeedback('success');
+        setTimeout(() => setButtonFeedback('idle'), 3000);
+        
+        const sourceNote = sourceType === 'file_upload'
+          ? '📁 PHOTO UPLOADED FROM FILE • Processed with OCR/AI'
+          : undefined;
+        
+        await processFieldScan({
+          plateNumber: ocrData.plate_number.toUpperCase(),
+          confidence: ocrData.confidence_score,
+          vehicleMake: ocrData.vehicle_make,
+          vehicleModel: ocrData.vehicle_model,
+          vehicleColor: ocrData.vehicle_color,
+          vehicleYear: ocrData.vehicle_year,
+          croppedImageUrl: null,
+          fullImageUrl,
+          gpsLocation,
+          detectionMethod: 'ocr',
+          officerNotes: sourceNote,
+        });
+        return; // Success - exit early
+      }
+
+      // STEP 4: Both ALPR and OCR failed - trigger manual entry
+      console.error('❌ Both ALPR and OCR failed');
+      playSounds.error();
+      
+      setFeedbackType('error');
+      setFeedbackMessage(`No Plate Read${sourceType === 'file_upload' ? ' from File' : ''}`);
+      setShowFeedbackBubble(true);
+      setTimeout(() => setShowFeedbackBubble(false), 3000);
+      
+      setFailedDetectionData({
+        image: imageDataUrl,
+        photoUrl: fullImageUrl,
+        gpsLocation,
+      });
+      setShowManualEntryModal(true);
+      
+      setLastErrorMessage('Detection failed - manual entry required');
+      setButtonFeedback('error');
+      
+      setProcessingQueue(prev => 
+        prev.map(item => 
+          item.id === queueId 
+            ? { ...item, status: 'error' as const } 
+            : item
+        )
+      );
+      
+      toast.info('Automatic detection failed - please enter details manually');
+      
     } catch (error: any) {
       console.error('Image processing failed:', error);
       playSounds.error();
       
-      // Show error feedback bubble (center of screen)
       setFeedbackType('error');
       setFeedbackMessage('Scan Failed');
       setShowFeedbackBubble(true);
       setTimeout(() => setShowFeedbackBubble(false), 3000);
       
-      // Show error feedback (red button with message)
-      setLastErrorMessage('Did not read last vehicle');
+      setLastErrorMessage('Processing error');
       setButtonFeedback('error');
-      // Error state persists until next capture (no auto-clear)
       
-      // Update queue status
       setProcessingQueue(prev => 
         prev.map(item => 
           item.id === queueId 
@@ -1134,7 +1068,6 @@ export function PlateCapture({
         )
       );
     } finally {
-      // Check if all processing complete
       setProcessingQueue(prev => {
         const allComplete = prev.every(item => item.status !== 'processing');
         if (allComplete) {
@@ -1435,166 +1368,7 @@ export function PlateCapture({
     }
   };
 
-  // Process uploaded image with file upload metadata indicator
-  const processUploadedImage = async (imageDataUrl: string, queueId: string) => {
-    setProcessingMethod('alpr');
-
-    try {
-      // STEP 1: Upload photo with file upload metadata
-      console.log('📸 Uploading file photo to storage...');
-      const fullImageUrl = await uploadToStorage(imageDataUrl);
-      console.log('✅ File photo uploaded:', fullImageUrl);
-
-      // STEP 2: Process with Plate Recognizer ALPR
-      console.log('🔍 Processing uploaded file with ALPR...');
-      const { data: alprData, error: alprError } = await supabase.functions.invoke('recognize-plate', {
-        body: { image: imageDataUrl },
-      });
-
-      if (alprError) {
-        console.error('ALPR error on file upload:', alprError);
-        throw alprError;
-      }
-
-      if (alprData && alprData.success && alprData.plate_number && alprData.confidence > 0.6) {
-        // ALPR success on uploaded file
-        setProcessingQueue(prev => 
-          prev.map(item => 
-            item.id === queueId 
-              ? { ...item, plateNumber: alprData.plate_number.toUpperCase(), status: 'complete' as const } 
-              : item
-          )
-        );
-        
-        setFeedbackType('success');
-        setFeedbackMessage('Plate Read from File');
-        setShowFeedbackBubble(true);
-        setTimeout(() => setShowFeedbackBubble(false), 2000);
-        
-        setButtonFeedback('success');
-        setTimeout(() => setButtonFeedback('idle'), 3000);
-        
-        // AUTO-ADD METADATA: Indicate file upload source
-        const fileUploadNotes = '📁 PHOTO UPLOADED FROM FILE • Processed with ALPR';
-        
-        await processFieldScan({
-          plateNumber: alprData.plate_number.toUpperCase(),
-          confidence: alprData.confidence,
-          vehicleMake: alprData.vehicle_make,
-          vehicleModel: alprData.vehicle_model,
-          vehicleColor: alprData.vehicle_color,
-          vehicleYear: alprData.vehicle_year,
-          croppedImageUrl: null,
-          fullImageUrl,
-          gpsLocation,
-          detectionMethod: 'alpr',
-          isSelfContained: alprData.has_green_sticker || alprData.has_blue_sticker,
-          hasGreenSticker: alprData.has_green_sticker,
-          hasBlueSticker: alprData.has_blue_sticker,
-          officerNotes: fileUploadNotes,
-        });
-      } else {
-        // ALPR failed - try OCR
-        console.log('File ALPR failed, trying OCR...');
-        setProcessingMethod('ocr');
-        
-        const { data: ocrData, error: ocrError } = await supabase.functions.invoke('extract-plate', {
-          body: { image: imageDataUrl },
-        });
-
-        if (ocrError) throw ocrError;
-
-        if (ocrData && ocrData.plate_number && ocrData.confidence_score > 0.5) {
-          setProcessingQueue(prev => 
-            prev.map(item => 
-              item.id === queueId 
-                ? { ...item, plateNumber: ocrData.plate_number.toUpperCase(), status: 'complete' as const } 
-                : item
-            )
-          );
-          
-          setFeedbackType('success');
-          setFeedbackMessage('Plate Read from File');
-          setShowFeedbackBubble(true);
-          setTimeout(() => setShowFeedbackBubble(false), 2000);
-          
-          setButtonFeedback('success');
-          setTimeout(() => setButtonFeedback('idle'), 3000);
-          
-          const fileUploadNotes = '📁 PHOTO UPLOADED FROM FILE • Processed with OCR/AI';
-          
-          await processFieldScan({
-            plateNumber: ocrData.plate_number.toUpperCase(),
-            confidence: ocrData.confidence_score,
-            vehicleMake: ocrData.vehicle_make,
-            vehicleModel: ocrData.vehicle_model,
-            vehicleColor: ocrData.vehicle_color,
-            vehicleYear: ocrData.vehicle_year,
-            croppedImageUrl: null,
-            fullImageUrl,
-            gpsLocation,
-            detectionMethod: 'ocr',
-            officerNotes: fileUploadNotes,
-          });
-        } else {
-          // Both failed - trigger manual entry with file context
-          playSounds.error();
-          
-          setFeedbackType('error');
-          setFeedbackMessage('No Plate Read from File');
-          setShowFeedbackBubble(true);
-          setTimeout(() => setShowFeedbackBubble(false), 3000);
-          
-          setFailedDetectionData({
-            image: imageDataUrl,
-            photoUrl: fullImageUrl,
-            gpsLocation: gpsLocation,
-          });
-          setShowManualEntryModal(true);
-          
-          setLastErrorMessage('File upload detection failed');
-          setButtonFeedback('error');
-          
-          setProcessingQueue(prev => 
-            prev.map(item => 
-              item.id === queueId 
-                ? { ...item, status: 'error' as const } 
-                : item
-            )
-          );
-          
-          toast.info('Detection failed on uploaded file - manual entry required');
-        }
-      }
-    } catch (error: any) {
-      console.error('File upload processing failed:', error);
-      playSounds.error();
-      
-      setFeedbackType('error');
-      setFeedbackMessage('File Processing Failed');
-      setShowFeedbackBubble(true);
-      setTimeout(() => setShowFeedbackBubble(false), 3000);
-      
-      setLastErrorMessage('File upload failed to process');
-      setButtonFeedback('error');
-      
-      setProcessingQueue(prev => 
-        prev.map(item => 
-          item.id === queueId 
-            ? { ...item, status: 'error' as const } 
-            : item
-        )
-      );
-    } finally {
-      setProcessingQueue(prev => {
-        const allComplete = prev.every(item => item.status !== 'processing');
-        if (allComplete) {
-          setIsBackgroundProcessing(false);
-        }
-        return prev;
-      });
-    }
-  };
+  // ❌ REMOVED: processUploadedImage - consolidated into processImageUnified
 
   // Background AI Analysis - Non-blocking enrichment of vehicle details
   const triggerBackgroundAIAnalysis = async (

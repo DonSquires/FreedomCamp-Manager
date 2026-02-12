@@ -6,9 +6,31 @@
  * - PATCH (third digit): Minor amendments
  */
 
-export const APP_VERSION = '2.3.0003';
+export const APP_VERSION = '2.3.0005';
 
 export const VERSION_HISTORY = [
+  {
+    version: '2.3.0005',
+    date: '2025-02-12',
+    changes: [
+      '🔧 Consolidated plate recognition - single unified function for camera + file uploads',
+      '📸 Fixed camera overexposure with AGGRESSIVE anti-washout settings',
+      '⚡ MANUAL exposure mode prevents auto-overexposure on bright plates',
+      '🔅 Minimum brightness, ISO, and exposure compensation for optimal scanning',
+      '✅ Eliminated duplicate processing code - cleaner, more maintainable',
+    ],
+  },
+  {
+    version: '2.3.0004',
+    date: '2025-02-12',
+    changes: [
+      '📷 Continuous white balance monitoring prevents washed-out images',
+      '🔄 Auto-exposure continuously adjusts every 5 seconds while camera active',
+      '☀️ Daytime mode: reduced brightness, ISO, and exposure compensation',
+      '🌙 Night mode: optimized for low-light conditions',
+      '✅ White balance and exposure never drift - stable image quality',
+    ],
+  },
   {
     version: '2.3.0003',
     date: '2025-02-12',
