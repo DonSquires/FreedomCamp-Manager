@@ -6,9 +6,20 @@
  * - PATCH (third digit): Minor amendments
  */
 
-export const APP_VERSION = '2.3.0002';
+export const APP_VERSION = '2.3.0003';
 
 export const VERSION_HISTORY = [
+  {
+    version: '2.3.0003',
+    date: '2025-02-12',
+    changes: [
+      '📋 Fixed Scanned Vehicles list to show last 24 hours from database',
+      '🔄 Auto-refresh scanned vehicles every 30 seconds',
+      '✅ Officers now see all their scans from past 24 hours',
+      '⏱️ Proper edit/delete window tracking from database',
+      '🗂️ Created get_my_scans_24h() database function',
+    ],
+  },
   {
     version: '2.3.0002',
     date: '2025-02-07',
