@@ -6,9 +6,21 @@
  * - PATCH (third digit): Minor amendments
  */
 
-export const APP_VERSION = '2.3.0008';
+export const APP_VERSION = '2.3.0009';
 
 export const VERSION_HISTORY = [
+  {
+    version: '2.3.0009',
+    date: '2025-02-12',
+    changes: [
+      '🔄 Complete rebuild using Plate Recognizer API exclusively',
+      '✅ Single unified Edge Function for all plate recognition',
+      '📸 Direct integration with Plate Recognizer Cloud API',
+      '🚗 Automatic Make/Model/Color detection enabled by default',
+      '🇳🇿 Optimized for New Zealand license plates',
+      '⚡ Faster processing with single API call (no fallback chain)',
+    ],
+  },
   {
     version: '2.3.0008',
     date: '2025-02-12',

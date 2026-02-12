@@ -843,160 +843,118 @@ export function PlateCapture({
     reader.readAsDataURL(file);
   };
 
-  // 🔄 UNIFIED PROCESSING FUNCTION - Handles both camera captures and file uploads
+  // 🔄 UNIFIED PROCESSING FUNCTION - Single Plate Recognizer API call
   const processImageUnified = async (
     imageDataUrl: string, 
     queueId: string,
     sourceType: 'camera' | 'file_upload' = 'camera'
   ) => {
-    setProcessingMethod('alpr');
+    console.log(`📸 [${sourceType.toUpperCase()}] Starting unified plate recognition...`);
 
     try {
       // STEP 1: Upload photo IMMEDIATELY (before any processing)
-      console.log(`📸 [${sourceType.toUpperCase()}] Uploading photo to storage...`);
+      console.log('📤 Step 1: Uploading photo to storage...');
       const fullImageUrl = await uploadToStorage(imageDataUrl);
       console.log('✅ Photo uploaded:', fullImageUrl);
 
-      // STEP 2: Try Plate Recognizer ALPR first (primary method)
-      console.log('🔍 Step 2: Processing with Plate Recognizer ALPR...');
-      const { data: alprData, error: alprError } = await supabase.functions.invoke('recognize-plate', {
-        body: { image: imageDataUrl },
+      // STEP 2: Call Plate Recognizer API (single unified call)
+      console.log('🔍 Step 2: Calling Plate Recognizer API...');
+      const { data: recognitionData, error: recognitionError } = await supabase.functions.invoke('recognize-plate', {
+        body: { 
+          image: imageDataUrl,
+          regions: ['nz'], // New Zealand plates
+          enableMMC: true, // Enable Make/Model/Color detection
+        },
       });
 
-      if (alprError) {
-        console.error('ALPR error:', alprError);
-        throw alprError;
+      if (recognitionError) {
+        console.error('❌ Plate Recognizer API error:', recognitionError);
+        throw recognitionError;
       }
 
-      // ALPR success path (lowered threshold to 0.5 for better coverage)
-      if (alprData?.success && alprData.plate_number && alprData.confidence > 0.5) {
-        console.log('✅ ALPR SUCCESS:', alprData.plate_number, `(${Math.round(alprData.confidence * 100)}%)`);
+      // Check if recognition was successful
+      if (!recognitionData?.success) {
+        console.error('❌ Plate recognition failed:', recognitionData?.error || 'Unknown error');
+        playSounds.error();
+        
+        setFeedbackType('error');
+        setFeedbackMessage(`No Plate Read${sourceType === 'file_upload' ? ' from File' : ''}`);
+        setShowFeedbackBubble(true);
+        setTimeout(() => setShowFeedbackBubble(false), 3000);
+        
+        setFailedDetectionData({
+          image: imageDataUrl,
+          photoUrl: fullImageUrl,
+          gpsLocation,
+        });
+        setShowManualEntryModal(true);
+        
+        setLastErrorMessage('Detection failed - manual entry required');
+        setButtonFeedback('error');
         
         setProcessingQueue(prev => 
           prev.map(item => 
             item.id === queueId 
-              ? { ...item, plateNumber: alprData.plate_number.toUpperCase(), status: 'complete' as const } 
+              ? { ...item, status: 'error' as const } 
               : item
           )
         );
         
-        setFeedbackType('success');
-        setFeedbackMessage('Plate Read');
-        setShowFeedbackBubble(true);
-        setTimeout(() => setShowFeedbackBubble(false), 2000);
-        
-        setButtonFeedback('success');
-        setTimeout(() => setButtonFeedback('idle'), 3000);
-        
-        // Add source metadata to notes
-        const sourceNote = sourceType === 'file_upload' 
-          ? '📁 PHOTO UPLOADED FROM FILE • Processed with ALPR'
-          : undefined;
-        
-        await processFieldScan({
-          plateNumber: alprData.plate_number.toUpperCase(),
-          confidence: alprData.confidence,
-          vehicleMake: alprData.vehicle_make,
-          vehicleModel: alprData.vehicle_model,
-          vehicleColor: alprData.vehicle_color,
-          vehicleYear: alprData.vehicle_year,
-          croppedImageUrl: null,
-          fullImageUrl,
-          gpsLocation,
-          detectionMethod: 'alpr',
-          isSelfContained: alprData.has_green_sticker || alprData.has_blue_sticker,
-          hasGreenSticker: alprData.has_green_sticker,
-          hasBlueSticker: alprData.has_blue_sticker,
-          officerNotes: sourceNote,
-        });
-        return; // Success - exit early
+        toast.info('Automatic detection failed - please enter details manually');
+        return;
       }
 
-      // STEP 3: ALPR failed or low confidence - try OCR fallback
-      console.log('⚠️ ALPR failed or confidence <50%, trying OnSpace AI OCR fallback...');
-      console.log('   ALPR result:', alprData?.plate_number || 'none', `(${Math.round((alprData?.confidence || 0) * 100)}%)`);
-      setProcessingMethod('ocr');
-      toast.info('Trying AI OCR fallback...');
-      
-      const { data: ocrData, error: ocrError } = await supabase.functions.invoke('extract-plate', {
-        body: { image: imageDataUrl },
+      // SUCCESS PATH
+      console.log('✅ PLATE RECOGNIZED:', recognitionData.plate_number, `(${Math.round(recognitionData.confidence * 100)}%)`);
+      console.log('📊 Vehicle details:', {
+        make: recognitionData.vehicle_make,
+        model: recognitionData.vehicle_model,
+        color: recognitionData.vehicle_color,
+        year: recognitionData.vehicle_year,
+        type: recognitionData.vehicle_type,
       });
-
-      if (ocrError) throw ocrError;
-
-      // OCR success path (using 0.5 threshold for consistency)
-      if (ocrData?.plate_number && ocrData.confidence_score > 0.5) {
-        console.log('✅ OCR SUCCESS:', ocrData.plate_number, `(${Math.round(ocrData.confidence_score * 100)}%)`);
-        
-        setProcessingQueue(prev => 
-          prev.map(item => 
-            item.id === queueId 
-              ? { ...item, plateNumber: ocrData.plate_number.toUpperCase(), status: 'complete' as const } 
-              : item
-          )
-        );
-        
-        setFeedbackType('success');
-        setFeedbackMessage('Plate Read');
-        setShowFeedbackBubble(true);
-        setTimeout(() => setShowFeedbackBubble(false), 2000);
-        
-        setButtonFeedback('success');
-        setTimeout(() => setButtonFeedback('idle'), 3000);
-        
-        const sourceNote = sourceType === 'file_upload'
-          ? '📁 PHOTO UPLOADED FROM FILE • Processed with OCR/AI'
-          : undefined;
-        
-        await processFieldScan({
-          plateNumber: ocrData.plate_number.toUpperCase(),
-          confidence: ocrData.confidence_score,
-          vehicleMake: ocrData.vehicle_make,
-          vehicleModel: ocrData.vehicle_model,
-          vehicleColor: ocrData.vehicle_color,
-          vehicleYear: ocrData.vehicle_year,
-          croppedImageUrl: null,
-          fullImageUrl,
-          gpsLocation,
-          detectionMethod: 'ocr',
-          officerNotes: sourceNote,
-        });
-        return; // Success - exit early
-      }
-
-      // STEP 4: Both ALPR and OCR failed or low confidence - trigger manual entry
-      console.error('❌ Both ALPR and OCR failed or returned low confidence');
-      console.error('   ALPR:', alprData?.plate_number || 'failed', `(${Math.round((alprData?.confidence || 0) * 100)}%)`);
-      console.error('   OCR:', ocrData?.plate_number || 'failed', `(${Math.round((ocrData?.confidence_score || 0) * 100)}%)`);
-      playSounds.error();
-      
-      setFeedbackType('error');
-      setFeedbackMessage(`No Plate Read${sourceType === 'file_upload' ? ' from File' : ''}`);
-      setShowFeedbackBubble(true);
-      setTimeout(() => setShowFeedbackBubble(false), 3000);
-      
-      setFailedDetectionData({
-        image: imageDataUrl,
-        photoUrl: fullImageUrl,
-        gpsLocation,
-      });
-      setShowManualEntryModal(true);
-      
-      setLastErrorMessage('Detection failed - manual entry required');
-      setButtonFeedback('error');
       
       setProcessingQueue(prev => 
         prev.map(item => 
           item.id === queueId 
-            ? { ...item, status: 'error' as const } 
+            ? { ...item, plateNumber: recognitionData.plate_number, status: 'complete' as const } 
             : item
         )
       );
       
-      toast.info('Automatic detection failed - please enter details manually');
+      setFeedbackType('success');
+      setFeedbackMessage('Plate Read');
+      setShowFeedbackBubble(true);
+      setTimeout(() => setShowFeedbackBubble(false), 2000);
+      
+      setButtonFeedback('success');
+      setTimeout(() => setButtonFeedback('idle'), 3000);
+      
+      // Add source metadata to notes
+      const sourceNote = sourceType === 'file_upload' 
+        ? '📁 PHOTO UPLOADED FROM FILE • Processed with Plate Recognizer API'
+        : undefined;
+      
+      // Process field scan with all extracted data
+      await processFieldScan({
+        plateNumber: recognitionData.plate_number,
+        confidence: recognitionData.confidence,
+        vehicleMake: recognitionData.vehicle_make,
+        vehicleModel: recognitionData.vehicle_model,
+        vehicleColor: recognitionData.vehicle_color,
+        vehicleYear: recognitionData.vehicle_year?.toString(),
+        croppedImageUrl: null,
+        fullImageUrl,
+        gpsLocation,
+        detectionMethod: 'alpr',
+        isSelfContained: recognitionData.has_green_sticker || recognitionData.has_blue_sticker,
+        hasGreenSticker: recognitionData.has_green_sticker,
+        hasBlueSticker: recognitionData.has_blue_sticker,
+        officerNotes: sourceNote,
+      });
       
     } catch (error: any) {
-      console.error('Image processing failed:', error);
+      console.error('❌ Image processing failed:', error);
       playSounds.error();
       
       setFeedbackType('error');
@@ -1014,6 +972,8 @@ export function PlateCapture({
             : item
         )
       );
+      
+      toast.error('Failed to process image: ' + error.message);
     } finally {
       setProcessingQueue(prev => {
         const allComplete = prev.every(item => item.status !== 'processing');
