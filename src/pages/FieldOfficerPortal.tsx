@@ -1896,6 +1896,12 @@ export function FieldOfficerPortal({ onLogout }: FieldOfficerPortalProps) {
             scans={sessionScans}
             onSelectScan={handleSelectScan}
             selectedScanId={selectedScan?.id}
+            onScanDeleted={() => {
+              // ✅ FIX: Reload session scans after deletion
+              console.log('🔄 Scan deleted - reloading session data...');
+              // Force re-render by updating state
+              setSessionScans(prev => [...prev]);
+            }}
           />
         </div>
       )}

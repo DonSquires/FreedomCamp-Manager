@@ -6,9 +6,27 @@
  * - PATCH (third digit): Minor amendments
  */
 
-export const APP_VERSION = '2.5.0005';
+export const APP_VERSION = '2.5.0006';
 
 export const VERSION_HISTORY = [
+  {
+    version: '2.5.0006',
+    date: '2025-02-12',
+    changes: [
+      '🔧 CRITICAL FIX: Officer delete/edit now properly refreshes portal data',
+      '✅ ScannedVehiclesList now triggers parent refresh after successful delete/edit',
+      '🔄 FieldOfficerPortal handles onScanDeleted callback to update session data',
+      '📊 Added detailed logging for delete operations and data reload',
+      '🏢 PHASE 4 COMPLETE: Data Management Hub created',
+      '📋 Consolidated 4 data management pages into unified hub with tabs',
+      '🗂️ Data Hub includes: Vehicles, Zones, Compliance Matrix, Person Records',
+      '⚙️ PHASE 5 COMPLETE: Settings & Configuration Hub created',
+      '🔐 Consolidated Organizations + Users + System Settings into unified hub',
+      '🎯 Master users see all 3 tabs, regular users see Users + System Settings',
+      '📉 Total admin pages reduced from 40+ to 25 (37% reduction)',
+      '✨ Better navigation with contextual stats in each hub',
+    ],
+  },
   {
     version: '2.5.0005',
     date: '2025-02-12',

@@ -295,7 +295,7 @@ Deno.serve(async (req) => {
 
 
 
-    // STEP 7: Prepare response
+    // STEP 7: Prepare response (✅ PHASE 2: Include full homeless data from canonical_vehicles)
     const response = {
       success: true,
       plate_number: normalizedPlate,
@@ -304,7 +304,10 @@ Deno.serve(async (req) => {
       is_flagged: canonicalVehicle.is_flagged,
       is_compliant: isCompliant,
       fc_act_exempt: isFCActExempt,
-      homeless_status: canonicalVehicle.homeless_status,
+      homeless_status: canonicalVehicle.homeless_status, // ✅ 'none' | 'claimed' | 'confirmed'
+      homeless_notes: canonicalVehicle.homeless_notes, // ✅ Admin notes
+      homeless_confirmed_at: canonicalVehicle.homeless_confirmed_at, // ✅ Timestamp
+      homeless_confirmed_by: canonicalVehicle.homeless_confirmed_by, // ✅ Admin user ID
       prior_observations_count: canonicalVehicle.total_observations,
       alerts,
       flagged_details: canonicalVehicle.is_flagged ? {
@@ -324,7 +327,6 @@ Deno.serve(async (req) => {
         last_note_preview: canonicalVehicle.last_note_preview,
         last_note_at: canonicalVehicle.last_note_at,
       },
-      homeless_status: canonicalVehicle.homeless_status,
     };
 
     console.log('✅ Scan processing complete:', response);

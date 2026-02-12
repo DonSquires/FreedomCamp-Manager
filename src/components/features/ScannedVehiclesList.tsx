@@ -167,6 +167,7 @@ export function ScannedVehiclesList({
       
       if (error) throw error;
       setMyScans(data || []);
+      console.log(`✅ Loaded ${data?.length || 0} scans from database`);
     } catch (error: any) {
       console.error('Failed to load my scans:', error);
       toast.error('Failed to load your scans');
@@ -222,16 +223,17 @@ export function ScannedVehiclesList({
       setShowDeleteConfirm(false);
       setScanToDelete(null);
       
-      // Reload data
+      // ✅ FIX: Reload data and notify parent component to refresh
       if (viewMode === 'my_scans') {
         await loadMyScans();
       } else {
         await loadOrgScans();
       }
       
-      // Notify parent
+      // Notify parent to refresh their data source
       if (onScanDeleted) {
         onScanDeleted();
+        console.log('✅ Notified parent to refresh after delete');
       }
     } catch (error: any) {
       console.error('Failed to delete scan:', error);

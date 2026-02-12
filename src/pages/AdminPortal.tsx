@@ -60,6 +60,8 @@ import { DarkModeToggle } from '@/components/features/DarkModeToggle';
 import { DataMigrationUtility } from './DataMigrationUtility';
 import { VehicleEnrichmentMaintenance } from './VehicleEnrichmentMaintenance';
 import { HomelessSupport } from './HomelessSupport';
+import { DataManagementHub } from './DataManagementHub';
+import { SettingsHub } from './SettingsHub';
 
 interface AdminPortalProps {
   onLogout: () => void;
@@ -371,56 +373,28 @@ export function AdminPortal({ onLogout }: AdminPortalProps) {
             </div>
 
             <Button
-              variant={activeTab === 'zone-management' ? 'default' : 'ghost'}
-              className="w-full justify-start text-sm lg:text-base h-10 lg:h-9 touch-manipulation"
+              variant={activeTab === 'data-management-hub' ? 'default' : 'ghost'}
+              className="w-full justify-start text-sm lg:text-base h-10 lg:h-9 touch-manipulation bg-blue-50 dark:bg-blue-950/20 border border-blue-500/30"
               onClick={() => {
-                setActiveTab('zone-management');
+                setActiveTab('data-management-hub');
                 setSidebarOpen(false);
               }}
             >
-              <MapPin className="h-4 w-4 mr-2 lg:mr-3" />
-              Zone Management
+              <Database className="h-4 w-4 mr-2 lg:mr-3 text-blue-600" />
+              <span className="text-blue-600 dark:text-blue-400 font-semibold">Data Management Hub</span>
             </Button>
 
             <Button
-              variant={activeTab === 'matrix' ? 'default' : 'ghost'}
-              className="w-full justify-start text-sm lg:text-base h-10 lg:h-9 touch-manipulation"
+              variant={activeTab === 'settings-hub' ? 'default' : 'ghost'}
+              className="w-full justify-start text-sm lg:text-base h-10 lg:h-9 touch-manipulation bg-purple-50 dark:bg-purple-950/20 border border-purple-500/30"
               onClick={() => {
-                setActiveTab('matrix');
+                setActiveTab('settings-hub');
                 setSidebarOpen(false);
               }}
             >
-              <Settings className="h-4 w-4 mr-2 lg:mr-3" />
-              Matrix Management
+              <Settings className="h-4 w-4 mr-2 lg:mr-3 text-purple-600" />
+              <span className="text-purple-600 dark:text-purple-400 font-semibold">Settings Hub</span>
             </Button>
-
-
-
-            <Button
-              variant={activeTab === 'user-management' ? 'default' : 'ghost'}
-              className="w-full justify-start text-sm lg:text-base h-10 lg:h-9 touch-manipulation"
-              onClick={() => {
-                setActiveTab('user-management');
-                setSidebarOpen(false);
-              }}
-            >
-              <Users className="h-4 w-4 mr-2 lg:mr-3" />
-              User Management
-            </Button>
-
-            {isMaster && (
-              <Button
-                variant={activeTab === 'organization-management' ? 'default' : 'ghost'}
-                className="w-full justify-start text-sm lg:text-base h-10 lg:h-9 touch-manipulation"
-                onClick={() => {
-                  setActiveTab('organization-management');
-                  setSidebarOpen(false);
-                }}
-              >
-                <Building2 className="h-4 w-4 mr-2 lg:mr-3" />
-                Organizations
-              </Button>
-            )}
 
             {/* MAINTENANCE - Only visible to master users */}
             {isMaster && (
@@ -676,6 +650,10 @@ export function AdminPortal({ onLogout }: AdminPortalProps) {
               {activeTab === 'zone-management' && <ZoneManagement />}
               {activeTab === 'patrol-management' && <PatrolManagement />}
               {activeTab === 'officer-welfare-hub' && <OfficerWelfareHub />}
+
+              {/* Phase 4 & 5: Consolidated Hubs */}
+              {activeTab === 'data-management-hub' && <DataManagementHub />}
+              {activeTab === 'settings-hub' && <SettingsHub />}
 
               {activeTab === 'cross-org' && isSuperUser && (
                 <Card>
