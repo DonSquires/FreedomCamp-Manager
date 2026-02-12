@@ -6,9 +6,30 @@
  * - PATCH (third digit): Minor amendments
  */
 
-export const APP_VERSION = '2.3.0012';
+export const APP_VERSION = '2.3.0014';
 
 export const VERSION_HISTORY = [
+  {
+    version: '2.3.0014',
+    date: '2025-02-12',
+    changes: [
+      '✅ Fixed Check button - now passes self-contained status correctly',
+      '🔧 Fixed Incident/H&S/Maintenance buttons - now open forms properly',
+      '📝 Added standalone report creation in dashboard sidebar',
+      '🆕 Officers can now create reports without scanning a vehicle',
+      '🎯 Reports can be created for zones or persons independently',
+    ],
+  },
+  {
+    version: '2.3.0013',
+    date: '2025-02-12',
+    changes: [
+      '🔧 Fixed Check button error (removed undefined selfContained reference)',
+      '🗑️ Removed Evidence button from Details page',
+      '✅ Check button now works correctly with vehicle self-contained status',
+      '🎯 Streamlined Details page to only show Cancel and Check buttons',
+    ],
+  },
   {
     version: '2.3.0012',
     date: '2025-02-12',
