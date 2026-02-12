@@ -370,6 +370,27 @@ export function PlateCapture({
     };
   }, [mode, selectedCameraId, availableCameras.length]);
 
+  // 🔄 CONTINUOUS MONITORING: Re-apply camera settings every 5 seconds while camera is active
+  // This prevents white balance and exposure drift that causes washed-out images
+  useEffect(() => {
+    if (!streamRef.current || mode !== 'camera') return;
+
+    console.log('📹 Starting continuous camera monitoring (prevents washout)');
+    
+    // Re-apply settings every 5 seconds
+    const monitorInterval = setInterval(() => {
+      if (streamRef.current) {
+        console.log('🔄 Re-applying camera settings (white balance + exposure check)');
+        applyAdvancedSettings();
+      }
+    }, 5000); // Every 5 seconds
+
+    return () => {
+      clearInterval(monitorInterval);
+      console.log('📹 Camera monitoring stopped');
+    };
+  }, [streamRef.current, mode]);
+
   // Driving mode auto-capture
   useEffect(() => {
     if (!drivingMode || mode !== 'camera' || !videoRef.current) {
@@ -617,11 +638,14 @@ export function PlateCapture({
         console.log('✅ Focus distance optimized for close-up (plates)');
       }
       
-      // ✨ ENHANCED AUTO-EXPOSURE - Optimized for day and night
+      // ✨ ENHANCED AUTO-EXPOSURE - ALWAYS CONTINUOUS to prevent washout
       if ('exposureMode' in capabilities) {
         if (capabilities.exposureMode?.includes('continuous')) {
           advanced.push({ exposureMode: 'continuous' });
-          console.log('✅ Continuous exposure enabled (adapts to lighting)');
+          console.log('✅ Continuous exposure enabled (prevents overexposure)');
+        } else if (capabilities.exposureMode?.includes('auto')) {
+          advanced.push({ exposureMode: 'auto' });
+          console.log('✅ Auto exposure enabled');
         }
       } else {
         console.log('⚠️ Exposure mode control not available');
@@ -640,17 +664,17 @@ export function PlateCapture({
           console.log('🌙 Night mode: Exposure increased to', nightCompensation);
         } else {
           // Day: Slightly reduce exposure to prevent washout on reflective plates
-          const dayCompensation = Math.max(min, -0.5);
+          const dayCompensation = Math.max(min, -1.0); // Stronger reduction to prevent white washout
           advanced.push({ exposureCompensation: dayCompensation });
           console.log('☀️ Day mode: Exposure reduced to', dayCompensation, '(anti-glare)');
         }
       }
       
-      // ✨ ENHANCED AUTO WHITE BALANCE - Ensures accurate colors day and night
+      // ✨ ENHANCED AUTO WHITE BALANCE - ALWAYS CONTINUOUS to prevent color shifts
       if ('whiteBalanceMode' in capabilities) {
         if (capabilities.whiteBalanceMode?.includes('continuous')) {
           advanced.push({ whiteBalanceMode: 'continuous' });
-          console.log('✅ Continuous white balance enabled');
+          console.log('✅ Continuous white balance enabled (prevents color washout)');
         } else if (capabilities.whiteBalanceMode?.includes('auto')) {
           advanced.push({ whiteBalanceMode: 'auto' });
           console.log('✅ Auto white balance enabled');
@@ -691,14 +715,21 @@ export function PlateCapture({
         }
       }
       
-      // ✨ BRIGHTNESS - Boost for night scanning
-      if (isNightTime && 'brightness' in capabilities) {
-        const { max } = capabilities.brightness as { max: number };
-        advanced.push({ brightness: max });
-        console.log('🌙 Night brightness maximized');
+      // ✨ BRIGHTNESS - Boost for night scanning, reduce for day to prevent washout
+      if ('brightness' in capabilities) {
+        const { min, max } = capabilities.brightness as { min: number; max: number };
+        if (isNightTime) {
+          advanced.push({ brightness: max });
+          console.log('🌙 Night brightness maximized');
+        } else {
+          // Day: Reduce brightness to prevent overexposure
+          const dayBrightness = min + (max - min) * 0.3; // Lower brightness for bright conditions
+          advanced.push({ brightness: dayBrightness });
+          console.log('☀️ Day brightness reduced:', dayBrightness, '(anti-washout)');
+        }
       }
       
-      // ISO sensitivity - Higher for night
+      // ISO sensitivity - Higher for night, lower for day
       if ('iso' in capabilities) {
         const { min, max } = capabilities.iso as { min: number; max: number };
         if (isNightTime) {
@@ -707,10 +738,10 @@ export function PlateCapture({
           advanced.push({ iso: nightISO });
           console.log('🌙 Night ISO maximized:', nightISO);
         } else {
-          // Day: Lower ISO for less noise
-          const dayISO = min + (max - min) * 0.3;
+          // Day: Lower ISO for less noise and prevent overexposure
+          const dayISO = min;
           advanced.push({ iso: dayISO });
-          console.log('☀️ Day ISO optimized:', dayISO);
+          console.log('☀️ Day ISO minimized:', dayISO, '(anti-washout)');
         }
       }
       
