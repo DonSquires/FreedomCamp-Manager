@@ -17,6 +17,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Slider } from '@/components/ui/slider';
 import {
   Camera,
   Loader2,
@@ -127,7 +128,10 @@ export function PlateCapture({
   const [manualPlate, setManualPlate] = useState('');
   const [gpsLocation, setGpsLocation] = useState<{ lat: number; lng: number; accuracy: number } | null>(null);
   const [gpsStatus, setGpsStatus] = useState<'acquiring' | 'good' | 'fair' | 'poor'>('acquiring');
-  const [zoom, setZoom] = useState(1);
+  const [zoom, setZoom] = useState<number>(() => {
+    const saved = localStorage.getItem('camera-zoom-level');
+    return saved ? parseFloat(saved) : 1.0;
+  });
   const [flashEnabled, setFlashEnabled] = useState(false);
   const [availableCameras, setAvailableCameras] = useState<MediaDeviceInfo[]>([]);
   const [selectedCameraId, setSelectedCameraId] = useState<string>(() => {
@@ -771,6 +775,7 @@ export function PlateCapture({
 
   const handleZoomChange = (newZoom: number) => {
     setZoom(newZoom);
+    localStorage.setItem('camera-zoom-level', newZoom.toString());
     applyZoom(newZoom);
   };
 
@@ -2263,29 +2268,23 @@ export function PlateCapture({
                     </Button>
                   </div>
 
-                  {/* Zoom Controls - Bottom Center */}
-                  <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex items-center gap-2 bg-black/60 rounded-full px-4 py-2">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-10 w-10 text-white hover:bg-white/20 rounded-full touch-manipulation"
-                      onClick={() => handleZoomChange(Math.max(1, zoom - 0.5))}
-                      disabled={zoom <= 1}
-                    >
-                      <ZoomOut className="h-5 w-5" />
-                    </Button>
-                    <span className="text-white font-semibold px-2 min-w-[3rem] text-center">
-                      {zoom.toFixed(1)}x
-                    </span>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-10 w-10 text-white hover:bg-white/20 rounded-full touch-manipulation"
-                      onClick={() => handleZoomChange(Math.min(5, zoom + 0.5))}
-                      disabled={zoom >= 5}
-                    >
-                      <ZoomIn className="h-5 w-5" />
-                    </Button>
+                  {/* Zoom Controls - Bottom Center with Slider */}
+                  <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex items-center gap-3 bg-black/80 backdrop-blur-sm rounded-full px-6 py-3 shadow-lg border border-white/20">
+                    <ZoomOut className="h-5 w-5 text-white shrink-0" />
+                    <div className="flex flex-col items-center gap-1 min-w-[140px]">
+                      <Slider
+                        value={[zoom]}
+                        onValueChange={([value]) => handleZoomChange(value)}
+                        min={1}
+                        max={5}
+                        step={0.1}
+                        className="w-full"
+                      />
+                      <span className="text-white text-xs font-bold">
+                        {zoom.toFixed(1)}x
+                      </span>
+                    </div>
+                    <ZoomIn className="h-5 w-5 text-white shrink-0" />
                   </div>
                   
                   {/* Aim Guide - Single centered box */}
