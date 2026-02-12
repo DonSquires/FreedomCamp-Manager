@@ -129,8 +129,33 @@ export function VehicleEnrichmentMaintenance() {
     let sources: string[] = [];
 
     try {
-      // Step 1: Try photo analysis if photo exists
-      if (vehicle.profile_photo) {
+      // Step 1: Try Motorweb NZ (PRIMARY SOURCE - official NZ database)
+      console.log(`🚗 Trying Motorweb NZ for ${vehicle.plate_number}...`);
+      try {
+        const { data: motorwebData, error: motorwebError } = await supabase.functions.invoke('enrich-from-motorweb', {
+          body: {
+            plateNumber: vehicle.plate_number,
+            updateDatabase: false, // We'll update manually after all sources
+          },
+        });
+
+        if (!motorwebError && motorwebData?.success && motorwebData.vehicle) {
+          const mw = motorwebData.vehicle;
+          if (mw.make) enrichedData.make = mw.make;
+          if (mw.model) enrichedData.model = mw.model;
+          if (mw.color) enrichedData.color = mw.color;
+          if (mw.year) enrichedData.year = mw.year;
+          sources.push('motorweb_nz');
+          console.log(`✅ Motorweb NZ found:`, mw);
+        } else {
+          console.log(`⚠️ Motorweb NZ: ${motorwebError?.message || 'No data found'}`);
+        }
+      } catch (err: any) {
+        console.log(`⚠️ Motorweb NZ failed: ${err.message}`);
+      }
+
+      // Step 2: Try photo analysis if photo exists (FALLBACK)
+      if (vehicle.profile_photo && (!enrichedData.make || !enrichedData.model || !enrichedData.color)) {
         console.log(`📸 Trying photo analysis for ${vehicle.plate_number}...`);
         try {
           const { data: photoData, error: photoError } = await supabase.functions.invoke('analyze-vehicle-photo', {
@@ -141,10 +166,10 @@ export function VehicleEnrichmentMaintenance() {
           });
 
           if (!photoError && photoData && (photoData.make || photoData.model || photoData.color || photoData.year)) {
-            if (photoData.make) enrichedData.make = photoData.make;
-            if (photoData.model) enrichedData.model = photoData.model;
-            if (photoData.color) enrichedData.color = photoData.color;
-            if (photoData.year) enrichedData.year = photoData.year;
+            if (photoData.make && !enrichedData.make) enrichedData.make = photoData.make;
+            if (photoData.model && !enrichedData.model) enrichedData.model = photoData.model;
+            if (photoData.color && !enrichedData.color) enrichedData.color = photoData.color;
+            if (photoData.year && !enrichedData.year) enrichedData.year = photoData.year;
             sources.push('photo_analysis');
             console.log(`✅ Photo analysis found:`, photoData);
           }
@@ -153,7 +178,7 @@ export function VehicleEnrichmentMaintenance() {
         }
       }
 
-      // Step 2: Try NZSCV database lookup (includes caching)
+      // Step 3: Try NZSCV database lookup (includes caching) - Self-contained certification only
       console.log(`🔍 Trying NZSCV lookup for ${vehicle.plate_number}...`);
       try {
         const { data: nzscvData, error: nzscvError } = await supabase.functions.invoke('check-nzscv-status', {
@@ -184,9 +209,9 @@ export function VehicleEnrichmentMaintenance() {
         console.log(`⚠️ NZSCV lookup failed: ${err.message}`);
       }
 
-      // Step 3: Try Carjam NZ (web scraping for make/model/color)
+      // Step 4: Try Carjam NZ (LAST RESORT - web scraping for make/model/color)
       if (!enrichedData.make || !enrichedData.model || !enrichedData.color) {
-        console.log(`🚗 Trying Carjam NZ for ${vehicle.plate_number}...`);
+        console.log(`🔍 Trying Carjam NZ for ${vehicle.plate_number}...`);
         try {
           // Carjam provides comprehensive NZ vehicle registration data
           const carjamUrl = `https://www.carjam.co.nz/car/?plate=${encodeURIComponent(vehicle.plate_number)}`;
@@ -408,13 +433,13 @@ export function VehicleEnrichmentMaintenance() {
             <div className="text-sm text-blue-900 dark:text-blue-100">
               <p className="font-semibold mb-2">How Vehicle Enrichment Works:</p>
               <ol className="list-decimal ml-4 space-y-1">
-                <li><strong>Photo Analysis:</strong> Extracts vehicle details from profile photos using ALPR/OCR</li>
-                <li><strong>NZSCV Database:</strong> Queries NZ Self-Contained Vehicle database for official certification data</li>
-                <li><strong>Carjam NZ:</strong> Scrapes Carjam.co.nz for comprehensive registration data (make, model, year, color)</li>
-                <li><strong>Batch Processing:</strong> Processes vehicles in small groups to avoid overwhelming APIs</li>
+                <li><strong>Motorweb NZ (PRIMARY):</strong> Official NZ vehicle database - most accurate source for make/model/year/color</li>
+                <li><strong>Photo Analysis:</strong> AI extraction from profile photos (fallback if Motorweb fails)</li>
+                <li><strong>NZSCV Database:</strong> Self-contained vehicle certification only (minimal vehicle details)</li>
+                <li><strong>Carjam NZ (LAST RESORT):</strong> Web scraping fallback for missing data</li>
               </ol>
               <p className="mt-2 text-xs text-blue-700">
-                💡 <strong>Tip:</strong> Carjam NZ provides the most comprehensive NZ vehicle data. NZSCV focuses on self-contained certification.
+                💡 <strong>Priority Order:</strong> Motorweb → Photo Analysis → NZSCV → Carjam. Uses first successful source.
               </p>
             </div>
           </div>
@@ -642,9 +667,10 @@ export function VehicleEnrichmentMaintenance() {
                             <div className="flex flex-wrap gap-1 mt-1">
                               {vehicle.enriched_data.source?.split(' + ').map((src: string, idx: number) => (
                                 <Badge key={idx} variant="outline" className="text-xs">
+                                  {src === 'motorweb_nz' && '🚗 Motorweb'}
                                   {src === 'photo_analysis' && '📸 Photo'}
                                   {src === 'nzscv_database' && '🗄️ NZSCV'}
-                                  {src === 'carjam_nz' && '🚗 Carjam NZ'}
+                                  {src === 'carjam_nz' && '🔍 Carjam'}
                                 </Badge>
                               ))}
                             </div>
