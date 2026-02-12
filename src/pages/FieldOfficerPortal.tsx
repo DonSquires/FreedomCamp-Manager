@@ -395,15 +395,10 @@ export function FieldOfficerPortal({ onLogout }: FieldOfficerPortalProps) {
             }
           }
           
-          // ✅ FIX: Auto-select first zone as fallback if no sticky zone
-          if (finalZones.length > 0) {
-            setSelectedZone({
-              id: finalZones[0].id,
-              name: finalZones[0].name,
-              orgId: finalZones[0].organization_id,
-            });
-            console.log('📍 Auto-selected first zone:', finalZones[0].name);
-          }
+          // ✅ AUTO ZONE SELECTION: Wait for GPS-based detection
+          // Don't auto-select first zone here - let GPS detection handle it
+          // If GPS is not available or detection fails, the GPS effect will fallback to first zone
+          console.log('⏳ Waiting for GPS-based zone detection or fallback...');
         } else {
           console.warn('⚠️ No active zones found for organization:', profile.organization_id);
           console.warn('⚠️ This means either:');
@@ -451,29 +446,47 @@ export function FieldOfficerPortal({ onLogout }: FieldOfficerPortalProps) {
     return () => clearInterval(interval);
   }, []);
 
-  // Auto-detect zone when GPS location first becomes available (ONLY if no zone selected)
+  // ✅ AUTO ZONE SELECTION: GPS-based detection with smart fallback
   useEffect(() => {
-    // Only run if:
-    // 1. Zones are loaded
-    // 2. GPS location is available
-    // 3. No zone is currently selected
-    if (availableZones.length === 0 || !gpsLocation || selectedZone) return;
+    // Only run if zones are loaded and we don't have a zone selected yet
+    if (availableZones.length === 0 || selectedZone) return;
 
     const autoDetectZone = async () => {
+      // If no GPS yet, wait for it (timeout after 5 seconds)
+      if (!gpsLocation) {
+        console.log('⏳ Waiting for GPS to determine zone...');
+        
+        // Set timeout to fallback to first zone if GPS takes too long
+        const timeoutId = setTimeout(() => {
+          if (!selectedZone && availableZones.length > 0) {
+            setSelectedZone({
+              id: availableZones[0].id,
+              name: availableZones[0].name,
+              orgId: availableZones[0].organization_id,
+            });
+            console.log('⏰ GPS timeout - using first zone as fallback:', availableZones[0].name);
+          }
+        }, 5000);
+        
+        return () => clearTimeout(timeoutId);
+      }
+
+      // GPS available - check accuracy
       if (gpsLocation.accuracy >= 100) {
         console.log('⚠️ GPS accuracy too low for zone detection:', Math.round(gpsLocation.accuracy) + 'm');
-        // Still set first zone as fallback even with poor GPS
-        if (availableZones.length > 0 && !selectedZone) {
+        // Fallback to first zone with poor GPS
+        if (availableZones.length > 0) {
           setSelectedZone({
             id: availableZones[0].id,
             name: availableZones[0].name,
             orgId: availableZones[0].organization_id,
           });
-          console.log('📍 Fallback to first zone due to poor GPS:', availableZones[0].name);
+          console.log('📍 Using first zone (poor GPS accuracy):', availableZones[0].name);
         }
         return;
       }
 
+      // Good GPS - attempt zone detection
       const { findZoneByLocation, setStickyZone } = await import('@/lib/geofence');
       const detectedZone = findZoneByLocation(
         { lat: gpsLocation.lat, lng: gpsLocation.lng },
@@ -487,9 +500,9 @@ export function FieldOfficerPortal({ onLogout }: FieldOfficerPortalProps) {
           orgId: detectedZone.organization_id,
         });
         setStickyZone(detectedZone);
-        console.log('✅ Zone detected via GPS:', detectedZone.name);
+        console.log('✅ Auto-detected zone via GPS:', detectedZone.name);
       } else {
-        // No geofence match - use first zone as fallback
+        // Outside all geofences - use first zone as fallback
         if (availableZones.length > 0) {
           setSelectedZone({
             id: availableZones[0].id,
@@ -640,51 +653,72 @@ export function FieldOfficerPortal({ onLogout }: FieldOfficerPortalProps) {
 
 
   const handlePlateDetected = (data: any) => {
-    // ✅ DEFENSIVE: Comprehensive validation of all required data
+    // ✅ STAGE 1: Validate input data structure
     if (!data || typeof data !== 'object') {
-      console.error('Invalid data object received:', data);
+      console.error('❌ STAGE 1 FAILED: Invalid data object received:', data);
       toast.error('Invalid scan data received');
       return;
     }
 
+    // ✅ STAGE 2: Validate zone selection
     if (!selectedZone) {
-      console.error('No zone selected - cannot record scan');
+      console.error('❌ STAGE 2 FAILED: No zone selected - cannot record scan');
       toast.error('Zone not selected - please select a zone before scanning');
       return;
     }
 
+    // ✅ STAGE 3: Validate critical fields
     if (!data.plateNumber || typeof data.plateNumber !== 'string') {
-      console.error('Invalid or missing plate number:', data);
+      console.error('❌ STAGE 3 FAILED: Invalid or missing plate number:', data);
       toast.error('Invalid scan data - missing or invalid plate number');
       return;
     }
 
-    // ✅ DEFENSIVE: Create scan with all required fields validated
-    const newScan: SessionScan = {
-      id: data.observationId || `scan-${Date.now()}`,
-      plateNumber: data.plateNumber,
-      zoneName: selectedZone.name,
-      zoneId: selectedZone.id,
-      organizationId: selectedZone.orgId,
-      timestamp: new Date(),
-      isCompliant: data.isCompliant ?? true,
-      isFlagged: data.isFlagged ?? false,
-      vehicleMake: data.vehicleMake,
-      vehicleModel: data.vehicleModel,
-      vehicleColor: data.vehicleColor,
-      vehicleId: data.vehicleId,
-      observationId: data.observationId,
-      gpsAccuracy: data.gpsLocation?.accuracy,
-      priorObservationsCount: data.priorObservationsCount,
-      detectionMethod: data.detectionMethod,
-    };
+    // ✅ STAGE 4: Create scan object with validated data
+    let newScan: SessionScan;
+    try {
+      newScan = {
+        id: data.observationId || `scan-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        plateNumber: String(data.plateNumber).trim().toUpperCase(),
+        zoneName: String(selectedZone.name),
+        zoneId: String(selectedZone.id),
+        organizationId: String(selectedZone.orgId),
+        timestamp: new Date(),
+        isCompliant: Boolean(data.isCompliant ?? true),
+        isFlagged: Boolean(data.isFlagged ?? false),
+        vehicleMake: data.vehicleMake ? String(data.vehicleMake) : undefined,
+        vehicleModel: data.vehicleModel ? String(data.vehicleModel) : undefined,
+        vehicleColor: data.vehicleColor ? String(data.vehicleColor) : undefined,
+        vehicleId: data.vehicleId || undefined,
+        observationId: data.observationId || undefined,
+        gpsAccuracy: data.gpsLocation?.accuracy ? Number(data.gpsLocation.accuracy) : undefined,
+        priorObservationsCount: data.priorObservationsCount ? Number(data.priorObservationsCount) : undefined,
+        detectionMethod: data.detectionMethod || 'unknown',
+      };
+    } catch (error) {
+      console.error('❌ STAGE 4 FAILED: Error creating scan object:', error, data);
+      toast.error('Failed to process scan data');
+      return;
+    }
     
-    // ✅ DEFENSIVE: Validate scan object before adding to state
-    if (newScan && typeof newScan === 'object' && newScan.plateNumber) {
-      setSessionScans((prev) => [newScan, ...prev]);
-    } else {
-      console.error('Failed to create valid scan object:', newScan);
-      toast.error('Failed to record scan - invalid data');
+    // ✅ STAGE 5: Final validation before state update
+    if (!newScan || typeof newScan !== 'object' || !newScan.plateNumber || !newScan.id) {
+      console.error('❌ STAGE 5 FAILED: Invalid scan object created:', newScan);
+      toast.error('Failed to record scan - invalid data structure');
+      return;
+    }
+    
+    // ✅ STAGE 6: Add to state with immutable update
+    try {
+      setSessionScans((prev) => {
+        // Ensure prev is always an array
+        const validPrev = Array.isArray(prev) ? prev.filter(s => s && typeof s === 'object' && s.plateNumber) : [];
+        return [newScan, ...validPrev];
+      });
+      console.log('✅ ALL STAGES PASSED: Scan added successfully:', newScan.plateNumber);
+    } catch (error) {
+      console.error('❌ STAGE 6 FAILED: Error updating state:', error);
+      toast.error('Failed to save scan');
       return;
     }
     

@@ -88,7 +88,9 @@ export function ScannedVehiclesList({
   const [filterHomeless, setFilterHomeless] = useState(false);
   const [filterAtRisk, setFilterAtRisk] = useState(false);
   
+  const [myScans, setMyScans] = useState<OrgScan[]>([]);
   const [orgScans, setOrgScans] = useState<OrgScan[]>([]);
+  const [isLoadingMyScans, setIsLoadingMyScans] = useState(false);
   const [isLoadingOrgScans, setIsLoadingOrgScans] = useState(false);
   const [isInitializing, setIsInitializing] = useState(true);
   
@@ -126,6 +128,20 @@ export function ScannedVehiclesList({
     return () => clearInterval(interval);
   }, []);
   
+  // Load my scans when switching to my view
+  useEffect(() => {
+    if (viewMode === 'my_scans') {
+      loadMyScans();
+      
+      // Auto-refresh every 30 seconds when in my view
+      const refreshInterval = setInterval(() => {
+        loadMyScans();
+      }, 30000);
+      
+      return () => clearInterval(refreshInterval);
+    }
+  }, [viewMode]);
+  
   // Load org scans when switching to org view
   useEffect(() => {
     if (viewMode === 'org_scans') {
@@ -139,6 +155,25 @@ export function ScannedVehiclesList({
       return () => clearInterval(refreshInterval);
     }
   }, [viewMode, filterBreaches, filterHomeless, filterAtRisk]);
+  
+  const loadMyScans = async () => {
+    if (!user?.id) return;
+    
+    setIsLoadingMyScans(true);
+    try {
+      const { data, error } = await supabase.rpc('get_my_scans_24h', {
+        p_user_id: user.id,
+      });
+      
+      if (error) throw error;
+      setMyScans(data || []);
+    } catch (error: any) {
+      console.error('Failed to load my scans:', error);
+      toast.error('Failed to load your scans');
+    } finally {
+      setIsLoadingMyScans(false);
+    }
+  };
   
   const loadOrgScans = async () => {
     if (!user?.id) return;
@@ -188,7 +223,9 @@ export function ScannedVehiclesList({
       setScanToDelete(null);
       
       // Reload data
-      if (viewMode === 'org_scans') {
+      if (viewMode === 'my_scans') {
+        await loadMyScans();
+      } else {
         await loadOrgScans();
       }
       
@@ -275,7 +312,7 @@ export function ScannedVehiclesList({
   const getValidScans = (): (SessionScan | OrgScan)[] => {
     try {
       // STAGE 1: Select data source
-      const rawScans = viewMode === 'my_scans' ? scans : orgScans;
+      const rawScans = viewMode === 'my_scans' ? myScans : orgScans;
       
       // STAGE 2: Validate array
       if (!Array.isArray(rawScans)) {
@@ -404,19 +441,21 @@ export function ScannedVehiclesList({
         </CardHeader>
         
         <CardContent className="p-0 flex-1 overflow-hidden">
-          {isLoadingOrgScans ? (
+          {(viewMode === 'my_scans' && isLoadingMyScans) || (viewMode === 'org_scans' && isLoadingOrgScans) ? (
             <div className="flex flex-col items-center justify-center py-12">
               <Loader2 className="h-8 w-8 animate-spin text-primary mb-3" />
-              <p className="text-sm text-muted-foreground">Loading organization scans...</p>
+              <p className="text-sm text-muted-foreground">
+                {viewMode === 'my_scans' ? 'Loading your scans...' : 'Loading organization scans...'}
+              </p>
             </div>
           ) : displayedScans.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 px-4 text-center">
               <Activity className="h-16 w-16 text-muted-foreground/30 mb-4" />
               <p className="text-base font-semibold text-muted-foreground">
-                {viewMode === 'my_scans' ? 'No vehicles scanned yet' : 'No organization scans'}
+                {viewMode === 'my_scans' ? 'No scans in last 24 hours' : 'No organization scans'}
               </p>
               <p className="text-sm text-muted-foreground mt-1">
-                {viewMode === 'my_scans' ? 'Scans will appear here' : 'No scans in last 24 hours'}
+                {viewMode === 'my_scans' ? 'Your scans from the last 24 hours will appear here' : 'No organization scans in last 24 hours'}
               </p>
             </div>
           ) : (
