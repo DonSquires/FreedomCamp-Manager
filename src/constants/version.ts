@@ -6,9 +6,30 @@
  * - PATCH (third digit): Minor amendments
  */
 
-export const APP_VERSION = '2.3.0014';
+export const APP_VERSION = '2.3.0016';
 
 export const VERSION_HISTORY = [
+  {
+    version: '2.3.0016',
+    date: '2025-02-12',
+    changes: [
+      '🚨 Enhanced at-risk vehicle alerts - CRITICAL breaches now HIGHLY PROMINENT',
+      '📸 Profile photos now shown in notifications for better vehicle identification',
+      '🎨 Redesigned critical breach cards with larger photos and clear action prompts',
+      '⚠️ "Will breach tonight" alerts now separated with maximum visual impact',
+      '✅ Profile photo badge shows when canonical vehicle photo is available',
+      '🏕️ Homeless status properly integrated into all notification metadata',
+    ],
+  },
+  {
+    version: '2.3.0015',
+    date: '2025-02-12',
+    changes: [
+      '🔧 Fixed missing icon imports (Activity, Wrench) in FieldOfficerPortal',
+      '✅ Resolved "Activity is not defined" error',
+      '🎯 All standalone report buttons now render correctly',
+    ],
+  },
   {
     version: '2.3.0014',
     date: '2025-02-12',
