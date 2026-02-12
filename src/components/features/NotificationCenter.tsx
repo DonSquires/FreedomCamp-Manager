@@ -70,9 +70,12 @@ export function NotificationCenter({ onNotificationClick, className }: Notificat
     onNotificationClick?.(notification);
   };
 
-  // Separate urgent/warning from info
+  // Separate notifications by priority
+  const criticalBreachNotifications = notifications.filter(
+    n => n.type === 'almost_breach' && n.metadata?.willBreachTonight
+  );
   const urgentNotifications = notifications.filter(
-    n => n.severity === 'urgent' || n.severity === 'warning'
+    n => (n.severity === 'urgent' || n.severity === 'warning') && !(n.type === 'almost_breach' && n.metadata?.willBreachTonight)
   );
   const infoNotifications = notifications.filter(
     n => n.severity === 'info'
@@ -86,6 +89,160 @@ export function NotificationCenter({ onNotificationClick, className }: Notificat
     <div className={cn('w-full', className)}>
       <ScrollArea className="h-full">
         <div className="p-3 space-y-3">
+          {/* CRITICAL BREACH ALERTS - Largest, Most Prominent */}
+          {criticalBreachNotifications.map((notification) => (
+            <Card
+              key={notification.id}
+              className={cn(
+                'border-4 shadow-2xl cursor-pointer transition-all hover:shadow-3xl active:scale-[0.98] touch-manipulation',
+                'border-red-600 bg-gradient-to-br from-red-100 via-orange-100 to-red-100 dark:from-red-950/60 dark:via-orange-950/60 dark:to-red-950/60',
+                !notification.read && 'ring-8 ring-red-300 dark:ring-red-700 animate-pulse'
+              )}
+              onClick={() => handleNotificationClick(notification)}
+            >
+              <CardContent className="p-5 space-y-4">
+                {/* Header with Prominent Badge */}
+                <div className="flex items-start gap-4">
+                  <div className="shrink-0 mt-1 bg-red-600 rounded-full p-3 shadow-xl">
+                    <AlertTriangle className="h-8 w-8 text-white" strokeWidth={3} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-start justify-between gap-2 mb-3">
+                      <div className="flex-1">
+                        <Badge
+                          variant="destructive"
+                          className="mb-3 text-sm font-black px-4 py-1.5 bg-red-700 text-white shadow-lg"
+                        >
+                          🚨 CRITICAL - WILL BREACH TONIGHT
+                        </Badge>
+                        <h3 className="font-black text-2xl leading-tight text-red-900 dark:text-red-100">
+                          {notification.title}
+                        </h3>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          clearNotification(notification.id);
+                        }}
+                        className="h-10 w-10 shrink-0 hover:bg-black/10 dark:hover:bg-white/10 touch-manipulation"
+                      >
+                        <X className="h-5 w-5" />
+                      </Button>
+                    </div>
+                    <p className="text-base text-foreground font-bold whitespace-pre-line">
+                      {notification.message}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Vehicle Photo - Extra Large for Critical Alerts */}
+                {(notification.metadata?.profilePhotoUrl || notification.metadata?.photoUrl) && (
+                  <div className="relative rounded-xl overflow-hidden border-4 border-red-500 shadow-2xl ring-4 ring-red-300">
+                    <img
+                      src={notification.metadata.profilePhotoUrl || notification.metadata.photoUrl}
+                      alt="Vehicle identification photo"
+                      className="w-full h-64 object-cover"
+                    />
+                    {/* Badge showing photo source */}
+                    {notification.metadata.profilePhotoUrl && (
+                      <div className="absolute top-3 right-3 bg-green-600/95 text-white px-3 py-1.5 rounded-lg text-sm font-bold backdrop-blur-sm shadow-xl border-2 border-white/50">
+                        ✓ Profile Photo
+                      </div>
+                    )}
+                    {notification.metadata.plateNumber && (
+                      <div className="absolute bottom-4 left-4 bg-black/95 text-white px-5 py-3 rounded-xl font-mono font-black text-2xl backdrop-blur-sm shadow-2xl border-4 border-white/40">
+                        {notification.metadata.plateNumber}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Breach Prediction Details - Prominent */}
+                <div className="grid grid-cols-2 gap-3 text-sm bg-red-50 dark:bg-red-950/40 rounded-xl p-4 border-2 border-red-400">
+                  <div className="col-span-2">
+                    <div className="bg-red-600 text-white rounded-lg p-3 shadow-lg">
+                      <p className="font-black text-lg flex items-center gap-2">
+                        <AlertTriangle className="h-5 w-5" />
+                        ⚠️ ACTION REQUIRED: Advise vehicle owner to leave BEFORE nightfall
+                      </p>
+                    </div>
+                  </div>
+                  {notification.metadata?.consecutiveNights !== undefined && (
+                    <div className="bg-white dark:bg-red-900/30 rounded-lg p-3 border-2 border-red-300">
+                      <span className="text-muted-foreground font-semibold block mb-1">Consecutive Nights:</span>
+                      <span className="font-black text-2xl text-red-700 dark:text-red-300">
+                        {notification.metadata.consecutiveNights + 1}/{notification.metadata.consecutiveAllowed}
+                      </span>
+                      <p className="text-xs text-red-600 dark:text-red-400 mt-1 font-bold">If stays tonight</p>
+                    </div>
+                  )}
+                  {notification.metadata?.nightsStayed !== undefined && (
+                    <div className="bg-white dark:bg-red-900/30 rounded-lg p-3 border-2 border-red-300">
+                      <span className="text-muted-foreground font-semibold block mb-1">Monthly Total:</span>
+                      <span className="font-black text-2xl text-red-700 dark:text-red-300">
+                        {notification.metadata.nightsStayed + 1}/{notification.metadata.nightsAllowed}
+                      </span>
+                      <p className="text-xs text-red-600 dark:text-red-400 mt-1 font-bold">If stays tonight</p>
+                    </div>
+                  )}
+                  {notification.metadata?.vehicleMake && (
+                    <div className="col-span-2 bg-white dark:bg-red-900/30 rounded-lg p-3 border-2 border-red-300">
+                      <span className="text-muted-foreground font-semibold block mb-1">Vehicle:</span>
+                      <span className="font-bold text-lg">
+                        {notification.metadata.vehicleMake} {notification.metadata.vehicleModel} • {notification.metadata.vehicleColor}
+                      </span>
+                    </div>
+                  )}
+                  {notification.metadata?.zoneName && (
+                    <div className="col-span-2 bg-white dark:bg-red-900/30 rounded-lg p-3 border-2 border-red-300">
+                      <span className="text-muted-foreground font-semibold block mb-1">Location:</span>
+                      <span className="font-bold text-lg">📍 {notification.metadata.zoneName}</span>
+                    </div>
+                  )}
+                </div>
+
+                {/* GPS Location */}
+                {notification.metadata?.gpsLocation && (
+                  <a
+                    href={`https://maps.google.com/?q=${notification.metadata.gpsLocation.lat},${notification.metadata.gpsLocation.lng}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                    className="flex items-center gap-3 p-4 bg-blue-600 hover:bg-blue-700 rounded-xl border-3 border-blue-400 transition-colors shadow-lg"
+                  >
+                    <MapPin className="h-6 w-6 text-white shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-bold text-white">
+                        🗺️ Open in Google Maps
+                      </p>
+                      <p className="text-xs text-blue-100 font-mono">
+                        {notification.metadata.gpsLocation.lat.toFixed(6)}, {notification.metadata.gpsLocation.lng.toFixed(6)}
+                      </p>
+                    </div>
+                    <ExternalLink className="h-5 w-5 text-white shrink-0" />
+                  </a>
+                )}
+
+                {/* Footer */}
+                <div className="flex items-center justify-between pt-3 border-t-2 border-red-300">
+                  <p className="text-sm text-muted-foreground font-bold">
+                    {formatDistanceToNow(notification.timestamp, { addSuffix: true })}
+                  </p>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-10 text-sm font-black gap-2 bg-red-600 text-white hover:bg-red-700 touch-manipulation"
+                  >
+                    Take Action Now
+                    <ChevronRight className="h-5 w-5" />
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+
           {/* URGENT/WARNING Notifications - Larger, Pinned to Top */}
           {urgentNotifications.map((notification) => (
             <Card
@@ -138,16 +295,22 @@ export function NotificationCenter({ onNotificationClick, className }: Notificat
                   </div>
                 </div>
 
-                {/* Vehicle Photo - Large for identification */}
-                {notification.metadata?.photoUrl && (
-                  <div className="relative rounded-lg overflow-hidden border-2 border-white/50 shadow-md">
+                {/* Vehicle Photo - Prioritize profile photo for consistent identification */}
+                {(notification.metadata?.profilePhotoUrl || notification.metadata?.photoUrl) && (
+                  <div className="relative rounded-xl overflow-hidden border-4 border-white/70 shadow-2xl">
                     <img
-                      src={notification.metadata.photoUrl}
-                      alt="Vehicle photo"
-                      className="w-full h-48 object-cover"
+                      src={notification.metadata.profilePhotoUrl || notification.metadata.photoUrl}
+                      alt="Vehicle identification photo"
+                      className="w-full h-56 object-cover"
                     />
+                    {/* Badge showing photo source */}
+                    {notification.metadata.profilePhotoUrl && (
+                      <div className="absolute top-2 right-2 bg-green-600/90 text-white px-2 py-1 rounded-md text-xs font-bold backdrop-blur-sm shadow-lg">
+                        ✓ Profile Photo
+                      </div>
+                    )}
                     {notification.metadata.plateNumber && (
-                      <div className="absolute bottom-2 left-2 bg-black/80 text-white px-3 py-1.5 rounded-md font-mono font-bold text-lg backdrop-blur-sm">
+                      <div className="absolute bottom-3 left-3 bg-black/90 text-white px-4 py-2 rounded-lg font-mono font-bold text-xl backdrop-blur-sm shadow-xl border-2 border-white/30">
                         {notification.metadata.plateNumber}
                       </div>
                     )}
