@@ -6,9 +6,24 @@
  * - PATCH (third digit): Minor amendments
  */
 
-export const APP_VERSION = '2.4.0003';
+export const APP_VERSION = '2.5.0001';
 
 export const VERSION_HISTORY = [
+  {
+    version: '2.5.0001',
+    date: '2025-02-12',
+    changes: [
+      '🔄 ADMIN PORTAL STREAMLINING - PHASE 3 COMPLETE',
+      '📊 Analytics Hub - Consolidated 4 reporting pages into 1 unified interface',
+      '📈 Unified Analytics: Compliance + Officers + Zones + Heat Map in tabbed view',
+      '🎯 Universal filters apply across all analytics views simultaneously',
+      '📥 Single export toolbar for all reporting (PDF + CSV)',
+      '📉 75% reduction in reporting navigation (4 pages → 1 page)',
+      '🏢 Organization Management now visible in admin portal for master users',
+      '✅ Better cross-referencing between compliance, officer, and zone metrics',
+      '🏠 Homeless tracking integrated across all analytics views',
+    ],
+  },
   {
     version: '2.4.0003',
     date: '2025-02-12',
