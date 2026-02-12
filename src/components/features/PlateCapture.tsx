@@ -1030,12 +1030,44 @@ export function PlateCapture({
         
         // Use FunctionsHttpError pattern for proper error extraction
         let errorMessage = '';
+        let statusCode = 500;
+        let parsedError: any = null;
+        
         if (scanError instanceof FunctionsHttpError) {
           try {
             const errorText = await scanError.context?.text();
-            const statusCode = scanError.context?.status ?? 500;
+            statusCode = scanError.context?.status ?? 500;
             console.error('Error details:', errorText);
             errorMessage = errorText || scanError.message;
+            
+            // Try to parse error as JSON to check for duplicate_scan
+            try {
+              parsedError = JSON.parse(errorMessage);
+            } catch {
+              parsedError = null;
+            }
+            
+            // Check for duplicate scan (409 status or duplicate_scan error type)
+            if (statusCode === 409 || parsedError?.error === 'duplicate_scan' || parsedError?.duplicate === true) {
+              console.log('⚠️ Duplicate scan detected:', parsedError);
+              playSounds.violationAlert();
+              
+              // Show friendly bubble message
+              setFeedbackType('warning');
+              setFeedbackMessage('Already Scanned');
+              setShowFeedbackBubble(true);
+              setTimeout(() => setShowFeedbackBubble(false), 3000);
+              
+              // Show detailed toast with timing info
+              const minutesAgo = parsedError?.details?.minutes_ago;
+              const zoneName = parsedError?.details?.zone_name || 'this zone';
+              toast.warning(
+                `Vehicle already scanned ${minutesAgo ? minutesAgo + ' minutes ago' : 'today'} in ${zoneName}`,
+                { duration: 5000 }
+              );
+              
+              return;
+            }
             
             // Check for specific "other-location" UUID error
             if (errorMessage.includes('invalid input syntax for type uuid') && errorMessage.includes('other-location')) {
@@ -2325,6 +2357,7 @@ export function PlateCapture({
             toast.success('Vehicle details updated');
             setShowVehiclePopup(false);
             setCurrentVehicleDetails(null);
+            setIsWorkflowLocked(false); // 🔓 Unlock camera after details updated
           }}
           onOpenEvidence={() => {
             // Open evidence collection with vehicle details

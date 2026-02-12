@@ -6,9 +6,19 @@
  * - PATCH (third digit): Minor amendments
  */
 
-export const APP_VERSION = '2.3.0010';
+export const APP_VERSION = '2.3.0011';
 
 export const VERSION_HISTORY = [
+  {
+    version: '2.3.0011',
+    date: '2025-02-12',
+    changes: [
+      '🔓 Camera now unlocks after updating vehicle details',
+      '💬 Duplicate scan detection shows friendly bubble: "Already Scanned"',
+      '⚠️ Warning toast shows when/where vehicle was previously scanned',
+      '🔔 Prevents duplicate scan errors from showing confusing error messages',
+    ],
+  },
   {
     version: '2.3.0010',
     date: '2025-02-12',
