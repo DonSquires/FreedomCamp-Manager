@@ -6,9 +6,21 @@
  * - PATCH (third digit): Minor amendments
  */
 
-export const APP_VERSION = '2.5.0013';
+export const APP_VERSION = '2.5.0014';
 
 export const VERSION_HISTORY = [
+  {
+    version: '2.5.0014',
+    date: '2025-02-13',
+    changes: [
+      '📸 AUTO-SELECT PROFILE PHOTO: Vehicle modal now auto-selects best photo when opening',
+      '✅ No profile photo but observations have photos → automatically calls select-best-vehicle-photo',
+      '🎯 Uses OnSpace AI (Gemini 3 Flash) to score photos based on plate visibility, lighting, angle',
+      '🔄 Profile photo updates immediately in modal after selection',
+      '🆕 Existing profile photos remain sticky (won\'t overwrite unless manually changed)',
+      '✨ Toast notification confirms auto-selection',
+    ],
+  },
   {
     version: '2.5.0013',
     date: '2025-02-13',

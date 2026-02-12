@@ -331,16 +331,22 @@ export function OrganizationDashboard() {
         orgFilter = profile?.organization_id || null;
       }
 
-      // Load observations within date range
+      // ✅ CLEAN ARCHITECTURE: Load observations WITHOUT compliance fields (not in v2 anymore)
       let obsQuery = supabase
         .from('vehicle_observations_v2')
-        .select('observation_id, plate_number, zone_id, organization_id, is_compliant, is_breach, recorded_at, zones(name)')
+        .select('observation_id, plate_number, zone_id, organization_id, recorded_at, zones(name)')
         .gte('recorded_at', `${dateFrom}T00:00:00`)
         .lte('recorded_at', `${dateTo}T23:59:59`);
 
       if (orgFilter) obsQuery = obsQuery.eq('organization_id', orgFilter);
 
-      const { data: observations } = await obsQuery;
+      const { data: observations, error: obsError } = await obsQuery;
+      
+      if (obsError) {
+        console.error('Failed to load observations:', obsError);
+        throw obsError;
+      }
+      
       const obs = observations || [];
 
       const uniquePlates = [...new Set(obs.map(o => o.plate_number))];
@@ -513,15 +519,20 @@ export function OrganizationDashboard() {
     setSelectedCategory(category);
     
     try {
-      // Get observations for this zone in date range
+      // ✅ CLEAN ARCHITECTURE: Get observations WITHOUT compliance fields
       let obsQuery = supabase
         .from('vehicle_observations_v2')
-        .select('plate_number, is_compliant')
+        .select('plate_number')
         .eq('zone_id', zone.zone_id)
         .gte('recorded_at', `${dateFrom}T00:00:00`)
         .lte('recorded_at', `${dateTo}T23:59:59`);
 
-      const { data: zoneObs } = await obsQuery;
+      const { data: zoneObs, error: zoneObsError } = await obsQuery;
+      
+      if (zoneObsError) {
+        console.error('Failed to load zone observations:', zoneObsError);
+        throw zoneObsError;
+      }
       
       const plateMap = new Map<string, number>();
       (zoneObs || []).forEach(o => {
@@ -651,41 +662,49 @@ export function OrganizationDashboard() {
         vehicle_color: canonical.vehicle_color || '',
       });
 
-      // Load observations in date range
+      // ✅ CLEAN ARCHITECTURE: Load observations using compatibility view
       const { data: obsData, error: obsError } = await supabase
-        .from('vehicle_observations_v2')
+        .from('vehicle_observations_with_details')
         .select(`
           observation_id,
           plate_number,
           is_compliant,
-          is_breach,
-          breach_type,
           photo,
           officer_notes,
           gps_latitude,
           gps_longitude,
           recorded_at,
-          zones(name),
-          user_profiles!vehicle_observations_v2_recorded_by_fkey(first_name, last_name)
+          zone_name,
+          violation_reasons
         `)
         .eq('plate_number', vehicle.plate_number)
         .gte('recorded_at', `${dateFrom}T00:00:00`)
         .lte('recorded_at', `${dateTo}T23:59:59`)
         .order('recorded_at', { ascending: false });
+      
+      // Fetch user profiles separately
+      const observationIds = (obsData || []).map(o => o.observation_id);
+      const { data: userData } = observationIds.length > 0 ? await supabase
+        .from('vehicle_observations_v2')
+        .select(`observation_id, recorded_by, user_profiles!vehicle_observations_v2_recorded_by_fkey(first_name, last_name)`)
+        .in('observation_id', observationIds) : { data: [] };
+      
+      const userMap = new Map((userData || []).map(u => [
+        u.observation_id,
+        u.user_profiles ? `${(u.user_profiles as any).first_name} ${(u.user_profiles as any).last_name}` : 'Unknown'
+      ]));
 
       if (obsError) throw obsError;
 
       const obsList: ObservationRecord[] = (obsData || []).map(o => ({
         observation_id: o.observation_id,
         plate_number: o.plate_number,
-        zone_name: (o.zones as any)?.name || 'Unknown',
+        zone_name: o.zone_name || 'Unknown',
         recorded_at: o.recorded_at,
-        recorded_by: o.user_profiles 
-          ? `${(o.user_profiles as any).first_name} ${(o.user_profiles as any).last_name}`
-          : 'Unknown',
-        is_compliant: o.is_compliant,
-        is_breach: o.is_breach,
-        breach_type: o.breach_type,
+        recorded_by: userMap.get(o.observation_id) || 'Unknown',
+        is_compliant: o.is_compliant ?? true,
+        is_breach: o.violation_reasons && o.violation_reasons.length > 0,
+        breach_type: o.violation_reasons?.[0] || null,
         photo: o.photo,
         officer_notes: o.officer_notes,
         gps_latitude: o.gps_latitude,
@@ -693,6 +712,37 @@ export function OrganizationDashboard() {
       }));
 
       setModalObservations(obsList);
+
+      // 🚀 AUTO-SELECT PROFILE PHOTO: If no profile photo but observations have photos, select best
+      if (!canonical.profile_photo) {
+        const photoUrls = obsList.filter(o => o.photo).map(o => o.photo);
+        if (photoUrls.length > 0) {
+          console.log(`📸 No profile photo for ${vehicle.plate_number}, auto-selecting from ${photoUrls.length} observation photos...`);
+          
+          try {
+            const { data: photoData, error: photoError } = await supabase.functions.invoke('select-best-vehicle-photo', {
+              body: {
+                plateNumber: vehicle.plate_number,
+                photoUrls,
+              },
+            });
+
+            if (!photoError && photoData?.bestPhoto) {
+              console.log(`✅ Auto-selected profile photo: ${photoData.bestPhoto}`);
+              
+              // Update the modal vehicle immediately
+              const updatedCanonical = { ...canonical, profile_photo: photoData.bestPhoto };
+              setModalVehicle(updatedCanonical);
+              
+              toast.success('Profile photo auto-selected!');
+            } else {
+              console.error('❌ Failed to select profile photo:', photoError);
+            }
+          } catch (err) {
+            console.error('❌ Error selecting profile photo:', err);
+          }
+        }
+      }
 
       // Calculate breach reasons
       const reasons: BreachReason[] = [];
