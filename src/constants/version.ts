@@ -6,9 +6,25 @@
  * - PATCH (third digit): Minor amendments
  */
 
-export const APP_VERSION = '2.5.0014';
+export const APP_VERSION = '2.5.0015';
 
 export const VERSION_HISTORY = [
+  {
+    version: '2.5.0015',
+    date: '2025-02-13',
+    changes: [
+      '🏠 HOMELESS "BREACH BUT EXEMPT" DISPLAY: Field officers & admins now see clear status',
+      '✅ Compliance modal shows violations PLUS FC Act exemption explanation side-by-side',
+      '🚫 Purple badge displays "BREACH BUT EXEMPT (FC ACT)" for confirmed homeless vehicles',
+      '📊 Breach Alerts Report shows "BREACH BUT EXEMPT" status prominently in table',
+      '🔒 No enforcement actions triggered for FC Act exempt vehicles',
+      '🌙 DAY VISIT OVERNIGHT DETECTION: Fixed compliance logic for day-visit-only zones',
+      '⚡ Night observation (8pm-6am) → "At Risk" warning (vehicle present at night)',
+      '🚨 Morning observation at same GPS location (within 15m) → "Breach" (overnight stay confirmed)',
+      '📍 New edge function: evaluate-day-visit-compliance for GPS-based overnight detection',
+      '🎯 Zones like Akerston/Kinzett now correctly enforce day-visit-only rules',
+    ],
+  },
   {
     version: '2.5.0014',
     date: '2025-02-13',

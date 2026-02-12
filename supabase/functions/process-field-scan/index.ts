@@ -284,14 +284,8 @@ Deno.serve(async (req) => {
             violations.push(`Monthly overstay: ${nightsStayed}/${matrix.nights_per_month} nights`);
           }
 
-          // Check day visit only
-          if (matrix.day_visit_only) {
-            const hour = new Date().getHours();
-            if (hour >= 20 || hour < 6) {
-              isCompliant = false;
-              violations.push('Day visit only zone - overnight stay prohibited');
-            }
-          }
+          // Day visit only → handled by separate edge function
+          // (No immediate violation - needs to check for overnight stay via GPS proximity)
         }
 
         // Insert compliance result (Section 2: Reporting)
@@ -401,7 +395,22 @@ Deno.serve(async (req) => {
 
     console.log('✅ Scan processing complete:', response);
 
-    // STEP 8: Trigger background AI analysis, NZSCV verification, and breach prediction
+    // STEP 8: Trigger day visit compliance check (if applicable)
+    if (complianceResult && scanData.gpsLocation) {
+      supabaseAdmin.functions.invoke('evaluate-day-visit-compliance', {
+        body: {
+          observation_id: observation.observation_id,
+          plate_number: normalizedPlate,
+          zone_id: scanData.zoneId,
+          organization_id: scanData.organizationId,
+          gps_latitude: scanData.gpsLocation.lat,
+          gps_longitude: scanData.gpsLocation.lng,
+          recorded_at: observation.recorded_at,
+        },
+      }).catch(err => console.error('⚠️ Day visit evaluation failed:', err));
+    }
+
+    // STEP 9: Trigger background AI analysis, NZSCV verification, and breach prediction
     // Run asynchronously - don't wait for results
     console.log('🤖 Triggering background analysis and breach prediction...');
     
