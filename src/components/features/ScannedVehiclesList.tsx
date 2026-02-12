@@ -243,7 +243,10 @@ export function ScannedVehiclesList({
     };
   };
   
-  const displayedScans = viewMode === 'my_scans' ? scans : orgScans;
+  // ✅ DEFENSIVE: Filter out any null/undefined scans at the source
+  const displayedScans = (viewMode === 'my_scans' ? scans : orgScans).filter(
+    (scan): scan is SessionScan | OrgScan => scan != null && typeof scan === 'object'
+  );
 
   return (
     <>
@@ -333,8 +336,18 @@ export function ScannedVehiclesList({
             <ScrollArea className="h-full">
               <div className="p-3 space-y-2">
                 {displayedScans.map((scan) => {
+                  // ✅ DEFENSIVE: Double-check scan is valid
+                  if (!scan || typeof scan !== 'object') {
+                    console.error('Invalid scan object:', scan);
+                    return null;
+                  }
+                  // ✅ DEFENSIVE: Extract properties safely
                   const editInfo = canEditDelete(scan);
-                  const plateNumber = 'plateNumber' in scan ? scan.plateNumber : scan.plate_number;
+                  const plateNumber = (scan && typeof scan === 'object' && 'plateNumber' in scan) 
+                    ? scan.plateNumber 
+                    : (scan && typeof scan === 'object' && 'plate_number' in scan)
+                    ? scan.plate_number
+                    : 'UNKNOWN';
                   const zoneName = 'zoneName' in scan ? scan.zoneName : scan.zone_name;
                   const timestamp = 'timestamp' in scan ? scan.timestamp : scan.recorded_at;
                   const scanId = 'id' in scan ? scan.id : scan.observation_id;

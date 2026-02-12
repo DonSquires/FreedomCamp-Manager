@@ -640,12 +640,26 @@ export function FieldOfficerPortal({ onLogout }: FieldOfficerPortalProps) {
 
 
   const handlePlateDetected = (data: any) => {
+    // ✅ DEFENSIVE: Comprehensive validation of all required data
+    if (!data || typeof data !== 'object') {
+      console.error('Invalid data object received:', data);
+      toast.error('Invalid scan data received');
+      return;
+    }
+
     if (!selectedZone) {
       console.error('No zone selected - cannot record scan');
       toast.error('Zone not selected - please select a zone before scanning');
       return;
     }
 
+    if (!data.plateNumber || typeof data.plateNumber !== 'string') {
+      console.error('Invalid or missing plate number:', data);
+      toast.error('Invalid scan data - missing or invalid plate number');
+      return;
+    }
+
+    // ✅ DEFENSIVE: Create scan with all required fields validated
     const newScan: SessionScan = {
       id: data.observationId || `scan-${Date.now()}`,
       plateNumber: data.plateNumber,
@@ -665,7 +679,14 @@ export function FieldOfficerPortal({ onLogout }: FieldOfficerPortalProps) {
       detectionMethod: data.detectionMethod,
     };
     
-    setSessionScans((prev) => [newScan, ...prev]);
+    // ✅ DEFENSIVE: Validate scan object before adding to state
+    if (newScan && typeof newScan === 'object' && newScan.plateNumber) {
+      setSessionScans((prev) => [newScan, ...prev]);
+    } else {
+      console.error('Failed to create valid scan object:', newScan);
+      toast.error('Failed to record scan - invalid data');
+      return;
+    }
     
     // Update stats
     setTodayScansCount((prev) => prev + 1);
