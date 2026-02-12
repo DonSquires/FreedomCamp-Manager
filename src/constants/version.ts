@@ -6,9 +6,21 @@
  * - PATCH (third digit): Minor amendments
  */
 
-export const APP_VERSION = '2.3.0006';
+export const APP_VERSION = '2.3.0007';
 
 export const VERSION_HISTORY = [
+  {
+    version: '2.3.0007',
+    date: '2025-02-12',
+    changes: [
+      '✅ All fixes complete and deployed',
+      '📷 Camera factory settings restored - optimal auto-adjustment',
+      '📋 Scanned vehicles list now loads from database (24h history)',
+      '🗂️ Database functions get_my_scans_24h() and get_org_scans_24h() deployed',
+      '🔄 Auto-refresh every 30 seconds with proper filtering',
+      '🦅 Iron Eagle Security logo verified throughout app',
+    ],
+  },
   {
     version: '2.3.0006',
     date: '2025-02-12',
