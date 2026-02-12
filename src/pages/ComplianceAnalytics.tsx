@@ -149,9 +149,9 @@ export function ComplianceAnalytics() {
         filterOrgId = profile?.organization_id || null;
       }
 
-      // Load observations in date range WITH homeless status
+      // ✅ CLEAN ARCHITECTURE: Use compatibility view for joined data
       let obsQuery = supabase
-        .from('vehicle_observations_v2')
+        .from('vehicle_observations_with_details')
         .select(`
           observation_id,
           plate_number,
@@ -159,8 +159,8 @@ export function ComplianceAnalytics() {
           organization_id,
           is_compliant,
           recorded_at,
-          zones(name),
-          canonical_vehicles(homeless_status)
+          zone_name,
+          homeless_status
         `)
         .gte('recorded_at', `${startDate}T00:00:00`)
         .lte('recorded_at', `${endDate}T23:59:59`);
@@ -181,14 +181,14 @@ export function ComplianceAnalytics() {
       const uniquePlates = new Set(obs.map(o => o.plate_number)).size;
       const uniqueZones = new Set(obs.map(o => o.zone_id)).size;
       
-      // Count homeless vehicles
+      // Count homeless vehicles (using view's homeless_status field)
       const homelessConfirmed = new Set(
-        obs.filter(o => (o.canonical_vehicles as any)?.homeless_status === 'confirmed')
+        obs.filter(o => o.homeless_status === 'confirmed')
           .map(o => o.plate_number)
       ).size;
       
       const homelessClaimed = new Set(
-        obs.filter(o => (o.canonical_vehicles as any)?.homeless_status === 'claimed')
+        obs.filter(o => o.homeless_status === 'claimed')
           .map(o => o.plate_number)
       ).size;
       
@@ -219,7 +219,7 @@ export function ComplianceAnalytics() {
       obs.forEach(o => {
         if (!zoneMap.has(o.zone_id)) {
           zoneMap.set(o.zone_id, {
-            name: (o.zones as any)?.name || 'Unknown',
+            name: o.zone_name || 'Unknown',
             total: 0,
             compliant: 0,
             plates: new Set(),
@@ -233,8 +233,8 @@ export function ComplianceAnalytics() {
         zone.plates.add(o.plate_number);
         if (o.is_compliant) zone.compliant++;
         
-        // Track homeless by plate
-        const homelessStatus = (o.canonical_vehicles as any)?.homeless_status;
+        // Track homeless by plate (using view's homeless_status field)
+        const homelessStatus = o.homeless_status;
         if (homelessStatus === 'confirmed') {
           zone.homelessConfirmed.add(o.plate_number);
         } else if (homelessStatus === 'claimed') {
@@ -271,7 +271,8 @@ export function ComplianceAnalytics() {
         day.total++;
         if (o.is_compliant) day.compliant++;
         
-        const homelessStatus = (o.canonical_vehicles as any)?.homeless_status;
+        // Track homeless using view's homeless_status field
+        const homelessStatus = o.homeless_status;
         if (homelessStatus === 'confirmed' || homelessStatus === 'claimed') {
           day.homelessPlates.add(o.plate_number);
         }

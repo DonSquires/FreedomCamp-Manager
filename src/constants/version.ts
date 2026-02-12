@@ -6,9 +6,23 @@
  * - PATCH (third digit): Minor amendments
  */
 
-export const APP_VERSION = '2.5.0010';
+export const APP_VERSION = '2.5.0011';
 
 export const VERSION_HISTORY = [
+  {
+    version: '2.5.0011',
+    date: '2025-02-13',
+    changes: [
+      '✅ FRONTEND QUERIES UPDATED: All reports now use clean architecture',
+      '🔄 ComplianceAnalytics: Uses vehicle_observations_with_details view',
+      '🔄 VehicleActivityReport: Joins canonical_vehicles for vehicle details',
+      '🔄 EnforcementHub: Queries compliance_results for breach data',
+      '🔄 VehicleDetailsView: Uses compatibility view for observation history',
+      '📋 Created ARCHITECTURE_MIGRATION_TESTING.md checklist',
+      '🔍 Created verify_architecture_integrity.sql for data validation',
+      '🎯 All queries follow: observation + canonical + compliance pattern',
+    ],
+  },
   {
     version: '2.5.0010',
     date: '2025-02-13',

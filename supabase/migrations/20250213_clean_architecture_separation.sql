@@ -200,13 +200,18 @@ $$;
 -- Any materialized views depending on observation table need refresh
 -- (Add specific view refreshes here if needed)
 
-RAISE NOTICE '✅ Architecture cleanup complete:';
-RAISE NOTICE '   - vehicle_observations_v2 stripped to pure observation data';
-RAISE NOTICE '   - Vehicle details: use canonical_vehicles';
-RAISE NOTICE '   - Compliance results: use compliance_results';
-RAISE NOTICE '   - Backward compatibility view: vehicle_observations_with_details';
-RAISE NOTICE '';
-RAISE NOTICE '⚠️  NEXT STEPS:';
-RAISE NOTICE '   1. Update process-field-scan Edge Function to use new architecture';
-RAISE NOTICE '   2. Update frontend queries to join tables instead of reading flat columns';
-RAISE NOTICE '   3. Test compliance evaluation flow (Section 1 → Section 2 separation)';
+-- Final verification and summary
+DO $$
+BEGIN
+  RAISE NOTICE '✅ Architecture cleanup complete:';
+  RAISE NOTICE '   - vehicle_observations_v2 stripped to pure observation data';
+  RAISE NOTICE '   - Vehicle details: use canonical_vehicles';
+  RAISE NOTICE '   - Compliance results: use compliance_results';
+  RAISE NOTICE '   - Backward compatibility view: vehicle_observations_with_details';
+  RAISE NOTICE '';
+  RAISE NOTICE '⚠️  NEXT STEPS:';
+  RAISE NOTICE '   1. Update process-field-scan Edge Function to use new architecture';
+  RAISE NOTICE '   2. Update frontend queries to join tables instead of reading flat columns';
+  RAISE NOTICE '   3. Test compliance evaluation flow (Section 1 → Section 2 separation)';
+END;
+$$;
