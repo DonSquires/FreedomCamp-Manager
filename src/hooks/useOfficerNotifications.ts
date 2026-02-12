@@ -15,7 +15,7 @@ import { useAuthStore } from '@/stores/authStore';
 
 export interface OfficerNotification {
   id: string;
-  type: 'breach_assigned' | 'almost_breach' | 'enforcement_assigned' | 'investigation_assigned' | 'urgent_followup';
+  type: 'breach_assigned' | 'almost_breach' | 'enforcement_assigned' | 'investigation_assigned' | 'urgent_followup' | 'patrol_assigned';
   title: string;
   message: string;
   severity: 'low' | 'medium' | 'high' | 'critical';
@@ -141,7 +141,51 @@ export function useOfficerNotifications() {
         });
       }
 
-      // 4. Almost breach warnings (vehicles close to limits)
+      // 4. Assigned patrols (today and upcoming)
+      const { data: assignedPatrols, error: patrolError } = await supabase
+        .from('patrols')
+        .select(`
+          id,
+          patrol_date,
+          shift,
+          status,
+          checked_in_at,
+          assigned_to,
+          zones (name)
+        `)
+        .eq('assigned_to', user.id)
+        .in('status', ['scheduled', 'active'])
+        .gte('patrol_date', new Date().toISOString().split('T')[0])
+        .order('patrol_date', { ascending: true })
+        .limit(10);
+
+      if (!patrolError && assignedPatrols) {
+        assignedPatrols.forEach(patrol => {
+          const patrolDate = new Date(patrol.patrol_date);
+          const isToday = patrolDate.toDateString() === new Date().toDateString();
+          const isFuture = patrolDate > new Date();
+          
+          allNotifications.push({
+            id: `patrol-${patrol.id}`,
+            type: 'patrol_assigned',
+            title: isToday ? '🚨 Patrol TODAY' : '📅 Upcoming Patrol',
+            message: `${(patrol.zones as any)?.name || 'Unknown Zone'} - ${patrol.shift} shift${isFuture ? ` on ${patrolDate.toLocaleDateString('en-NZ')}` : ''}`,
+            severity: isToday ? (patrol.status === 'scheduled' ? 'high' : 'medium') : 'low',
+            zone_name: (patrol.zones as any)?.name,
+            created_at: patrol.patrol_date,
+            read: patrol.status === 'active' || patrol.checked_in_at !== null,
+            action_url: '/field-portal?view=scanning',
+            metadata: { 
+              patrol_id: patrol.id,
+              patrol_date: patrol.patrol_date,
+              shift: patrol.shift,
+              status: patrol.status,
+            },
+          });
+        });
+      }
+
+      // 5. Almost breach warnings (vehicles close to limits)
       // This requires checking compliance_results for vehicles nearing thresholds
       const { data: almostBreaches, error: almostError } = await supabase.rpc(
         'get_almost_breaches',
@@ -259,10 +303,28 @@ export function useOfficerNotifications() {
       )
       .subscribe();
 
+    // Subscribe to patrol assignments
+    const patrolChannel = supabase
+      .channel('officer-patrols')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'patrols',
+          filter: `assigned_to=eq.${user.id}`,
+        },
+        () => {
+          loadNotifications();
+        }
+      )
+      .subscribe();
+
     return () => {
       breachChannel.unsubscribe();
       enforcementChannel.unsubscribe();
       investigationChannel.unsubscribe();
+      patrolChannel.unsubscribe();
     };
   }, [user?.id]);
 

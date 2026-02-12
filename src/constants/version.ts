@@ -6,9 +6,24 @@
  * - PATCH (third digit): Minor amendments
  */
 
-export const APP_VERSION = '2.5.0003';
+export const APP_VERSION = '2.5.0004';
 
 export const VERSION_HISTORY = [
+  {
+    version: '2.5.0004',
+    date: '2025-02-12',
+    changes: [
+      '📋 HOMELESS DATA CONSOLIDATION PLAN CREATED',
+      '🎯 Identified data fragmentation across 4 tables (canonical, flagged, records, observations)',
+      '✅ Created comprehensive migration plan to consolidate to canonical_vehicles',
+      '🏠 Homeless status will show in scan popup like other alerts (flagged/H&S)',
+      '🔄 Auto-sync triggers to update canonical from observations',
+      '📊 Single source of truth: canonical_vehicles.homeless_status',
+      '🎨 Purple homeless badges in VehicleDetailsPopup and ComplianceResultModal',
+      '⚖️ FC Act 2011 exemption applies automatically when status = confirmed',
+      '📝 Full migration checklist and user experience documented',
+    ],
+  },
   {
     version: '2.5.0003',
     date: '2025-02-12',
