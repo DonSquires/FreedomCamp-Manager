@@ -6,9 +6,23 @@
  * - PATCH (third digit): Minor amendments
  */
 
-export const APP_VERSION = '2.5.0006';
+export const APP_VERSION = '2.5.0007';
 
 export const VERSION_HISTORY = [
+  {
+    version: '2.5.0007',
+    date: '2025-02-12',
+    changes: [
+      '🚗 CONTINUOUS CAPTURE MODE: Auto-processes with canonical vehicle enrichment',
+      '📊 Scanned vehicles show existing data from canonical_vehicles automatically',
+      '🤖 Background AI enrichment triggers for incomplete vehicle details',
+      '✅ Motorweb Integration: NZ vehicle database enrichment edge function',
+      '🔍 Motorweb scrapes make/model/year/color from https://motorweb.co.nz/pub/',
+      '🔄 Auto-updates canonical_vehicles with Motorweb data when available',
+      '📋 Continuous mode: scan → canonical lookup → AI enrich → add to history (seamless)',
+      '🎯 Details mode: scan → popup with enriched data → Check → compliance modal',
+    ],
+  },
   {
     version: '2.5.0006',
     date: '2025-02-12',
