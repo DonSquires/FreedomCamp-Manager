@@ -597,108 +597,52 @@ export function PlateCapture({
     console.log('📷 Camera capabilities:', capabilities);
     
     try {
-      // ✅ AGGRESSIVE ANTI-WASHOUT STRATEGY
-      // Problem: Camera auto-adjusts to bright plates and overexposes
-      // Solution: FORCE manual settings that prevent overexposure
+      // ✅ FACTORY DEFAULT SETTINGS - Let camera auto-adjust
+      // Using continuous auto-focus and auto-white-balance for best results
       
       const constraints: any = {};
       const advanced: any[] = [];
       
-      // 1. FORCE MANUAL EXPOSURE (disable auto)
-      if ('exposureMode' in capabilities && capabilities.exposureMode?.includes('manual')) {
-        advanced.push({ exposureMode: 'manual' });
-        console.log('✅ Manual exposure mode enabled (prevents auto-overexposure)');
-        
-        // Set very low exposure time to prevent washout
-        if ('exposureTime' in capabilities) {
-          const { min, max } = capabilities.exposureTime as { min: number; max: number };
-          const lowExposure = min + (max - min) * 0.2; // 20% of range - very low
-          advanced.push({ exposureTime: lowExposure });
-          console.log('⚡ Exposure time set to minimum:', lowExposure, '(anti-washout)');
-        }
-      } else if ('exposureMode' in capabilities && capabilities.exposureMode?.includes('continuous')) {
+      // 1. Continuous auto-focus for sharp plates
+      if ('focusMode' in capabilities && capabilities.focusMode?.includes('continuous')) {
+        advanced.push({ focusMode: 'continuous' });
+        console.log('✅ Continuous auto-focus enabled');
+      }
+      
+      // 2. Continuous auto-exposure for varying light conditions
+      if ('exposureMode' in capabilities && capabilities.exposureMode?.includes('continuous')) {
         advanced.push({ exposureMode: 'continuous' });
-        console.log('✅ Continuous exposure enabled');
+        console.log('✅ Continuous auto-exposure enabled');
       }
       
-      // 2. AGGRESSIVE EXPOSURE COMPENSATION (negative = darker)
-      if ('exposureCompensation' in capabilities) {
-        const { min } = capabilities.exposureCompensation as { min: number; max: number };
-        // Use MINIMUM exposure compensation to prevent washout
-        advanced.push({ exposureCompensation: min });
-        console.log('🔽 Exposure compensation set to MINIMUM:', min, '(maximum darkness)');
-      }
-      
-      // 3. FORCE MANUAL WHITE BALANCE (disable auto)
-      if ('whiteBalanceMode' in capabilities && capabilities.whiteBalanceMode?.includes('manual')) {
-        advanced.push({ whiteBalanceMode: 'manual' });
-        console.log('✅ Manual white balance enabled (prevents auto-adjustment)');
-        
-        // Set neutral daylight temperature
-        if ('colorTemperature' in capabilities) {
-          const { min, max } = capabilities.colorTemperature as { min: number; max: number };
-          const midTemp = min + (max - min) * 0.5; // Neutral midpoint
-          advanced.push({ colorTemperature: midTemp });
-          console.log('🌡️ Color temperature set to neutral:', midTemp, 'K');
-        }
-      } else if ('whiteBalanceMode' in capabilities && capabilities.whiteBalanceMode?.includes('continuous')) {
+      // 3. Continuous auto-white-balance for accurate colors
+      if ('whiteBalanceMode' in capabilities && capabilities.whiteBalanceMode?.includes('continuous')) {
         advanced.push({ whiteBalanceMode: 'continuous' });
-        console.log('✅ Continuous white balance enabled');
+        console.log('✅ Continuous auto-white-balance enabled');
       }
       
-      // 4. MINIMUM BRIGHTNESS (prevent overexposure)
-      if ('brightness' in capabilities) {
-        const { min, max } = capabilities.brightness as { min: number; max: number };
-        const lowBrightness = min + (max - min) * 0.1; // 10% of range - very low
-        advanced.push({ brightness: lowBrightness });
-        console.log('🔅 Brightness set to near-minimum:', lowBrightness, '(anti-washout)');
-      }
-      
-      // 5. MINIMUM ISO (reduce light sensitivity)
-      if ('iso' in capabilities) {
-        const { min } = capabilities.iso as { min: number; max: number };
-        advanced.push({ iso: min });
-        console.log('📉 ISO set to minimum:', min, '(low sensitivity)');
-      }
-      
-      // 6. REDUCE CONTRAST (handle bright/dark areas better)
-      if ('contrast' in capabilities) {
-        const { min, max } = capabilities.contrast as { min: number; max: number };
-        const lowContrast = min + (max - min) * 0.3; // 30% of range
-        advanced.push({ contrast: lowContrast });
-        console.log('📊 Contrast reduced:', lowContrast, '(smooth tones)');
-      }
-      
-      // 7. MAXIMUM SHARPNESS (text clarity)
+      // 4. Maximum sharpness for text clarity (safe to max out)
       if ('sharpness' in capabilities) {
         const { max } = capabilities.sharpness as { max: number };
         advanced.push({ sharpness: max });
         console.log('✅ Sharpness maximized for text clarity');
       }
       
-      // 8. CONTINUOUS AUTO-FOCUS (keep plates sharp)
-      if ('focusMode' in capabilities) {
-        if (capabilities.focusMode?.includes('continuous')) {
-          advanced.push({ focusMode: 'continuous' });
-          console.log('✅ Continuous auto-focus enabled');
-        }
-      }
-      
-      // Apply all constraints in one go
+      // Apply factory defaults
       if (advanced.length > 0) {
         constraints.advanced = advanced;
         await track.applyConstraints(constraints);
-        console.log(`✅ Applied ${advanced.length} AGGRESSIVE anti-washout settings`);
-        toast.success('Camera configured for license plate scanning', {
+        console.log(`✅ Applied ${advanced.length} factory default settings`);
+        toast.success('Camera ready with automatic settings', {
           duration: 2000,
         });
       } else {
         console.warn('⚠️ No advanced camera controls available');
-        toast.info('Using basic camera settings (limited controls on this device)');
+        toast.info('Using basic camera settings');
       }
     } catch (error) {
       console.error('❌ Failed to apply camera settings:', error);
-      toast.warning('Camera settings partially applied - some features unavailable');
+      toast.warning('Camera settings partially applied');
     }
   };
 

@@ -6,9 +6,20 @@
  * - PATCH (third digit): Minor amendments
  */
 
-export const APP_VERSION = '2.3.0005';
+export const APP_VERSION = '2.3.0006';
 
 export const VERSION_HISTORY = [
+  {
+    version: '2.3.0006',
+    date: '2025-02-12',
+    changes: [
+      '📷 Reset camera to factory default settings - removed aggressive manual overrides',
+      '🔄 Camera now uses continuous auto-exposure, auto-focus, and auto-white-balance',
+      '✅ Better image quality in varying light conditions',
+      '🔧 Fixed database function calls for scanned vehicles list',
+      '🦅 Iron Eagle Security branding confirmed throughout app',
+    ],
+  },
   {
     version: '2.3.0005',
     date: '2025-02-12',
