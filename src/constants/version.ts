@@ -6,9 +6,20 @@
  * - PATCH (third digit): Minor amendments
  */
 
-export const APP_VERSION = '2.5.0012';
+export const APP_VERSION = '2.5.0013';
 
 export const VERSION_HISTORY = [
+  {
+    version: '2.5.0013',
+    date: '2025-02-13',
+    changes: [
+      '🔧 CRITICAL FIX: Analytics Dashboard loadDashboard() query error',
+      '❌ Removed is_compliant and is_breach from observation queries',
+      '✅ Queries now correctly use vehicle_observations_v2 WITHOUT removed columns',
+      '📊 Dashboard stats calculated from monthly stays + compliance_results (not from observations)',
+      '🎯 Compliance evaluation is in compliance_results table (Section 2 - Reporting)',
+    ],
+  },
   {
     version: '2.5.0012',
     date: '2025-02-13',
