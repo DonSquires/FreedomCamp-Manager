@@ -6,7 +6,7 @@
  */
 
 import { useState } from 'react';
-import { Bell, CheckCheck, AlertTriangle, Shield, FileText, Flag } from 'lucide-react';
+import { Bell, CheckCheck, AlertTriangle, Shield, FileText, Flag, Calendar } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -44,6 +44,7 @@ export function OfficerNotificationBell({ onNotificationClick }: OfficerNotifica
       case 'enforcement_assigned': return Shield;
       case 'investigation_assigned': return FileText;
       case 'almost_breach': return Flag;
+      case 'patrol_assigned': return Calendar;
       default: return Bell;
     }
   };

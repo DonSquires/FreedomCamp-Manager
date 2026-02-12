@@ -6,9 +6,29 @@
  * - PATCH (third digit): Minor amendments
  */
 
-export const APP_VERSION = '2.5.0001';
+export const APP_VERSION = '2.5.0003';
 
 export const VERSION_HISTORY = [
+  {
+    version: '2.5.0003',
+    date: '2025-02-12',
+    changes: [
+      '🚨 PATROL NOTIFICATIONS - Assigned patrols now show in notification bell',
+      '📅 Today\'s patrols appear as HIGH priority with prominent alert',
+      '📆 Upcoming patrols shown with calendar icon and future date',
+      '✅ Real-time updates when patrol is assigned, checked-in, or completed',
+      '🔔 Officers now see patrol assignments immediately',
+      '⚡ Auto-refresh every 30 seconds to keep patrol status current',
+    ],
+  },
+  {
+    version: '2.5.0002',
+    date: '2025-02-12',
+    changes: [
+      '🔧 Fixed Admin Portal not loading - added missing Flag icon import',
+      '✅ Admin Portal now opens correctly after login',
+    ],
+  },
   {
     version: '2.5.0001',
     date: '2025-02-12',

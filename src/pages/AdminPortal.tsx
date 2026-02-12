@@ -24,6 +24,7 @@ import {
   AlertTriangle,
   HelpCircle,
   ArrowLeftRight,
+  Flag,
 } from 'lucide-react';
 import { JDSLogo } from '@/components/layout/JDSLogo';
 import { ResponsiveContainer } from '@/components/layout/ResponsiveContainer';
@@ -47,10 +48,9 @@ import { UrgentFollowUps } from './UrgentFollowUps';
 import { ZoneManagement } from './ZoneManagement';
 import { OfficerWelfareHub } from './OfficerWelfareHub';
 import { HelpDocumentation } from './HelpDocumentation';
-import { ComplianceAnalytics } from './ComplianceAnalytics';
-import { OfficerActivityReport } from './OfficerActivityReport';
-import { ZonePerformanceReport } from './ZonePerformanceReport';
+import { AnalyticsHub } from './AnalyticsHub';
 import { OrganizationDashboard } from './OrganizationDashboard';
+import { OrganizationManagement } from './OrganizationManagement';
 import { ZoneCorrections } from './ZoneCorrections';
 import { UserManagement } from './UserManagement';
 import { VehicleRecords } from './VehicleRecords';
@@ -331,51 +331,15 @@ export function AdminPortal({ onLogout }: AdminPortalProps) {
             </div>
 
             <Button
-              variant={activeTab === 'compliance-analytics' ? 'default' : 'ghost'}
+              variant={activeTab === 'analytics-hub' ? 'default' : 'ghost'}
               className="w-full justify-start text-sm lg:text-base h-10 lg:h-9 touch-manipulation"
               onClick={() => {
-                setActiveTab('compliance-analytics');
+                setActiveTab('analytics-hub');
                 setSidebarOpen(false);
               }}
             >
               <TrendingUp className="h-4 w-4 mr-2 lg:mr-3" />
-              Compliance Analytics
-            </Button>
-
-            <Button
-              variant={activeTab === 'officer-activity' ? 'default' : 'ghost'}
-              className="w-full justify-start text-sm lg:text-base h-10 lg:h-9 touch-manipulation"
-              onClick={() => {
-                setActiveTab('officer-activity');
-                setSidebarOpen(false);
-              }}
-            >
-              <Users className="h-4 w-4 mr-2 lg:mr-3" />
-              Officer Activity
-            </Button>
-
-            <Button
-              variant={activeTab === 'vehicle-heatmap' ? 'default' : 'ghost'}
-              className="w-full justify-start text-sm lg:text-base h-10 lg:h-9 touch-manipulation"
-              onClick={() => {
-                setActiveTab('vehicle-heatmap');
-                setSidebarOpen(false);
-              }}
-            >
-              <MapPin className="h-4 w-4 mr-2 lg:mr-3" />
-              Vehicle Heat Map
-            </Button>
-
-            <Button
-              variant={activeTab === 'zone-performance' ? 'default' : 'ghost'}
-              className="w-full justify-start text-sm lg:text-base h-10 lg:h-9 touch-manipulation"
-              onClick={() => {
-                setActiveTab('zone-performance');
-                setSidebarOpen(false);
-              }}
-            >
-              <TrendingUp className="h-4 w-4 mr-2 lg:mr-3" />
-              Zone Performance
+              Analytics Hub
             </Button>
 
             <Button
@@ -443,6 +407,20 @@ export function AdminPortal({ onLogout }: AdminPortalProps) {
               <Users className="h-4 w-4 mr-2 lg:mr-3" />
               User Management
             </Button>
+
+            {isMaster && (
+              <Button
+                variant={activeTab === 'organization-management' ? 'default' : 'ghost'}
+                className="w-full justify-start text-sm lg:text-base h-10 lg:h-9 touch-manipulation"
+                onClick={() => {
+                  setActiveTab('organization-management');
+                  setSidebarOpen(false);
+                }}
+              >
+                <Building2 className="h-4 w-4 mr-2 lg:mr-3" />
+                Organizations
+              </Button>
+            )}
 
             {/* MAINTENANCE - Only visible to master users */}
             {isMaster && (
@@ -671,11 +649,8 @@ export function AdminPortal({ onLogout }: AdminPortalProps) {
               {activeTab === 'matrix' && <ComplianceMatrixManagement />}
               {activeTab === 'recalculation' && <ComplianceRecalculation />}
 
-              {/* Rebuilt Reports */}
-              {activeTab === 'compliance-analytics' && <ComplianceAnalytics />}
-              {activeTab === 'officer-activity' && <OfficerActivityReport />}
-              {activeTab === 'vehicle-heatmap' && <ComplianceHeatMap />}
-              {activeTab === 'zone-performance' && <ZonePerformanceReport />}
+              {/* Analytics Hub - Phase 3 Complete */}
+              {activeTab === 'analytics-hub' && <AnalyticsHub />}
 
               {activeTab === 'bulk-scan-review' && <BulkScanReview />}
               
@@ -719,6 +694,7 @@ export function AdminPortal({ onLogout }: AdminPortalProps) {
               {activeTab === 'vehicle-log-import' && <VehicleLogImport />}
 
               {activeTab === 'user-management' && <UserManagement />}
+              {activeTab === 'organization-management' && isMaster && <OrganizationManagement />}
 
               {activeTab === 'zone-corrections' && <ZoneCorrections />}
 
