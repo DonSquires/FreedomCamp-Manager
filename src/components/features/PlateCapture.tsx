@@ -1069,16 +1069,37 @@ export function PlateCapture({
         (!drivingMode && handheldMode === 'collect_details');
       
       if (shouldShowPopup) {
-        setCurrentVehicleDetails({
+        // Use enriched vehicle data from process-field-scan (includes canonical_vehicles data)
+        const enrichedDetails = {
           ...detectionResult,
           vehicleId: scanResult.vehicle_id,
           observationId: scanResult.observation_id,
           isCompliant: scanResult.is_compliant,
           isFlagged: scanResult.is_flagged,
           priorObservationsCount: scanResult.prior_observations_count,
-        });
+          // Override with enriched data from canonical_vehicles if available
+          vehicleMake: scanResult.vehicle_details?.make || detectionResult.vehicleMake,
+          vehicleModel: scanResult.vehicle_details?.model || detectionResult.vehicleModel,
+          vehicleColor: scanResult.vehicle_details?.color || detectionResult.vehicleColor,
+          vehicleYear: scanResult.vehicle_details?.year?.toString() || detectionResult.vehicleYear,
+        };
+        
+        setCurrentVehicleDetails(enrichedDetails);
         setShowVehiclePopup(true);
         setIsWorkflowLocked(true); // 🔒 Lock camera until workflow complete
+        
+        // If vehicle details are incomplete, trigger background AI analysis
+        const hasIncompleteDetails = !enrichedDetails.vehicleMake || !enrichedDetails.vehicleModel || !enrichedDetails.vehicleColor;
+        if (hasIncompleteDetails && detectionResult.fullImageUrl && scanResult.vehicle_id) {
+          console.log('🤖 Vehicle details incomplete - triggering background AI analysis...');
+          triggerBackgroundAIAnalysis(
+            detectionResult.plateNumber,
+            scanResult.vehicle_id,
+            detectionResult.fullImageUrl
+          );
+          toast.info('Analyzing vehicle details in background...', { duration: 2000 });
+        }
+        
         // Don't return here - still process alerts below
       }
 

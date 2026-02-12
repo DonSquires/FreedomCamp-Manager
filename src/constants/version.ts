@@ -6,9 +6,20 @@
  * - PATCH (third digit): Minor amendments
  */
 
-export const APP_VERSION = '2.3.0009';
+export const APP_VERSION = '2.3.0010';
 
 export const VERSION_HISTORY = [
+  {
+    version: '2.3.0010',
+    date: '2025-02-12',
+    changes: [
+      '✅ Fixed "Details" mode to show vehicle popup with enriched data',
+      '📊 Vehicle details now pulled from canonical_vehicles (existing records)',
+      '🤖 Auto-trigger AI analysis if vehicle details incomplete',
+      '🔍 Shows previously recorded make/model/color for known vehicles',
+      '✨ New vehicles get AI enrichment in background',
+    ],
+  },
   {
     version: '2.3.0009',
     date: '2025-02-12',
