@@ -46,9 +46,7 @@ import { PatrolManagement } from './PatrolManagement';
 import { InvestigationJobs } from './InvestigationJobs';
 import { UrgentFollowUps } from './UrgentFollowUps';
 import { ZoneManagement } from './ZoneManagement';
-import { OfficerWelfareManagement } from './OfficerWelfareManagement';
-import { OfficerWelfareAlerts } from './OfficerWelfareAlerts';
-import { LiveOfficerTracking } from './LiveOfficerTracking';
+import { OfficerWelfareHub } from './OfficerWelfareHub';
 import { HelpDocumentation } from './HelpDocumentation';
 import { ComplianceAnalytics } from './ComplianceAnalytics';
 import { OfficerActivityReport } from './OfficerActivityReport';
@@ -242,27 +240,15 @@ export function AdminPortal({ onLogout }: AdminPortalProps) {
             )}
 
             <Button
-              variant={activeTab === 'live-tracking' ? 'default' : 'ghost'}
-              className="w-full justify-start text-sm lg:text-base h-10 lg:h-9 touch-manipulation"
+              variant={activeTab === 'officer-welfare-hub' ? 'default' : 'ghost'}
+              className="w-full justify-start text-sm lg:text-base h-10 lg:h-9 touch-manipulation bg-red-50 dark:bg-red-950/20 border border-red-500/30"
               onClick={() => {
-                setActiveTab('live-tracking');
+                setActiveTab('officer-welfare-hub');
                 setSidebarOpen(false);
               }}
             >
-              <MapPin className="h-4 w-4 mr-2 lg:mr-3" />
-              Live Officer Tracking
-            </Button>
-
-            <Button
-              variant={activeTab === 'welfare-alerts' ? 'default' : 'ghost'}
-              className="w-full justify-start text-sm lg:text-base h-10 lg:h-9 touch-manipulation"
-              onClick={() => {
-                setActiveTab('welfare-alerts');
-                setSidebarOpen(false);
-              }}
-            >
-              <Heart className="h-4 w-4 mr-2 lg:mr-3" />
-              Welfare Alerts
+              <Heart className="h-4 w-4 mr-2 lg:mr-3 text-red-600" />
+              <span className="text-red-600 dark:text-red-400 font-semibold">Officer Welfare Hub</span>
             </Button>
 
             <Button
@@ -469,17 +455,7 @@ export function AdminPortal({ onLogout }: AdminPortalProps) {
               Matrix Management
             </Button>
 
-            <Button
-              variant={activeTab === 'welfare-settings' ? 'default' : 'ghost'}
-              className="w-full justify-start text-sm lg:text-base h-10 lg:h-9 touch-manipulation"
-              onClick={() => {
-                setActiveTab('welfare-settings');
-                setSidebarOpen(false);
-              }}
-            >
-              <Heart className="h-4 w-4 mr-2 lg:mr-3" />
-              Welfare Settings
-            </Button>
+
 
             <Button
               variant={activeTab === 'user-management' ? 'default' : 'ghost'}
@@ -753,9 +729,7 @@ export function AdminPortal({ onLogout }: AdminPortalProps) {
 
               {activeTab === 'zone-management' && <ZoneManagement />}
               {activeTab === 'patrol-management' && <PatrolManagement />}
-              {activeTab === 'live-tracking' && <LiveOfficerTracking />}
-              {activeTab === 'welfare-settings' && <OfficerWelfareManagement />}
-              {activeTab === 'welfare-alerts' && <OfficerWelfareAlerts />}
+              {activeTab === 'officer-welfare-hub' && <OfficerWelfareHub />}
 
               {activeTab === 'cross-org' && isSuperUser && (
                 <Card>
