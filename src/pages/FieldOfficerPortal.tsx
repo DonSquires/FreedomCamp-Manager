@@ -367,21 +367,9 @@ export function FieldOfficerPortal({ onLogout }: FieldOfficerPortalProps) {
         console.log('✅ Loaded zones:', zones.length, zones.map(z => z.name));
 
         if (zones && zones.length > 0) {
-          // Ensure "Other Location" zone exists at the end
-          const hasOtherLocation = zones.some(z => z.name === 'Other Location');
-          let finalZones = [...zones];
-          
-          if (!hasOtherLocation) {
-            // Add virtual "Other Location" zone for areas outside geofences
-            finalZones.push({
-              id: 'other-location',
-              name: 'Other Location',
-              organization_id: profile.organization_id,
-              geometry: null,
-              location_lat: null,
-              location_lng: null,
-            });
-          }
+          // ✅ FIX: Don't add virtual "Other Location" - only use real zones from database
+          // Virtual zones break PlateCapture because they have invalid UUIDs
+          const finalZones = [...zones];
           
           setAvailableZones(finalZones);
           
@@ -407,16 +395,22 @@ export function FieldOfficerPortal({ onLogout }: FieldOfficerPortalProps) {
             }
           }
           
-          // No sticky zone - wait for GPS to auto-detect
-          // (Will be handled by separate effect when GPS location arrives)
-          console.log('⏳ Waiting for GPS location to auto-detect zone...');
+          // ✅ FIX: Auto-select first zone as fallback if no sticky zone
+          if (finalZones.length > 0) {
+            setSelectedZone({
+              id: finalZones[0].id,
+              name: finalZones[0].name,
+              orgId: finalZones[0].organization_id,
+            });
+            console.log('📍 Auto-selected first zone:', finalZones[0].name);
+          }
         } else {
           console.warn('⚠️ No active zones found for organization:', profile.organization_id);
           console.warn('⚠️ This means either:');
           console.warn('   1. No zones have been created for this organization');
           console.warn('   2. All zones are marked as inactive');
           console.warn('   3. RLS policies are blocking access');
-          toast.error('No active zones found for your organization');
+          toast.warning('No zones configured - please contact your admin to set up zones');
         }
       } catch (error: any) {
         console.error('Zone loading error:', error);
@@ -457,18 +451,27 @@ export function FieldOfficerPortal({ onLogout }: FieldOfficerPortalProps) {
     return () => clearInterval(interval);
   }, []);
 
-  // Auto-detect zone when GPS location first becomes available (ONLY on initial load)
+  // Auto-detect zone when GPS location first becomes available (ONLY if no zone selected)
   useEffect(() => {
     // Only run if:
     // 1. Zones are loaded
     // 2. GPS location is available
-    // 3. No zone is currently selected (initial load)
+    // 3. No zone is currently selected
     if (availableZones.length === 0 || !gpsLocation || selectedZone) return;
 
     const autoDetectZone = async () => {
       if (gpsLocation.accuracy >= 100) {
-        console.log('⚠️ GPS accuracy too low for initial zone detection:', Math.round(gpsLocation.accuracy) + 'm');
-        return; // Don't set any zone if accuracy is poor
+        console.log('⚠️ GPS accuracy too low for zone detection:', Math.round(gpsLocation.accuracy) + 'm');
+        // Still set first zone as fallback even with poor GPS
+        if (availableZones.length > 0 && !selectedZone) {
+          setSelectedZone({
+            id: availableZones[0].id,
+            name: availableZones[0].name,
+            orgId: availableZones[0].organization_id,
+          });
+          console.log('📍 Fallback to first zone due to poor GPS:', availableZones[0].name);
+        }
+        return;
       }
 
       const { findZoneByLocation, setStickyZone } = await import('@/lib/geofence');
@@ -483,16 +486,23 @@ export function FieldOfficerPortal({ onLogout }: FieldOfficerPortalProps) {
           name: detectedZone.name,
           orgId: detectedZone.organization_id,
         });
-        // SAVE AS STICKY ZONE (only if not "Other Location")
-        if (detectedZone.name !== 'Other Location') {
-          setStickyZone(detectedZone);
+        setStickyZone(detectedZone);
+        console.log('✅ Zone detected via GPS:', detectedZone.name);
+      } else {
+        // No geofence match - use first zone as fallback
+        if (availableZones.length > 0) {
+          setSelectedZone({
+            id: availableZones[0].id,
+            name: availableZones[0].name,
+            orgId: availableZones[0].organization_id,
+          });
+          console.log('📍 Outside all geofences - using first zone:', availableZones[0].name);
         }
-        console.log('✅ Initial zone detected via GPS:', detectedZone.name);
       }
     };
 
     autoDetectZone();
-  }, [availableZones.length, gpsLocation, selectedZone]); // Only run on initial load
+  }, [availableZones.length, gpsLocation, selectedZone]);
 
   // ✅ BATCH 3: STREAMLINED GPS TRACKING - Single interval handles all GPS operations
   useEffect(() => {
@@ -567,13 +577,8 @@ export function FieldOfficerPortal({ onLogout }: FieldOfficerPortalProps) {
           setSelectedZone(prev => {
             if (prev?.id === newZone.id) return prev;
             
-            if (newZone.name !== 'Other Location') {
-              setStickyZone(newZone);
-              console.log('✅ Zone changed:', newZone.name);
-            } else {
-              clearStickyZone();
-              console.log('🚶 Left all geofenced zones - using "Other Location"');
-            }
+            setStickyZone(newZone);
+            console.log('✅ Zone changed:', newZone.name);
             
             return {
               id: newZone.id,
@@ -582,16 +587,8 @@ export function FieldOfficerPortal({ onLogout }: FieldOfficerPortalProps) {
             };
           });
         } else {
-          const otherLocation = availableZones.find(z => z.name === 'Other Location');
-          if (otherLocation) {
-            setSelectedZone({
-              id: otherLocation.id,
-              name: otherLocation.name,
-              orgId: otherLocation.organization_id,
-            });
-            clearStickyZone();
-            console.log('📍 No zone detected - set to "Other Location"');
-          }
+          // Officer left all geofenced zones - keep current zone (don't switch to invalid virtual zone)
+          console.log('📍 Officer outside all geofences - keeping current zone');
         }
       }
     };
