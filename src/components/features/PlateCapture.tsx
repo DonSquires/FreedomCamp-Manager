@@ -1297,41 +1297,24 @@ export function PlateCapture({
           details: breachAlert || 'Vehicle is non-compliant with zone regulations',
         });
         setShowAlertModal(true);
-      } else if (scanResult.alerts && scanResult.alerts.some((a: string) => a.toLowerCase().includes('homeless') && a.toLowerCase().includes('confirmed'))) {
-        playSounds.homeless();
-        hasPlayedSound = true;
-        requiresAcknowledgement = true;
-        
-        const homelessAlert = scanResult.alerts.find((a: string) => a.toLowerCase().includes('homeless') && a.toLowerCase().includes('confirmed'));
-        setCurrentAlert({
-          type: 'homeless_confirmed',
-          vehicleId: scanResult.vehicle_id,
-          plateNumber: detectionResult.plateNumber,
-          vehicleMake: detectionResult.vehicleMake,
-          vehicleModel: detectionResult.vehicleModel,
-          vehicleColor: detectionResult.vehicleColor,
-          photoUrl: detectionResult.fullImageUrl || undefined,
-          message: 'Homeless status confirmed',
-          details: homelessAlert || 'This vehicle has confirmed homeless status',
-        });
-        setShowAlertModal(true);
       }
+      // NOTE: Homeless alerts removed - homeless vehicles are FC Act exempt (low priority, informational only)
 
-      // Show remaining alerts as green bubbles (non-critical)
+      // Show remaining alerts as bubbles (non-critical, informational)
       if (!requiresAcknowledgement && scanResult.alerts && scanResult.alerts.length > 0) {
         scanResult.alerts.forEach((alert: string) => {
-          if (alert.toLowerCase().includes('homeless')) {
-            // Homeless status - warning bubble
+          if (alert.toLowerCase().includes('homeless') && alert.toLowerCase().includes('exempt')) {
+            // Homeless FC Act Exempt - informational bubble (low priority)
             if (!hasPlayedSound) {
               playSounds.homeless();
               hasPlayedSound = true;
             }
             
             setFeedbackType('warning');
-            setFeedbackMessage('Homeless');
+            setFeedbackMessage('Homeless (FC Exempt)');
             setShowFeedbackBubble(true);
             setTimeout(() => setShowFeedbackBubble(false), 3000);
-          } else {
+          } else if (alert.toLowerCase().includes('compliant')) {
             // Success bubble for compliant vehicles
             setFeedbackType('success');
             setFeedbackMessage('Compliant');

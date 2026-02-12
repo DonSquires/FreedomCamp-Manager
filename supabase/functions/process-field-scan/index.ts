@@ -258,8 +258,10 @@ Deno.serve(async (req) => {
       console.error('⚠️ Compliance check failed (non-critical):', complianceErr);
     }
 
-    // STEP 5: Build alerts
+    // STEP 5: Build alerts (respecting FC Act exemption for homeless)
     const alerts: string[] = [];
+    const isHomeless = canonicalVehicle.homeless_status === 'confirmed' || canonicalVehicle.homeless_status === 'claimed';
+    const isFCActExempt = canonicalVehicle.fc_act_exempt || isHomeless;
 
     if (isNewVehicle) {
       alerts.push('✨ New vehicle detected - first observation recorded');
@@ -269,8 +271,18 @@ Deno.serve(async (req) => {
       alerts.push(`🚩 FLAGGED VEHICLE: ${canonicalVehicle.flagged_reason || 'Unknown reason'} (Priority: ${canonicalVehicle.flagged_priority})`);
     }
 
+    // Homeless vehicles: informational only, not critical
+    if (isHomeless) {
+      alerts.push(`ℹ️ Homeless vehicle (FC Act Exempt) - ${canonicalVehicle.homeless_status}`);
+    }
+
+    // Zone compliance (informational for homeless, critical for non-homeless)
     if (!isCompliant) {
-      alerts.push('⚠️ Non-compliant with zone requirements');
+      if (isFCActExempt) {
+        alerts.push('ℹ️ Zone rule breach detected (FC Act does not apply - homeless exemption)');
+      } else {
+        alerts.push('⚠️ Non-compliant with zone requirements');
+      }
     }
 
     if (scanData.isSelfContained || scanData.hasGreenSticker || scanData.hasBlueSticker) {
@@ -291,6 +303,8 @@ Deno.serve(async (req) => {
       is_new_vehicle: isNewVehicle,
       is_flagged: canonicalVehicle.is_flagged,
       is_compliant: isCompliant,
+      fc_act_exempt: isFCActExempt,
+      homeless_status: canonicalVehicle.homeless_status,
       prior_observations_count: canonicalVehicle.total_observations,
       alerts,
       flagged_details: canonicalVehicle.is_flagged ? {
