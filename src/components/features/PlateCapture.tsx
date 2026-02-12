@@ -868,8 +868,8 @@ export function PlateCapture({
         throw alprError;
       }
 
-      // ALPR success path
-      if (alprData?.success && alprData.plate_number && alprData.confidence > 0.6) {
+      // ALPR success path (lowered threshold to 0.5 for better coverage)
+      if (alprData?.success && alprData.plate_number && alprData.confidence > 0.5) {
         console.log('✅ ALPR SUCCESS:', alprData.plate_number, `(${Math.round(alprData.confidence * 100)}%)`);
         
         setProcessingQueue(prev => 
@@ -912,8 +912,9 @@ export function PlateCapture({
         return; // Success - exit early
       }
 
-      // STEP 3: ALPR failed - try OCR fallback
-      console.log('⚠️ ALPR failed or low confidence, trying OnSpace AI OCR...');
+      // STEP 3: ALPR failed or low confidence - try OCR fallback
+      console.log('⚠️ ALPR failed or confidence <50%, trying OnSpace AI OCR fallback...');
+      console.log('   ALPR result:', alprData?.plate_number || 'none', `(${Math.round((alprData?.confidence || 0) * 100)}%)`);
       setProcessingMethod('ocr');
       toast.info('Trying AI OCR fallback...');
       
@@ -923,7 +924,7 @@ export function PlateCapture({
 
       if (ocrError) throw ocrError;
 
-      // OCR success path
+      // OCR success path (using 0.5 threshold for consistency)
       if (ocrData?.plate_number && ocrData.confidence_score > 0.5) {
         console.log('✅ OCR SUCCESS:', ocrData.plate_number, `(${Math.round(ocrData.confidence_score * 100)}%)`);
         
@@ -963,8 +964,10 @@ export function PlateCapture({
         return; // Success - exit early
       }
 
-      // STEP 4: Both ALPR and OCR failed - trigger manual entry
-      console.error('❌ Both ALPR and OCR failed');
+      // STEP 4: Both ALPR and OCR failed or low confidence - trigger manual entry
+      console.error('❌ Both ALPR and OCR failed or returned low confidence');
+      console.error('   ALPR:', alprData?.plate_number || 'failed', `(${Math.round((alprData?.confidence || 0) * 100)}%)`);
+      console.error('   OCR:', ocrData?.plate_number || 'failed', `(${Math.round((ocrData?.confidence_score || 0) * 100)}%)`);
       playSounds.error();
       
       setFeedbackType('error');
