@@ -6,9 +6,20 @@
  * - PATCH (third digit): Minor amendments
  */
 
-export const APP_VERSION = '2.3.0007';
+export const APP_VERSION = '2.3.0008';
 
 export const VERSION_HISTORY = [
+  {
+    version: '2.3.0008',
+    date: '2025-02-12',
+    changes: [
+      '🔧 Fixed CORS headers - added x-client-timezone support',
+      '📊 Optimized ALPR flow - lowered confidence threshold to 0.5 (50%)',
+      '🎯 Enhanced OCR prompt for better NZ plate recognition',
+      '📝 Added comprehensive logging for scan debugging',
+      '⚡ Improved error messages showing ALPR and OCR results',
+    ],
+  },
   {
     version: '2.3.0007',
     date: '2025-02-12',

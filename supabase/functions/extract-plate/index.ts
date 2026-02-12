@@ -41,23 +41,36 @@ Deno.serve(async (req) => {
             content: [
               {
                 type: 'text',
-                text: `You are an OCR (Optical Character Recognition) system specialized in reading license plates.
+                text: `CRITICAL TASK: Extract New Zealand license plate text from this image.
 
-Your ONLY task: Extract the license plate text from this image.
+🎯 YOUR ONLY JOB:
+Read the license plate characters EXACTLY as shown. Return ONLY the characters, nothing else.
 
-Instructions:
-- Look at the bumper/grille area for a rectangular plate
-- New Zealand plates: 3-7 alphanumeric characters (e.g., ABC123, KGNZ38, XYZ789)
-- Characters are BLACK on WHITE or YELLOW background
-- Read EVERY visible character exactly as shown
-- Ignore rotation, angle, or perspective - just read the text
+📍 WHERE TO LOOK:
+- Front or rear bumper/grille area
+- Rectangular white or yellow plate with black text
+- Usually centered on vehicle
 
-Respond with ONLY the plate characters, nothing else. Examples:
-- If you see "KGNZ38" → respond: KGNZ38
-- If you see "ABC123" → respond: ABC123
-- If no plate visible → respond: NONE
+🔤 NZ PLATE FORMAT:
+- 3-7 alphanumeric characters
+- Examples: ABC123, KGNZ38, XYZ789, CUSTOM7
+- Mix of letters and numbers
+- All UPPERCASE
 
-Your response (plate text only):`,
+✅ IMPORTANT:
+- Read EVERY character you can see
+- Ignore rotation, angle, dirt, or shadows
+- Be confident - even if plate is partially obscured
+- If you see SOME characters, return them (partial read is better than nothing)
+- If absolutely NO plate visible → respond: NONE
+
+📝 EXAMPLES:
+- Plate shows "KGNZ38" → respond: KGNZ38
+- Plate shows "ABC 123" → respond: ABC123 (no spaces)
+- Plate partially visible "XY_789" → respond: XY789 (best effort)
+- No plate at all → respond: NONE
+
+Your response (plate characters ONLY):`,
               },
               {
                 type: 'image_url',
@@ -68,7 +81,7 @@ Your response (plate text only):`,
             ],
           },
         ],
-        max_tokens: 20,
+        max_tokens: 30,
         temperature: 0.0,
       }),
     });

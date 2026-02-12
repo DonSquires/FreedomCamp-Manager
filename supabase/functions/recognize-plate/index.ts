@@ -88,8 +88,10 @@ Deno.serve(async (req) => {
 
     // Extract results
     const results = data.results || [];
+    console.log('📋 ALPR Results:', JSON.stringify(results, null, 2));
     
     if (results.length === 0) {
+      console.log('⚠️ ALPR found no plates - will trigger OCR fallback');
       return new Response(
         JSON.stringify({
           success: false,
@@ -295,10 +297,15 @@ Respond ONLY with JSON (no markdown):
       }
     }
 
+    const plateNumber = bestResult.plate?.toUpperCase() || '';
+    const confidence = bestResult.score || 0;
+    
+    console.log(`✅ ALPR SUCCESS: ${plateNumber} (${Math.round(confidence * 100)}% confidence)`);
+    
     const extractedData = {
       success: true,
-      plate_number: bestResult.plate?.toUpperCase() || '',
-      confidence: bestResult.score || 0,
+      plate_number: plateNumber,
+      confidence: confidence,
       region_code: region.code || '',
       region_score: region.score || 0,
       // Self-contained sticker detection
