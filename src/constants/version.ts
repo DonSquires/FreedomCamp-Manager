@@ -6,9 +6,21 @@
  * - PATCH (third digit): Minor amendments
  */
 
-export const APP_VERSION = '2.5.0007';
+export const APP_VERSION = '2.5.0008';
 
 export const VERSION_HISTORY = [
+  {
+    version: '2.5.0008',
+    date: '2025-02-12',
+    changes: [
+      '🚗 MOTORWEB PRIMARY SOURCE: Motorweb NZ now first priority for enrichment',
+      '📊 Enrichment order: Motorweb → Photo Analysis → NZSCV → Carjam',
+      '✅ Motorweb provides most accurate NZ vehicle registration data',
+      '🔄 Fallback cascade ensures maximum data coverage',
+      '📋 Vehicle Enrichment Maintenance now shows Motorweb badge',
+      '⚡ Motorweb integration complete in maintenance workflow',
+    ],
+  },
   {
     version: '2.5.0007',
     date: '2025-02-12',
