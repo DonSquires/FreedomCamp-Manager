@@ -16,6 +16,8 @@
  * Compliance Rate:
  * - Excludes homeless vehicles (FC Act exempt)
  * - Formula: (compliant non-homeless) / (total non-homeless) * 100
+ * 
+ * ✅ TIMEZONE FIX: All dates use NZ timezone (Pacific/Auckland) for filtering and display
  */
 
 import { useState, useEffect } from 'react';
@@ -50,11 +52,13 @@ import {
   CheckCircle2,
   BarChart3,
   Activity,
+  Filter,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/stores/authStore';
 import { exportComprehensiveCSV } from '@/lib/csvExport';
+import { getNZDateString, getNZDateRange, formatNZDateOnly, toNZDate } from '@/lib/timezone';
 
 // ==================== TYPES ====================
 
@@ -100,13 +104,6 @@ interface VehicleCard {
 }
 
 // ==================== HELPERS ====================
-
-const formatLocalDate = (date: Date): string => {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, '0');
-  const day = String(date.getDate()).padStart(2, '0');
-  return `${year}-${month}-${day}`;
-};
 
 const getStatusColor = (status: VehicleCard['status']): string => {
   switch (status) {
@@ -173,16 +170,18 @@ export function OrganizationDashboard() {
   const [zones, setZones] = useState<ZoneStats[]>([]);
   const [vehicles, setVehicles] = useState<VehicleCard[]>([]);
 
-  const [dateFrom, setDateFrom] = useState(() => formatLocalDate(new Date()));
-  const [dateTo, setDateTo] = useState(() => formatLocalDate(new Date()));
+  // ✅ CRITICAL FIX: Use NZ timezone for date state
+  const [dateFrom, setDateFrom] = useState(() => getNZDateString());
+  const [dateTo, setDateTo] = useState(() => getNZDateString());
   const [selectedOrgId, setSelectedOrgId] = useState<string>('all');
   const [organizations, setOrganizations] = useState<Array<{ id: string; name: string }>>([]);
 
   // ==================== DATE HANDLERS ====================
 
+  // ✅ CRITICAL FIX: Use NZ timezone for date range calculations
   const setDateRange = (range: 'today' | 'yesterday' | 'last7' | 'last30' | 'last90') => {
-    const today = new Date();
-    const todayStr = formatLocalDate(today);
+    const nzNow = toNZDate(new Date());
+    const todayStr = getNZDateString(nzNow);
 
     switch (range) {
       case 'today':
@@ -190,39 +189,40 @@ export function OrganizationDashboard() {
         setDateTo(todayStr);
         break;
       case 'yesterday': {
-        const yesterday = new Date(today);
+        const yesterday = new Date(nzNow);
         yesterday.setDate(yesterday.getDate() - 1);
-        setDateFrom(formatLocalDate(yesterday));
-        setDateTo(formatLocalDate(yesterday));
+        setDateFrom(getNZDateString(yesterday));
+        setDateTo(getNZDateString(yesterday));
         break;
       }
       case 'last7': {
-        const last7 = new Date(today);
+        const last7 = new Date(nzNow);
         last7.setDate(last7.getDate() - 7);
-        setDateFrom(formatLocalDate(last7));
+        setDateFrom(getNZDateString(last7));
         setDateTo(todayStr);
         break;
       }
       case 'last30': {
-        const last30 = new Date(today);
+        const last30 = new Date(nzNow);
         last30.setDate(last30.getDate() - 30);
-        setDateFrom(formatLocalDate(last30));
+        setDateFrom(getNZDateString(last30));
         setDateTo(todayStr);
         break;
       }
       case 'last90': {
-        const last90 = new Date(today);
+        const last90 = new Date(nzNow);
         last90.setDate(last90.getDate() - 90);
-        setDateFrom(formatLocalDate(last90));
+        setDateFrom(getNZDateString(last90));
         setDateTo(todayStr);
         break;
       }
     }
   };
 
+  // ✅ CRITICAL FIX: Use NZ timezone for date navigation
   const navigateDays = (direction: 'prev' | 'next') => {
-    const from = new Date(dateFrom + 'T00:00:00');
-    const to = new Date(dateTo + 'T00:00:00');
+    const from = toNZDate(new Date(dateFrom + 'T00:00:00'));
+    const to = toNZDate(new Date(dateTo + 'T00:00:00'));
     
     if (direction === 'prev') {
       from.setDate(from.getDate() - 1);
@@ -231,14 +231,15 @@ export function OrganizationDashboard() {
       from.setDate(from.getDate() + 1);
       to.setDate(to.getDate() + 1);
       
-      if (formatLocalDate(to) > formatLocalDate(new Date())) {
+      const nzToday = getNZDateString();
+      if (getNZDateString(to) > nzToday) {
         toast.error('Cannot navigate beyond today');
         return;
       }
     }
     
-    setDateFrom(formatLocalDate(from));
-    setDateTo(formatLocalDate(to));
+    setDateFrom(getNZDateString(from));
+    setDateTo(getNZDateString(to));
   };
 
   // ==================== DATA LOADING - REBUILT FROM CORE PRINCIPLES ====================
@@ -278,11 +279,19 @@ export function OrganizationDashboard() {
 
       // ✅ STEP 1: Load observations (Section 1 - Data Gathering)
       console.log('📊 Step 1: Load observations (pure data)');
+      console.log('🕐 NZ Date Range:', dateFrom, 'to', dateTo);
+      
+      // ✅ CRITICAL FIX: Convert NZ date range to UTC for database query
+      const startRange = getNZDateRange(dateFrom);
+      const endRange = getNZDateRange(dateTo);
+      
+      console.log('🌍 UTC Range:', startRange.start, 'to', endRange.end);
+      
       let obsQuery = supabase
         .from('vehicle_observations_v2')
         .select('observation_id, plate_number, zone_id, organization_id, recorded_at, zones(name)')
-        .gte('recorded_at', `${dateFrom}T00:00:00`)
-        .lte('recorded_at', `${dateTo}T23:59:59`);
+        .gte('recorded_at', startRange.start)
+        .lte('recorded_at', endRange.end);
 
       if (orgFilter) obsQuery = obsQuery.eq('organization_id', orgFilter);
 
@@ -467,7 +476,7 @@ export function OrganizationDashboard() {
 
     } catch (error: any) {
       console.error('❌ Failed to load dashboard:', error);
-      toast.error('Failed to load dashboard');
+      toast.error('Failed to load dashboard: ' + error.message);
     } finally {
       setIsLoading(false);
     }
@@ -481,13 +490,20 @@ export function OrganizationDashboard() {
     try {
       console.log(`🔍 Drilling to zone: ${zone.zone_name}, category: ${category}`);
 
-      // Get observations for this zone
+      // ✅ CRITICAL FIX: Get observations for this zone using NZ timezone range
+      const startRange = getNZDateRange(dateFrom);
+      const endRange = getNZDateRange(dateTo);
+      
+      console.log(`🔍 Zone drill-down: ${zone.zone_name}`);
+      console.log('🕐 NZ Date Range:', dateFrom, 'to', dateTo);
+      console.log('🌍 UTC Range:', startRange.start, 'to', endRange.end);
+      
       let obsQuery = supabase
         .from('vehicle_observations_v2')
         .select('observation_id, plate_number, recorded_at')
         .eq('zone_id', zone.zone_id)
-        .gte('recorded_at', `${dateFrom}T00:00:00`)
-        .lte('recorded_at', `${dateTo}T23:59:59`);
+        .gte('recorded_at', startRange.start)
+        .lte('recorded_at', endRange.end);
 
       const { data: zoneObs, error: zoneObsError } = await obsQuery;
       if (zoneObsError) throw zoneObsError;
@@ -588,7 +604,7 @@ export function OrganizationDashboard() {
 
     } catch (error: any) {
       console.error('Failed to drill to zone:', error);
-      toast.error('Failed to load zone details');
+      toast.error('Failed to load zone details: ' + error.message);
     } finally {
       setIsLoading(false);
     }
@@ -637,7 +653,7 @@ export function OrganizationDashboard() {
             <BarChart3 className="h-8 w-8 text-primary" />
             Analytics Dashboard
           </h1>
-          <p className="text-muted-foreground mt-1">Core principles architecture</p>
+          <p className="text-muted-foreground mt-1">Core principles architecture • NZ Timezone</p>
         </div>
 
         <div className="flex items-center gap-2">
@@ -735,7 +751,7 @@ export function OrganizationDashboard() {
                   type="date" 
                   value={dateFrom} 
                   onChange={(e) => setDateFrom(e.target.value)}
-                  max={formatLocalDate(new Date())}
+                  max={getNZDateString()}
                 />
               </div>
               <div className="space-y-2">
@@ -745,7 +761,7 @@ export function OrganizationDashboard() {
                   value={dateTo} 
                   onChange={(e) => setDateTo(e.target.value)}
                   min={dateFrom}
-                  max={formatLocalDate(new Date())}
+                  max={getNZDateString()}
                 />
               </div>
             </div>
@@ -753,8 +769,9 @@ export function OrganizationDashboard() {
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Calendar className="h-4 w-4" />
               <span>
-                Showing data from <strong>{new Date(dateFrom).toLocaleDateString('en-NZ')}</strong> to{' '}
-                <strong>{new Date(dateTo).toLocaleDateString('en-NZ')}</strong>
+                Showing data from <strong>{formatNZDateOnly(dateFrom)}</strong> to{' '}
+                <strong>{formatNZDateOnly(dateTo)}</strong>
+                {' '}(NZ Time)
               </span>
             </div>
           </div>
@@ -942,7 +959,7 @@ export function OrganizationDashboard() {
           {/* ZONE LEVEL */}
           {viewLevel === 'zone' && selectedZone && (
             <>
-              <Card className="bg-gradient-to-r from-primary/10 to-primary/5">
+              <Card className="bg-gradient-to-r from-primary/10 to-primary/5 border-primary/30">
                 <CardContent className="p-6">
                   <h2 className="text-2xl font-bold mb-2">{selectedZone.zone_name}</h2>
                   <div className="flex items-center gap-4 text-sm text-muted-foreground flex-wrap">
@@ -952,11 +969,34 @@ export function OrganizationDashboard() {
                       {selectedZone.compliance_rate}% compliance
                     </Badge>
                   </div>
+                  <div className="mt-3 pt-3 border-t border-primary/20">
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <Calendar className="h-3 w-3" />
+                      <span className="font-medium">Filtered by date range:</span>
+                      <span className="px-2 py-0.5 bg-primary/10 rounded font-mono">
+                        {formatNZDateOnly(dateFrom)}
+                      </span>
+                      <span>→</span>
+                      <span className="px-2 py-0.5 bg-primary/10 rounded font-mono">
+                        {formatNZDateOnly(dateTo)}
+                      </span>
+                      <span className="text-xs">(NZ)</span>
+                    </div>
+                  </div>
                 </CardContent>
               </Card>
 
               {/* Category Breakdown */}
-              <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+              <Card className="bg-muted/30">
+                <CardContent className="p-4">
+                  <div className="text-sm font-medium mb-3 flex items-center gap-2">
+                    <Filter className="h-4 w-4" />
+                    Filter by Category
+                    <Badge variant="outline" className="ml-auto">
+                      {dateFrom === dateTo ? 'Single Day' : `${Math.ceil((new Date(dateTo).getTime() - new Date(dateFrom).getTime()) / (1000 * 60 * 60 * 24) + 1)} Days`}
+                    </Badge>
+                  </div>
+                  <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                 <Card
                   className={`cursor-pointer hover:shadow-lg transition-all ${
                     selectedCategory === 'homeless' ? 'border-2 border-cyan-500 bg-cyan-50' : 'border-cyan-200 bg-cyan-50/50'
@@ -1016,7 +1056,9 @@ export function OrganizationDashboard() {
                     <div className="text-xs text-purple-700">Flagged</div>
                   </CardContent>
                 </Card>
-              </div>
+                  </div>
+                </CardContent>
+              </Card>
 
               {/* Vehicle Cards */}
               <Card>
@@ -1024,7 +1066,18 @@ export function OrganizationDashboard() {
                   <CardTitle className="flex items-center gap-2">
                     <Car className="h-5 w-5" />
                     Vehicles ({vehicles.length})
+                    {selectedCategory !== 'all' && (
+                      <Badge variant="outline" className="ml-2">
+                        {selectedCategory.replace('_', ' ')}
+                      </Badge>
+                    )}
                   </CardTitle>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Showing vehicles observed in {selectedZone.zone_name} between{' '}
+                    <strong>{formatNZDateOnly(dateFrom)}</strong> and{' '}
+                    <strong>{formatNZDateOnly(dateTo)}</strong>
+                    {' '}(NZ Time)
+                  </p>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-3">
@@ -1063,7 +1116,7 @@ export function OrganizationDashboard() {
                                 </div>
                                 <div>
                                   <div className="text-xs text-muted-foreground">Last Seen</div>
-                                  <div className="text-xs">{new Date(vehicle.last_seen).toLocaleDateString('en-NZ')}</div>
+                                  <div className="text-xs">{formatNZDateOnly(vehicle.last_seen)}</div>
                                 </div>
                               </div>
                             </div>
