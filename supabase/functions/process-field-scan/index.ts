@@ -272,20 +272,23 @@ Deno.serve(async (req) => {
             violations.push('No self-contained certification');
           }
 
-          // Check consecutive nights
-          if (matrix.max_consecutive_nights > 0 && consecutiveNights >= matrix.max_consecutive_nights) {
+          // ✅ CRITICAL FIX: Day visit zones (max_consecutive_nights = 0) should ALWAYS be non-compliant if ANY overnight stay
+          if (matrix.max_consecutive_nights === 0 && consecutiveNights > 0) {
+            isCompliant = false;
+            violations.push(`Day visit only zone - overnight stay detected (${consecutiveNights} consecutive nights)`);
+          } else if (matrix.max_consecutive_nights > 0 && consecutiveNights >= matrix.max_consecutive_nights) {
             isCompliant = false;
             violations.push(`Consecutive overstay: ${consecutiveNights}/${matrix.max_consecutive_nights} nights`);
           }
 
-          // Check monthly nights
-          if (matrix.nights_per_month > 0 && nightsStayed >= matrix.nights_per_month) {
+          // ✅ CRITICAL FIX: Day visit zones (nights_per_month = 0) should be non-compliant if ANY nights stayed
+          if (matrix.nights_per_month === 0 && nightsStayed > 0) {
+            isCompliant = false;
+            violations.push(`Day visit only zone - ${nightsStayed} night(s) stayed this month (0 allowed)`);
+          } else if (matrix.nights_per_month > 0 && nightsStayed >= matrix.nights_per_month) {
             isCompliant = false;
             violations.push(`Monthly overstay: ${nightsStayed}/${matrix.nights_per_month} nights`);
           }
-
-          // Day visit only → handled by separate edge function
-          // (No immediate violation - needs to check for overnight stay via GPS proximity)
         }
 
         // Insert compliance result (Section 2: Reporting)

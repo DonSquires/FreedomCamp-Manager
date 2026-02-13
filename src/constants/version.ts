@@ -6,9 +6,21 @@
  * - PATCH (third digit): Minor amendments
  */
 
-export const APP_VERSION = '2.5.0016';
+export const APP_VERSION = '2.5.0017';
 
 export const VERSION_HISTORY = [
+  {
+    version: '2.5.0017',
+    date: '2025-02-13',
+    changes: [
+      '📊 COMPLIANCE CALCULATION FIX: Homeless vehicles (FC Act exempt) now excluded from compliance rate',
+      '✅ Compliance rate formula: (non-homeless compliant) / (total non-homeless vehicles)',
+      '🏠 Homeless vehicles no longer counted as non-compliant (FC Act exemption)',
+      '📍 Zone Performance cards now display homeless vehicle count when > 0',
+      '🎯 Zone cards show homeless count in cyan, flagged count in purple (only when present)',
+      '✨ Dashboard compliance stats now accurately reflect FC Act exemptions',
+    ],
+  },
   {
     version: '2.5.0016',
     date: '2025-02-13',
