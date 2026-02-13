@@ -6,9 +6,22 @@
  * - PATCH (third digit): Minor amendments
  */
 
-export const APP_VERSION = '2.8.0001';
+export const APP_VERSION = '2.8.0002';
 
 export const VERSION_HISTORY = [
+  {
+    version: '2.8.0002',
+    date: '2025-02-13',
+    changes: [
+      '🐛 CRITICAL FIX: Field Officer Portal "Failed to load your scans" error resolved',
+      '✅ Created missing RPC functions: get_my_scans_24h() and get_org_scans_24h()',
+      '📊 Scanned Vehicles List now loads user scans and organization scans from last 24 hours',
+      '🔍 Functions return full vehicle details with compliance status, homeless flags, and edit permissions',
+      '⏰ 24-hour edit/delete window properly enforced',
+      '👥 Organization view shows all team scans with officer names',
+      '🎯 Filtering by breaches, homeless, and at-risk vehicles now functional',
+    ],
+  },
   {
     version: '2.8.0001',
     date: '2025-02-13',
