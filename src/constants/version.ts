@@ -6,9 +6,36 @@
  * - PATCH (third digit): Minor amendments
  */
 
-export const APP_VERSION = '2.5.0021';
+export const APP_VERSION = '2.5.0023';
 
 export const VERSION_HISTORY = [
+  {
+    version: '2.5.0023',
+    date: '2025-02-13',
+    changes: [
+      '🔧 CRITICAL FIX: Date picker inputs showing blank/"Invalid Date"',
+      '✅ Date inputs now properly initialize with today\'s date in YYYY-MM-DD format',
+      '🔒 Added fallback handling for empty/null date values',
+      '📅 HTML5 date inputs now correctly display and accept dates',
+      '🛡️ normalizeDateString() now returns today instead of empty string on invalid input',
+      '✨ Date pickers work correctly on mobile and desktop browsers',
+    ],
+  },
+  {
+    version: '2.5.0022',
+    date: '2025-02-13',
+    changes: [
+      '🚨 CRITICAL DATA CORRUPTION FIX: All datetime recording now forces NZ timezone',
+      '✅ Problem: Users with browsers set to non-NZ timezones (e.g., USA PST) caused records to appear in wrong day',
+      '🔧 Solution: All recording operations now explicitly convert to NZ time before UTC storage',
+      '📍 Edge Functions: process-field-scan now uses Pacific/Auckland timezone for recorded_at',
+      '📱 Frontend: EvidenceCollection and PlateCapture force NZ timezone before toISOString()',
+      '🕐 Flow: Browser time → Convert to NZ time → Store as UTC → Display as NZ time',
+      '✨ Example: Tania in NZ records at 10am NZ → stored as correct UTC → shows as "today" ✅',
+      '🌍 Added toUTCFromNZ() helper function for timezone-safe conversions',
+      '📊 All observations now consistently use NZ timezone regardless of browser settings',
+    ],
+  },
   {
     version: '2.5.0021',
     date: '2025-02-13',

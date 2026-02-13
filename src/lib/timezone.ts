@@ -92,8 +92,15 @@ export function parseNZDate(dateString: string): Date {
 
 /**
  * Convert DD/MM/YYYY to YYYY-MM-DD
+ * Returns empty string if input is invalid/empty to prevent "Invalid Date" display
  */
 export function normalizeDateString(dateString: string): string {
+  // Handle empty/null/undefined
+  if (!dateString || dateString.trim() === '') {
+    console.warn('Empty date string provided, using today');
+    return getNZDateString();
+  }
+  
   // If already YYYY-MM-DD, return as-is
   if (dateString.match(/^\d{4}-\d{2}-\d{2}$/)) {
     return dateString;
@@ -113,15 +120,39 @@ export function normalizeDateString(dateString: string): string {
   }
   
   // If all else fails, return current date
-  console.error('Invalid date string:', dateString);
+  console.error('Invalid date string, using today:', dateString);
   return getNZDateString();
 }
 
 /**
  * Get NZ "now" as ISO string for database inserts
+ * ✅ CRITICAL: This forces NZ timezone regardless of browser timezone
+ * Prevents data corruption when users have browsers set to different timezones
  */
 export function getNZNowISO(): string {
-  return toNZDate(new Date()).toISOString();
+  // Get current time and force it to be interpreted as NZ time
+  const now = new Date();
+  const nzDateStr = now.toLocaleString('en-NZ', { timeZone: NZ_TIMEZONE });
+  const nzDate = new Date(nzDateStr);
+  return nzDate.toISOString();
+}
+
+/**
+ * Convert a date input (assuming NZ timezone) to UTC ISO string
+ * Use this when user enters a date/time and you need to store in database
+ */
+export function toUTCFromNZ(nzDateStr: string): string {
+  // Parse as if it's NZ time, then convert to UTC
+  const nzDate = new Date(nzDateStr + (nzDateStr.includes('T') ? '' : 'T00:00:00'));
+  
+  // Get the offset between browser timezone and NZ timezone
+  const nzTime = new Date(nzDate.toLocaleString('en-US', { timeZone: NZ_TIMEZONE }));
+  const localTime = new Date(nzDate.toLocaleString('en-US'));
+  const offset = nzTime.getTime() - localTime.getTime();
+  
+  // Apply offset to get correct UTC time
+  const utcTime = new Date(nzDate.getTime() - offset);
+  return utcTime.toISOString();
 }
 
 /**

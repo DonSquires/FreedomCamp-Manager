@@ -58,7 +58,7 @@ import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/stores/authStore';
 import { exportComprehensiveCSV } from '@/lib/csvExport';
-import { getNZDateString, getNZDateRange, formatNZDateOnly, toNZDate } from '@/lib/timezone';
+import { getNZDateString, getNZDateRange, formatNZDateOnly, toNZDate, normalizeDateString } from '@/lib/timezone';
 
 // ==================== TYPES ====================
 
@@ -171,8 +171,16 @@ export function OrganizationDashboard() {
   const [vehicles, setVehicles] = useState<VehicleCard[]>([]);
 
   // ✅ CRITICAL FIX: Use NZ timezone for date state
-  const [dateFrom, setDateFrom] = useState(() => getNZDateString());
-  const [dateTo, setDateTo] = useState(() => getNZDateString());
+  const [dateFrom, setDateFrom] = useState(() => {
+    const today = getNZDateString();
+    console.log('📅 Initial dateFrom:', today);
+    return today;
+  });
+  const [dateTo, setDateTo] = useState(() => {
+    const today = getNZDateString();
+    console.log('📅 Initial dateTo:', today);
+    return today;
+  });
   const [selectedOrgId, setSelectedOrgId] = useState<string>('all');
   const [organizations, setOrganizations] = useState<Array<{ id: string; name: string }>>([]);
 
@@ -264,6 +272,17 @@ export function OrganizationDashboard() {
     try {
       console.log('🏗️ LOADING DASHBOARD - Core Principles Architecture');
       
+      // ✅ CRITICAL: Normalize date formats before using them
+      const normalizedFrom = normalizeDateString(dateFrom);
+      const normalizedTo = normalizeDateString(dateTo);
+      
+      console.log('📅 Date validation:', {
+        dateFrom, 
+        dateTo,
+        normalizedFrom,
+        normalizedTo,
+      });
+      
       const { data: profile } = await supabase
         .from('user_profiles')
         .select('organization_id')
@@ -279,11 +298,11 @@ export function OrganizationDashboard() {
 
       // ✅ STEP 1: Load observations (Section 1 - Data Gathering)
       console.log('📊 Step 1: Load observations (pure data)');
-      console.log('🕐 NZ Date Range:', dateFrom, 'to', dateTo);
+      console.log('🕐 NZ Date Range:', normalizedFrom, 'to', normalizedTo);
       
       // ✅ CRITICAL FIX: Convert NZ date range to UTC for database query
-      const startRange = getNZDateRange(dateFrom);
-      const endRange = getNZDateRange(dateTo);
+      const startRange = getNZDateRange(normalizedFrom);
+      const endRange = getNZDateRange(normalizedTo);
       
       console.log('🌍 UTC Range:', startRange.start, 'to', endRange.end);
       
@@ -749,19 +768,39 @@ export function OrganizationDashboard() {
                 <Label>From Date</Label>
                 <Input 
                   type="date" 
-                  value={dateFrom} 
-                  onChange={(e) => setDateFrom(e.target.value)}
+                  value={dateFrom || ''} 
+                  onChange={(e) => {
+                    const inputValue = e.target.value;
+                    if (!inputValue) {
+                      console.log('From date cleared');
+                      setDateFrom(getNZDateString());
+                      return;
+                    }
+                    console.log('From date changed:', inputValue);
+                    setDateFrom(inputValue);
+                  }}
                   max={getNZDateString()}
+                  className="w-full"
                 />
               </div>
               <div className="space-y-2">
                 <Label>To Date</Label>
                 <Input 
                   type="date" 
-                  value={dateTo} 
-                  onChange={(e) => setDateTo(e.target.value)}
+                  value={dateTo || ''} 
+                  onChange={(e) => {
+                    const inputValue = e.target.value;
+                    if (!inputValue) {
+                      console.log('To date cleared');
+                      setDateTo(getNZDateString());
+                      return;
+                    }
+                    console.log('To date changed:', inputValue);
+                    setDateTo(inputValue);
+                  }}
                   min={dateFrom}
                   max={getNZDateString()}
+                  className="w-full"
                 />
               </div>
             </div>
@@ -769,8 +808,8 @@ export function OrganizationDashboard() {
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Calendar className="h-4 w-4" />
               <span>
-                Showing data from <strong>{formatNZDateOnly(dateFrom)}</strong> to{' '}
-                <strong>{formatNZDateOnly(dateTo)}</strong>
+                Showing data from <strong>{dateFrom ? formatNZDateOnly(dateFrom) : 'Invalid Date'}</strong> to{' '}
+                <strong>{dateTo ? formatNZDateOnly(dateTo) : 'Invalid Date'}</strong>
                 {' '}(NZ Time)
               </span>
             </div>
