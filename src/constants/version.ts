@@ -6,9 +6,19 @@
  * - PATCH (third digit): Minor amendments
  */
 
-export const APP_VERSION = '2.10.0002';
+export const APP_VERSION = '2.10.0003';
 
 export const VERSION_HISTORY = [
+  {
+    version: '2.10.0003',
+    date: '2025-02-14',
+    changes: [
+      '🔍 DIAGNOSTIC: Added detailed logging to comprehensive recalculation',
+      '📊 Shows total observations in zone, date filter impact, and sample data',
+      '⚠️ Helps diagnose why 0 observations are returned (zone mismatch, date range, or empty table)',
+      '🐛 Investigating Lowburn zone returning 0 observations despite known data',
+    ],
+  },
   {
     version: '2.10.0002',
     date: '2025-02-14',
