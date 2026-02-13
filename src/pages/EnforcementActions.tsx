@@ -8,6 +8,7 @@
  * - Job Assignment: Admin assigns officer to handle breach
  * - Job Completion: Officer completes with outcome (completed/not_on_site)
  * - Enforcement Tally: Tracks count on canonical_vehicles
+ * - Flagged Vehicle Creation: Create warnings during enforcement (NZ Privacy Act compliant)
  * - Integration: Links from dashboard/breach alerts to create jobs
  */
 
@@ -17,7 +18,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { MultiPhotoUpload } from '@/components/features/MultiPhotoUpload';
 import {
   Select,
   SelectContent,
@@ -130,16 +133,26 @@ export function EnforcementActions() {
   const [selectedBreach, setSelectedBreach] = useState<ActiveBreach | null>(null);
   const [selectedJob, setSelectedJob] = useState<EnforcementJob | null>(null);
 
-  // Form data
+  // Form data with flagged vehicle options
   const [assignForm, setAssignForm] = useState({
     officer_id: '',
     action_type: 'warning' as 'warning' | 'notice' | 'tow' | 'other',
     notes: '',
+    photos: [] as string[],
+    createFlaggedVehicle: false,
+    flaggedPriority: 'medium' as 'low' | 'medium' | 'high' | 'urgent',
+    flaggedReason: '',
+    confirmedHomeless: false,
   });
 
   const [completeForm, setCompleteForm] = useState({
     outcome: 'completed' as 'completed' | 'not_on_site' | 'cancelled',
     notes: '',
+    photos: [] as string[],
+    createFlaggedVehicle: false,
+    flaggedPriority: 'medium' as 'low' | 'medium' | 'high' | 'urgent',
+    flaggedReason: '',
+    confirmedHomeless: false,
   });
 
   // Load data on mount and tab change
@@ -299,6 +312,55 @@ export function EnforcementActions() {
     loadData();
   }, [activeTab]);
 
+  // Create flagged vehicle record (NZ Privacy Act compliant)
+  const createFlaggedVehicleRecord = async (
+    plateNumber: string,
+    organizationId: string,
+    reason: string,
+    priority: 'low' | 'medium' | 'high' | 'urgent',
+    confirmedHomeless: boolean
+  ) => {
+    try {
+      // Check if vehicle is already flagged by this organization
+      const { data: existing } = await supabase
+        .from('flagged_vehicles')
+        .select('id')
+        .eq('organization_id', organizationId)
+        .eq('plate_number', plateNumber)
+        .eq('is_active', true)
+        .maybeSingle();
+
+      if (existing) {
+        toast.info('Vehicle is already flagged by your organization');
+        return;
+      }
+
+      // Create flagged vehicle record
+      // NOTE: NZ Privacy Act Compliance:
+      // - Warning (plate number, priority) is visible globally for officer safety (RLS: officers_view_all_flagged_vehicles_for_safety)
+      // - Detailed information (reason, notes, contact) only accessible to the organization that created it (RLS: org_users_select_flagged_vehicles)
+      const { error } = await supabase
+        .from('flagged_vehicles')
+        .insert({
+          organization_id: organizationId,
+          plate_number: plateNumber,
+          priority,
+          notes: reason || 'Flagged during enforcement action',
+          confirmed_homeless: confirmedHomeless,
+          is_active: true,
+          created_by: user?.id,
+          date_recorded: new Date().toISOString().split('T')[0],
+        });
+
+      if (error) throw error;
+
+      console.log('✅ Flagged vehicle record created (privacy-compliant):', plateNumber);
+    } catch (error: any) {
+      console.error('Failed to create flagged vehicle:', error);
+      throw error;
+    }
+  };
+
   // Assign officer to breach
   const handleAssignOfficer = async () => {
     if (!selectedBreach || !assignForm.officer_id) {
@@ -326,10 +388,30 @@ export function EnforcementActions() {
 
       if (error) throw error;
 
-      toast.success('Officer assigned successfully');
+      // Create flagged vehicle if requested
+      if (assignForm.createFlaggedVehicle) {
+        await createFlaggedVehicleRecord(
+          selectedBreach.plate_number,
+          selectedBreach.organization_id,
+          assignForm.flaggedReason,
+          assignForm.flaggedPriority,
+          assignForm.confirmedHomeless
+        );
+      }
+
+      toast.success('Officer assigned successfully' + (assignForm.createFlaggedVehicle ? ' and vehicle flagged' : ''));
       setIsAssignDialogOpen(false);
       setSelectedBreach(null);
-      setAssignForm({ officer_id: '', action_type: 'warning', notes: '' });
+      setAssignForm({ 
+        officer_id: '', 
+        action_type: 'warning', 
+        notes: '', 
+        photos: [],
+        createFlaggedVehicle: false,
+        flaggedPriority: 'medium',
+        flaggedReason: '',
+        confirmedHomeless: false,
+      });
       loadData();
 
     } catch (error: any) {
@@ -365,15 +447,34 @@ export function EnforcementActions() {
 
       if (error) throw error;
 
+      // Create flagged vehicle if requested
+      if (completeForm.createFlaggedVehicle) {
+        await createFlaggedVehicleRecord(
+          selectedJob.plate_number,
+          selectedJob.organization_id,
+          completeForm.flaggedReason,
+          completeForm.flaggedPriority,
+          completeForm.confirmedHomeless
+        );
+      }
+
       const outcomeMessage = 
         completeForm.outcome === 'completed' ? 'Enforcement action completed' :
         completeForm.outcome === 'not_on_site' ? 'Marked as vehicle not on site' :
         'Job cancelled';
 
-      toast.success(outcomeMessage);
+      toast.success(outcomeMessage + (completeForm.createFlaggedVehicle ? ' and vehicle flagged' : ''));
       setIsCompleteDialogOpen(false);
       setSelectedJob(null);
-      setCompleteForm({ outcome: 'completed', notes: '' });
+      setCompleteForm({ 
+        outcome: 'completed', 
+        notes: '', 
+        photos: [],
+        createFlaggedVehicle: false,
+        flaggedPriority: 'medium',
+        flaggedReason: '',
+        confirmedHomeless: false,
+      });
       loadData();
 
     } catch (error: any) {
@@ -719,7 +820,7 @@ export function EnforcementActions() {
 
       {/* Assign Officer Dialog */}
       <Dialog open={isAssignDialogOpen} onOpenChange={setIsAssignDialogOpen}>
-        <DialogContent>
+        <DialogContent className="max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Assign Enforcement Job</DialogTitle>
             <DialogDescription>
@@ -777,6 +878,80 @@ export function EnforcementActions() {
                   rows={3}
                 />
               </div>
+
+              {/* Flag Vehicle Option */}
+              <div className="space-y-3 p-4 border-2 border-amber-200 dark:border-amber-800 rounded-lg bg-amber-50 dark:bg-amber-950/20">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Switch
+                      id="assign-flag-vehicle"
+                      checked={assignForm.createFlaggedVehicle}
+                      onCheckedChange={(checked) => setAssignForm({ ...assignForm, createFlaggedVehicle: checked })}
+                    />
+                    <Label htmlFor="assign-flag-vehicle" className="font-semibold cursor-pointer">
+                      🚩 Flag this vehicle for all officers
+                    </Label>
+                  </div>
+                </div>
+                
+                {assignForm.createFlaggedVehicle && (
+                  <div className="space-y-3 pl-6 border-l-2 border-amber-300">
+                    <p className="text-xs text-muted-foreground">
+                      ⚠️ NZ Privacy Act Compliance: Warning visible to all organizations for officer safety. 
+                      Detailed information only accessible to your organization.
+                    </p>
+                    
+                    <div className="space-y-2">
+                      <Label>Priority Level *</Label>
+                      <Select 
+                        value={assignForm.flaggedPriority} 
+                        onValueChange={(value: any) => setAssignForm({ ...assignForm, flaggedPriority: value })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="low">Low - Minor Issue</SelectItem>
+                          <SelectItem value="medium">Medium - Watch Closely</SelectItem>
+                          <SelectItem value="high">High - Serious Concern</SelectItem>
+                          <SelectItem value="urgent">Urgent - Immediate Attention</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Reason for Flagging *</Label>
+                      <Textarea
+                        value={assignForm.flaggedReason}
+                        onChange={(e) => setAssignForm({ ...assignForm, flaggedReason: e.target.value })}
+                        placeholder="e.g., Repeated violations, aggressive behavior, safety concern..."
+                        rows={2}
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        This reason will only be visible to your organization
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <Switch
+                        id="assign-homeless"
+                        checked={assignForm.confirmedHomeless}
+                        onCheckedChange={(checked) => setAssignForm({ ...assignForm, confirmedHomeless: checked })}
+                      />
+                      <Label htmlFor="assign-homeless" className="text-sm cursor-pointer">
+                        Confirmed Homeless Status (FC Act Exempt)
+                      </Label>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <MultiPhotoUpload
+                photos={assignForm.photos}
+                onPhotosChange={(photos) => setAssignForm({ ...assignForm, photos })}
+                maxPhotos={5}
+                label="Evidence Photos (Optional)"
+              />
             </div>
           )}
           <DialogFooter>
@@ -788,7 +963,7 @@ export function EnforcementActions() {
 
       {/* Complete Job Dialog */}
       <Dialog open={isCompleteDialogOpen} onOpenChange={setIsCompleteDialogOpen}>
-        <DialogContent>
+        <DialogContent className="max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Complete Enforcement Job</DialogTitle>
             <DialogDescription>
@@ -846,6 +1021,82 @@ export function EnforcementActions() {
                   rows={3}
                 />
               </div>
+
+              {/* Flag Vehicle Option - Only show if completed successfully */}
+              {completeForm.outcome === 'completed' && (
+                <div className="space-y-3 p-4 border-2 border-amber-200 dark:border-amber-800 rounded-lg bg-amber-50 dark:bg-amber-950/20">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Switch
+                        id="complete-flag-vehicle"
+                        checked={completeForm.createFlaggedVehicle}
+                        onCheckedChange={(checked) => setCompleteForm({ ...completeForm, createFlaggedVehicle: checked })}
+                      />
+                      <Label htmlFor="complete-flag-vehicle" className="font-semibold cursor-pointer">
+                        🚩 Flag this vehicle for all officers
+                      </Label>
+                    </div>
+                  </div>
+                  
+                  {completeForm.createFlaggedVehicle && (
+                    <div className="space-y-3 pl-6 border-l-2 border-amber-300">
+                      <p className="text-xs text-muted-foreground">
+                        ⚠️ NZ Privacy Act Compliance: Warning visible to all organizations for officer safety. 
+                        Detailed information only accessible to your organization.
+                      </p>
+                      
+                      <div className="space-y-2">
+                        <Label>Priority Level *</Label>
+                        <Select 
+                          value={completeForm.flaggedPriority} 
+                          onValueChange={(value: any) => setCompleteForm({ ...completeForm, flaggedPriority: value })}
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="low">Low - Minor Issue</SelectItem>
+                            <SelectItem value="medium">Medium - Watch Closely</SelectItem>
+                            <SelectItem value="high">High - Serious Concern</SelectItem>
+                            <SelectItem value="urgent">Urgent - Immediate Attention</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label>Reason for Flagging *</Label>
+                        <Textarea
+                          value={completeForm.flaggedReason}
+                          onChange={(e) => setCompleteForm({ ...completeForm, flaggedReason: e.target.value })}
+                          placeholder="e.g., Repeated violations, aggressive behavior, safety concern..."
+                          rows={2}
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          This reason will only be visible to your organization
+                        </p>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <Switch
+                          id="complete-homeless"
+                          checked={completeForm.confirmedHomeless}
+                          onCheckedChange={(checked) => setCompleteForm({ ...completeForm, confirmedHomeless: checked })}
+                        />
+                        <Label htmlFor="complete-homeless" className="text-sm cursor-pointer">
+                          Confirmed Homeless Status (FC Act Exempt)
+                        </Label>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <MultiPhotoUpload
+                photos={completeForm.photos}
+                onPhotosChange={(photos) => setCompleteForm({ ...completeForm, photos })}
+                maxPhotos={5}
+                label="Completion Evidence Photos"
+              />
             </div>
           )}
           <DialogFooter>
