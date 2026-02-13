@@ -58,6 +58,7 @@ import { DataMigrationUtility } from './DataMigrationUtility';
 import { VehicleEnrichmentMaintenance } from './VehicleEnrichmentMaintenance';
 import { DataManagementHub } from './DataManagementHub';
 import { SettingsHub } from './SettingsHub';
+import { DatabaseDiagnostic } from './DatabaseDiagnostic';
 
 interface AdminPortalProps {
   onLogout: () => void;
@@ -400,6 +401,18 @@ export function AdminPortal({ onLogout }: AdminPortalProps) {
                 </Button>
 
             <Button
+              variant={activeTab === 'database-diagnostic' ? 'default' : 'ghost'}
+              className="w-full justify-start text-sm lg:text-base h-10 lg:h-9 touch-manipulation bg-purple-50 dark:bg-purple-950/20 border border-purple-500/30"
+              onClick={() => {
+                setActiveTab('database-diagnostic');
+                setSidebarOpen(false);
+              }}
+            >
+              <Database className="h-4 w-4 mr-2 lg:mr-3 text-purple-600" />
+              <span className="text-purple-600 dark:text-purple-400 font-semibold">Database Diagnostic</span>
+            </Button>
+
+            <Button
               variant={activeTab === 'data-integrity' ? 'default' : 'ghost'}
               className="w-full justify-start text-sm lg:text-base h-10 lg:h-9 touch-manipulation"
               onClick={() => {
@@ -625,6 +638,7 @@ export function AdminPortal({ onLogout }: AdminPortalProps) {
               {/* Phase 4 & 5: Consolidated Hubs */}
               {activeTab === 'data-management-hub' && <DataManagementHub />}
               {activeTab === 'settings-hub' && <SettingsHub />}
+              {activeTab === 'database-diagnostic' && <DatabaseDiagnostic />}
 
               {activeTab === 'cross-org' && isSuperUser && (
                 <Card>

@@ -23,11 +23,13 @@ import {
   Download,
   TrendingUp,
   LayoutDashboard,
+  Wrench,
 } from 'lucide-react';
 import { VehicleRegistry } from './VehicleRegistry';
 import { ZoneManagement } from './ZoneManagement';
 import { ComplianceMatrixManagement } from './ComplianceMatrixManagement';
 import { PersonRecordsManager } from '@/components/features/PersonRecordsManager';
+import { DataCleanupUtility } from './DataCleanupUtility';
 import { toast } from 'sonner';
 
 export function DataManagementHub() {
@@ -108,7 +110,7 @@ export function DataManagementHub() {
 
       {/* Tabbed Interface */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-4 h-auto">
+        <TabsList className="grid w-full grid-cols-5 h-auto">
           <TabsTrigger value="vehicles" className="flex items-center gap-2 py-3">
             <Car className="h-4 w-4" />
             <span className="hidden md:inline">Vehicle Registry</span>
@@ -129,6 +131,11 @@ export function DataManagementHub() {
             <span className="hidden md:inline">Person Records</span>
             <span className="md:hidden">Persons</span>
           </TabsTrigger>
+          <TabsTrigger value="cleanup" className="flex items-center gap-2 py-3 bg-amber-50 dark:bg-amber-950/20 data-[state=active]:bg-amber-100 dark:data-[state=active]:bg-amber-900/40">
+            <Wrench className="h-4 w-4" />
+            <span className="hidden md:inline">Data Cleanup</span>
+            <span className="md:hidden">Cleanup</span>
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="vehicles" className="mt-6">
@@ -145,6 +152,10 @@ export function DataManagementHub() {
 
         <TabsContent value="persons" className="mt-6">
           <PersonRecordsManager />
+        </TabsContent>
+
+        <TabsContent value="cleanup" className="mt-6">
+          <DataCleanupUtility />
         </TabsContent>
       </Tabs>
     </div>
