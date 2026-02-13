@@ -654,16 +654,16 @@ export default function BreachAlertsReport() {
                       </TableCell>
                       <TableCell>
                         <div className="flex gap-1 flex-wrap">
+                          {breach.homeless_status === 'confirmed' && (
+                            <Badge variant="outline" className="gap-1 bg-purple-50 text-purple-700 border-purple-300 font-bold">
+                              <Home className="h-3 w-3" />
+                              BREACH BUT EXEMPT
+                            </Badge>
+                          )}
                           {breach.is_flagged && (
                             <Badge variant="outline" className="gap-1 bg-red-50 text-red-700 border-red-300">
                               <Flag className="h-3 w-3" />
                               Flagged
-                            </Badge>
-                          )}
-                          {breach.homeless_status === 'confirmed' && (
-                            <Badge variant="outline" className="gap-1 bg-cyan-50 text-cyan-700 border-cyan-300">
-                              <Home className="h-3 w-3" />
-                              Exempt
                             </Badge>
                           )}
                         </div>
