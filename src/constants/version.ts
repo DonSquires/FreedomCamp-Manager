@@ -6,9 +6,32 @@
  * - PATCH (third digit): Minor amendments
  */
 
-export const APP_VERSION = '2.5.0023';
+export const APP_VERSION = '2.5.0025';
 
 export const VERSION_HISTORY = [
+  {
+    version: '2.5.0025',
+    date: '2025-02-13',
+    changes: [
+      '📅 LINZ DATA CORRECTION: All LINZ records backdated by 1 day',
+      '🕐 Default time standardized to 19:00 (7pm NZ) for all LINZ imported data',
+      '✅ Fixed timezone import error causing records to appear one day ahead',
+      '🔧 Updated tables: vehicle_observations_v2, vehicle_records, enforcement_actions, compliance_results',
+      '📊 LINZ zones: Today\'s records moved to yesterday, time set to 19:00',
+    ],
+  },
+  {
+    version: '2.5.0024',
+    date: '2025-02-13',
+    changes: [
+      '🔧 CRITICAL FIX: Dashboard "Invalid time value" error resolved',
+      '✅ Fixed toNZDate() function using Intl.DateTimeFormat instead of locale string parsing',
+      '📅 Simplified date range calculations to avoid timezone conversion issues',
+      '🛡️ Added validation and fallbacks in getNZDateRange() for invalid dates',
+      '✨ Date inputs now initialize correctly with today\'s date in YYYY-MM-DD format',
+      '🌍 NZ timezone conversion still applied at database query level (unchanged)',
+    ],
+  },
   {
     version: '2.5.0023',
     date: '2025-02-13',
