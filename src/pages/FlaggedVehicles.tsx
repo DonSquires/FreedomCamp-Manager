@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
+import { MultiPhotoUpload } from '@/components/features/MultiPhotoUpload';
 import {
   Select,
   SelectContent,
@@ -78,6 +79,7 @@ export function FlaggedVehicles() {
     confirmed_homeless: false,
     priority: 'medium' as 'low' | 'medium' | 'high' | 'urgent',
     notes: '',
+    photos: [] as string[],
   });
 
   const handleCreate = async () => {
@@ -101,7 +103,7 @@ export function FlaggedVehicles() {
     });
 
     setIsCreateDialogOpen(false);
-    setFormData({ plate_number: '', vehicle_description: '', last_known_site: '', name_contact: '', confirmed_homeless: false, priority: 'medium', notes: '' });
+    setFormData({ plate_number: '', vehicle_description: '', last_known_site: '', name_contact: '', confirmed_homeless: false, priority: 'medium', notes: '', photos: [] });
   };
 
   const handleUpdate = async () => {
@@ -346,6 +348,12 @@ export function FlaggedVehicles() {
                 placeholder="Additional notes about this vehicle..."
               />
             </div>
+            <MultiPhotoUpload
+              photos={formData.photos}
+              onPhotosChange={(photos) => setFormData({ ...formData, photos })}
+              maxPhotos={5}
+              label="Evidence Photos"
+            />
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>Cancel</Button>
@@ -420,6 +428,12 @@ export function FlaggedVehicles() {
                   rows={3}
                 />
               </div>
+              <MultiPhotoUpload
+                photos={editingVehicle.photos || []}
+                onPhotosChange={(photos) => setEditingVehicle({ ...editingVehicle, photos })}
+                maxPhotos={5}
+                label="Evidence Photos"
+              />
             </div>
           )}
           <DialogFooter>
