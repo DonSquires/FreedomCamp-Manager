@@ -165,11 +165,42 @@ export function normalizeDateString(dateString: string): string {
  * Prevents data corruption when users have browsers set to different timezones
  */
 export function getNZNowISO(): string {
-  // Get current time and force it to be interpreted as NZ time
+  // Get current time in NZ timezone using proper component extraction
   const now = new Date();
-  const nzDateStr = now.toLocaleString('en-NZ', { timeZone: NZ_TIMEZONE });
-  const nzDate = new Date(nzDateStr);
-  return nzDate.toISOString();
+  const formatter = new Intl.DateTimeFormat('en-NZ', {
+    timeZone: NZ_TIMEZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  });
+  
+  const parts = formatter.formatToParts(now);
+  const getValue = (type: string) => parts.find(p => p.type === type)?.value || '';
+  
+  const year = getValue('year');
+  const month = getValue('month');
+  const day = getValue('day');
+  const hour = getValue('hour');
+  const minute = getValue('minute');
+  const second = getValue('second');
+  
+  // Create ISO string directly from NZ components
+  // This represents the NZ local time, then convert to UTC
+  const nzLocalTime = `${year}-${month}-${day}T${hour}:${minute}:${second}`;
+  
+  // Get UTC offset for NZ at this moment
+  const nzDate = new Date(nzLocalTime);
+  const utcDate = new Date(nzDate.toLocaleString('en-US', { timeZone: 'UTC' }));
+  const nzTime = new Date(nzDate.toLocaleString('en-US', { timeZone: NZ_TIMEZONE }));
+  const offset = nzTime.getTime() - utcDate.getTime();
+  
+  // Apply offset to get correct UTC time
+  const correctUTC = new Date(nzDate.getTime() - offset);
+  return correctUTC.toISOString();
 }
 
 /**

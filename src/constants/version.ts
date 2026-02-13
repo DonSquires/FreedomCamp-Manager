@@ -6,9 +6,21 @@
  * - PATCH (third digit): Minor amendments
  */
 
-export const APP_VERSION = '2.5.0027';
+export const APP_VERSION = '2.5.0028';
 
 export const VERSION_HISTORY = [
+  {
+    version: '2.5.0028',
+    date: '2025-02-13',
+    changes: [
+      '🔧 CRITICAL FIX: "Invalid time value" error in field scan - proper NZ timezone handling',
+      '❌ Bug: toLocaleString() creates unparseable date strings ("13/02/2026, 21:15:21")',
+      '✅ Fixed: Use Intl.DateTimeFormat to extract date components reliably',
+      '🕐 Proper timezone conversion: NZ local time → UTC with correct offset calculation',
+      '📱 Plate scanning now works correctly without [500] timezone errors',
+      '🌍 Both frontend (timezone.ts) and backend (process-field-scan) fixed',
+    ],
+  },
   {
     version: '2.5.0027',
     date: '2025-02-13',
