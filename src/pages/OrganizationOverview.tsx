@@ -229,6 +229,8 @@ export function OrganizationOverview({ onZoneDrillDown }: { onZoneDrillDown?: (z
         }).map(o => o.plate_number)
       ).size;
 
+      console.log('📊 Loaded observations:', obs.length, 'Compliant:', compliantCount, 'Breaches:', breachCount);
+
       // Load enforcement actions count
       let enfQuery = supabase
         .from('enforcement_actions')
