@@ -6,9 +6,19 @@
  * - PATCH (third digit): Minor amendments
  */
 
-export const APP_VERSION = '2.11.0001';
+export const APP_VERSION = '2.11.0002';
 
 export const VERSION_HISTORY = [
+  {
+    version: '2.11.0002',
+    date: '2025-02-14',
+    changes: [
+      '✅ ADDED: Data Cleanup Utility now visible in Data Management Hub (5th tab)',
+      '🔧 Accessible via Admin Portal → Data Management Hub → Data Cleanup',
+      '📊 Complete cleanup pipeline: Zone correction → Duplicate removal → Compliance recalculation',
+      '🎯 Zone-based scope selection for targeted cleanup operations',
+    ],
+  },
   {
     version: '2.11.0001',
     date: '2025-02-14',
