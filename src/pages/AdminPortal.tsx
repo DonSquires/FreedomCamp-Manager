@@ -48,6 +48,7 @@ import { OfficerWelfareHub } from './OfficerWelfareHub';
 import { HelpDocumentation } from './HelpDocumentation';
 import { AnalyticsHub } from './AnalyticsHub';
 import { OrganizationDashboard } from './OrganizationDashboard';
+import { OrganizationOverview } from './OrganizationOverview';
 import { ZoneCorrections } from './ZoneCorrections';
 import { VehicleRecords } from './VehicleRecords';
 import { supabase } from '@/lib/supabase';
@@ -587,8 +588,8 @@ export function AdminPortal({ onLogout }: AdminPortalProps) {
             <div className="p-4 lg:p-6 xl:p-8 max-w-[1600px] mx-auto">
               {activeTab === 'urgent-followups' && <UrgentFollowUps onTabChange={setActiveTab} />}
               
-              {/* Placeholder for rebuilding */}
-              {activeTab === 'dashboard' && <OrganizationDashboard />}
+              {/* New BI-Style Landing Page */}
+              {activeTab === 'dashboard' && <OrganizationOverview onZoneDrillDown={handleZoneSelect} />}
               
               {activeTab === 'zone-drilldown' && selectedZone && (
                 <ZoneDrillDown
