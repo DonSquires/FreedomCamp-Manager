@@ -6,9 +6,25 @@
  * - PATCH (third digit): Minor amendments
  */
 
-export const APP_VERSION = '2.10.0008';
+export const APP_VERSION = '2.11.0001';
 
 export const VERSION_HISTORY = [
+  {
+    version: '2.11.0001',
+    date: '2025-02-14',
+    changes: [
+      '🔧 NEW CLEANUP UTILITY: Comprehensive data cleanup and recalculation system',
+      '✅ Phase 1: Zone Correction - GPS-based automatic zone reassignment (accuracy < 100m)',
+      '✅ Phase 2: Duplicate Detection - Removes duplicate scans (same plate, same zone, 8-hour window)',
+      '🛡️ Preserves observations with incidents/H&S reports',
+      '✅ Phase 3: Compliance Recalculation - Measures against zone matrix, monthly stays, homeless status',
+      '🚨 Creates breach alerts for violations found',
+      '📊 Admin UI: DataCleanupUtility with scope selection (ZONE/ORG/ALL)',
+      '⚡ Edge Function: cleanup-and-recalculate with comprehensive logging',
+      '🎯 8-hour duplicate window (previously 24 hours)',
+      '📈 Returns detailed stats: zones corrected, duplicates removed, breaches created',
+    ],
+  },
   {
     version: '2.10.0008',
     date: '2025-02-14',

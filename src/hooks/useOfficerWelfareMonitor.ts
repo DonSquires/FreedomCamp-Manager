@@ -226,6 +226,7 @@ export function useOfficerWelfareMonitor() {
     // Log GPS activity to database or queue if offline
     if (user?.id) {
       if (isOnline()) {
+        // ✅ FIX: Use .then() pattern with error checking (not .catch())
         supabase.rpc('log_officer_activity', {
           p_user_id: user.id,
           p_activity_type: 'gps_update',
@@ -438,6 +439,7 @@ export function useOfficerWelfareMonitor() {
         
         // Record back online status
         if (user?.id) {
+          // ✅ FIX: Use .then() pattern with error checking (not .catch())
           supabase.rpc('log_officer_activity', {
             p_user_id: user.id,
             p_activity_type: 'back_online',
