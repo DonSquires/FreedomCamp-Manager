@@ -6,9 +6,25 @@
  * - PATCH (third digit): Minor amendments
  */
 
-export const APP_VERSION = '2.5.0017';
+export const APP_VERSION = '2.5.0018';
 
 export const VERSION_HISTORY = [
+  {
+    version: '2.5.0018',
+    date: '2025-02-13',
+    changes: [
+      '🏗️ DASHBOARD REBUILT FROM CORE PRINCIPLES - Complete architecture overhaul',
+      '✅ Status calculation now uses compliance_results table (Section 2 - Reporting)',
+      '🎯 Priority hierarchy: homeless → overstayer → at_risk → flagged → compliant',
+      '🏠 Homeless vehicles (confirmed) show as HOMELESS (breach but FC Act exempt)',
+      '⚖️ Overstayers determined by compliance_results.is_compliant = false',
+      '⚠️ At Risk detected by violation_reasons containing "at risk" or "one more night"',
+      '📊 Compliance rate excludes homeless vehicles (FC Act exemption)',
+      '✨ No more reliance on vehicle_monthly_stays for status determination',
+      '🔍 Console logging shows complete status calculation flow',
+      '📈 Zone breakdown correctly aggregates homeless/overstayer/at-risk counts',
+    ],
+  },
   {
     version: '2.5.0017',
     date: '2025-02-13',
