@@ -6,9 +6,23 @@
  * - PATCH (third digit): Minor amendments
  */
 
-export const APP_VERSION = '2.10.0006';
+export const APP_VERSION = '2.10.0007';
 
 export const VERSION_HISTORY = [
+  {
+    version: '2.10.0007',
+    date: '2025-02-14',
+    changes: [
+      '🔥 CRITICAL FIX: Date parsing errors resolved across dashboard and recalculation',
+      '✅ OrganizationOverview: Added safe date parsing with error handling',
+      '✅ Comprehensive Recalculation: Now handles DD/MM/YYYY, YYYY-MM-DD, and ISO formats',
+      '🐛 Fixed "Invalid time value" dashboard error',
+      '🐛 Fixed recalculation returning 0 observations (date conversion issue)',
+      '📅 Edge function now correctly converts DD/MM/YYYY → YYYY-MM-DD',
+      '🛡️ Defensive programming: All date parsers now have try/catch fallbacks',
+      '📊 Dashboard charts now render correctly with NZ date formats',
+    ],
+  },
   {
     version: '2.10.0006',
     date: '2025-02-14',
