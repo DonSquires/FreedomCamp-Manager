@@ -30,7 +30,6 @@ import { JDSLogo } from '@/components/layout/JDSLogo';
 import { ResponsiveContainer } from '@/components/layout/ResponsiveContainer';
 import { useAuthStore } from '@/stores/authStore';
 import { DriftDashboard } from './DriftDashboard';
-import { ComplianceMatrixManagement } from './ComplianceMatrixManagement';
 import { ComplianceRecalculation } from './ComplianceRecalculation';
 import { HistoricalImport } from './HistoricalImport';
 import { VehicleLogImport } from './VehicleLogImport';
@@ -45,21 +44,17 @@ import { SpecialVehiclesManagement } from './SpecialVehiclesManagement';
 import { PatrolManagement } from './PatrolManagement';
 import { InvestigationJobs } from './InvestigationJobs';
 import { UrgentFollowUps } from './UrgentFollowUps';
-import { ZoneManagement } from './ZoneManagement';
 import { OfficerWelfareHub } from './OfficerWelfareHub';
 import { HelpDocumentation } from './HelpDocumentation';
 import { AnalyticsHub } from './AnalyticsHub';
 import { OrganizationDashboard } from './OrganizationDashboard';
-import { OrganizationManagement } from './OrganizationManagement';
 import { ZoneCorrections } from './ZoneCorrections';
-import { UserManagement } from './UserManagement';
 import { VehicleRecords } from './VehicleRecords';
 import { supabase } from '@/lib/supabase';
 import DataIntegrityCheck from './DataIntegrityCheck';
 import { DarkModeToggle } from '@/components/features/DarkModeToggle';
 import { DataMigrationUtility } from './DataMigrationUtility';
 import { VehicleEnrichmentMaintenance } from './VehicleEnrichmentMaintenance';
-import { HomelessSupport } from './HomelessSupport';
 import { DataManagementHub } from './DataManagementHub';
 import { SettingsHub } from './SettingsHub';
 
@@ -356,18 +351,6 @@ export function AdminPortal({ onLogout }: AdminPortalProps) {
               Vehicle Records
             </Button>
 
-            <Button
-              variant={activeTab === 'person-records' ? 'default' : 'ghost'}
-              className="w-full justify-start text-sm lg:text-base h-10 lg:h-9 touch-manipulation"
-              onClick={() => {
-                setActiveTab('person-records');
-                setSidebarOpen(false);
-              }}
-            >
-              <Users className="h-4 w-4 mr-2 lg:mr-3" />
-              Person Records
-            </Button>
-
             <div className="text-xs font-semibold text-muted-foreground px-3 py-2 mt-3 lg:mt-4">
               MANAGEMENT
             </div>
@@ -620,7 +603,6 @@ export function AdminPortal({ onLogout }: AdminPortalProps) {
               )}
 
               {activeTab === 'drift' && <DriftDashboard />}
-              {activeTab === 'matrix' && <ComplianceMatrixManagement />}
               {activeTab === 'recalculation' && <ComplianceRecalculation />}
 
               {/* Analytics Hub - Phase 3 Complete */}
@@ -629,17 +611,6 @@ export function AdminPortal({ onLogout }: AdminPortalProps) {
               {activeTab === 'bulk-scan-review' && <BulkScanReview />}
               
               {activeTab === 'vehicle-list' && <VehicleRecords />}
-              
-              {activeTab === 'person-records' && (
-                <Card>
-                  <CardContent className="p-12 text-center">
-                    <Users className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
-                    <h3 className="text-xl font-bold mb-2">Person Records</h3>
-                    <p className="text-muted-foreground mb-4">Person records for non-vehicle freedom campers</p>
-                    <p className="text-sm text-muted-foreground">Records are captured via Field Officer Portal and appear here for administrative review</p>
-                  </CardContent>
-                </Card>
-              )}
 
               {activeTab === 'incident-reports' && <IncidentReports />}
               {activeTab === 'enforcement-hub' && <EnforcementHub />}
@@ -647,7 +618,6 @@ export function AdminPortal({ onLogout }: AdminPortalProps) {
 
               {activeTab === 'investigation-jobs' && <InvestigationJobs />}
 
-              {activeTab === 'zone-management' && <ZoneManagement />}
               {activeTab === 'patrol-management' && <PatrolManagement />}
               {activeTab === 'officer-welfare-hub' && <OfficerWelfareHub />}
 
@@ -670,9 +640,6 @@ export function AdminPortal({ onLogout }: AdminPortalProps) {
               {activeTab === 'import' && <HistoricalImport />}
 
               {activeTab === 'vehicle-log-import' && <VehicleLogImport />}
-
-              {activeTab === 'user-management' && <UserManagement />}
-              {activeTab === 'organization-management' && isMaster && <OrganizationManagement />}
 
               {activeTab === 'zone-corrections' && <ZoneCorrections />}
 
