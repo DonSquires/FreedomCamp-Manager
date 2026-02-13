@@ -295,39 +295,65 @@ serve(async (req) => {
     }
 
     // ============================================
-    // STEP 5: COMPLIANCE RECALCULATION
+    // STEP 5: COMPLIANCE RECALCULATION (BATCHED)
     // ============================================
-    console.log('⚖️ STEP 5: Compliance recalculation...');
+    console.log('⚖️ STEP 5: Compliance recalculation (batched processing)...');
 
-    for (const obs of observations) {
-      try {
-        // Call compliance function with updated zone
-        const { data: complianceResult, error: complianceError } = await supabaseAdmin
-          .rpc('check_vehicle_compliance_v3', {
-            p_plate_number: obs.plate_number,
-            p_zone_id: obs.zone_id,
-            p_observation_time: obs.recorded_at,
-          });
+    const BATCH_SIZE = 250;
+    const totalObservations = observations.length;
+    const totalBatches = Math.ceil(totalObservations / BATCH_SIZE);
 
-        if (complianceError) {
-          stats.errors.push(`Compliance check failed for ${obs.plate_number}: ${complianceError.message}`);
-          continue;
-        }
+    console.log(`📦 Processing ${totalObservations} observations in ${totalBatches} batches of ${BATCH_SIZE}`);
 
-        if (complianceResult) {
-          stats.compliance_recalculated++;
-          
-          // Check if breach was created
-          if (complianceResult.is_compliant === false) {
-            stats.breaches_created++;
+    for (let batchNum = 0; batchNum < totalBatches; batchNum++) {
+      const start = batchNum * BATCH_SIZE;
+      const end = Math.min(start + BATCH_SIZE, totalObservations);
+      const batch = observations.slice(start, end);
+      
+      console.log(`\n📦 Batch ${batchNum + 1}/${totalBatches}: Processing observations ${start + 1}-${end}...`);
+
+      let batchCompliance = 0;
+      let batchBreaches = 0;
+
+      for (const obs of batch) {
+        try {
+          // Call compliance function with updated zone
+          const { data: complianceResult, error: complianceError } = await supabaseAdmin
+            .rpc('check_vehicle_compliance_v3', {
+              p_plate_number: obs.plate_number,
+              p_zone_id: obs.zone_id,
+              p_observation_time: obs.recorded_at,
+            });
+
+          if (complianceError) {
+            stats.errors.push(`Compliance check failed for ${obs.plate_number}: ${complianceError.message}`);
+            continue;
           }
+
+          if (complianceResult) {
+            stats.compliance_recalculated++;
+            batchCompliance++;
+            
+            // Check if breach was created
+            if (complianceResult.is_compliant === false) {
+              stats.breaches_created++;
+              batchBreaches++;
+            }
+          }
+        } catch (error: any) {
+          stats.errors.push(`Compliance error for ${obs.plate_number}: ${error.message}`);
         }
-      } catch (error: any) {
-        stats.errors.push(`Compliance error for ${obs.plate_number}: ${error.message}`);
+      }
+
+      console.log(`✅ Batch ${batchNum + 1}/${totalBatches} complete: ${batchCompliance} processed, ${batchBreaches} breaches`);
+      
+      // Small delay between batches to prevent overwhelming the system
+      if (batchNum < totalBatches - 1) {
+        await new Promise(resolve => setTimeout(resolve, 100));
       }
     }
 
-    console.log(`✅ Compliance recalculation complete: ${stats.compliance_recalculated} processed, ${stats.breaches_created} breaches`);
+    console.log(`\n✅ Compliance recalculation complete: ${stats.compliance_recalculated} processed, ${stats.breaches_created} breaches`);
 
     // ============================================
     // RETURN RESULTS
@@ -343,6 +369,8 @@ serve(async (req) => {
         compliance_recalculated: stats.compliance_recalculated,
         breaches_created: stats.breaches_created,
         error_count: stats.errors.length,
+        batches_processed: totalBatches,
+        batch_size: BATCH_SIZE,
       }
     };
 
