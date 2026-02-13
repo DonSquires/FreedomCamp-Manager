@@ -35,6 +35,7 @@ import {
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/stores/authStore';
+import { FunctionsHttpError } from '@supabase/supabase-js';
 
 interface CleanupStats {
   observations_checked: number;
@@ -151,7 +152,7 @@ export function DataCleanupUtility() {
       if (scope === 'ZONE') {
         params.zoneIds = selectedZones;
       } else if (scope === 'ORG') {
-        params.organizationId = selectedOrg;
+        params.organizationId = selectedOrg || user?.organization_id; // Auto-fill for non-master users
       }
 
       console.log('🔧 Starting cleanup with params:', params);
@@ -160,7 +161,33 @@ export function DataCleanupUtility() {
         body: params,
       });
 
-      if (error) throw error;
+      if (error) {
+        // Extract real error message from FunctionsHttpError
+        let errorMessage = error.message || 'Unknown error';
+        
+        if (error instanceof FunctionsHttpError) {
+          try {
+            const errorText = await error.context?.text();
+            const statusCode = error.context?.status ?? 500;
+            
+            if (errorText) {
+              try {
+                const errorJson = JSON.parse(errorText);
+                errorMessage = `[Code: ${statusCode}] ${errorJson.error || errorJson.message || errorText}`;
+              } catch {
+                errorMessage = `[Code: ${statusCode}] ${errorText}`;
+              }
+            } else {
+              errorMessage = `[Code: ${statusCode}] ${error.message || 'Edge Function error'}`;
+            }
+          } catch {
+            errorMessage = error.message || 'Failed to read error details';
+          }
+        }
+        
+        console.error('Cleanup error details:', errorMessage);
+        throw new Error(errorMessage);
+      }
 
       if (data?.stats) {
         setStats(data.stats);
@@ -170,7 +197,7 @@ export function DataCleanupUtility() {
       }
     } catch (error: any) {
       console.error('Cleanup failed:', error);
-      toast.error('Cleanup failed: ' + error.message);
+      toast.error('Recalculation failed: ' + error.message);
     } finally {
       setIsRunning(false);
     }
