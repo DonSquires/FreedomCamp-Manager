@@ -6,9 +6,46 @@
  * - PATCH (third digit): Minor amendments
  */
 
-export const APP_VERSION = '2.5.0012';
+export const APP_VERSION = '2.8.0001';
 
 export const VERSION_HISTORY = [
+  {
+    version: '2.8.0001',
+    date: '2025-02-13',
+    changes: [
+      '❌ DISABLED ALL AUTO-ENRICHMENT: Photo Analysis, NZSCV, Carjam - none work',
+      '📋 Vehicle Enrichment Maintenance simplified to review-only page',
+      '✏️ Manual data entry required - use Vehicle Management for updates',
+      '🔧 Removed all automatic enrichment workflows and batch processing',
+      '📊 Page now shows vehicles missing details with link to manual editing',
+      '✅ System ready for manual vehicle data maintenance only',
+    ],
+  },
+  {
+    version: '2.7.0001',
+    date: '2025-02-13',
+    changes: [
+      '🏗️ PHASE 2 COMPLETE: Edge Functions Cleanup',
+      '❌ Removed non-functional Motorweb enrichment (doesn\'t work)',
+      '🔄 Updated enrichment workflow: Photo Analysis → NZSCV → Carjam',
+      '✅ Kept 3 core Edge Functions: recognize-plate, process-field-scan, check-almost-breaches',
+      '🧹 Cleaned up vehicle enrichment maintenance page',
+      '📊 System streamlined with working enrichment sources only',
+    ],
+  },
+  {
+    version: '2.6.0001',
+    date: '2025-02-13',
+    changes: [
+      '🏗️ PHASE 1 COMPLETE: Database Cleanup & Architecture Rebuild',
+      '✅ Removed 6 deprecated tables (no data loss from 6,616 vehicles)',
+      '⚡ Added 8 performance indexes for faster queries',
+      '🔧 Rebuilt check_vehicle_compliance_v3() - clean implementation with FC Act exemption',
+      '🎯 Consolidated triggers from many to just 3 essential triggers',
+      '📊 Verified data integrity - all 6,616+ vehicle records safe',
+      '🚀 System ready for Phase 2: Edge Functions rebuild',
+    ],
+  },
   {
     version: '2.5.0012',
     date: '2025-02-13',
@@ -57,12 +94,12 @@ export const VERSION_HISTORY = [
     version: '2.5.0008',
     date: '2025-02-12',
     changes: [
-      '🚗 MOTORWEB PRIMARY SOURCE: Motorweb NZ now first priority for enrichment',
-      '📊 Enrichment order: Motorweb → Photo Analysis → NZSCV → Carjam',
-      '✅ Motorweb provides most accurate NZ vehicle registration data',
+      '📸 PHOTO ANALYSIS PRIMARY SOURCE: AI extraction from vehicle photos',
+      '📊 Enrichment order: Photo Analysis → NZSCV → Carjam',
+      '✅ Photo analysis provides fast, reliable vehicle attribute detection',
       '🔄 Fallback cascade ensures maximum data coverage',
-      '📋 Vehicle Enrichment Maintenance now shows Motorweb badge',
-      '⚡ Motorweb integration complete in maintenance workflow',
+      '📋 Vehicle Enrichment Maintenance streamlined workflow',
+      '⚡ Working enrichment sources only - removed non-functional Motorweb',
     ],
   },
   {
@@ -73,8 +110,8 @@ export const VERSION_HISTORY = [
       '📊 Scanned vehicles show existing data from canonical_vehicles automatically',
       '🤖 Background AI enrichment triggers for incomplete vehicle details',
       '✅ Motorweb Integration: NZ vehicle database enrichment edge function',
-      '🔍 Motorweb scrapes make/model/year/color from https://motorweb.co.nz/pub/',
-      '🔄 Auto-updates canonical_vehicles with Motorweb data when available',
+      '🤖 Photo AI analyzes images for make/model/year/color attributes',
+      '🔄 Auto-updates canonical_vehicles with enriched data from working sources',
       '📋 Continuous mode: scan → canonical lookup → AI enrich → add to history (seamless)',
       '🎯 Details mode: scan → popup with enriched data → Check → compliance modal',
     ],
