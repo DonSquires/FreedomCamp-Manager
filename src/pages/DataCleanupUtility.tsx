@@ -57,6 +57,15 @@ export function DataCleanupUtility() {
   const [isRunning, setIsRunning] = useState(false);
   const [stats, setStats] = useState<CleanupStats | null>(null);
   
+  // Auto-processing state
+  const [isAutoProcessing, setIsAutoProcessing] = useState(false);
+  const [autoProgress, setAutoProgress] = useState<{
+    current: number;
+    total: number;
+    currentZone: string;
+    aggregateStats: CleanupStats;
+  } | null>(null);
+  
   const [availableZones, setAvailableZones] = useState<any[]>([]);
   const [availableOrgs, setAvailableOrgs] = useState<any[]>([]);
   const [isLoadingZones, setIsLoadingZones] = useState(false);
@@ -104,6 +113,143 @@ export function DataCleanupUtility() {
       setAvailableOrgs(data || []);
     } catch (error: any) {
       toast.error('Failed to load organizations: ' + error.message);
+    }
+  };
+
+  const handleAutoProcessAllZones = async () => {
+    const confirmed = confirm(
+      `🤖 AUTO-PROCESS ALL ZONES\n\n` +
+      `This will automatically process each zone one at a time.\n\n` +
+      `• ${availableZones.length} zones will be processed\n` +
+      `• Each zone is processed separately (prevents timeouts)\n` +
+      `• You'll see progress as it goes\n` +
+      `• Date Range: ${dateRange === 'all' ? 'All Time' : 'Last ' + dateRange + ' days'}\n\n` +
+      `This may take 5-15 minutes depending on data volume.\n\n` +
+      `Continue?`
+    );
+
+    if (!confirmed) return;
+
+    setIsAutoProcessing(true);
+    setStats(null);
+
+    const aggregateStats: CleanupStats = {
+      observations_checked: 0,
+      zones_corrected: 0,
+      duplicates_removed: 0,
+      compliance_recalculated: 0,
+      breaches_created: 0,
+      errors: [],
+    };
+
+    try {
+      for (let i = 0; i < availableZones.length; i++) {
+        const zone = availableZones[i];
+        
+        setAutoProgress({
+          current: i + 1,
+          total: availableZones.length,
+          currentZone: zone.name,
+          aggregateStats: { ...aggregateStats },
+        });
+
+        console.log(`🔄 Processing zone ${i + 1}/${availableZones.length}: ${zone.name}`);
+
+        try {
+          // Calculate date range
+          let dateRangeStart: string | undefined;
+          if (dateRange !== 'all') {
+            const startDate = new Date();
+            startDate.setDate(startDate.getDate() - parseInt(dateRange));
+            dateRangeStart = startDate.toISOString();
+          }
+
+          const params: any = {
+            scope: 'ZONE',
+            zoneIds: [zone.id],
+            dateRangeStart,
+            dateRangeEnd: new Date().toISOString(),
+          };
+
+          // Get current session token for authentication
+          const { data: { session } } = await supabase.auth.getSession();
+          if (!session) {
+            console.error('❌ No active session');
+            aggregateStats.errors.push(`${zone.name}: No active session`);
+            continue;
+          }
+
+          const { data, error } = await supabase.functions.invoke('cleanup-and-recalculate', {
+            body: params,
+            headers: {
+              Authorization: `Bearer ${session.access_token}`,
+            },
+          });
+
+          if (error) {
+            let errorMessage = error.message || 'Unknown error';
+            
+            if (error instanceof FunctionsHttpError) {
+              try {
+                const errorText = await error.context?.text();
+                const statusCode = error.context?.status ?? 500;
+                
+                if (errorText) {
+                  try {
+                    const errorJson = JSON.parse(errorText);
+                    errorMessage = `[Code: ${statusCode}] ${errorJson.error || errorJson.message || errorText}`;
+                  } catch {
+                    errorMessage = `[Code: ${statusCode}] ${errorText}`;
+                  }
+                } else {
+                  errorMessage = `[Code: ${statusCode}] ${error.message || 'Edge Function error'}`;
+                }
+              } catch {
+                errorMessage = error.message || 'Failed to read error details';
+              }
+            }
+            
+            console.error(`❌ Zone ${zone.name} failed:`, errorMessage);
+            aggregateStats.errors.push(`${zone.name}: ${errorMessage}`);
+            continue;
+          }
+
+          if (data?.stats) {
+            // Aggregate stats from this zone
+            aggregateStats.observations_checked += data.stats.observations_checked || 0;
+            aggregateStats.zones_corrected += data.stats.zones_corrected || 0;
+            aggregateStats.duplicates_removed += data.stats.duplicates_removed || 0;
+            aggregateStats.compliance_recalculated += data.stats.compliance_recalculated || 0;
+            aggregateStats.breaches_created += data.stats.breaches_created || 0;
+            
+            if (data.stats.errors && data.stats.errors.length > 0) {
+              aggregateStats.errors.push(...data.stats.errors);
+            }
+
+            console.log(`✅ Zone ${zone.name} complete:`, data.stats);
+          }
+        } catch (zoneError: any) {
+          console.error(`❌ Zone ${zone.name} error:`, zoneError);
+          aggregateStats.errors.push(`${zone.name}: ${zoneError.message}`);
+        }
+
+        // Small delay between zones to prevent rate limiting
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+
+      setStats(aggregateStats);
+      setAutoProgress(null);
+      
+      toast.success(
+        `Auto-processing complete! Processed ${availableZones.length} zones. ` +
+        `${aggregateStats.compliance_recalculated} observations recalculated, ` +
+        `${aggregateStats.breaches_created} breaches found.`
+      );
+    } catch (error: any) {
+      console.error('Auto-processing failed:', error);
+      toast.error('Auto-processing failed: ' + error.message);
+    } finally {
+      setIsAutoProcessing(false);
     }
   };
 
@@ -157,8 +303,17 @@ export function DataCleanupUtility() {
 
       console.log('🔧 Starting cleanup with params:', params);
 
+      // Get current session token for authentication
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        throw new Error('No active session. Please log in again.');
+      }
+
       const { data, error } = await supabase.functions.invoke('cleanup-and-recalculate', {
         body: params,
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
       });
 
       if (error) {
@@ -414,27 +569,123 @@ export function DataCleanupUtility() {
             </Card>
           )}
 
-          {/* Run Button */}
-          <Button
-            onClick={handleRunCleanup}
-            disabled={isRunning || (scope === 'ZONE' && selectedZones.length === 0) || (scope === 'ORG' && !selectedOrg && user?.role === 'master')}
-            className="w-full h-14 text-lg font-bold"
-            size="lg"
-          >
-            {isRunning ? (
-              <>
-                <Loader2 className="h-5 w-5 mr-2 animate-spin" />
-                Processing...
-              </>
-            ) : (
-              <>
-                <RefreshCw className="h-5 w-5 mr-2" />
-                Run Cleanup & Recalculation
-              </>
+          {/* Run Buttons */}
+          <div className="space-y-3">
+            <Button
+              onClick={handleRunCleanup}
+              disabled={isRunning || isAutoProcessing || (scope === 'ZONE' && selectedZones.length === 0) || (scope === 'ORG' && !selectedOrg && user?.role === 'master')}
+              className="w-full h-14 text-lg font-bold"
+              size="lg"
+            >
+              {isRunning ? (
+                <>
+                  <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+                  Processing...
+                </>
+              ) : (
+                <>
+                  <RefreshCw className="h-5 w-5 mr-2" />
+                  Run Cleanup & Recalculation
+                </>
+              )}
+            </Button>
+
+            {/* Auto-Process All Zones Button */}
+            {scope === 'ZONE' && availableZones.length > 0 && (
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <div className="flex-1 border-t" />
+                  <span>OR</span>
+                  <div className="flex-1 border-t" />
+                </div>
+                
+                <Button
+                  onClick={handleAutoProcessAllZones}
+                  disabled={isRunning || isAutoProcessing}
+                  variant="outline"
+                  className="w-full h-12 text-base font-semibold border-2 border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-950/20"
+                >
+                  {isAutoProcessing ? (
+                    <>
+                      <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+                      Auto-Processing...
+                    </>
+                  ) : (
+                    <>
+                      🤖 Auto-Process All {availableZones.length} Zones (One at a Time)
+                    </>
+                  )}
+                </Button>
+                
+                <p className="text-xs text-muted-foreground text-center">
+                  Automatically processes each zone sequentially to prevent timeouts
+                </p>
+              </div>
             )}
-          </Button>
+          </div>
         </CardContent>
       </Card>
+
+      {/* Auto-Processing Progress */}
+      {autoProgress && (
+        <Card className="border-2 border-blue-500">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-blue-700">
+              <Loader2 className="h-6 w-6 animate-spin" />
+              Auto-Processing: {autoProgress.current} of {autoProgress.total} zones
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {/* Current Zone */}
+            <div className="p-4 bg-blue-50 dark:bg-blue-950/20 rounded-lg">
+              <p className="text-sm text-muted-foreground mb-1">Currently Processing</p>
+              <p className="text-xl font-bold text-blue-600">{autoProgress.currentZone}</p>
+            </div>
+
+            {/* Progress Bar */}
+            <div className="space-y-2">
+              <div className="flex justify-between text-sm text-muted-foreground">
+                <span>Progress</span>
+                <span>{Math.round((autoProgress.current / autoProgress.total) * 100)}%</span>
+              </div>
+              <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                <div 
+                  className="h-full bg-blue-600 transition-all duration-500 ease-out"
+                  style={{ width: `${(autoProgress.current / autoProgress.total) * 100}%` }}
+                />
+              </div>
+            </div>
+
+            {/* Aggregate Stats So Far */}
+            <div className="grid grid-cols-3 gap-3">
+              <div className="p-3 bg-green-50 dark:bg-green-950/20 rounded">
+                <p className="text-xs text-muted-foreground mb-1">Processed</p>
+                <p className="text-lg font-bold text-green-600">
+                  {autoProgress.aggregateStats.observations_checked}
+                </p>
+              </div>
+              
+              <div className="p-3 bg-purple-50 dark:bg-purple-950/20 rounded">
+                <p className="text-xs text-muted-foreground mb-1">Corrected</p>
+                <p className="text-lg font-bold text-purple-600">
+                  {autoProgress.aggregateStats.zones_corrected}
+                </p>
+              </div>
+
+              <div className="p-3 bg-amber-50 dark:bg-amber-950/20 rounded">
+                <p className="text-xs text-muted-foreground mb-1">Breaches</p>
+                <p className="text-lg font-bold text-amber-600">
+                  {autoProgress.aggregateStats.breaches_created}
+                </p>
+              </div>
+            </div>
+
+            <p className="text-sm text-muted-foreground text-center">
+              ⏱️ Estimated time remaining: ~{Math.ceil((autoProgress.total - autoProgress.current) * 0.5)} minutes
+            </p>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Results */}
       {stats && (
