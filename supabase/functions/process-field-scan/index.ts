@@ -197,6 +197,13 @@ Deno.serve(async (req) => {
     // STEP 3: Create vehicle observation v2 (PURE OBSERVATION DATA ONLY)
     console.log('📝 Step 3: Create observation (Section 1: Data Gathering)...');
     
+    // ✅ CRITICAL: Force NZ timezone for recorded_at (prevent browser timezone corruption)
+    // Always use NZ time regardless of user's browser timezone
+    const nzNow = new Date();
+    const nzDateStr = nzNow.toLocaleString('en-NZ', { timeZone: 'Pacific/Auckland' });
+    const recordedAt = new Date(nzDateStr).toISOString();
+    console.log('🕐 Recording time (NZ):', nzDateStr, '→ UTC:', recordedAt);
+    
     const { data: observation, error: obsError } = await supabaseAdmin
       .from('vehicle_observations_v2')
       .insert({
@@ -204,7 +211,7 @@ Deno.serve(async (req) => {
         organization_id: scanData.organizationId,
         zone_id: scanData.zoneId,
         recorded_by: user.id,
-        recorded_at: new Date().toISOString(),
+        recorded_at: recordedAt,
         // Photo evidence
         photo: scanData.imageUrl,
         // GPS location
