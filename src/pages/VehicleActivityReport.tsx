@@ -134,7 +134,7 @@ export function VehicleActivityReport() {
       console.log('   - User:', user?.id, 'Role:', user?.role);
       console.log('   - Selected Org:', selectedOrgId);
 
-      // ✅ CLEAN ARCHITECTURE: Get unique plates from observations
+      // Get unique plates from observations filtered by organization
       let obsQuery = supabase
         .from('vehicle_observations_v2')
         .select('plate_number', { count: 'exact' });
@@ -214,22 +214,24 @@ export function VehicleActivityReport() {
 
       if (vehicleError) throw vehicleError;
 
-      // ✅ CLEAN ARCHITECTURE: Use compatibility view for full observation details
+      // Get all observations with filters
       let observationsQuery = supabase
-        .from('vehicle_observations_with_details')
+        .from('vehicle_observations_v2')
         .select(`
           observation_id,
           zone_id,
-          zone_name,
           organization_id,
           recorded_at,
           recorded_by,
-          self_contained,
+          is_self_contained,
           is_compliant,
-          photo,
-          officer_notes,
+          evidence_photos,
+          notes,
           gps_latitude,
-          gps_longitude
+          gps_longitude,
+          zones!inner(name),
+          organizations(name),
+          user_profiles!vehicle_observations_v2_recorded_by_fkey(first_name, last_name)
         `)
         .eq('plate_number', plateNumber)
         .gte('recorded_at', `${startDate}T00:00:00`)
@@ -248,19 +250,19 @@ export function VehicleActivityReport() {
 
       if (obsError) throw obsError;
 
-      // Process observations into profile (data already joined via view)
+      // Process observations into profile
       const processedObs: VehicleObservation[] = (observations || []).map(obs => ({
         observation_id: obs.observation_id,
         zone_id: obs.zone_id,
-        zone_name: obs.zone_name || 'Unknown',
+        zone_name: (obs.zones as any)?.name || 'Unknown',
         organization_id: obs.organization_id,
-        organization_name: 'Unknown', // Organization name not in view
+        organization_name: (obs.organizations as any)?.name || 'Unknown',
         recorded_at: obs.recorded_at,
-        recorded_by: obs.recorded_by || 'Unknown',
-        is_self_contained: obs.self_contained || false,
-        is_compliant: obs.is_compliant || true,
-        evidence_photos: obs.photo ? [obs.photo] : [],
-        notes: obs.officer_notes,
+        recorded_by: obs.user_profiles ? `${(obs.user_profiles as any).first_name} ${(obs.user_profiles as any).last_name}` : 'Unknown',
+        is_self_contained: obs.is_self_contained,
+        is_compliant: obs.is_compliant,
+        evidence_photos: obs.evidence_photos || [],
+        notes: obs.notes,
         gps_latitude: obs.gps_latitude,
         gps_longitude: obs.gps_longitude,
       }));

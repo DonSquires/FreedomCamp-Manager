@@ -32,11 +32,9 @@ interface ComplianceResultModalProps {
   isHomeless?: boolean;
   hasHSIssue?: boolean;
   isFlagged?: boolean;
-  fcActExempt?: boolean; // ✅ New: FC Act exemption status
   homelessStatus?: 'none' | 'claimed' | 'confirmed'; // ✅ Phase 2: Canonical homeless status
   homelessNotes?: string; // ✅ Phase 2: Admin notes
   alerts: string[];
-  violationReasons?: string[]; // ✅ New: Specific breach reasons
   onContinueScanning: () => void;
   onAddEvidence: () => void;
   onGoToEnforcement: () => void;
@@ -52,22 +50,16 @@ export function ComplianceResultModal({
   isHomeless,
   hasHSIssue,
   isFlagged,
-  fcActExempt = false,
   homelessStatus = 'none', // ✅ Phase 2: Default to 'none'
   homelessNotes,
   alerts,
-  violationReasons = [],
   onContinueScanning,
   onAddEvidence,
   onGoToEnforcement,
   onAcknowledge,
 }: ComplianceResultModalProps) {
-  // ✅ BREACH BUT EXEMPT: Show as breach if violations exist, but exempt if homeless confirmed
-  const isBreachButExempt = fcActExempt && isBreach;
-
   // Determine modal style based on status
   const getBackgroundClass = () => {
-    if (isBreachButExempt) return 'bg-gradient-to-br from-purple-100 to-purple-200 dark:from-purple-950/40 dark:to-purple-900/40';
     if (isBreach) return 'bg-gradient-to-br from-red-100 to-red-200 dark:from-red-950/40 dark:to-red-900/40';
     if (isAtRisk) return 'bg-gradient-to-br from-orange-100 to-orange-200 dark:from-orange-950/40 dark:to-orange-900/40';
     if (isHomeless || hasHSIssue || isFlagged) return 'bg-gradient-to-br from-yellow-100 to-yellow-200 dark:from-yellow-950/40 dark:to-yellow-900/40';
@@ -75,14 +67,6 @@ export function ComplianceResultModal({
   };
 
   const getStatusBadge = () => {
-    if (isBreachButExempt) {
-      return (
-        <Badge className="bg-purple-600 text-white text-lg px-4 py-2">
-          <Home className="h-5 w-5 mr-2" />
-          BREACH BUT EXEMPT (FC ACT)
-        </Badge>
-      );
-    }
     if (isBreach) {
       return (
         <Badge className="bg-red-600 text-white text-lg px-4 py-2">
@@ -132,9 +116,6 @@ export function ComplianceResultModal({
   };
 
   const getIcon = () => {
-    if (isBreachButExempt) {
-      return <Home className="h-16 w-16 text-purple-600" />;
-    }
     if (isBreach || isAtRisk) {
       return <XCircle className="h-16 w-16 text-red-600" />;
     }
@@ -145,8 +126,8 @@ export function ComplianceResultModal({
   };
 
   // Determine which action buttons to show
-  const requiresEnforcement = (isBreach || isAtRisk) && !fcActExempt; // ✅ No enforcement if FC Act exempt
-  const isInformationalOnly = isHomeless || hasHSIssue || isFlagged || isBreachButExempt;
+  const requiresEnforcement = isBreach || isAtRisk;
+  const isInformationalOnly = isHomeless || hasHSIssue || isFlagged;
 
   return (
     <Dialog open={open} onOpenChange={onContinueScanning}>
@@ -154,8 +135,7 @@ export function ComplianceResultModal({
         className={cn(
           "max-w-[95vw] w-full sm:max-w-md p-0 rounded-3xl shadow-2xl border-4 max-h-[90vh] overflow-y-auto",
           getBackgroundClass(),
-          isBreachButExempt && "border-purple-500",
-          isBreach && !isBreachButExempt && "border-red-500",
+          isBreach && "border-red-500",
           isAtRisk && "border-orange-500",
           (isHomeless || hasHSIssue || isFlagged) && "border-yellow-500",
           isCompliant && !isHomeless && !hasHSIssue && !isFlagged && "border-green-500"
@@ -177,41 +157,8 @@ export function ComplianceResultModal({
         </DialogHeader>
 
         <div className="px-6 pb-6 space-y-4">
-          {/* ✅ BREACH BUT EXEMPT: Show violations + exemption explanation */}
-          {isBreachButExempt && (
-            <div className="space-y-3">
-              <div className="p-4 bg-red-100 dark:bg-red-900/30 rounded-lg border-2 border-red-500">
-                <p className="font-bold text-red-900 dark:text-red-100 flex items-center gap-2 mb-2">
-                  <XCircle className="h-5 w-5" />
-                  Zone Rule Violations Detected
-                </p>
-                <ul className="text-sm text-red-700 dark:text-red-300 space-y-1 ml-6 list-disc">
-                  {violationReasons.filter(r => r !== 'FC Act Exempt - Confirmed Homeless').map((reason, idx) => (
-                    <li key={idx}>{reason}</li>
-                  ))}
-                </ul>
-              </div>
-
-              <div className="p-4 bg-purple-100 dark:bg-purple-900/30 rounded-lg border-2 border-purple-500">
-                <p className="font-bold text-purple-900 dark:text-purple-100 flex items-center gap-2">
-                  <Home className="h-5 w-5" />
-                  ✅ FC Act 2011 Exemption Active - No Enforcement Required
-                </p>
-                <p className="text-sm text-purple-700 dark:text-purple-300 mt-2">
-                  This vehicle is confirmed homeless and exempt from overnight stay limits.
-                  <strong className="block mt-1">No enforcement action will be triggered.</strong>
-                </p>
-                {homelessNotes && (
-                  <p className="text-xs text-purple-600 dark:text-purple-400 mt-2 p-2 bg-purple-50 dark:bg-purple-950/50 rounded italic">
-                    Admin Notes: "{homelessNotes}"
-                  </p>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* ✅ PHASE 2: Homeless Status Display (non-breach cases) */}
-          {homelessStatus === 'confirmed' && !isBreachButExempt && (
+          {/* ✅ PHASE 2: Homeless Status Display */}
+          {homelessStatus === 'confirmed' && (
             <div className="mt-4 p-4 bg-purple-100 dark:bg-purple-900/30 rounded-lg border-2 border-purple-500">
               <p className="font-bold text-purple-900 dark:text-purple-100 flex items-center gap-2">
                 <Home className="h-5 w-5" />

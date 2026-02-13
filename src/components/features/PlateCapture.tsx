@@ -1628,11 +1628,7 @@ export function PlateCapture({
       zoneName: zoneName,
       zoneId: zoneId,
       organizationId: organizationId,
-      timestamp: (() => {
-        const browserNow = new Date();
-        const nzDateStr = browserNow.toLocaleString('en-NZ', { timeZone: 'Pacific/Auckland' });
-        return new Date(nzDateStr).toISOString();
-      })(),
+      timestamp: new Date().toISOString(),
       isCompliant: details.isCompliant ?? true,
       isFlagged: details.isFlagged ?? false,
       vehicleMake: details.vehicleMake,

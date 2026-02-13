@@ -226,30 +226,23 @@ export function useOfficerWelfareMonitor() {
     // Log GPS activity to database or queue if offline
     if (user?.id) {
       if (isOnline()) {
-        // ✅ FIX: Properly await the RPC call before .catch
-        (async () => {
-          try {
-            const { error } = await supabase.rpc('log_officer_activity', {
-              p_user_id: user.id,
-              p_activity_type: 'gps_update',
-              p_gps_latitude: lat,
-              p_gps_longitude: lng,
-              p_gps_accuracy: accuracy,
-            });
-            
-            if (error) throw error;
-          } catch (err) {
-            console.warn('Failed to log GPS activity, queuing for offline sync:', err);
-            // Show user-friendly toast for critical GPS failure
-            import('sonner').then(({ toast }) => {
-              toast.warning('Offline - GPS updates queued for sync when connection returns');
-            });
-            queueActivity({
-              type: 'gps_update',
-              data: { latitude: lat, longitude: lng, accuracy },
-            });
-          }
-        })();
+        supabase.rpc('log_officer_activity', {
+          p_user_id: user.id,
+          p_activity_type: 'gps_update',
+          p_gps_latitude: lat,
+          p_gps_longitude: lng,
+          p_gps_accuracy: accuracy,
+        }).catch(err => {
+          console.warn('Failed to log GPS activity, queuing for offline sync:', err);
+          // Show user-friendly toast for critical GPS failure
+          import('sonner').then(({ toast }) => {
+            toast.warning('Offline - GPS updates queued for sync when connection returns');
+          });
+          queueActivity({
+            type: 'gps_update',
+            data: { latitude: lat, longitude: lng, accuracy },
+          });
+        });
       } else {
         // Queue for later sync (offline mode)
         queueActivity({
@@ -278,22 +271,17 @@ export function useOfficerWelfareMonitor() {
       };
 
       if (isOnline()) {
-        // ✅ FIX: Properly handle async operation
-        try {
-          const { error } = await supabase.rpc('log_officer_activity', {
-            p_user_id: user.id,
-            p_activity_type: 'welfare_acknowledged',
-            p_metadata: metadata,
-          });
-          
-          if (error) throw error;
-        } catch (err) {
+        await supabase.rpc('log_officer_activity', {
+          p_user_id: user.id,
+          p_activity_type: 'welfare_acknowledged',
+          p_metadata: metadata,
+        }).catch(err => {
           console.warn('Failed to log acknowledgement, queuing for offline sync:', err);
           queueActivity({
             type: 'welfare_acknowledged',
             data: { metadata },
           });
-        }
+        });
       } else {
         // Queue for later sync
         queueActivity({
@@ -446,20 +434,11 @@ export function useOfficerWelfareMonitor() {
         
         // Record back online status
         if (user?.id) {
-          // ✅ FIX: Properly handle async operation
-          (async () => {
-            try {
-              const { error } = await supabase.rpc('log_officer_activity', {
-                p_user_id: user.id,
-                p_activity_type: 'back_online',
-                p_metadata: { reconnected_at: new Date().toISOString() },
-              });
-              
-              if (error) throw error;
-            } catch (err) {
-              console.warn('Failed to log back online status:', err);
-            }
-          })();
+          supabase.rpc('log_officer_activity', {
+            p_user_id: user.id,
+            p_activity_type: 'back_online',
+            p_metadata: { reconnected_at: new Date().toISOString() },
+          }).catch(err => console.warn('Failed to log back online status:', err));
         }
       }
 

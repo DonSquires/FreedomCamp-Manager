@@ -85,21 +85,25 @@ export function VehicleDetailsView({ scan, onClose }: VehicleDetailsViewProps) {
       if (vehicleError) throw vehicleError;
       setVehicleInfo(vehicle);
 
-      // ✅ CLEAN ARCHITECTURE: Use compatibility view for full observation details
+      // Load observations from vehicle_observations_v2 (NEW SCHEMA)
       const { data: obs, error: obsError } = await supabase
-        .from('vehicle_observations_with_details')
+        .from('vehicle_observations_v2')
         .select(`
           observation_id,
           recorded_at,
           zone_id,
-          zone_name,
+          zones (name),
           is_compliant,
           gps_latitude,
           gps_longitude,
           photo,
           officer_notes,
           has_notes,
-          notes_reference_previous
+          notes_reference_previous,
+          user_profiles!vehicle_observations_v2_recorded_by_fkey (
+            first_name,
+            last_name
+          )
         `)
         .eq('plate_number', scan.plateNumber)
         .order('recorded_at', { ascending: false })
@@ -107,10 +111,12 @@ export function VehicleDetailsView({ scan, onClose }: VehicleDetailsViewProps) {
 
       if (obsError) throw obsError;
       
-      // Format observations (data already joined via view)
+      // Format observations
       const formattedObs = (obs || []).map(o => ({
         ...o,
-        recorded_by_name: null, // User info not in view
+        recorded_by_name: o.user_profiles
+          ? `${(o.user_profiles as any).first_name} ${(o.user_profiles as any).last_name}`
+          : null,
       }));
       
       setObservations(formattedObs);
