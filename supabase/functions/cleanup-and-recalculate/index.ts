@@ -46,6 +46,36 @@ serve(async (req) => {
     const params: CleanupParams = await req.json();
     console.log('🔧 Starting cleanup and recalculation:', params);
 
+    // ============================================
+    // VALIDATION: Check required parameters
+    // ============================================
+    if (params.scope === 'ZONE' && (!params.zoneIds || params.zoneIds.length === 0)) {
+      console.error('❌ Validation failed: No zone IDs provided for ZONE scope');
+      return new Response(
+        JSON.stringify({ 
+          error: 'No observations found in zone(s): undefined. Check zone IDs are correct.',
+          details: 'ZONE scope requires at least one zone to be selected. Please select zones in the UI.'
+        }),
+        { 
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      );
+    }
+
+    if (params.scope === 'ORG' && !params.organizationId) {
+      console.error('❌ Validation failed: No organization ID provided for ORG scope');
+      return new Response(
+        JSON.stringify({ 
+          error: 'No organization ID provided for ORG scope.' 
+        }),
+        { 
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        }
+      );
+    }
+
     const stats: CleanupStats = {
       observations_checked: 0,
       zones_corrected: 0,
