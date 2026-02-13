@@ -59,6 +59,7 @@ import { VehicleEnrichmentMaintenance } from './VehicleEnrichmentMaintenance';
 import { DataManagementHub } from './DataManagementHub';
 import { SettingsHub } from './SettingsHub';
 import { DatabaseDiagnostic } from './DatabaseDiagnostic';
+import { EmergencyDataRecovery } from './EmergencyDataRecovery';
 
 interface AdminPortalProps {
   onLogout: () => void;
@@ -413,6 +414,18 @@ export function AdminPortal({ onLogout }: AdminPortalProps) {
             </Button>
 
             <Button
+              variant={activeTab === 'emergency-recovery' ? 'default' : 'ghost'}
+              className="w-full justify-start text-sm lg:text-base h-10 lg:h-9 touch-manipulation bg-red-50 dark:bg-red-950/20 border border-red-500/30"
+              onClick={() => {
+                setActiveTab('emergency-recovery');
+                setSidebarOpen(false);
+              }}
+            >
+              <AlertTriangle className="h-4 w-4 mr-2 lg:mr-3 text-red-600" />
+              <span className="text-red-600 dark:text-red-400 font-semibold">Emergency Recovery</span>
+            </Button>
+
+            <Button
               variant={activeTab === 'data-integrity' ? 'default' : 'ghost'}
               className="w-full justify-start text-sm lg:text-base h-10 lg:h-9 touch-manipulation"
               onClick={() => {
@@ -639,6 +652,7 @@ export function AdminPortal({ onLogout }: AdminPortalProps) {
               {activeTab === 'data-management-hub' && <DataManagementHub />}
               {activeTab === 'settings-hub' && <SettingsHub />}
               {activeTab === 'database-diagnostic' && <DatabaseDiagnostic />}
+              {activeTab === 'emergency-recovery' && <EmergencyDataRecovery />}
 
               {activeTab === 'cross-org' && isSuperUser && (
                 <Card>
