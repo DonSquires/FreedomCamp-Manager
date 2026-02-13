@@ -6,9 +6,19 @@
  * - PATCH (third digit): Minor amendments
  */
 
-export const APP_VERSION = '2.5.0026';
+export const APP_VERSION = '2.5.0027';
 
 export const VERSION_HISTORY = [
+  {
+    version: '2.5.0027',
+    date: '2025-02-13',
+    changes: [
+      '🗑️ REMOVED: NZSCV verification check from field scan processing',
+      '✅ NZSCV check was unreliable and unnecessary - removed from background tasks',
+      '🚀 Simplified background processing to AI photo analysis + breach prediction only',
+      '📉 Reduced processing overhead and eliminated unreliable external dependency',
+    ],
+  },
   {
     version: '2.5.0026',
     date: '2025-02-13',
