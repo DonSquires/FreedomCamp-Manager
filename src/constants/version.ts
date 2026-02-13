@@ -6,9 +6,34 @@
  * - PATCH (third digit): Minor amendments
  */
 
-export const APP_VERSION = '2.10.0004';
+export const APP_VERSION = '2.10.0006';
 
 export const VERSION_HISTORY = [
+  {
+    version: '2.10.0006',
+    date: '2025-02-14',
+    changes: [
+      '🐛 CRITICAL FIX: Removed .catch() from Supabase RPC calls in welfare monitor',
+      '✅ Fixed TypeError: supabase.rpc(...).catch is not a function',
+      '🔧 Corrected GPS update and back_online status logging to use proper .then() pattern',
+      '📡 Welfare monitoring now handles errors correctly without crashes',
+    ],
+  },
+  {
+    version: '2.10.0005',
+    date: '2025-02-14',
+    changes: [
+      '🔍 DIAGNOSTIC LOGGING: Added pre-check to show total observations in zone BEFORE date filtering',
+      '📊 Shows total records in zone, sample recent observations, and exact date range being applied',
+      '🐛 FIX: Simplified date filtering - uses ISO strings directly instead of Date objects',
+      '⚠️ Returns diagnostic info when 0 observations found (shows why: zone mismatch vs date range issue)',
+      '✅ Confirms targeting vehicle_observations_v2 table',
+      '🎯 Zone filtering confirmed - NOT filtering by organization (org only used for frontend zone list)',
+      '📋 Reference point: plate_number (not vehicle_id)',
+      '⏰ Duplicate detection: checks dates then time (morning 6am-3pm, evening 3pm-6am)',
+      '🔧 Should now properly show the 10,000+ records in Nelson City zone',
+    ],
+  },
   {
     version: '2.10.0004',
     date: '2025-02-14',

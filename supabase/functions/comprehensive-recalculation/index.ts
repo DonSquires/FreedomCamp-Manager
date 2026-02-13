@@ -119,7 +119,40 @@ Deno.serve(async (req) => {
     console.log(`📝 Audit record created: ${actionRecord.id}`);
 
     // ============================================================
-    // BUILD OBSERVATION QUERY
+    // DIAGNOSTIC: Check what data exists BEFORE filtering
+    // ============================================================
+    console.log('🔍 DIAGNOSTIC: Checking zone data...');
+    console.log('Zone IDs:', params.zoneIds);
+    console.log('Date Range Start:', params.dateRangeStart);
+    console.log('Date Range End:', params.dateRangeEnd);
+
+    // Check total observations in zone (NO date filter)
+    const { count: totalInZone, error: countError } = await supabaseAdmin
+      .from('vehicle_observations_v2')
+      .select('observation_id', { count: 'exact', head: true })
+      .in('zone_id', params.zoneIds || []);
+
+    console.log(`📊 Total observations in zone(s): ${totalInZone || 0}`);
+
+    if (totalInZone === 0) {
+      throw new Error(`No observations found in zone(s): ${params.zoneIds?.join(', ')}. Check zone IDs are correct.`);
+    }
+
+    // Get sample observations to see date range
+    const { data: sampleObs } = await supabaseAdmin
+      .from('vehicle_observations_v2')
+      .select('observation_id, plate_number, zone_id, recorded_at')
+      .in('zone_id', params.zoneIds || [])
+      .order('recorded_at', { ascending: false })
+      .limit(5);
+
+    console.log('📋 Sample recent observations:');
+    sampleObs?.forEach(obs => {
+      console.log(`  ${obs.plate_number} - ${obs.recorded_at}`);
+    });
+
+    // ============================================================
+    // BUILD OBSERVATION QUERY WITH FILTERS
     // ============================================================
     let query = supabaseAdmin
       .from('vehicle_observations_v2')
@@ -135,40 +168,49 @@ Deno.serve(async (req) => {
         gps_longitude
       `);
 
-    // Apply scope filters
+    // Apply zone filter (NOT organization - organization is just for frontend filtering)
     if (params.scope === 'ZONE') {
       query = query.in('zone_id', params.zoneIds!);
+      console.log(`🎯 Filtering by zone IDs: ${params.zoneIds?.join(', ')}`);
     } else if (params.scope === 'ORG') {
       query = query.in('organization_id', params.orgIds!);
+      console.log(`🎯 Filtering by organization IDs: ${params.orgIds?.join(', ')}`);
     }
 
-    // Apply date filters - FIX: Use separate Date objects
+    // Apply date filters - SIMPLIFIED: Just use the ISO strings directly
     if (params.dateRangeStart) {
-      const start = new Date(params.dateRangeStart);
-      start.setHours(0, 0, 0, 0);
-      query = query.gte('recorded_at', start.toISOString());
-      console.log(`📅 Date filter start: ${start.toISOString()}`);
+      // Add time component if not present
+      const startTimestamp = params.dateRangeStart.includes('T') 
+        ? params.dateRangeStart 
+        : `${params.dateRangeStart}T00:00:00.000Z`;
+      query = query.gte('recorded_at', startTimestamp);
+      console.log(`📅 Date filter start: ${startTimestamp}`);
     }
 
     if (params.dateRangeEnd) {
-      const end = new Date(params.dateRangeEnd);
-      end.setHours(23, 59, 59, 999);
-      query = query.lte('recorded_at', end.toISOString());
-      console.log(`📅 Date filter end: ${end.toISOString()}`);
+      // Add time component if not present
+      const endTimestamp = params.dateRangeEnd.includes('T') 
+        ? params.dateRangeEnd 
+        : `${params.dateRangeEnd}T23:59:59.999Z`;
+      query = query.lte('recorded_at', endTimestamp);
+      console.log(`📅 Date filter end: ${endTimestamp}`);
     }
 
     // ============================================================
     // FETCH OBSERVATIONS
     // ============================================================
-    console.log('🔍 Fetching observations...');
+    console.log('🔍 Fetching observations with filters...');
     const { data: observations, error: obsError } = await query.order('recorded_at', { ascending: true });
 
     if (obsError) throw new Error(`Failed to fetch observations: ${obsError.message}`);
 
     const totalObs = observations?.length || 0;
-    console.log(`📊 Found ${totalObs} observations`);
+    console.log(`📊 Found ${totalObs} observations after date filtering`);
 
     if (totalObs === 0) {
+      const message = `No observations found. Total in zone: ${totalInZone}, but 0 matched date range ${params.dateRangeStart} to ${params.dateRangeEnd}. Check date range settings.`;
+      console.warn(`⚠️ ${message}`);
+
       await supabaseAdmin
         .from('admin_recalculation_actions')
         .update({
@@ -177,13 +219,21 @@ Deno.serve(async (req) => {
           compliance_changed: 0,
           completed_at: new Date().toISOString(),
           duration_seconds: Math.round((Date.now() - startTime) / 1000),
+          error_message: message,
         })
         .eq('id', actionRecord.id);
 
       return new Response(
         JSON.stringify({
-          success: true,
-          message: 'No observations found to process',
+          success: false,
+          message,
+          diagnostic: {
+            total_in_zone: totalInZone,
+            zone_ids: params.zoneIds,
+            date_range_start: params.dateRangeStart,
+            date_range_end: params.dateRangeEnd,
+            sample_recent_observations: sampleObs,
+          },
           summary: {
             observations_processed: 0,
             duplicates_removed: 0,
