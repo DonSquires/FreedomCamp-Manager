@@ -1370,6 +1370,7 @@ export function PlateCapture({
       }).then(({ data, error }) => {
         if (error) {
           console.error(`Background AI analysis failed for ${plateNumber}:`, error);
+          analyzingVehicles.current.delete(vehicleKey);
           return;
         }
 
@@ -1392,10 +1393,8 @@ export function PlateCapture({
         } else if (data?.skipped) {
           console.log(`AI analysis skipped for ${plateNumber} (details already exist)`);
         }
-      }).catch((err) => {
-        console.error(`Background AI analysis error for ${plateNumber}:`, err);
-      }).finally(() => {
-        // Remove from tracking set after analysis completes (or fails)
+        
+        // Remove from tracking set after successful analysis
         analyzingVehicles.current.delete(vehicleKey);
       });
 

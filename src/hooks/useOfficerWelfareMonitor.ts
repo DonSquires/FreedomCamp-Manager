@@ -232,16 +232,18 @@ export function useOfficerWelfareMonitor() {
           p_gps_latitude: lat,
           p_gps_longitude: lng,
           p_gps_accuracy: accuracy,
-        }).catch(err => {
-          console.warn('Failed to log GPS activity, queuing for offline sync:', err);
-          // Show user-friendly toast for critical GPS failure
-          import('sonner').then(({ toast }) => {
-            toast.warning('Offline - GPS updates queued for sync when connection returns');
-          });
-          queueActivity({
-            type: 'gps_update',
-            data: { latitude: lat, longitude: lng, accuracy },
-          });
+        }).then(({ error }) => {
+          if (error) {
+            console.warn('Failed to log GPS activity, queuing for offline sync:', error);
+            // Show user-friendly toast for critical GPS failure
+            import('sonner').then(({ toast }) => {
+              toast.warning('Offline - GPS updates queued for sync when connection returns');
+            });
+            queueActivity({
+              type: 'gps_update',
+              data: { latitude: lat, longitude: lng, accuracy },
+            });
+          }
         });
       } else {
         // Queue for later sync (offline mode)
@@ -271,17 +273,19 @@ export function useOfficerWelfareMonitor() {
       };
 
       if (isOnline()) {
-        await supabase.rpc('log_officer_activity', {
+        const { error } = await supabase.rpc('log_officer_activity', {
           p_user_id: user.id,
           p_activity_type: 'welfare_acknowledged',
           p_metadata: metadata,
-        }).catch(err => {
-          console.warn('Failed to log acknowledgement, queuing for offline sync:', err);
+        });
+        
+        if (error) {
+          console.warn('Failed to log acknowledgement, queuing for offline sync:', error);
           queueActivity({
             type: 'welfare_acknowledged',
             data: { metadata },
           });
-        });
+        }
       } else {
         // Queue for later sync
         queueActivity({
@@ -438,7 +442,9 @@ export function useOfficerWelfareMonitor() {
             p_user_id: user.id,
             p_activity_type: 'back_online',
             p_metadata: { reconnected_at: new Date().toISOString() },
-          }).catch(err => console.warn('Failed to log back online status:', err));
+          }).then(({ error }) => {
+            if (error) console.warn('Failed to log back online status:', error);
+          });
         }
       }
 

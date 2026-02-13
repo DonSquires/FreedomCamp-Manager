@@ -6,9 +6,29 @@
  * - PATCH (third digit): Minor amendments
  */
 
-export const APP_VERSION = '2.5.0009';
+export const APP_VERSION = '2.5.0011';
 
 export const VERSION_HISTORY = [
+  {
+    version: '2.5.0011',
+    date: '2025-02-12',
+    changes: [
+      '🐛 CRITICAL FIX: PlateCapture scanning - removed .catch() from background AI analysis',
+      '✅ Fixed scanning workflow broken by improper error handling',
+      '🔧 Background AI vehicle analysis now uses correct .then() pattern',
+      '📸 Plate scanning fully operational with proper Supabase function invocation',
+    ],
+  },
+  {
+    version: '2.5.0010',
+    date: '2025-02-12',
+    changes: [
+      '🐛 CRITICAL FIX: Supabase RPC error handling - replaced .catch() with proper .then()',
+      '✅ Fixed TypeError: supabase.rpc(...).catch is not a function',
+      '🔧 Updated useOfficerWelfareMonitor.ts to use correct Supabase error handling pattern',
+      '📡 GPS updates, welfare acknowledgements, and back_online tracking now handle errors properly',
+    ],
+  },
   {
     version: '2.5.0009',
     date: '2025-02-12',
