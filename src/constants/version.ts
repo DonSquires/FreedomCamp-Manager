@@ -6,9 +6,20 @@
  * - PATCH (third digit): Minor amendments
  */
 
-export const APP_VERSION = '2.5.0028';
+export const APP_VERSION = '2.5.0029';
 
 export const VERSION_HISTORY = [
+  {
+    version: '2.5.0029',
+    date: '2025-02-13',
+    changes: [
+      '🔧 CRITICAL FIX: "supabase.rpc(...).catch is not a function" error',
+      '❌ Bug: .catch() called on query builder before Promise creation',
+      '✅ Fixed: Properly await RPC calls before error handling',
+      '🛡️ All welfare monitoring RPC calls now use async/await pattern',
+      '📡 GPS updates, welfare acknowledgements, and online status now work correctly',
+    ],
+  },
   {
     version: '2.5.0028',
     date: '2025-02-13',

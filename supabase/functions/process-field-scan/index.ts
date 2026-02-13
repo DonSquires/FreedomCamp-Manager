@@ -199,10 +199,40 @@ Deno.serve(async (req) => {
     
     // ✅ CRITICAL: Force NZ timezone for recorded_at (prevent browser timezone corruption)
     // Always use NZ time regardless of user's browser timezone
-    const nzNow = new Date();
-    const nzDateStr = nzNow.toLocaleString('en-NZ', { timeZone: 'Pacific/Auckland' });
-    const recordedAt = new Date(nzDateStr).toISOString();
-    console.log('🕐 Recording time (NZ):', nzDateStr, '→ UTC:', recordedAt);
+    const now = new Date();
+    const formatter = new Intl.DateTimeFormat('en-NZ', {
+      timeZone: 'Pacific/Auckland',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false,
+    });
+    
+    const parts = formatter.formatToParts(now);
+    const getValue = (type: string) => parts.find((p: any) => p.type === type)?.value || '';
+    
+    const year = getValue('year');
+    const month = getValue('month');
+    const day = getValue('day');
+    const hour = getValue('hour');
+    const minute = getValue('minute');
+    const second = getValue('second');
+    
+    // Create proper ISO timestamp in UTC representing the NZ local time
+    const nzLocalTime = `${year}-${month}-${day}T${hour}:${minute}:${second}`;
+    const nzDate = new Date(nzLocalTime);
+    
+    // Calculate timezone offset and get correct UTC time
+    const utcDate = new Date(nzDate.toLocaleString('en-US', { timeZone: 'UTC' }));
+    const nzTime = new Date(nzDate.toLocaleString('en-US', { timeZone: 'Pacific/Auckland' }));
+    const offset = nzTime.getTime() - utcDate.getTime();
+    const correctUTC = new Date(nzDate.getTime() - offset);
+    const recordedAt = correctUTC.toISOString();
+    
+    console.log('🕐 Recording time (NZ local):', nzLocalTime, '→ UTC:', recordedAt);
     
     const { data: observation, error: obsError } = await supabaseAdmin
       .from('vehicle_observations_v2')
@@ -420,7 +450,7 @@ Deno.serve(async (req) => {
       }).catch(err => console.error('⚠️ Day visit evaluation failed:', err));
     }
 
-    // STEP 9: Trigger background AI analysis, NZSCV verification, and breach prediction
+    // STEP 9: Trigger background AI analysis and breach prediction
     // Run asynchronously - don't wait for results
     console.log('🤖 Triggering background analysis and breach prediction...');
     
@@ -434,14 +464,6 @@ Deno.serve(async (req) => {
         }
       }).catch(err => console.error('⚠️ Background AI analysis failed:', err)) : Promise.resolve(null),
       
-      // NZSCV verification (if photo available)
-      scanData.imageUrl ? supabaseAdmin.functions.invoke('check-nzscv-status', {
-        body: {
-          plateNumber: normalizedPlate,
-          observedSelfContained: scanData.isSelfContained || false,
-        }
-      }).catch(err => console.error('⚠️ Background NZSCV check failed:', err)) : Promise.resolve(null),
-      
       // CRITICAL: Check if vehicle will breach if stays tonight
       supabaseAdmin.functions.invoke('check-almost-breaches', {
         body: {
@@ -453,14 +475,8 @@ Deno.serve(async (req) => {
     ]).then(results => {
       console.log('✅ Background analysis complete');
       
-      // Check for mismatches from NZSCV
-      const nzscvResult = results[1]?.data;
-      if (nzscvResult?.mismatch_detected) {
-        console.warn('🚨 NZSCV MISMATCH DETECTED:', nzscvResult.mismatch_message);
-      }
-      
       // Check for critical breach predictions
-      const breachPrediction = results[2]?.data;
+      const breachPrediction = results[1]?.data;
       if (breachPrediction?.vehicles) {
         const thisVehicle = breachPrediction.vehicles.find(
           (v: any) => v.plate_number === normalizedPlate
