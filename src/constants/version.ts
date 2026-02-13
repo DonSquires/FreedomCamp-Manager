@@ -6,9 +6,23 @@
  * - PATCH (third digit): Minor amendments
  */
 
-export const APP_VERSION = '2.5.0015';
+export const APP_VERSION = '2.5.0016';
 
 export const VERSION_HISTORY = [
+  {
+    version: '2.5.0016',
+    date: '2025-02-13',
+    changes: [
+      '🔧 CRITICAL FIX: Homeless vehicle status priority corrected in dashboard',
+      '✅ Homeless vehicles now ALWAYS show as "HOMELESS" status (FC Act Exempt)',
+      '❌ Previously showed as "OVERSTAYER" or "FLAGGED" even when homeless_status = confirmed',
+      '🚫 DAY VISIT ZONE COMPLIANCE FIX: 0 nights/month zones now properly detect breaches',
+      '✅ Any overnight stay in day-visit-only zones (Akertson, Isel Park, Kinzett) now triggers breach',
+      '🎯 Compliance evaluation now checks max_consecutive_nights === 0 separately from > 0',
+      '📊 Dashboard now correctly shows breached vehicles in day-visit zones',
+      '🏠 Homeless priority: homeless > overstayer > at_risk > flagged > compliant',
+    ],
+  },
   {
     version: '2.5.0015',
     date: '2025-02-13',
