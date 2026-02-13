@@ -126,6 +126,7 @@ interface CanonicalVehicle {
   updated_at: string;
 }
 
+// ✅ CLEAN ARCHITECTURE: Data from joined tables
 interface VehicleObservation {
   observation_id: string;
   plate_number: string;
@@ -136,13 +137,12 @@ interface VehicleObservation {
   recorded_by: string | null;
   recorded_by_name: string | null;
   recorded_at: string;
-  vehicle_make: string | null;
-  vehicle_model: string | null;
-  vehicle_color: string | null;
-  self_contained: boolean;
-  is_compliant: boolean;
-  is_breach: boolean;
-  breach_type: string | null;
+  vehicle_make: string | null; // From canonical_vehicles
+  vehicle_model: string | null; // From canonical_vehicles
+  vehicle_color: string | null; // From canonical_vehicles
+  self_contained: boolean; // From canonical_vehicles
+  is_compliant: boolean; // From compliance_results
+  violation_reasons: string[] | null; // From compliance_results
   officer_notes: string | null;
   photo: string | null;
   gps_latitude: number | null;
@@ -361,9 +361,9 @@ export function VehicleRegistry() {
     });
 
     try {
-      // Load observations
+      // ✅ CLEAN ARCHITECTURE: Use compatibility view
       const { data: obsData, error: obsError } = await supabase
-        .from('vehicle_observations_v2')
+        .from('vehicle_observations_with_details')
         .select(`
           observation_id,
           plate_number,
@@ -376,15 +376,12 @@ export function VehicleRegistry() {
           vehicle_color,
           self_contained,
           is_compliant,
-          is_breach,
-          breach_type,
+          violation_reasons,
           officer_notes,
           photo,
           gps_latitude,
           gps_longitude,
-          zones!inner(name),
-          organizations(name),
-          user_profiles!vehicle_observations_v2_recorded_by_fkey(first_name, last_name)
+          zone_name
         `)
         .eq('plate_number', vehicle.plate_number)
         .order('recorded_at', { ascending: false });
@@ -396,20 +393,17 @@ export function VehicleRegistry() {
         plate_number: obs.plate_number,
         organization_id: obs.organization_id,
         zone_id: obs.zone_id,
-        zone_name: (obs.zones as any)?.name || 'Unknown',
-        organization_name: (obs.organizations as any)?.name || 'Unknown',
+        zone_name: obs.zone_name || 'Unknown',
+        organization_name: 'Unknown', // Not in view
         recorded_by: obs.recorded_by,
-        recorded_by_name: obs.user_profiles
-          ? `${(obs.user_profiles as any).first_name} ${(obs.user_profiles as any).last_name}`
-          : null,
+        recorded_by_name: null, // Not in view
         recorded_at: obs.recorded_at,
         vehicle_make: obs.vehicle_make,
         vehicle_model: obs.vehicle_model,
         vehicle_color: obs.vehicle_color,
         self_contained: obs.self_contained,
         is_compliant: obs.is_compliant,
-        is_breach: obs.is_breach,
-        breach_type: obs.breach_type,
+        violation_reasons: obs.violation_reasons,
         officer_notes: obs.officer_notes,
         photo: obs.photo,
         gps_latitude: obs.gps_latitude,
