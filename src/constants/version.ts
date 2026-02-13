@@ -6,9 +6,19 @@
  * - PATCH (third digit): Minor amendments
  */
 
-export const APP_VERSION = '2.10.0007';
+export const APP_VERSION = '2.10.0008';
 
 export const VERSION_HISTORY = [
+  {
+    version: '2.10.0008',
+    date: '2025-02-14',
+    changes: [
+      '🔄 ROLLBACK: Reverted all date/time changes to factory settings',
+      '❌ REMOVED: Comprehensive recalculation function completely deleted',
+      '✅ Date handling back to simple format() calls - no complex parsing',
+      '🧹 Clean slate - ready to rebuild recalculation from scratch if needed',
+    ],
+  },
   {
     version: '2.10.0007',
     date: '2025-02-14',

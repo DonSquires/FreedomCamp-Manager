@@ -134,15 +134,9 @@ export function ComplianceRecalculation() {
     },
   });
 
-  // Run recalculation mutation (sequential organization/zone processing)
+  // Run recalculation mutation (simplified single request)
   const recalculateMutation = useMutation({
     mutationFn: async () => {
-      setProcessingLogs([]);
-      setTotalProcessed(0);
-      setTotalChanged(0);
-      setTotalBreachAlerts(0);
-      setCurrentOrgIndex(0);
-      setCurrentZoneIndex(0);
       const params: RecalculationParams = { scope };
 
       // Set zone/org IDs based on scope
@@ -152,7 +146,7 @@ export function ComplianceRecalculation() {
         params.orgIds = selectedOrgs;
       }
 
-      // Set date range (FIX: Create separate Date objects to avoid mutation)
+      // Set date range (FIX: Create separate Date objects)
       if (datePreset !== 'all_time') {
         const today = new Date();
         params.dateRangeEnd = today.toISOString().split('T')[0];
@@ -175,224 +169,38 @@ export function ComplianceRecalculation() {
         }
       }
 
-      console.log('🚀 Starting sequential recalculation:', params);
+      console.log('🚀 Starting comprehensive recalculation:', params);
 
-      // STEP 1: Get organizations to process
-      const { data: orgsData, error: orgsError } = await supabase.functions.invoke('comprehensive-recalculation', {
-        body: { ...params, get_organizations: true },
+      // Single request to edge function
+      const { data, error } = await supabase.functions.invoke('comprehensive-recalculation', {
+        body: params,
       });
 
-      if (orgsError) {
-        let errorMessage = orgsError.message || 'Unknown error';
-        if (orgsError instanceof FunctionsHttpError) {
+      if (error) {
+        let errorMessage = error.message || 'Unknown error';
+        if (error instanceof FunctionsHttpError) {
           try {
-            const textContent = await orgsError.context.text();
-            errorMessage = `[Code: ${orgsError.context.status}] ${textContent || errorMessage}`;
+            const textContent = await error.context.text();
+            errorMessage = `[Code: ${error.context.status}] ${textContent || errorMessage}`;
           } catch {
-            errorMessage = `[Code: ${orgsError.context.status}] Failed to read error details`;
+            errorMessage = `[Code: ${error.context.status}] Failed to read error details`;
           }
         }
         throw new Error(errorMessage);
       }
 
-      const orgs = orgsData.organizations || [];
-      setProcessingOrgs(orgs);
-      console.log(`Found ${orgs.length} organizations to process`);
-
-      if (orgs.length === 0) {
-        toast.warning('No organizations found to process');
-        return { summary: { processed: 0, complianceChanged: 0, breachAlertsCreated: 0 } };
-      }
-
-      setProcessingLogs(prev => [...prev, `📋 Found ${orgs.length} organization(s) to process`]);
-
-      let grandTotalProcessed = 0;
-      let grandTotalChanged = 0;
-      let grandTotalBreachAlerts = 0;
-
-      // STEP 2: Process each organization sequentially
-      for (let orgIdx = 0; orgIdx < orgs.length; orgIdx++) {
-        const org = orgs[orgIdx];
-        setCurrentOrgIndex(orgIdx);
-        setProcessingLogs(prev => [...prev, `\n🏢 Organization ${orgIdx + 1}/${orgs.length}: ${org.name}`]);
-
-        // Get zones for this organization
-        const { data: zonesData, error: zonesError } = await supabase.functions.invoke('comprehensive-recalculation', {
-          body: {
-            ...params,
-            get_zones: true,
-            organization_id: org.id,
-          },
-        });
-
-        if (zonesError) {
-          let errorMessage = zonesError.message || 'Unknown error';
-          if (zonesError instanceof FunctionsHttpError) {
-            try {
-              const textContent = await zonesError.context.text();
-              errorMessage = `[Code: ${zonesError.context.status}] ${textContent || errorMessage}`;
-            } catch {
-              errorMessage = `[Code: ${zonesError.context.status}] Failed to read error details`;
-            }
-          }
-          console.error('Failed to get zones:', errorMessage);
-          setProcessingLogs(prev => [...prev, `  ⚠️ Failed to load zones: ${errorMessage}`]);
-          continue;
-        }
-
-        const zones = zonesData.zones || [];
-        setCurrentOrgZones(zones);
-        setProcessingLogs(prev => [...prev, `  📍 Found ${zones.length} zone(s)`]);
-
-        // STEP 3: Process each zone sequentially
-        for (let zoneIdx = 0; zoneIdx < zones.length; zoneIdx++) {
-          const zone = zones[zoneIdx];
-          setCurrentZoneIndex(zoneIdx);
-          setProcessingLogs(prev => [...prev, `    🔍 Processing zone ${zoneIdx + 1}/${zones.length}: ${zone.name}`]);
-
-          // STEP 3A: Get total observations count for this zone
-          const { data: countResult, error: countError } = await supabase.functions.invoke('comprehensive-recalculation', {
-            body: {
-              ...params,
-              scope: 'ZONE',
-              zoneIds: [zone.id],
-              organization_id: org.id,
-              get_total: true,
-            },
-          });
-
-          if (countError) {
-            let errorMessage = countError.message || 'Unknown error';
-            if (countError instanceof FunctionsHttpError) {
-              try {
-                const textContent = await countError.context.text();
-                errorMessage = `[Code: ${countError.context.status}] ${textContent || errorMessage}`;
-              } catch {
-                errorMessage = `[Code: ${countError.context.status}] Failed to read error details`;
-              }
-            }
-            console.error('Failed to get count:', errorMessage);
-            setProcessingLogs(prev => [...prev, `      ⚠️ Failed to count observations: ${errorMessage}`]);
-            continue;
-          }
-
-          const totalObservations = countResult.total_observations || 0;
-          const numBatches = Math.ceil(totalObservations / batchSize);
-          setTotalBatches(numBatches);
-
-          setProcessingLogs(prev => [...prev,
-            `      📊 Found ${totalObservations.toLocaleString()} observations (${numBatches} batches of ${batchSize})`
-          ]);
-
-          if (totalObservations === 0) {
-            setProcessingLogs(prev => [...prev, `      ⚠️ No observations to process`]);
-            continue;
-          }
-
-          // STEP 3B: Process zone in batches of 250
-          let offset = 0;
-          let hasMore = true;
-          let zoneProcessed = 0;
-          let zoneChanged = 0;
-          let zoneBreachAlerts = 0;
-          let batchNumber = 0;
-
-          while (hasMore) {
-            batchNumber++;
-            setCurrentBatch(batchNumber);
-            setProcessingLogs(prev => [...prev,
-              `        🔄 Batch ${batchNumber}/${numBatches} (offset: ${offset})`
-            ]);
-
-            const { data: batchResult, error: batchError } = await supabase.functions.invoke('comprehensive-recalculation', {
-              body: {
-                ...params,
-                scope: 'ZONE',
-                zoneIds: [zone.id],
-                organization_id: org.id,
-                batch_size: batchSize,
-                offset: offset,
-              },
-            });
-
-            if (batchError) {
-              let errorMessage = batchError.message || 'Unknown error';
-              if (batchError instanceof FunctionsHttpError) {
-                try {
-                  const textContent = await batchError.context.text();
-                  errorMessage = `[Code: ${batchError.context.status}] ${textContent || errorMessage}`;
-                } catch {
-                  errorMessage = `[Code: ${batchError.context.status}] Failed to read error details`;
-                }
-              }
-              console.error('Batch processing failed:', errorMessage);
-              setProcessingLogs(prev => [...prev, `          ❌ Batch failed: ${errorMessage}`]);
-              break;  // Stop processing this zone on error
-            }
-
-            // Accumulate batch results
-            zoneProcessed += batchResult.summary.processed;
-            zoneChanged += batchResult.summary.complianceChanged;
-            zoneBreachAlerts += batchResult.summary.breachAlertsCreated;
-
-            setProcessingLogs(prev => [...prev,
-              `          ✅ Batch complete: ${batchResult.summary.processed} processed, ` +
-              `${batchResult.summary.complianceChanged} changed, ` +
-              `${batchResult.summary.breachAlertsCreated} breach alerts`
-            ]);
-
-            // Check if there are more batches
-            hasMore = batchResult.has_more;
-            offset = batchResult.next_offset;
-
-            // Update grand totals
-            grandTotalProcessed += batchResult.summary.processed;
-            grandTotalChanged += batchResult.summary.complianceChanged;
-            grandTotalBreachAlerts += batchResult.summary.breachAlertsCreated;
-
-            setTotalProcessed(grandTotalProcessed);
-            setTotalChanged(grandTotalChanged);
-            setTotalBreachAlerts(grandTotalBreachAlerts);
-          }
-
-          setProcessingLogs(prev => [...prev,
-            `      ✅ Zone complete: ${zoneProcessed} total, ` +
-            `${zoneChanged} changed, ${zoneBreachAlerts} breach alerts`
-          ]);
-
-          // Zone processing completed in batch loop above
-        }
-
-        setProcessingLogs(prev => [...prev, `  ✅ Organization ${org.name} complete\n`]);
-      }
-
-      setProcessingLogs(prev => [...prev,
-        `\n✅ RECALCULATION COMPLETE`,
-        `📊 Total: ${grandTotalProcessed} observations processed across ${orgs.length} organization(s)`,
-        `🔄 Changed: ${grandTotalChanged} observations`,
-        `⚠️ Breach Alerts: ${grandTotalBreachAlerts} created`,
-      ]);
-
-      return {
-        summary: {
-          observations_processed: grandTotalProcessed,
-          duplicates_removed: 0, // Accumulated during cleanup
-          zone_corrections: 0, // Accumulated during cleanup
-          compliance_changed: grandTotalChanged,
-          breach_alerts_created: grandTotalBreachAlerts,
-          errors: 0,
-        },
-      };
+      return data;
     },
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ['recalculation_history'] });
+      const summary = data.summary || {};
       toast.success(
         `✅ Comprehensive cleanup complete!\n` +
-        `${(data.summary.observations_processed || 0).toLocaleString()} observations processed\n` +
-        `${(data.summary.duplicates_removed || 0).toLocaleString()} duplicates removed\n` +
-        `${(data.summary.zone_corrections || 0).toLocaleString()} zones corrected\n` +
-        `${(data.summary.compliance_changed || 0).toLocaleString()} compliance changed\n` +
-        `${(data.summary.breach_alerts_created || 0).toLocaleString()} breach alerts created`,
+        `${(summary.observations_processed || 0).toLocaleString()} observations processed\n` +
+        `${(summary.duplicates_removed || 0).toLocaleString()} duplicates removed\n` +
+        `${(summary.zone_corrections || 0).toLocaleString()} zones corrected\n` +
+        `${(summary.compliance_changed || 0).toLocaleString()} compliance changed\n` +
+        `${(summary.breach_alerts_created || 0).toLocaleString()} breach alerts created`,
         { duration: 10000 }
       );
     },
