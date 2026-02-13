@@ -27,18 +27,25 @@ interface Observation {
   observation_id: string;
   recorded_at: string;
   plate_number: string;
-  vehicle_make: string | null;
-  vehicle_model: string | null;
-  vehicle_color: string | null;
-  is_compliant: boolean;
-  recorded_by: string;
+  recorded_by: string | null;
   gps_latitude: number | null;
   gps_longitude: number | null;
   officer_notes: string | null;
   user_profiles?: {
     first_name: string;
     last_name: string;
-  };
+  } | null;
+  canonical_vehicles?: {
+    vehicle_make: string | null;
+    vehicle_model: string | null;
+    vehicle_color: string | null;
+    total_breaches: number;
+    is_flagged: boolean;
+    homeless_status: string | null;
+  } | null;
+  compliance_results?: {
+    is_compliant: boolean;
+  }[] | null;
 }
 
 interface ZoneDrillDownProps {
@@ -68,9 +75,17 @@ export function ZoneDrillDown({
   // Stats
   const totalObs = observations.length;
   const uniqueVehicles = new Set(observations.map(o => o.plate_number)).size;
-  const compliantCount = observations.filter(o => o.is_compliant).length;
+  const compliantCount = observations.filter(o => {
+    const complianceResults = o.compliance_results;
+    if (!complianceResults || complianceResults.length === 0) return false;
+    return complianceResults[0].is_compliant === true;
+  }).length;
   const complianceRate = totalObs > 0 ? Math.round((compliantCount / totalObs) * 100) : 0;
-  const flaggedCount = 0; // Flagged status is in canonical_vehicles, not available here
+  const flaggedCount = new Set(
+    observations
+      .filter(o => o.canonical_vehicles?.is_flagged === true)
+      .map(o => o.plate_number)
+  ).size;
 
   useEffect(() => {
     loadObservations();
@@ -83,16 +98,14 @@ export function ZoneDrillDown({
   const loadObservations = async () => {
     setIsLoading(true);
     try {
+      console.log('🔍 Loading observations for zone:', zoneId);
+      
       let query = supabase
         .from('vehicle_observations_v2')
         .select(`
           observation_id,
           recorded_at,
           plate_number,
-          vehicle_make,
-          vehicle_model,
-          vehicle_color,
-          is_compliant,
           recorded_by,
           gps_latitude,
           gps_longitude,
@@ -100,6 +113,17 @@ export function ZoneDrillDown({
           user_profiles!vehicle_observations_v2_recorded_by_fkey(
             first_name,
             last_name
+          ),
+          canonical_vehicles!vehicle_observations_v2_plate_number_fkey(
+            vehicle_make,
+            vehicle_model,
+            vehicle_color,
+            total_breaches,
+            is_flagged,
+            homeless_status
+          ),
+          compliance_results!compliance_results_observation_id_fkey(
+            is_compliant
           )
         `)
         .eq('zone_id', zoneId);
@@ -117,9 +141,11 @@ export function ZoneDrillDown({
         .limit(1000);
 
       if (error) throw error;
+      
+      console.log(`✅ Loaded ${data?.length || 0} observations for zone ${zoneId}`);
       setObservations(data || []);
     } catch (error: any) {
-      console.error('Failed to load observations:', error);
+      console.error('❌ Failed to load observations:', error);
       toast.error('Failed to load observations');
     } finally {
       setIsLoading(false);
@@ -135,23 +161,28 @@ export function ZoneDrillDown({
       filtered = filtered.filter(
         o =>
           o.plate_number?.toLowerCase().includes(query) ||
-          o.vehicle_make?.toLowerCase().includes(query) ||
-          o.vehicle_model?.toLowerCase().includes(query)
+          o.canonical_vehicles?.vehicle_make?.toLowerCase().includes(query) ||
+          o.canonical_vehicles?.vehicle_model?.toLowerCase().includes(query)
       );
     }
 
     // Compliance filter
     if (filterCompliance === 'compliant') {
-      filtered = filtered.filter(o => o.is_compliant);
+      filtered = filtered.filter(o => {
+        const complianceResults = o.compliance_results;
+        return complianceResults && complianceResults.length > 0 && complianceResults[0].is_compliant === true;
+      });
     } else if (filterCompliance === 'non-compliant') {
-      filtered = filtered.filter(o => !o.is_compliant);
+      filtered = filtered.filter(o => {
+        const complianceResults = o.compliance_results;
+        return complianceResults && complianceResults.length > 0 && complianceResults[0].is_compliant === false;
+      });
     }
 
-    // Flagged filter - Note: Flagged status is not available in observations_v2
-    // Would need to join with canonical_vehicles to support this filter
-    // if (filterFlagged) {
-    //   filtered = filtered.filter(o => o.is_flagged);
-    // }
+    // Flagged filter
+    if (filterFlagged) {
+      filtered = filtered.filter(o => o.canonical_vehicles?.is_flagged === true);
+    }
 
     setFilteredObs(filtered);
   };
@@ -301,26 +332,30 @@ export function ZoneDrillDown({
                           {obs.plate_number || 'Unknown'}
                         </span>
                       </div>
-                      {(obs.vehicle_make || obs.vehicle_model) && (
+                      {(obs.canonical_vehicles?.vehicle_make || obs.canonical_vehicles?.vehicle_model) && (
                         <p className="text-xs text-muted-foreground">
-                          {obs.vehicle_color && `${obs.vehicle_color} `}
-                          {obs.vehicle_make} {obs.vehicle_model}
+                          {obs.canonical_vehicles.vehicle_color && `${obs.canonical_vehicles.vehicle_color} `}
+                          {obs.canonical_vehicles.vehicle_make} {obs.canonical_vehicles.vehicle_model}
                         </p>
                       )}
                     </div>
-                    <Badge variant={obs.is_compliant ? 'default' : 'destructive'}>
-                      {obs.is_compliant ? (
-                        <>
-                          <CheckCircle2 className="h-3 w-3 mr-1" />
-                          Compliant
-                        </>
-                      ) : (
-                        <>
-                          <AlertTriangle className="h-3 w-3 mr-1" />
-                          Non-Compliant
-                        </>
-                      )}
-                    </Badge>
+                    {obs.compliance_results && obs.compliance_results.length > 0 ? (
+                      <Badge variant={obs.compliance_results[0].is_compliant ? 'default' : 'destructive'}>
+                        {obs.compliance_results[0].is_compliant ? (
+                          <>
+                            <CheckCircle2 className="h-3 w-3 mr-1" />
+                            Compliant
+                          </>
+                        ) : (
+                          <>
+                            <AlertTriangle className="h-3 w-3 mr-1" />
+                            Non-Compliant
+                          </>
+                        )}
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline">No Compliance Data</Badge>
+                    )}
                   </div>
 
                   <div className="flex items-center gap-4 text-xs text-muted-foreground mb-2">
