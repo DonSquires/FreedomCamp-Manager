@@ -33,7 +33,7 @@ interface Observation {
   observation_id: string;
   recorded_at: string;
   zone_id: string;
-  zone_name: string; // From view - direct column, not nested object
+  zones?: { name: string };
   is_compliant: boolean;
   gps_latitude: number | null;
   gps_longitude: number | null;
@@ -251,7 +251,7 @@ export function VehicleDetailsView({ scan, onClose }: VehicleDetailsViewProps) {
                         <div className="flex items-center gap-2 mb-1">
                           <MapPin className="h-3 w-3 text-muted-foreground" />
                           <span className="text-sm font-semibold">
-                            {obs.zone_name || 'Unknown Zone'}
+                            {obs.zones?.name || 'Unknown Zone'}
                           </span>
                         </div>
                         <p className="text-xs text-muted-foreground">
@@ -358,7 +358,7 @@ export function VehicleDetailsView({ scan, onClose }: VehicleDetailsViewProps) {
                         })}
                       </p>
                       <p className="text-xs text-muted-foreground">
-                        {obs.zone_name || 'Unknown Zone'} •{' '}
+                        {obs.zones?.name || 'Unknown Zone'} •{' '}
                         {obs.is_compliant ? 'Compliant' : 'Non-Compliant'}
                       </p>
                     </div>

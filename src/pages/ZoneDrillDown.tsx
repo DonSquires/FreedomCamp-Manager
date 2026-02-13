@@ -23,15 +23,14 @@ import {
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
 
-// ✅ CLEAN ARCHITECTURE: Use compatibility view for joined data
 interface Observation {
   observation_id: string;
   recorded_at: string;
   plate_number: string;
-  vehicle_make: string | null; // From canonical_vehicles via view
-  vehicle_model: string | null; // From canonical_vehicles via view
-  vehicle_color: string | null; // From canonical_vehicles via view
-  is_compliant: boolean; // From compliance_results via view
+  vehicle_make: string | null;
+  vehicle_model: string | null;
+  vehicle_color: string | null;
+  is_compliant: boolean;
   recorded_by: string;
   gps_latitude: number | null;
   gps_longitude: number | null;
@@ -84,9 +83,8 @@ export function ZoneDrillDown({
   const loadObservations = async () => {
     setIsLoading(true);
     try {
-      // ✅ CLEAN ARCHITECTURE: Use compatibility view for complete data
       let query = supabase
-        .from('vehicle_observations_with_details')
+        .from('vehicle_observations_v2')
         .select(`
           observation_id,
           recorded_at,
@@ -98,7 +96,11 @@ export function ZoneDrillDown({
           recorded_by,
           gps_latitude,
           gps_longitude,
-          officer_notes
+          officer_notes,
+          user_profiles!vehicle_observations_v2_recorded_by_fkey(
+            first_name,
+            last_name
+          )
         `)
         .eq('zone_id', zoneId);
 
@@ -115,8 +117,6 @@ export function ZoneDrillDown({
         .limit(1000);
 
       if (error) throw error;
-      
-      // ✅ Note: User info not in view, would need separate join if required
       setObservations(data || []);
     } catch (error: any) {
       console.error('Failed to load observations:', error);

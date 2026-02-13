@@ -236,37 +236,100 @@ Deno.serve(async (req) => {
 
     console.log('✅ Observation created (pure data):', observation.observation_id);
 
-    // STEP 4: Wait for auto-compliance evaluation (Section 2: Database Trigger)
-    console.log('⚖️ Step 4: Auto-compliance evaluation triggered by database...');
-    
-    // Database trigger (trigger_evaluate_compliance_on_insert) automatically:
-    // 1. Calls evaluate_compliance() function with 9am overnight cutoff
-    // 2. Creates compliance_results record
-    // 3. Triggers breach_alert creation if non-compliant
-    
-    // Wait 500ms for trigger to complete
-    await new Promise(resolve => setTimeout(resolve, 500));
-    
-    // Query the auto-generated compliance result
-    const { data: complianceResult, error: complianceError } = await supabaseAdmin
-      .from('compliance_results')
-      .select('*')
-      .eq('observation_id', observation.observation_id)
-      .single();
-
+    // STEP 4: Run compliance evaluation (Section 2: Reporting)
+    console.log('⚖️ Step 4: Evaluate compliance (Section 2: Separate from observation)...');
     let isCompliant = true;
-    
-    if (complianceError) {
-      console.error('⚠️ Failed to fetch compliance result:', complianceError);
-    } else if (complianceResult) {
-      isCompliant = complianceResult.is_compliant;
-      console.log('✅ Compliance evaluation complete (auto-triggered):', {
-        is_compliant: isCompliant,
-        violations: complianceResult.violation_reasons,
-        matrix_version: complianceResult.matrix_version,
-      });
-    } else {
-      console.warn('⚠️ No compliance result generated (may be missing zone matrix)');
+    let complianceResult = null;
+
+    try {
+      // Query zone compliance matrix
+      const { data: matrix } = await supabaseAdmin
+        .from('zone_compliance_matrix')
+        .select('*')
+        .eq('zone_id', scanData.zoneId)
+        .is('effective_to', null)
+        .single();
+
+      if (!matrix) {
+        console.warn('⚠️ No compliance matrix found for zone:', scanData.zoneId);
+        isCompliant = true; // Default to compliant if no rules
+      } else {
+        // Query vehicle monthly stays
+        const { data: monthlyStays } = await supabaseAdmin
+          .from('vehicle_monthly_stays')
+          .select('*')
+          .eq('plate_number', normalizedPlate)
+          .eq('zone_id', scanData.zoneId)
+          .gte('calendar_month', new Date().toISOString().split('T')[0].substring(0, 7) + '-01')
+          .single();
+
+        // Evaluate compliance
+        const consecutiveNights = monthlyStays?.consecutive_nights || 0;
+        const nightsStayed = monthlyStays?.nights_stayed || 0;
+        const violations: string[] = [];
+
+        // Homeless exemption
+        if (canonicalVehicle.homeless_status === 'confirmed') {
+          isCompliant = true;
+          violations.push('FC Act Exempt - Confirmed Homeless');
+        } else {
+          // Check self-contained requirement
+          if (matrix.self_contained_required && !canonicalVehicle.self_contained) {
+            isCompliant = false;
+            violations.push('No self-contained certification');
+          }
+
+          // ✅ CRITICAL FIX: Day visit zones (max_consecutive_nights = 0) should ALWAYS be non-compliant if ANY overnight stay
+          if (matrix.max_consecutive_nights === 0 && consecutiveNights > 0) {
+            isCompliant = false;
+            violations.push(`Day visit only zone - overnight stay detected (${consecutiveNights} consecutive nights)`);
+          } else if (matrix.max_consecutive_nights > 0 && consecutiveNights >= matrix.max_consecutive_nights) {
+            isCompliant = false;
+            violations.push(`Consecutive overstay: ${consecutiveNights}/${matrix.max_consecutive_nights} nights`);
+          }
+
+          // ✅ CRITICAL FIX: Day visit zones (nights_per_month = 0) should be non-compliant if ANY nights stayed
+          if (matrix.nights_per_month === 0 && nightsStayed > 0) {
+            isCompliant = false;
+            violations.push(`Day visit only zone - ${nightsStayed} night(s) stayed this month (0 allowed)`);
+          } else if (matrix.nights_per_month > 0 && nightsStayed >= matrix.nights_per_month) {
+            isCompliant = false;
+            violations.push(`Monthly overstay: ${nightsStayed}/${matrix.nights_per_month} nights`);
+          }
+        }
+
+        // Insert compliance result (Section 2: Reporting)
+        const { data: insertedResult, error: resultError } = await supabaseAdmin
+          .from('compliance_results')
+          .insert({
+            observation_id: observation.observation_id,
+            zone_id: scanData.zoneId,
+            organization_id: scanData.organizationId,
+            matrix_id: matrix.id,
+            matrix_version: matrix.version,
+            is_compliant: isCompliant,
+            violation_reasons: violations,
+            metrics_json: {
+              consecutive_nights: consecutiveNights,
+              nights_stayed: nightsStayed,
+              max_consecutive_allowed: matrix.max_consecutive_nights,
+              max_monthly_allowed: matrix.nights_per_month,
+            },
+            matrix_snapshot: matrix,
+            evaluated_at: new Date().toISOString(),
+          })
+          .select()
+          .single();
+
+        if (resultError) {
+          console.error('⚠️ Failed to save compliance result:', resultError);
+        } else {
+          complianceResult = insertedResult;
+          console.log('✅ Compliance result saved to compliance_results table:', isCompliant);
+        }
+      }
+    } catch (complianceErr) {
+      console.error('⚠️ Compliance check failed (non-critical):', complianceErr);
     }
 
     // STEP 5: Build alerts (respecting FC Act exemption for homeless)
