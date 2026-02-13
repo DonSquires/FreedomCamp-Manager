@@ -6,9 +6,22 @@
  * - PATCH (third digit): Minor amendments
  */
 
-export const APP_VERSION = '2.5.0025';
+export const APP_VERSION = '2.5.0026';
 
 export const VERSION_HISTORY = [
+  {
+    version: '2.5.0026',
+    date: '2025-02-13',
+    changes: [
+      '🏗️ CRITICAL SCHEMA FIXES: Database relationships cleaned and optimized',
+      '✅ Added plate_number column to breach_alerts (CRITICAL for admin review)',
+      '🔧 Fixed create_breach_alert_from_compliance() trigger to populate plate_number',
+      '📋 Identified deprecated relationships: vehicle_record_id (use plate_number instead)',
+      '🗂️ canonical_vehicles constraints relaxed: first_seen_at/last_seen_at now nullable',
+      '🎯 Core Principles Architecture verified: observations → canonical_vehicles → compliance_results',
+      '⚡ System ready for comprehensive recalculation of all compliance data',
+    ],
+  },
   {
     version: '2.5.0025',
     date: '2025-02-13',
