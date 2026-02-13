@@ -47,7 +47,9 @@ interface CleanupStats {
 
 export function DataCleanupUtility() {
   const { user } = useAuthStore();
-  const [scope, setScope] = useState<'ZONE' | 'ORG' | 'ALL'>('ZONE');
+  const [scope, setScope] = useState<'ZONE' | 'ORG' | 'ALL'>(
+    user?.role === 'master' ? 'ALL' : 'ORG'
+  );
   const [selectedZones, setSelectedZones] = useState<string[]>([]);
   const [selectedOrg, setSelectedOrg] = useState<string>('');
   const [dateRange, setDateRange] = useState<'7' | '30' | '90' | 'all'>('30');
@@ -267,6 +269,16 @@ export function DataCleanupUtility() {
             </div>
           )}
 
+          {/* Auto-fill organization for non-master users */}
+          {scope === 'ORG' && user?.role !== 'master' && (
+            <div>
+              <label className="text-sm font-medium mb-2 block">Organization</label>
+              <div className="p-3 bg-muted rounded-lg">
+                <p className="text-sm">Your organization will be processed</p>
+              </div>
+            </div>
+          )}
+
           {/* Organization Selection */}
           {scope === 'ORG' && user?.role === 'master' && (
             <div>
@@ -302,10 +314,83 @@ export function DataCleanupUtility() {
             </Select>
           </div>
 
+          {/* Scope Warning */}
+          {scope === 'ALL' && (
+            <Card className="border-red-500 bg-red-50 dark:bg-red-950/20">
+              <CardContent className="p-4">
+                <div className="flex items-start gap-3">
+                  <AlertCircle className="h-5 w-5 text-red-600 shrink-0 mt-0.5" />
+                  <div>
+                    <h4 className="font-semibold text-red-900 dark:text-red-100 mb-1">
+                      ⚠️ System-Wide Recalculation
+                    </h4>
+                    <p className="text-sm text-red-800 dark:text-red-200">
+                      This will process <strong>ALL</strong> observations across <strong>ALL</strong> zones and organizations. 
+                      This may take several minutes.
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {scope === 'ZONE' && selectedZones.length === 0 && (
+            <Card className="border-amber-500 bg-amber-50 dark:bg-amber-950/20">
+              <CardContent className="p-4">
+                <div className="flex items-start gap-3">
+                  <AlertCircle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-sm text-amber-800 dark:text-amber-200">
+                      Please select at least one zone above to continue.
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {scope === 'ORG' && !selectedOrg && user?.role === 'master' && (
+            <Card className="border-amber-500 bg-amber-50 dark:bg-amber-950/20">
+              <CardContent className="p-4">
+                <div className="flex items-start gap-3">
+                  <AlertCircle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-sm text-amber-800 dark:text-amber-200">
+                      Please select an organization above to continue.
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Summary of what will be processed */}
+          {((scope === 'ZONE' && selectedZones.length > 0) || 
+            (scope === 'ORG' && (selectedOrg || user?.role !== 'master')) || 
+            scope === 'ALL') && (
+            <Card className="bg-blue-50 dark:bg-blue-950/20">
+              <CardContent className="p-4">
+                <div className="flex items-start gap-3">
+                  <CheckCircle2 className="h-5 w-5 text-blue-600 shrink-0 mt-0.5" />
+                  <div className="space-y-1">
+                    <h4 className="font-semibold text-blue-900 dark:text-blue-100">
+                      Ready to Process
+                    </h4>
+                    <p className="text-sm text-blue-800 dark:text-blue-200">
+                      <strong>Scope:</strong> {scope === 'ZONE' ? `${selectedZones.length} Zone(s)` : scope === 'ORG' ? 'Entire Organization' : 'All Organizations'}
+                      <br />
+                      <strong>Date Range:</strong> {dateRange === 'all' ? 'All Time' : `Last ${dateRange} days`}
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {/* Run Button */}
           <Button
             onClick={handleRunCleanup}
-            disabled={isRunning}
+            disabled={isRunning || (scope === 'ZONE' && selectedZones.length === 0) || (scope === 'ORG' && !selectedOrg && user?.role === 'master')}
             className="w-full h-14 text-lg font-bold"
             size="lg"
           >
