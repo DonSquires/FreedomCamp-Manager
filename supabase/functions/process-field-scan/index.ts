@@ -438,7 +438,7 @@ Deno.serve(async (req) => {
       scanData.imageUrl ? supabaseAdmin.functions.invoke('check-nzscv-status', {
         body: {
           plateNumber: normalizedPlate,
-          observedSelfContained: observationSelfContained,
+          observedSelfContained: scanData.isSelfContained || false,
         }
       }).catch(err => console.error('⚠️ Background NZSCV check failed:', err)) : Promise.resolve(null),
       

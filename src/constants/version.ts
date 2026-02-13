@@ -6,9 +6,20 @@
  * - PATCH (third digit): Minor amendments
  */
 
-export const APP_VERSION = '2.5.0025';
+export const APP_VERSION = '2.5.0026';
 
 export const VERSION_HISTORY = [
+  {
+    version: '2.5.0026',
+    date: '2025-02-13',
+    changes: [
+      '🔧 CRITICAL FIX: Field scan processing error - "Invalid time value"',
+      '❌ Bug: Undefined variable observedSelfContained causing Date.toISOString() to fail',
+      '✅ Fixed: Changed to scanData.isSelfContained || false in NZSCV check',
+      '📱 Plate scanning now works correctly without [500] errors',
+      '🚀 Field Officer Portal fully operational',
+    ],
+  },
   {
     version: '2.5.0025',
     date: '2025-02-13',
