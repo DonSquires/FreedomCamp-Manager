@@ -186,10 +186,10 @@ export function OrganizationDashboard() {
 
   // ==================== DATE HANDLERS ====================
 
-  // ✅ CRITICAL FIX: Use NZ timezone for date range calculations
+  // Date range helper - simplified to avoid timezone parsing issues
   const setDateRange = (range: 'today' | 'yesterday' | 'last7' | 'last30' | 'last90') => {
-    const nzNow = toNZDate(new Date());
-    const todayStr = getNZDateString(nzNow);
+    const todayStr = getNZDateString();
+    const today = new Date(todayStr + 'T00:00:00'); // Local date
 
     switch (range) {
       case 'today':
@@ -197,28 +197,29 @@ export function OrganizationDashboard() {
         setDateTo(todayStr);
         break;
       case 'yesterday': {
-        const yesterday = new Date(nzNow);
+        const yesterday = new Date(today);
         yesterday.setDate(yesterday.getDate() - 1);
-        setDateFrom(getNZDateString(yesterday));
-        setDateTo(getNZDateString(yesterday));
+        const yesterdayStr = getNZDateString(yesterday);
+        setDateFrom(yesterdayStr);
+        setDateTo(yesterdayStr);
         break;
       }
       case 'last7': {
-        const last7 = new Date(nzNow);
+        const last7 = new Date(today);
         last7.setDate(last7.getDate() - 7);
         setDateFrom(getNZDateString(last7));
         setDateTo(todayStr);
         break;
       }
       case 'last30': {
-        const last30 = new Date(nzNow);
+        const last30 = new Date(today);
         last30.setDate(last30.getDate() - 30);
         setDateFrom(getNZDateString(last30));
         setDateTo(todayStr);
         break;
       }
       case 'last90': {
-        const last90 = new Date(nzNow);
+        const last90 = new Date(today);
         last90.setDate(last90.getDate() - 90);
         setDateFrom(getNZDateString(last90));
         setDateTo(todayStr);
@@ -227,10 +228,10 @@ export function OrganizationDashboard() {
     }
   };
 
-  // ✅ CRITICAL FIX: Use NZ timezone for date navigation
+  // Date navigation helper - simplified
   const navigateDays = (direction: 'prev' | 'next') => {
-    const from = toNZDate(new Date(dateFrom + 'T00:00:00'));
-    const to = toNZDate(new Date(dateTo + 'T00:00:00'));
+    const from = new Date(dateFrom + 'T00:00:00');
+    const to = new Date(dateTo + 'T00:00:00');
     
     if (direction === 'prev') {
       from.setDate(from.getDate() - 1);
@@ -272,16 +273,7 @@ export function OrganizationDashboard() {
     try {
       console.log('🏗️ LOADING DASHBOARD - Core Principles Architecture');
       
-      // ✅ CRITICAL: Normalize date formats before using them
-      const normalizedFrom = normalizeDateString(dateFrom);
-      const normalizedTo = normalizeDateString(dateTo);
-      
-      console.log('📅 Date validation:', {
-        dateFrom, 
-        dateTo,
-        normalizedFrom,
-        normalizedTo,
-      });
+      console.log('📅 Loading dashboard for date range:', { dateFrom, dateTo });
       
       const { data: profile } = await supabase
         .from('user_profiles')
@@ -298,11 +290,11 @@ export function OrganizationDashboard() {
 
       // ✅ STEP 1: Load observations (Section 1 - Data Gathering)
       console.log('📊 Step 1: Load observations (pure data)');
-      console.log('🕐 NZ Date Range:', normalizedFrom, 'to', normalizedTo);
+      console.log('🕐 NZ Date Range:', dateFrom, 'to', dateTo);
       
-      // ✅ CRITICAL FIX: Convert NZ date range to UTC for database query
-      const startRange = getNZDateRange(normalizedFrom);
-      const endRange = getNZDateRange(normalizedTo);
+      // Convert NZ date range to UTC for database query
+      const startRange = getNZDateRange(dateFrom);
+      const endRange = getNZDateRange(dateTo);
       
       console.log('🌍 UTC Range:', startRange.start, 'to', endRange.end);
       

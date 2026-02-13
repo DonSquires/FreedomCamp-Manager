@@ -7,10 +7,36 @@ export const NZ_TIMEZONE = 'Pacific/Auckland';
 
 /**
  * Convert any date to NZ timezone
+ * Uses proper UTC offset calculation instead of locale string parsing
  */
 export function toNZDate(date: Date | string): Date {
   const d = typeof date === 'string' ? new Date(date) : date;
-  return new Date(d.toLocaleString('en-NZ', { timeZone: NZ_TIMEZONE }));
+  
+  // Get the date components in NZ timezone
+  const formatter = new Intl.DateTimeFormat('en-NZ', {
+    timeZone: NZ_TIMEZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  });
+  
+  const parts = formatter.formatToParts(d);
+  const getValue = (type: string) => parts.find(p => p.type === type)?.value || '';
+  
+  const year = getValue('year');
+  const month = getValue('month');
+  const day = getValue('day');
+  const hour = getValue('hour');
+  const minute = getValue('minute');
+  const second = getValue('second');
+  
+  // Create a new Date object using the NZ timezone components
+  // This creates a "local" date that represents the NZ time
+  return new Date(`${year}-${month}-${day}T${hour}:${minute}:${second}`);
 }
 
 /**
@@ -33,12 +59,21 @@ export function formatNZDateTime(date: Date | string, options?: Intl.DateTimeFor
 
 /**
  * Get current date string in NZ timezone (YYYY-MM-DD)
+ * Uses Intl.DateTimeFormat for reliable timezone conversion
  */
 export function getNZDateString(date: Date = new Date()): string {
-  const nzDate = toNZDate(date);
-  const year = nzDate.getFullYear();
-  const month = String(nzDate.getMonth() + 1).padStart(2, '0');
-  const day = String(nzDate.getDate()).padStart(2, '0');
+  const formatter = new Intl.DateTimeFormat('en-NZ', {
+    timeZone: NZ_TIMEZONE,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+  
+  const parts = formatter.formatToParts(date);
+  const year = parts.find(p => p.type === 'year')?.value || '';
+  const month = parts.find(p => p.type === 'month')?.value || '';
+  const day = parts.find(p => p.type === 'day')?.value || '';
+  
   return `${year}-${month}-${day}`;
 }
 
@@ -207,10 +242,27 @@ export function isNZToday(date: Date | string): boolean {
 
 /**
  * Get date range for query (start and end of day in NZ timezone)
+ * Converts YYYY-MM-DD to full day range in UTC for database queries
  */
 export function getNZDateRange(dateStr: string): { start: string; end: string } {
+  // Validate input format
+  if (!dateStr || !dateStr.match(/^\d{4}-\d{2}-\d{2}$/)) {
+    console.error('Invalid date format for getNZDateRange:', dateStr);
+    // Return today's range as fallback
+    const todayStr = getNZDateString();
+    return getNZDateRange(todayStr);
+  }
+  
   const start = parseNZDate(dateStr);
   const end = getNZEndOfDay(start);
+  
+  // Validate dates before converting to ISO
+  if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+    console.error('Invalid Date objects created:', { start, end, dateStr });
+    const todayStr = getNZDateString();
+    return getNZDateRange(todayStr);
+  }
+  
   return {
     start: start.toISOString(),
     end: end.toISOString(),
