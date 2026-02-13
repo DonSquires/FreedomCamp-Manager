@@ -6,9 +6,57 @@
  * - PATCH (third digit): Minor amendments
  */
 
-export const APP_VERSION = '2.9.0004';
+export const APP_VERSION = '2.10.0001';
 
 export const VERSION_HISTORY = [
+  {
+    version: '2.10.0001',
+    date: '2025-02-14',
+    changes: [
+      '🔥 ALL-IN-ONE RECALCULATION: Comprehensive data cleanup pipeline',
+      '✅ Phase 1: Duplicate Detection - Max 2 scans/day (morning 6am-3pm + evening 3pm-6am)',
+      '🚫 Exception: Incident/H&S-linked observations allowed as extras',
+      '🗑️ Auto-removes duplicate observations beyond the 2-per-day limit',
+      '✅ Phase 2: Zone Corrections - GPS-based automatic zone reassignment',
+      '📍 Fixes observations assigned to wrong zones using GPS coordinates',
+      '✅ Phase 3: Data Integrity Checks (schema validation, orphaned records)',
+      '✅ Phase 4: Compliance Recalculation - Canonical vehicles + breach alerts',
+      '📊 Single unified function replaces 3 separate maintenance tools',
+      '🎯 Reduces admin steps: One button does duplicate removal, zone fixes, and recalculation',
+      '⚡ Batch processing with live progress tracking across all cleanup phases',
+      '📋 Detailed logging shows duplicates found, zones corrected, compliance changed',
+      '🔧 Edge function: comprehensive-recalculation replaces recalculate-compliance-v2',
+    ],
+  },
+  {
+    version: '2.9.0006',
+    date: '2025-02-13',
+    changes: [
+      '🔥 COMPLETE REBUILD: Organization Overview & Enforcement Hub use canonical_vehicles',
+      '✅ Organization Overview now shows REAL DATA from 1449+ vehicles with breaches',
+      '✅ Enforcement Hub displays actual breaches from canonical_vehicles.total_breaches',
+      '❌ Removed dependency on compliance_results table (was causing zeros)',
+      '📊 KPI cards show accurate metrics: observations, breaches, compliance rate',
+      '🗺️ Zone performance grid shows real breach counts per zone',
+      '📈 Compliance trend chart uses actual vehicle data instead of empty joins',
+      '🚨 Enforcement Hub lists all vehicles with breaches, excludes FC Act exempt',
+      '🎯 Both pages now display real breach data immediately',
+      '✨ No more "All zeros" - system shows actual compliance violations',
+    ],
+  },
+  {
+    version: '2.9.0005',
+    date: '2025-02-13',
+    changes: [
+      '🐛 CRITICAL FIX: Enforcement Hub and Organization Overview data loading',
+      '❌ Removed invalid is_breach column references from vehicle_observations_v2',
+      '✅ Fixed EnforcementHub to properly query compliance_results table',
+      '🔍 Added FC Act exemption filtering (homeless confirmed auto-excluded)',
+      '📊 Fixed breach detection logic to use compliance_results.is_compliant',
+      '✅ Organization Overview now displays correct metrics',
+      '🎯 All data now loading properly from correct database schema',
+    ],
+  },
   {
     version: '2.9.0004',
     date: '2025-02-13',
