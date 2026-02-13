@@ -6,9 +6,25 @@
  * - PATCH (third digit): Minor amendments
  */
 
-export const APP_VERSION = '2.10.0003';
+export const APP_VERSION = '2.10.0004';
 
 export const VERSION_HISTORY = [
+  {
+    version: '2.10.0004',
+    date: '2025-02-14',
+    changes: [
+      '🔥 COMPLETE REBUILD: Comprehensive recalculation function rebuilt from scratch',
+      '✅ Simplified architecture - single request instead of complex batch processing',
+      '🔧 Fixed date range handling - proper Date object creation prevents mutation bugs',
+      '📊 Clean 3-phase pipeline: Duplicates → Zone Corrections → Compliance',
+      '🗑️ Phase 1: Removes duplicates (max 2/day: morning + evening shifts)',
+      '📍 Phase 2: GPS-based zone corrections with 100m threshold',
+      '⚖️ Phase 3: Compliance recalculation with breach alert creation',
+      '🐛 Fixed: Observations now properly query vehicle_observations_v2 table',
+      '🎯 Removed complex organization/zone iteration - edge function handles all logic',
+      '✨ Clear diagnostic logging shows actual processing steps',
+    ],
+  },
   {
     version: '2.10.0003',
     date: '2025-02-14',

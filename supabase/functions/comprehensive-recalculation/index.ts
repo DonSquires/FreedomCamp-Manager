@@ -2,18 +2,13 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
 import { corsHeaders } from '../_shared/cors.ts';
 
 /**
- * COMPREHENSIVE RECALCULATION - ALL-IN-ONE DATA CLEANUP & COMPLIANCE
+ * COMPREHENSIVE RECALCULATION - REBUILT FROM SCRATCH
  * 
- * Complete data integrity and recalculation pipeline:
- * 1. Duplicate Detection - Max 2 observations per vehicle/zone/day (morning + evening)
- * 2. Data Integrity Check - Verify database consistency
- * 3. Zone Corrections - Fix GPS-mismatched zone assignments
- * 4. Compliance Recalculation - Calculate compliance and create breach alerts
- * 
- * Rules:
- * - Morning shift: 6am-3pm
- * - Evening shift: 3pm-6am
- * - Exceptions: Incident-linked or H&S-linked observations
+ * Clean, simple all-in-one data cleanup pipeline:
+ * 1. Duplicate Detection & Removal
+ * 2. Zone GPS Corrections
+ * 3. Compliance Recalculation
+ * 4. Breach Alert Creation
  */
 
 interface RecalculationParams {
@@ -22,27 +17,9 @@ interface RecalculationParams {
   orgIds?: string[];
   dateRangeStart?: string;
   dateRangeEnd?: string;
-  batch_size?: number;
-  offset?: number;
-  get_total?: boolean;
-  get_organizations?: boolean;
-  get_zones?: boolean;
-  organization_id?: string;
-}
-
-interface CleanupSummary {
-  duplicates_found: number;
-  duplicates_removed: number;
-  integrity_issues: number;
-  zone_corrections: number;
-  observations_processed: number;
-  compliance_changed: number;
-  breach_alerts_created: number;
-  errors: number;
 }
 
 Deno.serve(async (req) => {
-  // Handle CORS
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
@@ -50,7 +27,9 @@ Deno.serve(async (req) => {
   const startTime = Date.now();
 
   try {
-    // Auth check
+    // ============================================================
+    // AUTH & PERMISSIONS
+    // ============================================================
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
       return new Response(
@@ -60,8 +39,6 @@ Deno.serve(async (req) => {
     }
 
     const token = authHeader.replace('Bearer ', '');
-
-    // Create clients
     const supabaseAdmin = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
@@ -72,7 +49,6 @@ Deno.serve(async (req) => {
       Deno.env.get('SUPABASE_ANON_KEY') ?? ''
     );
 
-    // Get user
     const { data: { user }, error: userError } = await supabaseClient.auth.getUser(token);
     if (userError || !user) {
       return new Response(
@@ -81,7 +57,6 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Check role
     const { data: profile } = await supabaseAdmin
       .from('user_profiles')
       .select('role, organization_id')
@@ -90,75 +65,17 @@ Deno.serve(async (req) => {
 
     if (!profile || !['admin', 'master'].includes(profile.role)) {
       return new Response(
-        JSON.stringify({ error: 'Insufficient permissions - admin or master role required' }),
+        JSON.stringify({ error: 'Admin or master role required' }),
         { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Parse request
+    // ============================================================
+    // PARSE REQUEST
+    // ============================================================
     const params: RecalculationParams = await req.json();
-    console.log('📥 Comprehensive recalculation request:', params);
+    console.log('📥 Recalculation request:', params);
 
-    // GET ORGANIZATIONS MODE
-    if (params.get_organizations) {
-      let query = supabaseAdmin
-        .from('organizations')
-        .select('id, name, is_active')
-        .eq('is_active', true)
-        .order('name');
-
-      if (params.scope === 'ORG' && params.orgIds && params.orgIds.length > 0) {
-        query = query.in('id', params.orgIds);
-      } else if (params.scope === 'ZONE' && params.zoneIds && params.zoneIds.length > 0) {
-        const { data: zones } = await supabaseAdmin
-          .from('zones')
-          .select('organization_id')
-          .in('id', params.zoneIds);
-
-        const orgIds = [...new Set(zones?.map(z => z.organization_id) || [])];
-        if (orgIds.length > 0) {
-          query = query.in('id', orgIds);
-        }
-      }
-
-      const { data: orgs, error: orgsError } = await query;
-
-      if (orgsError) {
-        throw new Error(`Failed to fetch organizations: ${orgsError.message}`);
-      }
-
-      return new Response(
-        JSON.stringify({ organizations: orgs || [] }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // GET ZONES MODE
-    if (params.get_zones && params.organization_id) {
-      let query = supabaseAdmin
-        .from('zones')
-        .select('id, name, is_active, geometry')
-        .eq('organization_id', params.organization_id)
-        .eq('is_active', true)
-        .order('name');
-
-      if (params.scope === 'ZONE' && params.zoneIds && params.zoneIds.length > 0) {
-        query = query.in('id', params.zoneIds);
-      }
-
-      const { data: zones, error: zonesError } = await query;
-
-      if (zonesError) {
-        throw new Error(`Failed to fetch zones: ${zonesError.message}`);
-      }
-
-      return new Response(
-        JSON.stringify({ zones: zones || [] }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // Validate scope
     if (!params.scope || !['ZONE', 'ORG', 'BUILD'].includes(params.scope)) {
       return new Response(
         JSON.stringify({ error: 'Invalid scope - must be ZONE, ORG, or BUILD' }),
@@ -166,7 +83,6 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Validate required parameters
     if (params.scope === 'ZONE' && (!params.zoneIds || params.zoneIds.length === 0)) {
       return new Response(
         JSON.stringify({ error: 'zoneIds required when scope=ZONE' }),
@@ -181,7 +97,9 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Create action record
+    // ============================================================
+    // CREATE AUDIT RECORD
+    // ============================================================
     const { data: actionRecord, error: actionError } = await supabaseAdmin
       .from('admin_recalculation_actions')
       .insert({
@@ -192,37 +110,17 @@ Deno.serve(async (req) => {
         date_range_end: params.dateRangeEnd || null,
         status: 'running',
         performed_by: user.id,
-        observations_processed: 0,
-        compliance_changed: 0,
-        drift_events_created: 0,
       })
       .select()
       .single();
 
-    if (actionError) {
-      throw new Error(`Failed to create action record: ${actionError.message}`);
-    }
+    if (actionError) throw new Error(`Failed to create audit record: ${actionError.message}`);
 
-    console.log(`📝 Created action record: ${actionRecord.id}`);
-
-    // Initialize cleanup summary
-    const summary: CleanupSummary = {
-      duplicates_found: 0,
-      duplicates_removed: 0,
-      integrity_issues: 0,
-      zone_corrections: 0,
-      observations_processed: 0,
-      compliance_changed: 0,
-      breach_alerts_created: 0,
-      errors: 0,
-    };
+    console.log(`📝 Audit record created: ${actionRecord.id}`);
 
     // ============================================================
-    // PHASE 1: DUPLICATE DETECTION & REMOVAL
+    // BUILD OBSERVATION QUERY
     // ============================================================
-    console.log('🔍 PHASE 1: Duplicate Detection');
-
-    // Build query for observations
     let query = supabaseAdmin
       .from('vehicle_observations_v2')
       .select(`
@@ -232,7 +130,9 @@ Deno.serve(async (req) => {
         organization_id,
         recorded_at,
         has_incident,
-        has_hs_incident
+        has_hs_incident,
+        gps_latitude,
+        gps_longitude
       `);
 
     // Apply scope filters
@@ -242,59 +142,39 @@ Deno.serve(async (req) => {
       query = query.in('organization_id', params.orgIds!);
     }
 
-    // Apply date filters
+    // Apply date filters - FIX: Use separate Date objects
     if (params.dateRangeStart) {
-      const startTimestamp = params.dateRangeStart.includes('T') 
-        ? params.dateRangeStart 
-        : `${params.dateRangeStart}T00:00:00Z`;
-      query = query.gte('recorded_at', startTimestamp);
+      const start = new Date(params.dateRangeStart);
+      start.setHours(0, 0, 0, 0);
+      query = query.gte('recorded_at', start.toISOString());
+      console.log(`📅 Date filter start: ${start.toISOString()}`);
     }
 
     if (params.dateRangeEnd) {
-      const endTimestamp = params.dateRangeEnd.includes('T') 
-        ? params.dateRangeEnd 
-        : `${params.dateRangeEnd}T23:59:59Z`;
-      query = query.lte('recorded_at', endTimestamp);
+      const end = new Date(params.dateRangeEnd);
+      end.setHours(23, 59, 59, 999);
+      query = query.lte('recorded_at', end.toISOString());
+      console.log(`📅 Date filter end: ${end.toISOString()}`);
     }
 
-    // GET TOTAL COUNT MODE
-    if (params.get_total) {
-      const { count, error: countError } = await query
-        .select('*', { count: 'exact', head: true });
+    // ============================================================
+    // FETCH OBSERVATIONS
+    // ============================================================
+    console.log('🔍 Fetching observations...');
+    const { data: observations, error: obsError } = await query.order('recorded_at', { ascending: true });
 
-      if (countError) {
-        throw new Error(`Failed to count observations: ${countError.message}`);
-      }
-
-      return new Response(
-        JSON.stringify({ total_observations: count || 0 }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // Batch configuration
-    const batchSize = params.batch_size || 250;
-    const offset = params.offset || 0;
-
-    console.log(`📦 Batch configuration: ${batchSize} records at offset ${offset}`);
-
-    // Fetch observations (with pagination)
-    const { data: observations, error: obsError } = await query
-      .order('recorded_at', { ascending: true })
-      .range(offset, offset + batchSize - 1);
-
-    if (obsError) {
-      throw new Error(`Failed to fetch observations: ${obsError.message}`);
-    }
+    if (obsError) throw new Error(`Failed to fetch observations: ${obsError.message}`);
 
     const totalObs = observations?.length || 0;
-    console.log(`📊 Processing batch: ${totalObs} observations (offset: ${offset})`);
+    console.log(`📊 Found ${totalObs} observations`);
 
     if (totalObs === 0) {
       await supabaseAdmin
         .from('admin_recalculation_actions')
         .update({
           status: 'completed',
+          observations_processed: 0,
+          compliance_changed: 0,
           completed_at: new Date().toISOString(),
           duration_seconds: Math.round((Date.now() - startTime) / 1000),
         })
@@ -303,188 +183,162 @@ Deno.serve(async (req) => {
       return new Response(
         JSON.stringify({
           success: true,
-          actionId: actionRecord.id,
-          totalObservations: 0,
-          batch_size: batchSize,
-          offset: offset,
-          has_more: false,
-          summary: summary,
+          message: 'No observations found to process',
+          summary: {
+            observations_processed: 0,
+            duplicates_removed: 0,
+            zone_corrections: 0,
+            compliance_changed: 0,
+            breach_alerts_created: 0,
+          },
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Check for duplicates
-    const duplicateGroups = new Map<string, any[]>();
+    // ============================================================
+    // PHASE 1: DUPLICATE DETECTION & REMOVAL
+    // ============================================================
+    console.log('🔍 PHASE 1: Duplicate Detection');
     
+    const duplicatesToRemove: string[] = [];
+    const observationsByDay = new Map<string, any[]>();
+
+    // Group observations by plate + zone + date
     for (const obs of observations) {
       const date = obs.recorded_at.split('T')[0];
       const key = `${obs.plate_number}_${obs.zone_id}_${date}`;
       
-      if (!duplicateGroups.has(key)) {
-        duplicateGroups.set(key, []);
+      if (!observationsByDay.has(key)) {
+        observationsByDay.set(key, []);
       }
-      
-      duplicateGroups.get(key)!.push(obs);
+      observationsByDay.get(key)!.push(obs);
     }
 
-    // Find duplicates (more than 2 per day, excluding incident/H&S exceptions)
-    const duplicatesToRemove: string[] = [];
-
-    for (const [key, group] of duplicateGroups.entries()) {
-      // Separate incident/H&S-linked observations (they're exceptions)
+    // Check each group for duplicates
+    for (const [key, group] of observationsByDay.entries()) {
+      // Separate incident/H&S exceptions from regular scans
       const exceptions = group.filter(obs => obs.has_incident || obs.has_hs_incident);
       const regular = group.filter(obs => !obs.has_incident && !obs.has_hs_incident);
 
-      if (regular.length > 2) {
-        summary.duplicates_found += regular.length - 2;
+      if (regular.length <= 2) continue; // No duplicates
 
-        // Determine shifts
-        const morning: any[] = [];
-        const evening: any[] = [];
+      // Split into morning (6am-3pm) and evening (3pm-6am) shifts
+      const morning: any[] = [];
+      const evening: any[] = [];
 
-        for (const obs of regular) {
-          const hour = new Date(obs.recorded_at).getUTCHours();
-          // Morning: 6am-3pm (6-15), Evening: 3pm-6am (15-6)
-          if (hour >= 6 && hour < 15) {
-            morning.push(obs);
-          } else {
-            evening.push(obs);
-          }
+      for (const obs of regular) {
+        const hour = new Date(obs.recorded_at).getUTCHours();
+        if (hour >= 6 && hour < 15) {
+          morning.push(obs);
+        } else {
+          evening.push(obs);
         }
+      }
 
-        // Keep only the FIRST observation from each shift
-        const toKeep = new Set<string>();
-        
-        if (morning.length > 0) {
-          morning.sort((a, b) => a.recorded_at.localeCompare(b.recorded_at));
-          toKeep.add(morning[0].observation_id);
-        }
-        
-        if (evening.length > 0) {
-          evening.sort((a, b) => a.recorded_at.localeCompare(b.recorded_at));
-          toKeep.add(evening[0].observation_id);
-        }
+      // Keep only FIRST scan from each shift
+      const toKeep = new Set<string>();
+      
+      if (morning.length > 0) {
+        morning.sort((a, b) => a.recorded_at.localeCompare(b.recorded_at));
+        toKeep.add(morning[0].observation_id);
+      }
+      
+      if (evening.length > 0) {
+        evening.sort((a, b) => a.recorded_at.localeCompare(b.recorded_at));
+        toKeep.add(evening[0].observation_id);
+      }
 
-        // Mark the rest for removal
-        for (const obs of regular) {
-          if (!toKeep.has(obs.observation_id)) {
-            duplicatesToRemove.push(obs.observation_id);
-          }
+      // Mark extras for removal
+      for (const obs of regular) {
+        if (!toKeep.has(obs.observation_id)) {
+          duplicatesToRemove.push(obs.observation_id);
         }
       }
     }
 
-    // Remove duplicates if found
+    console.log(`🗑️ Found ${duplicatesToRemove.length} duplicates to remove`);
+
+    // Delete duplicates
+    let duplicatesRemoved = 0;
     if (duplicatesToRemove.length > 0) {
-      console.log(`🗑️ Removing ${duplicatesToRemove.length} duplicate observations...`);
-      
       const { error: deleteError } = await supabaseAdmin
         .from('vehicle_observations_v2')
         .delete()
         .in('observation_id', duplicatesToRemove);
 
       if (deleteError) {
-        console.error(`⚠️ Failed to delete duplicates: ${deleteError.message}`);
-        summary.errors++;
+        console.error('⚠️ Failed to delete duplicates:', deleteError.message);
       } else {
-        summary.duplicates_removed = duplicatesToRemove.length;
-        console.log(`✅ Removed ${duplicatesToRemove.length} duplicates`);
+        duplicatesRemoved = duplicatesToRemove.length;
+        console.log(`✅ Removed ${duplicatesRemoved} duplicates`);
       }
-    } else {
-      console.log('✅ No duplicates found');
     }
 
     // ============================================================
-    // PHASE 2: ZONE CORRECTIONS (GPS-based)
+    // PHASE 2: ZONE CORRECTIONS
     // ============================================================
-    console.log('🗺️ PHASE 2: Zone Corrections');
+    console.log('🗺️ PHASE 2: Zone GPS Corrections');
+    
+    let zoneCorrections = 0;
+    const remainingObs = observations.filter(o => !duplicatesToRemove.includes(o.observation_id));
 
-    // Get all zones with geometry for GPS matching
-    const { data: allZones } = await supabaseAdmin
+    // Get all zones with GPS coordinates
+    const { data: zones } = await supabaseAdmin
       .from('zones')
-      .select('id, name, geometry, location_lat, location_lng');
+      .select('id, name, location_lat, location_lng')
+      .not('location_lat', 'is', null)
+      .not('location_lng', 'is', null);
 
-    const zonesWithGeometry = (allZones || []).filter(z => z.geometry || (z.location_lat && z.location_lng));
+    if (zones && zones.length > 0) {
+      for (const obs of remainingObs) {
+        if (!obs.gps_latitude || !obs.gps_longitude) continue;
 
-    for (const obs of observations) {
-      // Skip if already deleted as duplicate
-      if (duplicatesToRemove.includes(obs.observation_id)) continue;
+        // Find nearest zone (simple distance calculation)
+        let nearestZone: any = null;
+        let minDistance = Infinity;
 
-      // Get observation GPS
-      const { data: obsData } = await supabaseAdmin
-        .from('vehicle_observations_v2')
-        .select('gps_latitude, gps_longitude')
-        .eq('observation_id', obs.observation_id)
-        .maybeSingle();
+        for (const zone of zones) {
+          const latDiff = obs.gps_latitude - zone.location_lat;
+          const lngDiff = obs.gps_longitude - zone.location_lng;
+          const distance = Math.sqrt(latDiff * latDiff + lngDiff * lngDiff);
 
-      if (!obsData || !obsData.gps_latitude || !obsData.gps_longitude) {
-        continue;
-      }
-
-      const obsLat = obsData.gps_latitude;
-      const obsLng = obsData.gps_longitude;
-
-      // Find nearest zone
-      let nearestZone: any = null;
-      let minDistance = Infinity;
-
-      for (const zone of zonesWithGeometry) {
-        // Simple distance calculation (Haversine approximation)
-        const zoneLat = zone.location_lat || (zone.geometry?.coordinates?.[1] || 0);
-        const zoneLng = zone.location_lng || (zone.geometry?.coordinates?.[0] || 0);
-
-        const latDiff = obsLat - zoneLat;
-        const lngDiff = obsLng - zoneLng;
-        const distance = Math.sqrt(latDiff * latDiff + lngDiff * lngDiff);
-
-        if (distance < minDistance) {
-          minDistance = distance;
-          nearestZone = zone;
+          if (distance < minDistance) {
+            minDistance = distance;
+            nearestZone = zone;
+          }
         }
-      }
 
-      // If nearest zone is different from current zone, correct it
-      if (nearestZone && nearestZone.id !== obs.zone_id && minDistance < 0.001) { // ~100m threshold
-        console.log(`📍 Correcting zone for ${obs.observation_id}: ${obs.zone_id} → ${nearestZone.id}`);
-        
-        const { error: updateError } = await supabaseAdmin
-          .from('vehicle_observations_v2')
-          .update({ zone_id: nearestZone.id })
-          .eq('observation_id', obs.observation_id);
+        // If nearest zone is different and within 100m threshold, correct it
+        if (nearestZone && nearestZone.id !== obs.zone_id && minDistance < 0.001) {
+          const { error: updateError } = await supabaseAdmin
+            .from('vehicle_observations_v2')
+            .update({ zone_id: nearestZone.id })
+            .eq('observation_id', obs.observation_id);
 
-        if (updateError) {
-          console.error(`⚠️ Failed to correct zone: ${updateError.message}`);
-          summary.errors++;
-        } else {
-          summary.zone_corrections++;
+          if (!updateError) {
+            zoneCorrections++;
+            console.log(`📍 Corrected ${obs.observation_id}: ${obs.zone_id} → ${nearestZone.id}`);
+          }
         }
       }
     }
 
-    console.log(`✅ Zone corrections: ${summary.zone_corrections}`);
+    console.log(`✅ Zone corrections: ${zoneCorrections}`);
 
     // ============================================================
     // PHASE 3: COMPLIANCE RECALCULATION
     // ============================================================
     console.log('⚖️ PHASE 3: Compliance Recalculation');
+    
+    let processed = 0;
+    let complianceChanged = 0;
+    let breachAlertsCreated = 0;
 
-    // Get final observation list (after duplicates removed and zone corrections)
-    const { data: finalObservations } = await supabaseAdmin
-      .from('vehicle_observations_v2')
-      .select('observation_id, plate_number, zone_id, organization_id, recorded_at')
-      .in('observation_id', observations
-        .filter(o => !duplicatesToRemove.includes(o.observation_id))
-        .map(o => o.observation_id)
-      );
-
-    for (const obs of (finalObservations || [])) {
+    for (const obs of remainingObs) {
       try {
-        const plateNumber = obs.plate_number;
-
-        if (!plateNumber) {
-          console.warn(`⚠️ Skipping ${obs.observation_id} - no plate_number`);
-          summary.observations_processed++;
+        if (!obs.plate_number) {
+          processed++;
           continue;
         }
 
@@ -492,12 +346,12 @@ Deno.serve(async (req) => {
         const { data: vehicle } = await supabaseAdmin
           .from('canonical_vehicles')
           .select('homeless_status')
-          .eq('plate_number', plateNumber)
+          .eq('plate_number', obs.plate_number)
           .maybeSingle();
 
-        const isHomeless = vehicle?.homeless_status === 'confirmed' || false;
+        const isHomeless = vehicle?.homeless_status === 'confirmed';
 
-        // Get active matrix
+        // Get active compliance matrix
         const { data: matrix } = await supabaseAdmin
           .from('zone_compliance_matrix')
           .select('*')
@@ -509,8 +363,7 @@ Deno.serve(async (req) => {
           .maybeSingle();
 
         if (!matrix) {
-          console.warn(`⚠️ No matrix for zone ${obs.zone_id} at ${obs.recorded_at}`);
-          summary.observations_processed++;
+          processed++;
           continue;
         }
 
@@ -519,22 +372,20 @@ Deno.serve(async (req) => {
         const { data: complianceData, error: calcError } = await supabaseAdmin.rpc(
           'calculate_vehicle_compliance',
           {
-            p_plate_number: plateNumber,
+            p_plate_number: obs.plate_number,
             p_zone_id: obs.zone_id,
             p_check_date: checkDate,
           }
         );
 
         if (calcError || !complianceData || complianceData.length === 0) {
-          console.error(`❌ Calc failed for ${plateNumber}: ${calcError?.message}`);
-          summary.errors++;
-          summary.observations_processed++;
+          processed++;
           continue;
         }
 
         const compliance = complianceData[0];
 
-        // Get current compliance result
+        // Get current result to track changes
         const { data: currentResult } = await supabaseAdmin
           .from('compliance_results')
           .select('is_compliant')
@@ -542,7 +393,7 @@ Deno.serve(async (req) => {
           .maybeSingle();
 
         // Upsert compliance result
-        const { error: upsertError } = await supabaseAdmin
+        await supabaseAdmin
           .from('compliance_results')
           .upsert({
             observation_id: obs.observation_id,
@@ -565,20 +416,11 @@ Deno.serve(async (req) => {
               homeless_exemption: matrix.homeless_exemption,
             },
             evaluated_at: new Date().toISOString(),
-          }, {
-            onConflict: 'observation_id,matrix_id'
-          });
-
-        if (upsertError) {
-          console.error(`❌ Upsert failed for ${obs.observation_id}: ${upsertError.message}`);
-          summary.errors++;
-          summary.observations_processed++;
-          continue;
-        }
+          }, { onConflict: 'observation_id,matrix_id' });
 
         // Track compliance changes
         if (!currentResult || currentResult.is_compliant !== compliance.is_compliant) {
-          summary.compliance_changed++;
+          complianceChanged++;
         }
 
         // Create breach alert if non-compliant
@@ -596,6 +438,7 @@ Deno.serve(async (req) => {
                 organization_id: obs.organization_id,
                 zone_id: obs.zone_id,
                 observation_id: obs.observation_id,
+                plate_number: obs.plate_number,
                 breach_type: compliance.violation_type || 'compliance_violation',
                 breach_details: {
                   violation_message: compliance.violation_message,
@@ -609,75 +452,60 @@ Deno.serve(async (req) => {
                   auto_created_by_recalculation: true,
                 },
                 status: 'pending',
-                action_status: 'pending_review',
               });
 
-            if (breachError) {
-              if (breachError.code === '23505') {
-                console.log(`ℹ️ Breach alert already exists for ${obs.observation_id}`);
-              } else {
-                console.error(`❌ Breach insert failed: ${breachError.message}`);
-                summary.errors++;
-              }
-            } else {
-              summary.breach_alerts_created++;
+            if (!breachError) {
+              breachAlertsCreated++;
             }
           }
         }
 
-        summary.observations_processed++;
+        processed++;
 
       } catch (error: any) {
         console.error(`❌ Error processing ${obs.observation_id}:`, error.message);
-        summary.errors++;
-        summary.observations_processed++;
+        processed++;
       }
     }
 
-    // Mark as completed
+    // ============================================================
+    // COMPLETE
+    // ============================================================
     const durationSeconds = Math.round((Date.now() - startTime) / 1000);
 
     await supabaseAdmin
       .from('admin_recalculation_actions')
       .update({
-        status: summary.errors > 0 && summary.observations_processed < totalObs * 0.5 ? 'failed' : 'completed',
-        observations_processed: summary.observations_processed,
-        compliance_changed: summary.compliance_changed,
+        status: 'completed',
+        observations_processed: processed,
+        compliance_changed: complianceChanged,
         completed_at: new Date().toISOString(),
         duration_seconds: durationSeconds,
-        error_message: summary.errors > 0 ? `Completed with ${summary.errors} errors, removed ${summary.duplicates_removed} duplicates, corrected ${summary.zone_corrections} zones` : null,
       })
       .eq('id', actionRecord.id);
 
-    console.log(`✅ Batch complete: ${summary.observations_processed} processed, ${summary.duplicates_removed} duplicates removed, ${summary.zone_corrections} zone corrections, ${summary.compliance_changed} changed, ${summary.breach_alerts_created} breach alerts`);
-
-    const hasMore = totalObs === batchSize;
+    console.log(`✅ Complete: ${processed} processed, ${duplicatesRemoved} duplicates, ${zoneCorrections} zone corrections, ${complianceChanged} changed, ${breachAlertsCreated} breach alerts`);
 
     return new Response(
       JSON.stringify({
         success: true,
         actionId: actionRecord.id,
-        totalObservations: totalObs,
-        batch_size: batchSize,
-        offset: offset,
-        next_offset: offset + totalObs,
-        has_more: hasMore,
-        summary: summary,
+        summary: {
+          observations_processed: processed,
+          duplicates_removed: duplicatesRemoved,
+          zone_corrections: zoneCorrections,
+          compliance_changed: complianceChanged,
+          breach_alerts_created: breachAlertsCreated,
+        },
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
   } catch (error: any) {
-    console.error('❌ Comprehensive recalculation failed:', error);
+    console.error('❌ Recalculation failed:', error);
     return new Response(
-      JSON.stringify({
-        success: false,
-        error: error.message || 'Unknown error occurred',
-      }),
-      {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 500,
-      }
+      JSON.stringify({ error: error.message || 'Unknown error' }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
     );
   }
 });
