@@ -779,14 +779,14 @@ export function VehicleManagement() {
                                 
                                 // Get all observations for this vehicle
                                 const { data: obsData, error: obsError } = await supabase
-                                  .from('vehicle_observations')
+                                  .from('vehicle_observations_v2')
                                   .select(`
                                     *,
                                     zone:zones(name),
                                     organization:organizations(name),
-                                    recorded_by_user:user_profiles!vehicle_observations_recorded_by_fkey(first_name, last_name)
+                                    recorded_by_user:user_profiles!vehicle_observations_v2_recorded_by_fkey(first_name, last_name)
                                   `)
-                                  .eq('vehicle_id', canonicalData.vehicle_id)
+                                  .eq('plate_number', canonicalData.plate_number)
                                   .order('recorded_at', { ascending: false });
                                 
                                 if (!obsError) {
@@ -838,14 +838,14 @@ export function VehicleManagement() {
                                 
                                 // Get all observations for this vehicle
                                 const { data: obsData, error: obsError } = await supabase
-                                  .from('vehicle_observations')
+                                  .from('vehicle_observations_v2')
                                   .select(`
                                     *,
                                     zone:zones(name),
                                     organization:organizations(name),
-                                    recorded_by_user:user_profiles!vehicle_observations_recorded_by_fkey(first_name, last_name)
+                                    recorded_by_user:user_profiles!vehicle_observations_v2_recorded_by_fkey(first_name, last_name)
                                   `)
-                                  .eq('vehicle_id', canonicalData.vehicle_id)
+                                  .eq('plate_number', canonicalData.plate_number)
                                   .order('recorded_at', { ascending: false });
                                 
                                 if (!obsError) {
@@ -897,14 +897,14 @@ export function VehicleManagement() {
                                 
                                 // Get all observations for this vehicle
                                 const { data: obsData, error: obsError } = await supabase
-                                  .from('vehicle_observations')
+                                  .from('vehicle_observations_v2')
                                   .select(`
                                     *,
                                     zone:zones(name),
                                     organization:organizations(name),
-                                    recorded_by_user:user_profiles!vehicle_observations_recorded_by_fkey(first_name, last_name)
+                                    recorded_by_user:user_profiles!vehicle_observations_v2_recorded_by_fkey(first_name, last_name)
                                   `)
-                                  .eq('vehicle_id', canonicalData.vehicle_id)
+                                  .eq('plate_number', canonicalData.plate_number)
                                   .order('recorded_at', { ascending: false });
                                 
                                 if (!obsError) {
@@ -949,14 +949,14 @@ export function VehicleManagement() {
                                 
                                 // Get all observations for this vehicle
                                 const { data: obsData, error: obsError } = await supabase
-                                  .from('vehicle_observations')
+                                  .from('vehicle_observations_v2')
                                   .select(`
                                     *,
                                     zone:zones(name),
                                     organization:organizations(name),
-                                    recorded_by_user:user_profiles!vehicle_observations_recorded_by_fkey(first_name, last_name)
+                                    recorded_by_user:user_profiles!vehicle_observations_v2_recorded_by_fkey(first_name, last_name)
                                   `)
-                                  .eq('vehicle_id', canonicalData.vehicle_id)
+                                  .eq('plate_number', canonicalData.plate_number)
                                   .order('recorded_at', { ascending: false });
                                 
                                 if (!obsError) {
@@ -1002,14 +1002,14 @@ export function VehicleManagement() {
                                 
                                 // Get all observations for this vehicle
                                 const { data: obsData, error: obsError } = await supabase
-                                  .from('vehicle_observations')
+                                  .from('vehicle_observations_v2')
                                   .select(`
                                     *,
                                     zone:zones(name),
                                     organization:organizations(name),
-                                    recorded_by_user:user_profiles!vehicle_observations_recorded_by_fkey(first_name, last_name)
+                                    recorded_by_user:user_profiles!vehicle_observations_v2_recorded_by_fkey(first_name, last_name)
                                   `)
-                                  .eq('vehicle_id', canonicalData.vehicle_id)
+                                  .eq('plate_number', canonicalData.plate_number)
                                   .order('recorded_at', { ascending: false });
                                 
                                 if (!obsError) {
@@ -1063,14 +1063,14 @@ export function VehicleManagement() {
                                 
                                 // Get all observations for this vehicle
                                 const { data: obsData, error: obsError } = await supabase
-                                  .from('vehicle_observations')
+                                  .from('vehicle_observations_v2')
                                   .select(`
                                     *,
                                     zone:zones(name),
                                     organization:organizations(name),
-                                    recorded_by_user:user_profiles!vehicle_observations_recorded_by_fkey(first_name, last_name)
+                                    recorded_by_user:user_profiles!vehicle_observations_v2_recorded_by_fkey(first_name, last_name)
                                   `)
-                                  .eq('vehicle_id', canonicalData.vehicle_id)
+                                  .eq('plate_number', canonicalData.plate_number)
                                   .order('recorded_at', { ascending: false });
                                 
                                 if (!obsError) {
@@ -1128,14 +1128,14 @@ export function VehicleManagement() {
                                 
                                 // Get all observations for this vehicle
                                 const { data: obsData, error: obsError } = await supabase
-                                  .from('vehicle_observations')
+                                  .from('vehicle_observations_v2')
                                   .select(`
                                     *,
                                     zone:zones(name),
                                     organization:organizations(name),
-                                    recorded_by_user:user_profiles!vehicle_observations_recorded_by_fkey(first_name, last_name)
+                                    recorded_by_user:user_profiles!vehicle_observations_v2_recorded_by_fkey(first_name, last_name)
                                   `)
-                                  .eq('vehicle_id', canonicalData.vehicle_id)
+                                  .eq('plate_number', canonicalData.plate_number)
                                   .order('recorded_at', { ascending: false });
                                 
                                 if (!obsError) {

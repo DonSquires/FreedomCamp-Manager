@@ -152,18 +152,18 @@ export function VehicleDetailsPopup({
 
         // Get most recent observation to check self-contained status
         const { data: recentObs } = await supabase
-          .from('vehicle_observations')
-          .select('is_self_contained, notes')
-          .eq('vehicle_id', vehicle.vehicle_id)
+          .from('vehicle_observations_v2')
+          .select('self_contained, officer_notes')
+          .eq('plate_number', vehicle.plate_number)
           .order('recorded_at', { ascending: false })
           .limit(1)
           .single();
 
-        if (recentObs && recentObs.is_self_contained) {
-          console.log('✅ Found prior self-contained status:', recentObs.is_self_contained);
+        if (recentObs && recentObs.self_contained) {
+          console.log('✅ Found prior self-contained status:', recentObs.self_contained);
           // Parse notes to check for green or blue sticker
-          const hasGreen = recentObs.notes?.toLowerCase().includes('green sticker');
-          const hasBlue = recentObs.notes?.toLowerCase().includes('blue sticker') || recentObs.notes?.toLowerCase().includes('nzs 5465');
+          const hasGreen = recentObs.officer_notes?.toLowerCase().includes('green sticker');
+          const hasBlue = recentObs.officer_notes?.toLowerCase().includes('blue sticker') || recentObs.officer_notes?.toLowerCase().includes('nzs 5465');
           setSelfContained(hasGreen ? 'green' : hasBlue ? 'blue' : 'none');
         } else if (photoUrl && !initialMake && !initialModel) {
           // No prior details found - use AI to analyze photo

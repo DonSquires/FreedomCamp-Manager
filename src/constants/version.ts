@@ -6,9 +6,21 @@
  * - PATCH (third digit): Minor amendments
  */
 
-export const APP_VERSION = '2.11.0002';
+export const APP_VERSION = '2.11.0003';
 
 export const VERSION_HISTORY = [
+  {
+    version: '2.11.0003',
+    date: '2025-02-14',
+    changes: [
+      '🔍 DIAGNOSTIC TOOL: Database Diagnostic page added to Admin Portal',
+      '✅ Shows exact record counts in vehicle_observations_v2 (current) vs vehicle_observations (legacy)',
+      '📊 Displays sample records, date ranges, unique plates/zones for each table',
+      '🚨 Detects if observations are in wrong table (legacy instead of current)',
+      '🔧 Identifies data migration needs and explains why cleanup returns 0',
+      '⚡ Accessible via Admin Portal → Database Diagnostic (purple button)',
+    ],
+  },
   {
     version: '2.11.0002',
     date: '2025-02-14',

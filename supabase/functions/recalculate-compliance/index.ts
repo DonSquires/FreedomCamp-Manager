@@ -136,12 +136,12 @@ serve(async (req) => {
           id,
           observation_id,
           zone_id,
-          vehicle_observations!inner(zone_id)
+          vehicle_observations_v2!inner(zone_id)
         `);
       
       if (!orphanedError && orphanedResults) {
         const orphanedIds = orphanedResults
-          .filter(cr => cr.zone_id !== (cr.vehicle_observations as any).zone_id)
+          .filter(cr => cr.zone_id !== (cr.vehicle_observations_v2 as any).zone_id)
           .map(cr => cr.id);
         
         if (orphanedIds.length > 0) {
@@ -181,8 +181,8 @@ serve(async (req) => {
 
         // Get observations for this zone
         let query = supabaseAdmin
-          .from('vehicle_observations')
-          .select('observation_id, vehicle_id, organization_id, zone_id, recorded_at')
+          .from('vehicle_observations_v2')
+          .select('observation_id, plate_number, organization_id, zone_id, recorded_at')
           .eq('zone_id', zoneId);
 
         if (request.date_range_start) {
@@ -218,10 +218,10 @@ serve(async (req) => {
 
             // Calculate compliance using matrix
             const { data: complianceResult } = await supabaseAdmin
-              .rpc('calculate_vehicle_compliance', {
-                p_vehicle_id: obs.vehicle_id,
+              .rpc('check_vehicle_compliance_v3', {
+                p_plate_number: obs.plate_number,
                 p_zone_id: obs.zone_id,
-                p_check_date: obs.recorded_at
+                p_observation_time: obs.recorded_at
               });
 
             // Get old compliance result if exists
@@ -236,7 +236,7 @@ serve(async (req) => {
               .from('compliance_results')
               .upsert({
                 observation_id: obs.observation_id,
-                vehicle_id: obs.vehicle_id,
+                vehicle_id: obs.plate_number,
                 zone_id: obs.zone_id,
                 organization_id: obs.organization_id,
                 matrix_id: matrixAtTime.id,
@@ -281,11 +281,11 @@ serve(async (req) => {
               // Check if vehicle is homeless
               const { data: canonicalVehicle } = await supabaseAdmin
                 .from('canonical_vehicles')
-                .select('plate_number, homeless_confirmed')
-                .eq('vehicle_id', obs.vehicle_id)
+                .select('plate_number, homeless_status')
+                .eq('plate_number', obs.plate_number)
                 .single();
               
-              const isHomeless = canonicalVehicle?.homeless_confirmed || false;
+              const isHomeless = canonicalVehicle?.homeless_status === 'confirmed';
               
               // Get vehicle_record_id from this observation
               const { data: vehicleRecord } = await supabaseAdmin
