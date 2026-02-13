@@ -6,9 +6,21 @@
  * - PATCH (third digit): Minor amendments
  */
 
-export const APP_VERSION = '2.5.0011';
+export const APP_VERSION = '2.5.0012';
 
 export const VERSION_HISTORY = [
+  {
+    version: '2.5.0012',
+    date: '2025-02-13',
+    changes: [
+      '🔧 CRITICAL DATABASE FIX: Compliance function schema mismatch resolved',
+      '✅ Updated calculate_vehicle_compliance_with_results() to use canonical_vehicles',
+      '🗃️ Changed compliance_results.vehicle_id from UUID to TEXT (matches plate_number)',
+      '🔗 Fixed foreign key to reference canonical_vehicles.plate_number',
+      '🚗 Scanning and compliance calculations now fully operational',
+      '📊 All database queries properly aligned with new vehicle architecture',
+    ],
+  },
   {
     version: '2.5.0011',
     date: '2025-02-12',
