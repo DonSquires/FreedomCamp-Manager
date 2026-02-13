@@ -6,9 +6,20 @@
  * - PATCH (third digit): Minor amendments
  */
 
-export const APP_VERSION = '2.10.0001';
+export const APP_VERSION = '2.10.0002';
 
 export const VERSION_HISTORY = [
+  {
+    version: '2.10.0002',
+    date: '2025-02-14',
+    changes: [
+      '🐛 CRITICAL FIX: Recalculation property name mismatch resolved',
+      '✅ Frontend now correctly maps backend response properties',
+      '🔧 Fixed: processed → observations_processed, complianceChanged → compliance_changed',
+      '📊 Live stats now display correctly during recalculation',
+      '✨ Comprehensive recalculation fully operational',
+    ],
+  },
   {
     version: '2.10.0001',
     date: '2025-02-14',
