@@ -71,13 +71,50 @@ export function getNZEndOfDay(date: Date = new Date()): Date {
 
 /**
  * Parse date string and ensure it's in NZ timezone
+ * Handles both YYYY-MM-DD and DD/MM/YYYY formats
  */
 export function parseNZDate(dateString: string): Date {
-  // If no time specified, default to 00:00:00 in NZ timezone
+  // Handle YYYY-MM-DD format (ISO)
   if (dateString.match(/^\d{4}-\d{2}-\d{2}$/)) {
     return new Date(`${dateString}T00:00:00+13:00`);
   }
+  
+  // Handle DD/MM/YYYY format (NZ locale)
+  const ddmmyyyyMatch = dateString.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (ddmmyyyyMatch) {
+    const [_, day, month, year] = ddmmyyyyMatch;
+    return new Date(`${year}-${month}-${day}T00:00:00+13:00`);
+  }
+  
+  // Fallback to standard parsing
   return toNZDate(new Date(dateString));
+}
+
+/**
+ * Convert DD/MM/YYYY to YYYY-MM-DD
+ */
+export function normalizeDateString(dateString: string): string {
+  // If already YYYY-MM-DD, return as-is
+  if (dateString.match(/^\d{4}-\d{2}-\d{2}$/)) {
+    return dateString;
+  }
+  
+  // Convert DD/MM/YYYY to YYYY-MM-DD
+  const ddmmyyyyMatch = dateString.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (ddmmyyyyMatch) {
+    const [_, day, month, year] = ddmmyyyyMatch;
+    return `${year}-${month}-${day}`;
+  }
+  
+  // Try to parse and convert to YYYY-MM-DD
+  const date = new Date(dateString);
+  if (!isNaN(date.getTime())) {
+    return getNZDateString(date);
+  }
+  
+  // If all else fails, return current date
+  console.error('Invalid date string:', dateString);
+  return getNZDateString();
 }
 
 /**

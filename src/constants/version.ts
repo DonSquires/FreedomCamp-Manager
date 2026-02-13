@@ -6,9 +6,46 @@
  * - PATCH (third digit): Minor amendments
  */
 
-export const APP_VERSION = '2.5.0018';
+export const APP_VERSION = '2.5.0021';
 
 export const VERSION_HISTORY = [
+  {
+    version: '2.5.0021',
+    date: '2025-02-13',
+    changes: [
+      '🔧 CRITICAL FIX: "Invalid time value" error when loading dashboard',
+      '✅ Added normalizeDateString() to handle both YYYY-MM-DD and DD/MM/YYYY formats',
+      '📅 HTML5 date inputs now correctly validate and normalize DD/MM/YYYY → YYYY-MM-DD',
+      '🌍 parseNZDate() now handles NZ locale format (13/02/2026) in addition to ISO format',
+      '🔍 Added debug logging for date format conversions',
+      '✨ Dashboard date fields now work correctly regardless of browser locale',
+    ],
+  },
+  {
+    version: '2.5.0020',
+    date: '2025-02-13',
+    changes: [
+      '🕐 CRITICAL TIMEZONE FIX: All dashboard dates now use NZ timezone (Pacific/Auckland)',
+      '✅ Date filters convert NZ dates to UTC for database queries (fixes "yesterday" bug)',
+      '📅 Today in NZ properly filters observations from 00:00 to 23:59 NZ time',
+      '🌍 Database queries use UTC range: NZ midnight → UTC (accounts for +13 offset)',
+      '📊 Display dates show NZ timezone explicitly: "(NZ Time)" indicators added',
+      '🔧 Fixed drill-down date filtering to use NZ timezone consistently',
+      '✨ Tania\'s scans today now show as "today", Bex\'s last night show as "yesterday"',
+      '🎯 All date navigation (Today, Yesterday, Last 7/30/90 Days) now NZ-aware',
+    ],
+  },
+  {
+    version: '2.5.0019',
+    date: '2025-02-13',
+    changes: [
+      '📅 DRILL-DOWN DATE FILTER VISIBILITY: Zone drill-down now clearly shows active date range',
+      '✨ Added date range indicator in zone header with calendar icon',
+      '🔍 Category breakdown shows duration badge (Single Day / X Days)',
+      '📋 Vehicle list header confirms which date range is being viewed',
+      '✅ Date filters already working, now VISUALLY OBVIOUS to users',
+    ],
+  },
   {
     version: '2.5.0018',
     date: '2025-02-13',
