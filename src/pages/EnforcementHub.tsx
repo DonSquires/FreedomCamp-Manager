@@ -165,14 +165,11 @@ export function EnforcementHub() {
         plate_number,
         zone_id,
         organization_id,
-        is_breach,
-        breach_type,
-        breach_details,
         recorded_at,
         zones (name),
-        canonical_vehicles (homeless_status, is_flagged)
+        canonical_vehicles (homeless_status, is_flagged),
+        compliance_results (is_compliant, violation_reasons)
       `)
-      .eq('is_breach', true)
       .gte('recorded_at', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString())
       .order('recorded_at', { ascending: false });
 
@@ -183,11 +180,25 @@ export function EnforcementHub() {
     const { data: observations, error } = await query;
     if (error) throw error;
 
+    // Filter out homeless exempt vehicles and get only non-compliant observations
+    const nonCompliantObs = (observations || []).filter(obs => {
+      const homelessStatus = (obs.canonical_vehicles as any)?.homeless_status;
+      if (homelessStatus === 'confirmed') return false; // FC Act exemption
+      
+      const result = (obs.compliance_results as any);
+      const isCompliant = Array.isArray(result) && result.length > 0 ? result[0].is_compliant : true;
+      return !isCompliant; // Only non-compliant observations
+    });
+
     const breachMap = new Map<string, any>();
     
-    (observations || []).forEach(obs => {
+    nonCompliantObs.forEach(obs => {
       const key = `${obs.plate_number}-${obs.zone_id}`;
       if (!breachMap.has(key)) {
+        const result = (obs.compliance_results as any);
+        const violationReasons = Array.isArray(result) && result.length > 0 ? result[0].violation_reasons || [] : [];
+        const breachType = violationReasons[0] || 'overstay';
+        
         breachMap.set(key, {
           plate_number: obs.plate_number,
           zone_id: obs.zone_id,
@@ -196,20 +207,20 @@ export function EnforcementHub() {
           total_observations: 0,
           breach_count: 0,
           last_breach_date: obs.recorded_at,
-          last_breach_type: obs.breach_type || 'overstay',
+          last_breach_type: breachType,
           homeless_status: (obs.canonical_vehicles as any)?.homeless_status || null,
           is_flagged: (obs.canonical_vehicles as any)?.is_flagged || false,
-          consecutive_nights: (obs.breach_details as any)?.consecutive_nights || 0,
-          nights_stayed: (obs.breach_details as any)?.nights_stayed || 0,
-          max_allowed_consecutive: (obs.breach_details as any)?.max_consecutive || 3,
-          max_allowed_monthly: (obs.breach_details as any)?.nights_per_month || 28,
+          consecutive_nights: 0,
+          nights_stayed: 0,
+          max_allowed_consecutive: 3,
+          max_allowed_monthly: 28,
           has_active_enforcement: false,
           enforcement_status: null,
         });
       }
       const breach = breachMap.get(key);
       breach.total_observations++;
-      if (obs.is_breach) breach.breach_count++;
+      breach.breach_count++;
     });
 
     const breaches = Array.from(breachMap.values());
