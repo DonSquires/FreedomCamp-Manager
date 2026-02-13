@@ -60,6 +60,7 @@ import { DataManagementHub } from './DataManagementHub';
 import { SettingsHub } from './SettingsHub';
 import { DatabaseDiagnostic } from './DatabaseDiagnostic';
 import { EmergencyDataRecovery } from './EmergencyDataRecovery';
+import { DataRecoveryAnalysis } from './DataRecoveryAnalysis';
 
 interface AdminPortalProps {
   onLogout: () => void;
@@ -426,6 +427,18 @@ export function AdminPortal({ onLogout }: AdminPortalProps) {
             </Button>
 
             <Button
+              variant={activeTab === 'recovery-analysis' ? 'default' : 'ghost'}
+              className="w-full justify-start text-sm lg:text-base h-10 lg:h-9 touch-manipulation bg-blue-50 dark:bg-blue-950/20 border border-blue-500/30"
+              onClick={() => {
+                setActiveTab('recovery-analysis');
+                setSidebarOpen(false);
+              }}
+            >
+              <Database className="h-4 w-4 mr-2 lg:mr-3 text-blue-600" />
+              <span className="text-blue-600 dark:text-blue-400 font-semibold">Recovery Analysis</span>
+            </Button>
+
+            <Button
               variant={activeTab === 'data-integrity' ? 'default' : 'ghost'}
               className="w-full justify-start text-sm lg:text-base h-10 lg:h-9 touch-manipulation"
               onClick={() => {
@@ -653,6 +666,7 @@ export function AdminPortal({ onLogout }: AdminPortalProps) {
               {activeTab === 'settings-hub' && <SettingsHub />}
               {activeTab === 'database-diagnostic' && <DatabaseDiagnostic />}
               {activeTab === 'emergency-recovery' && <EmergencyDataRecovery />}
+              {activeTab === 'recovery-analysis' && <DataRecoveryAnalysis />}
 
               {activeTab === 'cross-org' && isSuperUser && (
                 <Card>
