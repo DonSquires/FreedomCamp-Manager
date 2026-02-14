@@ -28,16 +28,87 @@ Deno.serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    const { plateNumber, photoUrls } = await req.json();
+    const { plateNumber, photoUrls: providedPhotoUrls } = await req.json();
 
-    if (!plateNumber || !photoUrls || photoUrls.length === 0) {
+    if (!plateNumber) {
       return new Response(
-        JSON.stringify({ error: 'Missing plateNumber or photoUrls' }),
+        JSON.stringify({ error: 'Missing plateNumber' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    console.log(`📸 Analyzing ${photoUrls.length} photos for vehicle ${plateNumber}`);
+    console.log(`📸 Starting photo search for vehicle ${plateNumber}...`);
+
+    // STEP 1: Gather ALL photos from multiple sources
+    let photoUrls: string[] = providedPhotoUrls || [];
+
+    // Source 1: vehicle_observations_v2.photo
+    const { data: obsPhotos } = await supabaseClient
+      .from('vehicle_observations_v2')
+      .select('photo')
+      .eq('plate_number', plateNumber)
+      .not('photo', 'is', null);
+
+    if (obsPhotos && obsPhotos.length > 0) {
+      const validObsPhotos = obsPhotos
+        .map(o => o.photo)
+        .filter((p): p is string => p !== null);
+      photoUrls.push(...validObsPhotos);
+      console.log(`Found ${validObsPhotos.length} photos from observations`);
+    }
+
+    // Source 2: flagged_vehicles.attachments
+    const { data: flaggedVehicles } = await supabaseClient
+      .from('flagged_vehicles')
+      .select('attachments')
+      .eq('plate_number', plateNumber)
+      .not('attachments', 'is', null);
+
+    if (flaggedVehicles && flaggedVehicles.length > 0) {
+      flaggedVehicles.forEach(fv => {
+        if (fv.attachments && Array.isArray(fv.attachments)) {
+          const flaggedPhotos = fv.attachments
+            .map((a: any) => a.url)
+            .filter(Boolean);
+          photoUrls.push(...flaggedPhotos);
+          console.log(`Found ${flaggedPhotos.length} photos from flagged vehicles`);
+        }
+      });
+    }
+
+    // Source 3: enforcement_actions (future - if attachments field added)
+    // TODO: Add when enforcement_actions.attachments column exists
+
+    // Source 4: photo_metadata table (if exists)
+    const { data: photoMetadata } = await supabaseClient
+      .from('photo_metadata')
+      .select('photo_url')
+      .eq('vehicle_id', plateNumber) // Assumes vehicle_id can be plate_number in some contexts
+      .not('photo_url', 'is', null);
+
+    if (photoMetadata && photoMetadata.length > 0) {
+      const metadataPhotos = photoMetadata
+        .map(m => m.photo_url)
+        .filter(Boolean);
+      photoUrls.push(...metadataPhotos);
+      console.log(`Found ${metadataPhotos.length} photos from photo_metadata`);
+    }
+
+    // Deduplicate photo URLs
+    photoUrls = [...new Set(photoUrls)];
+
+    console.log(`📸 Total unique photos found: ${photoUrls.length}`);
+
+    if (photoUrls.length === 0) {
+      return new Response(
+        JSON.stringify({ 
+          error: 'No photos found', 
+          bestPhoto: null,
+          totalPhotosSearched: 0 
+        }),
+        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
     // If only one photo, return it immediately
     if (photoUrls.length === 1) {

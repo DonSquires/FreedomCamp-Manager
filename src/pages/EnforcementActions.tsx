@@ -9,6 +9,7 @@
  * - Job Completion: Officer completes with outcome (completed/not_on_site)
  * - Enforcement Tally: Tracks count on canonical_vehicles
  * - Flagged Vehicle Creation: Create warnings during enforcement (NZ Privacy Act compliant)
+ * - Create Enforcement Action: Admin can record completed enforcement actions from start to finish
  * - Integration: Links from dashboard/breach alerts to create jobs
  */
 
@@ -72,9 +73,12 @@ import {
   Flag,
   FileText,
   Ban,
+  Plus,
 } from 'lucide-react';
 import { useAuthStore } from '@/stores/authStore';
+import { VehicleCard } from '@/components/features/VehicleCard';
 import { useUsers } from '@/hooks/useUsers';
+import { useZones } from '@/hooks/useZones';
 import { supabase } from '@/lib/supabase';
 
 interface ActiveBreach {
@@ -120,6 +124,7 @@ interface EnforcementJob {
 export function EnforcementActions() {
   const { user } = useAuthStore();
   const { data: users = [] } = useUsers();
+  const { data: zones = [] } = useZones();
 
   const [activeTab, setActiveTab] = useState('breaches');
   const [isLoading, setIsLoading] = useState(false);
@@ -130,6 +135,7 @@ export function EnforcementActions() {
   // Dialogs
   const [isAssignDialogOpen, setIsAssignDialogOpen] = useState(false);
   const [isCompleteDialogOpen, setIsCompleteDialogOpen] = useState(false);
+  const [isCreateEnforcementOpen, setIsCreateEnforcementOpen] = useState(false);
   const [selectedBreach, setSelectedBreach] = useState<ActiveBreach | null>(null);
   const [selectedJob, setSelectedJob] = useState<EnforcementJob | null>(null);
 
@@ -148,6 +154,27 @@ export function EnforcementActions() {
   const [completeForm, setCompleteForm] = useState({
     outcome: 'completed' as 'completed' | 'not_on_site' | 'cancelled',
     notes: '',
+    photos: [] as string[],
+    createFlaggedVehicle: false,
+    flaggedPriority: 'medium' as 'low' | 'medium' | 'high' | 'urgent',
+    flaggedReason: '',
+    confirmedHomeless: false,
+  });
+
+  // Create enforcement form
+  const [createEnforcementForm, setCreateEnforcementForm] = useState({
+    plate_number: '',
+    zone_id: '',
+    action_type: 'warning' as 'warning' | 'notice' | 'tow' | 'other',
+    assigned_to: '',
+    delivery_method: 'hand_delivered' as 'hand_delivered' | 'windscreen' | 'posted' | 'email' | 'other',
+    recipient_name: '',
+    recipient_email: '',
+    location_lat: '',
+    location_lng: '',
+    notes: '',
+    completion_outcome: 'completed' as 'completed' | 'not_on_site' | 'cancelled',
+    completion_notes: '',
     photos: [] as string[],
     createFlaggedVehicle: false,
     flaggedPriority: 'medium' as 'low' | 'medium' | 'high' | 'urgent',
@@ -483,6 +510,117 @@ export function EnforcementActions() {
     }
   };
 
+  // Create and complete enforcement action in one step
+  const handleCreateEnforcement = async () => {
+    if (!createEnforcementForm.plate_number || !createEnforcementForm.zone_id) {
+      toast.error('Please enter plate number and select zone');
+      return;
+    }
+
+    try {
+      // Find the selected zone to get organization_id
+      const selectedZone = zones.find(z => z.id === createEnforcementForm.zone_id);
+      if (!selectedZone) {
+        toast.error('Invalid zone selected');
+        return;
+      }
+
+      const enforcementData: any = {
+        organization_id: selectedZone.organization_id,
+        zone_id: createEnforcementForm.zone_id,
+        plate_number: createEnforcementForm.plate_number.toUpperCase().trim(),
+        action_type: createEnforcementForm.action_type,
+        breach_status: createEnforcementForm.completion_outcome,
+        user_id: user?.id || '',
+        recorded_at: new Date().toISOString(),
+        status: createEnforcementForm.completion_outcome === 'completed' ? 'delivered' : 'pending',
+        notes: createEnforcementForm.notes || null,
+        completion_outcome: createEnforcementForm.completion_outcome,
+        completion_notes: createEnforcementForm.completion_notes || null,
+        completed_by: user?.id,
+        completed_at: new Date().toISOString(),
+      };
+
+      // Add assignment details if officer selected
+      if (createEnforcementForm.assigned_to) {
+        enforcementData.assigned_to = createEnforcementForm.assigned_to;
+        enforcementData.assigned_by = user?.id;
+        enforcementData.assigned_at = new Date().toISOString();
+      }
+
+      // Add delivery details if provided
+      if (createEnforcementForm.delivery_method) {
+        enforcementData.delivery_method = createEnforcementForm.delivery_method;
+      }
+      if (createEnforcementForm.recipient_name) {
+        enforcementData.recipient_name = createEnforcementForm.recipient_name;
+      }
+      if (createEnforcementForm.recipient_email) {
+        enforcementData.recipient_email = createEnforcementForm.recipient_email;
+      }
+
+      // Add GPS location if provided
+      if (createEnforcementForm.location_lat && createEnforcementForm.location_lng) {
+        enforcementData.location_lat = parseFloat(createEnforcementForm.location_lat);
+        enforcementData.location_lng = parseFloat(createEnforcementForm.location_lng);
+      }
+
+      // Add photos if provided
+      if (createEnforcementForm.photos.length > 0) {
+        enforcementData.attachments = createEnforcementForm.photos.map(url => ({ url, type: 'photo' }));
+      }
+
+      const { error } = await supabase
+        .from('enforcement_actions')
+        .insert(enforcementData);
+
+      if (error) throw error;
+
+      // Create flagged vehicle if requested
+      if (createEnforcementForm.createFlaggedVehicle) {
+        await createFlaggedVehicleRecord(
+          createEnforcementForm.plate_number.toUpperCase().trim(),
+          selectedZone.organization_id,
+          createEnforcementForm.flaggedReason,
+          createEnforcementForm.flaggedPriority,
+          createEnforcementForm.confirmedHomeless
+        );
+      }
+
+      const selectedZoneName = selectedZone.name;
+      toast.success(
+        `Enforcement action recorded for ${createEnforcementForm.plate_number} at ${selectedZoneName}` +
+        (createEnforcementForm.createFlaggedVehicle ? ' and vehicle flagged' : '')
+      );
+      
+      setIsCreateEnforcementOpen(false);
+      setCreateEnforcementForm({
+        plate_number: '',
+        zone_id: '',
+        action_type: 'warning',
+        assigned_to: '',
+        delivery_method: 'hand_delivered',
+        recipient_name: '',
+        recipient_email: '',
+        location_lat: '',
+        location_lng: '',
+        notes: '',
+        completion_outcome: 'completed',
+        completion_notes: '',
+        photos: [],
+        createFlaggedVehicle: false,
+        flaggedPriority: 'medium',
+        flaggedReason: '',
+        confirmedHomeless: false,
+      });
+      loadData();
+
+    } catch (error: any) {
+      console.error('Failed to create enforcement action:', error);
+      toast.error('Failed to create enforcement action: ' + error.message);
+    }
+  };
+
   const getBreachSeverity = (breach: ActiveBreach) => {
     const consecutiveExcess = breach.consecutive_nights - breach.max_allowed_consecutive;
     const monthlyExcess = breach.nights_stayed - breach.max_allowed_monthly;
@@ -520,14 +658,22 @@ export function EnforcementActions() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h2 className="text-3xl font-bold mb-1 flex items-center gap-3">
-          <Shield className="h-8 w-8 text-primary" />
-          Enforcement Management
-        </h2>
-        <p className="text-muted-foreground">
-          Active breaches, job assignment, and enforcement tracking
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-3xl font-bold mb-1 flex items-center gap-3">
+            <Shield className="h-8 w-8 text-primary" />
+            Enforcement Management
+          </h2>
+          <p className="text-muted-foreground">
+            Active breaches, job assignment, and enforcement tracking
+          </p>
+        </div>
+        {isAdmin && (
+          <Button onClick={() => setIsCreateEnforcementOpen(true)} size="lg" className="gap-2">
+            <Plus className="h-5 w-5" />
+            Record Enforcement Action
+          </Button>
+        )}
       </div>
 
       {/* Tabs */}
@@ -590,10 +736,15 @@ export function EnforcementActions() {
                         return (
                           <TableRow key={index}>
                             <TableCell>
-                              <div className="flex items-center gap-2 font-mono font-semibold">
-                                <Car className="h-4 w-4 text-muted-foreground" />
-                                {breach.plate_number}
-                              </div>
+                              <VehicleCard
+                                plateNumber={breach.plate_number}
+                                isFlagged={breach.is_flagged}
+                                isHomeless={breach.homeless_status === 'confirmed'}
+                                isBreach={true}
+                                size="sm"
+                                showPhoto={true}
+                                showDetails={false}
+                              />
                             </TableCell>
                             <TableCell>
                               <div className="flex items-center gap-2">
@@ -708,7 +859,14 @@ export function EnforcementActions() {
                     <TableBody>
                       {enforcementJobs.map((job) => (
                         <TableRow key={job.id}>
-                          <TableCell className="font-mono font-semibold">{job.plate_number}</TableCell>
+                          <TableCell>
+                            <VehicleCard
+                              plateNumber={job.plate_number}
+                              size="sm"
+                              showPhoto={true}
+                              showDetails={false}
+                            />
+                          </TableCell>
                           <TableCell>{job.zone_name}</TableCell>
                           <TableCell>
                             <Badge variant="outline">{job.action_type}</Badge>
@@ -788,7 +946,14 @@ export function EnforcementActions() {
                     <TableBody>
                       {completedJobs.map((job) => (
                         <TableRow key={job.id}>
-                          <TableCell className="font-mono font-semibold">{job.plate_number}</TableCell>
+                          <TableCell>
+                            <VehicleCard
+                              plateNumber={job.plate_number}
+                              size="sm"
+                              showPhoto={true}
+                              showDetails={false}
+                            />
+                          </TableCell>
                           <TableCell>{job.zone_name}</TableCell>
                           <TableCell>
                             <Badge variant="outline">{job.action_type}</Badge>
@@ -817,6 +982,313 @@ export function EnforcementActions() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Create Enforcement Action Dialog - NEW FEATURE */}
+      <Dialog open={isCreateEnforcementOpen} onOpenChange={setIsCreateEnforcementOpen}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Record Enforcement Action</DialogTitle>
+            <DialogDescription>
+              Create and complete an enforcement action record from start to finish
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            {/* Basic Details */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Plate Number *</Label>
+                <Input
+                  value={createEnforcementForm.plate_number}
+                  onChange={(e) => setCreateEnforcementForm({ ...createEnforcementForm, plate_number: e.target.value.toUpperCase() })}
+                  placeholder="ABC123"
+                  className="font-mono"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Zone *</Label>
+                <Select 
+                  value={createEnforcementForm.zone_id} 
+                  onValueChange={(value) => setCreateEnforcementForm({ ...createEnforcementForm, zone_id: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select zone" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {zones
+                      .filter(z => user?.role === 'master' || z.organization_id === user?.organization_id)
+                      .map((zone) => (
+                        <SelectItem key={zone.id} value={zone.id}>
+                          {zone.name}
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Action Type</Label>
+                <Select 
+                  value={createEnforcementForm.action_type} 
+                  onValueChange={(value: any) => setCreateEnforcementForm({ ...createEnforcementForm, action_type: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="warning">Warning</SelectItem>
+                    <SelectItem value="notice">Notice to Vacate</SelectItem>
+                    <SelectItem value="tow">Tow Request</SelectItem>
+                    <SelectItem value="other">Other</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Officer Issuing (Optional)</Label>
+                <Select 
+                  value={createEnforcementForm.assigned_to} 
+                  onValueChange={(value) => setCreateEnforcementForm({ ...createEnforcementForm, assigned_to: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select officer (optional)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">None</SelectItem>
+                    {users.filter(u => u.role === 'officer' || u.role === 'admin').map((officer) => (
+                      <SelectItem key={officer.id} value={officer.id}>
+                        {officer.first_name} {officer.last_name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {/* Delivery Details */}
+            <div className="space-y-3 p-4 border-2 rounded-lg bg-muted/30">
+              <p className="font-semibold text-sm">Delivery Details</p>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Delivery Method</Label>
+                  <Select 
+                    value={createEnforcementForm.delivery_method} 
+                    onValueChange={(value: any) => setCreateEnforcementForm({ ...createEnforcementForm, delivery_method: value })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="hand_delivered">Hand Delivered</SelectItem>
+                      <SelectItem value="windscreen">Placed on Windscreen</SelectItem>
+                      <SelectItem value="posted">Posted to Address</SelectItem>
+                      <SelectItem value="email">Email</SelectItem>
+                      <SelectItem value="other">Other</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Recipient Name (Optional)</Label>
+                  <Input
+                    value={createEnforcementForm.recipient_name}
+                    onChange={(e) => setCreateEnforcementForm({ ...createEnforcementForm, recipient_name: e.target.value })}
+                    placeholder="Owner/occupant name"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Recipient Email (Optional)</Label>
+                <Input
+                  type="email"
+                  value={createEnforcementForm.recipient_email}
+                  onChange={(e) => setCreateEnforcementForm({ ...createEnforcementForm, recipient_email: e.target.value })}
+                  placeholder="owner@example.com"
+                />
+              </div>
+            </div>
+
+            {/* Location */}
+            <div className="space-y-3 p-4 border-2 rounded-lg bg-muted/30">
+              <p className="font-semibold text-sm flex items-center gap-2">
+                <MapPin className="h-4 w-4" />
+                GPS Location (Optional)
+              </p>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Latitude</Label>
+                  <Input
+                    type="number"
+                    step="0.000001"
+                    value={createEnforcementForm.location_lat}
+                    onChange={(e) => setCreateEnforcementForm({ ...createEnforcementForm, location_lat: e.target.value })}
+                    placeholder="-41.270634"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Longitude</Label>
+                  <Input
+                    type="number"
+                    step="0.000001"
+                    value={createEnforcementForm.location_lng}
+                    onChange={(e) => setCreateEnforcementForm({ ...createEnforcementForm, location_lng: e.target.value })}
+                    placeholder="173.283966"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Initial Notes */}
+            <div className="space-y-2">
+              <Label>Action Notes</Label>
+              <Textarea
+                value={createEnforcementForm.notes}
+                onChange={(e) => setCreateEnforcementForm({ ...createEnforcementForm, notes: e.target.value })}
+                placeholder="Details about the enforcement action..."
+                rows={3}
+              />
+            </div>
+
+            {/* Completion Details */}
+            <div className="space-y-3 p-4 border-2 border-green-200 dark:border-green-800 rounded-lg bg-green-50 dark:bg-green-950/20">
+              <p className="font-semibold text-sm flex items-center gap-2">
+                <CheckCircle2 className="h-4 w-4" />
+                Completion Details
+              </p>
+              
+              <div className="space-y-2">
+                <Label>Outcome *</Label>
+                <Select 
+                  value={createEnforcementForm.completion_outcome} 
+                  onValueChange={(value: any) => setCreateEnforcementForm({ ...createEnforcementForm, completion_outcome: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="completed">
+                      <div className="flex items-center gap-2">
+                        <CheckCircle2 className="h-4 w-4 text-green-600" />
+                        Completed Successfully
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="not_on_site">
+                      <div className="flex items-center gap-2">
+                        <Ban className="h-4 w-4 text-gray-600" />
+                        Vehicle Not On Site
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="cancelled">
+                      <div className="flex items-center gap-2">
+                        <XCircle className="h-4 w-4 text-red-600" />
+                        Cancelled
+                      </div>
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Completion Notes</Label>
+                <Textarea
+                  value={createEnforcementForm.completion_notes}
+                  onChange={(e) => setCreateEnforcementForm({ ...createEnforcementForm, completion_notes: e.target.value })}
+                  placeholder="Additional details about completion..."
+                  rows={2}
+                />
+              </div>
+            </div>
+
+            {/* Flag Vehicle Option */}
+            {createEnforcementForm.completion_outcome === 'completed' && (
+              <div className="space-y-3 p-4 border-2 border-amber-200 dark:border-amber-800 rounded-lg bg-amber-50 dark:bg-amber-950/20">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Switch
+                      id="create-flag-vehicle"
+                      checked={createEnforcementForm.createFlaggedVehicle}
+                      onCheckedChange={(checked) => setCreateEnforcementForm({ ...createEnforcementForm, createFlaggedVehicle: checked })}
+                    />
+                    <Label htmlFor="create-flag-vehicle" className="font-semibold cursor-pointer">
+                      🚩 Flag this vehicle for all officers
+                    </Label>
+                  </div>
+                </div>
+                
+                {createEnforcementForm.createFlaggedVehicle && (
+                  <div className="space-y-3 pl-6 border-l-2 border-amber-300">
+                    <p className="text-xs text-muted-foreground">
+                      ⚠️ NZ Privacy Act Compliance: Warning visible to all organizations for officer safety. 
+                      Detailed information only accessible to your organization.
+                    </p>
+                    
+                    <div className="space-y-2">
+                      <Label>Priority Level *</Label>
+                      <Select 
+                        value={createEnforcementForm.flaggedPriority} 
+                        onValueChange={(value: any) => setCreateEnforcementForm({ ...createEnforcementForm, flaggedPriority: value })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="low">Low - Minor Issue</SelectItem>
+                          <SelectItem value="medium">Medium - Watch Closely</SelectItem>
+                          <SelectItem value="high">High - Serious Concern</SelectItem>
+                          <SelectItem value="urgent">Urgent - Immediate Attention</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Reason for Flagging *</Label>
+                      <Textarea
+                        value={createEnforcementForm.flaggedReason}
+                        onChange={(e) => setCreateEnforcementForm({ ...createEnforcementForm, flaggedReason: e.target.value })}
+                        placeholder="e.g., Repeated violations, aggressive behavior, safety concern..."
+                        rows={2}
+                      />
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <Switch
+                        id="create-homeless"
+                        checked={createEnforcementForm.confirmedHomeless}
+                        onCheckedChange={(checked) => setCreateEnforcementForm({ ...createEnforcementForm, confirmedHomeless: checked })}
+                      />
+                      <Label htmlFor="create-homeless" className="text-sm cursor-pointer">
+                        Confirmed Homeless Status (FC Act Exempt)
+                      </Label>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Evidence Photos */}
+            <MultiPhotoUpload
+              photos={createEnforcementForm.photos}
+              onPhotosChange={(photos) => setCreateEnforcementForm({ ...createEnforcementForm, photos })}
+              maxPhotos={5}
+              label="Evidence Photos (Optional)"
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsCreateEnforcementOpen(false)}>Cancel</Button>
+            <Button 
+              onClick={handleCreateEnforcement}
+              disabled={!createEnforcementForm.plate_number || !createEnforcementForm.zone_id}
+            >
+              <CheckCircle2 className="h-4 w-4 mr-2" />
+              Record Enforcement Action
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Assign Officer Dialog */}
       <Dialog open={isAssignDialogOpen} onOpenChange={setIsAssignDialogOpen}>
