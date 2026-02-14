@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
+import { supabase } from '@/lib/supabase';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -52,10 +53,13 @@ import {
   MapPin,
   Calendar,
   User,
+  Loader2,
+  Sparkles,
 } from 'lucide-react';
 import { useAuthStore } from '@/stores/authStore';
 import { useOrganizations } from '@/hooks/useOrganizations';
 import { useFlaggedVehicles } from '@/hooks/useFlaggedVehicles';
+import { VehicleCard } from '@/components/features/VehicleCard';
 
 export function FlaggedVehicles() {
   const { user } = useAuthStore();
@@ -81,50 +85,169 @@ export function FlaggedVehicles() {
     notes: '',
     photos: [] as string[],
   });
+  
+  const [isAnalyzingPhoto, setIsAnalyzingPhoto] = useState(false);
 
+  // Handle photo change with AI analysis on first photo
+  const handleCreatePhotosChange = async (photos: string[]) => {
+    const previousCount = formData.photos.length;
+    setFormData({ ...formData, photos });
+    
+    // If this is the first photo being added, trigger AI analysis
+    if (previousCount === 0 && photos.length === 1) {
+      await analyzeFirstPhoto(photos[0]);
+    }
+  };
+  
+  // AI analysis for first photo
+  const analyzeFirstPhoto = async (photoUrl: string) => {
+    if (!formData.plate_number) {
+      toast.info('💡 Enter plate number first, then AI will analyze the photo');
+      return;
+    }
+    
+    setIsAnalyzingPhoto(true);
+    toast.info('🤖 AI analyzing photo...');
+    
+    try {
+      // Call analyze-vehicle-photo Edge Function
+      const { data, error } = await supabase.functions.invoke('analyze-vehicle-photo', {
+        body: {
+          plateNumber: formData.plate_number.toUpperCase().trim(),
+          photoUrl,
+        },
+      });
+      
+      if (error) throw error;
+      
+      if (data?.analysis) {
+        const analysis = data.analysis;
+        
+        // Auto-populate fields from AI analysis
+        const vehicleDesc = [
+          analysis.color,
+          analysis.year,
+          analysis.make,
+          analysis.model,
+        ].filter(Boolean).join(' ');
+        
+        setFormData(prev => ({
+          ...prev,
+          vehicle_description: vehicleDesc || prev.vehicle_description,
+          // Update priority if self-contained sticker detected
+          priority: analysis.has_green_sticker || analysis.has_blue_sticker ? 'low' : prev.priority,
+        }));
+        
+        toast.success(`✅ AI detected: ${vehicleDesc || 'Vehicle details'}`);
+      } else {
+        toast.info('AI analysis complete - no details detected');
+      }
+    } catch (error: any) {
+      console.error('AI analysis failed:', error);
+      toast.error('AI analysis failed: ' + error.message);
+    } finally {
+      setIsAnalyzingPhoto(false);
+    }
+  };
+  
   const handleCreate = async () => {
     if (!formData.plate_number) {
       toast.error('Please enter a plate number');
       return;
     }
 
-    await createFlaggedVehicle.mutateAsync({
-      organization_id: user?.organization_id || '',
-      created_by: user?.id || '',
-      plate_number: formData.plate_number,
-      vehicle_description: formData.vehicle_description || null,
-      last_known_site: formData.last_known_site || null,
-      name_contact: formData.name_contact || null,
-      confirmed_homeless: formData.confirmed_homeless,
-      priority: formData.priority,
-      notes: formData.notes || null,
-      is_active: true,
-      date_recorded: new Date().toISOString().split('T')[0],
-    });
-
-    setIsCreateDialogOpen(false);
-    setFormData({ plate_number: '', vehicle_description: '', last_known_site: '', name_contact: '', confirmed_homeless: false, priority: 'medium', notes: '', photos: [] });
+    try {
+      // Create flagged vehicle record with photos
+      await createFlaggedVehicle.mutateAsync({
+        organization_id: user?.organization_id || '',
+        created_by: user?.id || '',
+        plate_number: formData.plate_number,
+        vehicle_description: formData.vehicle_description || null,
+        last_known_site: formData.last_known_site || null,
+        name_contact: formData.name_contact || null,
+        confirmed_homeless: formData.confirmed_homeless,
+        priority: formData.priority,
+        notes: formData.notes || null,
+        is_active: true,
+        date_recorded: new Date().toISOString().split('T')[0],
+        attachments: formData.photos.length > 0 ? formData.photos.map(url => ({ url, type: 'photo' })) : null,
+      });
+      
+      // Update canonical vehicle with flagged status
+      await updateCanonicalVehicleFlagged(formData.plate_number, formData.priority, formData.notes || '');
+      
+      toast.success(`✅ Vehicle ${formData.plate_number} flagged successfully`);
+      setIsCreateDialogOpen(false);
+      setFormData({ plate_number: '', vehicle_description: '', last_known_site: '', name_contact: '', confirmed_homeless: false, priority: 'medium', notes: '', photos: [] });
+    } catch (error: any) {
+      console.error('Failed to create flagged vehicle:', error);
+      toast.error('Failed to flag vehicle: ' + error.message);
+    }
+  };
+  
+  // Update canonical_vehicles table with flagged status
+  const updateCanonicalVehicleFlagged = async (
+    plateNumber: string,
+    priority: string,
+    reason: string
+  ) => {
+    try {
+      const { error } = await supabase
+        .from('canonical_vehicles')
+        .update({
+          is_flagged: true,
+          flagged_priority: priority,
+          flagged_reason: reason || 'Flagged by admin',
+          flagged_at: new Date().toISOString(),
+          flagged_by: user?.id,
+        })
+        .eq('plate_number', plateNumber.toUpperCase().trim());
+      
+      if (error) throw error;
+      
+      console.log('✅ Canonical vehicle flagged:', plateNumber);
+    } catch (error: any) {
+      console.error('Failed to update canonical vehicle:', error);
+      // Don't throw - flagged_vehicles record was created successfully
+      toast.warning('Vehicle flagged but canonical record update failed');
+    }
   };
 
   const handleUpdate = async () => {
     if (!editingVehicle) return;
 
-    await updateFlaggedVehicle.mutateAsync({
-      id: editingVehicle.id,
-      updates: {
-        plate_number: editingVehicle.plate_number,
-        vehicle_description: editingVehicle.vehicle_description,
-        last_known_site: editingVehicle.last_known_site,
-        name_contact: editingVehicle.name_contact,
-        confirmed_homeless: editingVehicle.confirmed_homeless,
-        priority: editingVehicle.priority,
-        is_active: editingVehicle.is_active,
-        notes: editingVehicle.notes,
-      },
-    });
-
-    setIsEditDialogOpen(false);
-    setEditingVehicle(null);
+    try {
+      await updateFlaggedVehicle.mutateAsync({
+        id: editingVehicle.id,
+        updates: {
+          plate_number: editingVehicle.plate_number,
+          vehicle_description: editingVehicle.vehicle_description,
+          last_known_site: editingVehicle.last_known_site,
+          name_contact: editingVehicle.name_contact,
+          confirmed_homeless: editingVehicle.confirmed_homeless,
+          priority: editingVehicle.priority,
+          is_active: editingVehicle.is_active,
+          notes: editingVehicle.notes,
+          attachments: editingVehicle.photos?.length > 0 ? editingVehicle.photos.map((url: string) => ({ url, type: 'photo' })) : null,
+        },
+      });
+      
+      // Update canonical vehicle if priority/notes changed
+      if (editingVehicle.is_active) {
+        await updateCanonicalVehicleFlagged(
+          editingVehicle.plate_number,
+          editingVehicle.priority,
+          editingVehicle.notes || ''
+        );
+      }
+      
+      toast.success('Flagged vehicle updated');
+      setIsEditDialogOpen(false);
+      setEditingVehicle(null);
+    } catch (error: any) {
+      console.error('Failed to update flagged vehicle:', error);
+      toast.error('Failed to update: ' + error.message);
+    }
   };
 
   const handleDelete = async () => {
@@ -196,15 +319,18 @@ export function FlaggedVehicles() {
                       }}
                     >
                       <TableCell className="font-medium">
-                        <div className="flex items-center gap-2">
-                          <Car className="h-4 w-4 text-muted-foreground" />
-                          {vehicle.plate_number}
-                        </div>
-                        {vehicle.vehicle_description && (
-                          <p className="text-xs text-muted-foreground mt-0.5">
-                            {vehicle.vehicle_description}
-                          </p>
-                        )}
+                        <VehicleCard
+                          plateNumber={vehicle.plate_number}
+                          vehicleColor={vehicle.vehicle_description?.split(' ')[0]}
+                          vehicleYear={parseInt(vehicle.vehicle_description?.split(' ')[1] || '0') || undefined}
+                          vehicleMake={vehicle.vehicle_description?.split(' ')[2]}
+                          vehicleModel={vehicle.vehicle_description?.split(' ')[3]}
+                          isFlagged={vehicle.is_active}
+                          isHomeless={vehicle.confirmed_homeless}
+                          size="sm"
+                          showPhoto={true}
+                          showDetails={true}
+                        />
                       </TableCell>
                       <TableCell>
                         {vehicle.last_known_site ? (
@@ -253,7 +379,9 @@ export function FlaggedVehicles() {
                             size="icon"
                             onClick={(e) => {
                               e.stopPropagation();
-                              setEditingVehicle({ ...vehicle });
+                              // Convert attachments to photos array for editing
+                              const photos = vehicle.attachments?.map((a: any) => a.url) || [];
+                              setEditingVehicle({ ...vehicle, photos });
                               setIsEditDialogOpen(true);
                             }}
                           >
@@ -348,12 +476,36 @@ export function FlaggedVehicles() {
                 placeholder="Additional notes about this vehicle..."
               />
             </div>
-            <MultiPhotoUpload
-              photos={formData.photos}
-              onPhotosChange={(photos) => setFormData({ ...formData, photos })}
-              maxPhotos={5}
-              label="Evidence Photos"
-            />
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label className="flex items-center gap-2">
+                  Evidence Photos
+                  {isAnalyzingPhoto && (
+                    <span className="text-xs text-blue-600 flex items-center gap-1">
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                      AI analyzing...
+                    </span>
+                  )}
+                </Label>
+                {formData.photos.length === 0 && formData.plate_number && (
+                  <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700">
+                    <Sparkles className="h-3 w-3 mr-1" />
+                    AI ready
+                  </Badge>
+                )}
+              </div>
+              <MultiPhotoUpload
+                photos={formData.photos}
+                onPhotosChange={handleCreatePhotosChange}
+                maxPhotos={5}
+                label=""
+              />
+              {formData.photos.length === 0 && (
+                <p className="text-xs text-muted-foreground">
+                  💡 Add first photo after entering plate number to auto-populate vehicle details with AI
+                </p>
+              )}
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>Cancel</Button>
@@ -363,8 +515,15 @@ export function FlaggedVehicles() {
       </Dialog>
 
       {/* Edit Dialog */}
-      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
-        <DialogContent>
+      <Dialog open={isEditDialogOpen} onOpenChange={(open) => {
+        if (!open) {
+          setIsEditDialogOpen(false);
+          setEditingVehicle(null);
+        } else {
+          setIsEditDialogOpen(true);
+        }
+      }}>
+        <DialogContent className="max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Edit Flagged Vehicle</DialogTitle>
           </DialogHeader>
@@ -428,12 +587,15 @@ export function FlaggedVehicles() {
                   rows={3}
                 />
               </div>
-              <MultiPhotoUpload
-                photos={editingVehicle.photos || []}
-                onPhotosChange={(photos) => setEditingVehicle({ ...editingVehicle, photos })}
-                maxPhotos={5}
-                label="Evidence Photos"
-              />
+              <div className="space-y-2">
+                <Label>Evidence Photos</Label>
+                <MultiPhotoUpload
+                  photos={editingVehicle.photos || []}
+                  onPhotosChange={(photos) => setEditingVehicle({ ...editingVehicle, photos })}
+                  maxPhotos={5}
+                  label=""
+                />
+              </div>
             </div>
           )}
           <DialogFooter>
@@ -445,7 +607,7 @@ export function FlaggedVehicles() {
 
       {/* View Dialog */}
       <Dialog open={isViewDialogOpen} onOpenChange={setIsViewDialogOpen}>
-        <DialogContent className="sm:max-w-[600px]">
+        <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Flag className="h-5 w-5" />
@@ -497,6 +659,24 @@ export function FlaggedVehicles() {
                 <div>
                   <Label className="text-xs text-muted-foreground">Notes</Label>
                   <p className="text-sm mt-1 p-3 bg-muted/50 rounded">{viewingVehicle.notes}</p>
+                </div>
+              )}
+              
+              {/* View Photos */}
+              {viewingVehicle.attachments && viewingVehicle.attachments.length > 0 && (
+                <div>
+                  <Label className="text-xs text-muted-foreground">Evidence Photos ({viewingVehicle.attachments.length})</Label>
+                  <div className="grid grid-cols-3 gap-2 mt-2">
+                    {viewingVehicle.attachments.map((attachment: any, index: number) => (
+                      <img
+                        key={index}
+                        src={attachment.url}
+                        alt={`Photo ${index + 1}`}
+                        className="w-full h-24 object-cover rounded border cursor-pointer hover:opacity-80 transition-opacity"
+                        onClick={() => window.open(attachment.url, '_blank')}
+                      />
+                    ))}
+                  </div>
                 </div>
               )}
             </div>
