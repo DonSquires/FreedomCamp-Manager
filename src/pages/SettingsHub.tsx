@@ -151,12 +151,48 @@ export function SettingsHub() {
 
         <TabsContent value="system" className="mt-6">
           <Card>
-            <CardContent className="p-12 text-center">
-              <Globe className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
-              <h3 className="text-xl font-bold mb-2 text-gray-900 dark:text-white">System Settings</h3>
-              <p className="text-gray-700 dark:text-gray-200 mb-4 font-semibold">
-                Global system configuration and preferences
-              </p>
+            <CardContent className="p-12">
+              {/* About Section */}
+              <div className="mb-8 pb-8 border-b border-gray-200 dark:border-gray-700">
+                <div className="flex items-start gap-6">
+                  <img 
+                    src="/iron-eagle-security-logo.jpg" 
+                    alt="Iron Eagle Security" 
+                    className="w-24 h-24 object-contain"
+                  />
+                  <div className="flex-1">
+                    <h3 className="text-2xl font-bold mb-3 text-gray-900 dark:text-white flex items-center gap-2">
+                      About This Application
+                      <Badge variant="outline" className="ml-2">IES</Badge>
+                    </h3>
+                    <div className="space-y-3 text-gray-700 dark:text-gray-200">
+                      <p className="font-semibold leading-relaxed">
+                        <strong className="text-gray-900 dark:text-white">FreedomCamp Manager</strong> is proudly built and maintained by <strong className="text-blue-600 dark:text-blue-400">Iron Eagle Security (IES)</strong>, a leading provider of professional security services and innovative technology solutions in New Zealand.
+                      </p>
+                      <p className="font-semibold leading-relaxed">
+                        This application was created to address the unique challenges faced by councils and security organizations managing freedom camping compliance across New Zealand. Our mission is to provide field officers and administrators with powerful, intuitive tools that streamline vehicle tracking, compliance monitoring, and enforcement workflows while maintaining strict data privacy standards.
+                      </p>
+                      <p className="font-semibold leading-relaxed">
+                        <strong className="text-gray-900 dark:text-white">Core Purpose:</strong> Empowering field officers with real-time vehicle scanning, automated compliance checking, breach detection, and comprehensive reporting capabilities - all designed to operate seamlessly in remote locations with offline support.
+                      </p>
+                      <div className="flex items-center gap-2 mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                        <Badge className="bg-blue-600 text-white">Iron Eagle Security</Badge>
+                        <Badge variant="outline">NZ Security Solutions</Badge>
+                        <Badge variant="outline">Professional Grade</Badge>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* System Settings */}
+              <div className="text-center mb-6">
+                <Globe className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
+                <h3 className="text-xl font-bold mb-2 text-gray-900 dark:text-white">System Settings</h3>
+                <p className="text-gray-700 dark:text-gray-200 mb-4 font-semibold">
+                  Global system configuration and preferences
+                </p>
+              </div>
               <div className="grid gap-4 max-w-2xl mx-auto text-left">
                 <Card className="border-2">
                   <CardContent className="p-4">
