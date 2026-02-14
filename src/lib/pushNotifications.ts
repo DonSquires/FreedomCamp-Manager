@@ -94,8 +94,8 @@ class PushNotificationManager {
     // Create notification
     const notification = new Notification(options.title, {
       body: options.message,
-      icon: options.icon || '/jds-security-logo.png',
-      badge: options.badge || '/jds-security-logo.png',
+      icon: options.icon || '/iron-eagle-security-logo.jpg',
+      badge: options.badge || '/iron-eagle-security-logo.jpg',
       tag: options.tag || `notification-${Date.now()}`,
       requireInteraction: true, // Keep notification visible until user interacts
       data: options.data || {},
