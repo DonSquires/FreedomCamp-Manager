@@ -179,6 +179,7 @@ export function VehicleRegistry() {
 
   const [vehicles, setVehicles] = useState<CanonicalVehicle[]>([]);
   const [filteredVehicles, setFilteredVehicles] = useState<CanonicalVehicle[]>([]);
+  const [hasSearched, setHasSearched] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
   // Filters
@@ -225,9 +226,10 @@ export function VehicleRegistry() {
     flagged_notes: '',
   });
 
-  useEffect(() => {
-    loadVehicles();
-  }, [user?.id]);
+  // Don't auto-load on mount - wait for user to apply filters
+  // useEffect(() => {
+  //   loadVehicles();
+  // }, [user?.id]);
 
   const loadVehicles = async () => {
     setIsLoading(true);
@@ -244,6 +246,8 @@ export function VehicleRegistry() {
       console.log(`✅ Loaded ${data?.length || 0} canonical vehicles`);
       setVehicles(data || []);
       setFilteredVehicles(data || []);
+      setHasSearched(true);
+      toast.success(`Loaded ${data?.length || 0} vehicles`);
     } catch (error: any) {
       console.error('❌ Failed to load vehicles:', error);
       toast.error('Failed to load vehicles: ' + (error.message || 'Unknown error'));
@@ -878,14 +882,26 @@ export function VehicleRegistry() {
               </div>
             </div>
 
-            {hasActiveFilters && (
-              <div className="flex items-center gap-2 text-sm text-muted-foreground pt-2 border-t">
+            <div className="flex items-center justify-between pt-4 border-t">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Filter className="h-4 w-4" />
-                <span>
-                  Showing {filteredVehicles.length} of {vehicles.length} vehicles
-                </span>
+                {hasSearched && (
+                  <span>
+                    {hasActiveFilters 
+                      ? `Showing ${filteredVehicles.length} of ${vehicles.length} vehicles`
+                      : 'Ready to search'}
+                  </span>
+                )}
               </div>
-            )}
+              <Button onClick={loadVehicles} disabled={isLoading}>
+                {isLoading ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Search className="h-4 w-4 mr-2" />
+                )}
+                Search Vehicles
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -929,12 +945,27 @@ export function VehicleRegistry() {
             <div className="flex items-center justify-center py-12">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
             </div>
+          ) : !hasSearched ? (
+            <div className="text-center py-24 text-muted-foreground">
+              <Filter className="h-20 w-20 mx-auto mb-4 opacity-30" />
+              <h3 className="text-2xl font-bold mb-2 text-gray-900 dark:text-white">Apply Filters to Load Vehicles</h3>
+              <p className="text-lg font-medium mb-4">
+                Use the filters above to search for vehicles, then click "Search Vehicles"
+              </p>
+              <p className="text-sm text-muted-foreground">
+                Tip: Leave all filters empty and click "Search Vehicles" to load all vehicles
+              </p>
+              <Button onClick={loadVehicles} size="lg" className="mt-6">
+                <Search className="h-4 w-4 mr-2" />
+                Search Vehicles
+              </Button>
+            </div>
           ) : filteredVehicles.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground">
               <Car className="h-12 w-12 mx-auto mb-3 opacity-50" />
               <p className="font-medium">No vehicles found</p>
               <p className="text-sm">
-                {hasActiveFilters ? 'Try adjusting your filters' : 'No vehicles have been recorded yet'}
+                {hasActiveFilters ? 'Try adjusting your filters' : 'No vehicles match your search criteria'}
               </p>
             </div>
           ) : (

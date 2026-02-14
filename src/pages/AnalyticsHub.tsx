@@ -120,6 +120,7 @@ export function AnalyticsHub() {
   const [activeTab, setActiveTab] = useState<'overview' | 'zones' | 'officers' | 'breaches'>('overview');
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [hasLoaded, setHasLoaded] = useState(false);
   
   const [data, setData] = useState<AnalyticsData | null>(null);
 
@@ -140,9 +141,10 @@ export function AnalyticsHub() {
     }
   }, [isMaster]);
 
-  useEffect(() => {
-    loadAnalytics();
-  }, [startDate, endDate, selectedOrg]);
+  // Don't auto-load - wait for user to click "Load Analytics"
+  // useEffect(() => {
+  //   loadAnalytics();
+  // }, [startDate, endDate, selectedOrg]);
 
   const loadOrganizations = async () => {
     try {
@@ -418,6 +420,7 @@ export function AnalyticsHub() {
       });
 
       console.log('✅ Analytics loaded successfully');
+      setHasLoaded(true);
 
     } catch (error: any) {
       console.error('❌ Failed to load analytics:', error);
@@ -430,6 +433,7 @@ export function AnalyticsHub() {
 
   const handleRefresh = () => {
     setIsRefreshing(true);
+    setHasLoaded(false);
     loadAnalytics();
   };
 
@@ -541,12 +545,24 @@ export function AnalyticsHub() {
             </div>
           </div>
 
-          <div className="mt-4 flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200 font-semibold">
-            <Calendar className="h-4 w-4" />
-            <span>
-              Analyzing {daysDiff} days ({new Date(startDate).toLocaleDateString('en-NZ')} to {new Date(endDate).toLocaleDateString('en-NZ')})
-              {selectedOrg !== 'all' && ` for ${availableOrgs.find(o => o.id === selectedOrg)?.name || 'selected org'}`}
-            </span>
+          <div className="mt-4 flex items-center justify-between pt-4 border-t">
+            <div className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200 font-semibold">
+              <Calendar className="h-4 w-4" />
+              <span>
+                {hasLoaded 
+                  ? `Analyzing ${daysDiff} days (${new Date(startDate).toLocaleDateString('en-NZ')} to ${new Date(endDate).toLocaleDateString('en-NZ')})`
+                  : 'Select date range and click "Load Analytics"'}
+                {hasLoaded && selectedOrg !== 'all' && ` for ${availableOrgs.find(o => o.id === selectedOrg)?.name || 'selected org'}`}
+              </span>
+            </div>
+            <Button onClick={loadAnalytics} size="lg" disabled={isLoading}>
+              {isLoading ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <BarChart3 className="h-4 w-4 mr-2" />
+              )}
+              Load Analytics
+            </Button>
           </div>
         </CardContent>
       </Card>
@@ -557,6 +573,23 @@ export function AnalyticsHub() {
           <p className="text-lg text-gray-700 dark:text-gray-200 font-semibold">Loading analytics data...</p>
           <p className="text-sm text-gray-600 dark:text-gray-300 mt-1 font-medium">This may take a moment for large datasets</p>
         </div>
+      ) : !hasLoaded ? (
+        <Card className="border-2">
+          <CardContent className="text-center py-24">
+            <Filter className="h-20 w-20 mx-auto mb-4 text-blue-500 opacity-30" />
+            <h3 className="text-2xl font-bold mb-2 text-gray-900 dark:text-white">Set Your Filters and Load Analytics</h3>
+            <p className="text-gray-700 dark:text-gray-200 font-semibold mb-4">
+              Configure your date range{isMaster && ' and organization'} above, then click "Load Analytics"
+            </p>
+            <p className="text-sm text-gray-600 dark:text-gray-300 mb-6 font-medium">
+              Analytics will process observations, compliance rates, zone performance, and officer activity
+            </p>
+            <Button onClick={loadAnalytics} size="lg">
+              <BarChart3 className="h-4 w-4 mr-2" />
+              Load Analytics Now
+            </Button>
+          </CardContent>
+        </Card>
       ) : !data || data.totalObservations === 0 ? (
         <Card className="border-2">
           <CardContent className="text-center py-24">
