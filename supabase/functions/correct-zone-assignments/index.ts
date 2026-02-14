@@ -1,19 +1,17 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
 import { corsHeaders } from '../_shared/cors.ts';
 
+/**
+ * SIMPLE ZONE CORRECTION
+ * 
+ * Query v2 with GPS → Test against zone geofences → Process 80 at a time
+ */
+
 interface Zone {
   id: string;
   name: string;
   geometry: any;
   organization_id: string;
-}
-
-interface VehicleRecord {
-  id: string;
-  zone_id: string;
-  gps_latitude: number;
-  gps_longitude: number;
-  plate_number: string;
 }
 
 // Point-in-polygon ray-casting algorithm
@@ -60,7 +58,7 @@ function isPointInZone(lat: number, lng: number, zone: Zone): boolean {
   if (geometry.type === 'Point') {
     const centerLat = geometry.coordinates[1];
     const centerLng = geometry.coordinates[0];
-    const radius = geometry.radius || 100; // Default 100m radius
+    const radius = geometry.radius || 100;
     const distance = calculateDistance(lat, lng, centerLat, centerLng);
     return distance <= radius;
   }
@@ -76,7 +74,7 @@ function isPointInZone(lat: number, lng: number, zone: Zone): boolean {
 
 // Find closest zone to a point (within 500m threshold)
 function findClosestZone(lat: number, lng: number, zones: Zone[]): Zone | null {
-  const PROXIMITY_THRESHOLD = 500; // 500 meters
+  const PROXIMITY_THRESHOLD = 500;
   let closestZone: Zone | null = null;
   let minDistance = Infinity;
   
@@ -90,7 +88,6 @@ function findClosestZone(lat: number, lng: number, zones: Zone[]): Zone | null {
       const centerLng = zone.geometry.coordinates[0];
       distance = calculateDistance(lat, lng, centerLat, centerLng);
     } else if (zone.geometry.type === 'Polygon' && zone.geometry.coordinates) {
-      // Calculate distance to polygon center (rough approximation)
       const polygon = zone.geometry.coordinates[0];
       const centerLat = polygon.reduce((sum: number, p: number[]) => sum + p[1], 0) / polygon.length;
       const centerLng = polygon.reduce((sum: number, p: number[]) => sum + p[0], 0) / polygon.length;
@@ -109,190 +106,214 @@ function findClosestZone(lat: number, lng: number, zones: Zone[]): Zone | null {
 }
 
 Deno.serve(async (req) => {
-  // Handle CORS
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
+    return new Response(null, { headers: corsHeaders });
   }
 
   try {
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      throw new Error('Missing authorization');
+    }
+
+    const token = authHeader.replace('Bearer ', '');
+
     const supabaseAdmin = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    console.log('🔍 Starting GPS zone correction job...');
+    const supabaseClient = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_ANON_KEY') ?? ''
+    );
 
-    // Fetch all zones with geometry
-    const { data: zones, error: zonesError } = await supabaseAdmin
+    const { data: { user }, error: userError } = await supabaseClient.auth.getUser(token);
+    if (userError || !user) {
+      throw new Error('Unauthorized');
+    }
+
+    const params = await req.json();
+    const { get_total, offset = 0, batch_size = 80 } = params;
+
+    console.log('📥 Request:', { get_total, offset, batch_size });
+
+    // Build query on vehicle_observations_v2 with GPS coordinates
+    let query = supabaseAdmin
+      .from('vehicle_observations_v2')
+      .select('observation_id, plate_number, zone_id, organization_id, recorded_at, gps_latitude, gps_longitude', { count: 'exact' })
+      .not('gps_latitude', 'is', null)
+      .not('gps_longitude', 'is', null);
+
+    // GET TOTAL MODE
+    if (get_total) {
+      const { count, error } = await query.select('*', { count: 'exact', head: true });
+      if (error) throw error;
+
+      console.log(`📊 Total observations with GPS: ${count}`);
+
+      return new Response(
+        JSON.stringify({ total: count || 0 }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Load all active zones (needed for zone matching)
+    const { data: allZones, error: zonesError } = await supabaseAdmin
       .from('zones')
       .select('id, name, geometry, organization_id')
       .eq('is_active', true);
 
-    if (zonesError) {
-      console.error('Failed to fetch zones:', zonesError);
-      throw zonesError;
-    }
+    if (zonesError) throw zonesError;
 
-    console.log(`📍 Found ${zones?.length || 0} active zones`);
-
-    // Find or create "Other" zone for each organization
+    // Get or create "Other" zones for each organization
     const { data: orgs } = await supabaseAdmin
       .from('organizations')
       .select('id, name')
       .eq('is_active', true);
 
-    const otherZonesByOrg = new Map<string, string>();
+    const otherZonesByOrg = new Map<string, { id: string; name: string }>();
 
     for (const org of orgs || []) {
-      let otherZone = zones?.find(z => z.name.toLowerCase() === 'other' && z.organization_id === org.id);
+      let otherZone = allZones?.find(z => z.name.toLowerCase() === 'other' && z.organization_id === org.id);
       
       if (!otherZone) {
-        // Create "Other" zone for this organization
-        const { data: newZone, error: createError } = await supabaseAdmin
+        const { data: newZone } = await supabaseAdmin
           .from('zones')
           .insert({
             organization_id: org.id,
             name: 'Other',
-            description: 'Records with GPS locations outside defined zones',
+            description: 'GPS locations outside defined zones',
             self_contained_required: false,
-            nights_per_month: 28,
-            max_consecutive_nights: 3,
-            geometry: null, // No geofence for "Other" zone
+            geometry: null,
             is_active: true,
           })
-          .select('id')
+          .select('id, name')
           .single();
 
-        if (createError) {
-          console.error(`Failed to create Other zone for ${org.name}:`, createError);
+        if (newZone) {
+          otherZonesByOrg.set(org.id, { id: newZone.id, name: 'Other' });
+        }
+      } else {
+        otherZonesByOrg.set(org.id, { id: otherZone.id, name: otherZone.name });
+      }
+    }
+
+    // PROCESS BATCH MODE
+    const { data: observations, error: obsError } = await query
+      .order('recorded_at', { ascending: true })
+      .range(offset, offset + batch_size - 1);
+
+    if (obsError) throw obsError;
+
+    console.log(`📦 Processing ${observations?.length || 0} observations`);
+
+    if (!observations || observations.length === 0) {
+      return new Response(
+        JSON.stringify({ processed: 0, corrected: 0, moved_to_other: 0, corrections: [] }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    let processed = 0;
+    let corrected = 0;
+    let movedToOther = 0;
+    const corrections: any[] = [];
+
+    for (const obs of observations) {
+      try {
+        const lat = parseFloat(obs.gps_latitude);
+        const lng = parseFloat(obs.gps_longitude);
+        const currentZoneId = obs.zone_id;
+        const orgId = obs.organization_id;
+
+        // Get zones for this organization (excluding "Other")
+        const orgZones = allZones?.filter(z => z.organization_id === orgId && z.name.toLowerCase() !== 'other') || [];
+
+        // Check if in current zone
+        const currentZone = allZones?.find(z => z.id === currentZoneId);
+        const isInCurrentZone = currentZone ? isPointInZone(lat, lng, currentZone) : false;
+
+        if (isInCurrentZone) {
+          processed++;
+          continue; // Already correct
+        }
+
+        // Find correct zone
+        let correctZone: Zone | null = null;
+
+        // Check if point is inside any zone
+        for (const zone of orgZones) {
+          if (isPointInZone(lat, lng, zone)) {
+            correctZone = zone;
+            break;
+          }
+        }
+
+        // If not inside, find closest zone (within 500m)
+        if (!correctZone) {
+          correctZone = findClosestZone(lat, lng, orgZones);
+        }
+
+        // If still no match, assign to "Other"
+        if (!correctZone) {
+          const otherZone = otherZonesByOrg.get(orgId);
+          if (otherZone && otherZone.id !== currentZoneId) {
+            await supabaseAdmin
+              .from('vehicle_observations_v2')
+              .update({ zone_id: otherZone.id })
+              .eq('observation_id', obs.observation_id);
+
+            movedToOther++;
+            corrections.push({
+              observation_id: obs.observation_id,
+              plate_number: obs.plate_number,
+              old_zone_name: currentZone?.name || 'Unknown',
+              new_zone_name: otherZone.name,
+              recorded_at: obs.recorded_at,
+            });
+          }
+          processed++;
           continue;
         }
 
-        otherZonesByOrg.set(org.id, newZone.id);
-        console.log(`✅ Created "Other" zone for ${org.name}`);
-      } else {
-        otherZonesByOrg.set(org.id, otherZone.id);
-      }
-    }
-
-    // Fetch all vehicle observations with GPS coordinates
-    const { data: observations, error: observationsError } = await supabaseAdmin
-      .from('vehicle_observations_v2')
-      .select('observation_id, zone_id, gps_latitude, gps_longitude, plate_number, organization_id, zones!inner(name, organization_id)')
-      .not('gps_latitude', 'is', null)
-      .not('gps_longitude', 'is', null);
-
-    if (observationsError) {
-      console.error('Failed to fetch observations:', observationsError);
-      throw observationsError;
-    }
-
-    console.log(`📋 Processing ${observations?.length || 0} observations with GPS coordinates`);
-
-    let corrected = 0;
-    let skipped = 0;
-    let movedToOther = 0;
-
-    for (const observation of observations || []) {
-      const lat = parseFloat(observation.gps_latitude);
-      const lng = parseFloat(observation.gps_longitude);
-      const currentZoneId = observation.zone_id;
-      const orgId = observation.organization_id;
-
-      // Get zones for this organization
-      const orgZones = zones?.filter(z => z.organization_id === orgId && z.name.toLowerCase() !== 'other') || [];
-
-      // Check if current location is in current zone
-      const currentZone = zones?.find(z => z.id === currentZoneId);
-      const isInCurrentZone = currentZone ? isPointInZone(lat, lng, currentZone) : false;
-
-      if (isInCurrentZone) {
-        skipped++;
-        continue; // Record is in correct zone
-      }
-
-      // Find correct zone
-      let correctZone: Zone | null = null;
-
-      // First, check if point is inside any zone
-      for (const zone of orgZones) {
-        if (isPointInZone(lat, lng, zone)) {
-          correctZone = zone;
-          break;
-        }
-      }
-
-      // If not inside any zone, find closest zone (within 500m)
-      if (!correctZone) {
-        correctZone = findClosestZone(lat, lng, orgZones);
-      }
-
-      // If still no match, assign to "Other" zone
-      if (!correctZone) {
-        const otherZoneId = otherZonesByOrg.get(orgId);
-        if (otherZoneId && otherZoneId !== currentZoneId) {
-          const { error: updateError } = await supabaseAdmin
+        // Update zone if different
+        if (correctZone.id !== currentZoneId) {
+          await supabaseAdmin
             .from('vehicle_observations_v2')
-            .update({ zone_id: otherZoneId })
-            .eq('observation_id', observation.observation_id);
+            .update({ zone_id: correctZone.id })
+            .eq('observation_id', obs.observation_id);
 
-          if (updateError) {
-            console.error(`Failed to update observation ${observation.observation_id}:`, updateError);
-          } else {
-            movedToOther++;
-            console.log(`📌 Moved ${observation.plate_number} to "Other" zone (GPS outside all zones)`);
-          }
-        }
-        continue;
-      }
-
-      // Update zone if different
-      if (correctZone.id !== currentZoneId) {
-        const { error: updateError } = await supabaseAdmin
-          .from('vehicle_observations_v2')
-          .update({ zone_id: correctZone.id })
-          .eq('observation_id', observation.observation_id);
-
-        if (updateError) {
-          console.error(`Failed to update observation ${observation.observation_id}:`, updateError);
-        } else {
           corrected++;
-          console.log(`✅ Corrected ${observation.plate_number}: ${(observation as any).zones?.name} → ${correctZone.name}`);
+          corrections.push({
+            observation_id: obs.observation_id,
+            plate_number: obs.plate_number,
+            old_zone_name: currentZone?.name || 'Unknown',
+            new_zone_name: correctZone.name,
+            recorded_at: obs.recorded_at,
+          });
         }
+
+        processed++;
+
+      } catch (error: any) {
+        console.error(`Error processing ${obs.observation_id}:`, error.message);
+        processed++;
       }
     }
 
-    const summary = {
-      total_observations: observations?.length || 0,
-      corrected,
-      moved_to_other: movedToOther,
-      already_correct: skipped,
-      timestamp: new Date().toISOString(),
-    };
-
-    console.log('📊 GPS Zone Correction Summary:', summary);
+    console.log(`✅ Batch complete: ${processed} processed, ${corrected} corrected, ${movedToOther} moved to Other`);
 
     return new Response(
-      JSON.stringify({
-        success: true,
-        summary,
-      }),
-      {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 200,
-      }
+      JSON.stringify({ processed, corrected, moved_to_other: movedToOther, corrections }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
+
   } catch (error: any) {
-    console.error('❌ GPS zone correction failed:', error);
+    console.error('❌ Error:', error);
     return new Response(
-      JSON.stringify({
-        success: false,
-        error: error.message,
-      }),
-      {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 500,
-      }
+      JSON.stringify({ error: error.message }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
     );
   }
 });
