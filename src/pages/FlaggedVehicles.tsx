@@ -88,32 +88,92 @@ export function FlaggedVehicles() {
   
   const [isAnalyzingPhoto, setIsAnalyzingPhoto] = useState(false);
 
-  // Handle photo change with AI analysis on first photo
+  // Handle photo change with ALPR + AI analysis on first photo
   const handleCreatePhotosChange = async (photos: string[]) => {
     const previousCount = formData.photos.length;
     setFormData(prev => ({ ...prev, photos }));
     
-    // If this is the first photo being added, trigger AI analysis
+    // If this is the first photo being added, trigger ALPR + analysis
     if (previousCount === 0 && photos.length === 1) {
       await analyzeFirstPhoto(photos[0]);
     }
   };
   
-  // AI analysis for first photo
+  // ALPR + AI analysis for first photo (same workflow as field officer)
   const analyzeFirstPhoto = async (photoUrl: string) => {
-    if (!formData.plate_number) {
-      toast.info('💡 Enter plate number first, then AI will analyze the photo');
-      return;
-    }
-    
     setIsAnalyzingPhoto(true);
-    toast.info('🤖 AI analyzing photo...');
+    toast.info('🤖 ALPR recognizing plate number...');
     
     try {
-      // Call analyze-vehicle-photo Edge Function
+      // Step 1: ALPR - Recognize plate number from photo
+      const { data: alprData, error: alprError } = await supabase.functions.invoke('recognize-plate', {
+        body: { photoUrl },
+      });
+      
+      if (alprError) throw alprError;
+      
+      const recognizedPlate = alprData?.results?.[0]?.plate?.toUpperCase().trim();
+      
+      if (!recognizedPlate) {
+        toast.warning('Could not recognize plate number from photo - please enter manually');
+        return;
+      }
+      
+      toast.success(`✅ Plate recognized: ${recognizedPlate}`);
+      
+      // Step 2: Search canonical_vehicles for existing record
+      const { data: canonical, error: canonicalError } = await supabase
+        .from('canonical_vehicles')
+        .select('*')
+        .eq('plate_number', recognizedPlate)
+        .maybeSingle();
+      
+      if (canonicalError && canonicalError.code !== 'PGRST116') {
+        throw canonicalError;
+      }
+      
+      if (canonical) {
+        // Found existing canonical record - auto-populate all fields
+        toast.success('✅ Found existing vehicle record - auto-populating details');
+        
+        const vehicleDesc = [
+          canonical.vehicle_color,
+          canonical.vehicle_year,
+          canonical.vehicle_make,
+          canonical.vehicle_model,
+        ].filter(Boolean).join(' ');
+        
+        setFormData(prev => ({
+          ...prev,
+          plate_number: recognizedPlate,
+          vehicle_description: vehicleDesc || prev.vehicle_description,
+          priority: canonical.is_flagged ? 'high' : 'medium',
+          confirmed_homeless: canonical.homeless_status === 'confirmed',
+          notes: canonical.is_flagged 
+            ? `Previously flagged: ${canonical.flagged_reason || 'No reason specified'}` 
+            : prev.notes,
+        }));
+      } else {
+        // No canonical record - use AI analysis like field officer workflow
+        toast.info('No existing record - using AI to analyze vehicle details');
+        setFormData(prev => ({ ...prev, plate_number: recognizedPlate }));
+        await analyzeVehicleDetails(recognizedPlate, photoUrl);
+      }
+      
+    } catch (error: any) {
+      console.error('ALPR/Analysis failed:', error);
+      toast.error('Failed to process photo: ' + error.message);
+    } finally {
+      setIsAnalyzingPhoto(false);
+    }
+  };
+  
+  // Vehicle AI analysis helper (extract make/model/color from photo)
+  const analyzeVehicleDetails = async (plateNumber: string, photoUrl: string) => {
+    try {
       const { data, error } = await supabase.functions.invoke('analyze-vehicle-photo', {
         body: {
-          plateNumber: formData.plate_number.toUpperCase().trim(),
+          plateNumber: plateNumber.toUpperCase().trim(),
           photoUrl,
         },
       });
@@ -123,7 +183,6 @@ export function FlaggedVehicles() {
       if (data?.analysis) {
         const analysis = data.analysis;
         
-        // Auto-populate fields from AI analysis
         const vehicleDesc = [
           analysis.color,
           analysis.year,
@@ -134,19 +193,14 @@ export function FlaggedVehicles() {
         setFormData(prev => ({
           ...prev,
           vehicle_description: vehicleDesc || prev.vehicle_description,
-          // Update priority if self-contained sticker detected
           priority: analysis.has_green_sticker || analysis.has_blue_sticker ? 'low' : prev.priority,
         }));
         
         toast.success(`✅ AI detected: ${vehicleDesc || 'Vehicle details'}`);
-      } else {
-        toast.info('AI analysis complete - no details detected');
       }
     } catch (error: any) {
       console.error('AI analysis failed:', error);
       toast.error('AI analysis failed: ' + error.message);
-    } finally {
-      setIsAnalyzingPhoto(false);
     }
   };
   
@@ -418,11 +472,11 @@ export function FlaggedVehicles() {
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label>Plate Number *</Label>
+              <Label>Plate Number</Label>
               <Input
                 value={formData.plate_number}
                 onChange={(e) => setFormData({ ...formData, plate_number: e.target.value.toUpperCase() })}
-                placeholder="Enter plate number"
+                placeholder="Will be auto-populated from first photo"
               />
             </div>
             <div className="space-y-2">
@@ -487,10 +541,10 @@ export function FlaggedVehicles() {
                     </span>
                   )}
                 </Label>
-                {formData.photos.length === 0 && formData.plate_number && (
+                {formData.photos.length === 0 && (
                   <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700">
                     <Sparkles className="h-3 w-3 mr-1" />
-                    AI ready
+                    ALPR ready
                   </Badge>
                 )}
               </div>
@@ -504,7 +558,7 @@ export function FlaggedVehicles() {
               </div>
               {formData.photos.length === 0 && (
                 <p className="text-xs text-muted-foreground">
-                  💡 Add first photo after entering plate number to auto-populate vehicle details with AI
+                  💡 First photo will auto-recognize plate number with ALPR + search canonical records
                 </p>
               )}
             </div>
