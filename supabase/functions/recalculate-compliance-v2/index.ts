@@ -2,9 +2,11 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
 import { corsHeaders } from '../_shared/cors.ts';
 
 /**
- * SIMPLE COMPLIANCE RECALCULATION
+ * STRICT ZONE-BASED COMPLIANCE RECALCULATION
  * 
- * Query v2 → Filter by zones + dates → Process 80 at a time → Test against matrix
+ * ✅ ONLY uses zone-specific compliance matrix (ignores organization)
+ * ✅ FAILS if zone missing matrix (doesn't silently skip)
+ * ✅ Logs matrix details for transparency
  */
 
 Deno.serve(async (req) => {
@@ -67,6 +69,26 @@ Deno.serve(async (req) => {
 
       console.log(`📊 Total observations: ${count}`);
 
+      // PRE-CHECK: Verify all selected zones have compliance matrices
+      const { data: zonesWithoutMatrix } = await supabaseAdmin
+        .from('zones')
+        .select('id, name')
+        .in('id', zoneIds)
+        .not('id', 'in', `(SELECT DISTINCT zone_id FROM zone_compliance_matrix WHERE zone_id = ANY($1))`, [zoneIds]);
+
+      if (zonesWithoutMatrix && zonesWithoutMatrix.length > 0) {
+        const zoneNames = zonesWithoutMatrix.map(z => z.name).join(', ');
+        console.warn(`⚠️ WARNING: ${zonesWithoutMatrix.length} zone(s) missing compliance matrix: ${zoneNames}`);
+        
+        return new Response(
+          JSON.stringify({ 
+            total: count || 0,
+            warning: `${zonesWithoutMatrix.length} zone(s) missing compliance matrix: ${zoneNames}. These observations will be skipped.`
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
       return new Response(
         JSON.stringify({ total: count || 0 }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -84,14 +106,19 @@ Deno.serve(async (req) => {
 
     if (!observations || observations.length === 0) {
       return new Response(
-        JSON.stringify({ processed: 0, complianceChanged: 0, breachesCreated: 0 }),
+        JSON.stringify({ processed: 0, complianceChanged: 0, breachesCreated: 0, skippedNoMatrix: 0 }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
+    // Track zone matrices (cache to avoid re-querying)
+    const zoneMatrices = new Map<string, any>();
+    const zonesWithoutMatrix = new Set<string>();
+
     let processed = 0;
     let complianceChanged = 0;
     let breachesCreated = 0;
+    let skippedNoMatrix = 0;
 
     for (const obs of observations) {
       try {
@@ -101,34 +128,65 @@ Deno.serve(async (req) => {
           continue;
         }
 
-        // Get active matrix for this zone
-        const { data: matrix } = await supabaseAdmin
-          .from('zone_compliance_matrix')
-          .select('*')
-          .eq('zone_id', obs.zone_id)
-          .lte('effective_from', obs.recorded_at)
-          .or(`effective_to.is.null,effective_to.gte.${obs.recorded_at}`)
-          .order('version', { ascending: false })
-          .limit(1)
-          .maybeSingle();
+        // Get or retrieve cached matrix for this zone
+        let matrix = zoneMatrices.get(obs.zone_id);
+
+        if (!matrix && !zonesWithoutMatrix.has(obs.zone_id)) {
+          const { data: foundMatrix } = await supabaseAdmin
+            .from('zone_compliance_matrix')
+            .select('*')
+            .eq('zone_id', obs.zone_id)
+            .lte('effective_from', obs.recorded_at)
+            .or(`effective_to.is.null,effective_to.gte.${obs.recorded_at}`)
+            .order('version', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+          if (foundMatrix) {
+            zoneMatrices.set(obs.zone_id, foundMatrix);
+            matrix = foundMatrix;
+            
+            // Log matrix details on first encounter
+            console.log(`📋 Zone ${obs.zone_id}: Using matrix v${foundMatrix.version} - SC:${foundMatrix.self_contained_required}, Max:${foundMatrix.max_consecutive_nights}n, Month:${foundMatrix.nights_per_month}n`);
+          } else {
+            zonesWithoutMatrix.add(obs.zone_id);
+            
+            // Get zone name for better error message
+            const { data: zoneData } = await supabaseAdmin
+              .from('zones')
+              .select('name')
+              .eq('id', obs.zone_id)
+              .single();
+            
+            console.warn(`⚠️ Zone "${zoneData?.name || obs.zone_id}" has NO compliance matrix - skipping observations`);
+          }
+        }
 
         if (!matrix) {
+          skippedNoMatrix++;
           processed++;
           continue;
         }
 
-        // Test against calculate_vehicle_compliance
+        // Test against calculate_vehicle_compliance (ZONE-SPECIFIC ONLY)
         const checkDate = obs.recorded_at.split('T')[0];
         const { data: complianceResult, error: calcError } = await supabaseAdmin.rpc(
           'calculate_vehicle_compliance',
           {
             p_plate_number: plateNumber,
-            p_zone_id: obs.zone_id,
+            p_zone_id: obs.zone_id,  // ✅ ZONE-SPECIFIC
             p_check_date: checkDate,
           }
         );
 
-        if (calcError || !complianceResult || complianceResult.length === 0) {
+        if (calcError) {
+          console.error(`❌ Compliance calc error for ${plateNumber}:`, calcError.message);
+          processed++;
+          continue;
+        }
+
+        if (!complianceResult || complianceResult.length === 0) {
+          console.warn(`⚠️ No compliance result for ${plateNumber} in zone ${obs.zone_id}`);
           processed++;
           continue;
         }
@@ -190,21 +248,28 @@ Deno.serve(async (req) => {
             });
 
             breachesCreated++;
+            console.log(`🚨 BREACH: ${plateNumber} - ${compliance.violation_message}`);
           }
         }
 
         processed++;
 
       } catch (error: any) {
-        console.error(`Error processing ${obs.observation_id}:`, error.message);
+        console.error(`❌ Error processing ${obs.observation_id}:`, error.message);
         processed++;
       }
     }
 
-    console.log(`✅ Batch complete: ${processed} processed, ${complianceChanged} changed, ${breachesCreated} breaches`);
+    console.log(`✅ Batch complete: ${processed} processed, ${complianceChanged} changed, ${breachesCreated} breaches, ${skippedNoMatrix} skipped (no matrix)`);
 
     return new Response(
-      JSON.stringify({ processed, complianceChanged, breachesCreated }),
+      JSON.stringify({ 
+        processed, 
+        complianceChanged, 
+        breachesCreated, 
+        skippedNoMatrix,
+        zonesWithoutMatrix: Array.from(zonesWithoutMatrix)
+      }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 

@@ -1,203 +1,315 @@
 /**
- * Zone Corrections - Manual trigger for GPS-based zone correction
+ * Zone Corrections - SIMPLE VERSION
+ * Target V2 → Test GPS against zones → Process 80 at a time
  */
 
 import { useState } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
-import {
-  MapPin,
-  RefreshCw,
-  CheckCircle2,
-  AlertTriangle,
-  Loader2,
-  Clock,
-} from 'lucide-react';
+import { Progress } from '@/components/ui/progress';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { MapPin, Loader2, CheckCircle2, AlertTriangle } from 'lucide-react';
+import { ResponsiveContainer } from '@/components/layout/ResponsiveContainer';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
-import { useAuthStore } from '@/stores/authStore';
 
-interface CorrectionSummary {
-  total_checked: number;
+interface ZoneCorrection {
+  observation_id: string;
+  plate_number: string;
+  old_zone_name: string;
+  new_zone_name: string;
+  recorded_at: string;
+}
+
+interface ProcessingStatus {
+  isProcessing: boolean;
+  currentBatch: number;
+  totalBatches: number;
+  processed: number;
   corrected: number;
-  already_correct: number;
-  corrections: {
-    observation_id: string;
-    plate_number: string;
-    old_zone: string;
-    new_zone: string;
-    recorded_at: string;
-  }[];
-  timestamp: string;
+  movedToOther: number;
+  corrections: ZoneCorrection[];
 }
 
 export function ZoneCorrections() {
-  const { user } = useAuthStore();
-  const [isRunning, setIsRunning] = useState(false);
-  const [lastRun, setLastRun] = useState<CorrectionSummary | null>(null);
+  const [status, setStatus] = useState<ProcessingStatus>({
+    isProcessing: false,
+    currentBatch: 0,
+    totalBatches: 0,
+    processed: 0,
+    corrected: 0,
+    movedToOther: 0,
+    corrections: [],
+  });
 
-  const handleRunCorrection = async () => {
-    setIsRunning(true);
-    toast.loading('Checking observations for zone mismatches...');
-
+  const runZoneCorrection = async () => {
     try {
-      const { data, error } = await supabase.functions.invoke('check-zone-corrections', {
-        body: {},
+      // Step 1: Get total count
+      toast.info('Getting record count...');
+
+      const { data: totalData, error: totalError } = await supabase.functions.invoke(
+        'correct-zone-assignments',
+        { body: { get_total: true } }
+      );
+
+      if (totalError) throw totalError;
+
+      const totalRecords = totalData?.total || 0;
+
+      if (totalRecords === 0) {
+        toast.warning('No observations with GPS coordinates found');
+        return;
+      }
+
+      const batchSize = 80;
+      const totalBatches = Math.ceil(totalRecords / batchSize);
+
+      toast.success(`Found ${totalRecords.toLocaleString()} observations to check`);
+
+      setStatus({
+        isProcessing: true,
+        currentBatch: 0,
+        totalBatches,
+        processed: 0,
+        corrected: 0,
+        movedToOther: 0,
+        corrections: [],
       });
 
-      if (error) throw error;
+      // Step 2: Process batches
+      let offset = 0;
+      let totalProcessed = 0;
+      let totalCorrected = 0;
+      let totalMovedToOther = 0;
+      let allCorrections: ZoneCorrection[] = [];
 
-      setLastRun(data.summary);
-      
-      if (data.summary.corrected > 0) {
-        toast.success(`✅ Corrected ${data.summary.corrected} observation${data.summary.corrected !== 1 ? 's' : ''}`);
-      } else {
-        toast.info('✓ All observations are in correct zones');
+      for (let batchNum = 1; batchNum <= totalBatches; batchNum++) {
+        setStatus(prev => ({
+          ...prev,
+          currentBatch: batchNum,
+        }));
+
+        const { data: batchData, error: batchError } = await supabase.functions.invoke(
+          'correct-zone-assignments',
+          {
+            body: {
+              offset,
+              batch_size: batchSize,
+            },
+          }
+        );
+
+        if (batchError) {
+          console.error('Batch error:', batchError);
+          offset += batchSize;
+          continue;
+        }
+
+        totalProcessed += batchData?.processed || 0;
+        totalCorrected += batchData?.corrected || 0;
+        totalMovedToOther += batchData?.moved_to_other || 0;
+        allCorrections = [...allCorrections, ...(batchData?.corrections || [])];
+
+        setStatus(prev => ({
+          ...prev,
+          processed: totalProcessed,
+          corrected: totalCorrected,
+          movedToOther: totalMovedToOther,
+          corrections: allCorrections,
+        }));
+
+        offset += batchSize;
+        await new Promise(resolve => setTimeout(resolve, 500));
       }
+
+      setStatus(prev => ({ ...prev, isProcessing: false }));
+
+      if (totalCorrected === 0 && totalMovedToOther === 0) {
+        toast.success('✅ All observations are in correct zones!');
+      } else {
+        toast.success(
+          `✅ Complete!\n${totalCorrected} corrected\n${totalMovedToOther} moved to "Other"`,
+          { duration: 10000 }
+        );
+      }
+
     } catch (error: any) {
-      console.error('Zone correction failed:', error);
-      toast.error('Failed to run correction: ' + error.message);
-    } finally {
-      setIsRunning(false);
+      setStatus(prev => ({ ...prev, isProcessing: false }));
+      toast.error('Failed: ' + error.message);
     }
   };
 
+  const alreadyCorrect = status.processed - status.corrected - status.movedToOther;
+
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold flex items-center gap-2">
-          <MapPin className="h-8 w-8 text-blue-600" />
-          GPS Zone Corrections
-        </h1>
-        <p className="text-muted-foreground mt-1">
-          Check and correct observations where GPS location doesn't match assigned zone
-        </p>
-      </div>
+    <ResponsiveContainer maxWidth="2xl" padding="lg">
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-3xl font-bold flex items-center gap-3">
+            <MapPin className="h-8 w-8 text-blue-500" />
+            GPS Zone Corrections
+          </h1>
+          <p className="text-muted-foreground mt-1">
+            Process 80 records at a time - check GPS coordinates against zone boundaries
+          </p>
+        </div>
 
-      {/* Info Alert */}
-      <Alert>
-        <AlertTriangle className="h-4 w-4" />
-        <AlertTitle>How Zone Correction Works</AlertTitle>
-        <AlertDescription className="text-sm">
-          <ul className="list-disc list-inside space-y-1 mt-2">
-            <li>Checks observations from the last 24 hours</li>
-            <li>Uses GPS coordinates to detect correct zone via geofence</li>
-            <li>Automatically updates zone_id if GPS indicates wrong zone</li>
-            <li>Ignores observations without GPS data</li>
-          </ul>
-        </AlertDescription>
-      </Alert>
-
-      {/* Run Correction Card */}
-      <Card className="border-2 border-blue-200">
-        <CardHeader>
-          <CardTitle>Manual Zone Correction</CardTitle>
-          <CardDescription>
-            Run this check to verify and correct zone assignments based on GPS data
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Button
-            onClick={handleRunCorrection}
-            disabled={isRunning}
-            size="lg"
-            className="w-full h-14 text-lg"
-          >
-            {isRunning ? (
-              <>
-                <Loader2 className="h-5 w-5 mr-2 animate-spin" />
-                Running Correction...
-              </>
-            ) : (
-              <>
-                <RefreshCw className="h-5 w-5 mr-2" />
-                Run Zone Correction Check
-              </>
-            )}
-          </Button>
-        </CardContent>
-      </Card>
-
-      {/* Last Run Results */}
-      {lastRun && (
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg flex items-center justify-between">
-              <span className="flex items-center gap-2">
-                <CheckCircle2 className="h-5 w-5 text-green-600" />
-                Last Run Results
-              </span>
-              <Badge variant="outline" className="text-xs">
-                <Clock className="h-3 w-3 mr-1" />
-                {new Date(lastRun.timestamp).toLocaleString('en-NZ')}
-              </Badge>
-            </CardTitle>
+            <CardTitle>Zone Correction</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
-            {/* Summary Stats */}
-            <div className="grid grid-cols-3 gap-4">
-              <div className="p-4 bg-muted rounded-lg text-center">
-                <p className="text-sm text-muted-foreground">Checked</p>
-                <p className="text-2xl font-bold">{lastRun.total_checked}</p>
+          <CardContent className="space-y-6">
+            <Alert>
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription>
+                <strong>What this checks (targeting vehicle_observations_v2):</strong>
+                <ul className="list-disc list-inside mt-2 space-y-1 text-sm">
+                  <li>Test GPS coordinates against zone geofences</li>
+                  <li>Update zone_id if GPS shows vehicle is in different zone</li>
+                  <li>Move to "Other" zone if GPS is outside all zones</li>
+                  <li>Skip observations without GPS data</li>
+                </ul>
+              </AlertDescription>
+            </Alert>
+
+            <Button
+              onClick={runZoneCorrection}
+              disabled={status.isProcessing}
+              className="w-full h-12"
+              size="lg"
+            >
+              {status.isProcessing ? (
+                <>
+                  <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+                  Batch {status.currentBatch}/{status.totalBatches}...
+                </>
+              ) : (
+                <>
+                  <CheckCircle2 className="h-5 w-5 mr-2" />
+                  Run Zone Correction
+                </>
+              )}
+            </Button>
+          </CardContent>
+        </Card>
+
+        {/* Progress */}
+        {status.isProcessing && (
+          <Card className="border-2 border-blue-500">
+            <CardHeader>
+              <CardTitle className="text-base">Processing Status</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <Progress value={(status.currentBatch / status.totalBatches) * 100} className="h-3" />
+              
+              <div className="grid grid-cols-2 gap-3">
+                <div className="text-center p-3 bg-blue-50 dark:bg-blue-950/20 rounded">
+                  <div className="text-2xl font-bold text-blue-600">{status.processed}</div>
+                  <div className="text-xs text-muted-foreground">Processed</div>
+                </div>
+                <div className="text-center p-3 bg-green-50 dark:bg-green-950/20 rounded">
+                  <div className="text-2xl font-bold text-green-600">{status.corrected}</div>
+                  <div className="text-xs text-muted-foreground">Corrected</div>
+                </div>
               </div>
-              <div className="p-4 bg-green-50 dark:bg-green-950 rounded-lg text-center">
-                <p className="text-sm text-muted-foreground">Corrected</p>
-                <p className="text-2xl font-bold text-green-700">{lastRun.corrected}</p>
-              </div>
-              <div className="p-4 bg-blue-50 dark:bg-blue-950 rounded-lg text-center">
-                <p className="text-sm text-muted-foreground">Already Correct</p>
-                <p className="text-2xl font-bold text-blue-700">{lastRun.already_correct}</p>
-              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Results Summary */}
+        {!status.isProcessing && status.processed > 0 && (
+          <>
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">Checked</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-3xl font-bold">{status.processed.toLocaleString()}</div>
+                </CardContent>
+              </Card>
+
+              <Card className={status.corrected > 0 ? 'border-green-200 bg-green-50' : ''}>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm font-medium text-green-600">Corrected</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-3xl font-bold text-green-600">{status.corrected}</div>
+                </CardContent>
+              </Card>
+
+              <Card className={status.movedToOther > 0 ? 'border-amber-200 bg-amber-50' : ''}>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm font-medium text-amber-600">Moved to "Other"</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-3xl font-bold text-amber-600">{status.movedToOther}</div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">Already Correct</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-3xl font-bold">{alreadyCorrect}</div>
+                </CardContent>
+              </Card>
             </div>
 
             {/* Corrections List */}
-            {lastRun.corrections.length > 0 && (
-              <div className="space-y-2">
-                <p className="text-sm font-semibold">Recent Corrections:</p>
-                {lastRun.corrections.map((correction) => (
-                  <div
-                    key={correction.observation_id}
-                    className="p-3 bg-muted rounded-lg text-sm"
-                  >
-                    <div className="flex items-center justify-between mb-1">
-                      <span className="font-mono font-semibold">{correction.plate_number}</span>
-                      <Badge variant="secondary" className="text-xs">
-                        {new Date(correction.recorded_at).toLocaleString('en-NZ', {
-                          month: 'short',
-                          day: 'numeric',
-                          hour: '2-digit',
-                          minute: '2-digit',
-                        })}
-                      </Badge>
-                    </div>
-                    <div className="text-muted-foreground flex items-center gap-2">
-                      <span className="line-through">{correction.old_zone}</span>
-                      <span>→</span>
-                      <span className="text-green-600 font-semibold">{correction.new_zone}</span>
-                    </div>
+            {status.corrections.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Corrections Made ({status.corrections.length})</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2 max-h-[600px] overflow-y-auto">
+                    {status.corrections.map((correction, index) => (
+                      <div
+                        key={`${correction.observation_id}-${index}`}
+                        className="border rounded-lg p-4 bg-green-50 dark:bg-green-950/20"
+                      >
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="font-mono font-bold text-lg">{correction.plate_number}</span>
+                          <Badge variant="outline" className="text-xs">
+                            {new Date(correction.recorded_at).toLocaleString('en-NZ', {
+                              month: 'short',
+                              day: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })}
+                          </Badge>
+                        </div>
+                        
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                          <span className="line-through">{correction.old_zone_name}</span>
+                          <span>→</span>
+                          <span className="text-green-600 font-semibold">{correction.new_zone_name}</span>
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                ))}
-                {lastRun.corrected > 10 && (
-                  <p className="text-xs text-muted-foreground text-center">
-                    Showing 10 of {lastRun.corrected} corrections
-                  </p>
-                )}
-              </div>
+                </CardContent>
+              </Card>
             )}
+          </>
+        )}
 
-            {lastRun.corrected === 0 && (
-              <Alert>
-                <CheckCircle2 className="h-4 w-4" />
-                <AlertDescription className="text-sm">
-                  ✓ All recent observations are assigned to correct zones based on GPS data
-                </AlertDescription>
-              </Alert>
-            )}
-          </CardContent>
-        </Card>
-      )}
-    </div>
+        {/* No Corrections */}
+        {!status.isProcessing && status.processed > 0 && status.corrected === 0 && status.movedToOther === 0 && (
+          <Card className="border-green-200 bg-green-50">
+            <CardContent className="text-center py-12">
+              <CheckCircle2 className="h-16 w-16 text-green-600 mx-auto mb-4" />
+              <h3 className="text-xl font-bold text-green-900 mb-2">All Correct!</h3>
+              <p className="text-green-700">
+                All observations are assigned to correct zones based on GPS coordinates.
+              </p>
+            </CardContent>
+          </Card>
+        )}
+      </div>
+    </ResponsiveContainer>
   );
 }

@@ -25,6 +25,8 @@ interface ProcessingStatus {
   processed: number;
   complianceChanged: number;
   breachesCreated: number;
+  skippedNoMatrix: number;
+  zonesWithoutMatrix: string[];
 }
 
 export function ComplianceRecalculation() {
@@ -127,6 +129,8 @@ export function ComplianceRecalculation() {
         processed: 0,
         complianceChanged: 0,
         breachesCreated: 0,
+        skippedNoMatrix: 0,
+        zonesWithoutMatrix: [],
       });
 
       // Step 2: Process batches
@@ -163,12 +167,16 @@ export function ComplianceRecalculation() {
         totalProcessed += batchData?.processed || 0;
         totalChanged += batchData?.complianceChanged || 0;
         totalBreaches += batchData?.breachesCreated || 0;
+        const skipped = batchData?.skippedNoMatrix || 0;
+        const zonesWithoutMatrix = batchData?.zonesWithoutMatrix || [];
 
         setStatus(prev => ({
           ...prev,
           processed: totalProcessed,
           complianceChanged: totalChanged,
           breachesCreated: totalBreaches,
+          skippedNoMatrix: prev.skippedNoMatrix + skipped,
+          zonesWithoutMatrix: Array.from(new Set([...prev.zonesWithoutMatrix, ...zonesWithoutMatrix])),
         }));
 
         offset += batchSize;
@@ -306,6 +314,12 @@ export function ComplianceRecalculation() {
                   <div className="text-2xl font-bold text-red-600">{status.breachesCreated}</div>
                   <div className="text-xs text-muted-foreground">Breaches</div>
                 </div>
+                {status.skippedNoMatrix > 0 && (
+                  <div className="text-center p-3 bg-yellow-50 dark:bg-yellow-950/20 rounded border border-yellow-300">
+                    <div className="text-2xl font-bold text-yellow-600">{status.skippedNoMatrix}</div>
+                    <div className="text-xs text-muted-foreground">Skipped (No Matrix)</div>
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
