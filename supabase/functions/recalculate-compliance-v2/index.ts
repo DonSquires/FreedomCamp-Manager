@@ -2,52 +2,24 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
 import { corsHeaders } from '../_shared/cors.ts';
 
 /**
- * COMPLIANCE RECALCULATION V2 - Clean Architecture
+ * SIMPLE COMPLIANCE RECALCULATION
  * 
- * Creates ONE breach alert per non-compliant observation
- * Parameters:
- * - scope: 'ZONE' | 'ORG' | 'BUILD'
- * - zoneIds: array of zone UUIDs (required if scope=ZONE)
- * - orgIds: array of org UUIDs (required if scope=ORG)
- * - dateRangeStart: ISO date string (optional)
- * - dateRangeEnd: ISO date string (optional)
+ * Query v2 → Filter by zones + dates → Process 80 at a time → Test against matrix
  */
 
-interface RecalculationParams {
-  scope: 'ZONE' | 'ORG' | 'BUILD';
-  zoneIds?: string[];
-  orgIds?: string[];
-  dateRangeStart?: string;
-  dateRangeEnd?: string;
-  get_organizations?: boolean;
-  get_zones?: boolean;
-  organization_id?: string;
-  batch_size?: number;  // Number of observations to process per batch (default: 250)
-  offset?: number;      // Starting offset for pagination
-  get_total?: boolean;  // Get total count only (for pagination UI)
-}
-
 Deno.serve(async (req) => {
-  // Handle CORS
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
-  const startTime = Date.now();
-
   try {
-    // Auth check
     const authHeader = req.headers.get('Authorization');
     if (!authHeader) {
-      return new Response(
-        JSON.stringify({ error: 'Missing authorization' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      throw new Error('Missing authorization');
     }
 
     const token = authHeader.replace('Bearer ', '');
 
-    // Create clients
     const supabaseAdmin = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
@@ -58,259 +30,78 @@ Deno.serve(async (req) => {
       Deno.env.get('SUPABASE_ANON_KEY') ?? ''
     );
 
-    // Get user
     const { data: { user }, error: userError } = await supabaseClient.auth.getUser(token);
     if (userError || !user) {
-      return new Response(
-        JSON.stringify({ error: 'Unauthorized' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      throw new Error('Unauthorized');
     }
 
-    // Check role
-    const { data: profile } = await supabaseAdmin
-      .from('user_profiles')
-      .select('role, organization_id')
-      .eq('id', user.id)
-      .single();
+    const params = await req.json();
+    const { zoneIds, dateRangeStart, dateRangeEnd, get_total, offset = 0, batch_size = 80 } = params;
 
-    if (!profile || !['admin', 'master'].includes(profile.role)) {
-      return new Response(
-        JSON.stringify({ error: 'Insufficient permissions - admin or master role required' }),
-        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+    console.log('📥 Request:', { zoneIds, dateRangeStart, dateRangeEnd, get_total, offset, batch_size });
+
+    if (!zoneIds || zoneIds.length === 0) {
+      throw new Error('zoneIds required');
     }
 
-    // Parse request
-    const params: RecalculationParams = await req.json();
-    console.log('📥 Recalculation request:', params);
-
-    // GET ORGANIZATIONS MODE: Return list of orgs to process
-    if (params.get_organizations) {
-      let query = supabaseAdmin
-        .from('organizations')
-        .select('id, name, is_active')
-        .eq('is_active', true)
-        .order('name');
-
-      // Apply scope filters
-      if (params.scope === 'ORG' && params.orgIds && params.orgIds.length > 0) {
-        query = query.in('id', params.orgIds);
-      } else if (params.scope === 'ZONE' && params.zoneIds && params.zoneIds.length > 0) {
-        // Get organizations that have the selected zones
-        const { data: zones } = await supabaseAdmin
-          .from('zones')
-          .select('organization_id')
-          .in('id', params.zoneIds);
-
-        const orgIds = [...new Set(zones?.map(z => z.organization_id) || [])];
-        if (orgIds.length > 0) {
-          query = query.in('id', orgIds);
-        }
-      }
-      // BUILD scope = all organizations (no filter)
-
-      const { data: orgs, error: orgsError } = await query;
-
-      if (orgsError) {
-        throw new Error(`Failed to fetch organizations: ${orgsError.message}`);
-      }
-
-      return new Response(
-        JSON.stringify({ organizations: orgs || [] }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // GET ZONES MODE: Return list of zones for an org
-    if (params.get_zones && params.organization_id) {
-      let query = supabaseAdmin
-        .from('zones')
-        .select('id, name, is_active')
-        .eq('organization_id', params.organization_id)
-        .eq('is_active', true)
-        .order('name');
-
-      // Apply zone filter if scope is ZONE
-      if (params.scope === 'ZONE' && params.zoneIds && params.zoneIds.length > 0) {
-        query = query.in('id', params.zoneIds);
-      }
-
-      const { data: zones, error: zonesError } = await query;
-
-      if (zonesError) {
-        throw new Error(`Failed to fetch zones: ${zonesError.message}`);
-      }
-
-      return new Response(
-        JSON.stringify({ zones: zones || [] }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // Validate scope
-    if (!params.scope || !['ZONE', 'ORG', 'BUILD'].includes(params.scope)) {
-      return new Response(
-        JSON.stringify({ error: 'Invalid scope - must be ZONE, ORG, or BUILD' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // Validate required parameters
-    if (params.scope === 'ZONE' && (!params.zoneIds || params.zoneIds.length === 0)) {
-      return new Response(
-        JSON.stringify({ error: 'zoneIds required when scope=ZONE' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    if (params.scope === 'ORG' && (!params.orgIds || params.orgIds.length === 0)) {
-      return new Response(
-        JSON.stringify({ error: 'orgIds required when scope=ORG' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // STEP 1: Create action record
-    const { data: actionRecord, error: actionError } = await supabaseAdmin
-      .from('admin_recalculation_actions')
-      .insert({
-        scope_type: params.scope,
-        target_zone_ids: params.zoneIds || null,
-        target_org_ids: params.orgIds || null,
-        date_range_start: params.dateRangeStart || null,
-        date_range_end: params.dateRangeEnd || null,
-        status: 'running',
-        performed_by: user.id,
-        observations_processed: 0,
-        compliance_changed: 0,
-        drift_events_created: 0,
-      })
-      .select()
-      .single();
-
-    if (actionError) {
-      throw new Error(`Failed to create action record: ${actionError.message}`);
-    }
-
-    console.log(`📝 Created action record: ${actionRecord.id}`);
-
-    // STEP 2: Build query for observations (using vehicle_observations_v2)
+    // Build query on vehicle_observations_v2
     let query = supabaseAdmin
       .from('vehicle_observations_v2')
-      .select(`
-        observation_id,
-        plate_number,
-        zone_id,
-        organization_id,
-        recorded_at
-      `);
+      .select('observation_id, plate_number, zone_id, organization_id, recorded_at', { count: 'exact' });
 
-    // Apply scope filters
-    if (params.scope === 'ZONE') {
-      query = query.in('zone_id', params.zoneIds!);
-    } else if (params.scope === 'ORG') {
-      query = query.in('organization_id', params.orgIds!);
+    // Filter by zones
+    query = query.in('zone_id', zoneIds);
+
+    // Filter by date range
+    if (dateRangeStart) {
+      query = query.gte('recorded_at', `${dateRangeStart}T00:00:00Z`);
+    }
+    if (dateRangeEnd) {
+      query = query.lte('recorded_at', `${dateRangeEnd}T23:59:59Z`);
     }
 
-    // Apply date filters
-    if (params.dateRangeStart) {
-      const startTimestamp = params.dateRangeStart.includes('T') 
-        ? params.dateRangeStart 
-        : `${params.dateRangeStart}T00:00:00Z`;
-      query = query.gte('recorded_at', startTimestamp);
-    }
+    // GET TOTAL MODE
+    if (get_total) {
+      const { count, error } = await query.select('*', { count: 'exact', head: true });
+      if (error) throw error;
 
-    if (params.dateRangeEnd) {
-      const endTimestamp = params.dateRangeEnd.includes('T') 
-        ? params.dateRangeEnd 
-        : `${params.dateRangeEnd}T23:59:59Z`;
-      query = query.lte('recorded_at', endTimestamp);
-    }
-
-    // GET TOTAL COUNT MODE: Return total observations count (for pagination UI)
-    if (params.get_total) {
-      const { count, error: countError } = await query
-        .select('*', { count: 'exact', head: true });
-
-      if (countError) {
-        throw new Error(`Failed to count observations: ${countError.message}`);
-      }
+      console.log(`📊 Total observations: ${count}`);
 
       return new Response(
-        JSON.stringify({ total_observations: count || 0 }),
+        JSON.stringify({ total: count || 0 }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Batch configuration
-    const batchSize = params.batch_size || 250;  // Default: 250 observations per batch
-    const offset = params.offset || 0;
-
-    console.log(`📦 Batch configuration: ${batchSize} records at offset ${offset}`);
-
-    // Fetch observations (with pagination)
+    // PROCESS BATCH MODE
     const { data: observations, error: obsError } = await query
       .order('recorded_at', { ascending: true })
-      .range(offset, offset + batchSize - 1);  // Fetch only this batch
+      .range(offset, offset + batch_size - 1);
 
-    if (obsError) {
-      throw new Error(`Failed to fetch observations: ${obsError.message}`);
-    }
+    if (obsError) throw obsError;
 
-    const totalObs = observations?.length || 0;
-    console.log(`📊 Processing batch: ${totalObs} observations (offset: ${offset})`);
+    console.log(`📦 Processing ${observations?.length || 0} observations`);
 
-    if (totalObs === 0) {
-      await supabaseAdmin
-        .from('admin_recalculation_actions')
-        .update({
-          status: 'completed',
-          completed_at: new Date().toISOString(),
-          duration_seconds: Math.round((Date.now() - startTime) / 1000),
-        })
-        .eq('id', actionRecord.id);
-
+    if (!observations || observations.length === 0) {
       return new Response(
-        JSON.stringify({
-          success: true,
-          actionId: actionRecord.id,
-          totalObservations: 0,
-          batch_size: batchSize,
-          offset: offset,
-          has_more: false,
-          summary: { processed: 0, complianceChanged: 0, breachAlertsCreated: 0 },
-        }),
+        JSON.stringify({ processed: 0, complianceChanged: 0, breachesCreated: 0 }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // STEP 3: Process observations
     let processed = 0;
     let complianceChanged = 0;
-    let breachAlertsCreated = 0;
-    let errors = 0;
+    let breachesCreated = 0;
 
     for (const obs of observations) {
       try {
-        const plateNumber = (obs as any).plate_number;
-
+        const plateNumber = obs.plate_number;
         if (!plateNumber) {
-          console.warn(`⚠️ Skipping ${obs.observation_id} - no plate_number`);
           processed++;
           continue;
         }
 
-        // Get vehicle homeless status from canonical_vehicles
-        const { data: vehicle } = await supabaseAdmin
-          .from('canonical_vehicles')
-          .select('homeless_status')
-          .eq('plate_number', plateNumber)
-          .maybeSingle();
-
-        const isHomeless = vehicle?.homeless_status === 'confirmed' || false;
-
-        // Get active matrix
+        // Get active matrix for this zone
         const { data: matrix } = await supabaseAdmin
           .from('zone_compliance_matrix')
           .select('*')
@@ -322,14 +113,13 @@ Deno.serve(async (req) => {
           .maybeSingle();
 
         if (!matrix) {
-          console.warn(`⚠️ No matrix for zone ${obs.zone_id} at ${obs.recorded_at}`);
           processed++;
           continue;
         }
 
-        // Calculate compliance
+        // Test against calculate_vehicle_compliance
         const checkDate = obs.recorded_at.split('T')[0];
-        const { data: complianceData, error: calcError } = await supabaseAdmin.rpc(
+        const { data: complianceResult, error: calcError } = await supabaseAdmin.rpc(
           'calculate_vehicle_compliance',
           {
             p_plate_number: plateNumber,
@@ -338,65 +128,47 @@ Deno.serve(async (req) => {
           }
         );
 
-        if (calcError || !complianceData || complianceData.length === 0) {
-          console.error(`❌ Calc failed for ${plateNumber}: ${calcError?.message}`);
-          errors++;
+        if (calcError || !complianceResult || complianceResult.length === 0) {
           processed++;
           continue;
         }
 
-        const compliance = complianceData[0];
+        const compliance = complianceResult[0];
 
-        // Get current compliance result to detect changes
+        // Check if compliance changed
         const { data: currentResult } = await supabaseAdmin
           .from('compliance_results')
           .select('is_compliant')
           .eq('observation_id', obs.observation_id)
           .maybeSingle();
 
-        // Upsert compliance result (using plate_number instead of vehicle_id)
-        const { error: upsertError } = await supabaseAdmin
-          .from('compliance_results')
-          .upsert({
-            observation_id: obs.observation_id,
-            vehicle_id: null, // Deprecated - using plate_number now
-            zone_id: obs.zone_id,
-            organization_id: obs.organization_id,
+        // Save compliance result
+        await supabaseAdmin.from('compliance_results').upsert({
+          observation_id: obs.observation_id,
+          vehicle_id: null,
+          zone_id: obs.zone_id,
+          organization_id: obs.organization_id,
+          matrix_id: matrix.id,
+          matrix_version: matrix.version,
+          is_compliant: compliance.is_compliant,
+          violation_reasons: compliance.violation_type ? [compliance.violation_type] : [],
+          metrics_json: compliance,
+          matrix_snapshot: {
             matrix_id: matrix.id,
-            matrix_version: matrix.version,
-            is_compliant: compliance.is_compliant,
-            violation_reasons: compliance.violation_type ? [compliance.violation_type] : [],
-            metrics_json: compliance,
-            matrix_snapshot: {
-              matrix_id: matrix.id,
-              version: matrix.version,
-              self_contained_required: matrix.self_contained_required,
-              nights_per_month: matrix.nights_per_month,
-              max_consecutive_nights: matrix.max_consecutive_nights,
-              day_visit_only: matrix.day_visit_only,
-              allowed_days: matrix.allowed_days,
-              homeless_exemption: matrix.homeless_exemption,
-            },
-            evaluated_at: new Date().toISOString(),
-          }, {
-            onConflict: 'observation_id,matrix_id'
-          });
+            version: matrix.version,
+            self_contained_required: matrix.self_contained_required,
+            nights_per_month: matrix.nights_per_month,
+            max_consecutive_nights: matrix.max_consecutive_nights,
+          },
+          evaluated_at: new Date().toISOString(),
+        }, { onConflict: 'observation_id,matrix_id' });
 
-        if (upsertError) {
-          console.error(`❌ Upsert failed for ${obs.observation_id}: ${upsertError.message}`);
-          errors++;
-          processed++;
-          continue;
-        }
-
-        // Track compliance changes
         if (!currentResult || currentResult.is_compliant !== compliance.is_compliant) {
           complianceChanged++;
         }
 
-        // CREATE BREACH ALERT IF NON-COMPLIANT (ONE PER OBSERVATION)
+        // Create breach alert if non-compliant
         if (!compliance.is_compliant) {
-          // Check if breach alert already exists for THIS observation
           const { data: existingBreach } = await supabaseAdmin
             .from('breach_alerts')
             .select('id')
@@ -404,116 +176,43 @@ Deno.serve(async (req) => {
             .maybeSingle();
 
           if (!existingBreach) {
-            const { error: breachError } = await supabaseAdmin
-              .from('breach_alerts')
-              .insert({
-                organization_id: obs.organization_id,
-                zone_id: obs.zone_id,
-                observation_id: obs.observation_id,
-                breach_type: compliance.violation_type || 'compliance_violation',
-                breach_details: {
-                  violation_message: compliance.violation_message,
-                  violation_severity: compliance.violation_severity,
-                  consecutive_nights: compliance.consecutive_nights,
-                  month_nights: compliance.month_nights,
-                  fine_amount: compliance.fine_amount,
-                  recommended_action: compliance.recommended_action,
-                  is_homeless: isHomeless,
-                  detected_at: obs.recorded_at,
-                  auto_created_by_recalculation: true,
-                },
-                status: 'pending',
-                action_status: 'pending_review',
-              });
+            await supabaseAdmin.from('breach_alerts').insert({
+              organization_id: obs.organization_id,
+              zone_id: obs.zone_id,
+              observation_id: obs.observation_id,
+              breach_type: compliance.violation_type || 'compliance_violation',
+              breach_details: {
+                violation_message: compliance.violation_message,
+                consecutive_nights: compliance.consecutive_nights,
+                month_nights: compliance.month_nights,
+              },
+              status: 'pending',
+            });
 
-            if (breachError) {
-              // Check if it's a unique constraint violation (observation_id already has a breach)
-              if (breachError.code === '23505') {
-                console.log(`ℹ️ Breach alert already exists for ${obs.observation_id} (unique constraint)`);
-              } else {
-                console.error(`❌ Breach insert failed for ${obs.observation_id}: ${breachError.message}`);
-                errors++;
-              }
-            } else {
-              breachAlertsCreated++;
-              console.log(`📝 Created breach alert for ${plateNumber} (${compliance.violation_type})`);
-            }
+            breachesCreated++;
           }
         }
 
         processed++;
 
-        // Update progress every 50 observations
-        if (processed % 50 === 0) {
-          await supabaseAdmin
-            .from('admin_recalculation_actions')
-            .update({
-              observations_processed: processed,
-              compliance_changed: complianceChanged,
-            })
-            .eq('id', actionRecord.id);
-
-          console.log(`📊 Progress: ${processed}/${totalObs} (${Math.round(processed/totalObs*100)}%)`);
-        }
-
       } catch (error: any) {
-        console.error(`❌ Error processing ${obs.observation_id}:`, error.message);
-        errors++;
+        console.error(`Error processing ${obs.observation_id}:`, error.message);
         processed++;
       }
     }
 
-    // Mark as completed
-    const durationSeconds = Math.round((Date.now() - startTime) / 1000);
-
-    await supabaseAdmin
-      .from('admin_recalculation_actions')
-      .update({
-        status: errors > 0 && processed < totalObs * 0.5 ? 'failed' : 'completed',
-        observations_processed: processed,
-        compliance_changed: complianceChanged,
-        completed_at: new Date().toISOString(),
-        duration_seconds: durationSeconds,
-        error_message: errors > 0 ? `Completed with ${errors} errors` : null,
-      })
-      .eq('id', actionRecord.id);
-
-    console.log(`✅ Batch complete: ${processed} processed, ${complianceChanged} changed, ${breachAlertsCreated} breach alerts created`);
-
-    // Check if there are more records to process
-    const hasMore = totalObs === batchSize;
+    console.log(`✅ Batch complete: ${processed} processed, ${complianceChanged} changed, ${breachesCreated} breaches`);
 
     return new Response(
-      JSON.stringify({
-        success: true,
-        actionId: actionRecord.id,
-        totalObservations: totalObs,
-        batch_size: batchSize,
-        offset: offset,
-        next_offset: offset + totalObs,
-        has_more: hasMore,
-        summary: {
-          processed,
-          complianceChanged,
-          breachAlertsCreated,
-          errors,
-          durationSeconds,
-        },
-      }),
+      JSON.stringify({ processed, complianceChanged, breachesCreated }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
   } catch (error: any) {
-    console.error('❌ Recalculation failed:', error);
+    console.error('❌ Error:', error);
     return new Response(
-      JSON.stringify({
-        success: false,
-        error: error.message || 'Unknown error occurred',
-      }),
-      {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 500,
-      }
+      JSON.stringify({ error: error.message }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500 }
     );
   }
 });
