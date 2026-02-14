@@ -1,7 +1,7 @@
 {
-  "name": "FreedomCamp Manager",
-  "short_name": "FreedomCamp",
-  "description": "Vehicle tracking and compliance management for field officers",
+  "name": "FreedomCamp Manager - Iron Eagle Security",
+  "short_name": "FC Manager IES",
+  "description": "Iron Eagle Security vehicle tracking and compliance management for field officers",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
@@ -13,15 +13,15 @@
   "lang": "en-NZ",
   "icons": [
     {
-      "src": "/jds-security-logo.png",
+      "src": "/iron-eagle-security-logo.jpg",
       "sizes": "72x72 96x96 128x128 144x144 152x152 192x192 384x384 512x512",
-      "type": "image/png",
+      "type": "image/jpeg",
       "purpose": "any"
     },
     {
-      "src": "/jds-security-logo.png",
+      "src": "/iron-eagle-security-logo.jpg",
       "sizes": "192x192 512x512",
-      "type": "image/png",
+      "type": "image/jpeg",
       "purpose": "maskable"
     }
   ],
@@ -36,9 +36,9 @@
       "url": "/",
       "icons": [
         {
-          "src": "/jds-security-logo.png",
+          "src": "/iron-eagle-security-logo.jpg",
           "sizes": "192x192",
-          "type": "image/png"
+          "type": "image/jpeg"
         }
       ]
     },
@@ -49,9 +49,9 @@
       "url": "/incidents",
       "icons": [
         {
-          "src": "/jds-security-logo.png",
+          "src": "/iron-eagle-security-logo.jpg",
           "sizes": "192x192",
-          "type": "image/png"
+          "type": "image/jpeg"
         }
       ]
     },
@@ -62,9 +62,9 @@
       "url": "/",
       "icons": [
         {
-          "src": "/jds-security-logo.png",
+          "src": "/iron-eagle-security-logo.jpg",
           "sizes": "192x192",
-          "type": "image/png"
+          "type": "image/jpeg"
         }
       ]
     }

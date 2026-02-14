@@ -1,6 +1,9 @@
 /**
- * CompanyLogo - Official Iron Eagle Security branding component
+ * CompanyLogo - Official Iron Eagle Security (IES) branding component
  * Used consistently across all portals and pages
+ * 
+ * Iron Eagle Security provides professional security services and technology solutions
+ * for compliance management and field operations in New Zealand.
  */
 
 export interface CompanyLogoProps {
@@ -24,8 +27,8 @@ export function CompanyLogo({
 
   return (
     <img 
-      src="/iron-eagle-security-logo.png" 
-      alt="Iron Eagle Security" 
+      src="/iron-eagle-security-logo.jpg" 
+      alt="Iron Eagle Security (IES)" 
       className={`w-auto ${sizeClasses[size]} ${showShadow ? 'drop-shadow-lg' : ''} ${className}`}
       style={showShadow ? { filter: 'drop-shadow(0 4px 6px rgba(0,0,0,0.3))' } : undefined}
     />
