@@ -166,16 +166,24 @@ export function ComplianceRecalculation() {
     try {
       // Step 1: Get total count
       console.log('🔍 Getting total observation count...');
+      console.log('📍 Selected zones:', selectedZones);
+      console.log('📅 Date range:', { dateRangeStart, dateRangeEnd, datePreset });
+      
+      const requestBody = { 
+        scope: 'ZONE',
+        zoneIds: selectedZones,
+        dateRangeStart,
+        dateRangeEnd,
+        get_total: true 
+      };
+      
+      console.log('📤 Sending request to Edge Function:', requestBody);
       
       const { data: totalData, error: totalError } = await supabase.functions.invoke('recalculate-compliance-v2', {
-        body: { 
-          scope: 'ZONE',
-          zoneIds: selectedZones,
-          dateRangeStart,
-          dateRangeEnd,
-          get_total: true 
-        },
+        body: requestBody,
       });
+      
+      console.log('📥 Edge Function response:', { totalData, totalError });
 
       if (totalError) {
         const errorMessage = await extractErrorMessage(totalError);
@@ -191,6 +199,14 @@ export function ComplianceRecalculation() {
       toast.info(`Starting recalculation: ${totalObservations.toLocaleString()} observations`);
 
       if (totalObservations === 0) {
+        console.error('❌ No observations found!');
+        console.error('Debug info:', {
+          selectedZones,
+          dateRangeStart,
+          dateRangeEnd,
+          datePreset,
+          requestBody
+        });
         toast.warning('No observations found for selected zones and date range');
         return;
       }
