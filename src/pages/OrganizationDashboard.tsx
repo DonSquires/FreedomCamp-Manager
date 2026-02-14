@@ -331,10 +331,18 @@ export function OrganizationDashboard() {
         orgFilter = profile?.organization_id || null;
       }
 
-      // Load observations within date range
+      // Load observations within date range WITH compliance_results join
       let obsQuery = supabase
         .from('vehicle_observations_v2')
-        .select('observation_id, plate_number, zone_id, organization_id, is_compliant, is_breach, recorded_at, zones(name)')
+        .select(`
+          observation_id,
+          plate_number,
+          zone_id,
+          organization_id,
+          recorded_at,
+          zones(name),
+          compliance_results(is_compliant, violation_reasons)
+        `)
         .gte('recorded_at', `${dateFrom}T00:00:00`)
         .lte('recorded_at', `${dateTo}T23:59:59`);
 
@@ -513,10 +521,13 @@ export function OrganizationDashboard() {
     setSelectedCategory(category);
     
     try {
-      // Get observations for this zone in date range
+      // Get observations for this zone in date range WITH compliance_results
       let obsQuery = supabase
         .from('vehicle_observations_v2')
-        .select('plate_number, is_compliant')
+        .select(`
+          plate_number,
+          compliance_results(is_compliant)
+        `)
         .eq('zone_id', zone.zone_id)
         .gte('recorded_at', `${dateFrom}T00:00:00`)
         .lte('recorded_at', `${dateTo}T23:59:59`);
