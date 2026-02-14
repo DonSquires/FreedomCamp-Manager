@@ -6,6 +6,7 @@ Professional HTML email templates for FreedomCamp Manager with Iron Eagle Securi
 
 1. **invite-email.html** - User invitation email
 2. **password-reset.html** - Password reset email
+3. **welcome-email.html** - Welcome email sent after first login
 
 ## How to Apply Templates to Supabase
 
@@ -41,7 +42,18 @@ Professional HTML email templates for FreedomCamp Manager with Iron Eagle Securi
    - `{{ .ConfirmationURL }}` - Password reset link
 5. Click **Save**
 
-### Step 4: Update Site URL Configuration
+### Step 4: Create Custom Welcome Email (Optional)
+
+Supabase doesn't have a built-in "welcome after first login" template, but you can implement this using Edge Functions:
+
+1. Create an Edge Function trigger that fires on first user login
+2. Use the `welcome-email.html` template content
+3. Send via your email service provider (SendGrid, Mailgun, etc.)
+4. Replace variables:
+   - `{{ .UserName }}` - User's full name (from profile)
+   - `{{ .Email }}` - User's email address
+
+### Step 5: Update Site URL Configuration
 
 Make sure your Supabase Authentication settings are configured correctly:
 
@@ -51,7 +63,7 @@ Make sure your Supabase Authentication settings are configured correctly:
    - `https://fcmanager.co.nz/**`
    - `https://fcmanager.co.nz/auth/callback`
 
-### Step 5: Test the Templates
+### Step 6: Test the Templates
 
 1. Go to **User Management** in your app
 2. Create a new user invitation
@@ -66,7 +78,7 @@ Make sure your Supabase Authentication settings are configured correctly:
 
 ### Iron Eagle Security Branding
 - Official IES logo prominently displayed
-- Professional gradient headers (blue for invitations, purple for password reset)
+- Professional gradient headers (blue for invitations, purple for password reset, green for welcome)
 - Company badge and footer with IES information
 
 ### Security & Compliance
@@ -97,6 +109,10 @@ Make sure your Supabase Authentication settings are configured correctly:
 
 **Password Reset (Purple Theme)**
 - Primary: `#7c3aed` → `#a78bfa`
+- Adjust gradient in `.header` and `.cta-button`
+
+**Welcome Email (Green Theme)**
+- Primary: `#059669` → `#10b981`
 - Adjust gradient in `.header` and `.cta-button`
 
 ### Updating Logo
