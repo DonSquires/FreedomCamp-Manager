@@ -7,7 +7,7 @@ var STATIC_CACHE = [
   '/',
   '/index.html',
   '/manifest.json',
-  '/jds-security-logo.png',
+  '/iron-eagle-security-logo.jpg',
 ];
 
 // Install event - cache static assets
@@ -148,8 +148,8 @@ self.addEventListener('push', function(event) {
   var data = event.data.json();
   var options = {
     body: data.body || '',
-    icon: '/jds-security-logo.png',
-    badge: '/jds-security-logo.png',
+    icon: '/iron-eagle-security-logo.jpg',
+    badge: '/iron-eagle-security-logo.jpg',
     vibrate: [200, 100, 200],
     data: {
       url: data.url || '/',

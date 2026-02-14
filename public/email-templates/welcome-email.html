@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Welcome to FreedomCamp Manager - Iron Eagle Security</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      background-color: #f3f4f6;
+      -webkit-font-smoothing: antialiased;
+    }
+    .email-container {
+      max-width: 600px;
+      margin: 0 auto;
+      background-color: #ffffff;
+    }
+    .header {
+      background: linear-gradient(135deg, #059669 0%, #10b981 100%);
+      padding: 40px 30px;
+      text-align: center;
+    }
+    .logo-container {
+      background-color: rgba(255, 255, 255, 0.95);
+      padding: 20px;
+      border-radius: 12px;
+      display: inline-block;
+      margin-bottom: 20px;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+    .logo {
+      max-width: 120px;
+      height: auto;
+      display: block;
+    }
+    .header-text {
+      color: #ffffff;
+      font-size: 28px;
+      font-weight: 700;
+      margin: 0;
+      text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    }
+    .header-subtitle {
+      color: rgba(255, 255, 255, 0.95);
+      font-size: 16px;
+      margin: 8px 0 0 0;
+      font-weight: 500;
+    }
+    .content {
+      padding: 40px 30px;
+      color: #1f2937;
+    }
+    .greeting {
+      font-size: 22px;
+      font-weight: 700;
+      margin-bottom: 16px;
+      color: #111827;
+    }
+    .message {
+      font-size: 16px;
+      line-height: 1.6;
+      margin-bottom: 20px;
+      color: #374151;
+    }
+    .message strong {
+      color: #1f2937;
+      font-weight: 600;
+    }
+    .cta-button {
+      display: inline-block;
+      background: linear-gradient(135deg, #059669 0%, #10b981 100%);
+      color: #ffffff !important;
+      text-decoration: none;
+      padding: 16px 40px;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 16px;
+      margin: 20px 0;
+      box-shadow: 0 4px 6px rgba(5, 150, 105, 0.3);
+    }
+    .feature-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 12px;
+      margin: 24px 0;
+    }
+    .feature-item {
+      background-color: #f9fafb;
+      border-left: 4px solid #10b981;
+      padding: 12px 16px;
+      border-radius: 4px;
+    }
+    .feature-item strong {
+      color: #059669;
+      font-size: 15px;
+    }
+    .feature-item p {
+      margin: 4px 0 0 0;
+      font-size: 14px;
+      color: #4b5563;
+    }
+    .quick-start {
+      background-color: #eff6ff;
+      border: 2px solid #3b82f6;
+      padding: 20px;
+      margin: 24px 0;
+      border-radius: 8px;
+    }
+    .quick-start h3 {
+      margin: 0 0 16px 0;
+      color: #1e40af;
+      font-size: 18px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .quick-start ol {
+      margin: 0;
+      padding-left: 20px;
+      color: #1e40af;
+      line-height: 1.8;
+    }
+    .quick-start ol li {
+      margin-bottom: 8px;
+    }
+    .compliance-warning {
+      background-color: #fef3c7;
+      border: 2px solid #f59e0b;
+      padding: 20px;
+      margin: 24px 0;
+      border-radius: 8px;
+    }
+    .compliance-warning h3 {
+      margin: 0 0 12px 0;
+      color: #92400e;
+      font-size: 18px;
+      font-weight: 700;
+    }
+    .compliance-warning p {
+      margin: 8px 0;
+      font-size: 15px;
+      color: #92400e;
+      line-height: 1.6;
+    }
+    .compliance-warning ul {
+      margin: 12px 0;
+      padding-left: 20px;
+      color: #92400e;
+      line-height: 1.8;
+    }
+    .compliance-warning a {
+      color: #1e40af;
+      font-weight: 600;
+      text-decoration: none;
+      border-bottom: 1px solid #1e40af;
+    }
+    .compliance-warning a:hover {
+      color: #1e3a8a;
+      border-bottom-color: #1e3a8a;
+    }
+    .danger-box {
+      background-color: #fee2e2;
+      border: 2px solid #dc2626;
+      padding: 16px;
+      margin: 20px 0;
+      border-radius: 6px;
+    }
+    .danger-box p {
+      margin: 0;
+      font-size: 15px;
+      color: #991b1b;
+      font-weight: 600;
+      line-height: 1.6;
+    }
+    .support-box {
+      background-color: #f0fdf4;
+      border: 1px solid #10b981;
+      padding: 20px;
+      margin: 24px 0;
+      border-radius: 8px;
+    }
+    .support-box h3 {
+      margin: 0 0 12px 0;
+      color: #059669;
+      font-size: 16px;
+    }
+    .support-box p {
+      margin: 8px 0;
+      font-size: 14px;
+      color: #065f46;
+      line-height: 1.6;
+    }
+    .footer {
+      background-color: #f9fafb;
+      padding: 30px;
+      text-align: center;
+      border-top: 1px solid #e5e7eb;
+    }
+    .company-badge {
+      display: inline-block;
+      background-color: #059669;
+      color: #ffffff;
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      margin-bottom: 12px;
+      letter-spacing: 0.5px;
+    }
+    .footer-text {
+      font-size: 13px;
+      color: #6b7280;
+      line-height: 1.6;
+      margin: 8px 0;
+    }
+  </style>
+</head>
+<body>
+  <div class="email-container">
+    <!-- Header -->
+    <div class="header">
+      <div class="logo-container">
+        <img src="https://fcmanager.co.nz/iron-eagle-security-logo.jpg" alt="Iron Eagle Security" class="logo">
+      </div>
+      <h1 class="header-text">Welcome to FreedomCamp Manager!</h1>
+      <p class="header-subtitle">Your professional compliance management platform</p>
+    </div>
+
+    <!-- Main Content -->
+    <div class="content">
+      <p class="greeting">🎉 Welcome, {{ .UserName }}!</p>
+      
+      <p class="message">
+        Thank you for completing your first login to <strong>FreedomCamp Manager</strong>. You're now part of a powerful system designed by <strong>Iron Eagle Security (IES)</strong> to streamline freedom camping compliance management across New Zealand.
+      </p>
+
+      <!-- CTA Button -->
+      <div style="text-align: center;">
+        <a href="https://fcmanager.co.nz" class="cta-button">Access FreedomCamp Manager</a>
+      </div>
+
+      <!-- Quick Start Guide -->
+      <div class="quick-start">
+        <h3>🚀 Quick Start Guide</h3>
+        <ol>
+          <li><strong>Familiarize yourself with the interface</strong> - Navigate through the main portals to understand the layout</li>
+          <li><strong>Enable location services</strong> - GPS is essential for zone detection and compliance tracking</li>
+          <li><strong>Test the plate scanner</strong> - Practice scanning vehicle plates using the ALPR feature</li>
+          <li><strong>Review zone compliance rules</strong> - Understand your assigned zones and their specific requirements</li>
+          <li><strong>Install the PWA</strong> - Add FreedomCamp Manager to your home screen for offline access</li>
+          <li><strong>Enable notifications</strong> - Stay updated on breach alerts and assigned tasks</li>
+        </ol>
+      </div>
+
+      <!-- Key Features -->
+      <h3 style="color: #059669; font-size: 18px; margin: 32px 0 16px 0;">Key Features You Can Use:</h3>
+      <div class="feature-grid">
+        <div class="feature-item">
+          <strong>📸 ALPR Plate Recognition</strong>
+          <p>Scan vehicle plates automatically with AI-powered recognition</p>
+        </div>
+        <div class="feature-item">
+          <strong>🗺️ Zone-Based Compliance</strong>
+          <p>Automatic geofencing and compliance checking for each location</p>
+        </div>
+        <div class="feature-item">
+          <strong>⚠️ Breach Detection</strong>
+          <p>Real-time alerts for overstayers and non-compliant vehicles</p>
+        </div>
+        <div class="feature-item">
+          <strong>📋 Incident Reporting</strong>
+          <p>Court-ready reports with photo evidence and GPS verification</p>
+        </div>
+        <div class="feature-item">
+          <strong>📶 Offline Support</strong>
+          <p>Continue working without connection - auto-sync when back online</p>
+        </div>
+        <div class="feature-item">
+          <strong>🔔 Push Notifications</strong>
+          <p>Instant alerts for assignments, breaches, and welfare checks</p>
+        </div>
+      </div>
+
+      <!-- CRITICAL COMPLIANCE WARNING -->
+      <div class="compliance-warning">
+        <h3>⚖️ CRITICAL: Compliance Requirements</h3>
+        <p>
+          As a user of FreedomCamp Manager, you <strong>MUST adhere to all relevant New Zealand legislation</strong> and professional standards. This is not optional - failure to comply may result in:
+        </p>
+        <ul>
+          <li>Immediate account suspension or disability</li>
+          <li>Revocation of access to FreedomCamp Manager</li>
+          <li>Potential legal consequences for your organization</li>
+          <li>Breach of professional security standards</li>
+        </ul>
+
+        <p style="margin-top: 16px; font-weight: 700;">You are required to understand and comply with:</p>
+        
+        <p style="margin-top: 12px;">
+          <strong>1. Privacy Act 2020</strong><br>
+          All personal information must be handled lawfully and ethically. You are responsible for protecting individual privacy rights.<br>
+          <a href="https://www.privacy.org.nz/privacy-act-2020/" target="_blank">📖 Read the Privacy Act 2020 →</a>
+        </p>
+
+        <p style="margin-top: 12px;">
+          <strong>2. Freedom Camping Act 2011</strong><br>
+          Understand the legal framework governing freedom camping in New Zealand and your enforcement authority.<br>
+          <a href="https://www.legislation.govt.nz/act/public/2011/0061/latest/DLM3742806.html" target="_blank">📖 Read the Freedom Camping Act 2011 →</a>
+        </p>
+
+        <p style="margin-top: 12px;">
+          <strong>3. Private Security Personnel and Private Investigators Act 2010</strong><br>
+          If you are a security officer, you must operate within your legal authority and professional obligations.<br>
+          <a href="https://www.legislation.govt.nz/act/public/2010/0115/latest/DLM1297103.html" target="_blank">📖 Read the Private Security Act 2010 →</a>
+        </p>
+
+        <p style="margin-top: 12px;">
+          <strong>4. Local Government Act 2002 & Bylaws</strong><br>
+          Enforcement must align with your council's specific bylaws and policies for freedom camping management.<br>
+          <a href="https://www.legislation.govt.nz/act/public/2002/0084/latest/DLM170873.html" target="_blank">📖 Read the Local Government Act 2002 →</a>
+        </p>
+
+        <p style="margin-top: 16px; font-weight: 700; color: #7c2d12;">
+          🔒 <strong>Data Privacy:</strong> Never share, screenshot, or export personal data without proper authority. All observations, incident reports, and vehicle information must be handled in accordance with the Privacy Act 2020.
+        </p>
+      </div>
+
+      <!-- Danger Warning -->
+      <div class="danger-box">
+        <p>
+          ⚠️ <strong>ACCOUNT DISABILITY WARNING:</strong> Any breach of these compliance requirements, misuse of personal data, unauthorized access, or failure to follow NZ legislation will result in immediate investigation and may lead to permanent account disability. Your actions are logged and auditable.
+        </p>
+      </div>
+
+      <!-- Support Information -->
+      <div class="support-box">
+        <h3>💬 Need Help?</h3>
+        <p>
+          <strong>Organization Administrator:</strong> Contact your organization's admin for user support and training<br>
+          <strong>Technical Support:</strong> <a href="https://fcmanager.co.nz" style="color: #059669; text-decoration: none;">fcmanager.co.nz</a><br>
+          <strong>Emergency Support:</strong> Refer to your organization's emergency contact procedures
+        </p>
+        <p style="margin-top: 12px;">
+          <strong>Training Resources:</strong> Your administrator can provide access to user manuals, video tutorials, and best practice guides.
+        </p>
+      </div>
+
+      <p class="message">
+        We're excited to have you on board. FreedomCamp Manager is built to empower field officers with professional-grade tools while maintaining the highest standards of compliance and data protection.
+      </p>
+
+      <p class="message" style="color: #059669; font-weight: 600;">
+        Welcome to the team!<br>
+        - Iron Eagle Security
+      </p>
+    </div>
+
+    <!-- Footer -->
+    <div class="footer">
+      <div class="company-badge">IRON EAGLE SECURITY (IES)</div>
+      <p class="footer-text">
+        <strong>Professional Security Solutions for New Zealand</strong>
+      </p>
+      <p class="footer-text">
+        This email was sent by FreedomCamp Manager, a product of Iron Eagle Security.<br>
+        For support, contact your organization administrator or visit <a href="https://fcmanager.co.nz" style="color: #059669; text-decoration: none;">fcmanager.co.nz</a>
+      </p>
+      <p class="footer-text" style="margin-top: 16px; font-size: 12px; color: #9ca3af;">
+        Iron Eagle Security Ltd | Professional Security Services & Technology Solutions<br>
+        New Zealand | Proudly serving councils and organizations nationwide
+      </p>
+      <p class="footer-text" style="margin-top: 12px; font-size: 11px; color: #9ca3af;">
+        You received this email because you completed your first login to FreedomCamp Manager.<br>
+        All data is handled in accordance with the Privacy Act 2020.
+      </p>
+    </div>
+  </div>
+</body>
+</html>

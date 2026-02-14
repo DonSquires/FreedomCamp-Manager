@@ -1,15 +1,18 @@
 /**
- * ORGANIZATION OVERVIEW - BI-STYLE LANDING PAGE (REBUILT)
+ * ORGANIZATION OVERVIEW - BI-STYLE LANDING PAGE
  * 
- * CRITICAL FIX: Now uses canonical_vehicles as source of truth
- * - Breach data from canonical_vehicles.total_breaches (proven working)
- * - No dependency on compliance_results table
- * - Shows real data from 6,616+ vehicle records
+ * UPDATED: Now uses NEW compliance architecture (Feb 2025)
+ * - Primary source: compliance_results table (authoritative compliance)
+ * - Breach data: breach_alerts table (enforcement queue)
+ * - Synced fields: vehicle_observations_v2.is_breach (auto-synced)
+ * - Vehicle details: canonical_vehicles (master data)
  * 
  * Features:
- * - KPI summary cards with actual breach counts
- * - Zone performance grid with real breach data
- * - Real-time data updates
+ * - Real-time compliance from compliance_results
+ * - Active breach counts from breach_alerts
+ * - Homeless data from canonical_vehicles
+ * - Zone performance breakdown
+ * - Compliance trend charts
  * - Export to CSV/PDF
  * - Universal filters (organization + zone)
  */
@@ -130,7 +133,7 @@ export function OrganizationOverview({ onZoneDrillDown }: { onZoneDrillDown?: (z
         orgId = user.organization_id;
       }
 
-      // Load observations with canonical_vehicles data
+      // Load observations with compliance_results (NEW architecture)
       let obsQuery = supabase
         .from('vehicle_observations_v2')
         .select(`
@@ -138,11 +141,15 @@ export function OrganizationOverview({ onZoneDrillDown }: { onZoneDrillDown?: (z
           plate_number,
           zone_id,
           recorded_at,
+          is_breach,
           zones!inner(id, name),
           canonical_vehicles!inner(
-            total_breaches,
             homeless_status,
             is_flagged
+          ),
+          compliance_results(
+            is_compliant,
+            violation_reasons
           )
         `)
         .gte('recorded_at', `${startDateStr}T00:00:00`)
@@ -160,20 +167,15 @@ export function OrganizationOverview({ onZoneDrillDown }: { onZoneDrillDown?: (z
       if (obsError) throw obsError;
 
       const obs = observations || [];
-      console.log(`✅ Loaded ${obs.length} observations with canonical vehicle data`);
+      console.log(`✅ Loaded ${obs.length} observations with compliance data`);
 
-      // Calculate KPIs from canonical_vehicles
+      // Calculate KPIs from compliance_results (authoritative source)
       const uniquePlates = new Set(obs.map(o => o.plate_number));
       const uniqueVehicles = uniquePlates.size;
 
-      // Count breaches from canonical_vehicles.total_breaches
-      const vehiclesWithBreaches = new Set(
-        obs.filter(o => {
-          const vehicle = o.canonical_vehicles as any;
-          return vehicle && vehicle.total_breaches > 0;
-        }).map(o => o.plate_number)
-      );
-      const totalBreaches = vehiclesWithBreaches.size;
+      // Count breaches from is_breach field (synced from compliance_results)
+      const breachedObservations = obs.filter(o => o.is_breach === true);
+      const totalBreaches = breachedObservations.length;
 
       // Compliance rate: vehicles WITHOUT breaches
       const complianceRate = uniqueVehicles > 0 
@@ -197,13 +199,26 @@ export function OrganizationOverview({ onZoneDrillDown }: { onZoneDrillDown?: (z
         }).map(o => o.plate_number)
       );
 
-      console.log('📊 KPI Summary:');
+      console.log('📊 KPI Summary (NEW Compliance Architecture):');
       console.log('  - Observations:', obs.length);
       console.log('  - Unique Vehicles:', uniqueVehicles);
-      console.log('  - Vehicles with Breaches:', totalBreaches);
+      console.log('  - Total Breaches:', totalBreaches);
       console.log('  - Compliance Rate:', complianceRate + '%');
       console.log('  - Homeless:', homelessPlates.size);
       console.log('  - Flagged:', flaggedPlates.size);
+
+      // Load ACTIVE breach alerts count (enforcement queue)
+      let breachQuery = supabase
+        .from('breach_alerts')
+        .select('id', { count: 'exact', head: true })
+        .eq('status', 'pending')
+        .gte('created_at', `${startDateStr}T00:00:00`)
+        .lte('created_at', `${endDateStr}T23:59:59`);
+
+      if (orgId) breachQuery = breachQuery.eq('organization_id', orgId);
+      if (selectedZone !== 'all') breachQuery = breachQuery.eq('zone_id', selectedZone);
+
+      const { count: activeBreachCount } = await breachQuery;
 
       // Load enforcement actions count
       let enfQuery = supabase
@@ -236,9 +251,9 @@ export function OrganizationOverview({ onZoneDrillDown }: { onZoneDrillDown?: (z
         },
         {
           label: 'Active Breaches',
-          value: totalBreaches,
+          value: activeBreachCount || 0,
           change: 0,
-          trend: totalBreaches > 0 ? 'up' : 'stable',
+          trend: activeBreachCount && activeBreachCount > 0 ? 'up' : 'stable',
           icon: AlertTriangle,
           color: 'red',
         },
@@ -286,7 +301,7 @@ export function OrganizationOverview({ onZoneDrillDown }: { onZoneDrillDown?: (z
             name: (o.zones as any)?.name || 'Unknown',
             observations: 0,
             plates: new Set(),
-            breachPlates: new Set(),
+            breachCount: 0,
             homelessPlates: new Set(),
             lastActivity: o.recorded_at,
           });
@@ -296,12 +311,13 @@ export function OrganizationOverview({ onZoneDrillDown }: { onZoneDrillDown?: (z
         zone.observations++;
         zone.plates.add(o.plate_number);
 
+        // Count breaches from is_breach field (synced from compliance_results)
+        if (o.is_breach === true) {
+          zone.breachCount++;
+        }
+
         const vehicle = o.canonical_vehicles as any;
         if (vehicle) {
-          if (vehicle.total_breaches > 0) {
-            zone.breachPlates.add(o.plate_number);
-          }
-          
           const status = vehicle.homeless_status;
           if (status === 'confirmed' || status === 'claimed') {
             zone.homelessPlates.add(o.plate_number);
@@ -315,10 +331,10 @@ export function OrganizationOverview({ onZoneDrillDown }: { onZoneDrillDown?: (z
 
       const zoneCards: ZoneCard[] = Array.from(zoneMap.entries())
         .map(([id, stats]) => {
-          const breachCount = stats.breachPlates.size;
-          const totalVehicles = stats.plates.size;
-          const complianceRate = totalVehicles > 0 
-            ? Math.round(((totalVehicles - breachCount) / totalVehicles) * 100) 
+          const breachCount = stats.breachCount;
+          const totalObservations = stats.observations;
+          const complianceRate = totalObservations > 0 
+            ? Math.round(((totalObservations - breachCount) / totalObservations) * 100) 
             : 100;
 
           return {
@@ -327,7 +343,7 @@ export function OrganizationOverview({ onZoneDrillDown }: { onZoneDrillDown?: (z
             total_observations: stats.observations,
             compliance_rate: complianceRate,
             breach_count: breachCount,
-            unique_vehicles: totalVehicles,
+            unique_vehicles: stats.plates.size,
             homeless_count: stats.homelessPlates.size,
             trend: 'stable' as const,
             last_activity: stats.lastActivity,
@@ -337,40 +353,39 @@ export function OrganizationOverview({ onZoneDrillDown }: { onZoneDrillDown?: (z
 
       setZones(zoneCards);
 
-      // Compliance Trend (daily)
+      // Compliance Trend (daily) - using is_breach field
       const dailyMap = new Map<string, { 
-        total: Set<string>; 
-        breaches: Set<string>; 
+        observations: number;
+        breaches: number;
       }>();
 
       obs.forEach(o => {
         const date = o.recorded_at.split('T')[0];
         if (!dailyMap.has(date)) {
-          dailyMap.set(date, { total: new Set(), breaches: new Set() });
+          dailyMap.set(date, { observations: 0, breaches: 0 });
         }
 
         const day = dailyMap.get(date)!;
-        day.total.add(o.plate_number);
+        day.observations++;
 
-        const vehicle = o.canonical_vehicles as any;
-        if (vehicle && vehicle.total_breaches > 0) {
-          day.breaches.add(o.plate_number);
+        if (o.is_breach === true) {
+          day.breaches++;
         }
       });
 
       const trendData = Array.from(dailyMap.entries())
         .map(([date, stats]) => {
-          const totalVehicles = stats.total.size;
-          const breachVehicles = stats.breaches.size;
-          const complianceRate = totalVehicles > 0 
-            ? Math.round(((totalVehicles - breachVehicles) / totalVehicles) * 100) 
+          const totalObs = stats.observations;
+          const breachCount = stats.breaches;
+          const complianceRate = totalObs > 0 
+            ? Math.round(((totalObs - breachCount) / totalObs) * 100) 
             : 100;
 
           return {
             date,
             compliance: complianceRate,
-            vehicles: totalVehicles,
-            breaches: breachVehicles,
+            vehicles: totalObs,
+            breaches: breachCount,
           };
         })
         .sort((a, b) => a.date.localeCompare(b.date));
