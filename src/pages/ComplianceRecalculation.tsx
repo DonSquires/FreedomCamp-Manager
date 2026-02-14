@@ -117,7 +117,7 @@ export function ComplianceRecalculation() {
         return;
       }
 
-      const batchSize = 80;
+      const batchSize = 150;
       const totalBatches = Math.ceil(totalRecords / batchSize);
 
       toast.success(`Found ${totalRecords.toLocaleString()} observations to process`);
@@ -205,7 +205,7 @@ export function ComplianceRecalculation() {
             Compliance Recalculation
           </h1>
           <p className="text-muted-foreground mt-1">
-            Process 80 records at a time - select zones and date range
+            Process 150 records at a time - select zones and date range
           </p>
         </div>
 
@@ -267,7 +267,7 @@ export function ComplianceRecalculation() {
             <Alert>
               <AlertTriangle className="h-4 w-4" />
               <AlertDescription>
-                Processing 80 records at a time. Keep this page open during processing.
+                Processing 150 records at a time. Keep this page open during processing.
               </AlertDescription>
             </Alert>
 
