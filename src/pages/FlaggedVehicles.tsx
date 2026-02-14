@@ -91,7 +91,7 @@ export function FlaggedVehicles() {
   // Handle photo change with AI analysis on first photo
   const handleCreatePhotosChange = async (photos: string[]) => {
     const previousCount = formData.photos.length;
-    setFormData({ ...formData, photos });
+    setFormData(prev => ({ ...prev, photos }));
     
     // If this is the first photo being added, trigger AI analysis
     if (previousCount === 0 && photos.length === 1) {
@@ -411,7 +411,7 @@ export function FlaggedVehicles() {
 
       {/* Create Dialog */}
       <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-        <DialogContent>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Flag Vehicle</DialogTitle>
             <DialogDescription>Add a known problem vehicle to the watch list</DialogDescription>
@@ -494,12 +494,14 @@ export function FlaggedVehicles() {
                   </Badge>
                 )}
               </div>
-              <MultiPhotoUpload
-                photos={formData.photos}
-                onPhotosChange={handleCreatePhotosChange}
-                maxPhotos={5}
-                label=""
-              />
+              <div className="border-2 border-dashed border-gray-200 dark:border-gray-700 rounded-lg p-4 bg-gray-50 dark:bg-gray-900">
+                <MultiPhotoUpload
+                  photos={formData.photos}
+                  onPhotosChange={handleCreatePhotosChange}
+                  maxPhotos={5}
+                  label=""
+                />
+              </div>
               {formData.photos.length === 0 && (
                 <p className="text-xs text-muted-foreground">
                   💡 Add first photo after entering plate number to auto-populate vehicle details with AI

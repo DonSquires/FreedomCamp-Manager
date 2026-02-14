@@ -107,20 +107,31 @@ export function MultiPhotoUpload({
     setIsUploading(true);
 
     try {
-      for (const file of filesToUpload) {
-        const reader = new FileReader();
-        await new Promise<void>((resolve, reject) => {
-          reader.onload = async (e) => {
-            const imageDataUrl = e.target?.result as string;
-            await uploadPhoto(imageDataUrl);
-            resolve();
+      // Collect all image data URLs first
+      const imageDataPromises = filesToUpload.map(file => {
+        return new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = (e) => {
+            resolve(e.target?.result as string);
           };
           reader.onerror = reject;
           reader.readAsDataURL(file);
         });
+      });
+
+      const imageDataUrls = await Promise.all(imageDataPromises);
+
+      // Upload all photos and collect URLs
+      const uploadedUrls: string[] = [];
+      for (const imageDataUrl of imageDataUrls) {
+        const url = await uploadPhotoAndGetUrl(imageDataUrl);
+        uploadedUrls.push(url);
       }
 
-      toast.success(`Uploaded ${filesToUpload.length} photo(s)`);
+      // Update photos array with all new URLs at once
+      onPhotosChange([...photos, ...uploadedUrls]);
+
+      toast.success(`Uploaded ${uploadedUrls.length} photo(s)`);
     } catch (error: any) {
       console.error('File upload failed:', error);
       toast.error('Failed to upload photos: ' + error.message);
@@ -135,25 +146,31 @@ export function MultiPhotoUpload({
 
   const uploadPhoto = async (imageDataUrl: string) => {
     try {
-      const blob = await fetch(imageDataUrl).then(r => r.blob());
-      const fileName = `evidence/${Date.now()}_${Math.random().toString(36).slice(2)}.jpg`;
-
-      const { error: uploadError } = await supabase.storage
-        .from('evidence')
-        .upload(fileName, blob);
-
-      if (uploadError) throw uploadError;
-
-      const { data: { publicUrl } } = supabase.storage
-        .from('evidence')
-        .getPublicUrl(fileName);
-
-      // Add to photos array
-      onPhotosChange([...photos, publicUrl]);
+      const url = await uploadPhotoAndGetUrl(imageDataUrl);
+      // Add to photos array using functional update to avoid stale state
+      onPhotosChange(prevPhotos => [...prevPhotos, url]);
     } catch (error: any) {
       console.error('Photo upload failed:', error);
       throw error;
     }
+  };
+
+  // Helper function that uploads and returns URL without modifying state
+  const uploadPhotoAndGetUrl = async (imageDataUrl: string): Promise<string> => {
+    const blob = await fetch(imageDataUrl).then(r => r.blob());
+    const fileName = `evidence/${Date.now()}_${Math.random().toString(36).slice(2)}.jpg`;
+
+    const { error: uploadError } = await supabase.storage
+      .from('evidence')
+      .upload(fileName, blob);
+
+    if (uploadError) throw uploadError;
+
+    const { data: { publicUrl } } = supabase.storage
+      .from('evidence')
+      .getPublicUrl(fileName);
+
+    return publicUrl;
   };
 
   const deletePhoto = (photoUrl: string) => {
@@ -270,22 +287,22 @@ export function MultiPhotoUpload({
       {photos.length > 0 && (
         <div className="grid grid-cols-3 gap-3">
           {photos.map((photoUrl, index) => (
-            <div key={index} className="relative group">
+            <div key={`${photoUrl}-${index}`} className="relative group">
               <img
                 src={photoUrl}
                 alt={`Photo ${index + 1}`}
-                className="w-full h-32 object-cover rounded-lg border-2 border-gray-200 cursor-pointer hover:border-red-500 transition-colors"
+                className="w-full h-32 object-cover rounded-lg border-2 border-gray-200 dark:border-gray-700 cursor-pointer hover:border-red-500 transition-all hover:scale-105"
                 onClick={() => deletePhoto(photoUrl)}
               />
               {/* Delete overlay on hover */}
-              <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex items-center justify-center">
+              <div className="absolute inset-0 bg-black/70 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex items-center justify-center pointer-events-none">
                 <div className="text-white text-center">
                   <Trash2 className="h-6 w-6 mx-auto mb-1" />
                   <span className="text-xs font-semibold">Tap to Delete</span>
                 </div>
               </div>
               {/* Photo number badge */}
-              <Badge className="absolute top-1 left-1 bg-black/70 text-white text-xs">
+              <Badge className="absolute top-1 left-1 bg-black/70 text-white text-xs pointer-events-none">
                 #{index + 1}
               </Badge>
             </div>
