@@ -658,21 +658,42 @@ export function EnforcementActions() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-3xl font-bold mb-1 flex items-center gap-3">
-            <Shield className="h-8 w-8 text-primary" />
-            Enforcement Management
-          </h2>
-          <p className="text-muted-foreground">
-            Active breaches, job assignment, and enforcement tracking
-          </p>
+      <div className="space-y-4">
+        <div className="flex items-start justify-between gap-4 flex-wrap">
+          <div className="flex-1 min-w-0">
+            <h2 className="text-3xl font-bold mb-1 flex items-center gap-3">
+              <Shield className="h-8 w-8 text-primary" />
+              Enforcement Management
+            </h2>
+            <p className="text-muted-foreground">
+              Active breaches, job assignment, and enforcement tracking
+            </p>
+          </div>
+          {isAdmin && (
+            <Button 
+              onClick={() => setIsCreateEnforcementOpen(true)} 
+              size="lg" 
+              className="gap-2 shrink-0 w-full sm:w-auto"
+            >
+              <Plus className="h-5 w-5" />
+              Record Enforcement Action
+            </Button>
+          )}
         </div>
+        
+        {/* Mobile Quick Action Button - Fixed at top on small screens */}
         {isAdmin && (
-          <Button onClick={() => setIsCreateEnforcementOpen(true)} size="lg" className="gap-2">
-            <Plus className="h-5 w-5" />
-            Record Enforcement Action
-          </Button>
+          <div className="sm:hidden">
+            <Button 
+              onClick={() => setIsCreateEnforcementOpen(true)} 
+              size="lg" 
+              className="w-full gap-2"
+              variant="default"
+            >
+              <Plus className="h-5 w-5" />
+              Record Enforcement Action
+            </Button>
+          </div>
         )}
       </div>
 
