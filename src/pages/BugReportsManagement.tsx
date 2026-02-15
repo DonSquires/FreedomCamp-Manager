@@ -90,6 +90,19 @@ const SEVERITY_COLORS: any = {
 
 export function BugReportsManagement() {
   const { user } = useAuthStore();
+
+  // Only Masters can access this page
+  if (!user || user.role !== 'master') {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center">
+          <XCircle className="h-12 w-12 mx-auto mb-4 text-red-600" />
+          <p className="text-lg font-semibold mb-2">Access Denied</p>
+          <p className="text-muted-foreground">Only Master users can view bug reports</p>
+        </div>
+      </div>
+    );
+  }
   const [reports, setReports] = useState<any[]>([]);
   const [filteredReports, setFilteredReports] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -113,7 +126,7 @@ export function BugReportsManagement() {
   }, [reports, statusFilter, typeFilter, severityFilter, searchQuery]);
 
   const loadReports = async () => {
-    if (!user) return;
+    if (!user || user.role !== 'master') return;
 
     try {
       let query = supabase
@@ -125,11 +138,7 @@ export function BugReportsManagement() {
         `)
         .order('created_at', { ascending: false });
 
-      // Filter by organization for non-master users
-      if (user.role !== 'master') {
-        query = query.eq('organization_id', user.organization_id);
-      }
-
+      // Masters see all reports across all organizations
       const { data, error } = await query;
 
       if (error) throw error;

@@ -13,8 +13,8 @@ export function BugReportButton() {
   const [showModal, setShowModal] = useState(false);
   const { isAuthenticated, user } = useAuthStore();
 
-  // Only show for master users (super admins)
-  if (!isAuthenticated || !user || user.role !== 'master') return null;
+  // Show for all authenticated users
+  if (!isAuthenticated || !user) return null;
 
   return (
     <>
