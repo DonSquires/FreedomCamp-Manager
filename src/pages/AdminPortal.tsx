@@ -117,7 +117,12 @@ export function AdminPortal({ onLogout }: AdminPortalProps) {
           .eq('homeless_claimed', true)
           .eq('homeless_confirmed', false);
 
-        const total = (obsCount || 0) + (incCount || 0) + (homelessCount || 0);
+        const { count: bugCount } = await supabase
+          .from('bug_reports')
+          .select('id', { count: 'exact', head: true })
+          .eq('status', 'submitted');
+
+        const total = (obsCount || 0) + (incCount || 0) + (homelessCount || 0) + (bugCount || 0);
         setUrgentFollowUpsCount(total);
       } catch (error) {
         console.error('Failed to load urgent count:', error);

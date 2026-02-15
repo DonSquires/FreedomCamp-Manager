@@ -12,7 +12,7 @@ import {
 } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { AlertTriangle, FileText, Home, Loader2, Eye, CheckCircle2, XCircle, MapPin, Car, Flag, Activity, Shield, BellRing, Image as ImageIcon, Edit3, Camera } from 'lucide-react';
+import { AlertTriangle, FileText, Home, Loader2, Eye, CheckCircle2, XCircle, MapPin, Car, Flag, Activity, Shield, BellRing, Image as ImageIcon, Edit3, Camera, Bug } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 // Router not used - AdminPortal uses tab-based navigation
@@ -50,16 +50,30 @@ interface IncidentRecord {
   user_profiles?: { first_name: string; last_name: string };
 }
 
+interface BugReport {
+  id: string;
+  title: string;
+  description: string;
+  issue_type: string;
+  severity: string;
+  status: string;
+  created_at: string;
+  user_profiles: { first_name: string; last_name: string; email: string };
+  app_version: string;
+  current_page: string;
+}
+
 interface UrgentFollowUpsProps {
   onTabChange?: (tab: string) => void;
 }
 
 export function UrgentFollowUps({ onTabChange }: UrgentFollowUpsProps = {}) {
-  const [activeTab, setActiveTab] = useState<'observations' | 'homeless' | 'incidents'>('observations');
+  const [activeTab, setActiveTab] = useState<'observations' | 'homeless' | 'incidents' | 'bug-reports'>('observations');
   const [isLoading, setIsLoading] = useState(true);
   const [observations, setObservations] = useState<VehicleRecord[]>([]);
   const [homelessRecords, setHomelessRecords] = useState<VehicleRecord[]>([]);
   const [incidentRecords, setIncidentRecords] = useState<IncidentRecord[]>([]);
+  const [bugReports, setBugReports] = useState<BugReport[]>([]);
   
   // Review Modal State
   const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
@@ -133,6 +147,19 @@ export function UrgentFollowUps({ onTabChange }: UrgentFollowUpsProps = {}) {
 
       if (incidentError) throw incidentError;
       setIncidentRecords(incidentData || []);
+
+      // Load bug reports (submitted status)
+      const { data: bugData, error: bugError } = await supabase
+        .from('bug_reports')
+        .select(`
+          *,
+          user_profiles(first_name, last_name, email)
+        `)
+        .eq('status', 'submitted')
+        .order('created_at', { ascending: false });
+
+      if (bugError) throw bugError;
+      setBugReports(bugData || []);
     } catch (error: any) {
       console.error('Failed to load follow-ups:', error);
       toast.error('Failed to load urgent follow-ups');
@@ -368,7 +395,7 @@ export function UrgentFollowUps({ onTabChange }: UrgentFollowUpsProps = {}) {
         <p className="text-muted-foreground">Items requiring immediate attention</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card className="cursor-pointer" onClick={() => setActiveTab('observations')}>
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
@@ -404,10 +431,22 @@ export function UrgentFollowUps({ onTabChange }: UrgentFollowUpsProps = {}) {
             </div>
           </CardContent>
         </Card>
+
+        <Card className="cursor-pointer bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-800" onClick={() => setActiveTab('bug-reports')}>
+          <CardContent className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-red-700 dark:text-red-300 mb-1 font-semibold">Bug Reports</p>
+                <p className="text-3xl font-bold text-red-600">{bugReports.length}</p>
+              </div>
+              <Bug className="h-12 w-12 text-red-500 opacity-30" />
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)}>
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="observations">
             Observations {observations.length > 0 && <Badge className="ml-2">{observations.length}</Badge>}
           </TabsTrigger>
@@ -416,6 +455,9 @@ export function UrgentFollowUps({ onTabChange }: UrgentFollowUpsProps = {}) {
           </TabsTrigger>
           <TabsTrigger value="homeless">
             Homeless {homelessRecords.length > 0 && <Badge className="ml-2">{homelessRecords.length}</Badge>}
+          </TabsTrigger>
+          <TabsTrigger value="bug-reports" className="text-red-600">
+            Bug Reports {bugReports.length > 0 && <Badge variant="destructive" className="ml-2">{bugReports.length}</Badge>}
           </TabsTrigger>
         </TabsList>
 
@@ -609,6 +651,81 @@ export function UrgentFollowUps({ onTabChange }: UrgentFollowUpsProps = {}) {
                       >
                         <XCircle className="h-4 w-4 mr-2" />
                         Dismiss
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))
+          )}
+        </TabsContent>
+
+        <TabsContent value="bug-reports" className="space-y-4">
+          {bugReports.length === 0 ? (
+            <Card>
+              <CardContent className="p-12 text-center text-muted-foreground">
+                <CheckCircle2 className="h-12 w-12 mx-auto mb-3 opacity-30" />
+                <p>No bug reports pending review</p>
+              </CardContent>
+            </Card>
+          ) : (
+            bugReports.map(report => (
+              <Card key={report.id} className="border-red-200 dark:border-red-800">
+                <CardContent className="p-6">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Bug className="h-5 w-5 text-red-600" />
+                        <h3 className="font-bold text-lg">{report.title}</h3>
+                      </div>
+                      
+                      <p className="text-sm text-muted-foreground mb-3">
+                        {report.description}
+                      </p>
+                      
+                      <div className="flex flex-wrap items-center gap-2 mb-3">
+                        <Badge variant="outline" className="bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300">
+                          {report.issue_type.replace('_', ' ')}
+                        </Badge>
+                        <Badge variant={report.severity === 'critical' ? 'destructive' : report.severity === 'high' ? 'default' : 'secondary'}>
+                          {report.severity} severity
+                        </Badge>
+                        <Badge variant="outline">
+                          {report.status}
+                        </Badge>
+                      </div>
+                      
+                      <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                        <div className="flex items-center gap-1">
+                          <span className="font-semibold">Reported by:</span>
+                          <span>{report.user_profiles.first_name} {report.user_profiles.last_name}</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <span className="font-semibold">Page:</span>
+                          <span>{report.current_page}</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <span className="font-semibold">Version:</span>
+                          <span>{report.app_version}</span>
+                        </div>
+                        <div className="ml-auto">
+                          {new Date(report.created_at).toLocaleString('en-NZ')}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex flex-col gap-2">
+                      <Button 
+                        size="sm" 
+                        onClick={() => {
+                          if (onTabChange) {
+                            onTabChange('bug-reports');
+                          } else {
+                            toast.info('Navigate to Bug Reports to view full details');
+                          }
+                        }}
+                      >
+                        <Eye className="h-4 w-4 mr-2" />
+                        Review
                       </Button>
                     </div>
                   </div>
