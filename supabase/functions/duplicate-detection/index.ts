@@ -85,12 +85,12 @@ serve(async (req) => {
     for (const [plateNumber, plateObs] of plateGroups.entries()) {
       if (plateObs.length <= 1) continue;
 
-      // Sort by recorded_at descending (newest first)
+      // Sort by recorded_at ascending (oldest first)
       plateObs.sort((a, b) => 
-        new Date(b.recorded_at).getTime() - new Date(a.recorded_at).getTime()
+        new Date(a.recorded_at).getTime() - new Date(b.recorded_at).getTime()
       );
 
-      // Keep first (newest), check others
+      // Keep first (oldest), check others
       for (let i = 1; i < plateObs.length; i++) {
         const current = plateObs[i];
         
@@ -100,7 +100,7 @@ serve(async (req) => {
           continue;
         }
 
-        // Check against previous observations (newer ones)
+        // Check against previous observations (earlier ones)
         for (let j = 0; j < i; j++) {
           const previous = plateObs[j];
           
