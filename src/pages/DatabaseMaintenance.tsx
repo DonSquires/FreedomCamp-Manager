@@ -42,11 +42,13 @@ export function DatabaseMaintenance() {
   const [zoneSelectedZones, setZoneSelectedZones] = useState<string[]>([]);
   const [isZoneCorrecting, setIsZoneCorrecting] = useState(false);
   const [zoneCorrectionResults, setZoneCorrectionResults] = useState<any>(null);
+  const [zoneProgress, setZoneProgress] = useState({ processed: 0, corrected: 0 });
 
   // Duplicate Detection State
   const [dupSelectedZones, setDupSelectedZones] = useState<string[]>([]);
   const [isDupDetecting, setIsDupDetecting] = useState(false);
   const [dupDetectionResults, setDupDetectionResults] = useState<any>(null);
+  const [dupProgress, setDupProgress] = useState({ processed: 0, removed: 0 });
 
   // Check if user is master
   const isMaster = user?.role === 'master';
@@ -81,8 +83,11 @@ export function DatabaseMaintenance() {
 
     setIsZoneCorrecting(true);
     setZoneCorrectionResults(null);
+    setZoneProgress({ processed: 0, corrected: 0 });
 
     try {
+      console.log('🗺️ Starting zone correction for zones:', zoneSelectedZones);
+      
       const { data, error } = await supabase.functions.invoke('cleanup-and-recalculate', {
         body: {
           scope: 'ZONE',
@@ -90,13 +95,37 @@ export function DatabaseMaintenance() {
         },
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error('❌ Zone correction error:', error);
+        
+        // Extract detailed error message
+        let errorMessage = 'Zone correction failed';
+        if (error instanceof Error) {
+          errorMessage = error.message;
+        }
+        
+        throw new Error(errorMessage);
+      }
+
+      console.log('✅ Zone correction response:', data);
+
+      if (!data || !data.processing_summary) {
+        throw new Error('Invalid response from server - no processing summary');
+      }
 
       setZoneCorrectionResults(data.processing_summary);
-      toast.success(`Zone correction complete! ${data.processing_summary.zones_corrected} observations corrected`);
+      setZoneProgress({
+        processed: data.processing_summary.observations_checked || 0,
+        corrected: data.processing_summary.zones_corrected || 0,
+      });
+      
+      toast.success(
+        `Zone correction complete! ${data.processing_summary.zones_corrected} observations corrected out of ${data.processing_summary.observations_checked} checked`,
+        { duration: 6000 }
+      );
     } catch (error: any) {
-      console.error('Zone correction failed:', error);
-      toast.error('Zone correction failed: ' + error.message);
+      console.error('❌ Zone correction failed:', error);
+      toast.error('Zone correction failed: ' + (error.message || 'Unknown error'));
     } finally {
       setIsZoneCorrecting(false);
     }
@@ -111,8 +140,11 @@ export function DatabaseMaintenance() {
 
     setIsDupDetecting(true);
     setDupDetectionResults(null);
+    setDupProgress({ processed: 0, removed: 0 });
 
     try {
+      console.log('🔍 Starting duplicate detection for zones:', dupSelectedZones);
+      
       const { data, error } = await supabase.functions.invoke('cleanup-and-recalculate', {
         body: {
           scope: 'ZONE',
@@ -120,13 +152,37 @@ export function DatabaseMaintenance() {
         },
       });
 
-      if (error) throw error;
+      if (error) {
+        console.error('❌ Duplicate detection error:', error);
+        
+        // Extract detailed error message
+        let errorMessage = 'Duplicate detection failed';
+        if (error instanceof Error) {
+          errorMessage = error.message;
+        }
+        
+        throw new Error(errorMessage);
+      }
+
+      console.log('✅ Duplicate detection response:', data);
+
+      if (!data || !data.processing_summary) {
+        throw new Error('Invalid response from server - no processing summary');
+      }
 
       setDupDetectionResults(data.processing_summary);
-      toast.success(`Duplicate detection complete! ${data.processing_summary.duplicates_removed} duplicates removed`);
+      setDupProgress({
+        processed: data.processing_summary.observations_checked || 0,
+        removed: data.processing_summary.duplicates_removed || 0,
+      });
+      
+      toast.success(
+        `Duplicate detection complete! ${data.processing_summary.duplicates_removed} duplicates removed out of ${data.processing_summary.observations_checked} checked`,
+        { duration: 6000 }
+      );
     } catch (error: any) {
-      console.error('Duplicate detection failed:', error);
-      toast.error('Duplicate detection failed: ' + error.message);
+      console.error('❌ Duplicate detection failed:', error);
+      toast.error('Duplicate detection failed: ' + (error.message || 'Unknown error'));
     } finally {
       setIsDupDetecting(false);
     }
@@ -287,8 +343,29 @@ export function DatabaseMaintenance() {
                   )}
                 </Button>
 
+                {/* Processing Status */}
+                {isZoneCorrecting && (
+                  <Alert className="border-blue-500/50 bg-blue-50 dark:bg-blue-950/20">
+                    <Loader2 className="h-4 w-4 text-blue-600 animate-spin" />
+                    <AlertDescription className="text-blue-900 dark:text-blue-100">
+                      <p className="font-semibold mb-2">🔄 Processing Zone Corrections...</p>
+                      <div className="grid grid-cols-2 gap-3 text-sm">
+                        <div>
+                          <span className="font-semibold">Processed:</span>
+                          <div className="text-2xl font-bold">{zoneProgress.processed}</div>
+                        </div>
+                        <div>
+                          <span className="font-semibold">Corrected:</span>
+                          <div className="text-2xl font-bold text-blue-600">{zoneProgress.corrected}</div>
+                        </div>
+                      </div>
+                      <p className="text-xs mt-2">Processing 300 records at a time...</p>
+                    </AlertDescription>
+                  </Alert>
+                )}
+
                 {/* Results */}
-                {zoneCorrectionResults && (
+                {!isZoneCorrecting && zoneCorrectionResults && (
                   <Alert className="border-green-500/50 bg-green-50 dark:bg-green-950/20">
                     <CheckCircle2 className="h-4 w-4 text-green-600" />
                     <AlertDescription className="text-green-900 dark:text-green-100">
@@ -303,6 +380,9 @@ export function DatabaseMaintenance() {
                           <div className="text-2xl font-bold text-blue-600">{zoneCorrectionResults.zones_corrected}</div>
                         </div>
                       </div>
+                      <p className="text-xs mt-2 text-muted-foreground">
+                        Duration: {zoneCorrectionResults.duration_seconds}s • Batch size: 300 records
+                      </p>
                     </AlertDescription>
                   </Alert>
                 )}
@@ -393,8 +473,29 @@ export function DatabaseMaintenance() {
                   )}
                 </Button>
 
+                {/* Processing Status */}
+                {isDupDetecting && (
+                  <Alert className="border-purple-500/50 bg-purple-50 dark:bg-purple-950/20">
+                    <Loader2 className="h-4 w-4 text-purple-600 animate-spin" />
+                    <AlertDescription className="text-purple-900 dark:text-purple-100">
+                      <p className="font-semibold mb-2">🔄 Detecting Duplicates...</p>
+                      <div className="grid grid-cols-2 gap-3 text-sm">
+                        <div>
+                          <span className="font-semibold">Processed:</span>
+                          <div className="text-2xl font-bold">{dupProgress.processed}</div>
+                        </div>
+                        <div>
+                          <span className="font-semibold">Removed:</span>
+                          <div className="text-2xl font-bold text-purple-600">{dupProgress.removed}</div>
+                        </div>
+                      </div>
+                      <p className="text-xs mt-2">Processing 300 records at a time...</p>
+                    </AlertDescription>
+                  </Alert>
+                )}
+
                 {/* Results */}
-                {dupDetectionResults && (
+                {!isDupDetecting && dupDetectionResults && (
                   <Alert className="border-green-500/50 bg-green-50 dark:bg-green-950/20">
                     <CheckCircle2 className="h-4 w-4 text-green-600" />
                     <AlertDescription className="text-green-900 dark:text-green-100">
@@ -409,6 +510,9 @@ export function DatabaseMaintenance() {
                           <div className="text-2xl font-bold text-purple-600">{dupDetectionResults.duplicates_removed}</div>
                         </div>
                       </div>
+                      <p className="text-xs mt-2 text-muted-foreground">
+                        Duration: {dupDetectionResults.duration_seconds}s • Batch size: 300 records
+                      </p>
                     </AlertDescription>
                   </Alert>
                 )}

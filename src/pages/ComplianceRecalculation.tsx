@@ -37,6 +37,8 @@ export function ComplianceRecalculation() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [processed, setProcessed] = useState(0);
   const [complianceChanged, setComplianceChanged] = useState(0);
+  const [breachesCreated, setBreachesCreated] = useState(0);
+  const [skippedNoMatrix, setSkippedNoMatrix] = useState(0);
   const [currentBatch, setCurrentBatch] = useState(0);
   const [totalBatches, setTotalBatches] = useState(0);
   const [showCompletionDialog, setShowCompletionDialog] = useState(false);
@@ -99,6 +101,8 @@ export function ComplianceRecalculation() {
       setIsProcessing(true);
       setProcessed(0);
       setComplianceChanged(0);
+      setBreachesCreated(0);
+      setSkippedNoMatrix(0);
       setCurrentBatch(0);
       setTotalBatches(0);
 
@@ -134,6 +138,7 @@ export function ComplianceRecalculation() {
       let totalProcessed = 0;
       let totalComplianceChanged = 0;
       let totalBreaches = 0;
+      let totalSkipped = 0;
 
       console.log(`📦 Processing ${totalObservations} observations in ${batches} batches of ${BATCH_SIZE}`);
 
@@ -165,12 +170,15 @@ export function ComplianceRecalculation() {
         totalProcessed += batchData.processed || 0;
         totalComplianceChanged += batchData.complianceChanged || 0;
         totalBreaches += batchData.breachesCreated || 0;
+        totalSkipped += batchData.skippedNoMatrix || 0;
 
         // Update frontend state (live progress)
         setProcessed(totalProcessed);
         setComplianceChanged(totalComplianceChanged);
+        setBreachesCreated(totalBreaches);
+        setSkippedNoMatrix(totalSkipped);
 
-        console.log(`✅ Batch ${i + 1}/${batches} complete: ${totalProcessed}/${totalObservations} processed, ${totalComplianceChanged} changed, ${totalBreaches} breaches`);
+        console.log(`✅ Batch ${i + 1}/${batches} complete: ${totalProcessed}/${totalObservations} processed, ${totalComplianceChanged} changed, ${totalBreaches} breaches, ${totalSkipped} skipped`);
       }
 
       // Calculate duration
@@ -216,6 +224,8 @@ export function ComplianceRecalculation() {
     setCompletionData(null);
     setProcessed(0);
     setComplianceChanged(0);
+    setBreachesCreated(0);
+    setSkippedNoMatrix(0);
     setCurrentBatch(0);
     setTotalBatches(0);
   };
@@ -366,22 +376,38 @@ export function ComplianceRecalculation() {
                 </p>
               </div>
 
-              {/* Stats Grid */}
+              {/* Stats Grid - 4 Metrics (matching screenshot) */}
               <div className="grid grid-cols-2 gap-3">
-                <div className="text-center p-4 bg-white dark:bg-gray-900 rounded-lg border-2 border-blue-300">
+                <div className="text-center p-3 bg-white dark:bg-gray-900 rounded-lg border-2 border-blue-300">
                   <div className="text-3xl font-black text-blue-600">
                     {processed.toLocaleString()}
                   </div>
                   <div className="text-xs text-muted-foreground mt-1 font-semibold">
-                    Records Processed
+                    Processed
                   </div>
                 </div>
-                <div className="text-center p-4 bg-white dark:bg-gray-900 rounded-lg border-2 border-amber-300">
+                <div className="text-center p-3 bg-white dark:bg-gray-900 rounded-lg border-2 border-amber-300">
                   <div className="text-3xl font-black text-amber-600">
                     {complianceChanged.toLocaleString()}
                   </div>
                   <div className="text-xs text-muted-foreground mt-1 font-semibold">
-                    Compliance Updated
+                    Changed
+                  </div>
+                </div>
+                <div className="text-center p-3 bg-white dark:bg-gray-900 rounded-lg border-2 border-red-300">
+                  <div className="text-3xl font-black text-red-600">
+                    {breachesCreated.toLocaleString()}
+                  </div>
+                  <div className="text-xs text-muted-foreground mt-1 font-semibold">
+                    Breaches
+                  </div>
+                </div>
+                <div className="text-center p-3 bg-white dark:bg-gray-900 rounded-lg border-2 border-yellow-300">
+                  <div className="text-3xl font-black text-yellow-600">
+                    {skippedNoMatrix.toLocaleString()}
+                  </div>
+                  <div className="text-xs text-muted-foreground mt-1 font-semibold">
+                    Skipped (No Matrix)
                   </div>
                 </div>
               </div>
