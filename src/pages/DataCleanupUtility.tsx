@@ -54,6 +54,7 @@ export function DataCleanupUtility() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [processed, setProcessed] = useState(0);
   const [complianceChanged, setComplianceChanged] = useState(0);
+  const [isCancelling, setIsCancelling] = useState(false);
 
   // Fetch zones
   const { data: zones = [] } = useQuery({
@@ -222,6 +223,59 @@ export function DataCleanupUtility() {
     setComplianceChanged(0);
   };
 
+  const handleCancel = async () => {
+    if (!activeActionId) return;
+
+    setIsCancelling(true);
+    try {
+      // Update the action status to 'failed' with cancellation message
+      const { error } = await supabase
+        .from('admin_recalculation_actions')
+        .update({
+          status: 'failed',
+          error_message: 'Cancelled by user',
+          completed_at: new Date().toISOString(),
+        })
+        .eq('id', activeActionId);
+
+      if (error) throw error;
+
+      setIsProcessing(false);
+      setActiveActionId(null);
+      setProcessed(0);
+      setComplianceChanged(0);
+      toast.info('Recalculation cancelled');
+    } catch (error: any) {
+      console.error('Failed to cancel:', error);
+      toast.error('Failed to cancel: ' + error.message);
+    } finally {
+      setIsCancelling(false);
+    }
+  };
+
+  const handleRefreshStatus = async () => {
+    if (!activeActionId) return;
+
+    try {
+      const { data, error } = await supabase
+        .from('admin_recalculation_actions')
+        .select('*')
+        .eq('id', activeActionId)
+        .single();
+
+      if (error) throw error;
+
+      if (data) {
+        setProcessed(data.observations_processed || 0);
+        setComplianceChanged(data.compliance_changed || 0);
+        toast.success('Status refreshed');
+      }
+    } catch (error: any) {
+      console.error('Failed to refresh status:', error);
+      toast.error('Failed to refresh status');
+    }
+  };
+
   const dateRangeLabels: Record<string, string> = {
     all_time: 'All Time',
     last_7_days: 'Last 7 Days',
@@ -372,6 +426,39 @@ export function DataCleanupUtility() {
               <div className="flex items-center gap-2 md:gap-3">
                 <Progress value={100} className="h-2 md:h-3 flex-1" />
                 <Badge className="text-[10px] md:text-xs bg-blue-600 animate-pulse">LIVE</Badge>
+              </div>
+
+              {/* Control Buttons */}
+              <div className="flex items-center gap-2">
+                <Button
+                  onClick={handleRefreshStatus}
+                  variant="outline"
+                  size="sm"
+                  className="flex-1"
+                  disabled={!activeActionId}
+                >
+                  <RefreshCw className="h-3 w-3 md:h-4 md:w-4 mr-1 md:mr-2" />
+                  Refresh Status
+                </Button>
+                <Button
+                  onClick={handleCancel}
+                  variant="destructive"
+                  size="sm"
+                  className="flex-1"
+                  disabled={isCancelling || !activeActionId}
+                >
+                  {isCancelling ? (
+                    <>
+                      <Loader2 className="h-3 w-3 md:h-4 md:w-4 mr-1 md:mr-2 animate-spin" />
+                      Cancelling...
+                    </>
+                  ) : (
+                    <>
+                      <XCircle className="h-3 w-3 md:h-4 md:w-4 mr-1 md:mr-2" />
+                      Cancel
+                    </>
+                  )}
+                </Button>
               </div>
 
               {/* Stats - Mobile Responsive Grid */}

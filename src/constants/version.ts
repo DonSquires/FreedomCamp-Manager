@@ -6,9 +6,23 @@
  * - PATCH (third digit): Minor amendments
  */
 
-export const APP_VERSION = '2.11.0007';
+export const APP_VERSION = '2.11.0008';
 
 export const VERSION_HISTORY = [
+  {
+    version: '2.11.0008',
+    date: '2025-02-15',
+    changes: [
+      '🐛 CRITICAL FIX: Analytics Hub infinite loading loop resolved',
+      '✅ Changed initial loading state from true to false',
+      '✅ Analytics now shows "Load Analytics" button immediately',
+      '🔧 Data Cleanup: Added Cancel button to stop background processing',
+      '🔧 Data Cleanup: Added Refresh Status button to manually update progress',
+      '🎯 Users can now interrupt long-running recalculations',
+      '📊 Manual status refresh shows exact current progress without waiting',
+      '⚡ Improved user control during data operations',
+    ],
+  },
   {
     version: '2.11.0007',
     date: '2025-02-15',

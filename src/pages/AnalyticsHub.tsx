@@ -118,7 +118,7 @@ export function AnalyticsHub() {
   const isMaster = user?.role === 'master';
 
   const [activeTab, setActiveTab] = useState<'overview' | 'zones' | 'officers' | 'breaches'>('overview');
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [hasLoaded, setHasLoaded] = useState(false);
   
