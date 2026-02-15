@@ -107,22 +107,70 @@ NZ warrants are issued by Territorial Authorities (city/district councils) and a
 2. Enter property for enforcement purposes
 3. Request information from individuals
 
-**NELSON CITY COUNCIL WARRANT FORMAT (COMMON FORMAT):**
+**COMMON NZ COUNCIL WARRANT FORMATS:**
 
-**FRONT of Card:**
+---
+
+**FORMAT 1: NELSON CITY COUNCIL**
+
+**FRONT:**
 - "Warrant of Appointment" + Officer name (e.g., "Andrew Hall")
-- "Nelson City Council" logo with Māori design
+- "Nelson City Council" logo (coat of arms with Māori design)
 - "The Common Seal of the Nelson City Council was hereunto affixed in the presence of"
-- Officer photo
-- Signatures (CEO, NCR)
+- Officer photo + signatures (CEO, NCR)
 - **Issued: DD/MM/YY** (e.g., "29/08/22")
 - **Expires: DD/MM/YY** (e.g., "29/08/25")
 
-**BACK of Card:**
+**BACK:**
 - "WARRANT OF APPOINTMENT" + Officer name
 - "is appointed as an ENFORCEMENT/AUTHORISED OFFICER"
 - "With powers and functions under"
-- **Authorized Acts listed here** (e.g., "s.38 Resource Management Act 1991", "Freedom Camping Act 2011")
+- **Specific authorized acts** (e.g., "s.38 Resource Management Act 1991", "Freedom Camping Act 2011")
+
+---
+
+**FORMAT 2: TASMAN DISTRICT COUNCIL**
+
+**FRONT:**
+- "Tasman | te tai o Aorere" branding (wave logo)
+- "WARRANT OF APPOINTMENT IDENTIFICATION"
+- "AUTHORISED OFFICER OF TASMAN DISTRICT COUNCIL"
+- Officer photo + signature + name (e.g., "Andrew Hall")
+- Role: "Noise Control Officers"
+- **Issue Date: Month YYYY** (e.g., "May 2022")
+- ❌ **NO expiry date visible on front** (may be on back or internal record)
+
+**BACK:**
+- "WARRANT OF AUTHORITY" (note: different title from Nelson)
+- "[Name] is duly appointed by the Tasman District Council as an"
+- "Enforcement Officer under the Resource Management Act 1991"
+- **STATUTORY FUNCTION:** Long paragraph describing powers:
+  "This Officer may exercise all powers and duties including such power to enter land, conduct inspections, issue notices as provided by and for the purpose of the aforementioned Acts and associated Regulations and Bylaws."
+- Chief Executive signature
+
+---
+
+**CRITICAL DIFFERENCES TO HANDLE:**
+
+1. **Date Formats:**
+   - Nelson: DD/MM/YY (29/08/22) → convert to 2022-08-29
+   - Tasman: Month YYYY (May 2022) → convert to 2022-05-01 (use first of month if no specific day)
+
+2. **Expiry Date:**
+   - Nelson: Shows expiry on front
+   - Tasman: May NOT show expiry (set to null if not found, not an error)
+
+3. **Title Wording:**
+   - Nelson: "Warrant of Appointment"
+   - Tasman: "Warrant of Authority"
+
+4. **Acts Listed:**
+   - Nelson: Specific acts with sections ("s.38 Resource Management Act 1991")
+   - Tasman: Generic reference ("aforementioned Acts and associated Regulations and Bylaws")
+
+5. **Layout:**
+   - Nelson: Portrait/vertical
+   - Tasman: Landscape/horizontal
 
 **CRITICAL:** The authorized acts are typically on the BACK of the card, NOT the front!
 
@@ -159,12 +207,24 @@ If back says "Freedom Camping Act 2011":
 - authorized_acts: ["Freedom Camping Act 2011"]
 - authorized_activities: ["freedom_camping"]
 
-**IMPORTANT:**
+**IMPORTANT DATE CONVERSION RULES:**
+- **DD/MM/YY format (Nelson):** 29/08/25 → 2025-08-29 (assume 20XX for YY < 50, 19XX for YY ≥ 50)
+- **Month YYYY format (Tasman):** May 2022 → 2022-05-01 (use first day of month)
+- **Missing expiry date:** Set to null (valid for some councils like Tasman)
+
+**IMPORTANT EXTRACTION RULES:**
 - **Check BOTH front and back** of warrant card (back has the authorized acts!)
-- Convert **DD/MM/YY** dates to **YYYY-MM-DD** (e.g., 29/08/25 → 2025-08-29)
 - Extract officer name from both front AND back (should match)
-- Look for Nelson City Council seal on front
-- Territorial limits usually match council name (Nelson City Council = Nelson District)
+- Identify council by logo/branding:
+  - Nelson City Council = coat of arms + Māori design
+  - Tasman District Council = wave logo + "te tai o Aorere"
+  - Other councils = use text identification
+- Territorial limits usually match council name:
+  - Nelson City Council = Nelson District
+  - Tasman District Council = Tasman District
+- If acts are generic ("aforementioned Acts"), infer from role:
+  - "Noise Control Officer" → Resource Management Act 1991 → noise_control, resource_management
+  - "Enforcement Officer" → may include multiple acts, use generic bylaw_enforcement
 
 If you cannot find a field, set it to null.`
       ; // The semicolon was missing here
