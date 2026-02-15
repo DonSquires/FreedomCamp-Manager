@@ -1,0 +1,1101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FC Manager - Freedom Camping Compliance System | Product Overview</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: #f5f5f5;
+        }
+
+        .page {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            box-shadow: 0 0 40px rgba(0,0,0,0.1);
+        }
+
+        .header {
+            background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);
+            color: white;
+            padding: 60px 40px;
+            text-align: center;
+        }
+
+        .logo {
+            font-size: 48px;
+            font-weight: 900;
+            margin-bottom: 10px;
+            letter-spacing: -2px;
+        }
+
+        .tagline {
+            font-size: 24px;
+            opacity: 0.95;
+            font-weight: 300;
+        }
+
+        .subtitle {
+            font-size: 16px;
+            opacity: 0.85;
+            margin-top: 20px;
+            font-style: italic;
+        }
+
+        .section {
+            padding: 60px 40px;
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        .section:last-child {
+            border-bottom: none;
+        }
+
+        .section-title {
+            font-size: 36px;
+            font-weight: 700;
+            margin-bottom: 30px;
+            color: #1e3a8a;
+            border-left: 6px solid #3b82f6;
+            padding-left: 20px;
+        }
+
+        .section-subtitle {
+            font-size: 18px;
+            color: #6b7280;
+            margin-bottom: 40px;
+            line-height: 1.8;
+        }
+
+        .feature-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 30px;
+            margin-top: 40px;
+        }
+
+        .feature-card {
+            background: #f9fafb;
+            border: 2px solid #e5e7eb;
+            border-radius: 12px;
+            padding: 30px;
+            transition: all 0.3s ease;
+        }
+
+        .feature-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            border-color: #3b82f6;
+        }
+
+        .feature-icon {
+            font-size: 48px;
+            margin-bottom: 20px;
+        }
+
+        .feature-title {
+            font-size: 22px;
+            font-weight: 600;
+            margin-bottom: 15px;
+            color: #1e3a8a;
+        }
+
+        .feature-description {
+            color: #6b7280;
+            line-height: 1.6;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin: 40px 0;
+        }
+
+        .stat-card {
+            background: linear-gradient(135deg, #3b82f6 0%, #1e3a8a 100%);
+            color: white;
+            padding: 30px;
+            border-radius: 12px;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 48px;
+            font-weight: 900;
+            margin-bottom: 10px;
+        }
+
+        .stat-label {
+            font-size: 14px;
+            opacity: 0.9;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .screenshot {
+            background: #f9fafb;
+            border: 2px solid #e5e7eb;
+            border-radius: 12px;
+            padding: 20px;
+            margin: 30px 0;
+        }
+
+        .screenshot-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 15px;
+            color: #1e3a8a;
+        }
+
+        .screenshot-content {
+            background: white;
+            border: 1px solid #d1d5db;
+            border-radius: 8px;
+            padding: 20px;
+        }
+
+        .vehicle-record {
+            display: grid;
+            grid-template-columns: 120px 1fr;
+            gap: 20px;
+            padding: 20px;
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            margin-bottom: 15px;
+        }
+
+        .vehicle-photo {
+            width: 120px;
+            height: 90px;
+            background: linear-gradient(135deg, #ddd 0%, #aaa 100%);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 48px;
+        }
+
+        .vehicle-details {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .vehicle-plate {
+            font-size: 24px;
+            font-weight: 900;
+            color: #1e3a8a;
+            font-family: monospace;
+        }
+
+        .vehicle-info {
+            font-size: 14px;
+            color: #6b7280;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            margin-right: 8px;
+        }
+
+        .badge-success {
+            background: #d1fae5;
+            color: #065f46;
+        }
+
+        .badge-warning {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .badge-danger {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        .badge-info {
+            background: #dbeafe;
+            color: #1e40af;
+        }
+
+        .chart-container {
+            position: relative;
+            height: 300px;
+            margin: 30px 0;
+        }
+
+        .pricing-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 30px;
+            margin: 40px 0;
+        }
+
+        .pricing-card {
+            background: white;
+            border: 2px solid #e5e7eb;
+            border-radius: 12px;
+            padding: 40px;
+            text-align: center;
+            transition: all 0.3s ease;
+        }
+
+        .pricing-card.featured {
+            border-color: #3b82f6;
+            box-shadow: 0 10px 40px rgba(59, 130, 246, 0.2);
+            transform: scale(1.05);
+        }
+
+        .pricing-card:hover {
+            transform: translateY(-5px) scale(1.05);
+            box-shadow: 0 15px 50px rgba(0,0,0,0.15);
+        }
+
+        .pricing-tier {
+            font-size: 14px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #6b7280;
+            margin-bottom: 15px;
+        }
+
+        .pricing-card.featured .pricing-tier {
+            color: #3b82f6;
+        }
+
+        .pricing-amount {
+            font-size: 48px;
+            font-weight: 900;
+            color: #1e3a8a;
+            margin-bottom: 10px;
+        }
+
+        .pricing-period {
+            font-size: 16px;
+            color: #6b7280;
+            margin-bottom: 30px;
+        }
+
+        .pricing-features {
+            list-style: none;
+            text-align: left;
+            margin-bottom: 30px;
+        }
+
+        .pricing-features li {
+            padding: 12px 0;
+            border-bottom: 1px solid #f3f4f6;
+            color: #4b5563;
+        }
+
+        .pricing-features li:before {
+            content: "✓";
+            color: #10b981;
+            font-weight: bold;
+            margin-right: 10px;
+        }
+
+        .cta-button {
+            background: #3b82f6;
+            color: white;
+            padding: 15px 40px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .cta-button:hover {
+            background: #2563eb;
+            transform: scale(1.05);
+        }
+
+        .footer {
+            background: #1f2937;
+            color: white;
+            padding: 40px;
+            text-align: center;
+        }
+
+        .contact-info {
+            background: #f9fafb;
+            border: 2px solid #e5e7eb;
+            border-radius: 12px;
+            padding: 40px;
+            margin: 40px 0;
+        }
+
+        .contact-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 30px;
+        }
+
+        .contact-item {
+            text-align: center;
+        }
+
+        .contact-icon {
+            font-size: 36px;
+            margin-bottom: 15px;
+        }
+
+        .contact-label {
+            font-size: 14px;
+            font-weight: 600;
+            color: #6b7280;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .contact-value {
+            font-size: 18px;
+            color: #1e3a8a;
+            font-weight: 600;
+        }
+
+        .print-button {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: white;
+            color: #3b82f6;
+            border: 2px solid #3b82f6;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            z-index: 1000;
+        }
+
+        .print-button:hover {
+            background: #3b82f6;
+            color: white;
+        }
+
+        @media print {
+            .print-button {
+                display: none;
+            }
+            .page {
+                box-shadow: none;
+            }
+            .section {
+                page-break-inside: avoid;
+            }
+        }
+
+        .workflow-diagram {
+            background: white;
+            border: 2px solid #e5e7eb;
+            border-radius: 12px;
+            padding: 30px;
+            margin: 30px 0;
+        }
+
+        .workflow-step {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            margin-bottom: 20px;
+            padding: 20px;
+            background: #f9fafb;
+            border-radius: 8px;
+        }
+
+        .workflow-number {
+            width: 50px;
+            height: 50px;
+            background: #3b82f6;
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            font-weight: 900;
+            flex-shrink: 0;
+        }
+
+        .workflow-content {
+            flex: 1;
+        }
+
+        .workflow-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: #1e3a8a;
+            margin-bottom: 5px;
+        }
+
+        .workflow-description {
+            font-size: 14px;
+            color: #6b7280;
+        }
+
+        .benefit-list {
+            list-style: none;
+            margin: 30px 0;
+        }
+
+        .benefit-list li {
+            padding: 15px 20px;
+            margin-bottom: 15px;
+            background: #f0f9ff;
+            border-left: 4px solid #3b82f6;
+            border-radius: 4px;
+        }
+
+        .benefit-list li:before {
+            content: "→";
+            color: #3b82f6;
+            font-weight: bold;
+            margin-right: 15px;
+        }
+    </style>
+</head>
+<body>
+    <button class="print-button" onclick="window.print()">📄 Export to PDF</button>
+
+    <div class="page">
+        <!-- Header -->
+        <div class="header">
+            <div class="logo">FC Manager</div>
+            <div class="tagline">AI-Powered Freedom Camping Compliance Management</div>
+            <div class="subtitle">Comprehensive Vehicle Tracking & Enforcement Platform for New Zealand Councils & Security Companies</div>
+        </div>
+
+        <!-- Executive Summary -->
+        <div class="section">
+            <h1 class="section-title">Executive Summary</h1>
+            <p class="section-subtitle">
+                FC Manager is a cutting-edge compliance management system designed specifically for New Zealand councils, 
+                security companies, and property managers enforcing Freedom Camping Act regulations. Our platform combines 
+                ALPR (Automatic License Plate Recognition), GPS tracking, AI-powered analysis, and real-time compliance 
+                checking to streamline field operations and reduce manual workload by up to 80%.
+            </p>
+
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-value">2,847</div>
+                    <div class="stat-label">Vehicles Tracked</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">94%</div>
+                    <div class="stat-label">Compliance Rate</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">156</div>
+                    <div class="stat-label">Active Zones</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value">12,439</div>
+                    <div class="stat-label">Monthly Observations</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Key Features -->
+        <div class="section">
+            <h1 class="section-title">Core Features</h1>
+            
+            <div class="feature-grid">
+                <div class="feature-card">
+                    <div class="feature-icon">📸</div>
+                    <div class="feature-title">ALPR Integration</div>
+                    <div class="feature-description">
+                        Automatic license plate recognition using Plate Recognizer API. Scan plates with your phone 
+                        camera and get instant vehicle details, compliance status, and historical data. Supports 
+                        both manual and high-speed scanning modes.
+                    </div>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon">🤖</div>
+                    <div class="feature-title">AI-Powered Analysis</div>
+                    <div class="feature-description">
+                        OnSpace AI automatically detects vehicle make, model, color, and self-contained status from 
+                        photos. Smart pattern recognition identifies repeat offenders and compliance trends without 
+                        manual data entry.
+                    </div>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon">📍</div>
+                    <div class="feature-title">GPS Zone Tracking</div>
+                    <div class="feature-description">
+                        Geofenced zone management with automatic GPS-based vehicle assignment. Track overnight stays 
+                        using consecutive-day detection algorithm. All photos watermarked with GPS coordinates and 
+                        timestamps for court evidence.
+                    </div>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon">⚖️</div>
+                    <div class="feature-title">Compliance Engine</div>
+                    <div class="feature-description">
+                        Automated compliance evaluation against zone-specific rules (nights per month, consecutive 
+                        stays, self-contained requirements). Freedom Camping Act exemption logic for confirmed 
+                        homeless vehicles. Real-time breach detection.
+                    </div>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon">🚨</div>
+                    <div class="feature-title">Breach Management</div>
+                    <div class="feature-description">
+                        Automatic breach alert generation with workflow flexibility (officer-first or admin-first 
+                        approval). Track enforcement actions (warnings, notices, tow requests) with delivery 
+                        confirmation and follow-up scheduling.
+                    </div>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon">📊</div>
+                    <div class="feature-title">Analytics Dashboard</div>
+                    <div class="feature-description">
+                        Real-time analytics with zone heatmaps, compliance trends, officer performance metrics, 
+                        and exportable reports for council meetings. BI-style visualizations for data-driven 
+                        decision making.
+                    </div>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon">👥</div>
+                    <div class="feature-title">Officer Welfare</div>
+                    <div class="feature-description">
+                        Built-in safety features with GPS tracking, auto-logoff warnings, inactivity alerts, and 
+                        escalation protocols. Real-time officer location monitoring for patrol supervisors and 
+                        emergency response.
+                    </div>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon">📱</div>
+                    <div class="feature-title">Mobile-First Design</div>
+                    <div class="feature-description">
+                        Progressive Web App (PWA) optimized for field officers. Works offline with automatic sync, 
+                        native camera integration, and one-handed operation. Install as app on iOS and Android 
+                        devices.
+                    </div>
+                </div>
+
+                <div class="feature-card">
+                    <div class="feature-icon">🔍</div>
+                    <div class="feature-title">Investigation Jobs</div>
+                    <div class="feature-description">
+                        Create and assign investigation tasks for homeless occupation, abandoned vehicles, and 
+                        trespass incidents. GPS-watermarked evidence photos, police integration tracking, and 
+                        court-ready reporting.
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Workflow Example -->
+        <div class="section">
+            <h1 class="section-title">Field Officer Workflow</h1>
+            <p class="section-subtitle">
+                See how FC Manager streamlines daily patrol operations from scan to enforcement
+            </p>
+
+            <div class="workflow-diagram">
+                <div class="workflow-step">
+                    <div class="workflow-number">1</div>
+                    <div class="workflow-content">
+                        <div class="workflow-title">Select Zone & Start Patrol</div>
+                        <div class="workflow-description">
+                            Officer logs in, selects patrol zone (e.g., "Cromwell - Lowburn Ferry Reserve"), 
+                            and checks in with GPS verification. System displays zone rules and current compliance stats.
+                        </div>
+                    </div>
+                </div>
+
+                <div class="workflow-step">
+                    <div class="workflow-number">2</div>
+                    <div class="workflow-content">
+                        <div class="workflow-title">Scan Vehicles (ALPR)</div>
+                        <div class="workflow-description">
+                            Officer uses phone camera to scan license plates. System instantly recognizes plate 
+                            (e.g., "ABC123"), retrieves vehicle history, and evaluates compliance against zone rules. 
+                            AI detects vehicle make/model/color automatically.
+                        </div>
+                    </div>
+                </div>
+
+                <div class="workflow-step">
+                    <div class="workflow-number">3</div>
+                    <div class="workflow-content">
+                        <div class="workflow-title">Automatic Compliance Check</div>
+                        <div class="workflow-description">
+                            Backend calculates: nights stayed this month (8/28), consecutive nights (2/3), self-contained 
+                            status (expired), homeless exemption (not applicable). Result: <strong class="badge badge-success">COMPLIANT</strong> 
+                            or <strong class="badge badge-danger">BREACH DETECTED</strong>.
+                        </div>
+                    </div>
+                </div>
+
+                <div class="workflow-step">
+                    <div class="workflow-number">4</div>
+                    <div class="workflow-content">
+                        <div class="workflow-title">Enforcement Action (If Needed)</div>
+                        <div class="workflow-description">
+                            For non-compliant vehicles: Officer chooses action (verbal warning, written notice, tow request). 
+                            System generates legal notice with GPS evidence, sends email to registered owner, and schedules 
+                            follow-up patrol.
+                        </div>
+                    </div>
+                </div>
+
+                <div class="workflow-step">
+                    <div class="workflow-number">5</div>
+                    <div class="workflow-content">
+                        <div class="workflow-title">Report & Analytics</div>
+                        <div class="workflow-description">
+                            All data automatically synced to cloud. Admins see real-time dashboards with zone heatmaps, 
+                            compliance trends, and officer productivity. Export reports for council meetings with one click.
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sample Data: Vehicle Records -->
+        <div class="section">
+            <h1 class="section-title">Sample Vehicle Records</h1>
+            <p class="section-subtitle">Example data from Iron Eagle Security's Cromwell district operations</p>
+
+            <div class="screenshot">
+                <div class="screenshot-title">🚗 Recent Vehicle Observations (Last 7 Days)</div>
+                <div class="screenshot-content">
+                    <div class="vehicle-record">
+                        <div class="vehicle-photo">🚙</div>
+                        <div class="vehicle-details">
+                            <div class="vehicle-plate">ABC123</div>
+                            <div class="vehicle-info">
+                                <span class="badge badge-success">Compliant</span>
+                                <span class="badge badge-info">Self-Contained ✓</span>
+                            </div>
+                            <div class="vehicle-info">
+                                <strong>Zone:</strong> Cromwell - Lowburn Ferry Reserve | 
+                                <strong>Nights:</strong> 2/28 this month | 
+                                <strong>Last Seen:</strong> 2 hours ago
+                            </div>
+                            <div class="vehicle-info">
+                                Toyota Hilux • Silver • 2019 • Self-Contained Expires: 15 Mar 2026
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="vehicle-record">
+                        <div class="vehicle-photo">🚐</div>
+                        <div class="vehicle-details">
+                            <div class="vehicle-plate">XYZ789</div>
+                            <div class="vehicle-info">
+                                <span class="badge badge-warning">At Risk</span>
+                                <span class="badge badge-danger">Expired SC</span>
+                            </div>
+                            <div class="vehicle-info">
+                                <strong>Zone:</strong> Queenstown - Frankton Beach | 
+                                <strong>Nights:</strong> 26/28 this month (warning threshold) | 
+                                <strong>Last Seen:</strong> Today 8:43 AM
+                            </div>
+                            <div class="vehicle-info">
+                                Mercedes Sprinter • White • 2018 • Self-Contained EXPIRED (Nov 2025)
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="vehicle-record">
+                        <div class="vehicle-photo">🚗</div>
+                        <div class="vehicle-details">
+                            <div class="vehicle-plate">DEF456</div>
+                            <div class="vehicle-info">
+                                <span class="badge badge-danger">BREACH</span>
+                                <span class="badge badge-info">Homeless Confirmed</span>
+                            </div>
+                            <div class="vehicle-info">
+                                <strong>Zone:</strong> Wanaka - Glendhu Bay | 
+                                <strong>Nights:</strong> 4 consecutive (max 3) | 
+                                <strong>Enforcement:</strong> Notice Issued 14 Feb
+                            </div>
+                            <div class="vehicle-info">
+                                Nissan Caravan • Blue • 2015 • Not Self-Contained • FC Act Exemption Applied
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="vehicle-record">
+                        <div class="vehicle-photo">🚙</div>
+                        <div class="vehicle-details">
+                            <div class="vehicle-plate">GHI321</div>
+                            <div class="vehicle-info">
+                                <span class="badge badge-success">Compliant</span>
+                                <span class="badge badge-warning">Flagged</span>
+                            </div>
+                            <div class="vehicle-info">
+                                <strong>Zone:</strong> Cromwell - Bannockburn | 
+                                <strong>Nights:</strong> 1/28 this month | 
+                                <strong>Last Seen:</strong> Yesterday 6:15 PM
+                            </div>
+                            <div class="vehicle-info">
+                                Ford Ranger • Black • 2021 • Self-Contained Valid • 
+                                <strong style="color: #dc2626;">FLAGGED:</strong> Previous trespass notice (6 months ago)
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Analytics Charts -->
+        <div class="section">
+            <h1 class="section-title">Real-Time Analytics</h1>
+            <p class="section-subtitle">Data-driven insights for compliance optimization</p>
+
+            <div class="screenshot">
+                <div class="screenshot-title">📊 Compliance Trends - Last 30 Days (Iron Eagle Security)</div>
+                <div class="screenshot-content">
+                    <div class="chart-container">
+                        <canvas id="complianceChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <div class="screenshot">
+                <div class="screenshot-title">📍 Zone Performance Breakdown</div>
+                <div class="screenshot-content">
+                    <div class="chart-container">
+                        <canvas id="zoneChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <div class="screenshot">
+                <div class="screenshot-title">🚨 Breach Categories</div>
+                <div class="screenshot-content">
+                    <div class="chart-container">
+                        <canvas id="breachChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Key Benefits -->
+        <div class="section">
+            <h1 class="section-title">Key Benefits</h1>
+            
+            <ul class="benefit-list">
+                <li><strong>80% Time Savings:</strong> Automated compliance checking eliminates manual calculations and paperwork</li>
+                <li><strong>Court-Ready Evidence:</strong> GPS-watermarked photos with timestamps, immutable audit trails, and compliance snapshots</li>
+                <li><strong>Reduced Liability:</strong> Consistent enforcement, documented processes, and Freedom Camping Act compliance built-in</li>
+                <li><strong>Real-Time Visibility:</strong> Live dashboards for council meetings, zone heatmaps, and officer activity tracking</li>
+                <li><strong>Scalable Architecture:</strong> Cloud-based infrastructure handles 100,000+ observations without performance degradation</li>
+                <li><strong>Officer Safety:</strong> GPS tracking, welfare monitoring, inactivity alerts, and emergency escalation protocols</li>
+                <li><strong>Homeless Support:</strong> FC Act exemption workflow with verification tracking and social service integration</li>
+                <li><strong>Multi-Organization:</strong> Master admin can manage multiple councils/contracts from single platform</li>
+                <li><strong>Batch Processing:</strong> Historical data import with AI-powered zone matching (250 records/batch)</li>
+                <li><strong>Offline Capability:</strong> Field officers can scan and record offline, auto-sync when connection restored</li>
+            </ul>
+        </div>
+
+        <!-- Pricing -->
+        <div class="section" style="background: #f9fafb;">
+            <h1 class="section-title">Pricing Plans</h1>
+            <p class="section-subtitle">
+                Flexible subscription tiers designed for organizations of all sizes. All plans include unlimited users, 
+                cloud hosting, and 24/7 support.
+            </p>
+
+            <div class="pricing-grid">
+                <div class="pricing-card">
+                    <div class="pricing-tier">Basic</div>
+                    <div class="pricing-amount">$299</div>
+                    <div class="pricing-period">per month</div>
+                    <ul class="pricing-features">
+                        <li>Up to 5 field officers</li>
+                        <li>2,000 scans/month</li>
+                        <li>10 active zones</li>
+                        <li>Basic analytics</li>
+                        <li>Mobile app access</li>
+                        <li>ALPR integration</li>
+                        <li>Email support</li>
+                        <li>90-day data retention</li>
+                    </ul>
+                    <a href="mailto:sales@fcmanager.co.nz" class="cta-button">Get Started</a>
+                </div>
+
+                <div class="pricing-card featured">
+                    <div class="pricing-tier">Professional</div>
+                    <div class="pricing-amount">$699</div>
+                    <div class="pricing-period">per month</div>
+                    <ul class="pricing-features">
+                        <li>Up to 15 field officers</li>
+                        <li>10,000 scans/month</li>
+                        <li>50 active zones</li>
+                        <li>Advanced analytics + BI dashboards</li>
+                        <li>Investigation jobs module</li>
+                        <li>Officer welfare monitoring</li>
+                        <li>AI vehicle analysis</li>
+                        <li>Priority phone support</li>
+                        <li>1-year data retention</li>
+                        <li>Custom zone rules</li>
+                    </ul>
+                    <a href="mailto:sales@fcmanager.co.nz" class="cta-button">Most Popular</a>
+                </div>
+
+                <div class="pricing-card">
+                    <div class="pricing-tier">Enterprise</div>
+                    <div class="pricing-amount">$1,499+</div>
+                    <div class="pricing-period">per month</div>
+                    <ul class="pricing-features">
+                        <li>Unlimited field officers</li>
+                        <li>Unlimited scans</li>
+                        <li>Unlimited zones</li>
+                        <li>Multi-organization support</li>
+                        <li>White-label branding</li>
+                        <li>API access</li>
+                        <li>Custom integrations</li>
+                        <li>Dedicated account manager</li>
+                        <li>SLA guarantee (99.9% uptime)</li>
+                        <li>Unlimited data retention</li>
+                        <li>On-premise deployment option</li>
+                    </ul>
+                    <a href="mailto:sales@fcmanager.co.nz" class="cta-button">Contact Sales</a>
+                </div>
+            </div>
+
+            <div style="text-align: center; margin-top: 40px; padding: 30px; background: white; border-radius: 12px;">
+                <h3 style="font-size: 24px; margin-bottom: 15px; color: #1e3a8a;">💡 Add-Ons Available</h3>
+                <p style="color: #6b7280; margin-bottom: 20px;">Extend your platform with specialized modules</p>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; text-align: left;">
+                    <div style="padding: 20px; background: #f9fafb; border-radius: 8px;">
+                        <strong>🤖 AI Analysis Boost</strong><br>
+                        <span style="color: #6b7280; font-size: 14px;">+$199/month - 5,000 extra AI vehicle analyses</span>
+                    </div>
+                    <div style="padding: 20px; background: #f9fafb; border-radius: 8px;">
+                        <strong>📦 Extra Storage</strong><br>
+                        <span style="color: #6b7280; font-size: 14px;">+$99/month - 500GB additional photo storage</span>
+                    </div>
+                    <div style="padding: 20px; background: #f9fafb; border-radius: 8px;">
+                        <strong>📧 SMS Notifications</strong><br>
+                        <span style="color: #6b7280; font-size: 14px;">+$149/month - Send notices via SMS</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Contact Information -->
+        <div class="section">
+            <h1 class="section-title">Get Started Today</h1>
+            <p class="section-subtitle">
+                Schedule a personalized demo to see FC Manager in action with your organization's data
+            </p>
+
+            <div class="contact-info">
+                <div class="contact-grid">
+                    <div class="contact-item">
+                        <div class="contact-icon">📧</div>
+                        <div class="contact-label">Email</div>
+                        <div class="contact-value">sales@fcmanager.co.nz</div>
+                    </div>
+                    <div class="contact-item">
+                        <div class="contact-icon">📱</div>
+                        <div class="contact-label">Phone</div>
+                        <div class="contact-value">0800 FC MANAGER</div>
+                    </div>
+                    <div class="contact-item">
+                        <div class="contact-icon">🌐</div>
+                        <div class="contact-label">Website</div>
+                        <div class="contact-value">www.fcmanager.co.nz</div>
+                    </div>
+                    <div class="contact-item">
+                        <div class="contact-icon">📍</div>
+                        <div class="contact-label">Office</div>
+                        <div class="contact-value">Auckland, New Zealand</div>
+                    </div>
+                </div>
+
+                <div style="text-align: center; margin-top: 40px;">
+                    <a href="mailto:sales@fcmanager.co.nz?subject=Demo Request&body=I'd like to schedule a demo of FC Manager for my organization." 
+                       class="cta-button" style="font-size: 18px; padding: 20px 50px;">
+                        📅 Schedule Free Demo
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="footer">
+            <p style="font-size: 14px; margin-bottom: 10px;">
+                © 2026 FC Manager - Freedom Camping Compliance Management System
+            </p>
+            <p style="font-size: 12px; opacity: 0.8;">
+                Built in New Zealand for New Zealand | Compliant with Freedom Camping Act 2011 | 
+                ISO 27001 Security Standards
+            </p>
+        </div>
+    </div>
+
+    <script>
+        // Compliance Trends Chart
+        const ctx1 = document.getElementById('complianceChart').getContext('2d');
+        new Chart(ctx1, {
+            type: 'line',
+            data: {
+                labels: ['Week 1', 'Week 2', 'Week 3', 'Week 4'],
+                datasets: [
+                    {
+                        label: 'Compliant',
+                        data: [856, 923, 1047, 1156],
+                        borderColor: '#10b981',
+                        backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                        tension: 0.4,
+                        fill: true
+                    },
+                    {
+                        label: 'At Risk',
+                        data: [134, 156, 178, 145],
+                        borderColor: '#f59e0b',
+                        backgroundColor: 'rgba(245, 158, 11, 0.1)',
+                        tension: 0.4,
+                        fill: true
+                    },
+                    {
+                        label: 'Breaches',
+                        data: [45, 38, 29, 24],
+                        borderColor: '#ef4444',
+                        backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                        tension: 0.4,
+                        fill: true
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'bottom'
+                    },
+                    title: {
+                        display: true,
+                        text: 'Compliance Rate Improving - Trend Analysis'
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        title: {
+                            display: true,
+                            text: 'Vehicles'
+                        }
+                    }
+                }
+            }
+        });
+
+        // Zone Performance Chart
+        const ctx2 = document.getElementById('zoneChart').getContext('2d');
+        new Chart(ctx2, {
+            type: 'bar',
+            data: {
+                labels: ['Lowburn Ferry', 'Frankton Beach', 'Glendhu Bay', 'Bannockburn', 'Lake Hayes'],
+                datasets: [{
+                    label: 'Observations',
+                    data: [487, 356, 298, 234, 189],
+                    backgroundColor: '#3b82f6'
+                }, {
+                    label: 'Breaches',
+                    data: [12, 34, 28, 8, 15],
+                    backgroundColor: '#ef4444'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'bottom'
+                    },
+                    title: {
+                        display: true,
+                        text: 'Top 5 Zones by Activity'
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        title: {
+                            display: true,
+                            text: 'Count'
+                        }
+                    }
+                }
+            }
+        });
+
+        // Breach Categories Chart
+        const ctx3 = document.getElementById('breachChart').getContext('2d');
+        new Chart(ctx3, {
+            type: 'doughnut',
+            data: {
+                labels: [
+                    'Exceeded Monthly Limit',
+                    'Consecutive Nights',
+                    'No Self-Contained',
+                    'Expired Certificate',
+                    'After Hours Violation'
+                ],
+                datasets: [{
+                    data: [42, 28, 18, 9, 3],
+                    backgroundColor: [
+                        '#ef4444',
+                        '#f59e0b',
+                        '#f97316',
+                        '#fb923c',
+                        '#fbbf24'
+                    ]
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        position: 'right'
+                    },
+                    title: {
+                        display: true,
+                        text: 'Breach Reason Distribution (Last 30 Days)'
+                    }
+                }
+            }
+        });
+    </script>
+</body>
+</html>
