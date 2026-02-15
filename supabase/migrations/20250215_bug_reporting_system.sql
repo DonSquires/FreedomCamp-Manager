@@ -73,14 +73,11 @@ CREATE TRIGGER update_bug_reports_updated_at
 -- RLS Policies
 ALTER TABLE public.bug_reports ENABLE ROW LEVEL SECURITY;
 
--- Only master users can create reports
-CREATE POLICY "masters_create_bug_reports"
+-- All authenticated users can create reports
+CREATE POLICY "users_create_bug_reports"
   ON public.bug_reports FOR INSERT
   TO authenticated
-  WITH CHECK (
-    user_id = auth.uid() AND
-    get_user_role(auth.uid()) = 'master'
-  );
+  WITH CHECK (user_id = auth.uid());
 
 -- Users can view their own reports
 CREATE POLICY "users_view_own_reports"

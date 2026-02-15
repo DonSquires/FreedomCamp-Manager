@@ -6,9 +6,31 @@
  * - PATCH (third digit): Minor amendments
  */
 
-export const APP_VERSION = '2.11.0016';
+export const APP_VERSION = '2.11.0018';
 
 export const VERSION_HISTORY = [
+  {
+    version: '2.11.0018',
+    date: '2026-02-15',
+    changes: [
+      '✅ FIXED: Bug Report button now visible to ALL users',
+      '📝 All users can submit bug reports, feature requests, and issues',
+      '🔒 Only Master users can view and manage submitted reports',
+      '🎯 Better feedback loop - everyone can report problems',
+      '💡 Masters review and resolve issues through Bug Reports Management',
+    ],
+  },
+  {
+    version: '2.11.0017',
+    date: '2026-02-15',
+    changes: [
+      '🔒 RESTRICTED: Bug Reporting System now only visible to Master users',
+      '✅ Report Issue button only shows for super admins (master role)',
+      '🔐 Database policy updated - only masters can create bug reports',
+      '🎯 Prevents regular users/officers from cluttering issue queue',
+      '👥 Bug Reports Management still accessible to admins (view only)',
+    ],
+  },
   {
     version: '2.11.0016',
     date: '2026-02-15',
