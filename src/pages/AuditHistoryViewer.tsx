@@ -125,10 +125,15 @@ export function AuditHistoryViewer() {
       return (
         <div className="space-y-2 text-xs">
           <div className="p-2 bg-green-50 dark:bg-green-950/30 rounded border border-green-200 dark:border-green-800">
-            <div className="font-semibold text-green-900 dark:text-green-100 mb-1">Created:</div>
-            <pre className="font-mono text-xs overflow-x-auto">
-              {JSON.stringify(newValues, null, 2)}
-            </pre>
+            <div className="font-semibold text-green-900 dark:text-green-100 mb-2">Created:</div>
+            <div className="space-y-1">
+              {Object.entries(newValues).map(([key, value]) => (
+                <div key={key} className="flex items-start gap-2 p-1">
+                  <span className="font-semibold text-green-700 dark:text-green-300 min-w-32">{key}:</span>
+                  <span className="font-mono flex-1">{String(value)}</span>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       );
@@ -139,10 +144,15 @@ export function AuditHistoryViewer() {
       return (
         <div className="space-y-2 text-xs">
           <div className="p-2 bg-red-50 dark:bg-red-950/30 rounded border border-red-200 dark:border-red-800">
-            <div className="font-semibold text-red-900 dark:text-red-100 mb-1">Deleted:</div>
-            <pre className="font-mono text-xs overflow-x-auto">
-              {JSON.stringify(oldValues, null, 2)}
-            </pre>
+            <div className="font-semibold text-red-900 dark:text-red-100 mb-2">Deleted:</div>
+            <div className="space-y-1">
+              {Object.entries(oldValues).map(([key, value]) => (
+                <div key={key} className="flex items-start gap-2 p-1">
+                  <span className="font-semibold text-red-700 dark:text-red-300 min-w-32">{key}:</span>
+                  <span className="font-mono flex-1">{String(value)}</span>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       );
@@ -167,15 +177,15 @@ export function AuditHistoryViewer() {
               <div className="font-semibold text-amber-900 dark:text-amber-100 mb-1">{field}</div>
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <div className="text-muted-foreground">Before:</div>
-                  <div className="font-mono text-red-600 dark:text-red-400 break-all">
-                    {JSON.stringify(oldVal, null, 2)}
+                  <div className="text-muted-foreground mb-1">Before:</div>
+                  <div className="font-mono text-sm bg-white dark:bg-gray-900 p-2 rounded border border-red-200 dark:border-red-800">
+                    {typeof oldVal === 'object' ? JSON.stringify(oldVal) : String(oldVal)}
                   </div>
                 </div>
                 <div>
-                  <div className="text-muted-foreground">After:</div>
-                  <div className="font-mono text-green-600 dark:text-green-400 break-all">
-                    {JSON.stringify(newVal, null, 2)}
+                  <div className="text-muted-foreground mb-1">After:</div>
+                  <div className="font-mono text-sm bg-white dark:bg-gray-900 p-2 rounded border border-green-200 dark:border-green-800">
+                    {typeof newVal === 'object' ? JSON.stringify(newVal) : String(newVal)}
                   </div>
                 </div>
               </div>

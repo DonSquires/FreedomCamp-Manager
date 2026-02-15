@@ -529,18 +529,28 @@ export function ActivityDashboard() {
               {selectedLog.old_values && Object.keys(selectedLog.old_values).length > 0 && (
                 <div>
                   <Label className="text-xs text-muted-foreground">Old Values</Label>
-                  <pre className="text-xs bg-muted p-3 rounded mt-1 overflow-x-auto">
-                    {JSON.stringify(selectedLog.old_values, null, 2)}
-                  </pre>
+                  <div className="space-y-1 mt-1">
+                    {Object.entries(selectedLog.old_values).map(([key, value]) => (
+                      <div key={key} className="flex items-start gap-2 text-xs p-2 bg-muted rounded">
+                        <span className="font-semibold text-muted-foreground min-w-32">{key}:</span>
+                        <span className="font-mono flex-1">{String(value)}</span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
 
               {selectedLog.new_values && Object.keys(selectedLog.new_values).length > 0 && (
                 <div>
                   <Label className="text-xs text-muted-foreground">New Values</Label>
-                  <pre className="text-xs bg-muted p-3 rounded mt-1 overflow-x-auto">
-                    {JSON.stringify(selectedLog.new_values, null, 2)}
-                  </pre>
+                  <div className="space-y-1 mt-1">
+                    {Object.entries(selectedLog.new_values).map(([key, value]) => (
+                      <div key={key} className="flex items-start gap-2 text-xs p-2 bg-muted rounded">
+                        <span className="font-semibold text-muted-foreground min-w-32">{key}:</span>
+                        <span className="font-mono flex-1">{String(value)}</span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
             </div>

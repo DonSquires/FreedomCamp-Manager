@@ -326,7 +326,7 @@ export function ObservationDetailModal({
                     )}
                   </h3>
                   {observation.compliance_results.map((result, idx) => (
-                    <div key={idx} className="space-y-2">
+                    <div key={idx} className="space-y-3">
                       {result.violation_reasons && result.violation_reasons.length > 0 && (
                         <div>
                           <p className="text-xs font-semibold text-muted-foreground mb-1">Violations:</p>
@@ -340,11 +340,53 @@ export function ObservationDetailModal({
                         </div>
                       )}
                       {result.metrics_json && (
-                        <div className="mt-2">
-                          <p className="text-xs font-semibold text-muted-foreground mb-1">Compliance Metrics:</p>
-                          <pre className="text-xs bg-muted p-2 rounded overflow-x-auto">
-                            {JSON.stringify(result.metrics_json, null, 2)}
-                          </pre>
+                        <div className="mt-3">
+                          <p className="text-xs font-semibold text-muted-foreground mb-2">Compliance Metrics:</p>
+                          <div className="grid grid-cols-2 gap-3">
+                            {result.metrics_json.fine_amount !== undefined && (
+                              <div className="p-3 bg-white dark:bg-gray-900 rounded-lg border">
+                                <p className="text-xs text-muted-foreground mb-1">Fine Amount</p>
+                                <p className="text-lg font-bold">${result.metrics_json.fine_amount}</p>
+                              </div>
+                            )}
+                            {result.metrics_json.month_nights !== undefined && (
+                              <div className="p-3 bg-white dark:bg-gray-900 rounded-lg border">
+                                <p className="text-xs text-muted-foreground mb-1">Nights This Month</p>
+                                <p className="text-lg font-bold">{result.metrics_json.month_nights}</p>
+                              </div>
+                            )}
+                            {result.metrics_json.consecutive_nights !== undefined && (
+                              <div className="p-3 bg-white dark:bg-gray-900 rounded-lg border">
+                                <p className="text-xs text-muted-foreground mb-1">Consecutive Nights</p>
+                                <p className="text-lg font-bold">{result.metrics_json.consecutive_nights}</p>
+                              </div>
+                            )}
+                            {result.metrics_json.violation_severity && (
+                              <div className="p-3 bg-white dark:bg-gray-900 rounded-lg border">
+                                <p className="text-xs text-muted-foreground mb-1">Severity</p>
+                                <Badge variant={result.metrics_json.violation_severity === 'high' ? 'destructive' : 'secondary'}>
+                                  {result.metrics_json.violation_severity.toUpperCase()}
+                                </Badge>
+                              </div>
+                            )}
+                          </div>
+                          {result.metrics_json.violation_message && (
+                            <div className="mt-3 p-3 bg-amber-50 dark:bg-amber-950/20 rounded-lg border border-amber-200 dark:border-amber-800">
+                              <p className="text-sm text-amber-900 dark:text-amber-100">
+                                {result.metrics_json.violation_message}
+                              </p>
+                            </div>
+                          )}
+                          {result.metrics_json.recommended_action && (
+                            <div className="mt-3 p-3 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                              <p className="text-xs font-semibold text-blue-900 dark:text-blue-100 mb-1">
+                                Recommended Action:
+                              </p>
+                              <p className="text-sm text-blue-800 dark:text-blue-200">
+                                {result.metrics_json.recommended_action}
+                              </p>
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
@@ -394,26 +436,7 @@ export function ObservationDetailModal({
               </Card>
             )}
 
-            {/* Record Metadata */}
-            <Card className="bg-muted/50">
-              <CardContent className="p-4">
-                <h3 className="font-bold text-sm mb-2">Record Information</h3>
-                <div className="grid grid-cols-2 gap-2 text-xs">
-                  <div>
-                    <p className="text-muted-foreground">Observation ID</p>
-                    <p className="font-mono">{observation.observation_id}</p>
-                  </div>
-                  <div>
-                    <p className="text-muted-foreground">Vehicle ID</p>
-                    <p className="font-mono">{observation.vehicle_id}</p>
-                  </div>
-                  <div>
-                    <p className="text-muted-foreground">Created At</p>
-                    <p>{new Date(observation.created_at).toLocaleString('en-NZ')}</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+
           </div>
         )}
       </DialogContent>

@@ -460,8 +460,23 @@ export function DataIntegrityDashboard() {
                   )}
 
                   {check.result.details && (
-                    <div className="mt-3 p-3 bg-muted rounded text-xs font-mono">
-                      <pre>{JSON.stringify(check.result.details, null, 2)}</pre>
+                    <div className="mt-3 p-3 bg-muted rounded">
+                      <p className="text-xs font-semibold mb-2">Additional Details:</p>
+                      <div className="space-y-1 text-xs">
+                        {Object.entries(check.result.details).map(([key, value]) => (
+                          <div key={key} className="flex items-center gap-2">
+                            <span className="font-semibold text-muted-foreground">{key.replace(/_/g, ' ')}:</span>
+                            <span className="font-mono">
+                              {typeof value === 'object' 
+                                ? Array.isArray(value) 
+                                  ? `${value.length} items`
+                                  : JSON.stringify(value)
+                                : String(value)
+                              }
+                            </span>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   )}
                 </CardContent>

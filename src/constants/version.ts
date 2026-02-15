@@ -6,9 +6,24 @@
  * - PATCH (third digit): Minor amendments
  */
 
-export const APP_VERSION = '2.11.0006';
+export const APP_VERSION = '2.11.0007';
 
 export const VERSION_HISTORY = [
+  {
+    version: '2.11.0007',
+    date: '2025-02-15',
+    changes: [
+      '🎨 HUMAN-FRIENDLY: Replaced all raw JSON displays with professional formatted views',
+      '✅ Observation Details: Compliance metrics now show in clean grid cards with labels',
+      '✅ Data Integrity: Technical details formatted as key-value pairs, not raw JSON',
+      '✅ Audit History: Change logs display as readable key-value tables',
+      '✅ Activity Dashboard: Audit logs show structured data instead of JSON dumps',
+      '🗑️ Removed unnecessary "Record Information" section from observation details',
+      '📱 Mobile-friendly: All formatted displays work perfectly on phones/tablets',
+      '💡 Professional presentation: Fine amounts, night counts, severity levels clearly labeled',
+      '🎯 User-focused: Violation messages and recommended actions highlighted prominently',
+    ],
+  },
   {
     version: '2.11.0006',
     date: '2025-02-15',
