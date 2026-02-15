@@ -356,7 +356,7 @@ serve(async (req) => {
     // ============================================
     console.log('⚖️ STEP 5: Compliance recalculation (batched processing)...');
 
-    const BATCH_SIZE = 100;
+    const BATCH_SIZE = 300;
     const totalObservations = observations.length;
     const totalBatches = Math.ceil(totalObservations / BATCH_SIZE);
 

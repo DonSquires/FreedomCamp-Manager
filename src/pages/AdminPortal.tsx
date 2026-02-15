@@ -62,6 +62,7 @@ import { DatabaseDiagnostic } from './DatabaseDiagnostic';
 import { EmergencyDataRecovery } from './EmergencyDataRecovery';
 import { DataRecoveryAnalysis } from './DataRecoveryAnalysis';
 import { ProductOverviewDocument } from './ProductOverviewDocument';
+import { DatabaseMaintenance } from './DatabaseMaintenance';
 
 interface AdminPortalProps {
   onLogout: () => void;
@@ -360,6 +361,20 @@ export function AdminPortal({ onLogout }: AdminPortalProps) {
               <span className="text-purple-600 dark:text-purple-400 font-semibold">Settings Hub</span>
             </Button>
 
+            {isMaster && (
+              <Button
+                variant={activeTab === 'database-maintenance' ? 'default' : 'ghost'}
+                className="w-full justify-start text-sm lg:text-base h-10 lg:h-9 touch-manipulation bg-amber-50 dark:bg-amber-950/20 border border-amber-500/30"
+                onClick={() => {
+                  setActiveTab('database-maintenance');
+                  setSidebarOpen(false);
+                }}
+              >
+                <Database className="h-4 w-4 mr-2 lg:mr-3 text-amber-600" />
+                <span className="text-amber-600 dark:text-amber-400 font-semibold">Database Maintenance</span>
+              </Button>
+            )}
+
 
 
             <div className="text-xs font-semibold text-muted-foreground px-3 py-2 mt-3 lg:mt-4">
@@ -502,6 +517,9 @@ export function AdminPortal({ onLogout }: AdminPortalProps) {
               {/* Phase 4 & 5: Consolidated Hubs */}
               {activeTab === 'data-management-hub' && <DataManagementHub />}
               {activeTab === 'settings-hub' && <SettingsHub />}
+              
+              {/* Database Maintenance - Master Only */}
+              {activeTab === 'database-maintenance' && isMaster && <DatabaseMaintenance />}
               
               {/* Documents - Master Only */}
               {activeTab === 'product-overview' && isMaster && <ProductOverviewDocument />}

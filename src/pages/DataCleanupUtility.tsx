@@ -1,15 +1,18 @@
 /**
- * DATA CLEANUP & RECALCULATION - MOBILE-FRIENDLY VERSION
- * Comprehensive 3-phase data cleanup pipeline with live background processing
+ * COMPLIANCE RECALCULATION - MOBILE-FRIENDLY VERSION
+ * Standalone compliance recalculation with live background processing
  * 
- * Phase 1: Zone Correction (GPS-based zone assignment)
- * Phase 2: Duplicate Removal (removes exact duplicates)
- * Phase 3: Compliance Recalculation (reprocesses all compliance rules)
+ * Recalculates compliance for all observations in selected zones/date range:
+ * - Tests each observation against zone compliance matrix
+ * - Updates monthly stay counters
+ * - Detects breaches and creates alerts
+ * - Updates compliance results table
  * 
  * Features:
  * - Mobile-responsive design
  * - Human-readable progress reporting
  * - Background processing with live updates
+ * - Batch processing (300 records at a time)
  * - User can navigate away during processing
  * - Completion requires acknowledgment
  */
@@ -23,7 +26,7 @@ import { Progress } from '@/components/ui/progress';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Wrench, Loader2, CheckCircle2, AlertTriangle, Calendar, XCircle, PartyPopper, MapPin, Copy, RefreshCw } from 'lucide-react';
+import { RefreshCw, Loader2, CheckCircle2, AlertTriangle, Calendar, XCircle, PartyPopper, MapPin } from 'lucide-react';
 import { ResponsiveContainer } from '@/components/layout/ResponsiveContainer';
 import { useAuthStore } from '@/stores/authStore';
 import { supabase } from '@/lib/supabase';
@@ -43,7 +46,7 @@ interface RecalculationAction {
   duration_seconds?: number;
 }
 
-export function DataCleanupUtility() {
+export function ComplianceRecalculation() {
   const { user } = useAuthStore();
 
   const [selectedZones, setSelectedZones] = useState<string[]>([]);
@@ -184,18 +187,113 @@ export function DataCleanupUtility() {
       setProcessed(0);
       setComplianceChanged(0);
 
-      // Trigger background cleanup and recalculation via Edge Function
-      const { data: actionData, error: actionError } = await supabase.functions.invoke(
-        'cleanup-and-recalculate',
+      // Step 1: Get total count
+      const { data: totalData, error: totalError } = await supabase.functions.invoke(
+        'recalculate-compliance-v2',
         {
           body: {
-            scope: 'ZONE',
             zoneIds: selectedZones,
             dateRangeStart: dateRangeStart,
             dateRangeEnd: dateRangeEnd,
+            get_total: true,
           },
         }
       );
+
+      if (totalError) throw totalError;
+
+      const totalObservations = totalData.total || 0;
+      console.log('📊 Total observations to process:', totalObservations);
+
+      if (totalObservations === 0) {
+        toast.info('No observations found in selected zones/date range');
+        setIsProcessing(false);
+        return;
+      }
+
+      // Create tracking record
+      const { data: actionRecord, error: actionError } = await supabase
+        .from('admin_recalculation_actions')
+        .insert({
+          scope_type: 'ZONE',
+          target_zone_ids: selectedZones,
+          date_range_start: dateRangeStart || null,
+          date_range_end: dateRangeEnd || null,
+          observations_processed: 0,
+          compliance_changed: 0,
+          drift_events_created: 0,
+          status: 'running',
+          performed_by: user?.id,
+          performed_at: new Date().toISOString(),
+        })
+        .select('id')
+        .single();
+
+      if (actionError) throw actionError;
+
+      const actionId = actionRecord.id;
+      setActiveActionId(actionId);
+
+      // Step 2: Process in batches
+      const BATCH_SIZE = 300;
+      const totalBatches = Math.ceil(totalObservations / BATCH_SIZE);
+      let totalProcessed = 0;
+      let totalComplianceChanged = 0;
+      let totalBreaches = 0;
+
+      for (let i = 0; i < totalBatches; i++) {
+        const offset = i * BATCH_SIZE;
+
+        const { data: batchData, error: batchError } = await supabase.functions.invoke(
+          'recalculate-compliance-v2',
+          {
+            body: {
+              zoneIds: selectedZones,
+              dateRangeStart: dateRangeStart,
+              dateRangeEnd: dateRangeEnd,
+              get_total: false,
+              offset: offset,
+              batch_size: BATCH_SIZE,
+            },
+          }
+        );
+
+        if (batchError) {
+          console.error('Batch error:', batchError);
+          throw batchError;
+        }
+
+        totalProcessed += batchData.processed || 0;
+        totalComplianceChanged += batchData.complianceChanged || 0;
+        totalBreaches += batchData.breachesCreated || 0;
+
+        // Update tracking record
+        await supabase
+          .from('admin_recalculation_actions')
+          .update({
+            observations_processed: totalProcessed,
+            compliance_changed: totalComplianceChanged,
+            drift_events_created: totalBreaches,
+          })
+          .eq('id', actionId);
+
+        console.log(`Batch ${i + 1}/${totalBatches} complete: ${totalProcessed}/${totalObservations} processed`);
+      }
+
+      // Mark as completed
+      const { error: completeError } = await supabase
+        .from('admin_recalculation_actions')
+        .update({
+          status: 'completed',
+          completed_at: new Date().toISOString(),
+        })
+        .eq('id', actionId);
+
+      if (completeError) throw completeError;
+
+      const actionData = {
+        action_id: actionId,
+      };
 
       if (actionError) throw actionError;
 
@@ -289,28 +387,31 @@ export function DataCleanupUtility() {
         {/* Header */}
         <div>
           <h1 className="text-2xl md:text-3xl font-bold flex items-center gap-2 md:gap-3">
-            <Wrench className="h-6 w-6 md:h-8 md:w-8 text-amber-600" />
-            Data Cleanup & Recalculation
+            <RefreshCw className="h-6 w-6 md:h-8 md:w-8 text-blue-600" />
+            Compliance Recalculation
           </h1>
           <p className="text-xs md:text-sm text-muted-foreground mt-1">
-            Comprehensive data cleanup: Zone correction → Duplicate removal → Compliance recalculation
+            Recalculate compliance for observations using current zone rules and matrix settings
           </p>
         </div>
 
         {/* Important Information */}
-        <Alert className="border-2 border-amber-500/30 bg-amber-50 dark:bg-amber-950/20">
-          <AlertTriangle className="h-4 w-4 text-amber-600" />
+        <Alert className="border-2 border-blue-500/30 bg-blue-50 dark:bg-blue-950/20">
+          <AlertTriangle className="h-4 w-4 text-blue-600" />
           <AlertDescription className="text-xs md:text-sm">
-            <p className="font-semibold mb-2">ℹ️ Important Information</p>
+            <p className="font-semibold mb-2">ℹ️ What This Does</p>
             <ul className="space-y-1 text-xs md:text-sm">
               <li>
-                <span className="font-semibold">🗺️ Zone Correction:</span> Uses GPS to move observations to correct zones (accuracy &lt; 100m)
+                <span className="font-semibold">✅ Tests Compliance:</span> Checks each observation against zone-specific compliance matrix rules
               </li>
               <li>
-                <span className="font-semibold">🗑️ Duplicate Removal:</span> Deletes exact duplicate observations (same plate, zone, date)
+                <span className="font-semibold">📊 Updates Statistics:</span> Recalculates monthly stays, consecutive nights, and breach counters
               </li>
               <li>
-                <span className="font-semibold">♻️ Compliance Recalculation:</span> Reprocesses compliance rules, monthly stays, and breach detection
+                <span className="font-semibold">🚨 Creates Alerts:</span> Generates breach alerts for non-compliant observations
+              </li>
+              <li>
+                <span className="font-semibold">📈 Batch Processing:</span> Processes 300 records at a time for optimal performance
               </li>
             </ul>
           </AlertDescription>
@@ -402,7 +503,7 @@ export function DataCleanupUtility() {
               ) : (
                 <>
                   <RefreshCw className="h-4 w-4 md:h-5 md:w-5 mr-2" />
-                  Start Cleanup & Recalculation
+                  Start Compliance Recalculation
                 </>
               )}
             </Button>
