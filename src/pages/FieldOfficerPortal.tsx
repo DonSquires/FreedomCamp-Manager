@@ -41,6 +41,7 @@ import { HSReportingForm } from '@/components/features/HSReportingForm';
 import { MaintenanceReportForm } from '@/components/features/MaintenanceReportForm';
 import { FieldInvestigationWork } from './FieldInvestigationWork';
 import { MyIncidentReportsList } from '@/components/features/MyIncidentReportsList';
+import { ZoomScanQueue } from '@/components/features/ZoomScanQueue';
 import { OfficerWelfareWarningModal } from '@/components/features/OfficerWelfareWarningModal';
 import { DarkModeToggle } from '@/components/features/DarkModeToggle';
 import { NetworkStatusBar } from '@/components/features/NetworkStatusBar';
@@ -381,13 +382,11 @@ export function FieldOfficerPortal({ onLogout }: FieldOfficerPortalProps) {
     if (currentView === 'zoom_scan' && selectedZone) {
       return (
         <div className="fixed inset-0 bg-background z-50">
-          <PlateCapture
+          <ZoomScanQueue
             zoneId={selectedZone.id}
             zoneName={selectedZone.name}
             organizationId={selectedZone.orgId}
-            onPlateDetected={handlePlateDetected}
             onCancel={() => setCurrentView('dashboard')}
-            mode="zoom_scan"
           />
         </div>
       );
