@@ -28,6 +28,7 @@ import {
   ChevronRight,
   Menu,
   X,
+  Zap,
 } from 'lucide-react';
 import { JDSLogo } from '@/components/layout/JDSLogo';
 import { useAuthStore } from '@/stores/authStore';
@@ -53,7 +54,7 @@ interface FieldOfficerPortalProps {
   onLogout: () => void;
 }
 
-type ViewMode = 'dashboard' | 'scanning' | 'reports' | 'history' | 'settings';
+type ViewMode = 'dashboard' | 'scanning' | 'zoom_scan' | 'reports' | 'history' | 'settings';
 
 export function FieldOfficerPortal({ onLogout }: FieldOfficerPortalProps) {
   const { user } = useAuthStore();
@@ -372,6 +373,21 @@ export function FieldOfficerPortal({ onLogout }: FieldOfficerPortalProps) {
             organizationId={selectedZone.orgId}
             onPlateDetected={handlePlateDetected}
             onCancel={() => setCurrentView('dashboard')}
+          />
+        </div>
+      );
+    }
+
+    if (currentView === 'zoom_scan' && selectedZone) {
+      return (
+        <div className="fixed inset-0 bg-background z-50">
+          <PlateCapture
+            zoneId={selectedZone.id}
+            zoneName={selectedZone.name}
+            organizationId={selectedZone.orgId}
+            onPlateDetected={handlePlateDetected}
+            onCancel={() => setCurrentView('dashboard')}
+            mode="zoom_scan"
           />
         </div>
       );
@@ -697,6 +713,19 @@ export function FieldOfficerPortal({ onLogout }: FieldOfficerPortalProps) {
           </Button>
 
           <Button
+            variant={currentView === 'zoom_scan' ? 'default' : 'ghost'}
+            className="w-full justify-start h-12 text-base"
+            onClick={() => {
+              setCurrentView('zoom_scan');
+              setSidebarOpen(false);
+            }}
+            disabled={!selectedZone}
+          >
+            <Zap className="h-5 w-5 mr-3" />
+            Zoom Scan
+          </Button>
+
+          <Button
             variant={currentView === 'reports' ? 'default' : 'ghost'}
             className="w-full justify-start h-12 text-base"
             onClick={() => {
@@ -768,9 +797,9 @@ export function FieldOfficerPortal({ onLogout }: FieldOfficerPortalProps) {
           {renderContent()}
         </div>
 
-        {/* Bottom Navigation */}
+        {/* Bottom Navigation - 5 TABS */}
         <div className="border-t bg-background/95 backdrop-blur-sm">
-          <div className="grid grid-cols-4 gap-1 p-2 max-w-2xl mx-auto">
+          <div className="grid grid-cols-5 gap-1 p-2 max-w-3xl mx-auto">
             <Button
               variant={currentView === 'dashboard' ? 'default' : 'ghost'}
               className="h-16 flex flex-col items-center justify-center gap-1"
@@ -789,6 +818,19 @@ export function FieldOfficerPortal({ onLogout }: FieldOfficerPortalProps) {
               <Camera className="h-5 w-5" />
               <span className="text-xs">Scan</span>
             </Button>
+
+            <Button
+              variant={currentView === 'zoom_scan' ? 'default' : 'ghost'}
+              className={cn(
+                "h-16 flex flex-col items-center justify-center gap-1",
+                currentView === 'zoom_scan' && "bg-gradient-to-br from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white"
+              )}
+              onClick={() => setCurrentView('zoom_scan')}
+              disabled={!selectedZone}
+            >
+              <Zap className="h-5 w-5" />
+              <span className="text-xs font-bold">Zoom</span>
+            </Button>
             
             <Button
               variant={currentView === 'reports' ? 'default' : 'ghost'}
@@ -801,7 +843,7 @@ export function FieldOfficerPortal({ onLogout }: FieldOfficerPortalProps) {
             
             <Button
               variant={currentView === 'history' ? 'default' : 'ghost'}
-              className="h-16 flex flex-col items-center justify-center gap-1"
+              className="h-16 flex flex-col items-center justify-center gap-1 relative"
               onClick={() => setCurrentView('history')}
             >
               <List className="h-5 w-5" />
@@ -936,7 +978,7 @@ export function FieldOfficerPortal({ onLogout }: FieldOfficerPortalProps) {
       />
 
       {/* Keep Screen Awake */}
-      <KeepScreenAwake isActive={currentView === 'scanning'} />
+      <KeepScreenAwake isActive={currentView === 'scanning' || currentView === 'zoom_scan'} />
     </div>
   );
 }
