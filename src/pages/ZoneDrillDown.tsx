@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
+import { VehicleCard } from '@/components/features/VehicleCard';
 import {
   ArrowLeft,
   Search,
@@ -19,9 +20,12 @@ import {
   Calendar,
   Loader2,
   Eye,
+  User,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
+import { format } from 'date-fns';
+import { ResponsiveContainer } from '@/components/layout/ResponsiveContainer';
 
 interface Observation {
   observation_id: string;
@@ -38,6 +42,7 @@ interface Observation {
   canonical_vehicles?: {
     vehicle_make: string | null;
     vehicle_model: string | null;
+    vehicle_year: number | null;
     vehicle_color: string | null;
     total_breaches: number;
     is_flagged: boolean;
@@ -117,6 +122,7 @@ export function ZoneDrillDown({
           canonical_vehicles!vehicle_observations_v2_plate_number_fkey(
             vehicle_make,
             vehicle_model,
+            vehicle_year,
             vehicle_color,
             total_breaches,
             is_flagged,
@@ -188,216 +194,247 @@ export function ZoneDrillDown({
   };
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <Button variant="outline" onClick={onBack}>
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back to Dashboard
-          </Button>
-          <div>
-            <h1 className="text-3xl font-bold flex items-center gap-2">
-              <MapPin className="h-8 w-8 text-primary" />
-              {zoneName}
-            </h1>
-            <p className="text-muted-foreground">Zone records and observations</p>
-            {dateFrom && dateTo && (
-              <Badge variant="outline" className="mt-1">
-                <Calendar className="h-3 w-3 mr-1" />
-                {new Date(dateFrom).toLocaleDateString('en-NZ')} - {new Date(dateTo).toLocaleDateString('en-NZ')}
-              </Badge>
-            )}
+    <ResponsiveContainer maxWidth="7xl" padding="md">
+      <div className="space-y-4 md:space-y-6">
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="space-y-2">
+            <Button variant="outline" onClick={onBack} size="sm">
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Back
+            </Button>
+            <div>
+              <h1 className="text-2xl md:text-3xl font-bold flex items-center gap-2">
+                <MapPin className="h-6 w-6 md:h-8 md:w-8 text-primary" />
+                {zoneName}
+              </h1>
+              <p className="text-sm md:text-base text-muted-foreground">Zone records and observations</p>
+              {dateFrom && dateTo && (
+                <Badge variant="outline" className="mt-1 text-xs">
+                  <Calendar className="h-3 w-3 mr-1" />
+                  {format(new Date(dateFrom), 'dd MMM')} - {format(new Date(dateTo), 'dd MMM yyyy')}
+                </Badge>
+              )}
+            </div>
           </div>
+          <Button variant="outline" size="sm" onClick={loadObservations} disabled={isLoading}>
+            {isLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
+            Refresh
+          </Button>
         </div>
-        <Button variant="outline" onClick={loadObservations} disabled={isLoading}>
-          {isLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : null}
-          Refresh
-        </Button>
-      </div>
 
-      {/* Zone Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card>
-          <CardContent className="p-6">
-            <div className="text-sm text-muted-foreground mb-1">Total Observations</div>
-            <div className="text-3xl font-black">{totalObs}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-6">
-            <div className="text-sm text-muted-foreground mb-1">Unique Vehicles</div>
-            <div className="text-3xl font-black">{uniqueVehicles}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-6">
-            <div className="text-sm text-muted-foreground mb-1">Compliance Rate</div>
-            <div className="text-3xl font-black">{complianceRate}%</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-6">
-            <div className="text-sm text-muted-foreground mb-1">Flagged Vehicles</div>
-            <div className="text-3xl font-black text-red-600">{flaggedCount}</div>
-          </CardContent>
-        </Card>
-      </div>
+        {/* Zone Stats */}
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
+          <Card>
+            <CardContent className="p-4 md:p-6">
+              <div className="text-xs md:text-sm text-muted-foreground mb-1">Total Observations</div>
+              <div className="text-2xl md:text-3xl font-black">{totalObs.toLocaleString()}</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-4 md:p-6">
+              <div className="text-xs md:text-sm text-muted-foreground mb-1">Unique Vehicles</div>
+              <div className="text-2xl md:text-3xl font-black">{uniqueVehicles.toLocaleString()}</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-4 md:p-6">
+              <div className="text-xs md:text-sm text-muted-foreground mb-1">Compliance Rate</div>
+              <div className="text-2xl md:text-3xl font-black text-green-600">{complianceRate}%</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-4 md:p-6">
+              <div className="text-xs md:text-sm text-muted-foreground mb-1">Flagged Vehicles</div>
+              <div className="text-2xl md:text-3xl font-black text-red-600">{flaggedCount}</div>
+            </CardContent>
+          </Card>
+        </div>
 
-      {/* Filters */}
-      <Card>
-        <CardContent className="p-4">
-          <div className="flex flex-wrap gap-3">
-            {/* Search */}
-            <div className="flex-1 min-w-64">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search plate number, make, model..."
-                  className="pl-9"
-                />
+        {/* Filters */}
+        <Card>
+          <CardContent className="p-3 md:p-4">
+            <div className="flex flex-col sm:flex-row gap-2 md:gap-3">
+              {/* Search */}
+              <div className="flex-1">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Search plate, make, model..."
+                    className="pl-9 text-sm"
+                  />
+                </div>
+              </div>
+
+              {/* Compliance Filter */}
+              <div className="flex gap-1.5 md:gap-2 flex-wrap">
+                <Button
+                  variant={filterCompliance === 'all' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setFilterCompliance('all')}
+                  className="flex-1 sm:flex-none text-xs md:text-sm"
+                >
+                  <Filter className="h-3 w-3 mr-1" />
+                  All
+                </Button>
+                <Button
+                  variant={filterCompliance === 'compliant' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setFilterCompliance('compliant')}
+                  className="flex-1 sm:flex-none text-xs md:text-sm"
+                >
+                  <CheckCircle2 className="h-3 w-3 mr-1" />
+                  <span className="hidden sm:inline">Compliant</span>
+                  <span className="sm:hidden">✓</span>
+                </Button>
+                <Button
+                  variant={filterCompliance === 'non-compliant' ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => setFilterCompliance('non-compliant')}
+                  className="flex-1 sm:flex-none text-xs md:text-sm"
+                >
+                  <AlertTriangle className="h-3 w-3 mr-1" />
+                  <span className="hidden sm:inline">Non-Compliant</span>
+                  <span className="sm:hidden">✗</span>
+                </Button>
+                <Button
+                  variant={filterFlagged ? 'destructive' : 'outline'}
+                  size="sm"
+                  onClick={() => setFilterFlagged(!filterFlagged)}
+                  className="flex-1 sm:flex-none text-xs md:text-sm"
+                >
+                  <Flag className="h-3 w-3 mr-1" />
+                  <span className="hidden sm:inline">Flagged</span>
+                  <span className="sm:hidden">⚑</span>
+                </Button>
               </div>
             </div>
+          </CardContent>
+        </Card>
 
-            {/* Compliance Filter */}
-            <div className="flex gap-2">
-              <Button
-                variant={filterCompliance === 'all' ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => setFilterCompliance('all')}
-              >
-                <Filter className="h-3 w-3 mr-1" />
-                All
-              </Button>
-              <Button
-                variant={filterCompliance === 'compliant' ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => setFilterCompliance('compliant')}
-              >
-                <CheckCircle2 className="h-3 w-3 mr-1" />
-                Compliant
-              </Button>
-              <Button
-                variant={filterCompliance === 'non-compliant' ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => setFilterCompliance('non-compliant')}
-              >
-                <AlertTriangle className="h-3 w-3 mr-1" />
-                Non-Compliant
-              </Button>
-            </div>
+        {/* Observations List */}
+        <Card>
+          <CardHeader className="p-4 md:p-6">
+            <CardTitle className="text-base md:text-lg">
+              Observations ({filteredObs.length.toLocaleString()})
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-3 md:p-6">
+            {isLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              </div>
+            ) : filteredObs.length === 0 ? (
+              <div className="text-center py-12 text-muted-foreground">
+                <p className="text-sm md:text-base">No observations found</p>
+              </div>
+            ) : (
+              <div className="space-y-3 max-h-[600px] overflow-y-auto">
+                {filteredObs.map(obs => {
+                  const isCompliant = obs.compliance_results && obs.compliance_results.length > 0 
+                    ? obs.compliance_results[0].is_compliant 
+                    : null;
+                  const isBreach = isCompliant === false;
+                  const isFlagged = obs.canonical_vehicles?.is_flagged === true;
+                  const isHomeless = obs.canonical_vehicles?.homeless_status === 'confirmed' || 
+                    obs.canonical_vehicles?.homeless_status === 'claimed';
 
-            {/* Flagged Filter */}
-            <Button
-              variant={filterFlagged ? 'destructive' : 'outline'}
-              size="sm"
-              onClick={() => setFilterFlagged(!filterFlagged)}
-            >
-              <Flag className="h-3 w-3 mr-1" />
-              Flagged Only
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Observations Table */}
-      <Card>
-        <CardHeader>
-          <CardTitle>
-            Observations ({filteredObs.length})
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <div className="flex items-center justify-center py-12">
-              <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            </div>
-          ) : filteredObs.length === 0 ? (
-            <div className="text-center py-12 text-muted-foreground">
-              <p>No observations found</p>
-            </div>
-          ) : (
-            <div className="space-y-2 max-h-[600px] overflow-y-auto">
-              {filteredObs.map(obs => (
-                <div
-                  key={obs.observation_id}
-                  className="p-4 border rounded-lg hover:border-primary transition-colors"
-                >
-                  <div className="flex items-start justify-between mb-2">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="text-lg font-mono font-bold">
-                          {obs.plate_number || 'Unknown'}
-                        </span>
+                  return (
+                    <div
+                      key={obs.observation_id}
+                      className="p-3 md:p-4 border rounded-lg hover:border-primary hover:shadow-md transition-all"
+                    >
+                      {/* Vehicle Card with Photo */}
+                      <div className="mb-3">
+                        <VehicleCard
+                          plateNumber={obs.plate_number || 'Unknown'}
+                          vehicleMake={obs.canonical_vehicles?.vehicle_make}
+                          vehicleModel={obs.canonical_vehicles?.vehicle_model}
+                          vehicleYear={obs.canonical_vehicles?.vehicle_year}
+                          vehicleColor={obs.canonical_vehicles?.vehicle_color}
+                          isFlagged={isFlagged}
+                          isHomeless={isHomeless}
+                          isBreach={isBreach}
+                          size="md"
+                          showPhoto={true}
+                          showDetails={true}
+                        />
                       </div>
-                      {(obs.canonical_vehicles?.vehicle_make || obs.canonical_vehicles?.vehicle_model) && (
-                        <p className="text-xs text-muted-foreground">
-                          {obs.canonical_vehicles.vehicle_color && `${obs.canonical_vehicles.vehicle_color} `}
-                          {obs.canonical_vehicles.vehicle_make} {obs.canonical_vehicles.vehicle_model}
+
+                      {/* Compliance Badge */}
+                      <div className="flex items-center gap-2 mb-2">
+                        {isCompliant !== null ? (
+                          <Badge variant={isCompliant ? 'default' : 'destructive'} className="text-xs">
+                            {isCompliant ? (
+                              <>
+                                <CheckCircle2 className="h-3 w-3 mr-1" />
+                                Compliant
+                              </>
+                            ) : (
+                              <>
+                                <AlertTriangle className="h-3 w-3 mr-1" />
+                                Non-Compliant
+                              </>
+                            )}
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-xs">No Data</Badge>
+                        )}
+                      </div>
+
+                      {/* Metadata */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-muted-foreground mb-2">
+                        <div className="flex items-center gap-1.5">
+                          <Calendar className="h-3 w-3 shrink-0" />
+                          <span className="truncate">
+                            {format(new Date(obs.recorded_at), 'dd MMM yyyy HH:mm')}
+                          </span>
+                        </div>
+                        {obs.user_profiles && (
+                          <div className="flex items-center gap-1.5">
+                            <User className="h-3 w-3 shrink-0" />
+                            <span className="truncate">
+                              {obs.user_profiles.first_name} {obs.user_profiles.last_name}
+                            </span>
+                          </div>
+                        )}
+                        {obs.gps_latitude && obs.gps_longitude && (
+                          <div className="flex items-center gap-1.5 col-span-full sm:col-span-1">
+                            <MapPin className="h-3 w-3 shrink-0" />
+                            <span className="truncate font-mono text-[10px]">
+                              {obs.gps_latitude.toFixed(5)}, {obs.gps_longitude.toFixed(5)}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Officer Notes */}
+                      {obs.officer_notes && (
+                        <p className="text-xs text-muted-foreground mb-2 line-clamp-2">
+                          {obs.officer_notes}
                         </p>
                       )}
+
+                      {/* Actions */}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => onObservationSelect?.(obs.observation_id)}
+                        className="w-full sm:w-auto text-xs"
+                      >
+                        <Eye className="h-3 w-3 mr-1.5" />
+                        View Details
+                      </Button>
                     </div>
-                    {obs.compliance_results && obs.compliance_results.length > 0 ? (
-                      <Badge variant={obs.compliance_results[0].is_compliant ? 'default' : 'destructive'}>
-                        {obs.compliance_results[0].is_compliant ? (
-                          <>
-                            <CheckCircle2 className="h-3 w-3 mr-1" />
-                            Compliant
-                          </>
-                        ) : (
-                          <>
-                            <AlertTriangle className="h-3 w-3 mr-1" />
-                            Non-Compliant
-                          </>
-                        )}
-                      </Badge>
-                    ) : (
-                      <Badge variant="outline">No Compliance Data</Badge>
-                    )}
-                  </div>
-
-                  <div className="flex items-center gap-4 text-xs text-muted-foreground mb-2">
-                    <div className="flex items-center gap-1">
-                      <Calendar className="h-3 w-3" />
-                      {new Date(obs.recorded_at).toLocaleString('en-NZ', {
-                        dateStyle: 'short',
-                        timeStyle: 'short',
-                        timeZone: 'Pacific/Auckland',
-                      })}
-                    </div>
-                    {obs.user_profiles && (
-                      <div>
-                        By: {obs.user_profiles.first_name} {obs.user_profiles.last_name}
-                      </div>
-                    )}
-                    {obs.gps_latitude && obs.gps_longitude && (
-                      <div className="flex items-center gap-1">
-                        <MapPin className="h-3 w-3" />
-                        GPS: {obs.gps_latitude.toFixed(5)}, {obs.gps_longitude.toFixed(5)}
-                      </div>
-                    )}
-                  </div>
-
-                  {obs.officer_notes && (
-                    <p className="text-xs text-muted-foreground mb-2">{obs.officer_notes}</p>
-                  )}
-
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => onObservationSelect?.(obs.observation_id)}
-                  >
-                    <Eye className="h-3 w-3 mr-1" />
-                    View Details
-                  </Button>
-                </div>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-    </div>
+                  );
+                })}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    </ResponsiveContainer>
   );
 }
