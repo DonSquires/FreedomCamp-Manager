@@ -6,9 +6,24 @@
  * - PATCH (third digit): Minor amendments
  */
 
-export const APP_VERSION = '2.11.0011';
+export const APP_VERSION = '2.11.0012';
 
 export const VERSION_HISTORY = [
+  {
+    version: '2.11.0012',
+    date: '2026-02-15',
+    changes: [
+      '🎯 COMPLETE REDESIGN: Separated login from portal selection',
+      '✅ New PortalSelection landing page - shows AFTER successful login',
+      '✅ Login.tsx simplified - just authenticates, no portal logic',
+      '✅ App.tsx uses React Router - proper route-based navigation',
+      '✅ Clean flow: Login → Portal Selection → Admin or Field Portal',
+      '✅ Works for ALL roles - no special cases needed',
+      '🔧 Added BrowserRouter to main.tsx for routing support',
+      '📱 Portal selection page is mobile-responsive',
+      '🎨 Beautiful landing page with large portal buttons',
+    ],
+  },
   {
     version: '2.11.0011',
     date: '2026-02-15',

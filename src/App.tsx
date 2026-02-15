@@ -1,11 +1,10 @@
-
 /**
- * FreedomCamp Manager - Phase 1 Unified App
- * Simple role-based routing
- * v2.1.6 - Build: Production
+ * FreedomCamp Manager - Main App Router
+ * Login → Portal Selection → Field/Admin Portal
  */
 
 import { useState, useEffect } from 'react';
+import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { PWAInstallPrompt } from '@/components/features/PWAInstallPrompt';
 import { PWAUpdateNotification } from '@/components/features/PWAUpdateNotification';
 import { StandaloneDetector } from '@/components/features/StandaloneDetector';
@@ -14,7 +13,7 @@ import { AppBadge } from '@/components/features/AppBadge';
 import { useAuthStore } from '@/stores/authStore';
 import { FieldOfficerPortal } from '@/pages/FieldOfficerPortal';
 import { AdminPortal } from '@/pages/AdminPortal';
-import { DataMigrationUtility } from '@/pages/DataMigrationUtility';
+import { PortalSelection } from '@/pages/PortalSelection';
 import { Login } from '@/pages/Login';
 import { FancyLoader } from '@/components/features/FancyLoader';
 import { Toaster } from '@/components/ui/sonner';
@@ -24,8 +23,9 @@ import { initializePushNotifications } from '@/lib/pushNotifications';
 function App() {
   const { user, isAuthenticated, logout, checkSession } = useAuthStore();
   const [isInitializing, setIsInitializing] = useState(true);
+  const navigate = useNavigate();
 
-  // Initialize auth on mount - check for existing session
+  // Initialize auth on mount
   useEffect(() => {
     const initAuth = async () => {
       try {
@@ -40,7 +40,20 @@ function App() {
     initAuth();
   }, [checkSession]);
 
-  // Initialize push notifications on first user interaction
+  // Auto-navigate to portal selection after login if no portal selected yet
+  useEffect(() => {
+    if (isAuthenticated && !isInitializing) {
+      const selectedPortal = localStorage.getItem('selected_portal');
+      const currentPath = window.location.pathname;
+      
+      // If authenticated but no portal selected and not already on portal selection page
+      if (!selectedPortal && currentPath !== '/portal-selection' && currentPath !== '/field-officer' && currentPath !== '/admin') {
+        navigate('/portal-selection');
+      }
+    }
+  }, [isAuthenticated, isInitializing, navigate]);
+
+  // Initialize push notifications
   useEffect(() => {
     if (!isAuthenticated || !user) return;
 
@@ -60,78 +73,25 @@ function App() {
     return <FancyLoader />;
   }
 
-  // Show login if not authenticated
-  if (!isAuthenticated) {
-    return (
-      <>
-        <Login />
-        <Toaster position="top-right" richColors />
-      </>
-    );
-  }
-
-  // Route based on role
-  const isFieldOfficer = user?.role === 'officer' || user?.role === 'field_staff';
-  const isAdmin = user?.role === 'admin' || user?.role === 'master';
-  const isAdminOfficer = user?.role === 'admin_officer';
-
-  // Admin_officer can access both portals based on stored preference
-  if (isAdminOfficer) {
-    const selectedPortal = localStorage.getItem('selected_portal') as 'field' | 'admin' | null;
-    
-    if (selectedPortal === 'field') {
-      return (
-        <>
-          <FieldOfficerPortal onLogout={logout} />
-          <Toaster position="top-right" richColors />
-          <StandaloneDetector />
-          <NetworkStatusBar />
-          <AppBadge />
-        </>
-      );
-    } else if (selectedPortal === 'admin') {
-      return (
-        <>
-          <AdminPortal onLogout={logout} />
-          <Toaster position="top-right" richColors />
-          <StandaloneDetector />
-          <NetworkStatusBar />
-          <AppBadge />
-        </>
-      );
-    } else {
-      // No portal selected yet - should not happen, but handle gracefully
-      return (
-        <>
-          <Login />
-          <Toaster position="top-right" richColors />
-        </>
-      );
-    }
-  }
-
   return (
     <>
-      {isFieldOfficer ? (
-        <FieldOfficerPortal onLogout={logout} />
-      ) : isAdmin ? (
-        <AdminPortal onLogout={logout} />
-      ) : (
-        <div className="min-h-screen flex items-center justify-center p-4">
-          <div className="text-center">
-            <h1 className="text-2xl font-bold mb-2">Unknown Role</h1>
-            <p className="text-muted-foreground mb-4">
-              Your account role ({user?.role}) is not recognized. Please contact your administrator.
-            </p>
-            <button
-              onClick={logout}
-              className="px-4 py-2 bg-primary text-primary-foreground rounded-md"
-            >
-              Logout
-            </button>
-          </div>
-        </div>
-      )}
+      <Routes>
+        {/* Public Routes */}
+        <Route path="/login" element={!isAuthenticated ? <Login /> : <Navigate to="/portal-selection" replace />} />
+        
+        {/* Protected Routes */}
+        {isAuthenticated ? (
+          <>
+            <Route path="/portal-selection" element={<PortalSelection />} />
+            <Route path="/field-officer" element={<FieldOfficerPortal onLogout={logout} />} />
+            <Route path="/admin" element={<AdminPortal onLogout={logout} />} />
+            <Route path="/" element={<Navigate to="/portal-selection" replace />} />
+          </>
+        ) : (
+          <Route path="*" element={<Navigate to="/login" replace />} />
+        )}
+      </Routes>
+
       <Toaster position="top-right" richColors />
       <StandaloneDetector />
       <NetworkStatusBar />
