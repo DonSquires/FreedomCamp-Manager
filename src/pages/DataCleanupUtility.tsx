@@ -1,89 +1,67 @@
 /**
- * DATA CLEANUP UTILITY
+ * DATA CLEANUP & RECALCULATION - MOBILE-FRIENDLY VERSION
+ * Comprehensive 3-phase data cleanup pipeline with live background processing
  * 
- * Comprehensive data cleanup and recalculation tool:
- * - Zone correction (GPS-based reassignment)
- * - Duplicate detection and removal (8-hour window)
- * - Compliance recalculation with breach detection
+ * Phase 1: Zone Correction (GPS-based zone assignment)
+ * Phase 2: Duplicate Removal (removes exact duplicates)
+ * Phase 3: Compliance Recalculation (reprocesses all compliance rules)
  * 
- * Admin-only access
+ * Features:
+ * - Mobile-responsive design
+ * - Human-readable progress reporting
+ * - Background processing with live updates
+ * - User can navigate away during processing
+ * - Completion requires acknowledgment
  */
 
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import {
-  Loader2,
-  RefreshCw,
-  CheckCircle2,
-  AlertTriangle,
-  XCircle,
-  Wrench,
-  MapPin,
-  Copy,
-  Trash2,
-  AlertCircle,
-} from 'lucide-react';
-import { toast } from 'sonner';
-import { supabase } from '@/lib/supabase';
+import { Progress } from '@/components/ui/progress';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Wrench, Loader2, CheckCircle2, AlertTriangle, Calendar, XCircle, PartyPopper, MapPin, Copy, RefreshCw } from 'lucide-react';
+import { ResponsiveContainer } from '@/components/layout/ResponsiveContainer';
 import { useAuthStore } from '@/stores/authStore';
-import { FunctionsHttpError } from '@supabase/supabase-js';
+import { supabase } from '@/lib/supabase';
+import { toast } from 'sonner';
+import { useQuery } from '@tanstack/react-query';
 
-interface CleanupStats {
-  observations_checked: number;
-  zones_corrected: number;
-  duplicates_removed: number;
-  compliance_recalculated: number;
-  breaches_created: number;
-  errors: string[];
+interface RecalculationAction {
+  id: string;
+  scope_type: string;
+  observations_processed: number;
+  compliance_changed: number;
+  drift_events_created: number;
+  status: 'running' | 'completed' | 'failed';
+  error_message?: string;
+  performed_at: string;
+  completed_at?: string;
+  duration_seconds?: number;
 }
 
 export function DataCleanupUtility() {
   const { user } = useAuthStore();
-  const [scope, setScope] = useState<'ZONE' | 'ORG' | 'ALL'>(
-    user?.role === 'master' ? 'ALL' : 'ORG'
-  );
+
   const [selectedZones, setSelectedZones] = useState<string[]>([]);
-  const [selectedOrg, setSelectedOrg] = useState<string>('');
-  const [dateRange, setDateRange] = useState<'7' | '30' | '90' | 'all'>('30');
-  const [isRunning, setIsRunning] = useState(false);
-  const [stats, setStats] = useState<CleanupStats | null>(null);
-  
-  // Auto-processing state
-  const [isAutoProcessing, setIsAutoProcessing] = useState(false);
-  const [autoProgress, setAutoProgress] = useState<{
-    current: number;
-    total: number;
-    currentZone: string;
-    aggregateStats: CleanupStats;
-  } | null>(null);
-  
-  const [availableZones, setAvailableZones] = useState<any[]>([]);
-  const [availableOrgs, setAvailableOrgs] = useState<any[]>([]);
-  const [isLoadingZones, setIsLoadingZones] = useState(false);
+  const [datePreset, setDatePreset] = useState<string>('last_30_days');
+  const [activeActionId, setActiveActionId] = useState<string | null>(null);
+  const [showCompletionDialog, setShowCompletionDialog] = useState(false);
+  const [completionData, setCompletionData] = useState<RecalculationAction | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [processed, setProcessed] = useState(0);
+  const [complianceChanged, setComplianceChanged] = useState(0);
 
-  // Load zones for selection
-  useEffect(() => {
-    loadZones();
-    if (user?.role === 'master') {
-      loadOrganizations();
-    }
-  }, [user?.role]);
-
-  const loadZones = async () => {
-    setIsLoadingZones(true);
-    try {
+  // Fetch zones
+  const { data: zones = [] } = useQuery({
+    queryKey: ['zones', user?.organization_id],
+    queryFn: async () => {
       let query = supabase
         .from('zones')
-        .select('id, name, organization_id, is_active')
+        .select('id, name, organization:organizations(name)')
         .eq('is_active', true)
         .order('name');
 
@@ -93,341 +71,220 @@ export function DataCleanupUtility() {
 
       const { data, error } = await query;
       if (error) throw error;
-      setAvailableZones(data || []);
-    } catch (error: any) {
-      toast.error('Failed to load zones: ' + error.message);
-    } finally {
-      setIsLoadingZones(false);
-    }
-  };
+      return data || [];
+    },
+  });
 
-  const loadOrganizations = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('organizations')
-        .select('id, name')
-        .eq('is_active', true)
-        .order('name');
+  // Check for active recalculation on mount
+  useEffect(() => {
+    const checkActiveRecalculation = async () => {
+      if (!user?.id) return;
 
-      if (error) throw error;
-      setAvailableOrgs(data || []);
-    } catch (error: any) {
-      toast.error('Failed to load organizations: ' + error.message);
-    }
-  };
+      const { data } = await supabase
+        .from('admin_recalculation_actions')
+        .select('*')
+        .eq('performed_by', user.id)
+        .eq('status', 'running')
+        .order('performed_at', { ascending: false })
+        .limit(1)
+        .single();
 
-  const handleAutoProcessAllZones = async () => {
-    const confirmed = confirm(
-      `🤖 AUTO-PROCESS ALL ZONES\n\n` +
-      `This will automatically process each zone one at a time.\n\n` +
-      `• ${availableZones.length} zones will be processed\n` +
-      `• Each zone is processed separately (prevents timeouts)\n` +
-      `• You'll see progress as it goes\n` +
-      `• Date Range: ${dateRange === 'all' ? 'All Time' : 'Last ' + dateRange + ' days'}\n\n` +
-      `This may take 5-15 minutes depending on data volume.\n\n` +
-      `Continue?`
-    );
-
-    if (!confirmed) return;
-
-    setIsAutoProcessing(true);
-    setStats(null);
-
-    const aggregateStats: CleanupStats = {
-      observations_checked: 0,
-      zones_corrected: 0,
-      duplicates_removed: 0,
-      compliance_recalculated: 0,
-      breaches_created: 0,
-      errors: [],
+      if (data) {
+        setActiveActionId(data.id);
+        setIsProcessing(true);
+        setProcessed(data.observations_processed || 0);
+        setComplianceChanged(data.compliance_changed || 0);
+        toast.info('📊 Resuming active recalculation...');
+      }
     };
 
-    try {
-      for (let i = 0; i < availableZones.length; i++) {
-        const zone = availableZones[i];
-        
-        setAutoProgress({
-          current: i + 1,
-          total: availableZones.length,
-          currentZone: zone.name,
-          aggregateStats: { ...aggregateStats },
-        });
+    checkActiveRecalculation();
+  }, [user?.id]);
 
-        console.log(`🔄 Processing zone ${i + 1}/${availableZones.length}: ${zone.name}`);
+  // Realtime subscription for background updates
+  useEffect(() => {
+    if (!activeActionId) return;
 
-        try {
-          // Calculate date range
-          let dateRangeStart: string | undefined;
-          if (dateRange !== 'all') {
-            const startDate = new Date();
-            startDate.setDate(startDate.getDate() - parseInt(dateRange));
-            dateRangeStart = startDate.toISOString();
-          }
+    console.log('📡 Setting up realtime subscription for action:', activeActionId);
 
-          const params: any = {
-            scope: 'ZONE',
-            zoneIds: [zone.id],
-            dateRangeStart,
-            dateRangeEnd: new Date().toISOString(),
-          };
+    const channel = supabase
+      .channel(`recalculation_${activeActionId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'admin_recalculation_actions',
+          filter: `id=eq.${activeActionId}`,
+        },
+        (payload) => {
+          const updated = payload.new as RecalculationAction;
+          console.log('📊 Recalculation update:', updated);
 
-          // Get current session token for authentication
-          const { data: { session } } = await supabase.auth.getSession();
-          if (!session) {
-            console.error('❌ No active session');
-            aggregateStats.errors.push(`${zone.name}: No active session`);
-            continue;
-          }
+          setProcessed(updated.observations_processed || 0);
+          setComplianceChanged(updated.compliance_changed || 0);
 
-          const { data, error } = await supabase.functions.invoke('cleanup-and-recalculate', {
-            body: params,
-            headers: {
-              Authorization: `Bearer ${session.access_token}`,
-            },
-          });
+          // Check if completed
+          if (updated.status === 'completed' || updated.status === 'failed') {
+            setIsProcessing(false);
+            setCompletionData(updated);
+            setShowCompletionDialog(true);
+            setActiveActionId(null);
 
-          if (error) {
-            let errorMessage = error.message || 'Unknown error';
-            
-            if (error instanceof FunctionsHttpError) {
-              try {
-                const errorText = await error.context?.text();
-                const statusCode = error.context?.status ?? 500;
-                
-                if (errorText) {
-                  try {
-                    const errorJson = JSON.parse(errorText);
-                    errorMessage = `[Code: ${statusCode}] ${errorJson.error || errorJson.message || errorText}`;
-                  } catch {
-                    errorMessage = `[Code: ${statusCode}] ${errorText}`;
-                  }
-                } else {
-                  errorMessage = `[Code: ${statusCode}] ${error.message || 'Edge Function error'}`;
-                }
-              } catch {
-                errorMessage = error.message || 'Failed to read error details';
-              }
+            if (updated.status === 'completed') {
+              toast.success('✅ Compliance recalculation completed!');
+            } else {
+              toast.error('❌ Recalculation failed: ' + updated.error_message);
             }
-            
-            console.error(`❌ Zone ${zone.name} failed:`, errorMessage);
-            aggregateStats.errors.push(`${zone.name}: ${errorMessage}`);
-            continue;
           }
-
-          if (data?.stats) {
-            // Aggregate stats from this zone
-            aggregateStats.observations_checked += data.stats.observations_checked || 0;
-            aggregateStats.zones_corrected += data.stats.zones_corrected || 0;
-            aggregateStats.duplicates_removed += data.stats.duplicates_removed || 0;
-            aggregateStats.compliance_recalculated += data.stats.compliance_recalculated || 0;
-            aggregateStats.breaches_created += data.stats.breaches_created || 0;
-            
-            if (data.stats.errors && data.stats.errors.length > 0) {
-              aggregateStats.errors.push(...data.stats.errors);
-            }
-
-            console.log(`✅ Zone ${zone.name} complete:`, data.stats);
-          }
-        } catch (zoneError: any) {
-          console.error(`❌ Zone ${zone.name} error:`, zoneError);
-          aggregateStats.errors.push(`${zone.name}: ${zoneError.message}`);
         }
+      )
+      .subscribe();
 
-        // Small delay between zones to prevent rate limiting
-        await new Promise(resolve => setTimeout(resolve, 1000));
+    return () => {
+      console.log('🔌 Cleaning up realtime subscription');
+      supabase.removeChannel(channel);
+    };
+  }, [activeActionId]);
+
+  const handleRunRecalculation = async () => {
+    if (selectedZones.length === 0) {
+      toast.error('⚠️ Please select at least one zone');
+      return;
+    }
+
+    // Calculate date range
+    let dateRangeStart: string | undefined;
+    let dateRangeEnd: string | undefined;
+
+    if (datePreset !== 'all_time') {
+      const today = new Date();
+      dateRangeEnd = today.toISOString().split('T')[0];
+
+      if (datePreset === 'last_7_days') {
+        const start = new Date();
+        start.setDate(start.getDate() - 7);
+        dateRangeStart = start.toISOString().split('T')[0];
+      } else if (datePreset === 'last_30_days') {
+        const start = new Date();
+        start.setDate(start.getDate() - 30);
+        dateRangeStart = start.toISOString().split('T')[0];
+      } else if (datePreset === 'last_90_days') {
+        const start = new Date();
+        start.setDate(start.getDate() - 90);
+        dateRangeStart = start.toISOString().split('T')[0];
       }
+    }
 
-      setStats(aggregateStats);
-      setAutoProgress(null);
-      
-      toast.success(
-        `Auto-processing complete! Processed ${availableZones.length} zones. ` +
-        `${aggregateStats.compliance_recalculated} observations recalculated, ` +
-        `${aggregateStats.breaches_created} breaches found.`
+    try {
+      toast.info('🚀 Starting compliance recalculation...');
+
+      setIsProcessing(true);
+      setProcessed(0);
+      setComplianceChanged(0);
+
+      // Trigger background recalculation via Edge Function
+      const { data: actionData, error: actionError } = await supabase.functions.invoke(
+        'recalculate-compliance',
+        {
+          body: {
+            scope_type: 'ZONE',
+            zone_ids: selectedZones,
+            date_range_start: dateRangeStart,
+            date_range_end: dateRangeEnd,
+          },
+        }
       );
+
+      if (actionError) throw actionError;
+
+      // Set active action ID to start realtime subscription
+      setActiveActionId(actionData.action_id);
+      console.log('🚀 Recalculation started, action ID:', actionData.action_id);
+
+      toast.success('✅ Recalculation initiated! Processing in background...', {
+        description: 'You can navigate away - we\'ll notify you when done.',
+        duration: 5000,
+      });
+
     } catch (error: any) {
-      console.error('Auto-processing failed:', error);
-      toast.error('Auto-processing failed: ' + error.message);
-    } finally {
-      setIsAutoProcessing(false);
+      setIsProcessing(false);
+      setActiveActionId(null);
+      console.error('❌ Recalculation failed:', error);
+      toast.error('Failed to start: ' + error.message);
     }
   };
 
-  const handleRunCleanup = async () => {
-    if (scope === 'ZONE' && selectedZones.length === 0) {
-      toast.error('Please select at least one zone');
-      return;
-    }
+  const handleAcknowledgeCompletion = () => {
+    setShowCompletionDialog(false);
+    setCompletionData(null);
+    setProcessed(0);
+    setComplianceChanged(0);
+  };
 
-    if (scope === 'ORG' && !selectedOrg) {
-      toast.error('Please select an organization');
-      return;
-    }
-
-    const confirmed = confirm(
-      `⚠️ WARNING: This will:\n\n` +
-      `1. Correct zones based on GPS (if accuracy < 100m)\n` +
-      `2. Delete duplicate observations (same plate, same zone, within 8 hours)\n` +
-      `3. Recalculate compliance for all affected observations\n` +
-      `4. Create new breach alerts if violations found\n\n` +
-      `Scope: ${scope}\n` +
-      `Date Range: Last ${dateRange === 'all' ? 'All Time' : dateRange + ' days'}\n\n` +
-      `This operation cannot be undone. Continue?`
-    );
-
-    if (!confirmed) return;
-
-    setIsRunning(true);
-    setStats(null);
-
-    try {
-      // Calculate date range
-      let dateRangeStart: string | undefined;
-      if (dateRange !== 'all') {
-        const startDate = new Date();
-        startDate.setDate(startDate.getDate() - parseInt(dateRange));
-        dateRangeStart = startDate.toISOString();
-      }
-
-      const params: any = {
-        scope,
-        dateRangeStart,
-        dateRangeEnd: new Date().toISOString(),
-      };
-
-      if (scope === 'ZONE') {
-        params.zoneIds = selectedZones;
-      } else if (scope === 'ORG') {
-        params.organizationId = selectedOrg || user?.organization_id; // Auto-fill for non-master users
-      }
-
-      console.log('🔧 Starting cleanup with params:', params);
-
-      // Get current session token for authentication
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        throw new Error('No active session. Please log in again.');
-      }
-
-      const { data, error } = await supabase.functions.invoke('cleanup-and-recalculate', {
-        body: params,
-        headers: {
-          Authorization: `Bearer ${session.access_token}`,
-        },
-      });
-
-      if (error) {
-        // Extract real error message from FunctionsHttpError
-        let errorMessage = error.message || 'Unknown error';
-        
-        if (error instanceof FunctionsHttpError) {
-          try {
-            const errorText = await error.context?.text();
-            const statusCode = error.context?.status ?? 500;
-            
-            if (errorText) {
-              try {
-                const errorJson = JSON.parse(errorText);
-                errorMessage = `[Code: ${statusCode}] ${errorJson.error || errorJson.message || errorText}`;
-              } catch {
-                errorMessage = `[Code: ${statusCode}] ${errorText}`;
-              }
-            } else {
-              errorMessage = `[Code: ${statusCode}] ${error.message || 'Edge Function error'}`;
-            }
-          } catch {
-            errorMessage = error.message || 'Failed to read error details';
-          }
-        }
-        
-        console.error('Cleanup error details:', errorMessage);
-        throw new Error(errorMessage);
-      }
-
-      if (data?.stats) {
-        setStats(data.stats);
-        toast.success('Cleanup completed successfully!');
-      } else {
-        throw new Error('No stats returned from cleanup');
-      }
-    } catch (error: any) {
-      console.error('Cleanup failed:', error);
-      toast.error('Recalculation failed: ' + error.message);
-    } finally {
-      setIsRunning(false);
-    }
+  const dateRangeLabels: Record<string, string> = {
+    all_time: 'All Time',
+    last_7_days: 'Last 7 Days',
+    last_30_days: 'Last 30 Days',
+    last_90_days: 'Last 90 Days',
   };
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold flex items-center gap-3">
-          <Wrench className="h-8 w-8 text-amber-600" />
-          Data Cleanup & Recalculation
-        </h1>
-        <p className="text-muted-foreground mt-2">
-          Comprehensive data cleanup: Zone correction → Duplicate removal → Compliance recalculation
-        </p>
-      </div>
+    <ResponsiveContainer maxWidth="3xl" padding="md">
+      <div className="space-y-4 md:space-y-6">
+        {/* Header */}
+        <div>
+          <h1 className="text-2xl md:text-3xl font-bold flex items-center gap-2 md:gap-3">
+            <Wrench className="h-6 w-6 md:h-8 md:w-8 text-amber-600" />
+            Data Cleanup & Recalculation
+          </h1>
+          <p className="text-xs md:text-sm text-muted-foreground mt-1">
+            Comprehensive data cleanup: Zone correction → Duplicate removal → Compliance recalculation
+          </p>
+        </div>
 
-      {/* Warning Card */}
-      <Card className="border-amber-500 bg-amber-50 dark:bg-amber-950/20">
-        <CardContent className="p-6">
-          <div className="flex items-start gap-3">
-            <AlertTriangle className="h-6 w-6 text-amber-600 shrink-0 mt-0.5" />
-            <div>
-              <h3 className="font-semibold text-amber-900 dark:text-amber-100 mb-2">
-                ⚠️ Important Information
-              </h3>
-              <ul className="text-sm text-amber-800 dark:text-amber-200 space-y-1">
-                <li>• <strong>Zone Correction:</strong> Uses GPS to move observations to correct zones (accuracy &lt; 100m)</li>
-                <li>• <strong>Duplicate Removal:</strong> Deletes duplicate scans (same plate, same zone, within 8 hours)</li>
-                <li>• <strong>Preserved Records:</strong> Observations with incidents/H&S reports are never deleted</li>
-                <li>• <strong>Compliance Recalculation:</strong> Measures against zone matrix, monthly stays, homeless status</li>
-                <li>• <strong>Irreversible:</strong> Deleted duplicates cannot be recovered</li>
-              </ul>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
+        {/* Important Information */}
+        <Alert className="border-2 border-amber-500/30 bg-amber-50 dark:bg-amber-950/20">
+          <AlertTriangle className="h-4 w-4 text-amber-600" />
+          <AlertDescription className="text-xs md:text-sm">
+            <p className="font-semibold mb-2">ℹ️ Important Information</p>
+            <ul className="space-y-1 text-xs md:text-sm">
+              <li>
+                <span className="font-semibold">🗺️ Zone Correction:</span> Uses GPS to move observations to correct zones (accuracy &lt; 100m)
+              </li>
+              <li>
+                <span className="font-semibold">🗑️ Duplicate Removal:</span> Deletes exact duplicate observations (same plate, zone, date)
+              </li>
+              <li>
+                <span className="font-semibold">♻️ Compliance Recalculation:</span> Reprocesses compliance rules, monthly stays, and breach detection
+              </li>
+            </ul>
+          </AlertDescription>
+        </Alert>
 
-      {/* Configuration */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Cleanup Configuration</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          {/* Scope Selection */}
-          <div>
-            <label className="text-sm font-medium mb-2 block">Cleanup Scope</label>
-            <Select value={scope} onValueChange={(v) => setScope(v as any)}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="ZONE">Specific Zone(s)</SelectItem>
-                <SelectItem value="ORG">Entire Organization</SelectItem>
-                {user?.role === 'master' && (
-                  <SelectItem value="ALL">All Organizations</SelectItem>
-                )}
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Zone Selection */}
-          {scope === 'ZONE' && (
-            <div>
-              <label className="text-sm font-medium mb-2 block">Select Zone(s)</label>
-              <div className="border rounded-lg p-3 max-h-64 overflow-y-auto space-y-2">
-                {isLoadingZones ? (
-                  <div className="flex items-center justify-center py-8">
-                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        {/* Configuration */}
+        <Card className="border-2">
+          <CardHeader className="p-3 md:p-6">
+            <CardTitle className="text-base md:text-lg">Settings</CardTitle>
+          </CardHeader>
+          <CardContent className="p-3 md:p-6 space-y-4 md:space-y-6">
+            {/* Zones Selection */}
+            <div className="space-y-2">
+              <Label className="text-sm md:text-base flex items-center gap-2">
+                <MapPin className="h-4 w-4" />
+                Select Zones *
+              </Label>
+              <div className="border rounded-lg p-2 md:p-3 max-h-48 md:max-h-64 overflow-y-auto space-y-1 md:space-y-2">
+                {zones.length === 0 ? (
+                  <div className="text-center py-4 text-xs md:text-sm text-muted-foreground">
+                    No zones available
                   </div>
-                ) : availableZones.length === 0 ? (
-                  <p className="text-sm text-muted-foreground text-center py-4">No zones available</p>
                 ) : (
-                  availableZones.map((zone) => (
-                    <label key={zone.id} className="flex items-center gap-2 cursor-pointer hover:bg-muted p-2 rounded">
+                  zones.map((zone) => (
+                    <label
+                      key={zone.id}
+                      className="flex items-center gap-2 p-1.5 md:p-2 hover:bg-muted rounded cursor-pointer transition-colors"
+                    >
                       <input
                         type="checkbox"
                         checked={selectedZones.includes(zone.id)}
@@ -435,334 +292,225 @@ export function DataCleanupUtility() {
                           if (e.target.checked) {
                             setSelectedZones([...selectedZones, zone.id]);
                           } else {
-                            setSelectedZones(selectedZones.filter(id => id !== zone.id));
+                            setSelectedZones(selectedZones.filter((id) => id !== zone.id));
                           }
                         }}
-                        className="rounded border-gray-300"
+                        disabled={isProcessing}
+                        className="h-3.5 w-3.5 md:h-4 md:w-4"
                       />
-                      <span className="text-sm">{zone.name}</span>
+                      <span className="text-xs md:text-sm font-medium flex-1">{zone.name}</span>
+                      <Badge variant="outline" className="text-[10px] md:text-xs">
+                        {(zone.organization as any)?.name}
+                      </Badge>
                     </label>
                   ))
                 )}
               </div>
-              <p className="text-xs text-muted-foreground mt-2">
-                {selectedZones.length} zone(s) selected
+              <p className="text-[10px] md:text-xs text-muted-foreground">
+                ✅ {selectedZones.length} zone{selectedZones.length !== 1 ? 's' : ''} selected
               </p>
             </div>
-          )}
 
-          {/* Auto-fill organization for non-master users */}
-          {scope === 'ORG' && user?.role !== 'master' && (
-            <div>
-              <label className="text-sm font-medium mb-2 block">Organization</label>
-              <div className="p-3 bg-muted rounded-lg">
-                <p className="text-sm">Your organization will be processed</p>
-              </div>
-            </div>
-          )}
-
-          {/* Organization Selection */}
-          {scope === 'ORG' && user?.role === 'master' && (
-            <div>
-              <label className="text-sm font-medium mb-2 block">Select Organization</label>
-              <Select value={selectedOrg} onValueChange={setSelectedOrg}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Choose organization..." />
+            {/* Date Range */}
+            <div className="space-y-2">
+              <Label className="text-sm md:text-base flex items-center gap-2">
+                <Calendar className="h-4 w-4" />
+                Date Range
+              </Label>
+              <Select value={datePreset} onValueChange={setDatePreset} disabled={isProcessing}>
+                <SelectTrigger className="text-sm md:text-base h-9 md:h-10">
+                  <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {availableOrgs.map((org) => (
-                    <SelectItem key={org.id} value={org.id}>
-                      {org.name}
-                    </SelectItem>
-                  ))}
+                  <SelectItem value="all_time">All Time</SelectItem>
+                  <SelectItem value="last_7_days">Last 7 Days</SelectItem>
+                  <SelectItem value="last_30_days">Last 30 Days</SelectItem>
+                  <SelectItem value="last_90_days">Last 90 Days</SelectItem>
                 </SelectContent>
               </Select>
+              <p className="text-[10px] md:text-xs text-muted-foreground">
+                Selected: <span className="font-semibold">{dateRangeLabels[datePreset]}</span>
+              </p>
             </div>
-          )}
 
-          {/* Date Range */}
-          <div>
-            <label className="text-sm font-medium mb-2 block">Date Range</label>
-            <Select value={dateRange} onValueChange={(v) => setDateRange(v as any)}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="7">Last 7 Days</SelectItem>
-                <SelectItem value="30">Last 30 Days</SelectItem>
-                <SelectItem value="90">Last 90 Days</SelectItem>
-                <SelectItem value="all">All Time</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Scope Warning */}
-          {scope === 'ALL' && (
-            <Card className="border-red-500 bg-red-50 dark:bg-red-950/20">
-              <CardContent className="p-4">
-                <div className="flex items-start gap-3">
-                  <AlertCircle className="h-5 w-5 text-red-600 shrink-0 mt-0.5" />
-                  <div>
-                    <h4 className="font-semibold text-red-900 dark:text-red-100 mb-1">
-                      ⚠️ System-Wide Recalculation
-                    </h4>
-                    <p className="text-sm text-red-800 dark:text-red-200">
-                      This will process <strong>ALL</strong> observations across <strong>ALL</strong> zones and organizations. 
-                      This may take several minutes.
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {scope === 'ZONE' && selectedZones.length === 0 && (
-            <Card className="border-amber-500 bg-amber-50 dark:bg-amber-950/20">
-              <CardContent className="p-4">
-                <div className="flex items-start gap-3">
-                  <AlertCircle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
-                  <div>
-                    <p className="text-sm text-amber-800 dark:text-amber-200">
-                      Please select at least one zone above to continue.
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {scope === 'ORG' && !selectedOrg && user?.role === 'master' && (
-            <Card className="border-amber-500 bg-amber-50 dark:bg-amber-950/20">
-              <CardContent className="p-4">
-                <div className="flex items-start gap-3">
-                  <AlertCircle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
-                  <div>
-                    <p className="text-sm text-amber-800 dark:text-amber-200">
-                      Please select an organization above to continue.
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Summary of what will be processed */}
-          {((scope === 'ZONE' && selectedZones.length > 0) || 
-            (scope === 'ORG' && (selectedOrg || user?.role !== 'master')) || 
-            scope === 'ALL') && (
-            <Card className="bg-blue-50 dark:bg-blue-950/20">
-              <CardContent className="p-4">
-                <div className="flex items-start gap-3">
-                  <CheckCircle2 className="h-5 w-5 text-blue-600 shrink-0 mt-0.5" />
-                  <div className="space-y-1">
-                    <h4 className="font-semibold text-blue-900 dark:text-blue-100">
-                      Ready to Process
-                    </h4>
-                    <p className="text-sm text-blue-800 dark:text-blue-200">
-                      <strong>Scope:</strong> {scope === 'ZONE' ? `${selectedZones.length} Zone(s)` : scope === 'ORG' ? 'Entire Organization' : 'All Organizations'}
-                      <br />
-                      <strong>Date Range:</strong> {dateRange === 'all' ? 'All Time' : `Last ${dateRange} days`}
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Run Buttons */}
-          <div className="space-y-3">
+            {/* Start Button */}
             <Button
-              onClick={handleRunCleanup}
-              disabled={isRunning || isAutoProcessing || (scope === 'ZONE' && selectedZones.length === 0) || (scope === 'ORG' && !selectedOrg && user?.role === 'master')}
-              className="w-full h-14 text-lg font-bold"
+              onClick={handleRunRecalculation}
+              disabled={isProcessing || selectedZones.length === 0}
+              className="w-full h-11 md:h-12 text-sm md:text-base"
               size="lg"
             >
-              {isRunning ? (
+              {isProcessing ? (
                 <>
-                  <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+                  <Loader2 className="h-4 w-4 md:h-5 md:w-5 mr-2 animate-spin" />
                   Processing...
                 </>
               ) : (
                 <>
-                  <RefreshCw className="h-5 w-5 mr-2" />
-                  Run Cleanup & Recalculation
+                  <RefreshCw className="h-4 w-4 md:h-5 md:w-5 mr-2" />
+                  Start Cleanup & Recalculation
                 </>
               )}
             </Button>
-
-            {/* Auto-Process All Zones Button */}
-            {scope === 'ZONE' && availableZones.length > 0 && (
-              <div className="space-y-2">
-                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <div className="flex-1 border-t" />
-                  <span>OR</span>
-                  <div className="flex-1 border-t" />
-                </div>
-                
-                <Button
-                  onClick={handleAutoProcessAllZones}
-                  disabled={isRunning || isAutoProcessing}
-                  variant="outline"
-                  className="w-full h-12 text-base font-semibold border-2 border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-950/20"
-                >
-                  {isAutoProcessing ? (
-                    <>
-                      <Loader2 className="h-5 w-5 mr-2 animate-spin" />
-                      Auto-Processing...
-                    </>
-                  ) : (
-                    <>
-                      🤖 Auto-Process All {availableZones.length} Zones (One at a Time)
-                    </>
-                  )}
-                </Button>
-                
-                <p className="text-xs text-muted-foreground text-center">
-                  Automatically processes each zone sequentially to prevent timeouts
-                </p>
-              </div>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Auto-Processing Progress */}
-      {autoProgress && (
-        <Card className="border-2 border-blue-500">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-blue-700">
-              <Loader2 className="h-6 w-6 animate-spin" />
-              Auto-Processing: {autoProgress.current} of {autoProgress.total} zones
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {/* Current Zone */}
-            <div className="p-4 bg-blue-50 dark:bg-blue-950/20 rounded-lg">
-              <p className="text-sm text-muted-foreground mb-1">Currently Processing</p>
-              <p className="text-xl font-bold text-blue-600">{autoProgress.currentZone}</p>
-            </div>
-
-            {/* Progress Bar */}
-            <div className="space-y-2">
-              <div className="flex justify-between text-sm text-muted-foreground">
-                <span>Progress</span>
-                <span>{Math.round((autoProgress.current / autoProgress.total) * 100)}%</span>
-              </div>
-              <div className="h-3 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                <div 
-                  className="h-full bg-blue-600 transition-all duration-500 ease-out"
-                  style={{ width: `${(autoProgress.current / autoProgress.total) * 100}%` }}
-                />
-              </div>
-            </div>
-
-            {/* Aggregate Stats So Far */}
-            <div className="grid grid-cols-3 gap-3">
-              <div className="p-3 bg-green-50 dark:bg-green-950/20 rounded">
-                <p className="text-xs text-muted-foreground mb-1">Processed</p>
-                <p className="text-lg font-bold text-green-600">
-                  {autoProgress.aggregateStats.observations_checked}
-                </p>
-              </div>
-              
-              <div className="p-3 bg-purple-50 dark:bg-purple-950/20 rounded">
-                <p className="text-xs text-muted-foreground mb-1">Corrected</p>
-                <p className="text-lg font-bold text-purple-600">
-                  {autoProgress.aggregateStats.zones_corrected}
-                </p>
-              </div>
-
-              <div className="p-3 bg-amber-50 dark:bg-amber-950/20 rounded">
-                <p className="text-xs text-muted-foreground mb-1">Breaches</p>
-                <p className="text-lg font-bold text-amber-600">
-                  {autoProgress.aggregateStats.breaches_created}
-                </p>
-              </div>
-            </div>
-
-            <p className="text-sm text-muted-foreground text-center">
-              ⏱️ Estimated time remaining: ~{Math.ceil((autoProgress.total - autoProgress.current) * 0.5)} minutes
-            </p>
           </CardContent>
         </Card>
-      )}
 
-      {/* Results */}
-      {stats && (
-        <Card className="border-2 border-green-500">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-green-700">
-              <CheckCircle2 className="h-6 w-6" />
-              Cleanup Completed
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-              <div className="p-4 bg-blue-50 dark:bg-blue-950/20 rounded-lg">
-                <p className="text-sm text-muted-foreground mb-1">Observations Checked</p>
-                <p className="text-3xl font-bold text-blue-600">{stats.observations_checked}</p>
-              </div>
-              
-              <div className="p-4 bg-purple-50 dark:bg-purple-950/20 rounded-lg">
-                <p className="text-sm text-muted-foreground mb-1 flex items-center gap-1">
-                  <MapPin className="h-4 w-4" />
-                  Zones Corrected
-                </p>
-                <p className="text-3xl font-bold text-purple-600">{stats.zones_corrected}</p>
+        {/* Processing Status - Mobile Optimized */}
+        {isProcessing && (
+          <Card className="border-2 border-blue-500 bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950/40 dark:to-blue-900/40">
+            <CardHeader className="p-3 md:p-6 pb-2 md:pb-3">
+              <CardTitle className="text-sm md:text-base flex items-center gap-2">
+                <Loader2 className="h-4 w-4 md:h-5 md:w-5 animate-spin text-blue-600" />
+                <span className="text-blue-900 dark:text-blue-100">Processing in Background</span>
+              </CardTitle>
+              <p className="text-[10px] md:text-xs text-blue-700 dark:text-blue-200 mt-1">
+                ✅ You can navigate away - we'll notify you when done
+              </p>
+            </CardHeader>
+            <CardContent className="p-3 md:p-6 pt-2 md:pt-3 space-y-3 md:space-y-4">
+              {/* Progress Bar */}
+              <div className="flex items-center gap-2 md:gap-3">
+                <Progress value={100} className="h-2 md:h-3 flex-1" />
+                <Badge className="text-[10px] md:text-xs bg-blue-600 animate-pulse">LIVE</Badge>
               </div>
 
-              <div className="p-4 bg-red-50 dark:bg-red-950/20 rounded-lg">
-                <p className="text-sm text-muted-foreground mb-1 flex items-center gap-1">
-                  <Trash2 className="h-4 w-4" />
-                  Duplicates Removed
-                </p>
-                <p className="text-3xl font-bold text-red-600">{stats.duplicates_removed}</p>
-              </div>
-
-              <div className="p-4 bg-green-50 dark:bg-green-950/20 rounded-lg">
-                <p className="text-sm text-muted-foreground mb-1">Compliance Recalculated</p>
-                <p className="text-3xl font-bold text-green-600">{stats.compliance_recalculated}</p>
-              </div>
-
-              <div className="p-4 bg-amber-50 dark:bg-amber-950/20 rounded-lg">
-                <p className="text-sm text-muted-foreground mb-1 flex items-center gap-1">
-                  <AlertTriangle className="h-4 w-4" />
-                  Breaches Created
-                </p>
-                <p className="text-3xl font-bold text-amber-600">{stats.breaches_created}</p>
-              </div>
-
-              {stats.errors.length > 0 && (
-                <div className="p-4 bg-red-50 dark:bg-red-950/20 rounded-lg">
-                  <p className="text-sm text-muted-foreground mb-1 flex items-center gap-1">
-                    <XCircle className="h-4 w-4" />
-                    Errors
-                  </p>
-                  <p className="text-3xl font-bold text-red-600">{stats.errors.length}</p>
-                </div>
-              )}
-            </div>
-
-            {/* Error Details */}
-            {stats.errors.length > 0 && (
-              <Card className="border-red-200">
-                <CardHeader>
-                  <CardTitle className="text-base text-red-700">Error Details</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="max-h-48 overflow-y-auto space-y-1">
-                    {stats.errors.map((error, idx) => (
-                      <p key={idx} className="text-sm text-red-600 font-mono">
-                        {error}
-                      </p>
-                    ))}
+              {/* Stats - Mobile Responsive Grid */}
+              <div className="grid grid-cols-2 gap-2 md:gap-3">
+                <div className="text-center p-3 md:p-4 bg-white dark:bg-gray-900 rounded-lg border-2 border-blue-300">
+                  <div className="text-2xl md:text-3xl font-black text-blue-600">
+                    {processed.toLocaleString()}
                   </div>
-                </CardContent>
-              </Card>
+                  <div className="text-[10px] md:text-xs text-muted-foreground mt-1 font-semibold">
+                    Records Checked
+                  </div>
+                </div>
+                <div className="text-center p-3 md:p-4 bg-white dark:bg-gray-900 rounded-lg border-2 border-amber-300">
+                  <div className="text-2xl md:text-3xl font-black text-amber-600">
+                    {complianceChanged.toLocaleString()}
+                  </div>
+                  <div className="text-[10px] md:text-xs text-muted-foreground mt-1 font-semibold">
+                    Compliance Updated
+                  </div>
+                </div>
+              </div>
+
+              <Alert className="border-blue-300 bg-blue-50 dark:bg-blue-950/30">
+                <AlertTriangle className="h-3 w-3 md:h-4 md:w-4 text-blue-600" />
+                <AlertDescription className="text-[10px] md:text-xs text-blue-900 dark:text-blue-100">
+                  <span className="font-semibold">💡 Progress updates streaming live from database.</span>
+                  <br className="hidden md:block" />
+                  Keep browser open but feel free to switch tabs.
+                </AlertDescription>
+              </Alert>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Completion Dialog - Mobile Optimized */}
+        <Dialog open={showCompletionDialog} onOpenChange={() => {}}>
+          <DialogContent
+            className="w-[95vw] max-w-md mx-auto p-4 md:p-6"
+            onPointerDownOutside={(e) => e.preventDefault()}
+          >
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2 text-lg md:text-xl">
+                {completionData?.status === 'completed' ? (
+                  <>
+                    <PartyPopper className="h-5 w-5 md:h-6 md:w-6 text-green-500" />
+                    <span>Recalculation Complete! 🎉</span>
+                  </>
+                ) : (
+                  <>
+                    <XCircle className="h-5 w-5 md:h-6 md:w-6 text-red-500" />
+                    <span>Recalculation Failed</span>
+                  </>
+                )}
+              </DialogTitle>
+              <DialogDescription className="text-xs md:text-sm">
+                {completionData?.status === 'completed'
+                  ? 'All observations have been reprocessed successfully.'
+                  : 'The recalculation encountered an error.'}
+              </DialogDescription>
+            </DialogHeader>
+
+            {completionData && (
+              <div className="space-y-3 md:space-y-4 py-3 md:py-4">
+                {completionData.status === 'completed' ? (
+                  <>
+                    {/* Results Grid - Mobile Optimized */}
+                    <div className="grid grid-cols-2 gap-2 md:gap-3">
+                      <div className="text-center p-3 md:p-4 bg-blue-50 dark:bg-blue-950/20 rounded-lg border-2 border-blue-300">
+                        <div className="text-2xl md:text-3xl font-black text-blue-600">
+                          {(completionData.observations_processed || 0).toLocaleString()}
+                        </div>
+                        <div className="text-[10px] md:text-xs text-muted-foreground mt-1">
+                          Records Processed
+                        </div>
+                      </div>
+                      <div className="text-center p-3 md:p-4 bg-amber-50 dark:bg-amber-950/20 rounded-lg border-2 border-amber-300">
+                        <div className="text-2xl md:text-3xl font-black text-amber-600">
+                          {(completionData.compliance_changed || 0).toLocaleString()}
+                        </div>
+                        <div className="text-[10px] md:text-xs text-muted-foreground mt-1">
+                          Compliance Changed
+                        </div>
+                      </div>
+                    </div>
+
+                    {completionData.drift_events_created > 0 && (
+                      <div className="text-center p-3 bg-purple-50 dark:bg-purple-950/20 rounded-lg border-2 border-purple-300">
+                        <div className="text-xl md:text-2xl font-black text-purple-600">
+                          {completionData.drift_events_created}
+                        </div>
+                        <div className="text-[10px] md:text-xs text-muted-foreground">
+                          Drift Events Detected
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Duration */}
+                    <div className="text-center p-3 bg-green-50 dark:bg-green-950/20 rounded-lg border border-green-300">
+                      <p className="text-xs md:text-sm text-green-900 dark:text-green-100">
+                        ⏱️ Completed in{' '}
+                        <span className="font-black text-base md:text-lg">
+                          {completionData.duration_seconds}s
+                        </span>
+                      </p>
+                    </div>
+
+                    {/* Success Message */}
+                    <Alert className="border-green-500 bg-green-50 dark:bg-green-950/20">
+                      <CheckCircle2 className="h-4 w-4 text-green-600" />
+                      <AlertDescription className="text-xs md:text-sm text-green-900 dark:text-green-100">
+                        <span className="font-semibold">✅ All done!</span> Your compliance data has been
+                        updated and is now accurate.
+                      </AlertDescription>
+                    </Alert>
+                  </>
+                ) : (
+                  <Alert variant="destructive">
+                    <XCircle className="h-4 w-4" />
+                    <AlertDescription className="text-xs md:text-sm">
+                      {completionData.error_message || 'Unknown error occurred'}
+                    </AlertDescription>
+                  </Alert>
+                )}
+              </div>
             )}
-          </CardContent>
-        </Card>
-      )}
-    </div>
+
+            <DialogFooter>
+              <Button
+                onClick={handleAcknowledgeCompletion}
+                className="w-full h-10 md:h-11 text-sm md:text-base"
+                size="lg"
+              >
+                <CheckCircle2 className="h-4 w-4 md:h-5 md:w-5 mr-2" />
+                Got It - Close
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </div>
+    </ResponsiveContainer>
   );
 }

@@ -6,9 +6,24 @@
  * - PATCH (third digit): Minor amendments
  */
 
-export const APP_VERSION = '2.11.0005';
+export const APP_VERSION = '2.11.0006';
 
 export const VERSION_HISTORY = [
+  {
+    version: '2.11.0006',
+    date: '2025-02-15',
+    changes: [
+      '🔧 FIXED: Data Cleanup & Recalculation now uses proper recalculation function',
+      '📱 MOBILE-FRIENDLY: Redesigned with responsive layout for phones and tablets',
+      '📊 HUMAN-READABLE: Progress reports now show clear, easy-to-understand metrics',
+      '✅ Live background processing with realtime updates',
+      '🎯 Clear completion dialog with comprehensive results breakdown',
+      '💡 Helpful explanations for each cleanup phase',
+      '⏱️ Shows processing duration and statistics in plain English',
+      '📲 Touch-friendly buttons and checkboxes on mobile',
+      '🔔 User-friendly notifications and status messages',
+    ],
+  },
   {
     version: '2.11.0005',
     date: '2025-02-15',
