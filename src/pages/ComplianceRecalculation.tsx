@@ -1,11 +1,10 @@
 /**
- * Compliance Recalculation - BACKGROUND PROCESSING VERSION
- * Select zones + date range → Process in background with live updates
- * User can navigate away - progress tracked via realtime subscriptions
- * Completion requires user acknowledgment
+ * Compliance Recalculation - FRONTEND BATCHING VERSION
+ * Pure frontend-driven batching with local progress tracking
+ * No database tracking - all progress shown live in UI
  */
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -21,28 +20,13 @@ import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import { useQuery } from '@tanstack/react-query';
 
-interface ProcessingStatus {
-  isProcessing: boolean;
-  currentBatch: number;
-  totalBatches: number;
-  processed: number;
-  complianceChanged: number;
-  breachesCreated: number;
-  skippedNoMatrix: number;
-  zonesWithoutMatrix: string[];
-}
-
-interface RecalculationAction {
-  id: string;
-  scope_type: string;
+interface CompletionData {
+  status: 'completed' | 'failed';
   observations_processed: number;
   compliance_changed: number;
-  drift_events_created: number;
-  status: 'running' | 'completed' | 'failed';
+  breaches_created: number;
+  duration_seconds: number;
   error_message?: string;
-  performed_at: string;
-  completed_at?: string;
-  duration_seconds?: number;
 }
 
 export function ComplianceRecalculation() {
@@ -50,19 +34,13 @@ export function ComplianceRecalculation() {
 
   const [selectedZones, setSelectedZones] = useState<string[]>([]);
   const [datePreset, setDatePreset] = useState<string>('last_30_days');
-  const [activeActionId, setActiveActionId] = useState<string | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [processed, setProcessed] = useState(0);
+  const [complianceChanged, setComplianceChanged] = useState(0);
+  const [currentBatch, setCurrentBatch] = useState(0);
+  const [totalBatches, setTotalBatches] = useState(0);
   const [showCompletionDialog, setShowCompletionDialog] = useState(false);
-  const [completionData, setCompletionData] = useState<RecalculationAction | null>(null);
-  const [status, setStatus] = useState<ProcessingStatus>({
-    isProcessing: false,
-    currentBatch: 0,
-    totalBatches: 0,
-    processed: 0,
-    complianceChanged: 0,
-    breachesCreated: 0,
-    skippedNoMatrix: 0,
-    zonesWithoutMatrix: [],
-  });
+  const [completionData, setCompletionData] = useState<CompletionData | null>(null);
 
   // Fetch zones
   const { data: zones = [] } = useQuery({
@@ -84,91 +62,9 @@ export function ComplianceRecalculation() {
     },
   });
 
-  // Check for active recalculation on mount
-  useEffect(() => {
-    const checkActiveRecalculation = async () => {
-      if (!user?.id) return;
-
-      const { data } = await supabase
-        .from('admin_recalculation_actions')
-        .select('*')
-        .eq('performed_by', user.id)
-        .eq('status', 'running')
-        .order('performed_at', { ascending: false })
-        .limit(1)
-        .single();
-
-      if (data) {
-        setActiveActionId(data.id);
-        setStatus({
-          isProcessing: true,
-          currentBatch: 0,
-          totalBatches: 0,
-          processed: data.observations_processed || 0,
-          complianceChanged: data.compliance_changed || 0,
-          breachesCreated: 0,
-          skippedNoMatrix: 0,
-          zonesWithoutMatrix: [],
-        });
-        toast.info('Resuming active recalculation...');
-      }
-    };
-
-    checkActiveRecalculation();
-  }, [user?.id]);
-
-  // Realtime subscription for background updates
-  useEffect(() => {
-    if (!activeActionId) return;
-
-    console.log('📡 Setting up realtime subscription for action:', activeActionId);
-
-    const channel = supabase
-      .channel(`recalculation_${activeActionId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'admin_recalculation_actions',
-          filter: `id=eq.${activeActionId}`,
-        },
-        (payload) => {
-          const updated = payload.new as RecalculationAction;
-          console.log('📊 Recalculation update:', updated);
-
-          setStatus((prev) => ({
-            ...prev,
-            processed: updated.observations_processed || prev.processed,
-            complianceChanged: updated.compliance_changed || prev.complianceChanged,
-          }));
-
-          // Check if completed
-          if (updated.status === 'completed' || updated.status === 'failed') {
-            setStatus((prev) => ({ ...prev, isProcessing: false }));
-            setCompletionData(updated);
-            setShowCompletionDialog(true);
-            setActiveActionId(null);
-
-            if (updated.status === 'completed') {
-              toast.success('✅ Recalculation completed!');
-            } else {
-              toast.error('❌ Recalculation failed: ' + updated.error_message);
-            }
-          }
-        }
-      )
-      .subscribe();
-
-    return () => {
-      console.log('🔌 Cleaning up realtime subscription');
-      supabase.removeChannel(channel);
-    };
-  }, [activeActionId]);
-
   const handleRunRecalculation = async () => {
     if (selectedZones.length === 0) {
-      toast.error('Please select at least one zone');
+      toast.error('⚠️ Please select at least one zone');
       return;
     }
 
@@ -195,17 +91,25 @@ export function ComplianceRecalculation() {
       }
     }
 
+    const startTime = Date.now();
+    
     try {
+      toast.info('🚀 Starting compliance recalculation...');
+
+      setIsProcessing(true);
+      setProcessed(0);
+      setComplianceChanged(0);
+      setCurrentBatch(0);
+      setTotalBatches(0);
+
       // Step 1: Get total count
-      toast.info('Getting record count...');
-      
       const { data: totalData, error: totalError } = await supabase.functions.invoke(
         'recalculate-compliance-v2',
         {
           body: {
             zoneIds: selectedZones,
-            dateRangeStart,
-            dateRangeEnd,
+            dateRangeStart: dateRangeStart,
+            dateRangeEnd: dateRangeEnd,
             get_total: true,
           },
         }
@@ -213,128 +117,185 @@ export function ComplianceRecalculation() {
 
       if (totalError) throw totalError;
 
-      const totalRecords = totalData?.total || 0;
+      const totalObservations = totalData.total || 0;
+      console.log('📊 Total observations to process:', totalObservations);
 
-      if (totalRecords === 0) {
-        toast.warning('No observations found for selected zones and date range');
+      if (totalObservations === 0) {
+        toast.info('No observations found in selected zones/date range');
+        setIsProcessing(false);
         return;
       }
 
-      const batchSize = 150;
-      const totalBatches = Math.ceil(totalRecords / batchSize);
+      // Step 2: Process in batches (Frontend-driven)
+      const BATCH_SIZE = 300;
+      const batches = Math.ceil(totalObservations / BATCH_SIZE);
+      setTotalBatches(batches);
+      
+      let totalProcessed = 0;
+      let totalComplianceChanged = 0;
+      let totalBreaches = 0;
 
-      toast.info(`Starting recalculation for ${totalRecords.toLocaleString()} observations...`);
+      console.log(`📦 Processing ${totalObservations} observations in ${batches} batches of ${BATCH_SIZE}`);
 
-      setStatus({
-        isProcessing: true,
-        currentBatch: 0,
-        totalBatches,
-        processed: 0,
-        complianceChanged: 0,
-        breachesCreated: 0,
-        skippedNoMatrix: 0,
-        zonesWithoutMatrix: [],
-      });
+      for (let i = 0; i < batches; i++) {
+        const offset = i * BATCH_SIZE;
+        setCurrentBatch(i + 1);
 
-      // Step 2: Trigger background recalculation via Edge Function
-      const { data: actionData, error: actionError } = await supabase.functions.invoke(
-        'recalculate-compliance',
-        {
-          body: {
-            scope_type: 'ZONE',
-            zone_ids: selectedZones,
-            date_range_start: dateRangeStart,
-            date_range_end: dateRangeEnd,
-          },
+        console.log(`📦 Batch ${i + 1}/${batches}: Processing observations ${offset + 1}-${Math.min(offset + BATCH_SIZE, totalObservations)}...`);
+
+        const { data: batchData, error: batchError } = await supabase.functions.invoke(
+          'recalculate-compliance-v2',
+          {
+            body: {
+              zoneIds: selectedZones,
+              dateRangeStart: dateRangeStart,
+              dateRangeEnd: dateRangeEnd,
+              get_total: false,
+              offset: offset,
+              batch_size: BATCH_SIZE,
+            },
+          }
+        );
+
+        if (batchError) {
+          console.error('❌ Batch error:', batchError);
+          throw batchError;
         }
-      );
 
-      if (actionError) throw actionError;
+        totalProcessed += batchData.processed || 0;
+        totalComplianceChanged += batchData.complianceChanged || 0;
+        totalBreaches += batchData.breachesCreated || 0;
 
-      // Set active action ID to start realtime subscription
-      setActiveActionId(actionData.action_id);
-      console.log('🚀 Recalculation started, action ID:', actionData.action_id);
+        // Update frontend state (live progress)
+        setProcessed(totalProcessed);
+        setComplianceChanged(totalComplianceChanged);
 
-      toast.info('✅ Recalculation initiated! Processing in background...');
+        console.log(`✅ Batch ${i + 1}/${batches} complete: ${totalProcessed}/${totalObservations} processed, ${totalComplianceChanged} changed, ${totalBreaches} breaches`);
+      }
+
+      // Calculate duration
+      const durationSeconds = Math.round((Date.now() - startTime) / 1000);
+
+      // Show completion dialog
+      setCompletionData({
+        status: 'completed',
+        observations_processed: totalProcessed,
+        compliance_changed: totalComplianceChanged,
+        breaches_created: totalBreaches,
+        duration_seconds: durationSeconds,
+      });
+      
+      setShowCompletionDialog(true);
+      setIsProcessing(false);
+
+      console.log(`✅ Recalculation complete: ${totalProcessed} processed, ${totalComplianceChanged} changed, ${totalBreaches} breaches in ${durationSeconds}s`);
+
+      toast.success(`✅ Recalculation complete! ${totalProcessed} records processed in ${durationSeconds}s`);
 
     } catch (error: any) {
-      setStatus(prev => ({ ...prev, isProcessing: false }));
-      setActiveActionId(null);
-      toast.error('Failed to start: ' + error.message);
+      setIsProcessing(false);
+      console.error('❌ Recalculation failed:', error);
+      toast.error('Failed: ' + error.message);
+      
+      // Show error in completion dialog
+      const durationSeconds = Math.round((Date.now() - startTime) / 1000);
+      setCompletionData({
+        status: 'failed',
+        observations_processed: processed,
+        compliance_changed: complianceChanged,
+        breaches_created: 0,
+        duration_seconds: durationSeconds,
+        error_message: error.message,
+      });
+      setShowCompletionDialog(true);
     }
   };
 
   const handleAcknowledgeCompletion = () => {
     setShowCompletionDialog(false);
     setCompletionData(null);
-    setStatus({
-      isProcessing: false,
-      currentBatch: 0,
-      totalBatches: 0,
-      processed: 0,
-      complianceChanged: 0,
-      breachesCreated: 0,
-      skippedNoMatrix: 0,
-      zonesWithoutMatrix: [],
-    });
+    setProcessed(0);
+    setComplianceChanged(0);
+    setCurrentBatch(0);
+    setTotalBatches(0);
   };
+
+  const dateRangeLabels: Record<string, string> = {
+    all_time: 'All Time',
+    last_7_days: 'Last 7 Days',
+    last_30_days: 'Last 30 Days',
+    last_90_days: 'Last 90 Days',
+  };
+
+  const progressPercent = totalBatches > 0 ? (currentBatch / totalBatches) * 100 : 0;
 
   return (
     <ResponsiveContainer maxWidth="2xl" padding="lg">
       <div className="space-y-6">
+        {/* Header */}
         <div>
           <h1 className="text-3xl font-bold flex items-center gap-3">
             <RefreshCw className="h-8 w-8 text-blue-500" />
             Compliance Recalculation
           </h1>
           <p className="text-muted-foreground mt-1">
-            Process 150 records at a time - select zones and date range
+            Frontend-driven batching - processes 300 records at a time with live progress
           </p>
         </div>
 
+        {/* Configuration Card */}
         <Card>
           <CardHeader>
             <CardTitle>Settings</CardTitle>
           </CardHeader>
           <CardContent className="space-y-6">
-            {/* Zones */}
+            {/* Zones Selection */}
             <div className="space-y-2">
               <Label>Select Zones *</Label>
               <div className="border rounded-lg p-3 max-h-64 overflow-y-auto space-y-2">
-                {zones.map((zone) => (
-                  <label key={zone.id} className="flex items-center gap-2 p-2 hover:bg-muted rounded cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={selectedZones.includes(zone.id)}
-                      onChange={(e) => {
-                        if (e.target.checked) {
-                          setSelectedZones([...selectedZones, zone.id]);
-                        } else {
-                          setSelectedZones(selectedZones.filter(id => id !== zone.id));
-                        }
-                      }}
-                      disabled={status.isProcessing}
-                      className="h-4 w-4"
-                    />
-                    <span className="text-sm font-medium">{zone.name}</span>
-                    <Badge variant="outline" className="text-xs ml-auto">
-                      {(zone.organization as any)?.name}
-                    </Badge>
-                  </label>
-                ))}
+                {zones.length === 0 ? (
+                  <div className="text-center py-4 text-sm text-muted-foreground">
+                    No zones available
+                  </div>
+                ) : (
+                  zones.map((zone) => (
+                    <label
+                      key={zone.id}
+                      className="flex items-center gap-2 p-2 hover:bg-muted rounded cursor-pointer transition-colors"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedZones.includes(zone.id)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedZones([...selectedZones, zone.id]);
+                          } else {
+                            setSelectedZones(selectedZones.filter((id) => id !== zone.id));
+                          }
+                        }}
+                        disabled={isProcessing}
+                        className="h-4 w-4"
+                      />
+                      <span className="text-sm font-medium flex-1">{zone.name}</span>
+                      <Badge variant="outline" className="text-xs">
+                        {(zone.organization as any)?.name}
+                      </Badge>
+                    </label>
+                  ))
+                )}
               </div>
               <p className="text-xs text-muted-foreground">
-                {selectedZones.length} zone(s) selected
+                ✅ {selectedZones.length} zone{selectedZones.length !== 1 ? 's' : ''} selected
               </p>
             </div>
 
             {/* Date Range */}
             <div className="space-y-2">
-              <Label>
-                <Calendar className="h-4 w-4 inline mr-2" />
+              <Label className="flex items-center gap-2">
+                <Calendar className="h-4 w-4" />
                 Date Range
               </Label>
-              <Select value={datePreset} onValueChange={setDatePreset} disabled={status.isProcessing}>
+              <Select value={datePreset} onValueChange={setDatePreset} disabled={isProcessing}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -345,69 +306,92 @@ export function ComplianceRecalculation() {
                   <SelectItem value="last_90_days">Last 90 Days</SelectItem>
                 </SelectContent>
               </Select>
+              <p className="text-xs text-muted-foreground">
+                Selected: <span className="font-semibold">{dateRangeLabels[datePreset]}</span>
+              </p>
             </div>
 
+            {/* Info Alert */}
             <Alert>
               <AlertTriangle className="h-4 w-4" />
-              <AlertDescription>
-                Processing 150 records at a time. Keep this page open during processing.
+              <AlertDescription className="text-sm">
+                <strong>What this does:</strong> Tests each observation against current zone compliance rules,
+                updates monthly stays, creates breach alerts. Processing 300 records per batch.
               </AlertDescription>
             </Alert>
 
+            {/* Start Button */}
             <Button
               onClick={handleRunRecalculation}
-              disabled={status.isProcessing || selectedZones.length === 0}
+              disabled={isProcessing || selectedZones.length === 0}
               className="w-full h-12"
               size="lg"
             >
-              {status.isProcessing ? (
+              {isProcessing ? (
                 <>
                   <Loader2 className="h-5 w-5 mr-2 animate-spin" />
-                  Batch {status.currentBatch}/{status.totalBatches}...
+                  Processing Batch {currentBatch}/{totalBatches}...
                 </>
               ) : (
                 <>
-                  <CheckCircle2 className="h-5 w-5 mr-2" />
-                  Start Recalculation
+                  <RefreshCw className="h-5 w-5 mr-2" />
+                  Start Compliance Recalculation
                 </>
               )}
             </Button>
           </CardContent>
         </Card>
 
-        {/* Progress */}
-        {status.isProcessing && (
-          <Card className="border-2 border-blue-500">
-            <CardHeader>
+        {/* Processing Status */}
+        {isProcessing && (
+          <Card className="border-2 border-blue-500 bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950/40 dark:to-blue-900/40">
+            <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">
-                <Loader2 className="h-5 w-5 animate-spin text-blue-500" />
-                Processing Status
+                <Loader2 className="h-5 w-5 animate-spin text-blue-600" />
+                <span className="text-blue-900 dark:text-blue-100">Processing in Progress</span>
               </CardTitle>
-              <p className="text-xs text-muted-foreground mt-1">
-                Running in background - you can navigate away
+              <p className="text-xs text-blue-700 dark:text-blue-200 mt-1">
+                ⚠️ Keep this page open until complete
               </p>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="flex items-center gap-3">
-                <Progress value={100} className="h-3 flex-1" />
-                <span className="text-sm font-medium text-blue-600 animate-pulse">Live</span>
-              </div>
-              
-              <div className="grid grid-cols-2 gap-3">
-                <div className="text-center p-4 bg-blue-50 dark:bg-blue-950/20 rounded-lg">
-                  <div className="text-3xl font-bold text-blue-600">{status.processed.toLocaleString()}</div>
-                  <div className="text-xs text-muted-foreground mt-1">Processed</div>
+              {/* Progress Bar */}
+              <div className="space-y-2">
+                <div className="flex items-center gap-3">
+                  <Progress value={progressPercent} className="h-3 flex-1" />
+                  <span className="text-sm font-bold text-blue-600">{Math.round(progressPercent)}%</span>
                 </div>
-                <div className="text-center p-4 bg-amber-50 dark:bg-amber-950/20 rounded-lg">
-                  <div className="text-3xl font-bold text-amber-600">{status.complianceChanged.toLocaleString()}</div>
-                  <div className="text-xs text-muted-foreground mt-1">Changed</div>
+                <p className="text-xs text-center text-muted-foreground">
+                  Batch {currentBatch} of {totalBatches} • 300 records per batch
+                </p>
+              </div>
+
+              {/* Stats Grid */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="text-center p-4 bg-white dark:bg-gray-900 rounded-lg border-2 border-blue-300">
+                  <div className="text-3xl font-black text-blue-600">
+                    {processed.toLocaleString()}
+                  </div>
+                  <div className="text-xs text-muted-foreground mt-1 font-semibold">
+                    Records Processed
+                  </div>
+                </div>
+                <div className="text-center p-4 bg-white dark:bg-gray-900 rounded-lg border-2 border-amber-300">
+                  <div className="text-3xl font-black text-amber-600">
+                    {complianceChanged.toLocaleString()}
+                  </div>
+                  <div className="text-xs text-muted-foreground mt-1 font-semibold">
+                    Compliance Updated
+                  </div>
                 </div>
               </div>
 
-              <Alert>
-                <AlertTriangle className="h-4 w-4" />
-                <AlertDescription className="text-xs">
-                  Updates streaming live from database. Do not close browser completely.
+              <Alert className="border-blue-300 bg-blue-50 dark:bg-blue-950/30">
+                <AlertTriangle className="h-4 w-4 text-blue-600" />
+                <AlertDescription className="text-xs text-blue-900 dark:text-blue-100">
+                  <span className="font-semibold">💡 Processing batches on frontend.</span>
+                  <br />
+                  Live progress updates - do not close this page.
                 </AlertDescription>
               </Alert>
             </CardContent>
@@ -422,12 +406,12 @@ export function ComplianceRecalculation() {
                 {completionData?.status === 'completed' ? (
                   <>
                     <PartyPopper className="h-6 w-6 text-green-500" />
-                    Recalculation Complete!
+                    <span>Recalculation Complete! 🎉</span>
                   </>
                 ) : (
                   <>
                     <XCircle className="h-6 w-6 text-red-500" />
-                    Recalculation Failed
+                    <span>Recalculation Failed</span>
                   </>
                 )}
               </DialogTitle>
@@ -442,33 +426,55 @@ export function ComplianceRecalculation() {
               <div className="space-y-4 py-4">
                 {completionData.status === 'completed' ? (
                   <>
+                    {/* Results Grid */}
                     <div className="grid grid-cols-2 gap-3">
-                      <div className="text-center p-4 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-200">
-                        <div className="text-3xl font-bold text-blue-600">
+                      <div className="text-center p-4 bg-blue-50 dark:bg-blue-950/20 rounded-lg border-2 border-blue-300">
+                        <div className="text-3xl font-black text-blue-600">
                           {(completionData.observations_processed || 0).toLocaleString()}
                         </div>
-                        <div className="text-xs text-muted-foreground mt-1">Observations Processed</div>
+                        <div className="text-xs text-muted-foreground mt-1">
+                          Records Processed
+                        </div>
                       </div>
-                      <div className="text-center p-4 bg-amber-50 dark:bg-amber-950/20 rounded-lg border border-amber-200">
-                        <div className="text-3xl font-bold text-amber-600">
+                      <div className="text-center p-4 bg-amber-50 dark:bg-amber-950/20 rounded-lg border-2 border-amber-300">
+                        <div className="text-3xl font-black text-amber-600">
                           {(completionData.compliance_changed || 0).toLocaleString()}
                         </div>
-                        <div className="text-xs text-muted-foreground mt-1">Compliance Changed</div>
+                        <div className="text-xs text-muted-foreground mt-1">
+                          Compliance Changed
+                        </div>
                       </div>
                     </div>
 
-                    {completionData.drift_events_created > 0 && (
-                      <div className="text-center p-3 bg-purple-50 dark:bg-purple-950/20 rounded-lg border border-purple-200">
-                        <div className="text-2xl font-bold text-purple-600">
-                          {completionData.drift_events_created}
+                    {completionData.breaches_created > 0 && (
+                      <div className="text-center p-3 bg-red-50 dark:bg-red-950/20 rounded-lg border-2 border-red-300">
+                        <div className="text-2xl font-black text-red-600">
+                          {completionData.breaches_created}
                         </div>
-                        <div className="text-xs text-muted-foreground">Drift Events Created</div>
+                        <div className="text-xs text-muted-foreground">
+                          Breaches Created
+                        </div>
                       </div>
                     )}
 
-                    <div className="text-center text-sm text-muted-foreground">
-                      Completed in <span className="font-semibold">{completionData.duration_seconds}s</span>
+                    {/* Duration */}
+                    <div className="text-center p-3 bg-green-50 dark:bg-green-950/20 rounded-lg border border-green-300">
+                      <p className="text-sm text-green-900 dark:text-green-100">
+                        ⏱️ Completed in{' '}
+                        <span className="font-black text-lg">
+                          {completionData.duration_seconds}s
+                        </span>
+                      </p>
                     </div>
+
+                    {/* Success Message */}
+                    <Alert className="border-green-500 bg-green-50 dark:bg-green-950/20">
+                      <CheckCircle2 className="h-4 w-4 text-green-600" />
+                      <AlertDescription className="text-sm text-green-900 dark:text-green-100">
+                        <span className="font-semibold">✅ All done!</span> Your compliance data has been
+                        updated and is now accurate.
+                      </AlertDescription>
+                    </Alert>
                   </>
                 ) : (
                   <Alert variant="destructive">
@@ -484,11 +490,11 @@ export function ComplianceRecalculation() {
             <DialogFooter>
               <Button
                 onClick={handleAcknowledgeCompletion}
-                className="w-full"
+                className="w-full h-11"
                 size="lg"
               >
                 <CheckCircle2 className="h-5 w-5 mr-2" />
-                Acknowledge & Close
+                Got It - Close
               </Button>
             </DialogFooter>
           </DialogContent>
