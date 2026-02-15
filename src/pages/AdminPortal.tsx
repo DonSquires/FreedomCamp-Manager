@@ -66,6 +66,7 @@ import { DataRecoveryAnalysis } from './DataRecoveryAnalysis';
 import { ProductOverviewDocument } from './ProductOverviewDocument';
 import { DatabaseMaintenance } from './DatabaseMaintenance';
 import { BugReportsManagement } from './BugReportsManagement';
+import { ComplianceDashboard } from './ComplianceDashboard';
 
 interface AdminPortalProps {
   onLogout: () => void;
@@ -331,6 +332,18 @@ export function AdminPortal({ onLogout }: AdminPortalProps) {
             </div>
 
             <Button
+              variant={activeTab === 'compliance-dashboard' ? 'default' : 'ghost'}
+              className="w-full justify-start text-sm lg:text-base h-10 lg:h-9 touch-manipulation bg-green-50 dark:bg-green-950/20 border border-green-500/30"
+              onClick={() => {
+                setActiveTab('compliance-dashboard');
+                setSidebarOpen(false);
+              }}
+            >
+              <TrendingUp className="h-4 w-4 mr-2 lg:mr-3 text-green-600" />
+              <span className="text-green-600 dark:text-green-400 font-semibold">Compliance Dashboard</span>
+            </Button>
+
+            <Button
               variant={activeTab === 'analytics-hub' ? 'default' : 'ghost'}
               className="w-full justify-start text-sm lg:text-base h-10 lg:h-9 touch-manipulation"
               onClick={() => {
@@ -517,6 +530,9 @@ export function AdminPortal({ onLogout }: AdminPortalProps) {
               )}
 
 
+
+              {/* Compliance Dashboard - Real-time & Historical Compliance */}
+              {activeTab === 'compliance-dashboard' && <ComplianceDashboard />}
 
               {/* Analytics Hub - Phase 3 Complete */}
               {activeTab === 'analytics-hub' && <AnalyticsHub />}
