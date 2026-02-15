@@ -67,6 +67,7 @@ import { ProductOverviewDocument } from './ProductOverviewDocument';
 import { DatabaseMaintenance } from './DatabaseMaintenance';
 import { BugReportsManagement } from './BugReportsManagement';
 import { ComplianceDashboard } from './ComplianceDashboard';
+import { VehicleEvidenceReport } from './VehicleEvidenceReport';
 
 interface AdminPortalProps {
   onLogout: () => void;
@@ -344,6 +345,18 @@ export function AdminPortal({ onLogout }: AdminPortalProps) {
             </Button>
 
             <Button
+              variant={activeTab === 'vehicle-evidence-report' ? 'default' : 'ghost'}
+              className="w-full justify-start text-sm lg:text-base h-10 lg:h-9 touch-manipulation bg-blue-50 dark:bg-blue-950/20 border border-blue-500/30"
+              onClick={() => {
+                setActiveTab('vehicle-evidence-report');
+                setSidebarOpen(false);
+              }}
+            >
+              <FileText className="h-4 w-4 mr-2 lg:mr-3 text-blue-600" />
+              <span className="text-blue-600 dark:text-blue-400 font-semibold">Vehicle Evidence Report</span>
+            </Button>
+
+            <Button
               variant={activeTab === 'analytics-hub' ? 'default' : 'ghost'}
               className="w-full justify-start text-sm lg:text-base h-10 lg:h-9 touch-manipulation"
               onClick={() => {
@@ -533,6 +546,9 @@ export function AdminPortal({ onLogout }: AdminPortalProps) {
 
               {/* Compliance Dashboard - Real-time & Historical Compliance */}
               {activeTab === 'compliance-dashboard' && <ComplianceDashboard />}
+
+              {/* Vehicle Evidence Report - Court-Ready PDF Generator */}
+              {activeTab === 'vehicle-evidence-report' && <VehicleEvidenceReport />}
 
               {/* Analytics Hub - Phase 3 Complete */}
               {activeTab === 'analytics-hub' && <AnalyticsHub />}

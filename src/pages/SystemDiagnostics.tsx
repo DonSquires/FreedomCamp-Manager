@@ -29,6 +29,7 @@ import {
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/stores/authStore';
+import { CollapsibleInstructions } from '@/components/features/CollapsibleInstructions';
 
 interface DiagnosticResult {
   test: string;
@@ -445,14 +446,12 @@ export function SystemDiagnostics() {
       </div>
 
       {/* Instructions */}
-      <Card className="border-2 border-blue-500/30 bg-blue-50 dark:bg-blue-950/20">
-        <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2 text-blue-900 dark:text-blue-100">
-            <Eye className="h-4 w-4" />
-            Diagnostic Guide
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="text-sm space-y-2 text-blue-800 dark:text-blue-200">
+      <CollapsibleInstructions
+        title="Diagnostic Guide"
+        icon={<Eye className="h-4 w-4" />}
+        defaultOpen={false}
+      >
+        <div className="text-sm space-y-2 text-blue-800 dark:text-blue-200">
           <p>
             <strong>User Authentication:</strong> Verifies you are logged in
           </p>
@@ -474,8 +473,8 @@ export function SystemDiagnostics() {
           <p className="mt-4 text-xs italic">
             If you see failures or warnings, take a screenshot and contact the system administrator with the error details.
           </p>
-        </CardContent>
-      </Card>
+        </div>
+      </CollapsibleInstructions>
     </div>
   );
 }
