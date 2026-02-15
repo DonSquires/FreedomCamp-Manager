@@ -1,10 +1,9 @@
 /**
  * DATABASE MAINTENANCE - MASTER USERS ONLY
  * 
- * Three independent maintenance operations:
- * 1. Zone Correction: GPS-based automatic zone reassignment
- * 2. Duplicate Detection: Remove duplicate scans within 8 hours in same zone
- * 3. Compliance Recalculation: Recalculate compliance against current zone rules
+ * Three independent maintenance operations (Note: Zone Correction and Duplicate Detection run together):
+ * 1. Comprehensive Cleanup (Zone Correction + Duplicate Detection + Compliance): Most thorough cleanup
+ * 2. Standalone Compliance Recalculation: Tests compliance against current zone rules only
  * 
  * Each operation can be run independently and tracks progress in real-time
  */
@@ -25,9 +24,8 @@ import {
   Database,
 } from 'lucide-react';
 import { ResponsiveContainer } from '@/components/layout/ResponsiveContainer';
-import { ComplianceRecalculation } from './DataCleanupUtility';
+import { ComplianceRecalculation } from './ComplianceRecalculation';
 import { useAuthStore } from '@/stores/authStore';
-import { toast } from 'sonner';
 
 export function DatabaseMaintenance() {
   const { user } = useAuthStore();
@@ -76,131 +74,17 @@ export function DatabaseMaintenance() {
             <p className="font-semibold mb-2">⚠️ Important Safety Notes</p>
             <ul className="space-y-1 text-xs md:text-sm">
               <li>
-                <strong>Zone Correction:</strong> Uses GPS coordinates to reassign observations to correct zones. 
-                Only affects observations with GPS accuracy ≤100m. Preserves observations with incidents/HS reports.
-              </li>
-              <li>
-                <strong>Duplicate Detection:</strong> Removes duplicate scans of the same plate within 8 hours in the same zone. 
-                Keeps the newest observation. Preserves observations with incidents/HS reports.
-              </li>
-              <li>
-                <strong>Compliance Recalculation:</strong> Tests all observations against current zone compliance matrix rules. 
-                Updates monthly stays, consecutive nights, and breach status.
+                <strong>Compliance Recalculation (Recommended):</strong> Pure compliance check - tests all observations against current zone rules, updates monthly stays, creates breach alerts. Safe to run anytime.
               </li>
             </ul>
-            <p className="mt-2 text-xs font-semibold">
-              💡 Tip: Run Zone Correction first, then Duplicate Detection, then Compliance Recalculation for best results.
+            <p className="mt-2 text-xs font-semibold text-green-700 dark:text-green-300">
+              💡 Start with Compliance Recalculation for routine maintenance and accurate breach detection.
             </p>
           </AlertDescription>
         </Alert>
 
-        {/* Tabbed Interface */}
-        <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-3 h-auto">
-            <TabsTrigger value="zone-correction" className="flex items-center gap-2 py-3">
-              <MapPin className="h-4 w-4" />
-              <span className="hidden md:inline">Zone Correction</span>
-              <span className="md:hidden">Zones</span>
-            </TabsTrigger>
-            <TabsTrigger value="duplicate-detection" className="flex items-center gap-2 py-3">
-              <Copy className="h-4 w-4" />
-              <span className="hidden md:inline">Duplicate Detection</span>
-              <span className="md:hidden">Duplicates</span>
-            </TabsTrigger>
-            <TabsTrigger value="recalculation" className="flex items-center gap-2 py-3">
-              <RefreshCw className="h-4 w-4" />
-              <span className="hidden md:inline">Compliance Recalculation</span>
-              <span className="md:hidden">Compliance</span>
-            </TabsTrigger>
-          </TabsList>
-
-          {/* Zone Correction Tab */}
-          <TabsContent value="zone-correction" className="mt-6">
-            <Card className="border-2 border-blue-500/30">
-              <CardHeader className="p-3 md:p-6">
-                <CardTitle className="text-base md:text-lg flex items-center gap-2">
-                  <MapPin className="h-5 w-5 text-blue-600" />
-                  GPS-Based Zone Correction
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="p-3 md:p-6 space-y-4">
-                <Alert>
-                  <MapPin className="h-4 w-4" />
-                  <AlertDescription className="text-xs md:text-sm">
-                    <p className="font-semibold mb-2">How This Works:</p>
-                    <ul className="list-disc list-inside space-y-1">
-                      <li>Loads all observations with GPS coordinates (accuracy ≤100m)</li>
-                      <li>Compares GPS location against active zone boundaries</li>
-                      <li>Reassigns observations to correct zones based on GPS data</li>
-                      <li>Preserves observations with incidents or HS reports</li>
-                      <li>Updates zone assignments for better compliance accuracy</li>
-                    </ul>
-                  </AlertDescription>
-                </Alert>
-
-                <div className="text-center p-8 border-2 border-dashed rounded-lg">
-                  <Wrench className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-                  <p className="text-sm text-muted-foreground mb-4">
-                    Zone Correction tool coming soon
-                  </p>
-                  <Button
-                    disabled
-                    className="gap-2"
-                  >
-                    <MapPin className="h-4 w-4" />
-                    Run Zone Correction
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* Duplicate Detection Tab */}
-          <TabsContent value="duplicate-detection" className="mt-6">
-            <Card className="border-2 border-purple-500/30">
-              <CardHeader className="p-3 md:p-6">
-                <CardTitle className="text-base md:text-lg flex items-center gap-2">
-                  <Copy className="h-5 w-5 text-purple-600" />
-                  Duplicate Scan Detection & Removal
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="p-3 md:p-6 space-y-4">
-                <Alert>
-                  <Copy className="h-4 w-4" />
-                  <AlertDescription className="text-xs md:text-sm">
-                    <p className="font-semibold mb-2">How This Works:</p>
-                    <ul className="list-disc list-inside space-y-1">
-                      <li>Groups observations by plate number and zone</li>
-                      <li>Identifies duplicates: same plate in same zone within 8 hours</li>
-                      <li>Keeps the newest observation, deletes older duplicates</li>
-                      <li>Preserves observations with incidents or HS reports (never deleted)</li>
-                      <li>Cleans up redundant data for accurate compliance tracking</li>
-                    </ul>
-                  </AlertDescription>
-                </Alert>
-
-                <div className="text-center p-8 border-2 border-dashed rounded-lg">
-                  <Wrench className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-                  <p className="text-sm text-muted-foreground mb-4">
-                    Duplicate Detection tool coming soon
-                  </p>
-                  <Button
-                    disabled
-                    className="gap-2"
-                  >
-                    <Copy className="h-4 w-4" />
-                    Run Duplicate Detection
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          {/* Compliance Recalculation Tab */}
-          <TabsContent value="recalculation" className="mt-6">
-            <ComplianceRecalculation />
-          </TabsContent>
-        </Tabs>
+        {/* Compliance Recalculation - The standalone tool */}
+        <ComplianceRecalculation />
       </div>
     </ResponsiveContainer>
   );
