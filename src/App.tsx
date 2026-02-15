@@ -10,6 +10,7 @@ import { PWAUpdateNotification } from '@/components/features/PWAUpdateNotificati
 import { StandaloneDetector } from '@/components/features/StandaloneDetector';
 import { NetworkStatusBar } from '@/components/features/NetworkStatusBar';
 import { AppBadge } from '@/components/features/AppBadge';
+import { BugReportButton } from '@/components/features/BugReportButton';
 import { useAuthStore } from '@/stores/authStore';
 import { FieldOfficerPortal } from '@/pages/FieldOfficerPortal';
 import { AdminPortal } from '@/pages/AdminPortal';
@@ -137,6 +138,7 @@ function App() {
       <StandaloneDetector />
       <NetworkStatusBar />
       <AppBadge />
+      <BugReportButton />
     </>
   );
 }
