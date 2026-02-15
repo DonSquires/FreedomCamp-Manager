@@ -12,11 +12,10 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { useAuthStore } from '@/stores/authStore';
-import { Fingerprint, Scan, AlertTriangle, Monitor } from 'lucide-react';
+import { Fingerprint, Scan, AlertTriangle, Monitor, Shield } from 'lucide-react';
 import { JDSLogo } from '@/components/layout/JDSLogo';
 import { toast } from 'sonner';
 import { APP_VERSION } from '@/constants/version';
-import ironEagleLogo from '@/../../public/iron-eagle-security-logo.jpg';
 
 import {
   isBiometricAvailable,
@@ -203,7 +202,7 @@ export function Login() {
         <Card className="border-border">
           <CardHeader>
             <div className="flex items-center gap-2">
-              <img src={ironEagleLogo} alt="Iron Eagle Security" className="h-8 w-8 rounded-full object-cover" />
+              <img src="/iron-eagle-security-logo.jpg" alt="Iron Eagle Security" className="h-8 w-8 rounded-full object-cover" />
               <CardTitle>Login</CardTitle>
             </div>
             <CardDescription>
