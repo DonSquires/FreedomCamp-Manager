@@ -23,7 +23,7 @@ serve(async (req) => {
   );
 
   try {
-    const { zoneIds, dateRangeStart, dateRangeEnd, offset = 0, batch_size = 300, get_total = false } = await req.json();
+    const { zoneIds, dateRangeStart, dateRangeEnd, offset = 0, batch_size = 50, get_total = false } = await req.json();
 
     console.log('🔍 Duplicate Detection Request:', { zoneIds, dateRangeStart, dateRangeEnd, offset, batch_size, get_total });
 
