@@ -48,7 +48,7 @@ interface ImportSummary {
 
 const DOWNER_LINZ_ORG_NAME = 'Downer/LINZ';
 const MAX_RECORDS_PER_FILE = 300; // Split files larger than this
-const CHUNK_SIZE = 250; // Records per chunk
+const CHUNK_SIZE = 300; // Records per chunk
 
 export function VehicleLogImport() {
   const { user } = useAuthStore();

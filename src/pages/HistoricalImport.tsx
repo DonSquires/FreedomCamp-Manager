@@ -70,7 +70,7 @@ interface BatchProgress {
 }
 
 const MAX_RECORDS_PER_FILE = 300; // Split files larger than this for better performance
-const CHUNK_SIZE = 250; // Records per chunk (AI-powered batch size)
+const CHUNK_SIZE = 300; // Records per chunk (AI-powered batch size)
 
 export function HistoricalImport() {
   const { user } = useAuthStore();
@@ -745,7 +745,7 @@ export function HistoricalImport() {
                     </div>
                     {batchProgress && (
                       <div className="text-center text-xs text-muted-foreground">
-                        Processing {batchProgress.batch_size} records at a time for optimal performance
+                        Processing 300 records at a time for optimal performance
                       </div>
                     )}
                   </div>
@@ -904,7 +904,7 @@ export function HistoricalImport() {
               <ul className="list-disc list-inside space-y-0.5 text-[11px]">
                 <li>AI analyzes file structure and data quality</li>
                 <li>Detects date formats automatically</li>
-                <li>Processes 250 records per batch</li>
+                <li>Processes 300 records per batch</li>
                 <li>Real-time progress updates every 2 seconds</li>
                 <li>Automatic zone matching with fuzzy logic</li>
               </ul>
@@ -923,7 +923,7 @@ export function HistoricalImport() {
           <div className="pt-2 border-t border-blue-300">
             <div className="font-semibold mb-1">🔄 Batch Processing:</div>
             <p className="text-[11px]">
-              Instead of uploading all records at once, the system intelligently processes <strong>250 records at a time</strong>. 
+              Instead of uploading all records at once, the system intelligently processes <strong>300 records at a time</strong>. 
               This prevents timeouts, provides real-time progress feedback, and ensures data integrity through atomic transactions.
             </p>
           </div>

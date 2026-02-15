@@ -620,14 +620,14 @@ Return ONLY a JSON object with this structure:
       });
     }
 
-    // Process records in batches of 250 (user-requested batch size)
-    const BATCH_SIZE = 250;
+    // Process records in batches of 300 (user-requested batch size)
+    const BATCH_SIZE = 300;
     const batches = [];
     for (let i = 0; i < processedRecords.length; i += BATCH_SIZE) {
       batches.push(processedRecords.slice(i, i + BATCH_SIZE));
     }
 
-    console.log(`🚀 [IMPORT] Starting AI-powered batch processing - ${batches.length} batches of 250 records`);
+    console.log(`🚀 [IMPORT] Starting AI-powered batch processing - ${batches.length} batches of 300 records`);
 
     let successful = 0;
     let failed = 0;
