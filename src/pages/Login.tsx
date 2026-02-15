@@ -16,6 +16,7 @@ import { Fingerprint, Scan, AlertTriangle, Monitor } from 'lucide-react';
 import { JDSLogo } from '@/components/layout/JDSLogo';
 import { toast } from 'sonner';
 import { APP_VERSION } from '@/constants/version';
+import { UpdateManager } from '@/components/features/UpdateManager';
 
 import {
   isBiometricAvailable,
@@ -34,8 +35,10 @@ export function Login() {
   const [lastSuccessfulEmail, setLastSuccessfulEmail] = useState('');
   const [showDuplicateSessionDialog, setShowDuplicateSessionDialog] = useState(false);
   const [duplicateSessionInfo, setDuplicateSessionInfo] = useState({ device: '', lastActive: '' });
+  const [loginComplete, setLoginComplete] = useState(false);
   const loginWithPassword = useAuthStore((state) => state.login);
   const forceLogin = useAuthStore((state) => state.forceLogin);
+  const { user } = useAuthStore();
 
   // Check biometric availability
   useEffect(() => {
@@ -87,7 +90,9 @@ export function Login() {
       if (biometricAvailable && !hasBiometricCredential(email)) {
         setShowBiometricEnrollment(true);
       }
-      // Navigation will happen in App.tsx
+      
+      // Mark login as complete to trigger update check
+      setLoginComplete(true);
       
     } catch (error: any) {
       // Check if this is a duplicate session error
@@ -128,7 +133,9 @@ export function Login() {
       if (biometricAvailable && !hasBiometricCredential(email)) {
         setShowBiometricEnrollment(true);
       }
-      // Navigation will happen in App.tsx
+      
+      // Mark login as complete to trigger update check
+      setLoginComplete(true);
 
     } catch (error: any) {
       toast.error(error.message || 'Force login failed');
@@ -184,7 +191,13 @@ export function Login() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4">
+    <>
+      {/* Update Manager - Shows on login */}
+      {user && loginComplete && (
+        <UpdateManager onLoginComplete={() => setLoginComplete(false)} />
+      )}
+      
+      <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <div className="w-full max-w-md space-y-6">
         <div className="text-center space-y-2">
           <div className="mx-auto mb-4">
@@ -328,6 +341,7 @@ export function Login() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+      </div>
+    </>
   );
 }

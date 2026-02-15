@@ -6,9 +6,24 @@
  * - PATCH (third digit): Minor amendments
  */
 
-export const APP_VERSION = '2.11.0014';
+export const APP_VERSION = '2.11.0015';
 
 export const VERSION_HISTORY = [
+  {
+    version: '2.11.0015',
+    date: '2026-02-15',
+    changes: [
+      '🔄 NEW: Update Manager - Checks for updates on login',
+      '✅ Prominent update dialog with version comparison and changelog',
+      '⬅️ Rollback capability - Revert to previous version if issues occur',
+      '📊 Version history tracking - Up to 5 previous versions stored',
+      '🔔 Update notifications can be dismissed (won\'t show again for that version)',
+      '⚡ Automatic logout and app restart during updates',
+      '🛡️ Safety first: Rollback button appears if previous version available',
+      '📝 Full changelog display for each update',
+      '🎯 Smart version comparison prevents unnecessary prompts',
+    ],
+  },
   {
     version: '2.11.0014',
     date: '2026-02-15',

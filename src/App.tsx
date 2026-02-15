@@ -40,18 +40,35 @@ function App() {
     initAuth();
   }, [checkSession]);
 
-  // Auto-navigate to portal selection after login if no portal selected yet
+  // Auto-navigate based on role after login
   useEffect(() => {
-    if (isAuthenticated && !isInitializing) {
+    if (isAuthenticated && !isInitializing && user) {
       const selectedPortal = localStorage.getItem('selected_portal');
       const currentPath = window.location.pathname;
       
-      // If authenticated but no portal selected and not already on portal selection page
-      if (!selectedPortal && currentPath !== '/portal-selection' && currentPath !== '/field-officer' && currentPath !== '/admin') {
-        navigate('/portal-selection');
+      // Skip if already on a portal page
+      if (currentPath === '/field-officer' || currentPath === '/admin' || currentPath === '/portal-selection') {
+        return;
+      }
+
+      // Route based on user role
+      if (user.role === 'admin_officer') {
+        // Dual role - show portal selection if no portal chosen yet
+        if (!selectedPortal) {
+          navigate('/portal-selection');
+        } else {
+          // Navigate to previously selected portal
+          navigate(selectedPortal === 'field' ? '/field-officer' : '/admin');
+        }
+      } else if (user.role === 'officer') {
+        // Officers go directly to field portal
+        navigate('/field-officer');
+      } else if (user.role === 'admin' || user.role === 'master') {
+        // Admins/Masters go directly to admin portal
+        navigate('/admin');
       }
     }
-  }, [isAuthenticated, isInitializing, navigate]);
+  }, [isAuthenticated, isInitializing, user, navigate]);
 
   // Initialize push notifications
   useEffect(() => {
@@ -80,12 +97,36 @@ function App() {
         <Route path="/login" element={!isAuthenticated ? <Login /> : <Navigate to="/portal-selection" replace />} />
         
         {/* Protected Routes */}
-        {isAuthenticated ? (
+        {isAuthenticated && user ? (
           <>
-            <Route path="/portal-selection" element={<PortalSelection />} />
-            <Route path="/field-officer" element={<FieldOfficerPortal onLogout={logout} />} />
-            <Route path="/admin" element={<AdminPortal onLogout={logout} />} />
-            <Route path="/" element={<Navigate to="/portal-selection" replace />} />
+            {/* Portal Selection - Only for admin_officer role */}
+            {user.role === 'admin_officer' && (
+              <Route path="/portal-selection" element={<PortalSelection />} />
+            )}
+            
+            {/* Field Officer Portal - For officers and admin_officers */}
+            {(user.role === 'officer' || user.role === 'admin_officer') && (
+              <Route path="/field-officer" element={<FieldOfficerPortal onLogout={logout} />} />
+            )}
+            
+            {/* Admin Portal - For admins, masters, and admin_officers */}
+            {(user.role === 'admin' || user.role === 'master' || user.role === 'admin_officer') && (
+              <Route path="/admin" element={<AdminPortal onLogout={logout} />} />
+            )}
+            
+            {/* Root - Redirect based on role */}
+            <Route path="/" element={
+              user.role === 'admin_officer' ? <Navigate to="/portal-selection" replace /> :
+              user.role === 'officer' ? <Navigate to="/field-officer" replace /> :
+              <Navigate to="/admin" replace />
+            } />
+            
+            {/* Catch-all - Redirect to appropriate portal */}
+            <Route path="*" element={
+              user.role === 'admin_officer' ? <Navigate to="/portal-selection" replace /> :
+              user.role === 'officer' ? <Navigate to="/field-officer" replace /> :
+              <Navigate to="/admin" replace />
+            } />
           </>
         ) : (
           <Route path="*" element={<Navigate to="/login" replace />} />

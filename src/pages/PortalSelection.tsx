@@ -17,6 +17,19 @@ export function PortalSelection() {
   const { user } = useAuthStore();
   const [isNavigating, setIsNavigating] = useState(false);
 
+  // Security: Only admin_officer role should see this page
+  if (!user || user.role !== 'admin_officer') {
+    // Redirect non-admin_officer users to their appropriate portal
+    if (user?.role === 'officer') {
+      navigate('/field-officer', { replace: true });
+    } else if (user?.role === 'admin' || user?.role === 'master') {
+      navigate('/admin', { replace: true });
+    } else {
+      navigate('/login', { replace: true });
+    }
+    return null;
+  }
+
   const handleSelectPortal = (portal: 'field' | 'admin') => {
     setIsNavigating(true);
     
