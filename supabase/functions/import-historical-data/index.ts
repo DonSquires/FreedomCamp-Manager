@@ -620,14 +620,14 @@ Return ONLY a JSON object with this structure:
       });
     }
 
-    // Process records in batches
-    const BATCH_SIZE = 100;
+    // Process records in batches of 250 (user-requested batch size)
+    const BATCH_SIZE = 250;
     const batches = [];
     for (let i = 0; i < processedRecords.length; i += BATCH_SIZE) {
       batches.push(processedRecords.slice(i, i + BATCH_SIZE));
     }
 
-    console.log(`🚀 [IMPORT] Starting batch processing - ${batches.length} batches`);
+    console.log(`🚀 [IMPORT] Starting AI-powered batch processing - ${batches.length} batches of 250 records`);
 
     let successful = 0;
     let failed = 0;
@@ -636,6 +636,23 @@ Return ONLY a JSON object with this structure:
     for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
       const batch = batches[batchIndex];
       console.log(`📦 [IMPORT] Processing batch ${batchIndex + 1}/${batches.length} (${batch.length} records)`);
+      
+      // Update progress in database for real-time UI updates
+      await supabaseAdmin
+        .from('import_history')
+        .update({
+          error_log: {
+            total_rows: jsonData.length - 1,
+            valid_records: parsedRecords.length,
+            zones_created: zonesCreated,
+            current_batch: batchIndex + 1,
+            total_batches: batches.length,
+            batch_size: BATCH_SIZE,
+            parsing_errors: errorLog.slice(0, 100),
+            processing_errors: processingErrors.slice(0, 100),
+          },
+        })
+        .eq('id', importHistoryId);
 
       for (const record of batch) {
         try {
