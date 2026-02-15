@@ -13,7 +13,18 @@ Deno.serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    const { email, password, first_name, last_name, role, organization_id, phone } = await req.json();
+    const { 
+      email, 
+      password, 
+      first_name, 
+      last_name, 
+      role, 
+      organization_id, 
+      employer_organization_id,
+      authorized_work_locations,
+      phone,
+      permissions 
+    } = await req.json();
 
     // Validation
     if (!email || !password || !role) {
@@ -79,7 +90,10 @@ Deno.serve(async (req) => {
         last_name: userLastName,
         role,
         organization_id: organization_id || null,
+        employer_organization_id: employer_organization_id || null,
+        authorized_work_locations: authorized_work_locations || [],
         phone: phone || null,
+        permissions: permissions || [],
         is_active: true,
       })
       .eq('id', authData.user.id)
