@@ -67,6 +67,8 @@ interface ObservationDetail {
   };
   compliance_results?: Array<{
     is_compliant: boolean;
+    is_exempt?: boolean;
+    exemption_reason?: string;
     violation_reasons: string[];
     metrics_json: any;
   }>;
@@ -194,23 +196,49 @@ export function ObservationDetailModal({
                       </p>
                     )}
                     <div className="flex flex-wrap gap-2">
-                      <Badge variant={observation.is_compliant ? 'default' : 'destructive'}>
-                        {observation.is_compliant ? (
-                          <><CheckCircle2 className="h-3 w-3 mr-1" /> Compliant</>
-                        ) : (
-                          <><AlertTriangle className="h-3 w-3 mr-1" /> Non-Compliant</>
-                        )}
-                      </Badge>
+                      {/* Show Breach Status with Exemption */}
+                      {(() => {
+                        const hasViolations = observation.compliance_results?.some(r => r.violation_reasons && r.violation_reasons.length > 0);
+                        const isExempt = observation.compliance_results?.some(r => r.is_exempt);
+                        const isHomeless = observation.canonical_vehicles?.homeless_status !== 'none';
+                        
+                        if (hasViolations && isExempt) {
+                          // Show Breach (Exempt) badge
+                          return (
+                            <>
+                              <Badge variant="outline" className="bg-amber-500/10 text-amber-600 border-amber-500 font-bold">
+                                <AlertTriangle className="h-3 w-3 mr-1" />
+                                Breach (Exempt)
+                              </Badge>
+                            </>
+                          );
+                        } else if (observation.is_compliant) {
+                          return (
+                            <Badge variant="default">
+                              <CheckCircle2 className="h-3 w-3 mr-1" /> Compliant
+                            </Badge>
+                          );
+                        } else {
+                          return (
+                            <Badge variant="destructive">
+                              <AlertTriangle className="h-3 w-3 mr-1" /> Non-Compliant
+                            </Badge>
+                          );
+                        }
+                      })()}
+                      
+                      {/* Homeless Status Badge */}
+                      {observation.canonical_vehicles?.homeless_status !== 'none' && (
+                        <Badge variant="outline" className="bg-cyan-500/10 text-cyan-600 border-cyan-500 font-bold">
+                          🏠 Homeless
+                          {observation.canonical_vehicles.homeless_status === 'confirmed' && ' (Confirmed)'}
+                          {observation.canonical_vehicles.homeless_status === 'claimed' && ' (Claimed)'}
+                        </Badge>
+                      )}
+                      
                       {observation.is_self_contained && (
                         <Badge variant="outline" className="bg-blue-500/10 text-blue-600 border-blue-500">
                           Self-Contained
-                        </Badge>
-                      )}
-                      {observation.canonical_vehicles?.homeless_status !== 'none' && (
-                        <Badge variant="outline" className="bg-amber-500/10 text-amber-600 border-amber-500">
-                          Homeless
-                          {observation.canonical_vehicles.homeless_status === 'confirmed' && ' (Confirmed)'}
-                          {observation.canonical_vehicles.homeless_status === 'claimed' && ' (Claimed)'}
                         </Badge>
                       )}
                       {observation.canonical_vehicles?.is_flagged && (
@@ -316,10 +344,18 @@ export function ObservationDetailModal({
 
             {/* Compliance Details */}
             {observation.compliance_results && observation.compliance_results.length > 0 && (
-              <Card className={`border-2 ${observation.is_compliant ? 'border-green-500 bg-green-50 dark:bg-green-950/20' : 'border-red-500 bg-red-50 dark:bg-red-950/20'}`}>
+              <Card className={`border-2 ${
+                observation.compliance_results.some(r => r.is_exempt) 
+                  ? 'border-amber-500 bg-amber-50 dark:bg-amber-950/20' 
+                  : observation.is_compliant 
+                    ? 'border-green-500 bg-green-50 dark:bg-green-950/20' 
+                    : 'border-red-500 bg-red-50 dark:bg-red-950/20'
+              }`}>
                 <CardContent className="p-4">
                   <h3 className="font-bold text-sm mb-3 flex items-center gap-2">
-                    {observation.is_compliant ? (
+                    {observation.compliance_results.some(r => r.is_exempt) ? (
+                      <><AlertTriangle className="h-4 w-4 text-amber-600" /> Breach Details (Exempt)</>
+                    ) : observation.is_compliant ? (
                       <><CheckCircle2 className="h-4 w-4 text-green-600" /> Compliance Details</>
                     ) : (
                       <><AlertTriangle className="h-4 w-4 text-red-600" /> Violation Details</>
@@ -327,12 +363,30 @@ export function ObservationDetailModal({
                   </h3>
                   {observation.compliance_results.map((result, idx) => (
                     <div key={idx} className="space-y-3">
+                      {/* Show Exemption Notice First */}
+                      {result.is_exempt && result.exemption_reason && (
+                        <div className="p-3 bg-amber-100 dark:bg-amber-900/30 rounded-lg border-2 border-amber-500">
+                          <p className="text-sm font-bold text-amber-900 dark:text-amber-100 mb-1">
+                            ⚠️ Exempt from Enforcement
+                          </p>
+                          <p className="text-xs text-amber-800 dark:text-amber-200">
+                            {result.exemption_reason}
+                          </p>
+                        </div>
+                      )}
+                      
                       {result.violation_reasons && result.violation_reasons.length > 0 && (
                         <div>
-                          <p className="text-xs font-semibold text-muted-foreground mb-1">Violations:</p>
+                          <p className="text-xs font-semibold text-muted-foreground mb-1">
+                            {result.is_exempt ? 'Violations (Exempt):' : 'Violations:'}
+                          </p>
                           <div className="flex flex-wrap gap-1">
                             {result.violation_reasons.map((reason, i) => (
-                              <Badge key={i} variant="destructive" className="text-xs">
+                              <Badge 
+                                key={i} 
+                                variant={result.is_exempt ? "outline" : "destructive"} 
+                                className={result.is_exempt ? "text-xs border-amber-500 text-amber-700" : "text-xs"}
+                              >
                                 {reason.replace(/_/g, ' ')}
                               </Badge>
                             ))}

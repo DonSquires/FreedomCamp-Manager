@@ -6,9 +6,31 @@
  * - PATCH (third digit): Minor amendments
  */
 
-export const APP_VERSION = '2.11.0009';
+export const APP_VERSION = '2.11.0011';
 
 export const VERSION_HISTORY = [
+  {
+    version: '2.11.0011',
+    date: '2026-02-15',
+    changes: [
+      '🐛 CRITICAL FIX: Resolved dual role login flow',
+      '✅ admin_officer role now properly recognized in App.tsx routing',
+      '✅ Portal selection happens BEFORE setting auth state (prevents premature redirect)',
+      '✅ Pending login data stored temporarily during portal selection',
+      '✅ Auth state only set after user chooses portal',
+      '✅ App.tsx now routes admin_officer based on selected_portal localStorage',
+      '🔧 Fixed "Unknown Role" error for admin_officer users',
+      '🎯 Smooth portal selection flow: Login → Select Portal → Navigate',
+    ],
+  },
+  {
+    version: '2.11.0010',
+    date: '2026-02-15',
+    changes: [
+      '🐛 HOTFIX: Fixed React Fragment syntax error in Login page',
+      '✅ App now loads correctly after dual role implementation',
+    ],
+  },
   {
     version: '2.11.0009',
     date: '2026-02-15',

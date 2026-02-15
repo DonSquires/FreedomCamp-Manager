@@ -73,6 +73,42 @@ function App() {
   // Route based on role
   const isFieldOfficer = user?.role === 'officer' || user?.role === 'field_staff';
   const isAdmin = user?.role === 'admin' || user?.role === 'master';
+  const isAdminOfficer = user?.role === 'admin_officer';
+
+  // Admin_officer can access both portals based on stored preference
+  if (isAdminOfficer) {
+    const selectedPortal = localStorage.getItem('selected_portal') as 'field' | 'admin' | null;
+    
+    if (selectedPortal === 'field') {
+      return (
+        <>
+          <FieldOfficerPortal onLogout={logout} />
+          <Toaster position="top-right" richColors />
+          <StandaloneDetector />
+          <NetworkStatusBar />
+          <AppBadge />
+        </>
+      );
+    } else if (selectedPortal === 'admin') {
+      return (
+        <>
+          <AdminPortal onLogout={logout} />
+          <Toaster position="top-right" richColors />
+          <StandaloneDetector />
+          <NetworkStatusBar />
+          <AppBadge />
+        </>
+      );
+    } else {
+      // No portal selected yet - should not happen, but handle gracefully
+      return (
+        <>
+          <Login />
+          <Toaster position="top-right" richColors />
+        </>
+      );
+    }
+  }
 
   return (
     <>
@@ -85,7 +121,7 @@ function App() {
           <div className="text-center">
             <h1 className="text-2xl font-bold mb-2">Unknown Role</h1>
             <p className="text-muted-foreground mb-4">
-              Your account role is not recognized. Please contact your administrator.
+              Your account role ({user?.role}) is not recognized. Please contact your administrator.
             </p>
             <button
               onClick={logout}
