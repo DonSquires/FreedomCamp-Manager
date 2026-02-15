@@ -184,15 +184,15 @@ export function DataCleanupUtility() {
       setProcessed(0);
       setComplianceChanged(0);
 
-      // Trigger background recalculation via Edge Function
+      // Trigger background cleanup and recalculation via Edge Function
       const { data: actionData, error: actionError } = await supabase.functions.invoke(
-        'recalculate-compliance',
+        'cleanup-and-recalculate',
         {
           body: {
-            scope_type: 'ZONE',
-            zone_ids: selectedZones,
-            date_range_start: dateRangeStart,
-            date_range_end: dateRangeEnd,
+            scope: 'ZONE',
+            zoneIds: selectedZones,
+            dateRangeStart: dateRangeStart,
+            dateRangeEnd: dateRangeEnd,
           },
         }
       );

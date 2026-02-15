@@ -43,6 +43,19 @@ serve(async (req) => {
   );
 
   try {
+    // Get authenticated user
+    const authHeader = req.headers.get('Authorization');
+    const token = authHeader?.replace('Bearer ', '');
+
+    const { data: { user }, error: userError } = await supabaseAdmin.auth.getUser(token);
+    if (userError || !user) {
+      console.error('❌ Auth failed:', userError);
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     const params: CleanupParams = await req.json();
     console.log('🔧 Starting cleanup and recalculation:', params);
 
@@ -76,6 +89,34 @@ serve(async (req) => {
       );
     }
 
+    // Create initial tracking record in admin_recalculation_actions
+    console.log('📝 Creating recalculation tracking record...');
+    const { data: actionRecord, error: actionError } = await supabaseAdmin
+      .from('admin_recalculation_actions')
+      .insert({
+        scope_type: params.scope,
+        target_zone_ids: params.zoneIds || null,
+        target_org_ids: params.organizationId ? [params.organizationId] : null,
+        date_range_start: params.dateRangeStart || null,
+        date_range_end: params.dateRangeEnd || null,
+        observations_processed: 0,
+        compliance_changed: 0,
+        drift_events_created: 0,
+        status: 'running',
+        performed_by: user.id,
+        performed_at: new Date().toISOString(),
+      })
+      .select('id')
+      .single();
+
+    if (actionError || !actionRecord) {
+      console.error('❌ Failed to create tracking record:', actionError);
+      throw new Error('Failed to create tracking record');
+    }
+
+    const actionId = actionRecord.id;
+    console.log('✅ Tracking record created:', actionId);
+
     const stats: CleanupStats = {
       observations_checked: 0,
       zones_corrected: 0,
@@ -83,6 +124,18 @@ serve(async (req) => {
       compliance_recalculated: 0,
       breaches_created: 0,
       errors: [],
+    };
+
+    // Helper function to update progress in database
+    const updateProgress = async () => {
+      await supabaseAdmin
+        .from('admin_recalculation_actions')
+        .update({
+          observations_processed: stats.observations_checked,
+          compliance_changed: stats.compliance_recalculated,
+          drift_events_created: stats.breaches_created,
+        })
+        .eq('id', actionId);
     };
 
     // ============================================
@@ -141,6 +194,9 @@ serve(async (req) => {
 
     stats.observations_checked = observations.length;
     console.log(`✅ Loaded ${observations.length} observations`);
+    
+    // Update initial count
+    await updateProgress();
 
     // ============================================
     // STEP 2: LOAD ZONES FOR GPS MATCHING
@@ -206,6 +262,7 @@ serve(async (req) => {
     }
 
     console.log(`✅ Zone correction complete: ${stats.zones_corrected} corrected`);
+    await updateProgress();
 
     // ============================================
     // STEP 4: DUPLICATE DETECTION & REMOVAL
@@ -347,6 +404,9 @@ serve(async (req) => {
 
       console.log(`✅ Batch ${batchNum + 1}/${totalBatches} complete: ${batchCompliance} processed, ${batchBreaches} breaches`);
       
+      // Update progress after each batch
+      await updateProgress();
+      
       // Small delay between batches to prevent overwhelming the system
       if (batchNum < totalBatches - 1) {
         await new Promise(resolve => setTimeout(resolve, 100));
@@ -356,11 +416,33 @@ serve(async (req) => {
     console.log(`\n✅ Compliance recalculation complete: ${stats.compliance_recalculated} processed, ${stats.breaches_created} breaches`);
 
     // ============================================
+    // MARK AS COMPLETED
+    // ============================================
+    const completedAt = new Date();
+    const startedAt = new Date(actionRecord.performed_at || new Date());
+    const durationSeconds = Math.round((completedAt.getTime() - startedAt.getTime()) / 1000);
+
+    await supabaseAdmin
+      .from('admin_recalculation_actions')
+      .update({
+        status: 'completed',
+        observations_processed: stats.observations_checked,
+        compliance_changed: stats.compliance_recalculated,
+        drift_events_created: stats.breaches_created,
+        completed_at: completedAt.toISOString(),
+        duration_seconds: durationSeconds,
+      })
+      .eq('id', actionId);
+
+    console.log('✅ Tracking record marked as completed');
+
+    // ============================================
     // RETURN RESULTS
     // ============================================
     const summary = {
       success: true,
       message: 'Cleanup and recalculation completed',
+      action_id: actionId,
       stats,
       processing_summary: {
         observations_checked: stats.observations_checked,
@@ -371,6 +453,7 @@ serve(async (req) => {
         error_count: stats.errors.length,
         batches_processed: totalBatches,
         batch_size: BATCH_SIZE,
+        duration_seconds: durationSeconds,
       }
     };
 
@@ -383,6 +466,41 @@ serve(async (req) => {
 
   } catch (error: any) {
     console.error('❌ Cleanup failed:', error);
+    
+    // Try to mark tracking record as failed if it exists
+    try {
+      const authHeader = req.headers.get('Authorization');
+      const token = authHeader?.replace('Bearer ', '');
+      const { data: { user } } = await supabaseAdmin.auth.getUser(token);
+      
+      if (user) {
+        // Find the most recent running action for this user
+        const { data: runningAction } = await supabaseAdmin
+          .from('admin_recalculation_actions')
+          .select('id')
+          .eq('performed_by', user.id)
+          .eq('status', 'running')
+          .order('performed_at', { ascending: false })
+          .limit(1)
+          .single();
+        
+        if (runningAction) {
+          await supabaseAdmin
+            .from('admin_recalculation_actions')
+            .update({
+              status: 'failed',
+              error_message: error.message,
+              completed_at: new Date().toISOString(),
+            })
+            .eq('id', runningAction.id);
+          
+          console.log('✅ Tracking record marked as failed');
+        }
+      }
+    } catch (updateError) {
+      console.error('Failed to update tracking record:', updateError);
+    }
+    
     return new Response(
       JSON.stringify({ 
         success: false, 
