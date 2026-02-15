@@ -61,6 +61,7 @@ import { SettingsHub } from './SettingsHub';
 import { DatabaseDiagnostic } from './DatabaseDiagnostic';
 import { EmergencyDataRecovery } from './EmergencyDataRecovery';
 import { DataRecoveryAnalysis } from './DataRecoveryAnalysis';
+import { ProductOverviewDocument } from './ProductOverviewDocument';
 
 interface AdminPortalProps {
   onLogout: () => void;
@@ -376,6 +377,26 @@ export function AdminPortal({ onLogout }: AdminPortalProps) {
               <HelpCircle className="h-4 w-4 mr-2 lg:mr-3 text-blue-600" />
               <span className="text-blue-600 dark:text-blue-400 font-semibold">Help & Documentation</span>
             </Button>
+
+            {isMaster && (
+              <>
+                <div className="text-xs font-semibold text-muted-foreground px-3 py-2 mt-3 lg:mt-4">
+                  DOCUMENTS
+                </div>
+
+                <Button
+                  variant={activeTab === 'product-overview' ? 'default' : 'ghost'}
+                  className="w-full justify-start text-sm lg:text-base h-10 lg:h-9 touch-manipulation bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-950/20 dark:to-purple-950/20 border border-blue-500/30"
+                  onClick={() => {
+                    setActiveTab('product-overview');
+                    setSidebarOpen(false);
+                  }}
+                >
+                  <FileText className="h-4 w-4 mr-2 lg:mr-3 text-blue-600" />
+                  <span className="text-blue-600 dark:text-blue-400 font-semibold">Product Overview</span>
+                </Button>
+              </>
+            )}
           </nav>
 
           <div className="p-3 lg:p-4 border-t">
@@ -481,6 +502,9 @@ export function AdminPortal({ onLogout }: AdminPortalProps) {
               {/* Phase 4 & 5: Consolidated Hubs */}
               {activeTab === 'data-management-hub' && <DataManagementHub />}
               {activeTab === 'settings-hub' && <SettingsHub />}
+              
+              {/* Documents - Master Only */}
+              {activeTab === 'product-overview' && isMaster && <ProductOverviewDocument />}
             </div>
           </div>
         </div>

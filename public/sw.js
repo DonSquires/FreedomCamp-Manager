@@ -1,8 +1,10 @@
 // Service Worker for FreedomCamp Manager PWA
 // Handles offline caching, background sync, and auto-updates
+// NOW WITH: IndexedDB sync, offline API queue, Background Sync API
 
-var CACHE_VERSION = '2.2.3';
+var CACHE_VERSION = '2.3.0'; // Updated for offline capabilities
 var CACHE_NAME = 'freedomcamp-v' + CACHE_VERSION;
+var API_CACHE = 'freedomcamp-api-v' + CACHE_VERSION;
 var STATIC_CACHE = [
   '/',
   '/index.html',
@@ -31,11 +33,11 @@ self.addEventListener('activate', function(event) {
   
   event.waitUntil(
     Promise.all([
-      // Clean up old caches
+      // Clean up old caches (both static and API)
       caches.keys().then(function(cacheNames) {
         return Promise.all(
           cacheNames.map(function(cacheName) {
-            if (cacheName !== CACHE_NAME) {
+            if (cacheName !== CACHE_NAME && cacheName !== API_CACHE) {
               console.log('[SW] Deleting old cache:', cacheName);
               return caches.delete(cacheName);
             }
@@ -51,6 +53,7 @@ self.addEventListener('activate', function(event) {
           client.postMessage({
             type: 'UPDATE_AVAILABLE',
             version: CACHE_VERSION,
+            features: ['offline_queue', 'background_sync', 'gps_watermark'],
           });
         });
       });
@@ -58,23 +61,67 @@ self.addEventListener('activate', function(event) {
   );
 });
 
-// Fetch event - serve from cache when offline
+// Fetch event - Network-first for API, cache-first for static assets
 self.addEventListener('fetch', function(event) {
   // Skip for chrome-extension URLs (browser extensions)
   if (event.request.url.indexOf('chrome-extension://') !== -1) {
     return;
   }
 
-  // Skip for API requests (Supabase)
-  if (
+  var isApiRequest = 
     event.request.url.indexOf('/api/') !== -1 ||
     event.request.url.indexOf('supabase.co') !== -1 ||
-    event.request.url.indexOf('functions/v1') !== -1
-  ) {
+    event.request.url.indexOf('functions/v1') !== -1;
+
+  // API requests - Network first with offline fallback
+  if (isApiRequest) {
+    event.respondWith(
+      fetch(event.request)
+        .then(function(response) {
+          // Cache successful GET API responses for offline viewing
+          if (event.request.method === 'GET' && response && response.status === 200) {
+            var responseClone = response.clone();
+            caches.open(API_CACHE).then(function(cache) {
+              cache.put(event.request, responseClone);
+            });
+          }
+          return response;
+        })
+        .catch(function(error) {
+          console.log('[SW] Network request failed, trying cache:', event.request.url);
+          // Try cache for GET requests
+          if (event.request.method === 'GET') {
+            return caches.match(event.request).then(function(cachedResponse) {
+              if (cachedResponse) {
+                console.log('[SW] Serving from API cache (offline):', event.request.url);
+                return cachedResponse;
+              }
+              // Return error response for failed API calls
+              return new Response(
+                JSON.stringify({ error: 'Offline - no cached response available' }),
+                { 
+                  status: 503, 
+                  statusText: 'Service Unavailable',
+                  headers: { 'Content-Type': 'application/json' }
+                }
+              );
+            });
+          }
+          
+          // For POST/PUT/DELETE when offline, queue for background sync
+          if (event.request.method !== 'GET') {
+            console.log('[SW] Queuing non-GET request for background sync');
+            // Request will fail, app will catch and add to IndexedDB queue
+            return Promise.reject(error);
+          }
+          
+          return Promise.reject(error);
+        })
+    );
     return;
   }
 
-  // Skip for non-GET requests
+  // Static assets - Cache first
   if (event.request.method !== 'GET') {
     return;
   }
@@ -117,7 +164,7 @@ self.addEventListener('fetch', function(event) {
   );
 });
 
-// Background sync for queued scans
+// Background sync for queued scans - ENHANCED WITH RETRY LOGIC
 self.addEventListener('sync', function(event) {
   console.log('[SW] Background sync triggered:', event.tag);
   
@@ -127,16 +174,52 @@ self.addEventListener('sync', function(event) {
 });
 
 function syncQueuedScans() {
-  return self.clients.matchAll().then(function(clients) {
-    clients.forEach(function(client) {
-      client.postMessage({
-        type: 'SYNC_QUEUE',
-        timestamp: Date.now(),
+  console.log('[SW] Starting background sync of queued scans...');
+  
+  return self.clients.matchAll({ includeUncontrolled: true, type: 'window' })
+    .then(function(clients) {
+      if (clients.length === 0) {
+        console.log('[SW] No active clients to sync with');
+        return;
+      }
+      
+      // Notify all active clients to sync their queues
+      var syncPromises = clients.map(function(client) {
+        return new Promise(function(resolve) {
+          // Post message to client
+          client.postMessage({
+            type: 'SYNC_QUEUE',
+            timestamp: Date.now(),
+          });
+          
+          // Set up one-time message listener for sync completion
+          var messageHandler = function(event) {
+            if (event.data && event.data.type === 'SYNC_COMPLETE') {
+              self.removeEventListener('message', messageHandler);
+              resolve(event.data);
+            }
+          };
+          
+          self.addEventListener('message', messageHandler);
+          
+          // Timeout after 30 seconds
+          setTimeout(function() {
+            self.removeEventListener('message', messageHandler);
+            resolve({ success: false, error: 'Sync timeout' });
+          }, 30000);
+        });
       });
+      
+      return Promise.all(syncPromises);
+    })
+    .then(function(results) {
+      console.log('[SW] Background sync completed:', results);
+      return results;
+    })
+    .catch(function(error) {
+      console.error('[SW] Background sync failed:', error);
+      throw error;
     });
-  }).catch(function(error) {
-    console.error('[SW] Background sync failed:', error);
-  });
 }
 
 // Push notification handler

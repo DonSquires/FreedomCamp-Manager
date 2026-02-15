@@ -168,12 +168,19 @@ export async function detectPlateRegion(file: File): Promise<CropRegion | null> 
 }
 
 /**
- * Add GPS and timestamp watermark to image
+ * Add GPS and timestamp watermark to image (COURT-READY EVIDENCE)
+ * Adds visible overlay with GPS coordinates, timestamp, officer info, zone name, and organization
  */
 export async function addGPSWatermark(
   file: File,
   gpsData: { latitude: number; longitude: number; accuracy?: number } | null,
-  timestamp: Date = new Date()
+  metadata: {
+    timestamp?: Date;
+    officerName?: string;
+    zoneName?: string;
+    organizationName?: string;
+    plateNumber?: string;
+  } = {}
 ): Promise<File> {
   return new Promise((resolve, reject) => {
     const img = new Image();
@@ -193,15 +200,13 @@ export async function addGPSWatermark(
         // Draw original image
         ctx.drawImage(img, 0, 0);
 
-        // Watermark styling
-        const fontSize = Math.max(16, Math.floor(img.height * 0.025));
-        ctx.font = `bold ${fontSize}px monospace`;
-        ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
-        ctx.shadowBlur = 4;
-        ctx.shadowOffsetX = 2;
-        ctx.shadowOffsetY = 2;
-
-        // Format timestamp
+        // Watermark styling - Dynamic sizing based on image resolution
+        const baseFontSize = Math.max(16, Math.floor(img.height * 0.020)); // 2% of height
+        const padding = baseFontSize;
+        const lineHeight = baseFontSize + 6;
+        
+        // Timestamp
+        const timestamp = metadata.timestamp || new Date();
         const dateStr = timestamp.toLocaleDateString('en-NZ', {
           day: '2-digit',
           month: '2-digit',
@@ -214,31 +219,95 @@ export async function addGPSWatermark(
           hour12: false,
         });
 
-        // Format GPS
-        let gpsText = 'GPS: Not Available';
+        // GPS Coordinates
+        let gpsText = 'GPS: NOT AVAILABLE';
         if (gpsData) {
           const lat = gpsData.latitude.toFixed(6);
           const lng = gpsData.longitude.toFixed(6);
-          const acc = gpsData.accuracy ? `±${Math.round(gpsData.accuracy)}m` : '';
-          gpsText = `GPS: ${lat}, ${lng} ${acc}`.trim();
+          const acc = gpsData.accuracy ? ` ±${Math.round(gpsData.accuracy)}m` : '';
+          gpsText = `GPS: ${lat}, ${lng}${acc}`;
         }
 
-        const padding = fontSize;
-        const lineHeight = fontSize + 4;
-        const y = img.height - padding;
-
-        // Draw date/time (bottom left)
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
-        ctx.fillRect(0, y - lineHeight * 2 - padding, img.width, lineHeight * 2 + padding * 2);
+        // Build watermark lines (bottom to top)
+        const watermarkLines: string[] = [];
         
-        ctx.fillStyle = '#00ff00';
-        ctx.fillText(dateStr, padding, y - lineHeight - 4);
-        ctx.fillText(timeStr, padding, y - 4);
+        // Line 1 (bottom): GPS + Plate Number
+        if (metadata.plateNumber) {
+          watermarkLines.push(`${gpsText} | PLATE: ${metadata.plateNumber}`);
+        } else {
+          watermarkLines.push(gpsText);
+        }
+        
+        // Line 2: Date + Time
+        watermarkLines.push(`${dateStr} ${timeStr} NZST`);
+        
+        // Line 3: Zone + Organization
+        if (metadata.zoneName && metadata.organizationName) {
+          watermarkLines.push(`${metadata.zoneName} | ${metadata.organizationName}`);
+        } else if (metadata.zoneName) {
+          watermarkLines.push(`ZONE: ${metadata.zoneName}`);
+        } else if (metadata.organizationName) {
+          watermarkLines.push(metadata.organizationName);
+        }
+        
+        // Line 4 (top): Officer Name
+        if (metadata.officerName) {
+          watermarkLines.push(`OFFICER: ${metadata.officerName}`);
+        }
 
-        // Draw GPS (bottom right)
-        const gpsWidth = ctx.measureText(gpsText).width;
-        ctx.fillText(gpsText, img.width - gpsWidth - padding, y - 4);
+        // Calculate total height needed
+        const totalLines = watermarkLines.length;
+        const totalHeight = (totalLines * lineHeight) + (padding * 2);
+        const startY = img.height - padding;
 
+        // Draw semi-transparent black background bar
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.75)';
+        ctx.fillRect(0, img.height - totalHeight, img.width, totalHeight);
+
+        // Configure text rendering for maximum readability
+        ctx.font = `bold ${baseFontSize}px monospace`;
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'bottom';
+        
+        // Shadow for text depth
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.9)';
+        ctx.shadowBlur = 6;
+        ctx.shadowOffsetX = 2;
+        ctx.shadowOffsetY = 2;
+
+        // Draw each line (bottom to top)
+        watermarkLines.forEach((line, index) => {
+          const yPosition = startY - (index * lineHeight);
+          
+          // Use yellow for GPS line (most critical)
+          if (index === 0) {
+            ctx.fillStyle = '#FFFF00'; // Pure yellow for GPS
+          }
+          // Use green for timestamp (second most critical)
+          else if (index === 1) {
+            ctx.fillStyle = '#00FF00'; // Pure green for timestamp
+          }
+          // Use white for metadata
+          else {
+            ctx.fillStyle = '#FFFFFF';
+          }
+          
+          ctx.fillText(line, padding, yPosition);
+        });
+
+        // Add court-ready indicator (top right corner)
+        ctx.save();
+        ctx.shadowBlur = 0;
+        ctx.shadowOffsetX = 0;
+        ctx.shadowOffsetY = 0;
+        ctx.font = `bold ${Math.floor(baseFontSize * 0.8)}px monospace`;
+        ctx.textAlign = 'right';
+        ctx.fillStyle = '#FF0000'; // Red for importance
+        const courtReadyText = '🔒 COURT EVIDENCE';
+        ctx.fillText(courtReadyText, img.width - padding, padding + baseFontSize);
+        ctx.restore();
+
+        // Convert to blob with high quality
         canvas.toBlob(
           (blob) => {
             if (!blob) {
@@ -249,7 +318,7 @@ export async function addGPSWatermark(
             resolve(watermarkedFile);
           },
           'image/jpeg',
-          0.92
+          0.95 // High quality for evidence
         );
       } catch (error) {
         reject(error);
