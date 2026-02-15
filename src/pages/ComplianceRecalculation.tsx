@@ -131,7 +131,7 @@ export function ComplianceRecalculation() {
       }
 
       // Step 2: Process in batches (Frontend-driven)
-      const BATCH_SIZE = 300;
+      const BATCH_SIZE = 150;
       const batches = Math.ceil(totalObservations / BATCH_SIZE);
       setTotalBatches(batches);
       
@@ -140,7 +140,7 @@ export function ComplianceRecalculation() {
       let totalBreaches = 0;
       let totalSkipped = 0;
 
-      console.log(`📦 Processing ${totalObservations} observations in ${batches} batches of ${BATCH_SIZE}`);
+      console.log(`📦 Processing ${totalObservations} observations in ${batches} batches of 150`);
 
       for (let i = 0; i < batches; i++) {
         const offset = i * BATCH_SIZE;
@@ -249,7 +249,7 @@ export function ComplianceRecalculation() {
             Compliance Recalculation
           </h1>
           <p className="text-muted-foreground mt-1">
-            Frontend-driven batching - processes 300 records at a time with live progress
+            Frontend-driven batching - processes 150 records at a time with live progress
           </p>
         </div>
 
@@ -326,7 +326,7 @@ export function ComplianceRecalculation() {
               <AlertTriangle className="h-4 w-4" />
               <AlertDescription className="text-sm">
                 <strong>What this does:</strong> Tests each observation against current zone compliance rules,
-                updates monthly stays, creates breach alerts. Processing 300 records per batch.
+                updates monthly stays, creates breach alerts. Processing 150 records per batch.
               </AlertDescription>
             </Alert>
 
@@ -372,7 +372,7 @@ export function ComplianceRecalculation() {
                   <span className="text-sm font-bold text-blue-600">{Math.round(progressPercent)}%</span>
                 </div>
                 <p className="text-xs text-center text-muted-foreground">
-                  Batch {currentBatch} of {totalBatches} • 300 records per batch
+                  Batch {currentBatch} of {totalBatches} • 150 records per batch
                 </p>
               </div>
 

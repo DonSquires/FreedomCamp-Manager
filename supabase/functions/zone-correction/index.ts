@@ -22,7 +22,7 @@ serve(async (req) => {
   );
 
   try {
-    const { zoneIds, dateRangeStart, dateRangeEnd, offset = 0, batch_size = 300, get_total = false } = await req.json();
+    const { zoneIds, dateRangeStart, dateRangeEnd, offset = 0, batch_size = 150, get_total = false } = await req.json();
 
     console.log('🗺️ Zone Correction Request:', { zoneIds, dateRangeStart, dateRangeEnd, offset, batch_size, get_total });
 

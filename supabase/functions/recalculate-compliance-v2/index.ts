@@ -38,7 +38,7 @@ Deno.serve(async (req) => {
     }
 
     const params = await req.json();
-    const { zoneIds, dateRangeStart, dateRangeEnd, get_total, offset = 0, batch_size = 300 } = params;
+    const { zoneIds, dateRangeStart, dateRangeEnd, get_total, offset = 0, batch_size = 150 } = params;
 
     console.log('📥 Request:', { zoneIds, dateRangeStart, dateRangeEnd, get_total, offset, batch_size });
 
