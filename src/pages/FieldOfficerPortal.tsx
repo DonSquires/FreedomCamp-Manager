@@ -97,6 +97,13 @@ export function FieldOfficerPortal({ onLogout }: FieldOfficerPortalProps) {
   const [todayComplianceRate, setTodayComplianceRate] = useState(0);
   const [gpsLocation, setGpsLocation] = useState<{ lat: number; lng: number; accuracy: number } | null>(null);
   
+  // Investigation stats
+  const [investigationStats, setInvestigationStats] = useState({
+    assigned: 0,
+    inProgress: 0,
+    urgent: 0,
+  });
+  
   // Master organization filter
   const isMasterUser = user?.role === 'master';
   const [selectedOrgFilter, setSelectedOrgFilter] = useState<string>('all');
@@ -296,6 +303,51 @@ export function FieldOfficerPortal({ onLogout }: FieldOfficerPortalProps) {
     
     // Refresh every 5 minutes
     const interval = setInterval(loadTodayStats, 5 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [user?.id]);
+
+  // Load investigation job stats
+  useEffect(() => {
+    const loadInvestigationStats = async () => {
+      if (!user?.id) return;
+
+      try {
+        // Get assigned jobs
+        const { count: assignedCount } = await supabase
+          .from('investigation_jobs')
+          .select('*', { count: 'exact', head: true })
+          .eq('assigned_to', user.id)
+          .eq('status', 'assigned');
+
+        // Get in-progress jobs
+        const { count: inProgressCount } = await supabase
+          .from('investigation_jobs')
+          .select('*', { count: 'exact', head: true })
+          .eq('assigned_to', user.id)
+          .eq('status', 'in_progress');
+
+        // Get urgent jobs (any active status)
+        const { count: urgentCount } = await supabase
+          .from('investigation_jobs')
+          .select('*', { count: 'exact', head: true })
+          .eq('assigned_to', user.id)
+          .in('status', ['assigned', 'in_progress'])
+          .eq('priority', 'urgent');
+
+        setInvestigationStats({
+          assigned: assignedCount || 0,
+          inProgress: inProgressCount || 0,
+          urgent: urgentCount || 0,
+        });
+      } catch (error) {
+        console.error('Failed to load investigation stats:', error);
+      }
+    };
+
+    loadInvestigationStats();
+    
+    // Refresh every 2 minutes
+    const interval = setInterval(loadInvestigationStats, 2 * 60 * 1000);
     return () => clearInterval(interval);
   }, [user?.id]);
 
@@ -1397,6 +1449,62 @@ export function FieldOfficerPortal({ onLogout }: FieldOfficerPortalProps) {
             </div>
           </CardContent>
         </Card>
+
+        {/* Investigation Jobs Card - Prominent */}
+        {(investigationStats.assigned > 0 || investigationStats.inProgress > 0) && (
+          <Card className="border-2 border-purple-500/30 bg-purple-50/50 dark:bg-purple-950/30">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2 text-purple-900 dark:text-purple-100">
+                <FileText className="h-5 w-5" />
+                📋 Investigation Jobs
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {/* Stats Grid */}
+              <div className="grid grid-cols-3 gap-3">
+                <div className="p-3 bg-white dark:bg-gray-900 rounded-lg text-center border-2 border-purple-200 dark:border-purple-700">
+                  <p className="text-2xl font-black text-purple-700 dark:text-purple-300">
+                    {investigationStats.assigned}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">New</p>
+                </div>
+                <div className="p-3 bg-white dark:bg-gray-900 rounded-lg text-center border-2 border-purple-200 dark:border-purple-700">
+                  <p className="text-2xl font-black text-purple-700 dark:text-purple-300">
+                    {investigationStats.inProgress}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">In Progress</p>
+                </div>
+                <div className="p-3 bg-white dark:bg-gray-900 rounded-lg text-center border-2 border-red-200 dark:border-red-700">
+                  <p className="text-2xl font-black text-red-700 dark:text-red-300">
+                    {investigationStats.urgent}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">Urgent</p>
+                </div>
+              </div>
+
+              {/* Open Investigations Button */}
+              <Button
+                onClick={() => setCurrentView('investigations')}
+                className="w-full h-14 text-base font-bold bg-purple-600 hover:bg-purple-700 touch-manipulation"
+              >
+                <FileText className="h-5 w-5 mr-2" />
+                Open Investigation Jobs
+                <ChevronRight className="h-5 w-5 ml-2" />
+              </Button>
+
+              {investigationStats.urgent > 0 && (
+                <div className="p-3 bg-red-50 dark:bg-red-950/30 rounded-lg border-2 border-red-200 dark:border-red-700">
+                  <div className="flex items-center gap-2">
+                    <AlertTriangle className="h-5 w-5 text-red-600 shrink-0" />
+                    <p className="text-sm font-semibold text-red-900 dark:text-red-100">
+                      {investigationStats.urgent} urgent job{investigationStats.urgent !== 1 ? 's' : ''} require{investigationStats.urgent === 1 ? 's' : ''} immediate attention
+                    </p>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
         {/* Export Actions - Prominent */}
         {sessionScans.length > 0 && (

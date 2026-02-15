@@ -85,25 +85,19 @@ CREATE POLICY "users_view_own_reports"
   TO authenticated
   USING (user_id = auth.uid());
 
--- Admins can view all reports in their org
-CREATE POLICY "admins_view_org_reports"
+-- ONLY Masters can view all reports
+CREATE POLICY "masters_view_all_reports"
   ON public.bug_reports FOR SELECT
   TO authenticated
-  USING (
-    (get_user_role(auth.uid()) = ANY(ARRAY['admin', 'master'])) AND
-    (get_user_role(auth.uid()) = 'master' OR organization_id = get_user_organization_id(auth.uid()))
-  );
+  USING (get_user_role(auth.uid()) = 'master');
 
--- Admins can update reports (status, resolution, etc.)
-CREATE POLICY "admins_update_reports"
+-- ONLY Masters can update reports (status, resolution, etc.)
+CREATE POLICY "masters_update_reports"
   ON public.bug_reports FOR UPDATE
   TO authenticated
-  USING (
-    (get_user_role(auth.uid()) = ANY(ARRAY['admin', 'master'])) AND
-    (get_user_role(auth.uid()) = 'master' OR organization_id = get_user_organization_id(auth.uid()))
-  );
+  USING (get_user_role(auth.uid()) = 'master');
 
--- Masters can delete reports
+-- ONLY Masters can delete reports
 CREATE POLICY "masters_delete_reports"
   ON public.bug_reports FOR DELETE
   TO authenticated
