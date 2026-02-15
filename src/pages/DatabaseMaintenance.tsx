@@ -74,55 +74,111 @@ export function DatabaseMaintenance() {
     enabled: isMaster,
   });
 
-  // Zone Correction
+  // Zone Correction - Frontend Batching
   const handleZoneCorrection = async () => {
     if (zoneSelectedZones.length === 0) {
       toast.error('Please select at least one zone');
       return;
     }
 
+    // Calculate date range (if needed - not currently used)
+    const dateRangeStart = undefined;
+    const dateRangeEnd = undefined;
+
+    const startTime = Date.now();
     setIsZoneCorrecting(true);
     setZoneCorrectionResults(null);
     setZoneProgress({ processed: 0, corrected: 0 });
 
     try {
       console.log('🗺️ Starting zone correction for zones:', zoneSelectedZones);
-      
-      const { data, error } = await supabase.functions.invoke('cleanup-and-recalculate', {
-        body: {
-          scope: 'ZONE',
-          zoneIds: zoneSelectedZones,
-        },
-      });
+      toast.info('🚀 Starting zone correction...');
 
-      if (error) {
-        console.error('❌ Zone correction error:', error);
-        
-        // Extract detailed error message
-        let errorMessage = 'Zone correction failed';
-        if (error instanceof Error) {
-          errorMessage = error.message;
+      // Step 1: Get total count
+      const { data: totalData, error: totalError } = await supabase.functions.invoke(
+        'zone-correction',
+        {
+          body: {
+            zoneIds: zoneSelectedZones,
+            dateRangeStart,
+            dateRangeEnd,
+            get_total: true,
+          },
         }
-        
-        throw new Error(errorMessage);
+      );
+
+      if (totalError) throw totalError;
+
+      const totalObservations = totalData.total || 0;
+      console.log('📊 Total observations with good GPS:', totalObservations);
+
+      if (totalObservations === 0) {
+        toast.info('No observations found with good GPS data in selected zones');
+        setIsZoneCorrecting(false);
+        return;
       }
 
-      console.log('✅ Zone correction response:', data);
+      // Step 2: Process in batches (Frontend-driven)
+      const BATCH_SIZE = 300;
+      const batches = Math.ceil(totalObservations / BATCH_SIZE);
+      
+      let totalProcessed = 0;
+      let totalCorrected = 0;
 
-      if (!data || !data.processing_summary) {
-        throw new Error('Invalid response from server - no processing summary');
+      console.log(`📦 Processing ${totalObservations} observations in ${batches} batches of ${BATCH_SIZE}`);
+
+      for (let i = 0; i < batches; i++) {
+        const offset = i * BATCH_SIZE;
+
+        console.log(`📦 Batch ${i + 1}/${batches}: Processing observations ${offset + 1}-${Math.min(offset + BATCH_SIZE, totalObservations)}...`);
+
+        const { data: batchData, error: batchError } = await supabase.functions.invoke(
+          'zone-correction',
+          {
+            body: {
+              zoneIds: zoneSelectedZones,
+              dateRangeStart,
+              dateRangeEnd,
+              get_total: false,
+              offset: offset,
+              batch_size: BATCH_SIZE,
+            },
+          }
+        );
+
+        if (batchError) {
+          console.error('❌ Batch error:', batchError);
+          throw batchError;
+        }
+
+        totalProcessed += batchData.processed || 0;
+        totalCorrected += batchData.corrected || 0;
+
+        // Update frontend state (live progress)
+        setZoneProgress({
+          processed: totalProcessed,
+          corrected: totalCorrected,
+        });
+
+        console.log(`✅ Batch ${i + 1}/${batches} complete: ${totalProcessed}/${totalObservations} processed, ${totalCorrected} corrected`);
       }
 
-      setZoneCorrectionResults(data.processing_summary);
-      setZoneProgress({
-        processed: data.processing_summary.observations_checked || 0,
-        corrected: data.processing_summary.zones_corrected || 0,
+      // Calculate duration
+      const durationSeconds = Math.round((Date.now() - startTime) / 1000);
+
+      setZoneCorrectionResults({
+        observations_checked: totalProcessed,
+        zones_corrected: totalCorrected,
+        duration_seconds: durationSeconds,
       });
       
       toast.success(
-        `Zone correction complete! ${data.processing_summary.zones_corrected} observations corrected out of ${data.processing_summary.observations_checked} checked`,
+        `Zone correction complete! ${totalCorrected} observations corrected out of ${totalProcessed} checked in ${durationSeconds}s`,
         { duration: 6000 }
       );
+
+      console.log(`✅ Zone correction complete: ${totalProcessed} processed, ${totalCorrected} corrected in ${durationSeconds}s`);
+
     } catch (error: any) {
       console.error('❌ Zone correction failed:', error);
       toast.error('Zone correction failed: ' + (error.message || 'Unknown error'));
@@ -131,55 +187,111 @@ export function DatabaseMaintenance() {
     }
   };
 
-  // Duplicate Detection
+  // Duplicate Detection - Frontend Batching
   const handleDuplicateDetection = async () => {
     if (dupSelectedZones.length === 0) {
       toast.error('Please select at least one zone');
       return;
     }
 
+    // Calculate date range (if needed - not currently used)
+    const dateRangeStart = undefined;
+    const dateRangeEnd = undefined;
+
+    const startTime = Date.now();
     setIsDupDetecting(true);
     setDupDetectionResults(null);
     setDupProgress({ processed: 0, removed: 0 });
 
     try {
       console.log('🔍 Starting duplicate detection for zones:', dupSelectedZones);
-      
-      const { data, error } = await supabase.functions.invoke('cleanup-and-recalculate', {
-        body: {
-          scope: 'ZONE',
-          zoneIds: dupSelectedZones,
-        },
-      });
+      toast.info('🚀 Starting duplicate detection...');
 
-      if (error) {
-        console.error('❌ Duplicate detection error:', error);
-        
-        // Extract detailed error message
-        let errorMessage = 'Duplicate detection failed';
-        if (error instanceof Error) {
-          errorMessage = error.message;
+      // Step 1: Get total count
+      const { data: totalData, error: totalError } = await supabase.functions.invoke(
+        'duplicate-detection',
+        {
+          body: {
+            zoneIds: dupSelectedZones,
+            dateRangeStart,
+            dateRangeEnd,
+            get_total: true,
+          },
         }
-        
-        throw new Error(errorMessage);
+      );
+
+      if (totalError) throw totalError;
+
+      const totalObservations = totalData.total || 0;
+      console.log('📊 Total observations:', totalObservations);
+
+      if (totalObservations === 0) {
+        toast.info('No observations found in selected zones');
+        setIsDupDetecting(false);
+        return;
       }
 
-      console.log('✅ Duplicate detection response:', data);
+      // Step 2: Process in batches (Frontend-driven)
+      const BATCH_SIZE = 300;
+      const batches = Math.ceil(totalObservations / BATCH_SIZE);
+      
+      let totalProcessed = 0;
+      let totalRemoved = 0;
 
-      if (!data || !data.processing_summary) {
-        throw new Error('Invalid response from server - no processing summary');
+      console.log(`📦 Processing ${totalObservations} observations in ${batches} batches of ${BATCH_SIZE}`);
+
+      for (let i = 0; i < batches; i++) {
+        const offset = i * BATCH_SIZE;
+
+        console.log(`📦 Batch ${i + 1}/${batches}: Processing observations ${offset + 1}-${Math.min(offset + BATCH_SIZE, totalObservations)}...`);
+
+        const { data: batchData, error: batchError } = await supabase.functions.invoke(
+          'duplicate-detection',
+          {
+            body: {
+              zoneIds: dupSelectedZones,
+              dateRangeStart,
+              dateRangeEnd,
+              get_total: false,
+              offset: offset,
+              batch_size: BATCH_SIZE,
+            },
+          }
+        );
+
+        if (batchError) {
+          console.error('❌ Batch error:', batchError);
+          throw batchError;
+        }
+
+        totalProcessed += batchData.processed || 0;
+        totalRemoved += batchData.removed || 0;
+
+        // Update frontend state (live progress)
+        setDupProgress({
+          processed: totalProcessed,
+          removed: totalRemoved,
+        });
+
+        console.log(`✅ Batch ${i + 1}/${batches} complete: ${totalProcessed}/${totalObservations} processed, ${totalRemoved} removed`);
       }
 
-      setDupDetectionResults(data.processing_summary);
-      setDupProgress({
-        processed: data.processing_summary.observations_checked || 0,
-        removed: data.processing_summary.duplicates_removed || 0,
+      // Calculate duration
+      const durationSeconds = Math.round((Date.now() - startTime) / 1000);
+
+      setDupDetectionResults({
+        observations_checked: totalProcessed,
+        duplicates_removed: totalRemoved,
+        duration_seconds: durationSeconds,
       });
       
       toast.success(
-        `Duplicate detection complete! ${data.processing_summary.duplicates_removed} duplicates removed out of ${data.processing_summary.observations_checked} checked`,
+        `Duplicate detection complete! ${totalRemoved} duplicates removed out of ${totalProcessed} checked in ${durationSeconds}s`,
         { duration: 6000 }
       );
+
+      console.log(`✅ Duplicate detection complete: ${totalProcessed} processed, ${totalRemoved} removed in ${durationSeconds}s`);
+
     } catch (error: any) {
       console.error('❌ Duplicate detection failed:', error);
       toast.error('Duplicate detection failed: ' + (error.message || 'Unknown error'));
