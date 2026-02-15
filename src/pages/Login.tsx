@@ -17,6 +17,8 @@ import { JDSLogo } from '@/components/layout/JDSLogo';
 import { toast } from 'sonner';
 import { APP_VERSION } from '@/constants/version';
 import { UpdateManager } from '@/components/features/UpdateManager';
+import { ComplianceBlockingModal } from '@/components/features/ComplianceBlockingModal';
+import { supabase } from '@/lib/supabase';
 
 import {
   isBiometricAvailable,
@@ -36,6 +38,8 @@ export function Login() {
   const [showDuplicateSessionDialog, setShowDuplicateSessionDialog] = useState(false);
   const [duplicateSessionInfo, setDuplicateSessionInfo] = useState({ device: '', lastActive: '' });
   const [loginComplete, setLoginComplete] = useState(false);
+  const [showComplianceModal, setShowComplianceModal] = useState(false);
+  const [userProfile, setUserProfile] = useState<any>(null);
   const loginWithPassword = useAuthStore((state) => state.login);
   const forceLogin = useAuthStore((state) => state.forceLogin);
   const { user } = useAuthStore();
@@ -85,6 +89,38 @@ export function Login() {
       // Save email for biometric
       localStorage.setItem('last_login_email', email);
       setLastSuccessfulEmail(email);
+
+      // Get user profile to check compliance
+      const { user: authUser } = useAuthStore.getState();
+      if (authUser) {
+        const { data: profile, error: profileError } = await supabase
+          .from('user_profiles')
+          .select('*, organizations(name)')
+          .eq('id', authUser.id)
+          .single();
+
+        if (!profileError && profile) {
+          // Check compliance status (only for officers)
+          if (profile.role === 'officer' || profile.role === 'admin_officer') {
+            const { data: complianceStatus, error: complianceError } = await supabase.rpc(
+              'check_organization_compliance',
+              {
+                p_user_id: profile.id,
+                p_employer_org_id: profile.employer_organization_id || profile.organization_id,
+              }
+            );
+
+            if (!complianceError && complianceStatus && !complianceStatus.can_work) {
+              // Block with compliance modal
+              setUserProfile(profile);
+              setShowComplianceModal(true);
+              setIsLoading(false);
+              toast.warning('Please upload your credentials to continue');
+              return; // Don't proceed to biometric enrollment or update check
+            }
+          }
+        }
+      }
 
       // Check biometric enrollment
       if (biometricAvailable && !hasBiometricCredential(email)) {
@@ -192,6 +228,20 @@ export function Login() {
 
   return (
     <>
+      {/* Compliance Blocking Modal */}
+      {showComplianceModal && userProfile && (
+        <ComplianceBlockingModal
+          userId={userProfile.id}
+          employerOrgId={userProfile.employer_organization_id || userProfile.organization_id}
+          employerOrgName={userProfile.organizations?.name || 'Unknown'}
+          onCredentialsUpdated={() => {
+            setShowComplianceModal(false);
+            setLoginComplete(true);
+            toast.success('Credentials verified! You can now access the portal.');
+          }}
+        />
+      )}
+
       {/* Update Manager - Shows on login */}
       {user && loginComplete && (
         <UpdateManager onLoginComplete={() => setLoginComplete(false)} />
