@@ -1,3 +1,4 @@
+
 // AI-Powered Credential Document Processing
 // Extracts COA/Warrant details from uploaded documents using OnSpace AI
 
@@ -52,41 +53,121 @@ serve(async (req) => {
     const extractionPrompt = documentType === 'coa' 
       ? `You are analyzing a New Zealand Certificate of Approval (COA) - Security License document.
 
+NZ COA cards have abbreviations at the bottom showing authorized license types. Here is the OFFICIAL mapping:
+
+**OFFICIAL NZ COA LICENSE TYPES:**
+- RPA = Repossession Agent
+- PI = Private Investigator
+- MO = Monitoring Officer
+- CC = Crowd Controller
+- CDDA = Confidential Document Destruction Agent
+- PRG = Property Guard
+- PSG = Personal Guard (most common for security officers)
+- ST = Security Technician
+- SC = Security Consultant
+
+**COA CARD FORMAT:**
+- Front: Photo, "CERTIFICATE OF APPROVAL" or "TEMPORARY CERTIFICATE OF APPROVAL"
+- Expiry date in DD-MM-YYYY format (e.g., 24-07-2022)
+- Number next to EXPIRY (e.g., 894)
+- Conditions: Yes/No
+- Bottom: License type abbreviations (e.g., "PSG CC PRG SC ST RPA")
+- Bottom: Badge number (e.g., 17-041302)
+
+**COLOR CODING:**
+- Blue card = Temporary COA (new/trainee guard) - limited endorsements
+- Green card = Full COA (trained guard) - full endorsements
+
 Extract the following information in JSON format:
 {
-  "license_number": "string (COA number/license ID)",
-  "expiry_date": "YYYY-MM-DD format",
-  "license_type": "string (e.g., 'Certificate of Approval - Security Guard')",
+  "license_number": "string (COA number next to EXPIRY, e.g., 894, 125)",
+  "badge_number": "string (large number at bottom, e.g., 17-041302)",
+  "expiry_date": "YYYY-MM-DD format (convert from DD-MM-YYYY)",
+  "license_type": "string ('Certificate of Approval' or 'Temporary Certificate of Approval')",
   "license_holder_name": "string (full name on license)",
-  "issuing_authority": "string (who issued it, e.g., 'Private Security Personnel Licensing Authority')",
-  "authorized_activities": ["array of activities this COA authorizes, e.g., 'security_guard', 'crowd_controller', 'private_investigator'"],
-  "restrictions": "string (any restrictions or conditions)",
+  "issuing_authority": "Private Security Personnel Licensing Authority",
+  "authorized_activities": ["array using OFFICIAL abbreviations above, e.g., ['personal_guard', 'crowd_controller', 'property_guard']"],
+  "card_color": "string ('blue' for temporary, 'green' for full)",
+  "conditions": "string ('Yes' or 'No')",
   "confidence": 0.95 (your confidence in the extraction, 0-1)
 }
 
-If you cannot find a field, set it to null. Be precise with dates (DD/MM/YYYY or MM/DD/YYYY format → convert to YYYY-MM-DD).`
+**IMPORTANT:** 
+- Convert DD-MM-YYYY dates to YYYY-MM-DD
+- Map abbreviations using the OFFICIAL list above
+- Extract both COA number (next to EXPIRY) and badge number (bottom)
+- Identify card color (blue vs green)
+
+If you cannot find a field, set it to null.`
       : `You are analyzing a New Zealand Freedom Camping Enforcement Warrant or Noise Control Warrant document.
 
+**WARRANT TYPES & FORMAT:**
+NZ warrants are issued by Territorial Authorities (city/district councils) and authorize enforcement officers to:
+1. Issue infringement notices
+2. Enter property for enforcement purposes
+3. Request information from individuals
+
+**NELSON CITY COUNCIL WARRANT FORMAT (COMMON FORMAT):**
+
+**FRONT of Card:**
+- "Warrant of Appointment" + Officer name (e.g., "Andrew Hall")
+- "Nelson City Council" logo with Māori design
+- "The Common Seal of the Nelson City Council was hereunto affixed in the presence of"
+- Officer photo
+- Signatures (CEO, NCR)
+- **Issued: DD/MM/YY** (e.g., "29/08/22")
+- **Expires: DD/MM/YY** (e.g., "29/08/25")
+
+**BACK of Card:**
+- "WARRANT OF APPOINTMENT" + Officer name
+- "is appointed as an ENFORCEMENT/AUTHORISED OFFICER"
+- "With powers and functions under"
+- **Authorized Acts listed here** (e.g., "s.38 Resource Management Act 1991", "Freedom Camping Act 2011")
+
+**CRITICAL:** The authorized acts are typically on the BACK of the card, NOT the front!
+
 Extract the following information in JSON format:
 {
-  "warrant_number": "string (warrant ID/reference number)",
-  "expiry_date": "YYYY-MM-DD format",
-  "issuing_authority": "string (e.g., 'Nelson City Council', 'Auckland Council')",
-  "authorized_acts": ["array of Acts officer is authorized under, e.g., 'Freedom Camping Act 2011', 'Resource Management Act 1991', 'Noise Control Act'"],
-  "authorized_activities": ["array of what they can enforce, e.g., 'freedom_camping', 'noise_control', 'trespass', 'bylaw_enforcement'"],
-  "officer_name": "string (name of authorized officer)",
-  "restrictions": "string (any territorial or time restrictions)",
+  "warrant_number": "string (if visible - may be internal reference, can be null)",
+  "expiry_date": "YYYY-MM-DD format (convert from DD/MM/YY - e.g., '29/08/25' becomes '2025-08-29')",
+  "issue_date": "YYYY-MM-DD format (convert from DD/MM/YY - e.g., '29/08/22' becomes '2022-08-29')",
+  "issuing_authority": "string (e.g., 'Nelson City Council', 'Auckland Council', 'Wellington City Council')",
+  "authorized_acts": ["array of Acts on BACK of card, e.g., ['s.38 Resource Management Act 1991', 'Freedom Camping Act 2011', 'Dog Control Act 1996']"],
+  "authorized_activities": ["array mapping acts to activities - use these values: 'freedom_camping', 'noise_control', 'trespass', 'bylaw_enforcement', 'resource_management'"],
+  "officer_name": "string (name on warrant, e.g., 'Andrew Hall')",
+  "warrant_type": "string (e.g., 'Enforcement/Authorised Officer', 'Noise Control Officer')",
+  "territorial_limits": "string (geographic area, e.g., 'Nelson District', may need to infer from issuing authority)",
+  "common_seal_present": "boolean (true if Nelson City Council seal visible)",
+  "signature_present": "boolean (true if CEO/NCR signatures visible)",
   "confidence": 0.95 (your confidence in the extraction, 0-1)
 }
 
-Common NZ warrant types:
-- Freedom Camping Act 2011 → authorized_activities: ["freedom_camping"]
-- Resource Management (Noise Control) → authorized_activities: ["noise_control"]
-- Trespass Act 1980 → authorized_activities: ["trespass"]
-- Local Government Act (Bylaw Enforcement) → authorized_activities: ["bylaw_enforcement"]
+**ACT-TO-ACTIVITY MAPPING (CRITICAL):**
+- **"s.38 Resource Management Act 1991"** → authorized_activities: ["noise_control", "resource_management"]
+- **"Freedom Camping Act 2011"** → authorized_activities: ["freedom_camping"]
+- **"Trespass Act 1980"** → authorized_activities: ["trespass"]
+- **"Dog Control Act 1996"** → authorized_activities: ["bylaw_enforcement"]
+- **"Local Government Act 2002"** → authorized_activities: ["bylaw_enforcement"]
+- **"Summary Offences Act 1981"** → authorized_activities: ["bylaw_enforcement"]
 
-If you cannot find a field, set it to null.`;
+**EXAMPLE EXTRACTION:**
+If back of card says "With powers and functions under s.38 Resource Management Act 1991":
+- authorized_acts: ["s.38 Resource Management Act 1991"]
+- authorized_activities: ["noise_control", "resource_management"]
 
+If back says "Freedom Camping Act 2011":
+- authorized_acts: ["Freedom Camping Act 2011"]
+- authorized_activities: ["freedom_camping"]
+
+**IMPORTANT:**
+- **Check BOTH front and back** of warrant card (back has the authorized acts!)
+- Convert **DD/MM/YY** dates to **YYYY-MM-DD** (e.g., 29/08/25 → 2025-08-29)
+- Extract officer name from both front AND back (should match)
+- Look for Nelson City Council seal on front
+- Territorial limits usually match council name (Nelson City Council = Nelson District)
+
+If you cannot find a field, set it to null.`
+      ; // The semicolon was missing here
     const aiResponse = await fetch(`${onspaceAIUrl}/chat/completions`, {
       method: 'POST',
       headers: {
