@@ -69,7 +69,7 @@ interface BatchProgress {
   ai_analysis?: any;
 }
 
-const MAX_RECORDS_PER_FILE = 1000; // AI can handle larger files now
+const MAX_RECORDS_PER_FILE = 300; // Split files larger than this for better performance
 const CHUNK_SIZE = 250; // Records per chunk (AI-powered batch size)
 
 export function HistoricalImport() {

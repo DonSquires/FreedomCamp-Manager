@@ -71,6 +71,8 @@ export function UserManagement() {
     phone: '',
     role: 'officer' as 'master' | 'admin' | 'officer' | 'admin_officer',
     organizationId: '',
+    employerOrgId: '', // Who employs the officer (payroll/HR)
+    authorizedWorkLocations: [] as string[], // Which orgs they can work for
     isActive: true,
     permissions: [] as string[],
   });
@@ -106,6 +108,8 @@ export function UserManagement() {
           phone: formData.phone || null,
           role: formData.role,
           organizationId: formData.organizationId || null,
+          employerOrganizationId: formData.employerOrgId || null,
+          authorizedWorkLocations: formData.authorizedWorkLocations || [],
           permissions: formData.permissions,
         },
       });
@@ -145,6 +149,8 @@ export function UserManagement() {
         phone: formData.phone || null,
         role: formData.role,
         organization_id: formData.organizationId || null,
+        employer_organization_id: formData.employerOrgId || null,
+        authorized_work_locations: formData.authorizedWorkLocations || [],
         is_active: formData.isActive,
         permissions: safePermissions,
       };
@@ -206,6 +212,8 @@ export function UserManagement() {
       phone: user.phone || '',
       role: user.role || 'officer',
       organizationId: user.organization_id || '',
+      employerOrgId: user.employer_organization_id || '',
+      authorizedWorkLocations: user.authorized_work_locations || [],
       isActive: user.is_active !== false,
       permissions: userPermissions,
     });
@@ -225,9 +233,28 @@ export function UserManagement() {
       phone: '',
       role: 'officer',
       organizationId: '',
+      employerOrgId: '',
+      authorizedWorkLocations: [],
       isActive: true,
       permissions: [],
     });
+  };
+
+  // Get available work locations based on employer (employer + descendants)
+  const getAvailableWorkLocations = () => {
+    if (!formData.employerOrgId || !organizations) return [];
+    
+    // Find employer organization
+    const employer = organizations.find(o => o.id === formData.employerOrgId);
+    if (!employer) return [];
+    
+    // Get employer + all descendants (organizations where parent_organization_id = employer)
+    const availableOrgs = organizations.filter(org => 
+      org.id === formData.employerOrgId || 
+      org.parent_organization_id === formData.employerOrgId
+    );
+    
+    return availableOrgs;
   };
 
   if (usersLoading) {
@@ -457,10 +484,10 @@ export function UserManagement() {
             </div>
 
             <div>
-              <Label>Organization</Label>
+              <Label>Primary Organization (Default Work Location)</Label>
               <Select value={formData.organizationId} onValueChange={(value) => setFormData({ ...formData, organizationId: value })}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Select organization (optional)" />
+                  <SelectValue placeholder="Select primary organization (optional)" />
                 </SelectTrigger>
                 <SelectContent>
                   {organizations?.map((org) => (
@@ -470,7 +497,85 @@ export function UserManagement() {
                   ))}
                 </SelectContent>
               </Select>
+              <p className="text-xs text-muted-foreground mt-1">
+                Primary organization for this user (where they primarily work)
+              </p>
             </div>
+
+            {/* Employer Organization (for officers) */}
+            {(formData.role === 'officer' || formData.role === 'admin_officer') && (
+              <>
+                <div>
+                  <Label>Employer Organization (Who Employs This Officer) *</Label>
+                  <Select 
+                    value={formData.employerOrgId} 
+                    onValueChange={(value) => {
+                      setFormData({ 
+                        ...formData, 
+                        employerOrgId: value,
+                        authorizedWorkLocations: [] // Reset work locations when employer changes
+                      });
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select employer organization" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {organizations?.map((org) => (
+                        <SelectItem key={org.id} value={org.id}>
+                          {org.name} (Level {org.organization_level})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    💼 Organization responsible for payroll, HR, and legal liability. Example: First Security employs the officer.
+                  </p>
+                </div>
+
+                {/* Authorized Work Locations (multi-select) */}
+                {formData.employerOrgId && (
+                  <div>
+                    <Label>Authorized Work Locations (Multi-Select) *</Label>
+                    <div className="border rounded-md p-3 space-y-2 max-h-48 overflow-y-auto">
+                      {getAvailableWorkLocations().length > 0 ? (
+                        getAvailableWorkLocations().map((org) => (
+                          <div key={org.id} className="flex items-center gap-2">
+                            <input
+                              type="checkbox"
+                              id={`work-location-${org.id}`}
+                              checked={formData.authorizedWorkLocations.includes(org.id)}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setFormData({
+                                    ...formData,
+                                    authorizedWorkLocations: [...formData.authorizedWorkLocations, org.id]
+                                  });
+                                } else {
+                                  setFormData({
+                                    ...formData,
+                                    authorizedWorkLocations: formData.authorizedWorkLocations.filter(id => id !== org.id)
+                                  });
+                                }
+                              }}
+                              className="rounded"
+                            />
+                            <Label htmlFor={`work-location-${org.id}`} className="cursor-pointer">
+                              {org.name} {org.id === formData.employerOrgId && '(Employer)'}
+                            </Label>
+                          </div>
+                        ))
+                      ) : (
+                        <p className="text-sm text-muted-foreground">Select an employer organization first</p>
+                      )}
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      🔐 Officer can only see/work on data from these organizations. Example: First Security officer authorized for LINZ jobs only.
+                    </p>
+                  </div>
+                )}
+              </>
+            )}
 
             <div>
               <Label>Permissions</Label>
@@ -584,7 +689,7 @@ export function UserManagement() {
                 </div>
 
                 <div>
-                  <Label>Organization</Label>
+                  <Label>Primary Organization (Default Work Location)</Label>
                   <Select value={formData.organizationId} onValueChange={(value) => setFormData({ ...formData, organizationId: value })}>
                     <SelectTrigger>
                       <SelectValue placeholder="No organization" />
@@ -597,7 +702,85 @@ export function UserManagement() {
                       ))}
                     </SelectContent>
                   </Select>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Primary organization for this user
+                  </p>
                 </div>
+
+                {/* Employer Organization (for officers) */}
+                {(formData.role === 'officer' || formData.role === 'admin_officer') && (
+                  <>
+                    <div>
+                      <Label>Employer Organization (Who Employs This Officer) *</Label>
+                      <Select 
+                        value={formData.employerOrgId} 
+                        onValueChange={(value) => {
+                          setFormData({ 
+                            ...formData, 
+                            employerOrgId: value,
+                            authorizedWorkLocations: [] // Reset work locations when employer changes
+                          });
+                        }}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select employer organization" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {organizations?.map((org) => (
+                            <SelectItem key={org.id} value={org.id}>
+                              {org.name} (Level {org.organization_level})
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        💼 Organization responsible for payroll, HR, and legal liability
+                      </p>
+                    </div>
+
+                    {/* Authorized Work Locations (multi-select) */}
+                    {formData.employerOrgId && (
+                      <div>
+                        <Label>Authorized Work Locations (Multi-Select) *</Label>
+                        <div className="border rounded-md p-3 space-y-2 max-h-48 overflow-y-auto">
+                          {getAvailableWorkLocations().length > 0 ? (
+                            getAvailableWorkLocations().map((org) => (
+                              <div key={org.id} className="flex items-center gap-2">
+                                <input
+                                  type="checkbox"
+                                  id={`work-location-edit-${org.id}`}
+                                  checked={formData.authorizedWorkLocations.includes(org.id)}
+                                  onChange={(e) => {
+                                    if (e.target.checked) {
+                                      setFormData({
+                                        ...formData,
+                                        authorizedWorkLocations: [...formData.authorizedWorkLocations, org.id]
+                                      });
+                                    } else {
+                                      setFormData({
+                                        ...formData,
+                                        authorizedWorkLocations: formData.authorizedWorkLocations.filter(id => id !== org.id)
+                                      });
+                                    }
+                                  }}
+                                  className="rounded"
+                                />
+                                <Label htmlFor={`work-location-edit-${org.id}`} className="cursor-pointer">
+                                  {org.name} {org.id === formData.employerOrgId && '(Employer)'}
+                                </Label>
+                              </div>
+                            ))
+                          ) : (
+                            <p className="text-sm text-muted-foreground">Select an employer organization first</p>
+                          )}
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          🔐 Officer can only see/work on data from these organizations
+                        </p>
+                      </div>
+                    )}
+                  </>
+                )}
 
                 <div>
                   <Label className="flex items-center gap-2">
