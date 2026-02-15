@@ -1,3 +1,4 @@
+
 /**
  * VEHICLE EVIDENCE REPORT
  * Generates exportable PDF reports for specific vehicles with selected observations
@@ -48,6 +49,7 @@ import { toast } from 'sonner';
 import { ResponsiveContainer } from '@/components/layout/ResponsiveContainer';
 import { useAuthStore } from '@/stores/authStore';
 import { formatInTimeZone } from 'date-fns-tz';
+import { CollapsibleInstructions } from '@/components/features/CollapsibleInstructions';
 
 const NZ_TIMEZONE = 'Pacific/Auckland';
 
@@ -296,6 +298,108 @@ export function VehicleEvidenceReport() {
           </p>
         </div>
 
+        {/* Instructions Card */}
+        <CollapsibleInstructions
+          title="How to Generate Evidence Reports"
+          icon={<FileText className="h-5 w-5 text-blue-600" />}
+          defaultOpen={false}
+        >
+          <div className="space-y-4">
+            {/* Step Instructions */}
+            <div className="space-y-3">
+              <div className="flex items-start gap-3">
+                <div className="h-8 w-8 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-sm shrink-0">
+                  1
+                </div>
+                <div>
+                  <p className="font-semibold text-gray-900 dark:text-white">Search for Vehicle</p>
+                  <p className="text-sm text-gray-700 dark:text-gray-300">
+                    Enter the plate number in the search box below to load the vehicles complete history
+                  </p>
+                </div>
+              </div>
+              
+              <div className="flex items-start gap-3">
+                <div className="h-8 w-8 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-sm shrink-0">
+                  2
+                </div>
+                <div>
+                  <p className="font-semibold text-gray-900 dark:text-white">Select Observations</p>
+                  <p className="text-sm text-gray-700 dark:text-gray-300">
+                    Choose which observations to include in the report Breach observations are auto-selected by default
+                  </p>
+                </div>
+              </div>
+              
+              <div className="flex items-start gap-3">
+                <div className="h-8 w-8 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold text-sm shrink-0">
+                  3
+                </div>
+                <div>
+                  <p className="font-semibold text-gray-900 dark:text-white">Generate PDF Report</p>
+                  <p className="text-sm text-gray-700 dark:text-gray-300">
+                    Click Generate PDF Report to create a court-ready document with all selected evidence
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Photo Explanation */}
+            <div className="mt-6 p-4 bg-white/60 dark:bg-gray-900/40 rounded-lg border border-blue-200 dark:border-blue-800">
+              <h4 className="font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
+                <Camera className="h-4 w-4 text-blue-600" />
+                Understanding Profile Photo vs Evidence Photos
+              </h4>
+              <div className="space-y-3 text-sm text-gray-700 dark:text-gray-300">
+                <div className="flex items-start gap-2">
+                  <div className="h-6 w-6 rounded bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center shrink-0 mt-0.5">
+                    <User className="h-4 w-4 text-blue-600" />
+                  </div>
+                  <div>
+                    <span className="font-semibold text-blue-800 dark:text-blue-200">Profile Photo:</span>
+                    <p className="mt-1">
+                      The best representative photo of the vehicle automatically selected from all observations 
+                      This provides a clear visual reference of the vehicles general appearance and is shown in the report header
+                    </p>
+                  </div>
+                </div>
+                
+                <div className="flex items-start gap-2">
+                  <div className="h-6 w-6 rounded bg-green-100 dark:bg-green-900/50 flex items-center justify-center shrink-0 mt-0.5">
+                    <Camera className="h-4 w-4 text-green-600" />
+                  </div>
+                  <div>
+                    <span className="font-semibold text-green-800 dark:text-green-200">Evidence Photos:</span>
+                    <p className="mt-1">
+                      Specific photos captured during each observation showing the vehicle at that exact time location and date 
+                      These are timestamped GPS-tagged and include photo hashes for integrity verification - essential for court evidence
+                    </p>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="mt-3 p-3 bg-amber-50 dark:bg-amber-950/30 rounded border border-amber-200 dark:border-amber-800">
+                <p className="text-xs text-amber-800 dark:text-amber-200 flex items-start gap-2">
+                  <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" />
+                  <span>
+                    <strong>Important:</strong> The report includes BOTH the profile photo for vehicle identification and 
+                    individual evidence photos for proving specific violations at specific times and locations Each observations 
+                    photo includes GPS coordinates timestamps and cryptographic hashes for legal verification
+                  </span>
+                </p>
+              </div>
+            </div>
+
+            {/* Legal Notice */}
+            <div className="mt-4 p-3 bg-gray-100 dark:bg-gray-800 rounded border border-gray-300 dark:border-gray-700">
+              <p className="text-xs text-gray-700 dark:text-gray-300">
+                <strong>Court-Ready Reports Include:</strong> Vehicle details profile photo selected observations with timestamps 
+                GPS coordinates officer identification photo hashes for integrity verification compliance status and breach classifications
+              </p>
+            </div>
+          </div>
+        </CollapsibleInstructions>
+
         {/* Search Section */}
         <Card>
           <CardHeader>
@@ -328,7 +432,7 @@ export function VehicleEvidenceReport() {
                 </Button>
               </div>
             </div>
-          </CardContent>
+          </CardContent> {/* Closing CardContent for Search Section */}
         </Card>
 
         {/* Vehicle Information */}

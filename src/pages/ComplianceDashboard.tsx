@@ -154,45 +154,58 @@ export function ComplianceDashboard() {
       console.log('📊 Fetching compliance metrics:', { selectedOrgId, fromDate, toDate });
 
       // Get all observations in date range
-      let obsQuery = supabase
+      const { data: observations, error: obsError } = await supabase
         .from('vehicle_observations_v2')
         .select('observation_id, plate_number, zone_id, recorded_at, is_breach, is_compliant')
         .eq('organization_id', selectedOrgId)
         .gte('recorded_at', `${fromDate}T00:00:00`)
         .lte('recorded_at', `${toDate}T23:59:59`);
 
-      const { data: observations, error: obsError } = await obsQuery;
       if (obsError) throw obsError;
 
-      // Get unique vehicles
-      const uniqueVehicles = new Set(observations?.map(o => o.plate_number) || []).size;
+      const totalObs = observations?.length || 0;
+      const uniquePlates = new Set(observations?.map(o => o.plate_number) || []);
+      const uniqueVehicles = uniquePlates.size;
 
-      // Get breach alerts (overstayers)
+      // Get breach alerts that are ACTIVE during the selected date range
+      // (created before or during, and still active or resolved after the start date)
       const { data: breaches, error: breachError } = await supabase
         .from('breach_alerts')
-        .select('id, status')
+        .select('id, status, plate_number, created_at')
         .eq('organization_id', selectedOrgId)
-        .gte('created_at', `${fromDate}T00:00:00`)
-        .lte('created_at', `${toDate}T23:59:59`);
+        .lte('created_at', `${toDate}T23:59:59`); // Created on or before end date
 
       if (breachError) throw breachError;
 
-      const overstayers = breaches?.filter(b => b.status === 'active').length || 0;
-      const enforceable = breaches?.filter(b => b.status !== 'resolved').length || 0;
+      // Filter breaches: active ones OR ones resolved after the start date
+      const relevantBreaches = breaches?.filter(b => {
+        // Must be linked to a vehicle observed during the date range
+        const hasObservation = uniquePlates.has(b.plate_number);
+        return hasObservation && (b.status === 'active' || b.status === 'pending');
+      }) || [];
 
-      // Get flagged vehicles count
-      const { count: flaggedCount } = await supabase
+      const overstayers = relevantBreaches.filter(b => b.status === 'active').length;
+      const enforceable = relevantBreaches.length;
+
+      // Get flagged vehicles that appear in this date range
+      const { data: flaggedVehicles } = await supabase
         .from('canonical_vehicles')
-        .select('plate_number', { count: 'exact', head: true })
-        .eq('is_flagged', true);
+        .select('plate_number')
+        .eq('is_flagged', true)
+        .in('plate_number', Array.from(uniquePlates));
 
-      // Get homeless vehicles count
-      const { count: homelessCount } = await supabase
+      const flaggedCount = flaggedVehicles?.length || 0;
+
+      // Get homeless vehicles that appear in this date range
+      const { data: homelessVehicles } = await supabase
         .from('canonical_vehicles')
-        .select('plate_number', { count: 'exact', head: true })
-        .eq('homeless_status', 'confirmed');
+        .select('plate_number')
+        .eq('homeless_status', 'confirmed')
+        .in('plate_number', Array.from(uniquePlates));
 
-      // Get active officers count
+      const homelessCount = homelessVehicles?.length || 0;
+
+      // Get active officers count (this doesn't need date filtering)
       const { data: officers } = await supabase
         .from('user_profiles')
         .select('id')
@@ -201,25 +214,21 @@ export function ComplianceDashboard() {
         .in('role', ['officer', 'admin_officer']);
 
       // Calculate compliance rate
-      const totalObs = observations?.length || 0;
       const compliantObs = observations?.filter(o => o.is_compliant).length || 0;
       const compliance = totalObs > 0 ? Math.round((compliantObs / totalObs) * 100) : 100;
 
-      // Get about to overstay (vehicles with 2+ consecutive nights but not yet breached)
+      // Get about to overstay: vehicles with 2+ consecutive nights in this period but NOT yet breached
       const { data: monthlyStays } = await supabase
         .from('vehicle_monthly_stays')
-        .select('plate_number, consecutive_nights')
+        .select('plate_number, consecutive_nights, last_observation_date')
         .eq('organization_id', selectedOrgId)
-        .gte('consecutive_nights', 2);
+        .gte('consecutive_nights', 2)
+        .gte('last_observation_date', fromDate)
+        .lte('last_observation_date', toDate);
 
-      const aboutToOverstay = monthlyStays?.filter(ms => {
-        const hasActiveBreach = breaches?.some(b => 
-          b.status === 'active' && observations?.some(o => 
-            o.plate_number === ms.plate_number && o.is_breach
-          )
-        );
-        return !hasActiveBreach;
-      }).length || 0;
+      // Filter out vehicles that already have active breaches
+      const breachedPlates = new Set(relevantBreaches.filter(b => b.status === 'active').map(b => b.plate_number));
+      const aboutToOverstay = monthlyStays?.filter(ms => !breachedPlates.has(ms.plate_number)).length || 0;
 
       const result: ComplianceMetrics = {
         overstayers,
@@ -228,12 +237,12 @@ export function ComplianceDashboard() {
         totalObservations: totalObs,
         uniqueVehicles,
         compliance,
-        flagged: flaggedCount || 0,
-        homeless: homelessCount || 0,
+        flagged: flaggedCount,
+        homeless: homelessCount,
         officers: officers?.length || 0,
       };
 
-      console.log('✅ Compliance metrics:', result);
+      console.log('✅ Compliance metrics (date-filtered):', result);
       return result;
     },
     enabled: !!selectedOrgId,
