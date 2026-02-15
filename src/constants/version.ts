@@ -6,9 +6,25 @@
  * - PATCH (third digit): Minor amendments
  */
 
-export const APP_VERSION = '2.11.0008';
+export const APP_VERSION = '2.11.0009';
 
 export const VERSION_HISTORY = [
+  {
+    version: '2.11.0009',
+    date: '2026-02-15',
+    changes: [
+      '🔐 NEW ROLE: Admin & Field Officer - dual access to both portals',
+      '✅ Portal selection dialog for dual-role users at login',
+      '🚫 Self-approval prevention: admins cannot approve their own field observations',
+      '📋 Compliance Display Fix: Shows "Breach (Exempt)" for homeless vehicles',
+      '🏠 Homeless status now prominently displayed with breach details',
+      '💡 Exemption notice: "Freedom Camping Act - Confirmed Homeless" shown clearly',
+      '✅ User name changes automatically reflect throughout entire system',
+      '🔒 24-hour edit window for field officers (including admin_officers)',
+      '⚠️ Portal tracking: observations tagged with portal used to create them',
+      '🎯 Role-based navigation: automatic redirect based on role after login',
+    ],
+  },
   {
     version: '2.11.0008',
     date: '2025-02-15',
