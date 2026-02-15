@@ -129,8 +129,7 @@ export function PersonRecordsManager({ organizationId, zoneId }: PersonRecordsMa
         .from('person_records')
         .select(`
           *,
-          zones!inner(name),
-          canonical_vehicles(plate_number)
+          zones!inner(name)
         `)
         .order('last_contact_at', { ascending: false, nullsFirst: false });
 
@@ -149,7 +148,7 @@ export function PersonRecordsManager({ organizationId, zoneId }: PersonRecordsMa
       const mapped = (data || []).map((p: any) => ({
         ...p,
         zone_name: p.zones?.name,
-        vehicle_plate: p.canonical_vehicles?.plate_number,
+        vehicle_plate: p.vehicle_association || null, // Use vehicle_association field from table
       }));
 
       setPersons(mapped);

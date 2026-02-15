@@ -65,7 +65,7 @@ export function FieldOfficerPortal({ onLogout }: FieldOfficerPortalProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   
   // Zone state
-  const [selectedZone, setSelectedZone] = useState<{ id: string; name: string; orgId: string } | null>(null);
+  const [selectedZone, setSelectedZone] = useState<{ id: string; name: string; orgId: string; enforcementWorkflow?: string } | null>(null);
   const [availableZones, setAvailableZones] = useState<{ id: string; name: string; organization_id: string }[]>([]);
   const [isLoadingZones, setIsLoadingZones] = useState(true);
   
@@ -81,6 +81,10 @@ export function FieldOfficerPortal({ onLogout }: FieldOfficerPortalProps) {
   
   // Patrol state
   const [currentPatrol, setCurrentPatrol] = useState<any>(null);
+  const [patrols, setPatrols] = useState<any[]>([]);
+  
+  // Enforcement state
+  const [enforcementActions, setEnforcementActions] = useState<any[]>([]);
   
   // Session scans
   const [sessionScans, setSessionScans] = useState<SessionScan[]>([]);
@@ -156,10 +160,19 @@ export function FieldOfficerPortal({ onLogout }: FieldOfficerPortalProps) {
 
         if (zones && zones.length > 0) {
           setAvailableZones(zones);
+          
+          // Fetch organization enforcement workflow
+          const { data: orgData } = await supabase
+            .from('organizations')
+            .select('enforcement_workflow')
+            .eq('id', profile.organization_id)
+            .single();
+          
           setSelectedZone({
             id: zones[0].id,
             name: zones[0].name,
             orgId: zones[0].organization_id,
+            enforcementWorkflow: orgData?.enforcement_workflow || 'admin_first',
           });
         } else {
           toast.warning('No zones configured');
@@ -283,32 +296,60 @@ export function FieldOfficerPortal({ onLogout }: FieldOfficerPortalProps) {
     return () => clearInterval(interval);
   }, [user?.id]);
 
-  // Load current patrol
+  // Load patrols
   useEffect(() => {
-    const loadPatrol = async () => {
-      if (!user?.id || !selectedZone) return;
+    const loadPatrols = async () => {
+      if (!user?.id) return;
 
       try {
         const today = new Date().toISOString().split('T')[0];
         const { data } = await supabase
           .from('patrols')
-          .select('*')
+          .select('*, zones(name)')
           .eq('assigned_to', user.id)
-          .eq('zone_id', selectedZone.id)
-          .eq('patrol_date', today)
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .single();
+          .gte('patrol_date', today)
+          .order('patrol_date', { ascending: true })
+          .limit(5);
 
-        setCurrentPatrol(data);
+        setPatrols(data || []);
+        
+        // Set current patrol for selected zone
+        const zonePatrol = data?.find(p => p.zone_id === selectedZone?.id && p.patrol_date === today);
+        setCurrentPatrol(zonePatrol || null);
       } catch (error) {
-        // No patrol found - normal
-        setCurrentPatrol(null);
+        console.error('Failed to load patrols:', error);
       }
     };
 
-    loadPatrol();
+    loadPatrols();
+    const interval = setInterval(loadPatrols, 2 * 60 * 1000);
+    return () => clearInterval(interval);
   }, [user?.id, selectedZone?.id]);
+  
+  // Load enforcement actions
+  useEffect(() => {
+    const loadEnforcement = async () => {
+      if (!user?.id) return;
+
+      try {
+        const { data } = await supabase
+          .from('enforcement_actions')
+          .select('*, zones(name)')
+          .eq('assigned_to', user.id)
+          .in('status', ['pending', 'in_progress'])
+          .order('created_at', { ascending: false })
+          .limit(5);
+
+        setEnforcementActions(data || []);
+      } catch (error) {
+        console.error('Failed to load enforcement actions:', error);
+      }
+    };
+
+    loadEnforcement();
+    const interval = setInterval(loadEnforcement, 2 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [user?.id]);
 
   const handlePlateDetected = (data: any) => {
     const newScan: SessionScan = {
@@ -386,6 +427,7 @@ export function FieldOfficerPortal({ onLogout }: FieldOfficerPortalProps) {
             zoneId={selectedZone.id}
             zoneName={selectedZone.name}
             organizationId={selectedZone.orgId}
+            enforcementWorkflow={selectedZone.enforcementWorkflow || 'admin_first'}
             onCancel={() => setCurrentView('dashboard')}
           />
         </div>
@@ -604,7 +646,11 @@ export function FieldOfficerPortal({ onLogout }: FieldOfficerPortalProps) {
               </div>
 
               <Button
-                onClick={() => setCurrentView('dashboard')} // TODO: Add investigation view
+                onClick={() => {
+                  setCurrentView('dashboard');
+                  // Open FieldInvestigationWork component
+                  window.location.hash = 'investigations';
+                }}
                 className="w-full h-14 text-base font-bold bg-purple-600 hover:bg-purple-700"
               >
                 <FileText className="h-5 w-5 mr-2" />
@@ -614,6 +660,90 @@ export function FieldOfficerPortal({ onLogout }: FieldOfficerPortalProps) {
             </CardContent>
           </Card>
         )}
+
+        {/* Patrols Section */}
+        <Card className="border-2 border-blue-500/30 bg-blue-50/50 dark:bg-blue-950/30">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2 text-blue-900 dark:text-blue-100">
+              <Calendar className="h-5 w-5" />
+              My Patrols
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {patrols.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                <Calendar className="h-12 w-12 mx-auto mb-3 opacity-20" />
+                <p className="text-sm font-semibold">No Patrols Assigned</p>
+                <p className="text-xs mt-1">You don't have any upcoming patrols</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {patrols.slice(0, 3).map((patrol) => (
+                  <div
+                    key={patrol.id}
+                    className="p-3 bg-white dark:bg-gray-900 rounded-lg border-2 border-blue-200 dark:border-blue-700"
+                  >
+                    <div className="flex items-start justify-between mb-2">
+                      <div>
+                        <p className="font-bold text-sm">{patrol.zones?.name || 'Unknown Zone'}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {new Date(patrol.patrol_date).toLocaleDateString('en-NZ', {
+                            weekday: 'short',
+                            day: 'numeric',
+                            month: 'short',
+                          })} • {patrol.shift}
+                        </p>
+                      </div>
+                      <Badge variant={patrol.checked_in_at ? 'default' : 'secondary'} className="text-xs">
+                        {patrol.checked_in_at ? '✓ Checked In' : 'Scheduled'}
+                      </Badge>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Enforcement Actions Section */}
+        <Card className="border-2 border-red-500/30 bg-red-50/50 dark:bg-red-950/30">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2 text-red-900 dark:text-red-100">
+              <Shield className="h-5 w-5" />
+              Enforcement Jobs
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {enforcementActions.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                <Shield className="h-12 w-12 mx-auto mb-3 opacity-20" />
+                <p className="text-sm font-semibold">No Enforcement Jobs</p>
+                <p className="text-xs mt-1">You don't have any pending enforcement actions</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {enforcementActions.slice(0, 3).map((action) => (
+                  <div
+                    key={action.id}
+                    className="p-3 bg-white dark:bg-gray-900 rounded-lg border-2 border-red-200 dark:border-red-700"
+                  >
+                    <div className="flex items-start justify-between mb-2">
+                      <div>
+                        <p className="font-bold text-sm">{action.plate_number || 'Vehicle'}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {action.zones?.name} • {action.action_type?.replace('_', ' ')}
+                        </p>
+                      </div>
+                      <Badge variant="destructive" className="text-xs">
+                        {action.status}
+                      </Badge>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
         {/* Recent Activity */}
         {sessionScans.length > 0 && (
@@ -780,25 +910,33 @@ export function FieldOfficerPortal({ onLogout }: FieldOfficerPortalProps) {
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Mobile Header */}
-        <div className="border-b bg-background/95 backdrop-blur-sm">
-          <div className="flex items-center justify-between p-4">
-            <Button variant="ghost" size="icon" onClick={() => setSidebarOpen(true)}>
-              <Menu className="h-6 w-6" />
-            </Button>
-            <h1 className="text-lg font-bold">Field Portal</h1>
-            <div className="w-10" />
-          </div>
-        </div>
+        {currentView !== 'scanning' && currentView !== 'zoom_scan' && (
+          <>
+            {/* Mobile Header */}
+            <div className="border-b bg-background/95 backdrop-blur-sm">
+              <div className="flex items-center justify-between p-4">
+                <Button variant="ghost" size="icon" onClick={() => setSidebarOpen(true)}>
+                  <Menu className="h-6 w-6" />
+                </Button>
+                <h1 className="text-lg font-bold">Field Portal</h1>
+                <div className="w-10" />
+              </div>
+            </div>
+          </>
+        )}
 
-        {/* Content Area */}
-        <div className="flex-1 overflow-y-auto p-4 max-w-2xl mx-auto w-full">
+        {/* Content Area - Full screen for dashboard */}
+        <div className={cn(
+          "flex-1 overflow-y-auto",
+          currentView === 'dashboard' ? "p-4 w-full" : "p-4 max-w-2xl mx-auto w-full"
+        )}>
           {renderContent()}
         </div>
 
         {/* Bottom Navigation - 5 TABS */}
-        <div className="border-t bg-background/95 backdrop-blur-sm">
-          <div className="grid grid-cols-5 gap-1 p-2 max-w-3xl mx-auto">
+        {currentView !== 'scanning' && currentView !== 'zoom_scan' && (
+          <div className="border-t bg-background/95 backdrop-blur-sm">
+            <div className="grid grid-cols-5 gap-1 p-2 max-w-3xl mx-auto">
             <Button
               variant={currentView === 'dashboard' ? 'default' : 'ghost'}
               className="h-16 flex flex-col items-center justify-center gap-1"
@@ -853,8 +991,9 @@ export function FieldOfficerPortal({ onLogout }: FieldOfficerPortalProps) {
                 </Badge>
               )}
             </Button>
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
       {/* Floating Action Button for Quick Reports */}

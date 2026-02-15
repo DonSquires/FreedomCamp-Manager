@@ -319,10 +319,10 @@ serve(async (req) => {
         try {
           // Call compliance function with updated zone
           const { data: complianceResult, error: complianceError } = await supabaseAdmin
-            .rpc('check_vehicle_compliance_v3', {
+            .rpc('calculate_vehicle_compliance', {
               p_plate_number: obs.plate_number,
               p_zone_id: obs.zone_id,
-              p_observation_time: obs.recorded_at,
+              p_observation_date: obs.recorded_at.split('T')[0],
             });
 
           if (complianceError) {

@@ -69,7 +69,7 @@ export function UserManagement() {
     lastName: '',
     email: '',
     phone: '',
-    role: 'officer' as 'master' | 'admin' | 'officer',
+    role: 'officer' as 'master' | 'admin' | 'officer' | 'admin_officer',
     organizationId: '',
     isActive: true,
     permissions: [] as string[],
@@ -280,7 +280,7 @@ export function UserManagement() {
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-bold text-blue-500">
-              {users?.filter(u => u.role === 'admin' || u.role === 'master').length || 0}
+              {users?.filter(u => u.role === 'admin' || u.role === 'master' || u.role === 'admin_officer').length || 0}
             </div>
           </CardContent>
         </Card>
@@ -290,7 +290,7 @@ export function UserManagement() {
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-bold text-amber-500">
-              {users?.filter(u => u.role === 'officer').length || 0}
+              {users?.filter(u => u.role === 'officer' || u.role === 'admin_officer').length || 0}
             </div>
           </CardContent>
         </Card>
@@ -321,8 +321,13 @@ export function UserManagement() {
                           <h3 className="font-semibold text-lg">
                             {user.first_name} {user.last_name}
                           </h3>
-                          <Badge variant={user.role === 'master' ? 'default' : user.role === 'admin' ? 'secondary' : 'outline'}>
-                            {user.role}
+                          <Badge variant={
+                            user.role === 'master' ? 'default' : 
+                            user.role === 'admin' ? 'secondary' : 
+                            user.role === 'admin_officer' ? 'default' : 
+                            'outline'
+                          }>
+                            {user.role === 'admin_officer' ? 'Admin + Officer' : user.role}
                           </Badge>
                           {!user.is_active && (
                             <Badge variant="destructive">Inactive</Badge>
@@ -441,8 +446,14 @@ export function UserManagement() {
                   )}
                   <SelectItem value="admin">Admin</SelectItem>
                   <SelectItem value="officer">Officer</SelectItem>
+                  <SelectItem value="admin_officer">Admin + Officer (Dual Role)</SelectItem>
                 </SelectContent>
               </Select>
+              <p className="text-xs text-muted-foreground mt-1">
+                {formData.role === 'admin_officer' && (
+                  <span className="text-blue-600 font-semibold">💼 Dual-role: Can access both Admin Portal AND Field Portal. Cannot self-approve enforcement actions.</span>
+                )}
+              </p>
             </div>
 
             <div>
@@ -557,11 +568,17 @@ export function UserManagement() {
                       )}
                       <SelectItem value="admin">Admin</SelectItem>
                       <SelectItem value="officer">Officer</SelectItem>
+                      <SelectItem value="admin_officer">Admin + Officer (Dual Role)</SelectItem>
                     </SelectContent>
                   </Select>
                   {selectedUser?.id === currentUser?.id && (
                     <p className="text-xs text-muted-foreground mt-1">
                       ℹ️ You cannot change your own role
+                    </p>
+                  )}
+                  {formData.role === 'admin_officer' && (
+                    <p className="text-xs text-blue-600 font-semibold mt-1">
+                      💼 Dual-role: Can access both Admin Portal AND Field Portal. Cannot self-approve enforcement actions.
                     </p>
                   )}
                 </div>

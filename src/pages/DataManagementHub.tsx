@@ -24,16 +24,20 @@ import {
   TrendingUp,
   LayoutDashboard,
   Wrench,
+  Upload,
+  X,
 } from 'lucide-react';
 import { VehicleRegistry } from './VehicleRegistry';
 import { ZoneManagement } from './ZoneManagement';
 import { ComplianceMatrixManagement } from './ComplianceMatrixManagement';
 import { PersonRecordsManager } from '@/components/features/PersonRecordsManager';
 import { DataCleanupUtility } from './DataCleanupUtility';
+import { HistoricalImport } from './HistoricalImport';
 import { toast } from 'sonner';
 
 export function DataManagementHub() {
   const [activeTab, setActiveTab] = useState('vehicles');
+  const [showImport, setShowImport] = useState(false);
 
   const handleExportAll = () => {
     toast.info('Preparing comprehensive data export...');
@@ -54,6 +58,10 @@ export function DataManagementHub() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <Button onClick={() => setShowImport(true)} className="bg-blue-600 hover:bg-blue-700">
+            <Upload className="h-4 w-4 mr-2" />
+            Import Historical Data
+          </Button>
           <Button variant="outline" onClick={handleExportAll}>
             <Download className="h-4 w-4 mr-2" />
             Export All Data
@@ -107,6 +115,23 @@ export function DataManagementHub() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Import Modal */}
+      {showImport && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-background rounded-lg shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="sticky top-0 bg-background border-b p-4 flex items-center justify-between">
+              <h2 className="text-xl font-bold">Historical Data Import</h2>
+              <Button variant="ghost" size="icon" onClick={() => setShowImport(false)}>
+                <X className="h-5 w-5" />
+              </Button>
+            </div>
+            <div className="p-6">
+              <HistoricalImport />
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Tabbed Interface */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
