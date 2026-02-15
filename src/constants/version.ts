@@ -6,9 +6,39 @@
  * - PATCH (third digit): Minor amendments
  */
 
-export const APP_VERSION = '2.11.0012';
+export const APP_VERSION = '2.11.0014';
 
 export const VERSION_HISTORY = [
+  {
+    version: '2.11.0014',
+    date: '2026-02-15',
+    changes: [
+      '🔒 CRITICAL SECURITY FIX: Portal Selection restricted to admin_officer role only',
+      '✅ Officers now automatically routed to Field Officer portal',
+      '✅ Admins/Masters now automatically routed to Admin portal',
+      '✅ Only admin_officer users see portal selection choice',
+      '🚫 Prevented unauthorized portal access by role-based routing',
+      '🎯 App.tsx now enforces role-based navigation on login',
+      '🔐 PortalSelection.tsx validates user role before rendering',
+      '⚡ Automatic redirect if wrong role tries to access portal selection',
+    ],
+  },
+  {
+    version: '2.11.0013',
+    date: '2026-02-15',
+    changes: [
+      '📱 MOBILE OPTIMIZATION: Portal Selection page fully mobile-friendly',
+      '✅ Responsive logo sizing (lg on mobile, xl on desktop)',
+      '✅ Adaptive text sizes (smaller on mobile, larger on desktop)',
+      '✅ Compact padding on mobile (p-4 vs p-8 on desktop)',
+      '✅ Smaller icons on mobile (h-12 vs h-16 on desktop)',
+      '✅ Reduced spacing between elements on mobile',
+      '✅ Added overflow-y-auto for scrollability',
+      '✅ Proper text wrapping with leading-tight and leading-snug',
+      '📲 Touch-friendly button sizes maintained',
+      '🎯 All content now fits perfectly on mobile screens',
+    ],
+  },
   {
     version: '2.11.0012',
     date: '2026-02-15',
