@@ -1,12 +1,13 @@
+
 /**
  * DATABASE MAINTENANCE - MASTER USERS ONLY
  * 
- * Three independent maintenance operations:
- * 1. Zone Correction: GPS-based automatic zone reassignment
- * 2. Duplicate Detection: Find and remove duplicate observations
- * 3. Compliance Recalculation: Test observations against current zone rules
+ * Three independent lightweight maintenance operations:
+ * 1. Zone Correction: GPS-based automatic zone reassignment (zone-correction function)
+ * 2. Duplicate Detection: Find and remove duplicate observations (duplicate-detection function)
+ * 3. Compliance Recalculation: Full recalculation page (embedded component)
  * 
- * Each operation can be run independently with live progress tracking
+ * Each operation runs separately with live progress tracking
  */
 
 import { useState } from 'react';
@@ -14,41 +15,49 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
+import { Progress } from '@/components/ui/progress';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
+  AlertTriangle,
+  Shield,
   MapPin,
   Copy,
   RefreshCw,
-  AlertTriangle,
-  Shield,
-  Database,
   Loader2,
   CheckCircle2,
+  Calendar,
 } from 'lucide-react';
 import { ResponsiveContainer } from '@/components/layout/ResponsiveContainer';
-import { ComplianceRecalculation } from './ComplianceRecalculation';
 import { useAuthStore } from '@/stores/authStore';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
+import { ComplianceRecalculation } from './ComplianceRecalculation';
+
+const BATCH_SIZE = 50;
 
 export function DatabaseMaintenance() {
   const { user } = useAuthStore();
-  const [activeTab, setActiveTab] = useState('recalculation');
 
   // Zone Correction State
   const [zoneSelectedZones, setZoneSelectedZones] = useState<string[]>([]);
-  const [isZoneCorrecting, setIsZoneCorrecting] = useState(false);
-  const [zoneCorrectionResults, setZoneCorrectionResults] = useState<any>(null);
-  const [zoneProgress, setZoneProgress] = useState({ processed: 0, corrected: 0 });
+  const [zoneDatePreset, setZoneDatePreset] = useState<string>('last_30_days');
+  const [zoneProcessing, setZoneProcessing] = useState(false);
+  const [zoneProcessed, setZoneProcessed] = useState(0);
+  const [zoneCorrected, setZoneCorrected] = useState(0);
+  const [zoneCurrentBatch, setZoneCurrentBatch] = useState(0);
+  const [zoneTotalBatches, setZoneTotalBatches] = useState(0);
 
   // Duplicate Detection State
   const [dupSelectedZones, setDupSelectedZones] = useState<string[]>([]);
-  const [isDupDetecting, setIsDupDetecting] = useState(false);
-  const [dupDetectionResults, setDupDetectionResults] = useState<any>(null);
-  const [dupProgress, setDupProgress] = useState({ processed: 0, removed: 0 });
+  const [dupDatePreset, setDupDatePreset] = useState<string>('last_30_days');
+  const [dupProcessing, setDupProcessing] = useState(false);
+  const [dupProcessed, setDupProcessed] = useState(0);
+  const [dupRemoved, setDupRemoved] = useState(0);
+  const [dupCurrentBatch, setDupCurrentBatch] = useState(0);
+  const [dupTotalBatches, setDupTotalBatches] = useState(0);
 
   // Check if user is master
   const isMaster = user?.role === 'master';
@@ -74,25 +83,51 @@ export function DatabaseMaintenance() {
     enabled: isMaster,
   });
 
-  // Zone Correction - Frontend Batching
-  const handleZoneCorrection = async () => {
+  // Helper: Calculate date range
+  const getDateRange = (preset: string) => {
+    let dateRangeStart: string | undefined;
+    let dateRangeEnd: string | undefined;
+
+    if (preset !== 'all_time') {
+      const today = new Date();
+      dateRangeEnd = today.toISOString().split('T')[0];
+
+      if (preset === 'last_7_days') {
+        const start = new Date();
+        start.setDate(start.getDate() - 7);
+        dateRangeStart = start.toISOString().split('T')[0];
+      } else if (preset === 'last_30_days') {
+        const start = new Date();
+        start.setDate(start.getDate() - 30);
+        dateRangeStart = start.toISOString().split('T')[0];
+      } else if (preset === 'last_90_days') {
+        const start = new Date();
+        start.setDate(start.getDate() - 90);
+        dateRangeStart = start.toISOString().split('T')[0];
+      }
+    }
+
+    return { dateRangeStart, dateRangeEnd };
+  };
+
+  // Zone Correction Handler
+  const handleRunZoneCorrection = async () => {
     if (zoneSelectedZones.length === 0) {
-      toast.error('Please select at least one zone');
+      toast.error('⚠️ Please select at least one zone');
       return;
     }
 
-    // Calculate date range (if needed - not currently used)
-    const dateRangeStart = undefined;
-    const dateRangeEnd = undefined;
-
+    const { dateRangeStart, dateRangeEnd } = getDateRange(zoneDatePreset);
     const startTime = Date.now();
-    setIsZoneCorrecting(true);
-    setZoneCorrectionResults(null);
-    setZoneProgress({ processed: 0, corrected: 0 });
 
     try {
-      console.log('🗺️ Starting zone correction for zones:', zoneSelectedZones);
-      toast.info('🚀 Starting zone correction...');
+      toast.info('🗺️ Starting zone correction...');
+
+      setZoneProcessing(true);
+      setZoneProcessed(0);
+      setZoneCorrected(0);
+      setZoneCurrentBatch(0);
+      setZoneTotalBatches(0);
 
       // Step 1: Get total count
       const { data: totalData, error: totalError } = await supabase.functions.invoke(
@@ -110,27 +145,24 @@ export function DatabaseMaintenance() {
       if (totalError) throw totalError;
 
       const totalObservations = totalData.total || 0;
-      console.log('📊 Total observations with good GPS:', totalObservations);
+      console.log('📊 Total observations with GPS:', totalObservations);
 
       if (totalObservations === 0) {
-        toast.info('No observations found with good GPS data in selected zones');
-        setIsZoneCorrecting(false);
+        toast.info('No observations with GPS data found');
+        setZoneProcessing(false);
         return;
       }
 
-      // Step 2: Process in batches (Frontend-driven)
-      const BATCH_SIZE = 300;
+      // Step 2: Process in batches
       const batches = Math.ceil(totalObservations / BATCH_SIZE);
-      
+      setZoneTotalBatches(batches);
+
       let totalProcessed = 0;
       let totalCorrected = 0;
 
-      console.log(`📦 Processing ${totalObservations} observations in ${batches} batches of ${BATCH_SIZE}`);
-
       for (let i = 0; i < batches; i++) {
         const offset = i * BATCH_SIZE;
-
-        console.log(`📦 Batch ${i + 1}/${batches}: Processing observations ${offset + 1}-${Math.min(offset + BATCH_SIZE, totalObservations)}...`);
+        setZoneCurrentBatch(i + 1);
 
         const { data: batchData, error: batchError } = await supabase.functions.invoke(
           'zone-correction',
@@ -140,72 +172,51 @@ export function DatabaseMaintenance() {
               dateRangeStart,
               dateRangeEnd,
               get_total: false,
-              offset: offset,
+              offset,
               batch_size: BATCH_SIZE,
             },
           }
         );
 
-        if (batchError) {
-          console.error('❌ Batch error:', batchError);
-          throw batchError;
-        }
+        if (batchError) throw batchError;
 
         totalProcessed += batchData.processed || 0;
         totalCorrected += batchData.corrected || 0;
 
-        // Update frontend state (live progress)
-        setZoneProgress({
-          processed: totalProcessed,
-          corrected: totalCorrected,
-        });
-
-        console.log(`✅ Batch ${i + 1}/${batches} complete: ${totalProcessed}/${totalObservations} processed, ${totalCorrected} corrected`);
+        setZoneProcessed(totalProcessed);
+        setZoneCorrected(totalCorrected);
       }
 
-      // Calculate duration
-      const durationSeconds = Math.round((Date.now() - startTime) / 1000);
+      const duration = Math.round((Date.now() - startTime) / 1000);
+      setZoneProcessing(false);
 
-      setZoneCorrectionResults({
-        observations_checked: totalProcessed,
-        zones_corrected: totalCorrected,
-        duration_seconds: durationSeconds,
-      });
-      
-      toast.success(
-        `Zone correction complete! ${totalCorrected} observations corrected out of ${totalProcessed} checked in ${durationSeconds}s`,
-        { duration: 6000 }
-      );
-
-      console.log(`✅ Zone correction complete: ${totalProcessed} processed, ${totalCorrected} corrected in ${durationSeconds}s`);
+      toast.success(`✅ Zone correction complete! ${totalCorrected} zones fixed in ${duration}s`);
 
     } catch (error: any) {
+      setZoneProcessing(false);
       console.error('❌ Zone correction failed:', error);
-      toast.error('Zone correction failed: ' + (error.message || 'Unknown error'));
-    } finally {
-      setIsZoneCorrecting(false);
+      toast.error('Failed: ' + error.message);
     }
   };
 
-  // Duplicate Detection - Frontend Batching
-  const handleDuplicateDetection = async () => {
+  // Duplicate Detection Handler
+  const handleRunDuplicateDetection = async () => {
     if (dupSelectedZones.length === 0) {
-      toast.error('Please select at least one zone');
+      toast.error('⚠️ Please select at least one zone');
       return;
     }
 
-    // Calculate date range (if needed - not currently used)
-    const dateRangeStart = undefined;
-    const dateRangeEnd = undefined;
-
+    const { dateRangeStart, dateRangeEnd } = getDateRange(dupDatePreset);
     const startTime = Date.now();
-    setIsDupDetecting(true);
-    setDupDetectionResults(null);
-    setDupProgress({ processed: 0, removed: 0 });
 
     try {
-      console.log('🔍 Starting duplicate detection for zones:', dupSelectedZones);
-      toast.info('🚀 Starting duplicate detection...');
+      toast.info('🔍 Starting duplicate detection...');
+
+      setDupProcessing(true);
+      setDupProcessed(0);
+      setDupRemoved(0);
+      setDupCurrentBatch(0);
+      setDupTotalBatches(0);
 
       // Step 1: Get total count
       const { data: totalData, error: totalError } = await supabase.functions.invoke(
@@ -223,27 +234,24 @@ export function DatabaseMaintenance() {
       if (totalError) throw totalError;
 
       const totalObservations = totalData.total || 0;
-      console.log('📊 Total observations:', totalObservations);
+      console.log('📊 Total observations to check:', totalObservations);
 
       if (totalObservations === 0) {
-        toast.info('No observations found in selected zones');
-        setIsDupDetecting(false);
+        toast.info('No observations found');
+        setDupProcessing(false);
         return;
       }
 
-      // Step 2: Process in batches (Frontend-driven)
-      const BATCH_SIZE = 300;
+      // Step 2: Process in batches
       const batches = Math.ceil(totalObservations / BATCH_SIZE);
-      
+      setDupTotalBatches(batches);
+
       let totalProcessed = 0;
       let totalRemoved = 0;
 
-      console.log(`📦 Processing ${totalObservations} observations in ${batches} batches of ${BATCH_SIZE}`);
-
       for (let i = 0; i < batches; i++) {
         const offset = i * BATCH_SIZE;
-
-        console.log(`📦 Batch ${i + 1}/${batches}: Processing observations ${offset + 1}-${Math.min(offset + BATCH_SIZE, totalObservations)}...`);
+        setDupCurrentBatch(i + 1);
 
         const { data: batchData, error: batchError } = await supabase.functions.invoke(
           'duplicate-detection',
@@ -253,51 +261,38 @@ export function DatabaseMaintenance() {
               dateRangeStart,
               dateRangeEnd,
               get_total: false,
-              offset: offset,
+              offset,
               batch_size: BATCH_SIZE,
             },
           }
         );
 
-        if (batchError) {
-          console.error('❌ Batch error:', batchError);
-          throw batchError;
-        }
+        if (batchError) throw batchError;
 
         totalProcessed += batchData.processed || 0;
         totalRemoved += batchData.removed || 0;
 
-        // Update frontend state (live progress)
-        setDupProgress({
-          processed: totalProcessed,
-          removed: totalRemoved,
-        });
-
-        console.log(`✅ Batch ${i + 1}/${batches} complete: ${totalProcessed}/${totalObservations} processed, ${totalRemoved} removed`);
+        setDupProcessed(totalProcessed);
+        setDupRemoved(totalRemoved);
       }
 
-      // Calculate duration
-      const durationSeconds = Math.round((Date.now() - startTime) / 1000);
+      const duration = Math.round((Date.now() - startTime) / 1000);
+      setDupProcessing(false);
 
-      setDupDetectionResults({
-        observations_checked: totalProcessed,
-        duplicates_removed: totalRemoved,
-        duration_seconds: durationSeconds,
-      });
-      
-      toast.success(
-        `Duplicate detection complete! ${totalRemoved} duplicates removed out of ${totalProcessed} checked in ${durationSeconds}s`,
-        { duration: 6000 }
-      );
-
-      console.log(`✅ Duplicate detection complete: ${totalProcessed} processed, ${totalRemoved} removed in ${durationSeconds}s`);
+      toast.success(`✅ Duplicate detection complete! ${totalRemoved} duplicates removed in ${duration}s`);
 
     } catch (error: any) {
+      setDupProcessing(false);
       console.error('❌ Duplicate detection failed:', error);
-      toast.error('Duplicate detection failed: ' + (error.message || 'Unknown error'));
-    } finally {
-      setIsDupDetecting(false);
+      toast.error('Failed: ' + error.message);
     }
+  };
+
+  const dateRangeLabels: Record<string, string> = {
+    all_time: 'All Time',
+    last_7_days: 'Last 7 Days',
+    last_30_days: 'Last 30 Days',
+    last_90_days: 'Last 90 Days',
   };
 
   if (!isMaster) {
@@ -315,87 +310,50 @@ export function DatabaseMaintenance() {
   }
 
   return (
-    <ResponsiveContainer maxWidth="7xl" padding="md">
-      <div className="space-y-4 md:space-y-6">
+    <ResponsiveContainer maxWidth="2xl" padding="lg">
+      <div className="space-y-6">
         {/* Header */}
         <div>
-          <h1 className="text-2xl md:text-3xl font-bold flex items-center gap-2 md:gap-3">
-            <Database className="h-6 w-6 md:h-8 md:w-8 text-purple-600" />
+          <h1 className="text-3xl font-bold flex items-center gap-3">
+            <Shield className="h-8 w-8 text-blue-600" />
             Database Maintenance
           </h1>
-          <p className="text-xs md:text-sm text-muted-foreground mt-1 flex items-center gap-2">
-            <Shield className="h-3 w-3 md:h-4 md:w-4 text-amber-600" />
-            <span className="font-semibold text-amber-900 dark:text-amber-100">
-              Master Users Only
-            </span>
-            <span>•</span>
-            System-wide maintenance operations for data integrity and compliance accuracy
+          <p className="text-muted-foreground mt-1">
+            Three independent lightweight operations - run them separately as needed
           </p>
         </div>
 
-        {/* Warning Banner */}
-        <Alert className="border-2 border-amber-500/50 bg-amber-50 dark:bg-amber-950/20">
-          <AlertTriangle className="h-4 w-4 text-amber-600" />
-          <AlertDescription className="text-xs md:text-sm text-amber-900 dark:text-amber-100">
-            <p className="font-semibold mb-2">⚠️ Important Safety Notes</p>
-            <ul className="space-y-1 text-xs md:text-sm">
-              <li>
-                <strong>Zone Correction:</strong> Uses GPS coordinates to automatically reassign observations to correct zones. Safe to run anytime.
-              </li>
-              <li>
-                <strong>Duplicate Detection:</strong> Finds and removes duplicate observations within 8-hour window in same zone. Preserves observations with incidents/reports.
-              </li>
-              <li>
-                <strong>Compliance Recalculation (Recommended):</strong> Tests all observations against current zone rules, updates monthly stays, creates breach alerts. Safe to run anytime.
-              </li>
-            </ul>
-          </AlertDescription>
-        </Alert>
-
-        {/* Tabbed Interface */}
-        <Tabs value={activeTab} onValueChange={setActiveTab}>
+        {/* Tabs for Different Operations */}
+        <Tabs defaultValue="zone-correction" className="space-y-6">
           <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="zone-correction" className="flex items-center gap-2">
               <MapPin className="h-4 w-4" />
-              <span className="hidden md:inline">Zone Correction</span>
-              <span className="md:hidden">Zones</span>
+              Zone Correction
             </TabsTrigger>
-            <TabsTrigger value="duplicates" className="flex items-center gap-2">
+            <TabsTrigger value="duplicate-detection" className="flex items-center gap-2">
               <Copy className="h-4 w-4" />
-              <span className="hidden md:inline">Duplicate Detection</span>
-              <span className="md:hidden">Duplicates</span>
+              Duplicate Detection
             </TabsTrigger>
-            <TabsTrigger value="recalculation" className="flex items-center gap-2">
+            <TabsTrigger value="compliance-recalculation" className="flex items-center gap-2">
               <RefreshCw className="h-4 w-4" />
-              <span className="hidden md:inline">Compliance Recalculation</span>
-              <span className="md:hidden">Compliance</span>
+              Compliance Recalculation
             </TabsTrigger>
           </TabsList>
 
-          {/* Zone Correction Tab */}
-          <TabsContent value="zone-correction" className="mt-6">
+          {/* TAB 1: ZONE CORRECTION */}
+          <TabsContent value="zone-correction" className="space-y-6">
+            <Alert className="border-blue-500/50 bg-blue-50 dark:bg-blue-950/20">
+              <MapPin className="h-4 w-4 text-blue-600" />
+              <AlertDescription className="text-blue-900 dark:text-blue-100">
+                <strong>Zone Correction:</strong> Uses GPS coordinates (less than 100m accuracy) to automatically reassign observations to the correct zones using point-in-polygon or distance-based matching.
+              </AlertDescription>
+            </Alert>
+
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <MapPin className="h-5 w-5 text-blue-600" />
-                  GPS-Based Zone Correction
-                </CardTitle>
+                <CardTitle>Zone Correction Settings</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <Alert>
-                  <AlertTriangle className="h-4 w-4" />
-                  <AlertDescription className="text-sm">
-                    <p className="font-semibold mb-2">What This Does:</p>
-                    <ul className="list-disc list-inside space-y-1 text-xs">
-                      <li>Uses GPS coordinates to find the correct zone for each observation</li>
-                      <li>Automatically reassigns observations to the correct zone if GPS accuracy is good (&lt;100m)</li>
-                      <li>Uses point-in-polygon matching for zones with boundaries</li>
-                      <li>Falls back to distance-based matching for zones with center points</li>
-                      <li>Only corrects observations with valid GPS data</li>
-                    </ul>
-                  </AlertDescription>
-                </Alert>
-
+              <CardContent className="space-y-6">
                 {/* Zone Selection */}
                 <div className="space-y-2">
                   <Label>Select Zones *</Label>
@@ -420,7 +378,7 @@ export function DatabaseMaintenance() {
                                 setZoneSelectedZones(zoneSelectedZones.filter((id) => id !== zone.id));
                               }
                             }}
-                            disabled={isZoneCorrecting}
+                            disabled={zoneProcessing}
                             className="h-4 w-4"
                           />
                           <span className="text-sm font-medium flex-1">{zone.name}</span>
@@ -436,96 +394,91 @@ export function DatabaseMaintenance() {
                   </p>
                 </div>
 
-                {/* Run Button */}
+                {/* Date Range */}
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2">
+                    <Calendar className="h-4 w-4" />
+                    Date Range
+                  </Label>
+                  <Select value={zoneDatePreset} onValueChange={setZoneDatePreset} disabled={zoneProcessing}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all_time">All Time</SelectItem>
+                      <SelectItem value="last_7_days">Last 7 Days</SelectItem>
+                      <SelectItem value="last_30_days">Last 30 Days</SelectItem>
+                      <SelectItem value="last_90_days">Last 90 Days</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Selected: <span className="font-semibold">{dateRangeLabels[zoneDatePreset]}</span>
+                  </p>
+                </div>
+
                 <Button
-                  onClick={handleZoneCorrection}
-                  disabled={isZoneCorrecting || zoneSelectedZones.length === 0}
-                  className="w-full"
+                  onClick={handleRunZoneCorrection}
+                  disabled={zoneProcessing || zoneSelectedZones.length === 0}
+                  className="w-full h-12"
+                  size="lg"
                 >
-                  {isZoneCorrecting ? (
+                  {zoneProcessing ? (
                     <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Correcting Zones...
+                      <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+                      Processing Batch {zoneCurrentBatch}/{zoneTotalBatches}...
                     </>
                   ) : (
                     <>
-                      <MapPin className="h-4 w-4 mr-2" />
+                      <MapPin className="h-5 w-5 mr-2" />
                       Run Zone Correction
                     </>
                   )}
                 </Button>
-
-                {/* Processing Status */}
-                {isZoneCorrecting && (
-                  <Alert className="border-blue-500/50 bg-blue-50 dark:bg-blue-950/20">
-                    <Loader2 className="h-4 w-4 text-blue-600 animate-spin" />
-                    <AlertDescription className="text-blue-900 dark:text-blue-100">
-                      <p className="font-semibold mb-2">🔄 Processing Zone Corrections...</p>
-                      <div className="grid grid-cols-2 gap-3 text-sm">
-                        <div>
-                          <span className="font-semibold">Processed:</span>
-                          <div className="text-2xl font-bold">{zoneProgress.processed}</div>
-                        </div>
-                        <div>
-                          <span className="font-semibold">Corrected:</span>
-                          <div className="text-2xl font-bold text-blue-600">{zoneProgress.corrected}</div>
-                        </div>
-                      </div>
-                      <p className="text-xs mt-2">Processing 300 records at a time...</p>
-                    </AlertDescription>
-                  </Alert>
-                )}
-
-                {/* Results */}
-                {!isZoneCorrecting && zoneCorrectionResults && (
-                  <Alert className="border-green-500/50 bg-green-50 dark:bg-green-950/20">
-                    <CheckCircle2 className="h-4 w-4 text-green-600" />
-                    <AlertDescription className="text-green-900 dark:text-green-100">
-                      <p className="font-semibold mb-2">✅ Zone Correction Complete!</p>
-                      <div className="grid grid-cols-2 gap-3 text-sm">
-                        <div>
-                          <span className="font-semibold">Observations Checked:</span>
-                          <div className="text-2xl font-bold">{zoneCorrectionResults.observations_checked}</div>
-                        </div>
-                        <div>
-                          <span className="font-semibold">Zones Corrected:</span>
-                          <div className="text-2xl font-bold text-blue-600">{zoneCorrectionResults.zones_corrected}</div>
-                        </div>
-                      </div>
-                      <p className="text-xs mt-2 text-muted-foreground">
-                        Duration: {zoneCorrectionResults.duration_seconds}s • Batch size: 300 records
-                      </p>
-                    </AlertDescription>
-                  </Alert>
-                )}
               </CardContent>
             </Card>
+
+            {/* Zone Correction Progress */}
+            {zoneProcessing && (
+              <Alert className="border-blue-500 bg-blue-50 dark:bg-blue-950/20">
+                <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
+                <AlertDescription>
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-3">
+                      <Progress value={(zoneCurrentBatch / zoneTotalBatches) * 100} className="h-2 flex-1" />
+                      <span className="text-sm font-bold text-blue-600">
+                        {Math.round((zoneCurrentBatch / zoneTotalBatches) * 100)}%
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 text-center">
+                      <div className="p-2 bg-white dark:bg-gray-900 rounded">
+                        <div className="text-2xl font-black text-blue-600">{zoneProcessed}</div>
+                        <div className="text-xs text-muted-foreground">Processed</div>
+                      </div>
+                      <div className="p-2 bg-white dark:bg-gray-900 rounded">
+                        <div className="text-2xl font-black text-green-600">{zoneCorrected}</div>
+                        <div className="text-xs text-muted-foreground">Corrected</div>
+                      </div>
+                    </div>
+                  </div>
+                </AlertDescription>
+              </Alert>
+            )}
           </TabsContent>
 
-          {/* Duplicate Detection Tab */}
-          <TabsContent value="duplicates" className="mt-6">
+          {/* TAB 2: DUPLICATE DETECTION */}
+          <TabsContent value="duplicate-detection" className="space-y-6">
+            <Alert className="border-purple-500/50 bg-purple-50 dark:bg-purple-950/20">
+              <Copy className="h-4 w-4 text-purple-600" />
+              <AlertDescription className="text-purple-900 dark:text-purple-100">
+                <strong>Duplicate Detection:</strong> Finds duplicate observations within 8-hour window in the same zone. Keeps the first (oldest) record, removes newer duplicates. Preserves observations with incidents/reports.
+              </AlertDescription>
+            </Alert>
+
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Copy className="h-5 w-5 text-purple-600" />
-                  Duplicate Detection & Removal
-                </CardTitle>
+                <CardTitle>Duplicate Detection Settings</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <Alert>
-                  <AlertTriangle className="h-4 w-4" />
-                  <AlertDescription className="text-sm">
-                    <p className="font-semibold mb-2">What This Does:</p>
-                    <ul className="list-disc list-inside space-y-1 text-xs">
-                      <li>Finds duplicate observations for the same plate number in the same zone</li>
-                      <li>Only removes duplicates within 8-hour window</li>
-                      <li>Keeps the newest observation, removes older duplicates</li>
-                      <li>Preserves observations that have incidents or H&S reports attached</li>
-                      <li>Helps clean up data from bulk scanning or repeated patrols</li>
-                    </ul>
-                  </AlertDescription>
-                </Alert>
-
+              <CardContent className="space-y-6">
                 {/* Zone Selection */}
                 <div className="space-y-2">
                   <Label>Select Zones *</Label>
@@ -550,7 +503,7 @@ export function DatabaseMaintenance() {
                                 setDupSelectedZones(dupSelectedZones.filter((id) => id !== zone.id));
                               }
                             }}
-                            disabled={isDupDetecting}
+                            disabled={dupProcessing}
                             className="h-4 w-4"
                           />
                           <span className="text-sm font-medium flex-1">{zone.name}</span>
@@ -566,74 +519,79 @@ export function DatabaseMaintenance() {
                   </p>
                 </div>
 
-                {/* Run Button */}
+                {/* Date Range */}
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2">
+                    <Calendar className="h-4 w-4" />
+                    Date Range
+                  </Label>
+                  <Select value={dupDatePreset} onValueChange={setDupDatePreset} disabled={dupProcessing}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all_time">All Time</SelectItem>
+                      <SelectItem value="last_7_days">Last 7 Days</SelectItem>
+                      <SelectItem value="last_30_days">Last 30 Days</SelectItem>
+                      <SelectItem value="last_90_days">Last 90 Days</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Selected: <span className="font-semibold">{dateRangeLabels[dupDatePreset]}</span>
+                  </p>
+                </div>
+
                 <Button
-                  onClick={handleDuplicateDetection}
-                  disabled={isDupDetecting || dupSelectedZones.length === 0}
-                  className="w-full"
+                  onClick={handleRunDuplicateDetection}
+                  disabled={dupProcessing || dupSelectedZones.length === 0}
+                  className="w-full h-12"
+                  size="lg"
                 >
-                  {isDupDetecting ? (
+                  {dupProcessing ? (
                     <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Detecting Duplicates...
+                      <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+                      Processing Batch {dupCurrentBatch}/{dupTotalBatches}...
                     </>
                   ) : (
                     <>
-                      <Copy className="h-4 w-4 mr-2" />
+                      <Copy className="h-5 w-5 mr-2" />
                       Run Duplicate Detection
                     </>
                   )}
                 </Button>
-
-                {/* Processing Status */}
-                {isDupDetecting && (
-                  <Alert className="border-purple-500/50 bg-purple-50 dark:bg-purple-950/20">
-                    <Loader2 className="h-4 w-4 text-purple-600 animate-spin" />
-                    <AlertDescription className="text-purple-900 dark:text-purple-100">
-                      <p className="font-semibold mb-2">🔄 Detecting Duplicates...</p>
-                      <div className="grid grid-cols-2 gap-3 text-sm">
-                        <div>
-                          <span className="font-semibold">Processed:</span>
-                          <div className="text-2xl font-bold">{dupProgress.processed}</div>
-                        </div>
-                        <div>
-                          <span className="font-semibold">Removed:</span>
-                          <div className="text-2xl font-bold text-purple-600">{dupProgress.removed}</div>
-                        </div>
-                      </div>
-                      <p className="text-xs mt-2">Processing 300 records at a time...</p>
-                    </AlertDescription>
-                  </Alert>
-                )}
-
-                {/* Results */}
-                {!isDupDetecting && dupDetectionResults && (
-                  <Alert className="border-green-500/50 bg-green-50 dark:bg-green-950/20">
-                    <CheckCircle2 className="h-4 w-4 text-green-600" />
-                    <AlertDescription className="text-green-900 dark:text-green-100">
-                      <p className="font-semibold mb-2">✅ Duplicate Detection Complete!</p>
-                      <div className="grid grid-cols-2 gap-3 text-sm">
-                        <div>
-                          <span className="font-semibold">Observations Checked:</span>
-                          <div className="text-2xl font-bold">{dupDetectionResults.observations_checked}</div>
-                        </div>
-                        <div>
-                          <span className="font-semibold">Duplicates Removed:</span>
-                          <div className="text-2xl font-bold text-purple-600">{dupDetectionResults.duplicates_removed}</div>
-                        </div>
-                      </div>
-                      <p className="text-xs mt-2 text-muted-foreground">
-                        Duration: {dupDetectionResults.duration_seconds}s • Batch size: 300 records
-                      </p>
-                    </AlertDescription>
-                  </Alert>
-                )}
               </CardContent>
             </Card>
+
+            {/* Duplicate Detection Progress */}
+            {dupProcessing && (
+              <Alert className="border-purple-500 bg-purple-50 dark:bg-purple-950/20">
+                <Loader2 className="h-4 w-4 animate-spin text-purple-600" />
+                <AlertDescription>
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-3">
+                      <Progress value={(dupCurrentBatch / dupTotalBatches) * 100} className="h-2 flex-1" />
+                      <span className="text-sm font-bold text-purple-600">
+                        {Math.round((dupCurrentBatch / dupTotalBatches) * 100)}%
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 text-center">
+                      <div className="p-2 bg-white dark:bg-gray-900 rounded">
+                        <div className="text-2xl font-black text-blue-600">{dupProcessed}</div>
+                        <div className="text-xs text-muted-foreground">Processed</div>
+                      </div>
+                      <div className="p-2 bg-white dark:bg-gray-900 rounded">
+                        <div className="text-2xl font-black text-purple-600">{dupRemoved}</div>
+                        <div className="text-xs text-muted-foreground">Removed</div>
+                      </div>
+                    </div>
+                  </div>
+                </AlertDescription>
+              </Alert>
+            )}
           </TabsContent>
 
-          {/* Compliance Recalculation Tab */}
-          <TabsContent value="recalculation" className="mt-6">
+          {/* TAB 3: COMPLIANCE RECALCULATION */}
+          <TabsContent value="compliance-recalculation">
             <ComplianceRecalculation />
           </TabsContent>
         </Tabs>
