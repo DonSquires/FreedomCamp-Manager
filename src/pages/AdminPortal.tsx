@@ -25,6 +25,7 @@ import {
   HelpCircle,
   ArrowLeftRight,
   Flag,
+  Bug,
 } from 'lucide-react';
 import { JDSLogo } from '@/components/layout/JDSLogo';
 import { ResponsiveContainer } from '@/components/layout/ResponsiveContainer';
@@ -63,6 +64,7 @@ import { EmergencyDataRecovery } from './EmergencyDataRecovery';
 import { DataRecoveryAnalysis } from './DataRecoveryAnalysis';
 import { ProductOverviewDocument } from './ProductOverviewDocument';
 import { DatabaseMaintenance } from './DatabaseMaintenance';
+import { BugReportsManagement } from './BugReportsManagement';
 
 interface AdminPortalProps {
   onLogout: () => void;
@@ -394,6 +396,20 @@ export function AdminPortal({ onLogout }: AdminPortalProps) {
             </Button>
 
             {isMaster && (
+              <Button
+                variant={activeTab === 'bug-reports' ? 'default' : 'ghost'}
+                className="w-full justify-start text-sm lg:text-base h-10 lg:h-9 touch-manipulation bg-red-50 dark:bg-red-950/20 border border-red-500/30"
+                onClick={() => {
+                  setActiveTab('bug-reports');
+                  setSidebarOpen(false);
+                }}
+              >
+                <Bug className="h-4 w-4 mr-2 lg:mr-3 text-red-600" />
+                <span className="text-red-600 dark:text-red-400 font-semibold">Bug Reports</span>
+              </Button>
+            )}
+
+            {isMaster && (
               <>
                 <div className="text-xs font-semibold text-muted-foreground px-3 py-2 mt-3 lg:mt-4">
                   DOCUMENTS
@@ -520,6 +536,9 @@ export function AdminPortal({ onLogout }: AdminPortalProps) {
               
               {/* Database Maintenance - Master Only */}
               {activeTab === 'database-maintenance' && isMaster && <DatabaseMaintenance />}
+              
+              {/* Bug Reports Management - Master Only */}
+              {activeTab === 'bug-reports' && isMaster && <BugReportsManagement />}
               
               {/* Documents - Master Only */}
               {activeTab === 'product-overview' && isMaster && <ProductOverviewDocument />}
