@@ -55,6 +55,7 @@ import { VehicleRecords } from './VehicleRecords';
 import { supabase } from '@/lib/supabase';
 import DataIntegrityCheck from './DataIntegrityCheck';
 import { DarkModeToggle } from '@/components/features/DarkModeToggle';
+import { PWAUpdateNotification } from '@/components/features/PWAUpdateNotification';
 import { DataMigrationUtility } from './DataMigrationUtility';
 import { VehicleEnrichmentMaintenance } from './VehicleEnrichmentMaintenance';
 import { DataManagementHub } from './DataManagementHub';
@@ -136,6 +137,9 @@ export function AdminPortal({ onLogout }: AdminPortalProps) {
 
   return (
     <ResponsiveContainer maxWidth="full" padding="none" mobileFullHeight>
+      {/* PWA Update Notification */}
+      <PWAUpdateNotification />
+      
       <div className="flex h-screen bg-background overflow-hidden">
         {sidebarOpen && (
           <div
