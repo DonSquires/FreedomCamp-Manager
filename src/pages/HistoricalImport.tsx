@@ -62,8 +62,15 @@ interface ImportSummary {
   new_zones: string[];
 }
 
-const MAX_RECORDS_PER_FILE = 300; // Split files larger than this
-const CHUNK_SIZE = 250; // Records per chunk
+interface BatchProgress {
+  current_batch: number;
+  total_batches: number;
+  batch_size: number;
+  ai_analysis?: any;
+}
+
+const MAX_RECORDS_PER_FILE = 1000; // AI can handle larger files now
+const CHUNK_SIZE = 250; // Records per chunk (AI-powered batch size)
 
 export function HistoricalImport() {
   const { user } = useAuthStore();
@@ -79,6 +86,8 @@ export function HistoricalImport() {
   const [progress, setProgress] = useState(0);
   const [summary, setSummary] = useState<ImportSummary | null>(null);
   const [errorLog, setErrorLog] = useState<any[]>([]);
+  const [batchProgress, setBatchProgress] = useState<BatchProgress | null>(null);
+  const [aiAnalysis, setAiAnalysis] = useState<any>(null);
   
   // File splitter state
   const [isAnalyzing, setIsAnalyzing] = useState(false);
@@ -316,6 +325,8 @@ export function HistoricalImport() {
       setSummary(data.summary);
       setErrorLog(data.error_log || []);
       setProgress(100);
+      setBatchProgress(null);
+      setAiAnalysis(data.ai_analysis || null);
 
       toast.success(
         `Import complete! ${data.summary.successful}/${data.summary.total} successful, ${data.summary.zones_created} zones created`
@@ -333,6 +344,51 @@ export function HistoricalImport() {
     }
   };
 
+  // Poll for batch progress updates (real-time)
+  useEffect(() => {
+    if (!isImporting || !importHistoryId) return;
+
+    const pollProgress = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('import_history')
+          .select('error_log, records_imported')
+          .eq('id', importHistoryId)
+          .single();
+
+        if (error) throw error;
+
+        if (data?.error_log) {
+          const log = data.error_log as any;
+          
+          // Extract AI analysis if available
+          if (log.ai_analysis) {
+            setAiAnalysis(log.ai_analysis);
+          }
+          
+          // Update batch progress
+          if (log.current_batch && log.total_batches) {
+            setBatchProgress({
+              current_batch: log.current_batch,
+              total_batches: log.total_batches,
+              batch_size: log.batch_size || 250,
+              ai_analysis: log.ai_analysis,
+            });
+            
+            // Calculate progress percentage
+            const batchPercent = (log.current_batch / log.total_batches) * 100;
+            setProgress(Math.min(batchPercent, 95)); // Cap at 95% until complete
+          }
+        }
+      } catch (error: any) {
+        console.error('Failed to poll progress:', error);
+      }
+    };
+
+    const interval = setInterval(pollProgress, 2000); // Poll every 2 seconds
+    return () => clearInterval(interval);
+  }, [isImporting, importHistoryId]);
+
   // Reset for new import
   const handleReset = () => {
     setFile(null);
@@ -340,6 +396,8 @@ export function HistoricalImport() {
     setSummary(null);
     setErrorLog([]);
     setProgress(0);
+    setBatchProgress(null);
+    setAiAnalysis(null);
     setShowSplitOption(false);
     setSplitFiles([]);
     setFileRowCount(0);
@@ -605,26 +663,91 @@ export function HistoricalImport() {
             )}
 
             {isImporting && (
-              <div className="space-y-3">
+              <div className="space-y-4">
+                {/* AI Analysis Results */}
+                {aiAnalysis && (
+                  <Alert className="border-blue-500/50 bg-blue-50 dark:bg-blue-950/20">
+                    <AlertCircle className="h-4 w-4 text-blue-600" />
+                    <AlertTitle className="text-blue-900 dark:text-blue-100">
+                      🤖 AI Document Analysis Complete
+                    </AlertTitle>
+                    <AlertDescription className="text-blue-800 dark:text-blue-200 space-y-2">
+                      <div className="grid grid-cols-2 gap-3 text-xs">
+                        <div>
+                          <span className="font-semibold">Date Format:</span>
+                          <div className="mt-1">
+                            {aiAnalysis.dateFormat} 
+                            <Badge variant="outline" className="ml-2 text-[10px]">
+                              {Math.round((aiAnalysis.dateFormatConfidence || 0) * 100)}% confident
+                            </Badge>
+                          </div>
+                        </div>
+                        <div>
+                          <span className="font-semibold">Date Range:</span>
+                          <div className="mt-1">
+                            {aiAnalysis.earliestDate} to {aiAnalysis.latestDate}
+                          </div>
+                        </div>
+                        <div>
+                          <span className="font-semibold">Rows Analyzed:</span>
+                          <div className="mt-1">{aiAnalysis.totalRowsAnalyzed || 0}</div>
+                        </div>
+                        <div>
+                          <span className="font-semibold">Data Quality:</span>
+                          <div className="mt-1">
+                            {aiAnalysis.blankDates || 0} blank dates, 
+                            {aiAnalysis.blankPlates || 0} blank plates
+                          </div>
+                        </div>
+                      </div>
+                      {aiAnalysis.recommendations?.length > 0 && (
+                        <div className="pt-2 border-t border-blue-300">
+                          <div className="font-semibold text-xs mb-1">💡 AI Recommendations:</div>
+                          <ul className="list-disc list-inside text-[11px] space-y-0.5">
+                            {aiAnalysis.recommendations.map((rec: string, idx: number) => (
+                              <li key={idx}>{rec}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </AlertDescription>
+                  </Alert>
+                )}
+
+                {/* Processing Status */}
                 <div className="flex items-center justify-center gap-3 p-4 bg-blue-50 dark:bg-blue-950/20 rounded border border-blue-200 dark:border-blue-800">
                   <Loader2 className="h-5 w-5 animate-spin text-blue-600" />
-                  <div>
+                  <div className="flex-1">
                     <div className="font-medium text-blue-900 dark:text-blue-100">
-                      {isUploading ? 'Uploading file...' : 'Processing import...'}
+                      {isUploading ? 'Uploading file...' : 'AI-Powered Batch Processing'}
                     </div>
                     <div className="text-xs text-blue-600 dark:text-blue-400">
                       {isUploading 
                         ? 'Uploading to storage...' 
-                        : 'Server is parsing Excel, matching zones, and importing records...'}
+                        : batchProgress
+                        ? `Processing batch ${batchProgress.current_batch} of ${batchProgress.total_batches} (${batchProgress.batch_size} records per batch)`
+                        : 'AI analyzing document structure and parsing data...'}
                     </div>
                   </div>
                 </div>
+                
+                {/* Progress Bar with Batch Details */}
                 {!isUploading && (
-                  <div>
-                    <Progress value={progress} className="h-3" />
-                    <div className="text-xs text-muted-foreground mt-1 text-center">
-                      Processing on server... Please wait
+                  <div className="space-y-2">
+                    <Progress value={progress} className="h-4" />
+                    <div className="flex items-center justify-between text-xs text-muted-foreground">
+                      <span>
+                        {batchProgress 
+                          ? `Batch ${batchProgress.current_batch}/${batchProgress.total_batches}` 
+                          : 'Initializing...'}
+                      </span>
+                      <span className="font-bold">{Math.round(progress)}%</span>
                     </div>
+                    {batchProgress && (
+                      <div className="text-center text-xs text-muted-foreground">
+                        Processing {batchProgress.batch_size} records at a time for optimal performance
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -771,29 +894,38 @@ export function HistoricalImport() {
         <CardHeader>
           <CardTitle className="text-sm flex items-center gap-2 text-blue-900 dark:text-blue-100">
             <AlertCircle className="h-4 w-4" />
-            Backend-Driven Architecture
+            🤖 AI-Powered Batch Processing Architecture
           </CardTitle>
         </CardHeader>
         <CardContent className="text-xs space-y-2 text-blue-800 dark:text-blue-200">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <div className="font-semibold mb-1">✅ What This Does:</div>
+              <div className="font-semibold mb-1">✅ How It Works:</div>
               <ul className="list-disc list-inside space-y-0.5 text-[11px]">
-                <li>Uploads file to Supabase Storage</li>
-                <li>Triggers server-side Edge Function</li>
-                <li>Backend handles all processing</li>
-                <li>Returns final results</li>
+                <li>AI analyzes file structure and data quality</li>
+                <li>Detects date formats automatically</li>
+                <li>Processes 250 records per batch</li>
+                <li>Real-time progress updates every 2 seconds</li>
+                <li>Automatic zone matching with fuzzy logic</li>
               </ul>
             </div>
             <div>
               <div className="font-semibold mb-1">🚀 Benefits:</div>
               <ul className="list-disc list-inside space-y-0.5 text-[11px]">
-                <li>10-100x faster (batch operations)</li>
-                <li>Atomic transactions (all-or-nothing)</li>
-                <li>Handles 100k+ records</li>
-                <li>Server-side validation</li>
+                <li>AI validates data before processing</li>
+                <li>No manual file splitting needed</li>
+                <li>Handles 100k+ records efficiently</li>
+                <li>Prevents duplicate zone creation</li>
+                <li>Court-ready audit trail</li>
               </ul>
             </div>
+          </div>
+          <div className="pt-2 border-t border-blue-300">
+            <div className="font-semibold mb-1">🔄 Batch Processing:</div>
+            <p className="text-[11px]">
+              Instead of uploading all records at once, the system intelligently processes <strong>250 records at a time</strong>. 
+              This prevents timeouts, provides real-time progress feedback, and ensures data integrity through atomic transactions.
+            </p>
           </div>
         </CardContent>
       </Card>
