@@ -6,9 +6,27 @@
  * - PATCH (third digit): Minor amendments
  */
 
-export const APP_VERSION = '2.11.0003';
+export const APP_VERSION = '2.11.0004';
 
 export const VERSION_HISTORY = [
+  {
+    version: '2.11.0004',
+    date: '2025-02-15',
+    changes: [
+      '🧹 ADMIN PORTAL CLEANUP: Removed all redundant menu items',
+      '❌ Removed duplicate "Switch to Field Portal" buttons (was 4x)',
+      '❌ Removed "Cross-Org View" (functionality covered by universal filters)',
+      '❌ Removed "Organization" label - now "Organization Overview"',
+      '❌ Removed "Special Vehicles" - renamed to "Flagged Vehicles" for clarity',
+      '❌ Removed "Vehicle Records" from Analytics (duplicated in Data Management Hub)',
+      '❌ Removed entire MAINTENANCE section for regular users',
+      '📋 CLARIFICATION: "Data Cleanup & Recalculation" (Data Management Hub) ≠ standalone "Recalculation"',
+      '✅ Data Cleanup = comprehensive 3-phase pipeline (zone correction + duplicate removal + compliance recalculation)',
+      '✅ Standalone Recalculation = compliance recalculation only (removed from menu)',
+      '🎯 Streamlined menu: 12 items (down from 25+) with clearer organization',
+      '📱 Better mobile experience with reduced navigation clutter',
+    ],
+  },
   {
     version: '2.11.0003',
     date: '2025-02-14',

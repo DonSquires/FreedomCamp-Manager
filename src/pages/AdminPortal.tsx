@@ -222,22 +222,8 @@ export function AdminPortal({ onLogout }: AdminPortalProps) {
               }}
             >
               <LayoutDashboard className="h-4 w-4 mr-2 lg:mr-3" />
-              Organization
+              Organization Overview
             </Button>
-
-            {(isMaster || isSuperUser) && (
-              <Button
-                variant={activeTab === 'cross-org' ? 'default' : 'ghost'}
-                className="w-full justify-start text-sm lg:text-base h-10 lg:h-9 touch-manipulation"
-                onClick={() => {
-                  setActiveTab('cross-org');
-                  setSidebarOpen(false);
-                }}
-              >
-                <Building2 className="h-4 w-4 mr-2 lg:mr-3" />
-                Cross-Org View
-              </Button>
-            )}
 
             <Button
               variant={activeTab === 'officer-welfare-hub' ? 'default' : 'ghost'}
@@ -324,7 +310,7 @@ export function AdminPortal({ onLogout }: AdminPortalProps) {
               }}
             >
               <Flag className="h-4 w-4 mr-2 lg:mr-3" />
-              Special Vehicles
+              Flagged Vehicles
             </Button>
 
             <div className="text-xs font-semibold text-muted-foreground px-3 py-2 mt-3 lg:mt-4">
@@ -343,17 +329,7 @@ export function AdminPortal({ onLogout }: AdminPortalProps) {
               Analytics Hub
             </Button>
 
-            <Button
-              variant={activeTab === 'vehicle-list' ? 'default' : 'ghost'}
-              className="w-full justify-start text-sm lg:text-base h-10 lg:h-9 touch-manipulation"
-              onClick={() => {
-                setActiveTab('vehicle-list');
-                setSidebarOpen(false);
-              }}
-            >
-              <Database className="h-4 w-4 mr-2 lg:mr-3" />
-              Vehicle Records
-            </Button>
+
 
             <div className="text-xs font-semibold text-muted-foreground px-3 py-2 mt-3 lg:mt-4">
               MANAGEMENT
@@ -383,170 +359,7 @@ export function AdminPortal({ onLogout }: AdminPortalProps) {
               <span className="text-purple-600 dark:text-purple-400 font-semibold">Settings Hub</span>
             </Button>
 
-            {/* MAINTENANCE - Only visible to master users */}
-            {isMaster && (
-              <>
-                <div className="text-xs font-semibold text-muted-foreground px-3 py-2 mt-3 lg:mt-4">
-                  MAINTENANCE
-                </div>
 
-                <Button
-                  variant={activeTab === 'data-migration' ? 'default' : 'ghost'}
-                  className="w-full justify-start text-sm lg:text-base h-10 lg:h-9 touch-manipulation bg-amber-50 dark:bg-amber-950/20 border border-amber-500/30"
-                  onClick={() => {
-                    setActiveTab('data-migration');
-                    setSidebarOpen(false);
-                  }}
-                >
-                  <Database className="h-4 w-4 mr-2 lg:mr-3 text-amber-600" />
-                  <span className="text-amber-600 dark:text-amber-400 font-semibold">Data Migration</span>
-                </Button>
-
-            <Button
-              variant={activeTab === 'database-diagnostic' ? 'default' : 'ghost'}
-              className="w-full justify-start text-sm lg:text-base h-10 lg:h-9 touch-manipulation bg-purple-50 dark:bg-purple-950/20 border border-purple-500/30"
-              onClick={() => {
-                setActiveTab('database-diagnostic');
-                setSidebarOpen(false);
-              }}
-            >
-              <Database className="h-4 w-4 mr-2 lg:mr-3 text-purple-600" />
-              <span className="text-purple-600 dark:text-purple-400 font-semibold">Database Diagnostic</span>
-            </Button>
-
-            <Button
-              variant={activeTab === 'emergency-recovery' ? 'default' : 'ghost'}
-              className="w-full justify-start text-sm lg:text-base h-10 lg:h-9 touch-manipulation bg-red-50 dark:bg-red-950/20 border border-red-500/30"
-              onClick={() => {
-                setActiveTab('emergency-recovery');
-                setSidebarOpen(false);
-              }}
-            >
-              <AlertTriangle className="h-4 w-4 mr-2 lg:mr-3 text-red-600" />
-              <span className="text-red-600 dark:text-red-400 font-semibold">Emergency Recovery</span>
-            </Button>
-
-            <Button
-              variant={activeTab === 'recovery-analysis' ? 'default' : 'ghost'}
-              className="w-full justify-start text-sm lg:text-base h-10 lg:h-9 touch-manipulation bg-blue-50 dark:bg-blue-950/20 border border-blue-500/30"
-              onClick={() => {
-                setActiveTab('recovery-analysis');
-                setSidebarOpen(false);
-              }}
-            >
-              <Database className="h-4 w-4 mr-2 lg:mr-3 text-blue-600" />
-              <span className="text-blue-600 dark:text-blue-400 font-semibold">Recovery Analysis</span>
-            </Button>
-
-            <Button
-              variant={activeTab === 'data-integrity' ? 'default' : 'ghost'}
-              className="w-full justify-start text-sm lg:text-base h-10 lg:h-9 touch-manipulation"
-              onClick={() => {
-                setActiveTab('data-integrity');
-                setSidebarOpen(false);
-              }}
-            >
-              <Shield className="h-4 w-4 mr-2 lg:mr-3" />
-              Data Integrity Check
-            </Button>
-
-            <Button
-              variant={activeTab === 'drift' ? 'default' : 'ghost'}
-              className="w-full justify-start text-sm lg:text-base h-10 lg:h-9 touch-manipulation"
-              onClick={() => {
-                setActiveTab('drift');
-                setSidebarOpen(false);
-              }}
-            >
-              <TrendingUp className="h-4 w-4 mr-2 lg:mr-3" />
-              Drift Monitor
-            </Button>
-
-            <Button
-              variant={activeTab === 'recalculation' ? 'default' : 'ghost'}
-              className="w-full justify-start text-sm lg:text-base h-10 lg:h-9 touch-manipulation"
-              onClick={() => {
-                setActiveTab('recalculation');
-                setSidebarOpen(false);
-              }}
-            >
-              <FileText className="h-4 w-4 mr-2 lg:mr-3" />
-              Recalculation
-            </Button>
-
-            <Button
-              variant={activeTab === 'zone-corrections' ? 'default' : 'ghost'}
-              className="w-full justify-start text-sm lg:text-base h-10 lg:h-9 touch-manipulation"
-              onClick={() => {
-                setActiveTab('zone-corrections');
-                setSidebarOpen(false);
-              }}
-            >
-              <MapPin className="h-4 w-4 mr-2 lg:mr-3" />
-              Zone Corrections
-            </Button>
-
-            <Button
-              variant={activeTab === 'vehicle-enrichment' ? 'default' : 'ghost'}
-              className="w-full justify-start text-sm lg:text-base h-10 lg:h-9 touch-manipulation bg-green-50 dark:bg-green-950/20 border border-green-500/30"
-              onClick={() => {
-                setActiveTab('vehicle-enrichment');
-                setSidebarOpen(false);
-              }}
-            >
-              <Database className="h-4 w-4 mr-2 lg:mr-3 text-green-600" />
-              <span className="text-green-600 dark:text-green-400 font-semibold">Vehicle Enrichment</span>
-            </Button>
-
-            <Button
-              variant={activeTab === 'import' ? 'default' : 'ghost'}
-              className="w-full justify-start text-sm lg:text-base h-10 lg:h-9 touch-manipulation"
-              onClick={() => {
-                setActiveTab('import');
-                setSidebarOpen(false);
-              }}
-            >
-              <Database className="h-4 w-4 mr-2 lg:mr-3" />
-              Data Import
-            </Button>
-
-            <Button
-              variant={activeTab === 'vehicle-log-import' ? 'default' : 'ghost'}
-              className="w-full justify-start text-sm lg:text-base h-10 lg:h-9 touch-manipulation"
-              onClick={() => {
-                setActiveTab('vehicle-log-import');
-                setSidebarOpen(false);
-              }}
-            >
-              <Database className="h-4 w-4 mr-2 lg:mr-3" />
-              Vehicle Log Import
-            </Button>
-
-            <Button
-              variant={activeTab === 'leadership' ? 'default' : 'ghost'}
-              className="w-full justify-start text-sm lg:text-base h-10 lg:h-9 touch-manipulation"
-              onClick={() => {
-                setActiveTab('leadership');
-                setSidebarOpen(false);
-              }}
-            >
-              <FileText className="h-4 w-4 mr-2 lg:mr-3" />
-              Leadership Pack
-            </Button>
-
-            <Button
-              variant={activeTab === 'privacy' ? 'default' : 'ghost'}
-              className="w-full justify-start text-sm lg:text-base h-10 lg:h-9 touch-manipulation"
-              onClick={() => {
-                setActiveTab('privacy');
-                setSidebarOpen(false);
-              }}
-            >
-              <Eye className="h-4 w-4 mr-2 lg:mr-3" />
-              Privacy Controls
-            </Button>
-              </>
-            )}
 
             <div className="text-xs font-semibold text-muted-foreground px-3 py-2 mt-3 lg:mt-4">
               HELP & SUPPORT
@@ -642,15 +455,13 @@ export function AdminPortal({ onLogout }: AdminPortalProps) {
                 />
               )}
 
-              {activeTab === 'drift' && <DriftDashboard />}
-              {activeTab === 'recalculation' && <ComplianceRecalculation />}
+
 
               {/* Analytics Hub - Phase 3 Complete */}
               {activeTab === 'analytics-hub' && <AnalyticsHub />}
 
               {activeTab === 'bulk-scan-review' && <BulkScanReview />}
-              
-              {activeTab === 'vehicle-list' && <VehicleRecords />}
+
 
               {activeTab === 'incident-reports' && <IncidentReports />}
               {activeTab === 'enforcement-hub' && <EnforcementHub />}
@@ -661,37 +472,15 @@ export function AdminPortal({ onLogout }: AdminPortalProps) {
               {activeTab === 'patrol-management' && <PatrolManagement />}
               {activeTab === 'officer-welfare-hub' && <OfficerWelfareHub />}
 
+
+
+
+
+              {activeTab === 'help' && <HelpDocumentation />}
+              
               {/* Phase 4 & 5: Consolidated Hubs */}
               {activeTab === 'data-management-hub' && <DataManagementHub />}
               {activeTab === 'settings-hub' && <SettingsHub />}
-              {activeTab === 'database-diagnostic' && <DatabaseDiagnostic />}
-              {activeTab === 'emergency-recovery' && <EmergencyDataRecovery />}
-              {activeTab === 'recovery-analysis' && <DataRecoveryAnalysis />}
-
-              {activeTab === 'cross-org' && isSuperUser && (
-                <Card>
-                  <CardContent className="p-12 text-center">
-                    <Building2 className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
-                    <h3 className="text-xl font-bold mb-2">Master Cross-Org Dashboard</h3>
-                    <p className="text-muted-foreground">This page is being rebuilt from scratch...</p>
-                  </CardContent>
-                </Card>
-              )}
-              {activeTab === 'leadership' && <LeadershipPackGenerator />}
-              {activeTab === 'privacy' && <PrivacyControlsPanel />}
-
-              {activeTab === 'import' && <HistoricalImport />}
-
-              {activeTab === 'vehicle-log-import' && <VehicleLogImport />}
-
-              {activeTab === 'zone-corrections' && <ZoneCorrections />}
-
-              {activeTab === 'vehicle-enrichment' && <VehicleEnrichmentMaintenance />}
-
-              {activeTab === 'data-migration' && isMaster && <DataMigrationUtility />}
-              {activeTab === 'data-integrity' && isMaster && <DataIntegrityCheck />}
-
-              {activeTab === 'help' && <HelpDocumentation />}
             </div>
           </div>
         </div>
