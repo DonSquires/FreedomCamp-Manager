@@ -6,9 +6,29 @@
  * - PATCH (third digit): Minor amendments
  */
 
-export const APP_VERSION = '2.11.0015';
+export const APP_VERSION = '2.11.0016';
 
 export const VERSION_HISTORY = [
+  {
+    version: '2.11.0016',
+    date: '2026-02-15',
+    changes: [
+      '🐛 NEW: Bug/Issue Reporting System - Users can report bugs directly from app',
+      '✅ Floating "Report Issue" button accessible from any page',
+      '📋 Categorized reporting: Bugs, Feature Requests, Enhancements, Performance, UI/UX, Data Issues',
+      '📸 Screenshot attachments (up to 5) with preview before submission',
+      '🤖 Auto-captures system context: version, device, browser, page, network status',
+      '⚡ Console error logging for technical debugging',
+      '📊 Admin portal: Bug Reports Management page with filtering and status tracking',
+      '🎯 Severity levels: Critical, High, Medium, Low',
+      '✅ Status workflow: Submitted → Acknowledged → Investigating → In Progress → Resolved',
+      '👥 User notifications when reports are updated',
+      '📈 Statistics dashboard: Total reports, new, in progress, resolved, critical open',
+      '🔍 Advanced filtering: Search, status, type, severity',
+      '💬 Resolution notes and tracking',
+      '🔔 Admin notifications for new reports',
+    ],
+  },
   {
     version: '2.11.0015',
     date: '2026-02-15',
