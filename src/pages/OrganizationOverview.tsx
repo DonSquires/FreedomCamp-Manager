@@ -290,7 +290,7 @@ export function OrganizationOverview({ onZoneDrillDown }: { onZoneDrillDown?: (z
         name: string;
         observations: number;
         plates: Set<string>;
-        breachPlates: Set<string>;
+        breachCount: number;
         homelessPlates: Set<string>;
         lastActivity: string;
       }>();
@@ -447,28 +447,29 @@ export function OrganizationOverview({ onZoneDrillDown }: { onZoneDrillDown?: (z
   });
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 md:space-y-6 p-3 md:p-0">
       {/* Header */}
-      <div className="flex items-center justify-between flex-wrap gap-4">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 md:gap-4">
         <div>
-          <h1 className="text-3xl font-bold flex items-center gap-3 text-gray-900 dark:text-white">
-            <LayoutDashboard className="h-8 w-8 text-blue-600" />
-            Organization Overview
+          <h1 className="text-2xl md:text-3xl font-bold flex items-center gap-2 md:gap-3 text-gray-900 dark:text-white">
+            <LayoutDashboard className="h-6 w-6 md:h-8 md:w-8 text-blue-600" />
+            <span className="hidden sm:inline">Organization Overview</span>
+            <span className="sm:hidden">Dashboard</span>
           </h1>
-          <p className="text-gray-700 dark:text-gray-200 mt-1 font-semibold">
-            Executive dashboard with BI-style reporting and zone drill-down
+          <p className="text-sm md:text-base text-gray-700 dark:text-gray-200 mt-1 font-semibold">
+            Executive dashboard with BI-style reporting
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 md:gap-2 flex-wrap">
           <Select value={dateRange} onValueChange={(v) => setDateRange(v as '7' | '30' | '90')}>
-            <SelectTrigger className="w-32">
+            <SelectTrigger className="w-24 md:w-32 text-xs md:text-sm">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="7">Last 7 Days</SelectItem>
-              <SelectItem value="30">Last 30 Days</SelectItem>
-              <SelectItem value="90">Last 90 Days</SelectItem>
+              <SelectItem value="7">7 Days</SelectItem>
+              <SelectItem value="30">30 Days</SelectItem>
+              <SelectItem value="90">90 Days</SelectItem>
             </SelectContent>
           </Select>
 
@@ -476,14 +477,19 @@ export function OrganizationOverview({ onZoneDrillDown }: { onZoneDrillDown?: (z
             {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
           </Button>
 
-          <Button onClick={handleExportCSV} variant="outline" size="sm">
+          <Button onClick={handleExportCSV} variant="outline" size="sm" className="hidden sm:flex">
             <Download className="h-4 w-4 mr-2" />
             CSV
           </Button>
 
-          <Button onClick={handleExportPDF} variant="outline" size="sm">
+          <Button onClick={handleExportPDF} variant="outline" size="sm" className="hidden sm:flex">
             <FileText className="h-4 w-4 mr-2" />
             PDF
+          </Button>
+          
+          {/* Mobile Export */}
+          <Button onClick={handleExportCSV} variant="outline" size="sm" className="sm:hidden">
+            <Download className="h-4 w-4" />
           </Button>
         </div>
       </div>
@@ -504,14 +510,14 @@ export function OrganizationOverview({ onZoneDrillDown }: { onZoneDrillDown?: (z
       ) : (
         <>
           {/* KPI Cards */}
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2 md:gap-4">
             {kpis.map((kpi, index) => {
               const Icon = kpi.icon;
               const TrendIcon = kpi.trend === 'up' ? ArrowUpRight : kpi.trend === 'down' ? ArrowDownRight : Minus;
 
               return (
                 <Card key={index} className={`border-2 border-${kpi.color}-500/30 bg-gradient-to-br from-${kpi.color}-50 to-${kpi.color}-100 dark:from-${kpi.color}-950/40 dark:to-${kpi.color}-900/40`}>
-                  <CardContent className="p-4">
+                  <CardContent className="p-3 md:p-4">
                     <div className="flex items-center justify-between mb-2">
                       <div className={`h-10 w-10 rounded-full bg-${kpi.color}-600 flex items-center justify-center`}>
                         <Icon className="h-5 w-5 text-white" />
@@ -523,10 +529,10 @@ export function OrganizationOverview({ onZoneDrillDown }: { onZoneDrillDown?: (z
                         </Badge>
                       )}
                     </div>
-                    <div className={`text-xs text-${kpi.color}-700 dark:text-${kpi.color}-300 font-medium mb-1`}>
+                    <div className={`text-[10px] md:text-xs text-${kpi.color}-700 dark:text-${kpi.color}-300 font-medium mb-1 line-clamp-2`}>
                       {kpi.label}
                     </div>
-                    <div className={`text-3xl font-black text-${kpi.color}-600`}>
+                    <div className={`text-xl md:text-3xl font-black text-${kpi.color}-600`}>
                       {kpi.label.includes('Rate') ? `${kpi.value}%` : kpi.value.toLocaleString()}
                     </div>
                   </CardContent>
@@ -582,15 +588,16 @@ export function OrganizationOverview({ onZoneDrillDown }: { onZoneDrillDown?: (z
 
           {/* Zone Performance Grid */}
           <Card className="border-2">
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle className="text-lg text-gray-900 dark:text-white flex items-center gap-2">
-                  <MapPin className="h-5 w-5 text-blue-600" />
-                  Zone Performance Breakdown ({filteredZones.length})
+            <CardHeader className="p-4 md:p-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <CardTitle className="text-base md:text-lg text-gray-900 dark:text-white flex items-center gap-2">
+                  <MapPin className="h-4 w-4 md:h-5 md:w-5 text-blue-600" />
+                  <span className="hidden sm:inline">Zone Performance ({filteredZones.length})</span>
+                  <span className="sm:hidden">Zones ({filteredZones.length})</span>
                 </CardTitle>
 
                 <Select value={selectedZoneFilter} onValueChange={(v) => setSelectedZoneFilter(v as 'all' | 'high' | 'medium' | 'low')}>
-                  <SelectTrigger className="w-48">
+                  <SelectTrigger className="w-full sm:w-48 text-xs md:text-sm">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -602,56 +609,57 @@ export function OrganizationOverview({ onZoneDrillDown }: { onZoneDrillDown?: (z
                 </Select>
               </div>
             </CardHeader>
-            <CardContent>
-              <ScrollArea className="h-[600px]">
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <CardContent className="p-3 md:p-6">
+              <ScrollArea className="h-[500px] md:h-[600px]">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4 pr-2 md:pr-4">
                   {filteredZones.map((zone, index) => {
                     const performance = getPerformanceBadge(zone.compliance_rate);
 
                     return (
                       <Card
                         key={zone.zone_id}
-                        className="border-2 hover:shadow-lg transition-all cursor-pointer group"
+                        className="border-2 hover:shadow-lg transition-all cursor-pointer group active:scale-[0.98]"
                         onClick={() => onZoneDrillDown?.(zone.zone_id, zone.zone_name)}
                       >
-                        <CardContent className="p-4">
-                          <div className="flex items-start justify-between mb-3">
-                            <div className="flex-1">
-                              <div className="flex items-center gap-2 mb-2">
-                                <div className="h-8 w-8 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center shrink-0">
-                                  <span className="text-sm font-black text-blue-600">#{index + 1}</span>
+                        <CardContent className="p-3 md:p-4">
+                          <div className="flex items-start justify-between mb-2 md:mb-3">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-1.5 md:gap-2 mb-2">
+                                <div className="h-6 w-6 md:h-8 md:w-8 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center shrink-0">
+                                  <span className="text-xs md:text-sm font-black text-blue-600">#{index + 1}</span>
                                 </div>
-                                <h3 className="font-bold text-gray-900 dark:text-white truncate" title={zone.zone_name}>
+                                <h3 className="text-sm md:text-base font-bold text-gray-900 dark:text-white truncate" title={zone.zone_name}>
                                   {zone.zone_name}
                                 </h3>
                               </div>
-                              <Badge variant={performance.variant} className="font-semibold">
+                              <Badge variant={performance.variant} className="text-xs md:text-sm font-semibold">
                                 {performance.label} - {zone.compliance_rate}%
                               </Badge>
                             </div>
                             <ChevronRight className="h-5 w-5 text-gray-400 group-hover:text-blue-600 group-hover:translate-x-1 transition-all" />
                           </div>
 
-                          <div className="grid grid-cols-2 gap-3 mb-3">
-                            <div className="p-2 bg-gray-50 dark:bg-gray-900/30 rounded">
-                              <div className="text-xs text-gray-600 dark:text-gray-300 font-medium">Observations</div>
-                              <div className="text-xl font-black text-gray-900 dark:text-white">{zone.total_observations}</div>
+                          <div className="grid grid-cols-2 gap-2 md:gap-3 mb-2 md:mb-3">
+                            <div className="p-1.5 md:p-2 bg-gray-50 dark:bg-gray-900/30 rounded">
+                              <div className="text-[10px] md:text-xs text-gray-600 dark:text-gray-300 font-medium">Observations</div>
+                              <div className="text-base md:text-xl font-black text-gray-900 dark:text-white">{zone.total_observations.toLocaleString()}</div>
                             </div>
-                            <div className="p-2 bg-gray-50 dark:bg-gray-900/30 rounded">
-                              <div className="text-xs text-gray-600 dark:text-gray-300 font-medium">Vehicles</div>
-                              <div className="text-xl font-black text-gray-900 dark:text-white">{zone.unique_vehicles}</div>
+                            <div className="p-1.5 md:p-2 bg-gray-50 dark:bg-gray-900/30 rounded">
+                              <div className="text-[10px] md:text-xs text-gray-600 dark:text-gray-300 font-medium">Vehicles</div>
+                              <div className="text-base md:text-xl font-black text-gray-900 dark:text-white">{zone.unique_vehicles}</div>
                             </div>
-                            <div className="p-2 bg-red-50 dark:bg-red-950/20 rounded">
-                              <div className="text-xs text-red-700 dark:text-red-300 font-medium">Breaches</div>
-                              <div className="text-xl font-black text-red-600">{zone.breach_count}</div>
+                            <div className="p-1.5 md:p-2 bg-red-50 dark:bg-red-950/20 rounded">
+                              <div className="text-[10px] md:text-xs text-red-700 dark:text-red-300 font-medium">Breaches</div>
+                              <div className="text-base md:text-xl font-black text-red-600">{zone.breach_count}</div>
                             </div>
                             {zone.homeless_count > 0 && (
-                              <div className="p-2 bg-cyan-50 dark:bg-cyan-950/20 rounded">
-                                <div className="text-xs text-cyan-700 dark:text-cyan-300 font-medium flex items-center gap-1">
+                              <div className="p-1.5 md:p-2 bg-cyan-50 dark:bg-cyan-950/20 rounded">
+                                <div className="text-[10px] md:text-xs text-cyan-700 dark:text-cyan-300 font-medium flex items-center gap-1">
                                   <Home className="h-3 w-3" />
-                                  Homeless
+                                  <span className="hidden sm:inline">Homeless</span>
+                                  <span className="sm:hidden">FC</span>
                                 </div>
-                                <div className="text-xl font-black text-cyan-600">{zone.homeless_count}</div>
+                                <div className="text-base md:text-xl font-black text-cyan-600">{zone.homeless_count}</div>
                               </div>
                             )}
                           </div>
@@ -663,9 +671,9 @@ export function OrganizationOverview({ onZoneDrillDown }: { onZoneDrillDown?: (z
                             />
                           </div>
 
-                          <div className="mt-3 text-xs text-gray-600 dark:text-gray-300 flex items-center gap-1">
-                            <Calendar className="h-3 w-3" />
-                            Last: {format(new Date(zone.last_activity), 'MMM dd, HH:mm')}
+                          <div className="mt-2 md:mt-3 text-[10px] md:text-xs text-gray-600 dark:text-gray-300 flex items-center gap-1">
+                            <Calendar className="h-3 w-3 shrink-0" />
+                            <span className="truncate">Last: {format(new Date(zone.last_activity), 'dd MMM HH:mm')}</span>
                           </div>
                         </CardContent>
                       </Card>

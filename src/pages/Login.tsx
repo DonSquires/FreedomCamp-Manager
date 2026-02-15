@@ -12,9 +12,11 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { useAuthStore } from '@/stores/authStore';
-import { Shield, Fingerprint, Scan, AlertTriangle, Monitor } from 'lucide-react';
+import { Fingerprint, Scan, AlertTriangle, Monitor } from 'lucide-react';
 import { JDSLogo } from '@/components/layout/JDSLogo';
 import { toast } from 'sonner';
+import { APP_VERSION } from '@/constants/version';
+import ironEagleLogo from '@/../../public/iron-eagle-security-logo.jpg';
 
 import {
   isBiometricAvailable,
@@ -194,13 +196,14 @@ export function Login() {
             <JDSLogo size="xl" showShadow={true} className="mx-auto" />
           </div>
           <h1 className="text-3xl font-bold">FreedomCamp Manager</h1>
+          <p className="text-sm text-muted-foreground font-mono">v{APP_VERSION}</p>
           <p className="text-base text-muted-foreground">Patrol Operations & Enforcement</p>
         </div>
 
         <Card className="border-border">
           <CardHeader>
             <div className="flex items-center gap-2">
-              <Shield className="h-5 w-5 text-primary" />
+              <img src={ironEagleLogo} alt="Iron Eagle Security" className="h-8 w-8 rounded-full object-cover" />
               <CardTitle>Login</CardTitle>
             </div>
             <CardDescription>
