@@ -31,7 +31,7 @@ import { VehicleRegistry } from './VehicleRegistry';
 import { ZoneManagement } from './ZoneManagement';
 import { ComplianceMatrixManagement } from './ComplianceMatrixManagement';
 import { PersonRecordsManager } from '@/components/features/PersonRecordsManager';
-import { DataCleanupUtility } from './DataCleanupUtility';
+import { ComplianceRecalculation } from './DataCleanupUtility';
 import { HistoricalImport } from './HistoricalImport';
 import { toast } from 'sonner';
 
@@ -180,7 +180,7 @@ export function DataManagementHub() {
         </TabsContent>
 
         <TabsContent value="cleanup" className="mt-6">
-          <DataCleanupUtility />
+          <ComplianceRecalculation />
         </TabsContent>
       </Tabs>
     </div>
