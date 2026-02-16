@@ -6,9 +6,20 @@
  * - PATCH (third digit): Minor amendments
  */
 
-export const APP_VERSION = '2.12.0010';
+export const APP_VERSION = '2.12.0011';
 
 export const VERSION_HISTORY = [
+  {
+    version: '2.12.0011',
+    date: '2026-02-16',
+    changes: [
+      '🔧 CACHE REFRESH: Force browser reload to apply welfare monitoring fixes',
+      '✅ Confirmed async/await patterns for all Supabase RPC calls',
+      '✅ No more .catch() errors in GPS tracking',
+      '🔄 Version bump to clear cached JavaScript',
+      '📱 All welfare monitoring functions now use proper error handling',
+    ],
+  },
   {
     version: '2.12.0010',
     date: '2026-02-16',
