@@ -1,3 +1,4 @@
+
 import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -6,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { Upload, Loader2, CheckCircle2, XCircle, AlertTriangle, FileText } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { CollapsibleInstructions } from '@/components/features/CollapsibleInstructions';
 
 export function HomelessDataImport() {
   const [rawData, setRawData] = useState('');
@@ -126,14 +128,12 @@ OR pipe-separated format:
       </div>
 
       {/* Instructions */}
-      <Card className="border-blue-500/50 bg-blue-500/5">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base flex items-center gap-2">
-            <FileText className="h-4 w-4 text-blue-500" />
-            How to Use
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
+      <CollapsibleInstructions
+        title="How to Use"
+        icon={<FileText className="h-4 w-4 text-blue-500" />}
+        defaultOpen={false}
+      >
+        <div>
           <ol className="text-sm space-y-2 list-decimal list-inside">
             <li>Copy the entire homeless status table from Excel/Google Sheets (including headers)</li>
             <li>Paste it into the text area below</li>
@@ -154,8 +154,8 @@ OR pipe-separated format:
             <p className="font-semibold">Example format:</p>
             <pre className="text-[10px] overflow-x-auto">{sampleData}</pre>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </CollapsibleInstructions>
 
       {/* Input Area */}
       <Card>
@@ -203,7 +203,7 @@ OR pipe-separated format:
               Clear
             </Button>
           </div>
-        </CardContent>
+        </CardContent> {/* Added missing closing tag for CardContent */}
       </Card>
 
       {/* Results */}
@@ -328,7 +328,7 @@ OR pipe-separated format:
               </span>
             </div>
           </div>
-        </CardContent>
+        </CardContent> {/* Added missing closing tag for CardContent */}
       </Card>
     </div>
   );

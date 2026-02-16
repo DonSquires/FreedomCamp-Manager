@@ -290,12 +290,31 @@ export function ComplianceDashboard() {
 
         const enforceable = breaches?.filter(b => b.status !== 'resolved').length || 0;
 
-        // Get about to breach
+        // Get about to breach - ONLY for vehicles observed in this date range
+        const uniquePlatesInRange = new Set(observations?.map(o => o.plate_number) || []);
+        
+        if (uniquePlatesInRange.size === 0) {
+          // No observations = no vehicles to check
+          results.push({
+            zone_id: zone.id,
+            zone_name: zone.name,
+            observations: 0,
+            vehicles: 0,
+            enforceable: 0,
+            about_to_breach: 0,
+            compliance: 100,
+          });
+          continue;
+        }
+
         const { data: monthlyStays } = await supabase
           .from('vehicle_monthly_stays')
-          .select('plate_number, consecutive_nights')
+          .select('plate_number, consecutive_nights, last_observation_date')
           .eq('zone_id', zone.id)
-          .gte('consecutive_nights', 2);
+          .gte('consecutive_nights', 2)
+          .gte('last_observation_date', fromDate)
+          .lte('last_observation_date', toDate)
+          .in('plate_number', Array.from(uniquePlatesInRange));
 
         const aboutToBreach = monthlyStays?.filter(ms => {
           const hasActiveBreach = breaches?.some(b => 
