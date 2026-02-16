@@ -422,11 +422,11 @@ export function ZoomScanQueue({
         <div className="absolute right-2 top-1/2 -translate-y-1/2 flex flex-col items-center gap-3 bg-black/80 backdrop-blur-sm rounded-full px-3 py-6 shadow-lg border border-white/20 z-40">
           <button
             onClick={() => handleZoomChange(Math.min(5, zoom + 0.5))}
-            className="p-2 hover:bg-white/20 rounded-full transition-colors touch-manipulation"
+            className="p-3 hover:bg-white/20 rounded-full transition-colors touch-manipulation active:scale-95"
           >
-            <ZoomIn className="h-5 w-5 text-white shrink-0" />
+            <ZoomIn className="h-6 w-6 text-white shrink-0" />
           </button>
-          <div className="flex flex-col items-center gap-2 min-h-[200px]">
+          <div className="flex flex-col items-center gap-2 h-[250px] touch-none">
             <Slider
               value={[zoom]}
               onValueChange={([value]) => handleZoomChange(value)}
@@ -434,17 +434,17 @@ export function ZoomScanQueue({
               max={5}
               step={0.1}
               orientation="vertical"
-              className="h-full"
+              className="h-full data-[orientation=vertical]:w-2"
             />
-            <span className="text-white text-xs font-bold bg-black/50 px-2 py-1 rounded">
+            <span className="text-white text-sm font-bold bg-black/70 px-3 py-1.5 rounded-full border border-white/20 min-w-[50px] text-center">
               {zoom.toFixed(1)}x
             </span>
           </div>
           <button
             onClick={() => handleZoomChange(Math.max(1, zoom - 0.5))}
-            className="p-2 hover:bg-white/20 rounded-full transition-colors touch-manipulation"
+            className="p-3 hover:bg-white/20 rounded-full transition-colors touch-manipulation active:scale-95"
           >
-            <ZoomOut className="h-5 w-5 text-white shrink-0" />
+            <ZoomOut className="h-6 w-6 text-white shrink-0" />
           </button>
         </div>
         
