@@ -6,9 +6,20 @@
  * - PATCH (third digit): Minor amendments
  */
 
-export const APP_VERSION = '2.12.0000';
+export const APP_VERSION = '2.12.0001';
 
 export const VERSION_HISTORY = [
+  {
+    version: '2.12.0001',
+    date: '2026-02-16',
+    changes: [
+      '✅ NEW: Manual "Check for Updates" button in Field Officer Portal Settings',
+      '🔄 Officers can now manually check for updates without logging out',
+      '📱 Toast notification shows current version if already up to date',
+      '⚡ Improved update detection skips dismissed versions on auto-check',
+      '🎯 Manual checks always show update dialog even if previously dismissed',
+    ],
+  },
   {
     version: '2.12.0000',
     date: '2026-02-16',

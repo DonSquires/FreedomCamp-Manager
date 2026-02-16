@@ -29,6 +29,7 @@ import {
   Menu,
   X,
   Zap,
+  RefreshCw,
 } from 'lucide-react';
 import { JDSLogo } from '@/components/layout/JDSLogo';
 import { useAuthStore } from '@/stores/authStore';
@@ -46,6 +47,7 @@ import { OfficerWelfareWarningModal } from '@/components/features/OfficerWelfare
 import { DarkModeToggle } from '@/components/features/DarkModeToggle';
 import { NetworkStatusBar } from '@/components/features/NetworkStatusBar';
 import { KeepScreenAwake } from '@/components/features/KeepScreenAwake';
+import { UpdateManager } from '@/components/features/UpdateManager';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
 import { useOfficerWelfareMonitor } from '@/hooks/useOfficerWelfareMonitor';
@@ -96,6 +98,10 @@ export function FieldOfficerPortal({ onLogout }: FieldOfficerPortalProps) {
   const [showEditDrawer, setShowEditDrawer] = useState(false);
   const [selectedScan, setSelectedScan] = useState<SessionScan | null>(null);
   const [showReportsMenu, setShowReportsMenu] = useState(false);
+  
+  // Update check state
+  const [triggerUpdateCheck, setTriggerUpdateCheck] = useState(false);
+  const [isCheckingUpdates, setIsCheckingUpdates] = useState(false);
   
   // GPS location
   const [gpsLocation, setGpsLocation] = useState<{ lat: number; lng: number; accuracy: number } | null>(null);
@@ -496,6 +502,42 @@ export function FieldOfficerPortal({ onLogout }: FieldOfficerPortalProps) {
             </CardHeader>
             <CardContent className="space-y-6">
               <DarkModeToggle variant="full" />
+              
+              {/* Check for Updates */}
+              <div className="pt-4 border-t">
+                <h3 className="font-semibold mb-3">App Updates</h3>
+                <Button
+                  onClick={() => {
+                    setIsCheckingUpdates(true);
+                    setTriggerUpdateCheck(true);
+                  }}
+                  disabled={isCheckingUpdates}
+                  className="w-full h-14 text-base"
+                  variant="outline"
+                >
+                  {isCheckingUpdates ? (
+                    <>
+                      <Loader2 className="h-5 w-5 mr-3 animate-spin" />
+                      Checking for Updates...
+                    </>
+                  ) : (
+                    <>
+                      <RefreshCw className="h-5 w-5 mr-3" />
+                      Check for Updates
+                    </>
+                  )}
+                </Button>
+                <p className="text-xs text-muted-foreground mt-2 text-center">
+                  Current version: v{(() => {
+                    try {
+                      const { APP_VERSION } = require('@/constants/version');
+                      return APP_VERSION;
+                    } catch {
+                      return 'Unknown';
+                    }
+                  })()}
+                </p>
+              </div>
               
               <div className="pt-4 border-t">
                 <h3 className="font-semibold mb-2">User Information</h3>
@@ -1117,6 +1159,17 @@ export function FieldOfficerPortal({ onLogout }: FieldOfficerPortalProps) {
 
       {/* Keep Screen Awake */}
       <KeepScreenAwake isActive={currentView === 'scanning' || currentView === 'zoom_scan'} />
+      
+      {/* Update Manager - Manual Check */}
+      {triggerUpdateCheck && (
+        <UpdateManager
+          manualCheck={true}
+          onManualCheckComplete={() => {
+            setTriggerUpdateCheck(false);
+            setIsCheckingUpdates(false);
+          }}
+        />
+      )}
     </div>
   );
 }

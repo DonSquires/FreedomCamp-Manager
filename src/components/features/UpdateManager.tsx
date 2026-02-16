@@ -35,6 +35,8 @@ import { supabase } from '@/lib/supabase';
 
 interface UpdateManagerProps {
   onLoginComplete?: () => void;
+  manualCheck?: boolean;
+  onManualCheckComplete?: () => void;
 }
 
 interface VersionInfo {
@@ -49,7 +51,7 @@ const CURRENT_VERSION_KEY = 'app_current_version';
 const UPDATE_DISMISSED_KEY = 'update_dismissed_version';
 const ROLLBACK_AVAILABLE_KEY = 'rollback_version';
 
-export function UpdateManager({ onLoginComplete }: UpdateManagerProps) {
+export function UpdateManager({ onLoginComplete, manualCheck = false, onManualCheckComplete }: UpdateManagerProps) {
   const { user } = useAuthStore();
   const [showUpdateDialog, setShowUpdateDialog] = useState(false);
   const [showRollbackDialog, setShowRollbackDialog] = useState(false);
@@ -62,10 +64,16 @@ export function UpdateManager({ onLoginComplete }: UpdateManagerProps) {
   useEffect(() => {
     if (!user) return;
 
-    checkForUpdates();
-  }, [user]);
+    if (manualCheck) {
+      // Manual check - always show result
+      checkForUpdates(true);
+    } else {
+      // Auto check on login
+      checkForUpdates(false);
+    }
+  }, [user, manualCheck]);
 
-  const checkForUpdates = () => {
+  const checkForUpdates = (isManual = false) => {
     const storedVersion = localStorage.getItem(CURRENT_VERSION_KEY);
     const dismissedVersion = localStorage.getItem(UPDATE_DISMISSED_KEY);
     const versionHistory = getVersionHistory();
@@ -97,10 +105,11 @@ export function UpdateManager({ onLoginComplete }: UpdateManagerProps) {
           to: APP_VERSION,
         });
 
-        // Check if user already dismissed this version
-        if (dismissedVersion === APP_VERSION) {
+        // Check if user already dismissed this version (skip check if manual)
+        if (!isManual && dismissedVersion === APP_VERSION) {
           console.log('ℹ️ Update already dismissed for this version');
           onLoginComplete?.();
+          onManualCheckComplete?.();
           return;
         }
 
@@ -122,6 +131,15 @@ export function UpdateManager({ onLoginComplete }: UpdateManagerProps) {
     } else {
       // Same version
       console.log('✅ App is up to date');
+      
+      if (isManual) {
+        // Show toast for manual checks
+        toast.success('You\'re running the latest version', {
+          description: `Version ${APP_VERSION} is up to date`,
+        });
+        onManualCheckComplete?.();
+      }
+      
       onLoginComplete?.();
     }
   };
@@ -223,6 +241,7 @@ export function UpdateManager({ onLoginComplete }: UpdateManagerProps) {
     setShowUpdateDialog(false);
     setUpdateAvailable(false);
     onLoginComplete?.();
+    onManualCheckComplete?.();
   };
 
   const handleShowRollback = () => {
