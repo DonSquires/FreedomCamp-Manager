@@ -6,10 +6,10 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
-import { useAuth } from '@/stores/authStore';
+import { useAuthStore } from '@/stores/authStore';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
+
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -63,7 +63,7 @@ interface ObservationRecord {
 }
 
 export default function ObservationsReport() {
-  const { user } = useAuth();
+  const { user } = useAuthStore();
   const { organizations } = useOrganizations();
   
   // Filters
@@ -379,12 +379,10 @@ export default function ObservationsReport() {
                         <div className="flex items-center gap-2 mb-1">
                           <h3 className="text-xl font-mono font-bold">{obs.plate_number}</h3>
                           {!obs.is_compliant && (
-                            <Badge variant="destructive">BREACH</Badge>
+                            <span className="inline-flex items-center px-2 py-1 rounded text-xs font-semibold bg-red-100 text-red-800 dark:bg-red-900/20 dark:text-red-200">BREACH</span>
                           )}
                           {obs.homeless_status === 'confirmed' && (
-                            <Badge variant="secondary" className="bg-blue-100 text-blue-800">
-                              HOMELESS
-                            </Badge>
+                            <span className="inline-flex items-center px-2 py-1 rounded text-xs font-semibold bg-blue-100 text-blue-800 dark:bg-blue-900/20 dark:text-blue-200">HOMELESS</span>
                           )}
                         </div>
                         <p className="text-sm text-muted-foreground">
