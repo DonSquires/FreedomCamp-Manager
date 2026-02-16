@@ -37,6 +37,10 @@ import {
   CheckCircle2,
   Flag,
   Home,
+  Maximize,
+  Minimize,
+  ArrowLeft,
+  ArrowRight,
 } from 'lucide-react';
 import { JDSLogo } from '@/components/layout/JDSLogo';
 import { useAuthStore } from '@/stores/authStore';
@@ -120,6 +124,13 @@ export function FieldOfficerPortal({ onLogout }: FieldOfficerPortalProps) {
   // GPS location
   const [gpsLocation, setGpsLocation] = useState<{ lat: number; lng: number; accuracy: number } | null>(null);
   
+  // Fullscreen state
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  
+  // Navigation history
+  const [canGoBack, setCanGoBack] = useState(false);
+  const [canGoForward, setCanGoForward] = useState(false);
+  
   // Officer welfare monitoring
   const {
     warning: welfareWarning,
@@ -128,6 +139,77 @@ export function FieldOfficerPortal({ onLogout }: FieldOfficerPortalProps) {
     recordGPSUpdate,
     acknowledgeWarning,
   } = useOfficerWelfareMonitor();
+
+  // Auto-enter fullscreen on mount and restore preference
+  useEffect(() => {
+    const enterFullscreen = async () => {
+      try {
+        // Check if fullscreen preference is enabled
+        const fullscreenPref = localStorage.getItem('field_officer_fullscreen');
+        if (fullscreenPref !== 'false') {
+          // Default to true if not set
+          if (!document.fullscreenElement) {
+            await document.documentElement.requestFullscreen();
+            setIsFullscreen(true);
+            localStorage.setItem('field_officer_fullscreen', 'true');
+          }
+        } else {
+          setIsFullscreen(false);
+        }
+      } catch (error) {
+        console.warn('Fullscreen not supported or denied:', error);
+      }
+    };
+
+    enterFullscreen();
+
+    // Listen for fullscreen changes
+    const handleFullscreenChange = () => {
+      const isNowFullscreen = !!document.fullscreenElement;
+      setIsFullscreen(isNowFullscreen);
+      localStorage.setItem('field_officer_fullscreen', isNowFullscreen ? 'true' : 'false');
+    };
+
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  }, []);
+
+  // Toggle fullscreen
+  const toggleFullscreen = async () => {
+    try {
+      if (!document.fullscreenElement) {
+        await document.documentElement.requestFullscreen();
+      } else {
+        await document.exitFullscreen();
+      }
+    } catch (error) {
+      console.warn('Fullscreen toggle failed:', error);
+      toast.error('Fullscreen not supported on this device');
+    }
+  };
+
+  // Navigation handlers
+  const handleGoBack = () => {
+    if (window.history.length > 1) {
+      window.history.back();
+    }
+  };
+
+  const handleGoForward = () => {
+    window.history.forward();
+  };
+
+  // Monitor navigation state
+  useEffect(() => {
+    const updateNavState = () => {
+      setCanGoBack(window.history.length > 1);
+      setCanGoForward(false); // Browser doesn't expose forward history length
+    };
+
+    updateNavState();
+    window.addEventListener('popstate', updateNavState);
+    return () => window.removeEventListener('popstate', updateNavState);
+  }, []);
 
   // Check online status
   useEffect(() => {
@@ -676,6 +758,35 @@ export function FieldOfficerPortal({ onLogout }: FieldOfficerPortalProps) {
               <DarkModeToggle variant="full" />
               
               {/* Check for Updates */}
+              {/* Fullscreen Toggle */}
+              <div className="pt-4 border-t">
+                <h3 className="font-semibold mb-3">Display Settings</h3>
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between p-4 border rounded-lg">
+                    <div className="flex items-center gap-3">
+                      {isFullscreen ? (
+                        <Minimize className="h-5 w-5 text-primary" />
+                      ) : (
+                        <Maximize className="h-5 w-5 text-muted-foreground" />
+                      )}
+                      <div>
+                        <p className="font-medium">Fullscreen Mode</p>
+                        <p className="text-xs text-muted-foreground">
+                          {isFullscreen ? 'App in fullscreen' : 'Exit for normal view'}
+                        </p>
+                      </div>
+                    </div>
+                    <Button
+                      variant={isFullscreen ? "default" : "outline"}
+                      size="sm"
+                      onClick={toggleFullscreen}
+                    >
+                      {isFullscreen ? 'Exit' : 'Enter'}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+              
               <div className="pt-4 border-t">
                 <h3 className="font-semibold mb-3">App Updates</h3>
                 <Button
@@ -1129,11 +1240,42 @@ export function FieldOfficerPortal({ onLogout }: FieldOfficerPortalProps) {
             {/* Mobile Header */}
             <div className="border-b bg-background/95 backdrop-blur-sm">
               <div className="flex items-center justify-between p-4">
-                <Button variant="ghost" size="icon" onClick={() => setSidebarOpen(true)}>
-                  <Menu className="h-6 w-6" />
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button variant="ghost" size="icon" onClick={() => setSidebarOpen(true)}>
+                    <Menu className="h-6 w-6" />
+                  </Button>
+                  {/* Navigation Buttons */}
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    onClick={handleGoBack}
+                    disabled={!canGoBack}
+                    className="h-9 w-9"
+                  >
+                    <ArrowLeft className="h-5 w-5" />
+                  </Button>
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    onClick={handleGoForward}
+                    className="h-9 w-9"
+                  >
+                    <ArrowRight className="h-5 w-5" />
+                  </Button>
+                </div>
                 <h1 className="text-lg font-bold">Field Portal</h1>
-                <div className="w-10" />
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  onClick={toggleFullscreen}
+                  className="h-9 w-9"
+                >
+                  {isFullscreen ? (
+                    <Minimize className="h-5 w-5" />
+                  ) : (
+                    <Maximize className="h-5 w-5" />
+                  )}
+                </Button>
               </div>
             </div>
           </>

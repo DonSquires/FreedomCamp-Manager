@@ -6,9 +6,21 @@
  * - PATCH (third digit): Minor amendments
  */
 
-export const APP_VERSION = '2.12.0014';
+export const APP_VERSION = '2.12.0015';
 
 export const VERSION_HISTORY = [
+  {
+    version: '2.12.0015',
+    date: '2026-02-16',
+    changes: [
+      '🗺️ ENHANCED: Zone Correction now uses strict GPS geofence matching',
+      '✅ Observations outside all geofences moved to "Other Location" zone',
+      '🎯 Auto-creates "Other Location" zone per organization if needed',
+      '📊 Reports count of observations moved to Other Location',
+      '🔍 Improved accuracy: Polygon geofences checked first, then point+radius',
+      '⚠️ Excludes "Other Location" zone from geofence matching logic',
+    ],
+  },
   {
     version: '2.12.0014',
     date: '2026-02-16',

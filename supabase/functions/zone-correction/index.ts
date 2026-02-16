@@ -2,7 +2,8 @@
  * ZONE CORRECTION - BATCH PROCESSOR
  * 
  * Processes up to 300 observations at a time
- * Uses GPS coordinates to find correct zones
+ * Uses GPS coordinates to find correct zones via geofence matching
+ * If no geofence matches, moves to "Other Location" zone
  * Frontend handles pagination and progress tracking
  */
 
@@ -86,6 +87,8 @@ serve(async (req) => {
     console.log(`📍 Loaded ${zones?.length || 0} active zones`);
 
     let corrected = 0;
+    let movedToOther = 0;
+    const otherLocationZones = new Map<string, any>();
 
     // Process each observation
     for (const obs of observations) {
@@ -96,33 +99,90 @@ serve(async (req) => {
         obs.organization_id
       );
 
+      let targetZoneId: string;
+      let targetZoneName: string;
+
       if (!correctZone) {
-        console.log(`⚠️ No zone found for GPS: ${obs.observation_id}`);
-        continue;
+        // GPS doesn't match any geofence - move to "Other Location"
+        console.log(`⚠️ No geofence match for GPS (${obs.gps_latitude}, ${obs.gps_longitude}): ${obs.observation_id}`);
+        
+        // Get or create "Other Location" zone for this organization
+        let otherZone = otherLocationZones.get(obs.organization_id);
+        
+        if (!otherZone) {
+          // Try to find existing "Other Location" zone
+          const { data: existingOther } = await supabaseAdmin
+            .from('zones')
+            .select('id, name')
+            .eq('organization_id', obs.organization_id)
+            .ilike('name', 'other location')
+            .eq('is_active', true)
+            .single();
+          
+          if (existingOther) {
+            otherZone = existingOther;
+            otherLocationZones.set(obs.organization_id, otherZone);
+            console.log(`📍 Using existing Other Location zone: ${otherZone.id}`);
+          } else {
+            // Create "Other Location" zone
+            const { data: newOther, error: createError } = await supabaseAdmin
+              .from('zones')
+              .insert({
+                organization_id: obs.organization_id,
+                name: 'Other Location',
+                description: 'Auto-created zone for observations outside defined geofences',
+                zone_type: 'other',
+                is_active: true,
+                self_contained_required: false,
+                nights_per_month: 0,
+                max_consecutive_nights: 0,
+                day_visit_only: false,
+              })
+              .select('id, name')
+              .single();
+            
+            if (createError) {
+              console.error(`❌ Failed to create Other Location zone:`, createError.message);
+              continue;
+            }
+            
+            otherZone = newOther;
+            otherLocationZones.set(obs.organization_id, otherZone);
+            console.log(`✅ Created Other Location zone: ${otherZone.id}`);
+          }
+        }
+        
+        targetZoneId = otherZone.id;
+        targetZoneName = otherZone.name;
+        movedToOther++;
+      } else {
+        targetZoneId = correctZone.id;
+        targetZoneName = correctZone.name;
       }
 
-      // Update if different
-      if (correctZone.id !== obs.zone_id) {
+      // Update if different from current zone
+      if (targetZoneId !== obs.zone_id) {
         const { error: updateError } = await supabaseAdmin
           .from('vehicle_observations_v2')
-          .update({ zone_id: correctZone.id })
+          .update({ zone_id: targetZoneId })
           .eq('observation_id', obs.observation_id);
 
         if (updateError) {
           console.error(`❌ Failed to update ${obs.observation_id}:`, updateError.message);
         } else {
           corrected++;
-          console.log(`✅ Corrected: ${obs.plate_number} → ${correctZone.name}`);
+          console.log(`✅ Corrected: ${obs.plate_number} → ${targetZoneName}`);
         }
       }
     }
 
-    console.log(`✅ Batch complete: ${observations.length} processed, ${corrected} corrected`);
+    console.log(`✅ Batch complete: ${observations.length} processed, ${corrected} corrected (${movedToOther} to Other Location)`);
 
     return new Response(
       JSON.stringify({
         processed: observations.length,
         corrected,
+        movedToOther,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
@@ -137,27 +197,40 @@ serve(async (req) => {
 });
 
 /**
- * Find zone by GPS coordinates using point-in-polygon or distance
+ * Find zone by GPS coordinates using geofence matching
+ * Priority: 1) Polygon geofence, 2) Point + radius (100m)
+ * Returns null if no geofence matches (observation should go to "Other Location")
  */
 function findZoneByGPS(lat: number, lng: number, zones: any[], organizationId: string): any | null {
-  const orgZones = zones.filter(z => z.organization_id === organizationId);
+  const orgZones = zones.filter(z => 
+    z.organization_id === organizationId && 
+    z.name?.toLowerCase() !== 'other location' // Exclude "Other Location" from geofence matching
+  );
 
+  // First pass: Check polygon geofences (most accurate)
   for (const zone of orgZones) {
     if (zone.geometry && zone.geometry.type === 'Polygon') {
       const coordinates = zone.geometry.coordinates[0];
       if (isPointInPolygon(lat, lng, coordinates)) {
+        console.log(`✅ GPS matches polygon geofence: ${zone.name}`);
         return zone;
       }
     }
-    
-    if (zone.location_lat && zone.location_lng) {
+  }
+  
+  // Second pass: Check point + radius (100m) for zones without polygons
+  for (const zone of orgZones) {
+    if (zone.location_lat && zone.location_lng && !zone.geometry) {
       const distance = calculateDistance(lat, lng, zone.location_lat, zone.location_lng);
       if (distance <= 100) {
+        console.log(`✅ GPS within 100m of zone point: ${zone.name} (${distance.toFixed(0)}m)`);
         return zone;
       }
     }
   }
 
+  // No geofence match - observation should go to "Other Location"
+  console.log(`⚠️ GPS (${lat}, ${lng}) does not match any geofence`);
   return null;
 }
 
