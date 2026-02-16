@@ -6,9 +6,29 @@
  * - PATCH (third digit): Minor amendments
  */
 
-export const APP_VERSION = '2.11.0019';
+export const APP_VERSION = '2.12.0000';
 
 export const VERSION_HISTORY = [
+  {
+    version: '2.12.0000',
+    date: '2026-02-16',
+    changes: [
+      '🚗 NEW: MotorWeb Vehicle Enrichment - Enrich canonical records with NZ Vehicle Registry data',
+      '✅ Vehicle Evidence Report now includes "Enrich from MotorWeb" button',
+      '📊 Auto-fills make, model, year, color, owner details from authoritative registry',
+      '🔍 Improved evidence quality for court-ready infringement reports',
+      '🎯 Railway proxy updated to support both NZSCV and MotorWeb APIs',
+      '📸 ENHANCED: Zoom Scan Queue with vertical zoom slider (1.0x - 5.0x)',
+      '✅ Touch-optimized zoom controls - slide up to zoom in, down to zoom out',
+      '📱 Larger touch targets and better visual feedback on mobile',
+      '⚡ Photo capture animation - fancy slide-left effect confirms image captured',
+      '🔒 FIXED: Safety alerts now show full-screen modal requiring acknowledgement',
+      '💬 FIXED: "Advise Owner" button now works for flagged vehicles',
+      '📸 FIXED: "Evidence" button now navigates to Vehicle Evidence Report',
+      '🎨 Improved UI/UX with larger capture button and clearer status indicators',
+      '💾 Zoom level persists in localStorage across sessions',
+    ],
+  },
   {
     version: '2.11.0019',
     date: '2026-02-15',

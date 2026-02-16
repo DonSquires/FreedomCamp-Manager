@@ -8,11 +8,20 @@ import { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Slider } from '@/components/ui/slider';
-import { Camera, X, Loader2, ZoomIn, ZoomOut } from 'lucide-react';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Camera, X, Loader2, ZoomIn, ZoomOut, AlertTriangle, Shield, FileText } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
 import { playSounds } from '@/lib/sounds';
 import { cn } from '@/lib/utils';
+import { useNavigate } from 'react-router-dom';
 
 interface QueueItem {
   id: string;
@@ -43,6 +52,7 @@ export function ZoomScanQueue({
   enforcementWorkflow,
   onCancel,
 }: ZoomScanQueueProps) {
+  const navigate = useNavigate();
   const [queue, setQueue] = useState<QueueItem[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [cameraReady, setCameraReady] = useState(false);
@@ -50,6 +60,8 @@ export function ZoomScanQueue({
     const saved = localStorage.getItem('zoom-camera-zoom-level');
     return saved ? parseFloat(saved) : 1.0;
   });
+  const [captureAnimation, setCaptureAnimation] = useState(false);
+  const [safetyAlertItem, setSafetyAlertItem] = useState<QueueItem | null>(null);
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -232,11 +244,20 @@ export function ZoomScanQueue({
         observationId: scanResult.observation_id,
       };
 
+      // Trigger capture animation
+      setCaptureAnimation(true);
+      setTimeout(() => setCaptureAnimation(false), 600);
+
       setQueue(prev => {
         const updated = [newItem, ...prev];
         localStorage.setItem(`zoom-queue-${zoneId}`, JSON.stringify(updated));
         return updated;
       });
+
+      // If flagged/safety concern, show full-screen modal immediately
+      if (status === 'breach' && scanResult.is_flagged) {
+        setSafetyAlertItem(newItem);
+      }
 
       // Auto-dismiss compliant after 10s
       if (status === 'compliant') {
@@ -278,7 +299,6 @@ export function ZoomScanQueue({
   };
 
   const handleAdviseOwner = async (item: QueueItem) => {
-    // Record breach advisory (verbal warning given by officer)
     toast.info('Recording breach advisory - admin will review for official enforcement');
     
     try {
@@ -304,13 +324,29 @@ export function ZoomScanQueue({
       playSounds.processingComplete();
       toast.success('Breach advisory recorded - vehicle owner has been notified');
       
-      // Remove from queue after recording advisory
+      // Remove from queue and close modal
       handleDismiss(item.id);
+      setSafetyAlertItem(null);
       
     } catch (error: any) {
       console.error('Failed to record breach advisory:', error);
       toast.error('Failed to record advisory: ' + error.message);
     }
+  };
+
+  const handleViewEvidence = (item: QueueItem) => {
+    // Navigate to vehicle evidence report page
+    toast.info('Opening evidence collection...');
+    // Store the plate number for the evidence report
+    sessionStorage.setItem('evidence-plate-number', item.plateNumber);
+    navigate('/vehicle-evidence-report');
+  };
+
+  const handleAcknowledgeSafety = () => {
+    if (!safetyAlertItem) return;
+    playSounds.processingComplete();
+    toast.success('Safety alert acknowledged');
+    setSafetyAlertItem(null);
   };
 
   const handleExit = () => {
@@ -393,7 +429,12 @@ export function ZoomScanQueue({
                       )
                     )}
                     {(item.status === 'breach' || item.status === 'at_risk') && (
-                      <Button size="sm" variant="outline" className="h-8 text-xs">
+                      <Button 
+                        size="sm" 
+                        variant="outline" 
+                        className="h-8 text-xs"
+                        onClick={() => handleViewEvidence(item)}
+                      >
                         📸 Evidence
                       </Button>
                     )}
@@ -417,6 +458,11 @@ export function ZoomScanQueue({
       <div className="flex-1 relative overflow-hidden">
         <video ref={videoRef} autoPlay playsInline muted className="absolute inset-0 w-full h-full object-cover" />
         <canvas ref={canvasRef} className="hidden" />
+        
+        {/* Capture Animation - Slide Left */}
+        {captureAnimation && (
+          <div className="absolute inset-0 bg-white animate-slide-left pointer-events-none z-30" />
+        )}
         
         {/* Zoom Controls - Right Side Vertical Slider */}
         <div className="absolute right-2 top-1/2 -translate-y-1/2 flex flex-col items-center gap-3 bg-black/80 backdrop-blur-sm rounded-full px-3 py-6 shadow-lg border border-white/20 z-40">
@@ -491,6 +537,88 @@ export function ZoomScanQueue({
           </div>
         )}
       </div>
+
+      {/* Safety Alert Modal - Full Screen */}
+      <Dialog open={!!safetyAlertItem} onOpenChange={() => setSafetyAlertItem(null)}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-3 text-2xl">
+              <AlertTriangle className="h-8 w-8 text-red-600 animate-pulse" />
+              SAFETY ALERT - FLAGGED VEHICLE
+            </DialogTitle>
+            <DialogDescription className="text-base">
+              This vehicle has been flagged for safety concerns. Please exercise caution.
+            </DialogDescription>
+          </DialogHeader>
+
+          {safetyAlertItem && (
+            <div className="space-y-4">
+              {/* Vehicle Photo */}
+              {safetyAlertItem.photoUrl && (
+                <div className="flex justify-center">
+                  <img 
+                    src={safetyAlertItem.photoUrl} 
+                    alt={safetyAlertItem.plateNumber}
+                    className="w-64 h-40 object-cover rounded-lg border-4 border-red-500"
+                  />
+                </div>
+              )}
+
+              {/* Vehicle Details */}
+              <div className="bg-red-50 dark:bg-red-950/30 p-4 rounded-lg border-2 border-red-300 dark:border-red-700">
+                <div className="flex items-center gap-2 mb-3">
+                  <Shield className="h-5 w-5 text-red-600" />
+                  <h3 className="font-bold text-xl">{safetyAlertItem.plateNumber}</h3>
+                </div>
+                
+                {safetyAlertItem.vehicleMake && (
+                  <p className="text-sm mb-2">
+                    <strong>Vehicle:</strong> {safetyAlertItem.vehicleMake} {safetyAlertItem.vehicleModel} ({safetyAlertItem.vehicleColor})
+                  </p>
+                )}
+
+                <div className="bg-white dark:bg-gray-900 p-3 rounded border border-red-200 dark:border-red-800">
+                  <p className="text-sm font-semibold mb-1 text-red-800 dark:text-red-200">Safety Concerns:</p>
+                  <p className="text-sm whitespace-pre-wrap">{safetyAlertItem.complianceDetails}</p>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex gap-3">
+                {enforcementWorkflow === 'admin_first' && (
+                  <>
+                    <Button 
+                      variant="secondary"
+                      className="flex-1 bg-orange-100 hover:bg-orange-200 text-orange-900 border-orange-300 dark:bg-orange-950/30 dark:hover:bg-orange-900/40 dark:text-orange-100 dark:border-orange-700"
+                      onClick={() => handleAdviseOwner(safetyAlertItem)}
+                    >
+                      💬 Advise Owner
+                    </Button>
+                    <Button 
+                      variant="outline"
+                      className="flex-1"
+                      onClick={() => handleViewEvidence(safetyAlertItem)}
+                    >
+                      <FileText className="h-4 w-4 mr-2" />
+                      Collect Evidence
+                    </Button>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button 
+              onClick={handleAcknowledgeSafety}
+              className="w-full bg-red-600 hover:bg-red-700 text-white text-lg py-6"
+            >
+              <Shield className="h-5 w-5 mr-2" />
+              I Acknowledge This Safety Alert
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
