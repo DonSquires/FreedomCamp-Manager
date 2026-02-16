@@ -116,10 +116,13 @@ Deno.serve(async (req) => {
     const normalizedPlate = scanData.plateNumber.toUpperCase().trim().replace(/[^A-Z0-9]/g, '');
     console.log('🔤 Normalized plate:', normalizedPlate);
 
-    // AUTOMATIC ZONE DETECTION: Match GPS to geofences
-    let finalZoneId = scanData.zoneId;
-    if (scanData.gpsLocation && scanData.gpsLocation.lat && scanData.gpsLocation.lng) {
-      console.log('📍 GPS location detected - checking geofence match...');
+    // AUTOMATIC ZONE DETECTION: Match GPS to geofences (ALWAYS use GPS if available)
+    let finalZoneId = scanData.zoneId; // Fallback to manual selection
+    let zoneAssignmentMethod = 'manual_selection';
+    
+    if (scanData.gpsLocation && scanData.gpsLocation.lat && scanData.gpsLocation.lng && scanData.gpsLocation.accuracy <= 100) {
+      console.log('📍 GPS location detected (accuracy: ' + scanData.gpsLocation.accuracy + 'm) - FORCING geofence match...');
+      zoneAssignmentMethod = 'gps_geofence';
       
       // Query all active zones with geofences for this organization
       const { data: zones, error: zonesError } = await supabaseAdmin
@@ -214,12 +217,23 @@ Deno.serve(async (req) => {
         
         // Use matched zone if found
         if (matchedZoneId) {
+          if (matchedZoneId !== scanData.zoneId) {
+            console.log(`🔄 GPS-based zone correction: ${scanData.zoneId} → ${matchedZoneId}`);
+          }
           finalZoneId = matchedZoneId;
-          console.log(`🎯 Final zone assignment: ${finalZoneId}`);
+          console.log(`🎯 Final zone assignment (GPS-based): ${finalZoneId}`);
+        } else {
+          console.log('⚠️ GPS provided but no geofence match - falling back to manual selection');
+          zoneAssignmentMethod = 'manual_fallback';
         }
       }
     } else {
-      console.log('⚠️ No GPS location - using manually selected zone');
+      if (!scanData.gpsLocation || !scanData.gpsLocation.lat || !scanData.gpsLocation.lng) {
+        console.log('⚠️ No GPS location provided - using manually selected zone');
+      } else {
+        console.log('⚠️ GPS accuracy too poor (>' + scanData.gpsLocation.accuracy + 'm) - using manually selected zone');
+      }
+      zoneAssignmentMethod = 'no_gps_or_poor_accuracy';
     }
 
     // Helper function: Calculate distance between two GPS points (meters)
@@ -318,6 +332,8 @@ Deno.serve(async (req) => {
 
     // STEP 3: Create vehicle observation v2 (auto-populated by trigger)
     console.log('📝 Step 3: Create observation v2...');
+    console.log('📍 Zone assignment method:', zoneAssignmentMethod);
+    console.log('📍 Final zone ID:', finalZoneId);
     
     const observationSelfContained = scanData.isSelfContained || scanData.hasGreenSticker || scanData.hasBlueSticker || false;
     
