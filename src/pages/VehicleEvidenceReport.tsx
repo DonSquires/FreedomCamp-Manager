@@ -43,6 +43,7 @@ import {
   Shield,
   Eye,
   Printer,
+  Sparkles,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
@@ -109,6 +110,7 @@ export function VehicleEvidenceReport() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
   const [maxObservations, setMaxObservations] = useState<number>(10);
+  const [isEnriching, setIsEnriching] = useState(false);
 
   const handleSearch = async () => {
     if (!searchPlate.trim()) {
@@ -202,6 +204,63 @@ export function VehicleEvidenceReport() {
       toast.error('Failed to search vehicle: ' + error.message);
     } finally {
       setIsSearching(false);
+    }
+  };
+
+  const handleEnrichFromMotorWeb = async () => {
+    if (!vehicleData) {
+      toast.error('No vehicle loaded');
+      return;
+    }
+
+    setIsEnriching(true);
+    try {
+      console.log('🔍 Enriching vehicle from MotorWeb:', vehicleData.plate_number);
+
+      const { data, error } = await supabase.functions.invoke('enrich-from-motorweb', {
+        body: {
+          plateNumber: vehicleData.plate_number,
+          specificReason: 'Freedom Camping Compliance Evidence Collection',
+        },
+      });
+
+      if (error) {
+        console.error('MotorWeb enrichment error:', error);
+        throw error;
+      }
+
+      if (data?.success) {
+        console.log('✅ Vehicle enriched successfully:', data);
+
+        // Update local state with enriched data
+        setVehicleData({
+          ...vehicleData,
+          vehicle_make: data.canonical_record.vehicle_make || vehicleData.vehicle_make,
+          vehicle_model: data.canonical_record.vehicle_model || vehicleData.vehicle_model,
+          vehicle_year: data.canonical_record.vehicle_year || vehicleData.vehicle_year,
+          vehicle_color: data.canonical_record.vehicle_color || vehicleData.vehicle_color,
+        });
+
+        toast.success('Vehicle data enriched from MotorWeb Registry!', {
+          duration: 5000,
+          description: `Updated: ${[
+            data.vehicle_data?.vehicle_make && 'Make',
+            data.vehicle_data?.vehicle_model && 'Model',
+            data.vehicle_data?.vehicle_year && 'Year',
+            data.vehicle_data?.vehicle_color && 'Color',
+            data.owner_data?.owner_first_name && 'Owner',
+          ].filter(Boolean).join(', ')}`,
+        });
+      } else {
+        toast.warning('No new data available from MotorWeb');
+      }
+    } catch (error: any) {
+      console.error('MotorWeb enrichment failed:', error);
+      toast.error('Failed to enrich vehicle data: ' + error.message, {
+        duration: 5000,
+      });
+    } finally {
+      setIsEnriching(false);
     }
   };
 
@@ -461,10 +520,31 @@ export function VehicleEvidenceReport() {
           <>
             <Card className="border-2 border-primary">
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Car className="h-6 w-6 text-primary" />
-                  Vehicle Information
-                </CardTitle>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="flex items-center gap-2">
+                    <Car className="h-6 w-6 text-primary" />
+                    Vehicle Information
+                  </CardTitle>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleEnrichFromMotorWeb}
+                    disabled={isEnriching}
+                    className="gap-2"
+                  >
+                    {isEnriching ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Enriching...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="h-4 w-4" />
+                        Enrich from MotorWeb
+                      </>
+                    )}
+                  </Button>
+                </div>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="flex items-start gap-6">
