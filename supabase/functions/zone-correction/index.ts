@@ -95,12 +95,19 @@ serve(async (req) => {
     const zoneNameMap = new Map<string, string>();
     zones?.forEach(z => zoneNameMap.set(z.id, z.name));
 
+    console.log(`\n🔄 Starting zone correction for ${observations.length} observations...\n`);
+
     // Process each observation
     for (const obs of observations) {
+      console.log(`\n📋 Processing observation ${obs.observation_id}:`);
+      console.log(`   Plate: ${obs.plate_number}`);
+      console.log(`   Current Zone: ${zoneNameMap.get(obs.zone_id) || 'Unknown'} (${obs.zone_id})`);
+      console.log(`   GPS: (${obs.gps_latitude.toFixed(6)}, ${obs.gps_longitude.toFixed(6)}) ±${obs.gps_accuracy}m`);
       // Get current zone name
       let currentZoneName = zoneNameMap.get(obs.zone_id) || 'Unknown Zone';
       
       // Find correct zone based on GPS coordinates
+      console.log(`\n   🗺️ Finding correct zone via GPS geofencing...`);
       const correctZone = findZoneByGPS(
         obs.gps_latitude,
         obs.gps_longitude,
@@ -113,7 +120,7 @@ serve(async (req) => {
 
       if (!correctZone) {
         // GPS doesn't match any geofence - move to "Other Location"
-        console.log(`⚠️ No geofence match for GPS (${obs.gps_latitude}, ${obs.gps_longitude}): ${obs.observation_id}`);
+        console.log(`\n   ⚠️ No geofence match - assigning to 'Other Location'`);
         
         // Get or create "Other Location" zone for this organization
         let otherZone = otherLocationZones.get(obs.organization_id);
@@ -173,13 +180,15 @@ serve(async (req) => {
 
       // Update if different from current zone
       if (targetZoneId !== obs.zone_id) {
+        console.log(`\n   🔄 Updating zone: ${currentZoneName} → ${targetZoneName}`);
+        
         const { error: updateError } = await supabaseAdmin
           .from('vehicle_observations_v2')
           .update({ zone_id: targetZoneId })
           .eq('observation_id', obs.observation_id);
 
         if (updateError) {
-          console.error(`❌ Failed to update ${obs.observation_id}:`, updateError.message);
+          console.error(`   ❌ Update failed:`, updateError.message);
         } else {
           corrected++;
           corrections.push({
@@ -190,8 +199,10 @@ serve(async (req) => {
             recorded_at: obs.recorded_at,
             gps_coordinates: `${obs.gps_latitude.toFixed(6)}, ${obs.gps_longitude.toFixed(6)}`
           });
-          console.log(`✅ Corrected: ${obs.plate_number} → ${currentZoneName} to ${targetZoneName}`);
+          console.log(`   ✅ Successfully updated`);
         }
+      } else {
+        console.log(`\n   ⏭️ Already in correct zone - no update needed`);
       }
     }
 
@@ -222,18 +233,32 @@ serve(async (req) => {
  * Returns null if no geofence matches (observation should go to "Other Location")
  */
 function findZoneByGPS(lat: number, lng: number, zones: any[], organizationId: string): any | null {
+  // Validate GPS coordinates
+  if (!lat || !lng || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+    console.warn(`⚠️ Invalid GPS coordinates: (${lat}, ${lng})`);
+    return null;
+  }
+
+  // Filter organization zones, excluding "Other Location" zones
   const orgZones = zones.filter(z => 
     z.organization_id === organizationId && 
-    z.name?.toLowerCase() !== 'other location' // Exclude "Other Location" from geofence matching
+    z.zone_type !== 'other' && // Exclude by zone_type (more reliable)
+    !z.name?.toLowerCase().includes('other location') // Also exclude by name (backup)
   );
+
+  console.log(`📍 Testing GPS (${lat.toFixed(6)}, ${lng.toFixed(6)}) against ${orgZones.length} zones...`);
 
   // First pass: Check polygon geofences (most accurate)
   for (const zone of orgZones) {
     if (zone.geometry && zone.geometry.type === 'Polygon') {
       const coordinates = zone.geometry.coordinates[0];
+      console.log(`  🔍 Checking polygon geofence: ${zone.name} (${coordinates.length} points)`);
+      
       if (isPointInPolygon(lat, lng, coordinates)) {
-        console.log(`✅ GPS matches polygon geofence: ${zone.name}`);
+        console.log(`  ✅ GPS matches polygon geofence: ${zone.name}`);
         return zone;
+      } else {
+        console.log(`  ❌ GPS outside polygon: ${zone.name}`);
       }
     }
   }
@@ -242,15 +267,20 @@ function findZoneByGPS(lat: number, lng: number, zones: any[], organizationId: s
   for (const zone of orgZones) {
     if (zone.location_lat && zone.location_lng && !zone.geometry) {
       const distance = calculateDistance(lat, lng, zone.location_lat, zone.location_lng);
+      console.log(`  🔍 Checking point radius: ${zone.name} (distance: ${distance.toFixed(0)}m)`);
+      
       if (distance <= 100) {
-        console.log(`✅ GPS within 100m of zone point: ${zone.name} (${distance.toFixed(0)}m)`);
+        console.log(`  ✅ GPS within 100m of zone point: ${zone.name}`);
         return zone;
+      } else {
+        console.log(`  ❌ GPS too far from zone: ${zone.name} (${distance.toFixed(0)}m > 100m)`);
       }
     }
   }
 
   // No geofence match - observation should go to "Other Location"
-  console.log(`⚠️ GPS (${lat}, ${lng}) does not match any geofence`);
+  console.log(`⚠️ No geofence match for GPS (${lat.toFixed(6)}, ${lng.toFixed(6)})`);
+  console.log(`   Tested ${orgZones.length} zones - none matched`);
   return null;
 }
 
