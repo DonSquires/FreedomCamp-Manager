@@ -596,7 +596,7 @@ export function ZoomScanQueue({
         )}
         
         {/* Zone Info Header */}
-        <div className="absolute top-4 left-4 right-20 bg-black/70 backdrop-blur-md rounded-lg p-3 border border-white/30 z-40">
+        <div className="absolute top-4 left-4 bg-black/50 backdrop-blur-md rounded-lg p-3 border border-white/20 z-40">
           <div className="space-y-1">
             <p className="text-white font-bold text-base">{zoneName}</p>
             <div className="flex items-center gap-3 text-white/80 text-xs">
