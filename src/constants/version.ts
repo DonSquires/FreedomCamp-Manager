@@ -6,9 +6,57 @@
  * - PATCH (third digit): Minor amendments
  */
 
-export const APP_VERSION = '2.12.0001';
+export const APP_VERSION = '2.12.0005';
 
 export const VERSION_HISTORY = [
+  {
+    version: '2.12.0005',
+    date: '2026-02-16',
+    changes: [
+      '🔧 FIXED: Scan history now loads from database - no more "No scans yet"',
+      '📊 Recent scans automatically pull from last 24 hours of observations',
+      '📍 NEW: Zone location displayed at top of zoom scan camera',
+      '🕒 NEW: Current date and time shown on zoom scan screen',
+      '🎨 IMPROVED: Zoom slider now 50% opaque for better visibility',
+      '✅ Scans persist properly and appear immediately in history tab',
+      '🔄 Auto-refresh every 30 seconds keeps history up to date',
+    ],
+  },
+  {
+    version: '2.12.0004',
+    date: '2026-02-16',
+    changes: [
+      '🔍 ENHANCED: Queue notifications now clickable - tap to view full breach details',
+      '📋 Full-screen detail modal shows complete compliance information',
+      '⚠️ Clearer breach explanations with specific violation details',
+      '💡 Officer guidance section with actionable next steps',
+      '🎯 Visual distinction between BREACH (red) and AT RISK (yellow) items',
+      '✅ Timestamp display shows when issue was detected',
+      '📱 Touch-optimized cards with hover/active states for better mobile UX',
+    ],
+  },
+  {
+    version: '2.12.0003',
+    date: '2026-02-16',
+    changes: [
+      '🔒 FIXED: Removed non-functional Evidence button from field officer queue',
+      '✅ SIMPLIFIED: Flagged vehicle alerts now just require acknowledgement',
+      '🚀 Officer can continue scanning immediately after acknowledging safety alert',
+      '📋 Flagged alerts remain in queue for reference after acknowledgement',
+      '⚠️ Clearer safety notice explaining officer precautions',
+    ],
+  },
+  {
+    version: '2.12.0002',
+    date: '2026-02-16',
+    changes: [
+      '🔦 NEW: Torch/Flashlight control on Zoom Scan screen',
+      '💡 Illuminate license plates in low-light conditions',
+      '✨ Visual feedback - torch button glows yellow when active',
+      '📱 Automatic detection of torch capability on device',
+      '🎯 Positioned in top-right corner for easy access',
+    ],
+  },
   {
     version: '2.12.0001',
     date: '2026-02-16',

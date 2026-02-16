@@ -90,6 +90,7 @@ export function FieldOfficerPortal({ onLogout }: FieldOfficerPortalProps) {
   
   // Session scans
   const [sessionScans, setSessionScans] = useState<SessionScan[]>([]);
+  const [sessionScansLoading, setSessionScansLoading] = useState(true);
   
   // Modal states
   const [showIncidentForm, setShowIncidentForm] = useState(false);
@@ -212,6 +213,74 @@ export function FieldOfficerPortal({ onLogout }: FieldOfficerPortalProps) {
 
     return () => navigator.geolocation.clearWatch(watchId);
   }, [recordGPSUpdate]);
+
+  // Load session scans on mount
+  useEffect(() => {
+    const loadSessionScans = async () => {
+      if (!user?.id) return;
+      
+      setSessionScansLoading(true);
+      try {
+        // Load last 24h scans from database
+        const twentyFourHoursAgo = new Date();
+        twentyFourHoursAgo.setHours(twentyFourHoursAgo.getHours() - 24);
+        
+        const { data, error } = await supabase
+          .from('vehicle_observations_v2')
+          .select(`
+            observation_id,
+            plate_number,
+            vehicle_make,
+            vehicle_model,
+            vehicle_color,
+            recorded_at,
+            is_compliant,
+            is_breach,
+            has_homeless_claim,
+            zones(id, name, organization_id)
+          `)
+          .eq('recorded_by', user.id)
+          .gte('recorded_at', twentyFourHoursAgo.toISOString())
+          .order('recorded_at', { ascending: false });
+        
+        if (error) throw error;
+        
+        const scans: SessionScan[] = (data || []).map(obs => ({
+          id: obs.observation_id,
+          plateNumber: obs.plate_number,
+          zoneName: (obs.zones as any)?.name || 'Unknown',
+          zoneId: (obs.zones as any)?.id || '',
+          organizationId: (obs.zones as any)?.organization_id || '',
+          timestamp: new Date(obs.recorded_at),
+          isCompliant: obs.is_compliant,
+          isFlagged: obs.is_breach,
+          vehicleMake: obs.vehicle_make,
+          vehicleModel: obs.vehicle_model,
+          vehicleColor: obs.vehicle_color,
+          observationId: obs.observation_id,
+          detectionMethod: 'alpr',
+          isSelfContained: false,
+          isHomeless: obs.has_homeless_claim,
+          hasHSIssue: false,
+          requiresFollowup: false,
+        }));
+        
+        setSessionScans(scans);
+        console.log(`✅ Loaded ${scans.length} session scans from database`);
+      } catch (error: any) {
+        console.error('Failed to load session scans:', error);
+        toast.error('Failed to load scan history');
+      } finally {
+        setSessionScansLoading(false);
+      }
+    };
+    
+    loadSessionScans();
+    
+    // Reload every 30 seconds
+    const interval = setInterval(loadSessionScans, 30000);
+    return () => clearInterval(interval);
+  }, [user?.id]);
 
   // Load today's stats
   useEffect(() => {
@@ -380,6 +449,11 @@ export function FieldOfficerPortal({ onLogout }: FieldOfficerPortalProps) {
     
     // Auto-return to dashboard after scan
     setCurrentView('dashboard');
+    
+    // Reload scans list to show the new scan
+    setTimeout(() => {
+      window.location.reload();
+    }, 500);
   };
 
   const handleCreateReport = (type: 'incident' | 'hs' | 'maintenance') => {
