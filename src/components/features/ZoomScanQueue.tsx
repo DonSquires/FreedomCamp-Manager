@@ -294,6 +294,11 @@ export function ZoomScanQueue({
           zoneId,
           organizationId,
           imageUrl: publicUrl,
+          gpsLocation: gpsLocation ? {
+            lat: gpsLocation.lat,
+            lng: gpsLocation.lng,
+            accuracy: 10, // Assume good accuracy for manual scans
+          } : undefined,
           vehicleDetails: {
             make: recognitionData.vehicle_make,
             model: recognitionData.vehicle_model,
