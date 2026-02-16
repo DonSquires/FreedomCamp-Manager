@@ -215,6 +215,9 @@ export function OrganizationOverview({ onZoneDrillDown }: { onZoneDrillDown?: (z
       }
 
       // Load observations with compliance_results (NEW architecture)
+      // Convert NZ timezone dates to UTC for proper filtering
+      // NZ is UTC+13:00 (or UTC+12:00 during standard time)
+      // Adding timezone offset ensures correct date boundary matching
       let obsQuery = supabase
         .from('vehicle_observations_v2')
         .select(`
@@ -233,8 +236,8 @@ export function OrganizationOverview({ onZoneDrillDown }: { onZoneDrillDown?: (z
             violation_reasons
           )
         `)
-        .gte('recorded_at', `${startDateStr}T00:00:00`)
-        .lte('recorded_at', `${endDateStr}T23:59:59`);
+        .gte('recorded_at', `${startDateStr}T00:00:00+13:00`)
+        .lte('recorded_at', `${endDateStr}T23:59:59+13:00`);
 
       if (orgId) {
         obsQuery = obsQuery.eq('organization_id', orgId);
@@ -293,8 +296,8 @@ export function OrganizationOverview({ onZoneDrillDown }: { onZoneDrillDown?: (z
         .from('breach_alerts')
         .select('id', { count: 'exact', head: true })
         .eq('status', 'pending')
-        .gte('created_at', `${startDateStr}T00:00:00`)
-        .lte('created_at', `${endDateStr}T23:59:59`);
+        .gte('created_at', `${startDateStr}T00:00:00+13:00`)
+        .lte('created_at', `${endDateStr}T23:59:59+13:00`);
 
       if (orgId) breachQuery = breachQuery.eq('organization_id', orgId);
       if (selectedZone !== 'all') breachQuery = breachQuery.eq('zone_id', selectedZone);
@@ -305,8 +308,8 @@ export function OrganizationOverview({ onZoneDrillDown }: { onZoneDrillDown?: (z
       let enfQuery = supabase
         .from('enforcement_actions')
         .select('id', { count: 'exact', head: true })
-        .gte('recorded_at', `${startDateStr}T00:00:00`)
-        .lte('recorded_at', `${endDateStr}T23:59:59`);
+        .gte('recorded_at', `${startDateStr}T00:00:00+13:00`)
+        .lte('recorded_at', `${endDateStr}T23:59:59+13:00`);
 
       if (orgId) enfQuery = enfQuery.eq('organization_id', orgId);
       if (selectedZone !== 'all') enfQuery = enfQuery.eq('zone_id', selectedZone);
@@ -985,8 +988,8 @@ function ObservationsListDialog({
           user_profiles!vehicle_observations_v2_recorded_by_fkey(first_name, last_name)
         `)
         .eq('organization_id', organizationId)
-        .gte('recorded_at', `${fromDate}T00:00:00`)
-        .lte('recorded_at', `${toDate}T23:59:59`)
+        .gte('recorded_at', `${fromDate}T00:00:00+13:00`)
+        .lte('recorded_at', `${toDate}T23:59:59+13:00`)
         .order('recorded_at', { ascending: false })
         .limit(100);
 

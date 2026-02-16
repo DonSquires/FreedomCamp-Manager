@@ -22,6 +22,8 @@ import { supabase } from '@/lib/supabase';
 import { playSounds } from '@/lib/sounds';
 import { cn } from '@/lib/utils';
 import { useNavigate } from 'react-router-dom';
+import { applyWatermark } from '@/lib/imageWatermarking';
+import { useAuthStore } from '@/stores/authStore';
 
 interface QueueItem {
   id: string;
@@ -53,7 +55,9 @@ export function ZoomScanQueue({
   onCancel,
 }: ZoomScanQueueProps) {
   const navigate = useNavigate();
+  const { user } = useAuthStore();
   const [queue, setQueue] = useState<QueueItem[]>([]);
+  const [organizationName, setOrganizationName] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [cameraReady, setCameraReady] = useState(false);
   const [zoom, setZoom] = useState<number>(() => {
@@ -96,6 +100,20 @@ export function ZoomScanQueue({
     
     return () => navigator.geolocation.clearWatch(watchId);
   }, []);
+
+  // Load organization name for watermark
+  useEffect(() => {
+    const loadOrganization = async () => {
+      if (!organizationId) return;
+      const { data } = await supabase
+        .from('organizations')
+        .select('name')
+        .eq('id', organizationId)
+        .single();
+      if (data) setOrganizationName(data.name);
+    };
+    loadOrganization();
+  }, [organizationId]);
 
   // Load persisted queue
   useEffect(() => {
@@ -254,9 +272,32 @@ export function ZoomScanQueue({
       canvas.height = video.videoHeight;
       context.drawImage(video, 0, 0);
 
-      const imageDataUrl = canvas.toDataURL('image/jpeg', 0.95);
+      let imageDataUrl = canvas.toDataURL('image/jpeg', 0.95);
 
-      // Upload photo
+      // ✅ APPLY WATERMARK BEFORE UPLOAD (LEGAL COMPLIANCE)
+      if (gpsLocation && user) {
+        try {
+          console.log('📸 Applying GPS watermark to photo...');
+          imageDataUrl = await applyWatermark(imageDataUrl, {
+            gpsLatitude: gpsLocation.lat,
+            gpsLongitude: gpsLocation.lng,
+            gpsAccuracy: 10, // Assume good accuracy for zoom scans
+            timestamp: new Date(),
+            officerName: `${user.first_name} ${user.last_name}`,
+            organizationName: organizationName,
+            zoneName: zoneName,
+          });
+          console.log('✅ Watermark applied successfully');
+        } catch (error) {
+          console.error('❌ Watermark failed:', error);
+          toast.warning('Photo uploaded without watermark - evidence quality reduced');
+        }
+      } else {
+        console.warn('⚠️ No GPS or user data - skipping watermark');
+        toast.warning('No GPS signal - photo not watermarked');
+      }
+
+      // Upload watermarked photo
       const blob = await fetch(imageDataUrl).then(r => r.blob());
       const fileName = `scans/${Date.now()}_${Math.random().toString(36).slice(2)}.jpg`;
       
