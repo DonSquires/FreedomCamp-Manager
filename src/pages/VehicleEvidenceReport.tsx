@@ -265,16 +265,37 @@ export function VehicleEvidenceReport() {
 
       if (error) throw error;
 
-      if (data?.pdf_url) {
-        // Download PDF
+      if (data?.html) {
+        // Open HTML in new window for printing as PDF
+        const printWindow = window.open('', '_blank');
+        if (printWindow) {
+          printWindow.document.write(data.html);
+          printWindow.document.close();
+          
+          // Wait for images to load, then trigger print dialog
+          printWindow.onload = () => {
+            setTimeout(() => {
+              printWindow.focus();
+              printWindow.print();
+            }, 500);
+          };
+
+          toast.success('Report generated! Use browser Print → Save as PDF', {
+            duration: 5000,
+          });
+        } else {
+          toast.error('Please allow popups to generate PDF reports');
+        }
+      } else if (data?.pdf_url) {
+        // Direct PDF download (if implemented in future)
         const link = document.createElement('a');
         link.href = data.pdf_url;
         link.download = `vehicle-report-${vehicleData.plate_number}-${Date.now()}.pdf`;
         link.click();
 
-        toast.success('Report generated successfully!');
+        toast.success('Report downloaded successfully!');
       } else {
-        throw new Error('No PDF URL returned');
+        throw new Error('No report data returned');
       }
     } catch (error: any) {
       console.error('PDF generation failed:', error);
