@@ -37,6 +37,8 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import { formatInTimeZone } from 'date-fns-tz';
+import { ComplianceDrillDownModal, type DrillDownType } from '@/components/features/ComplianceDrillDownModal';
+import { useNavigate } from 'react-router-dom';
 
 const NZ_TIMEZONE = 'Pacific/Auckland';
 
@@ -78,6 +80,24 @@ export function ComplianceDashboard() {
     const today = new Date();
     return formatInTimeZone(today, NZ_TIMEZONE, 'yyyy-MM-dd');
   });
+
+  // Drill-down modal state
+  const [drillDownOpen, setDrillDownOpen] = useState(false);
+  const [drillDownType, setDrillDownType] = useState<DrillDownType | null>(null);
+  const navigate = useNavigate();
+
+  const handleDrillDown = (type: DrillDownType) => {
+    setDrillDownType(type);
+    setDrillDownOpen(true);
+  };
+
+  const handleViewVehicle = (plateNumber: string) => {
+    navigate(`/admin?tab=vehicles&search=${plateNumber}`);
+  };
+
+  const handleCreateEnforcement = (plateNumber: string) => {
+    navigate(`/admin?tab=enforcement&plate=${plateNumber}`);
+  };
 
   // Quick date presets
   const setDatePreset = (preset: string) => {
@@ -530,7 +550,10 @@ export function ComplianceDashboard() {
             {/* Critical Metrics */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* Overstayers */}
-              <Card className="border-red-300 bg-red-50 dark:bg-red-950/20">
+              <Card 
+                className="border-red-300 bg-red-50 dark:bg-red-950/20 cursor-pointer hover:shadow-lg transition-shadow"
+                onClick={() => handleDrillDown('overstayers')}
+              >
                 <CardContent className="p-6">
                   <div className="flex items-start justify-between mb-2">
                     <div className="h-12 w-12 rounded-full bg-red-500 flex items-center justify-center">
@@ -559,7 +582,10 @@ export function ComplianceDashboard() {
               </Card>
 
               {/* About to Overstay */}
-              <Card className="border-yellow-300 bg-yellow-50 dark:bg-yellow-950/20">
+              <Card 
+                className="border-yellow-300 bg-yellow-50 dark:bg-yellow-950/20 cursor-pointer hover:shadow-lg transition-shadow"
+                onClick={() => handleDrillDown('about_to_overstay')}
+              >
                 <CardContent className="p-6">
                   <div className="flex items-start justify-between mb-2">
                     <div className="h-12 w-12 rounded-full bg-yellow-500 flex items-center justify-center">
@@ -613,7 +639,10 @@ export function ComplianceDashboard() {
                 </CardContent>
               </Card>
 
-              <Card>
+              <Card 
+                className="cursor-pointer hover:shadow-lg transition-shadow"
+                onClick={() => handleDrillDown('flagged')}
+              >
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between mb-2">
                     <Flag className="h-5 w-5 text-red-600" />
@@ -625,7 +654,10 @@ export function ComplianceDashboard() {
                 </CardContent>
               </Card>
 
-              <Card>
+              <Card 
+                className="cursor-pointer hover:shadow-lg transition-shadow"
+                onClick={() => handleDrillDown('homeless')}
+              >
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between mb-2">
                     <Home className="h-5 w-5 text-cyan-600" />
@@ -655,6 +687,18 @@ export function ComplianceDashboard() {
             Select an organization to view metrics
           </div>
         )}
+
+        {/* Drill-Down Modal */}
+        <ComplianceDrillDownModal
+          isOpen={drillDownOpen}
+          onClose={() => setDrillDownOpen(false)}
+          type={drillDownType}
+          organizationId={selectedOrgId}
+          fromDate={fromDate}
+          toDate={toDate}
+          onViewVehicle={handleViewVehicle}
+          onCreateEnforcement={handleCreateEnforcement}
+        />
 
         {/* Zone Breakdown */}
         <Card>
