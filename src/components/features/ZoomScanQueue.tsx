@@ -7,7 +7,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Camera, X, Loader2 } from 'lucide-react';
+import { Slider } from '@/components/ui/slider';
+import { Camera, X, Loader2, ZoomIn, ZoomOut } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
 import { playSounds } from '@/lib/sounds';
@@ -45,6 +46,10 @@ export function ZoomScanQueue({
   const [queue, setQueue] = useState<QueueItem[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [cameraReady, setCameraReady] = useState(false);
+  const [zoom, setZoom] = useState<number>(() => {
+    const saved = localStorage.getItem('zoom-camera-zoom-level');
+    return saved ? parseFloat(saved) : 1.0;
+  });
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -78,6 +83,8 @@ export function ZoomScanQueue({
           videoRef.current.srcObject = stream;
           streamRef.current = stream;
           setCameraReady(true);
+          // Apply initial zoom
+          applyZoom(zoom);
         }
       } catch (error: any) {
         console.error('Camera error:', error);
@@ -93,6 +100,29 @@ export function ZoomScanQueue({
       }
     };
   }, []);
+
+  const applyZoom = async (zoomLevel: number) => {
+    if (!streamRef.current) return;
+    
+    const track = streamRef.current.getVideoTracks()[0];
+    const capabilities = track.getCapabilities();
+    
+    if ('zoom' in capabilities) {
+      try {
+        await track.applyConstraints({
+          advanced: [{ zoom: zoomLevel }]
+        });
+      } catch (error) {
+        console.warn('Zoom not supported:', error);
+      }
+    }
+  };
+
+  const handleZoomChange = (newZoom: number) => {
+    setZoom(newZoom);
+    localStorage.setItem('zoom-camera-zoom-level', newZoom.toString());
+    applyZoom(newZoom);
+  };
 
   const captureAndProcess = async () => {
     if (!videoRef.current || !canvasRef.current) return;
@@ -387,6 +417,36 @@ export function ZoomScanQueue({
       <div className="flex-1 relative overflow-hidden">
         <video ref={videoRef} autoPlay playsInline muted className="absolute inset-0 w-full h-full object-cover" />
         <canvas ref={canvasRef} className="hidden" />
+        
+        {/* Zoom Controls - Right Side Vertical Slider */}
+        <div className="absolute right-2 top-1/2 -translate-y-1/2 flex flex-col items-center gap-3 bg-black/80 backdrop-blur-sm rounded-full px-3 py-6 shadow-lg border border-white/20 z-40">
+          <button
+            onClick={() => handleZoomChange(Math.min(5, zoom + 0.5))}
+            className="p-2 hover:bg-white/20 rounded-full transition-colors touch-manipulation"
+          >
+            <ZoomIn className="h-5 w-5 text-white shrink-0" />
+          </button>
+          <div className="flex flex-col items-center gap-2 min-h-[200px]">
+            <Slider
+              value={[zoom]}
+              onValueChange={([value]) => handleZoomChange(value)}
+              min={1}
+              max={5}
+              step={0.1}
+              orientation="vertical"
+              className="h-full"
+            />
+            <span className="text-white text-xs font-bold bg-black/50 px-2 py-1 rounded">
+              {zoom.toFixed(1)}x
+            </span>
+          </div>
+          <button
+            onClick={() => handleZoomChange(Math.max(1, zoom - 0.5))}
+            className="p-2 hover:bg-white/20 rounded-full transition-colors touch-manipulation"
+          >
+            <ZoomOut className="h-5 w-5 text-white shrink-0" />
+          </button>
+        </div>
         
         {/* Capture Button - Larger and More Visible */}
         <div className="absolute bottom-10 left-1/2 -translate-x-1/2 z-50">
