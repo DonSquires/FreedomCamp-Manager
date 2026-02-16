@@ -6,9 +6,41 @@
  * - PATCH (third digit): Minor amendments
  */
 
-export const APP_VERSION = '2.13.0012';
+export const APP_VERSION = '2.13.0015';
 
 export const VERSION_HISTORY = [
+  {
+    version: '2.13.0015',
+    date: '2026-02-17',
+    changes: [
+      '⏰ FIXED: Timezone filtering in Organization Overview - observations now display in correct date',
+      '✅ NZ timezone offset (+13:00) applied to all date range queries',
+      '📅 Date filters now accurately match NZ calendar days',
+      '🎯 Scans recorded "this morning" now show in today\'s filter, not yesterday',
+      '📊 Compliance reports, breach alerts, and enforcement actions use NZ timezone',
+    ],
+  },
+  {
+    version: '2.13.0014',
+    date: '2026-02-17',
+    changes: [
+      '🔧 FIXED: Timezone issue - observations now filter correctly in NZ timezone',
+      '🎯 FIXED: Automatic zone assignment - GPS coordinates now match to geofences',
+      '✅ Scans automatically assigned to correct zone based on GPS location',
+      '📍 Polygon geofences checked first, then point+radius (100m)',
+      '🏷️ Auto-creates "Other Location" zone for observations outside geofences',
+      '⏰ Date filters now use NZ timezone offset (+13:00) for accurate filtering',
+    ],
+  },
+  {
+    version: '2.13.0013',
+    date: '2026-02-17',
+    changes: [
+      '🔧 FIXED: Observations Report loading error - removed Badge dependency',
+      '✅ Report now opens correctly with inline styled badges',
+      '🎨 Visual consistency maintained with custom badge styling',
+    ],
+  },
   {
     version: '2.13.0012',
     date: '2026-02-17',
