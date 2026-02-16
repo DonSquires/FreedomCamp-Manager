@@ -88,6 +88,25 @@
   .touch-target-lg {
     @apply min-h-[56px] min-w-[56px] touch-manipulation;
   }
+
+  /* Photo Capture Animation */
+  @keyframes slide-left {
+    0% {
+      transform: translateX(0);
+      opacity: 1;
+    }
+    50% {
+      opacity: 1;
+    }
+    100% {
+      transform: translateX(-100%);
+      opacity: 0;
+    }
+  }
+
+  .animate-slide-left {
+    animation: slide-left 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+  }
 }
 
 /* Hide OnSpace promotional banner */

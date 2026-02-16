@@ -112,6 +112,19 @@ export function VehicleEvidenceReport() {
   const [maxObservations, setMaxObservations] = useState<number>(10);
   const [isEnriching, setIsEnriching] = useState(false);
 
+  // Auto-search if plate number is provided via session storage
+  useEffect(() => {
+    const preFillPlate = sessionStorage.getItem('evidence-plate-number');
+    if (preFillPlate) {
+      setSearchPlate(preFillPlate);
+      sessionStorage.removeItem('evidence-plate-number');
+      // Trigger search after a brief delay
+      setTimeout(() => {
+        handleSearch();
+      }, 300);
+    }
+  }, []);
+
   const handleSearch = async () => {
     if (!searchPlate.trim()) {
       toast.error('Please enter a plate number');
