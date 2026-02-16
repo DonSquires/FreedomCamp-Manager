@@ -2045,23 +2045,34 @@ export function PlateCapture({
                     </Button>
                   </div>
 
-                  {/* Zoom Controls - Bottom Center with Slider */}
-                  <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex items-center gap-3 bg-black/80 backdrop-blur-sm rounded-full px-6 py-3 shadow-lg border border-white/20">
-                    <ZoomOut className="h-5 w-5 text-white shrink-0" />
-                    <div className="flex flex-col items-center gap-1 min-w-[140px]">
+                  {/* Zoom Controls - Right Side Vertical Slider */}
+                  <div className="absolute right-2 top-1/2 -translate-y-1/2 flex flex-col items-center gap-3 bg-black/80 backdrop-blur-sm rounded-full px-3 py-6 shadow-lg border border-white/20">
+                    <button
+                      onClick={() => handleZoomChange(Math.min(5, zoom + 0.5))}
+                      className="p-2 hover:bg-white/20 rounded-full transition-colors touch-manipulation"
+                    >
+                      <ZoomIn className="h-5 w-5 text-white shrink-0" />
+                    </button>
+                    <div className="flex flex-col items-center gap-2 min-h-[200px]">
                       <Slider
                         value={[zoom]}
                         onValueChange={([value]) => handleZoomChange(value)}
                         min={1}
                         max={5}
                         step={0.1}
-                        className="w-full"
+                        orientation="vertical"
+                        className="h-full"
                       />
-                      <span className="text-white text-xs font-bold">
+                      <span className="text-white text-xs font-bold bg-black/50 px-2 py-1 rounded">
                         {zoom.toFixed(1)}x
                       </span>
                     </div>
-                    <ZoomIn className="h-5 w-5 text-white shrink-0" />
+                    <button
+                      onClick={() => handleZoomChange(Math.max(1, zoom - 0.5))}
+                      className="p-2 hover:bg-white/20 rounded-full transition-colors touch-manipulation"
+                    >
+                      <ZoomOut className="h-5 w-5 text-white shrink-0" />
+                    </button>
                   </div>
                   
                   {/* Aim Guide - Single centered box */}
