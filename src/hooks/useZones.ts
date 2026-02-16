@@ -34,21 +34,30 @@ export interface UpdateZoneInput {
   allowed_days?: string[];
 }
 
-export const useZones = () => {
+export const useZones = (organizationId?: string) => {
   return useQuery({
-    queryKey: ['zones'],
+    queryKey: ['zones', organizationId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from('zones')
         .select(`
           *,
           organization:organizations(id, name)
         `)
+        .eq('is_active', true) // Only show active zones
         .order('name', { ascending: true });
+
+      // Filter by organization if provided
+      if (organizationId) {
+        query = query.eq('organization_id', organizationId);
+      }
+
+      const { data, error } = await query;
 
       if (error) throw error;
       return data as Zone[];
     },
+    enabled: !!organizationId, // Only run query if organizationId is provided
   });
 };
 
