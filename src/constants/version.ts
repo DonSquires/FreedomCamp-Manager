@@ -6,9 +6,25 @@
  * - PATCH (third digit): Minor amendments
  */
 
-export const APP_VERSION = '2.12.0007';
+export const APP_VERSION = '2.12.0008';
 
 export const VERSION_HISTORY = [
+  {
+    version: '2.12.0008',
+    date: '2026-02-16',
+    changes: [
+      '📱 ENHANCED: History records now fully editable with full-screen review',
+      '✅ Tap any scan in history to view complete details in modal',
+      '🔍 Full-screen view shows vehicle info, status, zone, timestamp',
+      '✏️ Edit button opens VehicleEditDrawer for quick modifications',
+      '🗑️ Delete button with confirmation dialog for removing scans',
+      '⏱️ Visual timer shows hours remaining in 24-hour edit window',
+      '🔒 Records automatically lock after 24 hours with visual indicator',
+      '🎨 Color-coded cards: Flagged (red), Breach (amber), Homeless (cyan), Compliant (green)',
+      '🏷️ Status badges and icons for quick identification',
+      '📊 Clean, professional presentation of scan history',
+    ],
+  },
   {
     version: '2.12.0007',
     date: '2026-02-16',

@@ -7,6 +7,8 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import {
   Camera,
   Wifi,
@@ -30,6 +32,11 @@ import {
   X,
   Zap,
   RefreshCw,
+  Edit,
+  Trash2,
+  CheckCircle2,
+  Flag,
+  Home,
 } from 'lucide-react';
 import { JDSLogo } from '@/components/layout/JDSLogo';
 import { useAuthStore } from '@/stores/authStore';
@@ -99,6 +106,12 @@ export function FieldOfficerPortal({ onLogout }: FieldOfficerPortalProps) {
   const [showEditDrawer, setShowEditDrawer] = useState(false);
   const [selectedScan, setSelectedScan] = useState<SessionScan | null>(null);
   const [showReportsMenu, setShowReportsMenu] = useState(false);
+  
+  // Full-screen scan detail modal
+  const [showScanDetail, setShowScanDetail] = useState(false);
+  const [scanToDelete, setScanToDelete] = useState<SessionScan | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   
   // Update check state
   const [triggerUpdateCheck, setTriggerUpdateCheck] = useState(false);
@@ -456,6 +469,42 @@ export function FieldOfficerPortal({ onLogout }: FieldOfficerPortalProps) {
     }, 500);
   };
 
+  const canEditDelete = (scan: SessionScan) => {
+    const hoursSinceScan = (Date.now() - new Date(scan.timestamp).getTime()) / (1000 * 60 * 60);
+    return hoursSinceScan < 24;
+  };
+
+  const getHoursRemaining = (scan: SessionScan) => {
+    const hoursSinceScan = (Date.now() - new Date(scan.timestamp).getTime()) / (1000 * 60 * 60);
+    return Math.max(0, 24 - hoursSinceScan);
+  };
+
+  const handleDeleteScan = async () => {
+    if (!scanToDelete?.observationId) return;
+    
+    setIsDeleting(true);
+    try {
+      const { error } = await supabase
+        .from('vehicle_observations_v2')
+        .delete()
+        .eq('observation_id', scanToDelete.observationId);
+      
+      if (error) throw error;
+      
+      setSessionScans(prev => prev.filter(s => s.id !== scanToDelete.id));
+      toast.success('Scan deleted successfully');
+      setShowDeleteConfirm(false);
+      setScanToDelete(null);
+      setShowScanDetail(false);
+      setSelectedScan(null);
+    } catch (error: any) {
+      console.error('Failed to delete scan:', error);
+      toast.error('Failed to delete scan: ' + error.message);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   const handleCreateReport = (type: 'incident' | 'hs' | 'maintenance') => {
     const tempScan: SessionScan = {
       id: `temp-${Date.now()}`,
@@ -532,28 +581,77 @@ export function FieldOfficerPortal({ onLogout }: FieldOfficerPortalProps) {
             <CardContent>
               {sessionScans.length > 0 ? (
                 <div className="space-y-2">
-                  {sessionScans.map(scan => (
-                    <div
-                      key={scan.id}
-                      onClick={() => {
-                        setSelectedScan(scan);
-                        setShowEditDrawer(true);
-                      }}
-                      className="p-4 border rounded-lg hover:bg-muted cursor-pointer transition-colors"
-                    >
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="font-bold text-lg">{scan.plateNumber}</p>
-                          <p className="text-sm text-muted-foreground">
-                            {scan.vehicleMake} {scan.vehicleModel}
-                          </p>
+                  {sessionScans.map(scan => {
+                    const editable = canEditDelete(scan);
+                    const hoursLeft = getHoursRemaining(scan);
+                    
+                    return (
+                      <div
+                        key={scan.id}
+                        onClick={() => {
+                          setSelectedScan(scan);
+                          setShowScanDetail(true);
+                        }}
+                        className={cn(
+                          "p-4 border-2 rounded-lg cursor-pointer transition-all hover:shadow-md",
+                          scan.isFlagged && "border-red-500 bg-red-50 dark:bg-red-950/20",
+                          !scan.isFlagged && !scan.isCompliant && "border-amber-500 bg-amber-50 dark:bg-amber-950/20",
+                          !scan.isFlagged && scan.isCompliant && scan.isHomeless && "border-cyan-500 bg-cyan-50 dark:bg-cyan-950/20",
+                          !scan.isFlagged && scan.isCompliant && !scan.isHomeless && "border-green-500 bg-green-50 dark:bg-green-950/20"
+                        )}
+                      >
+                        <div className="flex items-start gap-3">
+                          <div className="shrink-0 mt-1">
+                            {scan.isFlagged ? (
+                              <Flag className="h-5 w-5 text-red-600" />
+                            ) : !scan.isCompliant ? (
+                              <AlertCircle className="h-5 w-5 text-amber-600" />
+                            ) : scan.isHomeless ? (
+                              <Home className="h-5 w-5 text-cyan-600" />
+                            ) : (
+                              <CheckCircle2 className="h-5 w-5 text-green-600" />
+                            )}
+                          </div>
+                          <div className="flex-1">
+                            <div className="flex items-start justify-between">
+                              <div>
+                                <p className="font-mono text-xl font-black">{scan.plateNumber}</p>
+                                {scan.vehicleMake && (
+                                  <p className="text-sm text-muted-foreground">
+                                    {scan.vehicleColor} {scan.vehicleMake} {scan.vehicleModel}
+                                  </p>
+                                )}
+                              </div>
+                              <div className="flex flex-col items-end gap-1">
+                                {scan.isFlagged ? (
+                                  <Badge variant="destructive" className="text-xs">🚩 Flagged</Badge>
+                                ) : !scan.isCompliant ? (
+                                  <Badge className="bg-amber-500 text-xs">⚠️ Breach</Badge>
+                                ) : scan.isHomeless ? (
+                                  <Badge className="bg-cyan-500 text-xs">🏕️ Homeless</Badge>
+                                ) : (
+                                  <Badge variant="outline" className="text-green-600 text-xs">✓ OK</Badge>
+                                )}
+                                {editable && hoursLeft > 0 && (
+                                  <Badge variant="secondary" className="text-[10px]">
+                                    ⏱️ {Math.floor(hoursLeft)}h left
+                                  </Badge>
+                                )}
+                              </div>
+                            </div>
+                            <p className="text-xs text-muted-foreground mt-2">
+                              {scan.zoneName} • {new Date(scan.timestamp).toLocaleString('en-NZ', {
+                                day: 'numeric',
+                                month: 'short',
+                                hour: '2-digit',
+                                minute: '2-digit',
+                              })}
+                            </p>
+                          </div>
                         </div>
-                        <Badge variant={scan.isCompliant ? 'default' : 'destructive'}>
-                          {scan.isCompliant ? 'Compliant' : 'Non-Compliant'}
-                        </Badge>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               ) : (
                 <div className="text-center py-12 text-muted-foreground">
@@ -1244,6 +1342,187 @@ export function FieldOfficerPortal({ onLogout }: FieldOfficerPortalProps) {
           }}
         />
       )}
+      
+      {/* Full-Screen Scan Detail Modal */}
+      <Dialog open={showScanDetail} onOpenChange={setShowScanDetail}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-3 text-2xl">
+              {selectedScan?.isFlagged ? (
+                <><Flag className="h-7 w-7 text-red-600" />Flagged Vehicle</>
+              ) : !selectedScan?.isCompliant ? (
+                <><AlertCircle className="h-7 w-7 text-amber-600" />Non-Compliant Vehicle</>
+              ) : selectedScan?.isHomeless ? (
+                <><Home className="h-7 w-7 text-cyan-600" />Homeless Vehicle</>
+              ) : (
+                <><CheckCircle2 className="h-7 w-7 text-green-600" />Compliant Vehicle</>
+              )}
+            </DialogTitle>
+            <DialogDescription>
+              Complete scan details and edit options
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedScan && (
+            <div className="space-y-4">
+              {/* Vehicle Information */}
+              <div className={cn(
+                "p-4 rounded-lg border-2",
+                selectedScan.isFlagged && "bg-red-50 dark:bg-red-950/30 border-red-300 dark:border-red-700",
+                !selectedScan.isFlagged && !selectedScan.isCompliant && "bg-amber-50 dark:bg-amber-950/30 border-amber-300 dark:border-amber-700",
+                !selectedScan.isFlagged && selectedScan.isCompliant && selectedScan.isHomeless && "bg-cyan-50 dark:bg-cyan-950/30 border-cyan-300 dark:border-cyan-700",
+                !selectedScan.isFlagged && selectedScan.isCompliant && !selectedScan.isHomeless && "bg-green-50 dark:bg-green-950/30 border-green-300 dark:border-green-700"
+              )}>
+                <div className="flex items-center gap-2 mb-3">
+                  <h3 className="font-mono text-2xl font-black">{selectedScan.plateNumber}</h3>
+                  {selectedScan.isFlagged ? (
+                    <Badge variant="destructive">🚩 Flagged</Badge>
+                  ) : !selectedScan.isCompliant ? (
+                    <Badge className="bg-amber-500">⚠️ Breach</Badge>
+                  ) : selectedScan.isHomeless ? (
+                    <Badge className="bg-cyan-500">🏕️ Homeless (FC Exempt)</Badge>
+                  ) : (
+                    <Badge variant="outline" className="text-green-600">✓ Compliant</Badge>
+                  )}
+                </div>
+                
+                {selectedScan.vehicleMake && (
+                  <p className="text-sm mb-3">
+                    <strong>Vehicle:</strong> {selectedScan.vehicleColor} {selectedScan.vehicleMake} {selectedScan.vehicleModel}
+                  </p>
+                )}
+
+                <div className="bg-white dark:bg-gray-900 p-3 rounded border">
+                  <p className="text-sm"><strong>Zone:</strong> {selectedScan.zoneName}</p>
+                  <p className="text-sm mt-1">
+                    <strong>Scanned:</strong> {new Date(selectedScan.timestamp).toLocaleString('en-NZ', {
+                      weekday: 'short',
+                      day: 'numeric',
+                      month: 'short',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                      timeZone: 'Pacific/Auckland',
+                    })}
+                  </p>
+                  {selectedScan.detectionMethod && (
+                    <p className="text-sm mt-1">
+                      <strong>Method:</strong> {selectedScan.detectionMethod === 'alpr' ? 'ALPR Recognition' : 'Manual Entry'}
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              {/* Edit Window Timer */}
+              {canEditDelete(selectedScan) ? (
+                <div className="p-3 bg-blue-50 dark:bg-blue-950/30 rounded-lg border border-blue-300 dark:border-blue-700">
+                  <div className="flex items-center gap-2 text-sm text-blue-900 dark:text-blue-100">
+                    <Clock className="h-4 w-4" />
+                    <span>
+                      <strong>{Math.floor(getHoursRemaining(selectedScan))} hours remaining</strong> to edit or delete this scan
+                    </span>
+                  </div>
+                  <p className="text-xs text-blue-700 dark:text-blue-300 mt-1 ml-6">
+                    Field officers can modify their scans within 24 hours of creation
+                  </p>
+                </div>
+              ) : (
+                <div className="p-3 bg-gray-100 dark:bg-gray-800 rounded-lg border border-gray-300 dark:border-gray-600">
+                  <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+                    <Shield className="h-4 w-4" />
+                    <span>
+                      <strong>Edit window expired</strong> - This scan is now locked for data integrity
+                    </span>
+                  </div>
+                  <p className="text-xs text-gray-500 dark:text-gray-500 mt-1 ml-6">
+                    Scans older than 24 hours cannot be modified
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            {selectedScan && canEditDelete(selectedScan) ? (
+              <>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setShowScanDetail(false);
+                    setShowEditDrawer(true);
+                  }}
+                  className="flex-1"
+                >
+                  <Edit className="h-4 w-4 mr-2" />
+                  Edit Details
+                </Button>
+                <Button
+                  variant="destructive"
+                  onClick={() => {
+                    setShowScanDetail(false);
+                    setScanToDelete(selectedScan);
+                    setShowDeleteConfirm(true);
+                  }}
+                  className="flex-1"
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Delete Scan
+                </Button>
+              </>
+            ) : (
+              <Button
+                onClick={() => setShowScanDetail(false)}
+                className="w-full"
+              >
+                Close
+              </Button>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Scan?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this scan? This action cannot be undone.
+              <br /><br />
+              <strong>Plate:</strong> {scanToDelete?.plateNumber}
+              <br />
+              <strong>Zone:</strong> {scanToDelete?.zoneName}
+              <br />
+              <strong>Time:</strong> {scanToDelete && new Date(scanToDelete.timestamp).toLocaleString('en-NZ')}
+              <br /><br />
+              <em className="text-xs text-muted-foreground">
+                Note: Deletion will be logged for audit purposes.
+              </em>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={() => setScanToDelete(null)}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteScan}
+              disabled={isDeleting}
+              className="bg-destructive hover:bg-destructive/90"
+            >
+              {isDeleting ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                <>
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Delete Scan
+                </>
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
