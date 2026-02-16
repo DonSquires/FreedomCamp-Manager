@@ -64,6 +64,8 @@ export function ZoomScanQueue({
   const [safetyAlertItem, setSafetyAlertItem] = useState<QueueItem | null>(null);
   const [torchOn, setTorchOn] = useState(false);
   const [torchSupported, setTorchSupported] = useState(false);
+  const [cameraError, setCameraError] = useState<string | null>(null);
+  const [isCameraLoading, setIsCameraLoading] = useState(true);
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -113,41 +115,83 @@ export function ZoomScanQueue({
 
   // Initialize camera
   useEffect(() => {
+    let mounted = true;
+    
     const initCamera = async () => {
+      setIsCameraLoading(true);
+      setCameraError(null);
+      
       try {
+        console.log('🎥 Requesting camera access...');
+        
         const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } },
+          video: { 
+            facingMode: 'environment', 
+            width: { ideal: 1920 }, 
+            height: { ideal: 1080 } 
+          },
         });
+        
+        if (!mounted) {
+          stream.getTracks().forEach(track => track.stop());
+          return;
+        }
+        
+        console.log('✅ Camera stream acquired');
         
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
           streamRef.current = stream;
+          
+          // Wait for video to be ready
+          await new Promise<void>((resolve) => {
+            if (videoRef.current) {
+              videoRef.current.onloadedmetadata = () => {
+                console.log('✅ Video metadata loaded');
+                resolve();
+              };
+            } else {
+              resolve();
+            }
+          });
+          
+          if (!mounted) return;
+          
           setCameraReady(true);
+          setIsCameraLoading(false);
+          console.log('✅ Camera ready');
           
           // Check torch support
           const track = stream.getVideoTracks()[0];
           const capabilities = track.getCapabilities();
           if ('torch' in capabilities) {
             setTorchSupported(true);
+            console.log('✅ Torch supported');
           }
           
           // Apply initial zoom
           applyZoom(zoom);
         }
       } catch (error: any) {
-        console.error('Camera error:', error);
-        toast.error('Failed to access camera: ' + error.message);
+        console.error('❌ Camera error:', error);
+        if (!mounted) return;
+        
+        setCameraError(error.message || 'Failed to access camera');
+        setIsCameraLoading(false);
+        toast.error('Camera Error: ' + (error.message || 'Failed to access camera'));
       }
     };
 
     initCamera();
 
     return () => {
+      mounted = false;
       if (streamRef.current) {
+        console.log('🛑 Stopping camera stream');
         streamRef.current.getTracks().forEach(track => track.stop());
       }
     };
-  }, []);
+  }, [zoom]);
 
   const applyZoom = async (zoomLevel: number) => {
     if (!streamRef.current) return;
@@ -491,8 +535,52 @@ export function ZoomScanQueue({
       </div>
 
       {/* BOTTOM 3/4: Camera - Full Screen */}
-      <div className="flex-1 relative overflow-hidden">
-        <video ref={videoRef} autoPlay playsInline muted className="absolute inset-0 w-full h-full object-cover" />
+      <div className="flex-1 relative overflow-hidden bg-black">
+        {/* Loading State */}
+        {isCameraLoading && (
+          <div className="absolute inset-0 flex items-center justify-center bg-black z-40">
+            <div className="text-center">
+              <Loader2 className="h-16 w-16 animate-spin text-white mx-auto mb-4" />
+              <p className="text-white text-lg font-semibold">Initializing Camera...</p>
+              <p className="text-white/60 text-sm mt-2">Please allow camera access</p>
+            </div>
+          </div>
+        )}
+        
+        {/* Error State */}
+        {cameraError && !isCameraLoading && (
+          <div className="absolute inset-0 flex items-center justify-center bg-black z-40">
+            <div className="text-center px-6">
+              <AlertTriangle className="h-16 w-16 text-red-500 mx-auto mb-4" />
+              <p className="text-white text-lg font-semibold mb-2">Camera Error</p>
+              <p className="text-white/80 text-sm mb-6">{cameraError}</p>
+              <div className="space-y-3">
+                <Button
+                  onClick={() => window.location.reload()}
+                  className="w-full bg-white text-black hover:bg-gray-200"
+                >
+                  Retry Camera Access
+                </Button>
+                <Button
+                  onClick={handleExit}
+                  variant="outline"
+                  className="w-full bg-transparent border-white text-white hover:bg-white/10"
+                >
+                  Exit to Dashboard
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+        
+        {/* Video Feed */}
+        <video 
+          ref={videoRef} 
+          autoPlay 
+          playsInline 
+          muted 
+          className="absolute inset-0 w-full h-full object-cover" 
+        />
         <canvas ref={canvasRef} className="hidden" />
         
         {/* Capture Animation - Slide Left */}

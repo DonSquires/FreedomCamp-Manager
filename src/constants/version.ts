@@ -6,9 +6,36 @@
  * - PATCH (third digit): Minor amendments
  */
 
-export const APP_VERSION = '2.12.0005';
+export const APP_VERSION = '2.12.0007';
 
 export const VERSION_HISTORY = [
+  {
+    version: '2.12.0007',
+    date: '2026-02-16',
+    changes: [
+      '🔧 FIXED: Zoom Scan blank screen - camera now initializes properly',
+      '✅ Added loading state with spinner while camera starts',
+      '❌ Added error handling with retry and exit options',
+      '🎥 Better camera permission prompts and feedback',
+      '📱 Console logging for debugging camera issues',
+      '⚡ Improved camera cleanup on unmount',
+    ],
+  },
+  {
+    version: '2.12.0006',
+    date: '2026-02-16',
+    changes: [
+      '📱 ENHANCED: History records now fully editable with full-screen review',
+      '✏️ NEW: Tap any scan in history to view complete details',
+      '🔍 FULL-SCREEN: Modal shows all vehicle info, status, and timestamp',
+      '✅ EDIT BUTTON: Quickly edit scan details within 24-hour window',
+      '🗑️ DELETE BUTTON: Remove incorrect scans with confirmation dialog',
+      '⏱️ VISUAL TIMER: Shows hours remaining for edit/delete (24h window)',
+      '🔒 AUTO-LOCK: Records become read-only after 24 hours',
+      '🎨 COLOR-CODED: Flagged (red), breach (amber), homeless (cyan), compliant (green)',
+      '📊 STATUS ICONS: Visual indicators for quick scan identification',
+    ],
+  },
   {
     version: '2.12.0005',
     date: '2026-02-16',
