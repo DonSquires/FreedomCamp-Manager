@@ -6,9 +6,31 @@
  * - PATCH (third digit): Minor amendments
  */
 
-export const APP_VERSION = '2.12.0012';
+export const APP_VERSION = '2.12.0014';
 
 export const VERSION_HISTORY = [
+  {
+    version: '2.12.0014',
+    date: '2026-02-16',
+    changes: [
+      '📱 FULLSCREEN: Auto-enters fullscreen on login for immersive experience',
+      '💾 PERSISTENT: Fullscreen preference saved and restored across sessions',
+      '🧭 NAVIGATION: Added back/forward browser navigation buttons to header',
+      '⚙️ SETTINGS: Fullscreen toggle added to Settings with live status display',
+      '🎯 UX: Fullscreen button in header for quick access',
+      '✅ All display settings now "stick" when user logs out',
+    ],
+  },
+  {
+    version: '2.12.0013',
+    date: '2026-02-16',
+    changes: [
+      '🎨 IMPROVED: Zone info header repositioned to top-left corner',
+      '✨ Reduced opacity to 50% for better camera visibility',
+      '🔦 No longer blocks torch button on right side',
+      '📱 Cleaner, less obtrusive camera overlay',
+    ],
+  },
   {
     version: '2.12.0012',
     date: '2026-02-16',
