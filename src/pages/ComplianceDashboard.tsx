@@ -30,6 +30,8 @@ import {
   ChevronRight,
   CheckCircle2,
   Loader2,
+  Download,
+  FileText,
 } from 'lucide-react';
 import { ResponsiveContainer } from '@/components/layout/ResponsiveContainer';
 import { useAuthStore } from '@/stores/authStore';
@@ -379,11 +381,188 @@ export function ComplianceDashboard() {
 
   const isLoading = metricsLoading || zonesLoading;
 
+  // Export Report Data
+  const generateReportData = async () => {
+    if (!selectedOrgId || !metrics || !zoneMetrics) {
+      toast.error('No data to export');
+      return null;
+    }
+
+    try {
+      toast.info('Gathering report data...');
+
+      const { data: breachedVehicles, error: breachError } = await supabase
+        .from('breach_alerts')
+        .select(`
+          id,
+          plate_number,
+          breach_type,
+          breach_details,
+          status,
+          created_at,
+          zones!inner(name),
+          canonical_vehicles(
+            vehicle_make,
+            vehicle_model,
+            vehicle_color,
+            homeless_status
+          )
+        `)
+        .eq('organization_id', selectedOrgId)
+        .in('status', ['active', 'pending'])
+        .gte('created_at', `${fromDate}T00:00:00`)
+        .lte('created_at', `${toDate}T23:59:59`)
+        .order('created_at', { ascending: false });
+
+      if (breachError) throw breachError;
+
+      const { data: atRiskVehicles, error: riskError } = await supabase
+        .from('vehicle_monthly_stays')
+        .select(`
+          plate_number,
+          zone_id,
+          consecutive_nights,
+          nights_stayed,
+          last_observation_date,
+          zones!inner(name),
+          canonical_vehicles(
+            vehicle_make,
+            vehicle_model,
+            vehicle_color,
+            homeless_status
+          )
+        `)
+        .eq('organization_id', selectedOrgId)
+        .gte('consecutive_nights', 2)
+        .gte('last_observation_date', fromDate)
+        .lte('last_observation_date', toDate)
+        .order('consecutive_nights', { ascending: false });
+
+      if (riskError) throw riskError;
+
+      const breachedPlates = new Set(breachedVehicles?.map(b => b.plate_number) || []);
+      const filteredAtRisk = atRiskVehicles?.filter(v => !breachedPlates.has(v.plate_number)) || [];
+
+      return {
+        breachedVehicles: breachedVehicles || [],
+        atRiskVehicles: filteredAtRisk,
+      };
+    } catch (error: any) {
+      console.error('Failed to generate report data:', error);
+      toast.error('Failed to gather report data');
+      return null;
+    }
+  };
+
+  const handleExportCSV = async () => {
+    const reportData = await generateReportData();
+    if (!reportData || !metrics || !zoneMetrics) return;
+
+    try {
+      const lines: string[] = [];
+      lines.push('COMPLIANCE REPORT');
+      lines.push(`Organization: ${selectedOrg?.name || 'Unknown'}`);
+      lines.push(`Period: ${fromDate} to ${toDate}`);
+      lines.push(`Generated: ${new Date().toLocaleString('en-NZ', { timeZone: NZ_TIMEZONE })}`);
+      lines.push('');
+      lines.push('OVERALL SUMMARY');
+      lines.push('Metric,Value');
+      lines.push(`Total Observations,${metrics.totalObservations}`);
+      lines.push(`Unique Vehicles,${metrics.uniqueVehicles}`);
+      lines.push(`Compliance Rate,${metrics.compliance}%`);
+      lines.push(`Overstayers,${metrics.enforceable}`);
+      lines.push(`About to Overstay,${metrics.aboutToOverstay}`);
+      lines.push(`Flagged Vehicles,${metrics.flagged}`);
+      lines.push(`Homeless Vehicles,${metrics.homeless}`);
+      lines.push('');
+      lines.push('ZONE BREAKDOWN');
+      lines.push('Zone,Observations,Vehicles,Enforceable,At Risk,Compliance %');
+      zoneMetrics.forEach(z => {
+        lines.push(`"${z.zone_name}",${z.observations},${z.vehicles},${z.enforceable},${z.about_to_breach},${z.compliance}`);
+      });
+      lines.push('');
+      lines.push('BREACHED VEHICLES');
+      lines.push('Plate,Zone,Vehicle,Breach Type,Status,Created,Reasons');
+      reportData.breachedVehicles.forEach(b => {
+        const v = b.canonical_vehicles as any;
+        const veh = [v?.vehicle_color, v?.vehicle_make, v?.vehicle_model].filter(Boolean).join(' ') || 'Unknown';
+        const reasons = Array.isArray(b.breach_details) ? b.breach_details.join('; ') : b.breach_type;
+        lines.push(`"${b.plate_number}","${(b.zones as any)?.name}","${veh}","${b.breach_type}","${b.status}","${new Date(b.created_at).toLocaleString('en-NZ')}","${reasons}"`);
+      });
+      lines.push('');
+      lines.push('AT-RISK VEHICLES');
+      lines.push('Plate,Zone,Vehicle,Consecutive,Monthly,Assessment');
+      reportData.atRiskVehicles.forEach(v => {
+        const vd = v.canonical_vehicles as any;
+        const veh = [vd?.vehicle_color, vd?.vehicle_make, vd?.vehicle_model].filter(Boolean).join(' ') || 'Unknown';
+        const risk = v.consecutive_nights === 2 ? 'Will breach if stays tonight' : `${3 - v.consecutive_nights} nights until breach`;
+        lines.push(`"${v.plate_number}","${(v.zones as any)?.name}","${veh}",${v.consecutive_nights},${v.nights_stayed},"${risk}"`);
+      });
+      const csv = lines.join('\n');
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `compliance-${selectedOrg?.name.replace(/\s+/g, '-')}-${fromDate}-to-${toDate}.csv`;
+      link.click();
+      URL.revokeObjectURL(url);
+      toast.success('CSV exported');
+    } catch (error: any) {
+      toast.error('Export failed');
+    }
+  };
+
+  const handleExportPDF = async () => {
+    const reportData = await generateReportData();
+    if (!reportData || !metrics || !zoneMetrics) return;
+
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      toast.error('Please allow popups');
+      return;
+    }
+
+    const html = `<!DOCTYPE html><html><head><title>Compliance Report</title><style>
+    body{font-family:Arial;font-size:11pt;max-width:210mm;margin:0 auto;padding:10mm}
+    h1{color:#1e40af;font-size:24pt;border-bottom:2px solid #1e40af;padding-bottom:2mm}
+    h2{color:#1e40af;font-size:16pt;margin-top:8mm;border-bottom:1px solid #93c5fd}
+    table{width:100%;border-collapse:collapse;margin:5mm 0;font-size:9pt}
+    th{background:#1e40af;color:#fff;padding:2mm;text-align:left}
+    td{padding:2mm;border-bottom:1px solid #e5e7eb}
+    tr:nth-child(even){background:#f9fafb}
+    .metric{display:inline-block;width:48%;padding:3mm;margin:1%;border:1px solid #e5e7eb;border-radius:2mm}
+    .metric-value{font-size:18pt;font-weight:bold;color:#1e40af}
+    @media print{@page{margin:1cm}}</style></head><body>
+    <h1>Compliance Report</h1>
+    <p><strong>${selectedOrg?.name}</strong> | ${fromDate} to ${toDate}</p>
+    <h2>Summary</h2>
+    <div class="metric"><div class="metric-value">${metrics.totalObservations}</div>Total Observations</div>
+    <div class="metric"><div class="metric-value">${metrics.uniqueVehicles}</div>Unique Vehicles</div>
+    <div class="metric"><div class="metric-value">${metrics.compliance}%</div>Compliance</div>
+    <div class="metric"><div class="metric-value">${metrics.enforceable}</div>Overstayers</div>
+    <h2>Zone Breakdown</h2>
+    <table><thead><tr><th>Zone</th><th>Obs</th><th>Vehicles</th><th>Enforceable</th><th>At Risk</th><th>Compliance</th></tr></thead><tbody>
+    ${zoneMetrics.map(z => `<tr><td>${z.zone_name}</td><td>${z.observations}</td><td>${z.vehicles}</td><td>${z.enforceable}</td><td>${z.about_to_breach}</td><td>${z.compliance}%</td></tr>`).join('')}
+    </tbody></table>
+    ${reportData.breachedVehicles.length > 0 ? `<h2>Breached Vehicles</h2><table><thead><tr><th>Plate</th><th>Zone</th><th>Type</th><th>Status</th></tr></thead><tbody>
+    ${reportData.breachedVehicles.map(b => `<tr><td>${b.plate_number}</td><td>${(b.zones as any)?.name}</td><td>${b.breach_type}</td><td>${b.status}</td></tr>`).join('')}
+    </tbody></table>` : ''}
+    ${reportData.atRiskVehicles.length > 0 ? `<h2>At-Risk Vehicles</h2><table><thead><tr><th>Plate</th><th>Zone</th><th>Consecutive</th><th>Monthly</th></tr></thead><tbody>
+    ${reportData.atRiskVehicles.map(v => `<tr><td>${v.plate_number}</td><td>${(v.zones as any)?.name}</td><td>${v.consecutive_nights}</td><td>${v.nights_stayed}</td></tr>`).join('')}
+    </tbody></table>` : ''}
+    <script>window.onload=()=>window.print();window.onafterprint=()=>window.close();</script>
+    </body></html>`;
+
+    printWindow.document.write(html);
+    printWindow.document.close();
+    toast.success('PDF opened - use browser print to save');
+  };
+
   return (
     <ResponsiveContainer maxWidth="full" padding="lg">
       <div className="space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between flex-wrap gap-3">
           <div>
             <h1 className="text-3xl font-bold flex items-center gap-3">
               <Activity className="h-8 w-8 text-blue-600" />
@@ -393,18 +572,20 @@ export function ComplianceDashboard() {
               Real-time compliance monitoring dashboard
             </p>
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => {
-              refetchMetrics();
-              toast.success('Dashboard refreshed');
-            }}
-            disabled={isLoading}
-          >
-            <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
-            Refresh
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" size="sm" onClick={handleExportCSV} disabled={isLoading || !metrics}>
+              <Download className="h-4 w-4 mr-2" />
+              Export CSV
+            </Button>
+            <Button variant="outline" size="sm" onClick={handleExportPDF} disabled={isLoading || !metrics}>
+              <FileText className="h-4 w-4 mr-2" />
+              Export PDF
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => { refetchMetrics(); toast.success('Refreshed'); }} disabled={isLoading}>
+              <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
+              Refresh
+            </Button>
+          </div>
         </div>
 
         {/* Organization Selector (Master only) */}
@@ -419,9 +600,7 @@ export function ComplianceDashboard() {
                   </SelectTrigger>
                   <SelectContent>
                     {organizations.map((org) => (
-                      <SelectItem key={org.id} value={org.id}>
-                        {org.name}
-                      </SelectItem>
+                      <SelectItem key={org.id} value={org.id}>{org.name}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -439,101 +618,36 @@ export function ComplianceDashboard() {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            {/* Quick Select Buttons */}
             <div>
               <Label className="text-sm text-muted-foreground mb-2 block">Quick Select:</Label>
               <div className="flex flex-wrap gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setDatePreset('today')}
-                  className="h-9"
-                >
-                  <Clock className="h-3 w-3 mr-1" />
-                  Today
+                <Button variant="outline" size="sm" onClick={() => setDatePreset('today')} className="h-9">
+                  <Clock className="h-3 w-3 mr-1" />Today
                 </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setDatePreset('yesterday')}
-                  className="h-9"
-                >
-                  Yesterday
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setDatePreset('last_7_days')}
-                  className="h-9"
-                >
-                  Last 7 Days
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setDatePreset('last_30_days')}
-                  className="h-9"
-                >
-                  Last 30 Days
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setDatePreset('last_90_days')}
-                  className="h-9"
-                >
-                  Last 90 Days
-                </Button>
+                <Button variant="outline" size="sm" onClick={() => setDatePreset('yesterday')} className="h-9">Yesterday</Button>
+                <Button variant="outline" size="sm" onClick={() => setDatePreset('last_7_days')} className="h-9">Last 7 Days</Button>
+                <Button variant="outline" size="sm" onClick={() => setDatePreset('last_30_days')} className="h-9">Last 30 Days</Button>
+                <Button variant="outline" size="sm" onClick={() => setDatePreset('last_90_days')} className="h-9">Last 90 Days</Button>
               </div>
             </div>
-
-            {/* Navigation Buttons */}
             <div className="flex gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handlePreviousDay}
-                className="flex-1"
-              >
-                <ChevronRight className="h-4 w-4 mr-1 rotate-180" />
-                Previous Day
+              <Button variant="outline" size="sm" onClick={handlePreviousDay} className="flex-1">
+                <ChevronRight className="h-4 w-4 mr-1 rotate-180" />Previous Day
               </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleNextDay}
-                className="flex-1"
-              >
-                Next Day
-                <ChevronRight className="h-4 w-4 ml-1" />
+              <Button variant="outline" size="sm" onClick={handleNextDay} className="flex-1">
+                Next Day<ChevronRight className="h-4 w-4 ml-1" />
               </Button>
             </div>
-
-            {/* Date Inputs */}
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="from-date">From Date</Label>
-                <input
-                  id="from-date"
-                  type="date"
-                  value={fromDate}
-                  onChange={(e) => setFromDate(e.target.value)}
-                  className="w-full px-3 py-2 border rounded-md"
-                />
+                <input id="from-date" type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className="w-full px-3 py-2 border rounded-md" />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="to-date">To Date</Label>
-                <input
-                  id="to-date"
-                  type="date"
-                  value={toDate}
-                  onChange={(e) => setToDate(e.target.value)}
-                  className="w-full px-3 py-2 border rounded-md"
-                />
+                <input id="to-date" type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className="w-full px-3 py-2 border rounded-md" />
               </div>
             </div>
-
-            {/* Current Filter Display */}
             <div className="text-xs text-muted-foreground text-center p-2 bg-muted/50 rounded">
               Current filter: <span className="font-semibold">{fromDate}</span> → <span className="font-semibold">{toDate}</span>
             </div>
@@ -549,58 +663,29 @@ export function ComplianceDashboard() {
           <>
             {/* Critical Metrics */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Overstayers */}
-              <Card 
-                className="border-red-300 bg-red-50 dark:bg-red-950/20 cursor-pointer hover:shadow-lg transition-shadow"
-                onClick={() => handleDrillDown('overstayers')}
-              >
+              <Card className="border-red-300 bg-red-50 dark:bg-red-950/20 cursor-pointer hover:shadow-lg transition-shadow" onClick={() => handleDrillDown('overstayers')}>
                 <CardContent className="p-6">
                   <div className="flex items-start justify-between mb-2">
                     <div className="h-12 w-12 rounded-full bg-red-500 flex items-center justify-center">
                       <AlertTriangle className="h-6 w-6 text-white" />
                     </div>
-                    <Badge variant="destructive" className="h-8 px-3">
-                      <span className="text-lg font-bold">{metrics.enforceable}</span>
-                    </Badge>
+                    <Badge variant="destructive" className="h-8 px-3"><span className="text-lg font-bold">{metrics.enforceable}</span></Badge>
                   </div>
-                  <h3 className="text-lg font-bold text-red-900 dark:text-red-100 mb-1">
-                    Overstayers
-                  </h3>
-                  <p className="text-sm text-red-700 dark:text-red-300">
-                    Vehicles exceeding stay limits
-                  </p>
-                  <div className="mt-3 pt-3 border-t border-red-200 dark:border-red-800">
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-red-700 dark:text-red-300">Enforceable:</span>
-                      <Badge variant="destructive">{metrics.enforceable}</Badge>
-                    </div>
-                    <p className="text-xs text-red-600 dark:text-red-400 mt-1">
-                      Subject to enforcement action
-                    </p>
-                  </div>
+                  <h3 className="text-lg font-bold text-red-900 dark:text-red-100 mb-1">Overstayers</h3>
+                  <p className="text-sm text-red-700 dark:text-red-300">Vehicles exceeding stay limits</p>
                 </CardContent>
               </Card>
 
-              {/* About to Overstay */}
-              <Card 
-                className="border-yellow-300 bg-yellow-50 dark:bg-yellow-950/20 cursor-pointer hover:shadow-lg transition-shadow"
-                onClick={() => handleDrillDown('about_to_overstay')}
-              >
+              <Card className="border-yellow-300 bg-yellow-50 dark:bg-yellow-950/20 cursor-pointer hover:shadow-lg transition-shadow" onClick={() => handleDrillDown('about_to_overstay')}>
                 <CardContent className="p-6">
                   <div className="flex items-start justify-between mb-2">
                     <div className="h-12 w-12 rounded-full bg-yellow-500 flex items-center justify-center">
                       <Clock className="h-6 w-6 text-white" />
                     </div>
                   </div>
-                  <h3 className="text-lg font-bold text-yellow-900 dark:text-yellow-100 mb-1">
-                    About to Overstay
-                  </h3>
-                  <div className="text-4xl font-black text-yellow-600 mb-2">
-                    {metrics.aboutToOverstay}
-                  </div>
-                  <p className="text-sm text-yellow-700 dark:text-yellow-300">
-                    Will breach if they stay tonight
-                  </p>
+                  <h3 className="text-lg font-bold text-yellow-900 dark:text-yellow-100 mb-1">About to Overstay</h3>
+                  <div className="text-4xl font-black text-yellow-600 mb-2">{metrics.aboutToOverstay}</div>
+                  <p className="text-sm text-yellow-700 dark:text-yellow-300">Will breach if they stay tonight</p>
                 </CardContent>
               </Card>
             </div>
@@ -613,113 +698,34 @@ export function ComplianceDashboard() {
                     <Activity className="h-6 w-6 text-white" />
                   </div>
                 </div>
-                <h3 className="text-lg font-bold text-blue-900 dark:text-blue-100 mb-1">
-                  Total Observations
-                </h3>
-                <div className="text-4xl font-black text-blue-600 mb-2">
-                  {metrics.totalObservations}
-                </div>
-                <p className="text-sm text-blue-700 dark:text-blue-300">
-                  {metrics.uniqueVehicles} unique vehicles
-                </p>
+                <h3 className="text-lg font-bold text-blue-900 dark:text-blue-100 mb-1">Total Observations</h3>
+                <div className="text-4xl font-black text-blue-600 mb-2">{metrics.totalObservations}</div>
+                <p className="text-sm text-blue-700 dark:text-blue-300">{metrics.uniqueVehicles} unique vehicles</p>
               </CardContent>
             </Card>
 
             {/* Secondary Metrics */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <Card>
-                <CardContent className="p-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <TrendingUp className="h-5 w-5 text-green-600" />
-                  </div>
-                  <div className="text-3xl font-bold text-green-600">
-                    {metrics.compliance}%
-                  </div>
-                  <p className="text-xs text-muted-foreground">Compliance</p>
-                </CardContent>
-              </Card>
-
-              <Card 
-                className="cursor-pointer hover:shadow-lg transition-shadow"
-                onClick={() => handleDrillDown('flagged')}
-              >
-                <CardContent className="p-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <Flag className="h-5 w-5 text-red-600" />
-                  </div>
-                  <div className="text-3xl font-bold">
-                    {metrics.flagged}
-                  </div>
-                  <p className="text-xs text-muted-foreground">Flagged</p>
-                </CardContent>
-              </Card>
-
-              <Card 
-                className="cursor-pointer hover:shadow-lg transition-shadow"
-                onClick={() => handleDrillDown('homeless')}
-              >
-                <CardContent className="p-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <Home className="h-5 w-5 text-cyan-600" />
-                  </div>
-                  <div className="text-3xl font-bold">
-                    {metrics.homeless}
-                  </div>
-                  <p className="text-xs text-muted-foreground">Homeless</p>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardContent className="p-4">
-                  <div className="flex items-center justify-between mb-2">
-                    <Users className="h-5 w-5 text-primary" />
-                  </div>
-                  <div className="text-3xl font-bold">
-                    {metrics.officers}
-                  </div>
-                  <p className="text-xs text-muted-foreground">Officers</p>
-                </CardContent>
-              </Card>
+              <Card><CardContent className="p-4"><TrendingUp className="h-5 w-5 text-green-600 mb-2" /><div className="text-3xl font-bold text-green-600">{metrics.compliance}%</div><p className="text-xs text-muted-foreground">Compliance</p></CardContent></Card>
+              <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => handleDrillDown('flagged')}><CardContent className="p-4"><Flag className="h-5 w-5 text-red-600 mb-2" /><div className="text-3xl font-bold">{metrics.flagged}</div><p className="text-xs text-muted-foreground">Flagged</p></CardContent></Card>
+              <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => handleDrillDown('homeless')}><CardContent className="p-4"><Home className="h-5 w-5 text-cyan-600 mb-2" /><div className="text-3xl font-bold">{metrics.homeless}</div><p className="text-xs text-muted-foreground">Homeless</p></CardContent></Card>
+              <Card><CardContent className="p-4"><Users className="h-5 w-5 text-primary mb-2" /><div className="text-3xl font-bold">{metrics.officers}</div><p className="text-xs text-muted-foreground">Officers</p></CardContent></Card>
             </div>
           </>
         ) : (
-          <div className="text-center py-12 text-muted-foreground">
-            Select an organization to view metrics
-          </div>
+          <div className="text-center py-12 text-muted-foreground">Select an organization to view metrics</div>
         )}
 
-        {/* Drill-Down Modal */}
-        <ComplianceDrillDownModal
-          isOpen={drillDownOpen}
-          onClose={() => setDrillDownOpen(false)}
-          type={drillDownType}
-          organizationId={selectedOrgId}
-          fromDate={fromDate}
-          toDate={toDate}
-          onViewVehicle={handleViewVehicle}
-          onCreateEnforcement={handleCreateEnforcement}
-        />
+        <ComplianceDrillDownModal isOpen={drillDownOpen} onClose={() => setDrillDownOpen(false)} type={drillDownType} organizationId={selectedOrgId} fromDate={fromDate} toDate={toDate} onViewVehicle={handleViewVehicle} onCreateEnforcement={handleCreateEnforcement} />
 
         {/* Zone Breakdown */}
         <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <MapPin className="h-5 w-5" />
-              Zone Breakdown ({zoneMetrics.length})
-            </CardTitle>
-          </CardHeader>
+          <CardHeader><CardTitle className="flex items-center gap-2"><MapPin className="h-5 w-5" />Zone Breakdown ({zoneMetrics.length})</CardTitle></CardHeader>
           <CardContent>
             {isLoading ? (
-              <div className="text-center py-8 text-muted-foreground">
-                Loading zones...
-              </div>
+              <div className="text-center py-8 text-muted-foreground">Loading zones...</div>
             ) : zoneMetrics.length === 0 ? (
-              <div className="text-center py-12">
-                <MapPin className="h-12 w-12 mx-auto mb-3 text-muted-foreground opacity-20" />
-                <p className="text-muted-foreground">
-                  No zones found in this date range
-                </p>
-              </div>
+              <div className="text-center py-12"><MapPin className="h-12 w-12 mx-auto mb-3 text-muted-foreground opacity-20" /><p className="text-muted-foreground">No zones found in this date range</p></div>
             ) : (
               <div className="space-y-3">
                 {zoneMetrics.map((zone) => (
@@ -730,34 +736,12 @@ export function ComplianceDashboard() {
                         <ChevronRight className="h-5 w-5 text-muted-foreground" />
                       </div>
                       <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <div className="text-sm text-muted-foreground">Observations</div>
-                          <div className="text-2xl font-bold">{zone.observations}</div>
-                        </div>
-                        <div>
-                          <div className="text-sm text-muted-foreground">Vehicles</div>
-                          <div className="text-2xl font-bold">{zone.vehicles}</div>
-                        </div>
-                        <div className="bg-red-50 dark:bg-red-950/20 p-2 rounded">
-                          <div className="text-xs text-red-700 dark:text-red-300">Enforceable</div>
-                          <div className="text-xl font-bold text-red-600">{zone.enforceable}</div>
-                        </div>
-                        <div className="bg-yellow-50 dark:bg-yellow-950/20 p-2 rounded">
-                          <div className="text-xs text-yellow-700 dark:text-yellow-300">About to</div>
-                          <div className="text-xl font-bold text-yellow-600">{zone.about_to_breach}</div>
-                        </div>
+                        <div><div className="text-sm text-muted-foreground">Observations</div><div className="text-2xl font-bold">{zone.observations}</div></div>
+                        <div><div className="text-sm text-muted-foreground">Vehicles</div><div className="text-2xl font-bold">{zone.vehicles}</div></div>
+                        <div className="bg-red-50 dark:bg-red-950/20 p-2 rounded"><div className="text-xs text-red-700 dark:text-red-300">Enforceable</div><div className="text-xl font-bold text-red-600">{zone.enforceable}</div></div>
+                        <div className="bg-yellow-50 dark:bg-yellow-950/20 p-2 rounded"><div className="text-xs text-yellow-700 dark:text-yellow-300">About to</div><div className="text-xl font-bold text-yellow-600">{zone.about_to_breach}</div></div>
                       </div>
-                      <div className="mt-3 pt-3 border-t">
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm text-muted-foreground">Compliance</span>
-                          <Badge
-                            variant={zone.compliance === 100 ? 'default' : 'secondary'}
-                            className="h-7 px-3"
-                          >
-                            {zone.compliance}%
-                          </Badge>
-                        </div>
-                      </div>
+                      <div className="mt-3 pt-3 border-t"><div className="flex items-center justify-between"><span className="text-sm text-muted-foreground">Compliance</span><Badge variant={zone.compliance === 100 ? 'default' : 'secondary'} className="h-7 px-3">{zone.compliance}%</Badge></div></div>
                     </CardContent>
                   </Card>
                 ))}

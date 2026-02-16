@@ -6,9 +6,24 @@
  * - PATCH (third digit): Minor amendments
  */
 
-export const APP_VERSION = '2.13.0006';
+export const APP_VERSION = '2.13.0007';
 
 export const VERSION_HISTORY = [
+  {
+    version: '2.13.0007',
+    date: '2026-02-17',
+    changes: [
+      '📊 NEW: Compliance Report Export - CSV and PDF formats',
+      '✅ Comprehensive organization summary with all key metrics',
+      '✅ Zone-by-zone breakdown showing observations, vehicles, breaches, and compliance',
+      '✅ Detailed list of breached vehicles with breach reasons and vehicle details',
+      '✅ At-risk vehicle list showing consecutive nights and risk assessment',
+      '✅ PDF report with professional formatting ready for printing or saving',
+      '✅ CSV export with structured data for further analysis in Excel/Sheets',
+      '📈 Reports respect date range and organization filters',
+      '🎯 One-click export buttons in Compliance Dashboard header',
+    ],
+  },
   {
     version: '2.13.0006',
     date: '2026-02-17',
