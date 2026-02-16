@@ -15,6 +15,9 @@
  * - Compliance trend charts
  * - Export to CSV/PDF
  * - Universal filters (organization + zone)
+ * - Date range filtering (same as Compliance Dashboard)
+ * - Drill down to individual observations
+ * - Edit observation capabilities
  */
 
 import { useState, useEffect } from 'react';
@@ -22,6 +25,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Label } from '@/components/ui/label';
 import {
   Select,
   SelectContent,
@@ -29,6 +33,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import {
   LayoutDashboard,
   TrendingUp,
@@ -48,6 +58,9 @@ import {
   ArrowUpRight,
   ArrowDownRight,
   Minus,
+  Clock,
+  User,
+  Edit3,
 } from 'lucide-react';
 import {
   AreaChart,
@@ -64,9 +77,13 @@ import {
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/stores/authStore';
-import { format } from 'date-fns';
+import { format, formatInTimeZone } from 'date-fns';
 import { UniversalFilters } from '@/components/features/UniversalFilters';
+import { ObservationDetailModal } from '@/pages/ObservationDetailModal';
+import { VehicleEditDrawer } from '@/components/features/VehicleEditDrawer';
+import type { SessionScan } from '@/components/features/SessionList';
 
+const NZ_TIMEZONE = 'Pacific/Auckland';
 const COLORS = ['#22c55e', '#3b82f6', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4'];
 
 interface KPIMetric {
@@ -93,11 +110,27 @@ interface ZoneCard {
 export function OrganizationOverview({ onZoneDrillDown }: { onZoneDrillDown?: (zoneId: string, zoneName: string) => void }) {
   const { user } = useAuthStore();
   const [isLoading, setIsLoading] = useState(true);
-  const [dateRange, setDateRange] = useState<'7' | '30' | '90'>('30');
+  
+  // Date range state (similar to Compliance Dashboard)
+  const [fromDate, setFromDate] = useState<string>(() => {
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    return formatInTimeZone(thirtyDaysAgo, NZ_TIMEZONE, 'yyyy-MM-dd');
+  });
+  const [toDate, setToDate] = useState<string>(() => {
+    const today = new Date();
+    return formatInTimeZone(today, NZ_TIMEZONE, 'yyyy-MM-dd');
+  });
   
   // Universal Filters
   const [selectedOrganization, setSelectedOrganization] = useState('all');
   const [selectedZone, setSelectedZone] = useState('all');
+  
+  // Observation drill-down state
+  const [showObservationsList, setShowObservationsList] = useState(false);
+  const [selectedObservationId, setSelectedObservationId] = useState<string | null>(null);
+  const [showEditDrawer, setShowEditDrawer] = useState(false);
+  const [currentScan, setCurrentScan] = useState<SessionScan | null>(null);
 
   // KPI Metrics
   const [kpis, setKpis] = useState<KPIMetric[]>([]);
@@ -111,7 +144,57 @@ export function OrganizationOverview({ onZoneDrillDown }: { onZoneDrillDown?: (z
 
   useEffect(() => {
     loadDashboardData();
-  }, [dateRange, selectedOrganization, selectedZone, user?.organization_id]);
+  }, [fromDate, toDate, selectedOrganization, selectedZone, user?.organization_id]);
+
+  // Quick date presets (same as Compliance Dashboard)
+  const setDatePreset = (preset: string) => {
+    const today = new Date();
+    const todayStr = formatInTimeZone(today, NZ_TIMEZONE, 'yyyy-MM-dd');
+
+    if (preset === 'today') {
+      setFromDate(todayStr);
+      setToDate(todayStr);
+    } else if (preset === 'yesterday') {
+      const yesterday = new Date(today);
+      yesterday.setDate(yesterday.getDate() - 1);
+      const yesterdayStr = formatInTimeZone(yesterday, NZ_TIMEZONE, 'yyyy-MM-dd');
+      setFromDate(yesterdayStr);
+      setToDate(yesterdayStr);
+    } else if (preset === 'last_7_days') {
+      const weekAgo = new Date(today);
+      weekAgo.setDate(weekAgo.getDate() - 7);
+      setFromDate(formatInTimeZone(weekAgo, NZ_TIMEZONE, 'yyyy-MM-dd'));
+      setToDate(todayStr);
+    } else if (preset === 'last_30_days') {
+      const monthAgo = new Date(today);
+      monthAgo.setDate(monthAgo.getDate() - 30);
+      setFromDate(formatInTimeZone(monthAgo, NZ_TIMEZONE, 'yyyy-MM-dd'));
+      setToDate(todayStr);
+    } else if (preset === 'last_90_days') {
+      const threeMonthsAgo = new Date(today);
+      threeMonthsAgo.setDate(threeMonthsAgo.getDate() - 90);
+      setFromDate(formatInTimeZone(threeMonthsAgo, NZ_TIMEZONE, 'yyyy-MM-dd'));
+      setToDate(todayStr);
+    }
+  };
+
+  const handlePreviousDay = () => {
+    const from = new Date(fromDate);
+    from.setDate(from.getDate() - 1);
+    const to = new Date(toDate);
+    to.setDate(to.getDate() - 1);
+    setFromDate(formatInTimeZone(from, NZ_TIMEZONE, 'yyyy-MM-dd'));
+    setToDate(formatInTimeZone(to, NZ_TIMEZONE, 'yyyy-MM-dd'));
+  };
+
+  const handleNextDay = () => {
+    const from = new Date(fromDate);
+    from.setDate(from.getDate() + 1);
+    const to = new Date(toDate);
+    to.setDate(to.getDate() + 1);
+    setFromDate(formatInTimeZone(from, NZ_TIMEZONE, 'yyyy-MM-dd'));
+    setToDate(formatInTimeZone(to, NZ_TIMEZONE, 'yyyy-MM-dd'));
+  };
 
   const loadDashboardData = async () => {
     setIsLoading(true);
@@ -119,11 +202,8 @@ export function OrganizationOverview({ onZoneDrillDown }: { onZoneDrillDown?: (z
     try {
       console.log('📊 Loading organization overview (using canonical_vehicles)...');
 
-      const daysAgo = parseInt(dateRange);
-      const startDate = new Date();
-      startDate.setDate(startDate.getDate() - daysAgo);
-      const startDateStr = startDate.toISOString().split('T')[0];
-      const endDateStr = new Date().toISOString().split('T')[0];
+      const startDateStr = fromDate;
+      const endDateStr = toDate;
 
       // Determine organization filter
       let orgId: string | null = null;
@@ -409,7 +489,7 @@ export function OrganizationOverview({ onZoneDrillDown }: { onZoneDrillDown?: (z
     const csvData = [
       ['Organization Overview Report'],
       ['Generated:', new Date().toLocaleString('en-NZ')],
-      ['Period:', `Last ${dateRange} days`],
+      ['Period:', `${fromDate} to ${toDate}`],
       [''],
       ['KPI Metrics'],
       ['Metric', 'Value', 'Change %'],
@@ -462,16 +542,13 @@ export function OrganizationOverview({ onZoneDrillDown }: { onZoneDrillDown?: (z
         </div>
 
         <div className="flex items-center gap-1.5 md:gap-2 flex-wrap">
-          <Select value={dateRange} onValueChange={(v) => setDateRange(v as '7' | '30' | '90')}>
-            <SelectTrigger className="w-24 md:w-32 text-xs md:text-sm">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="7">7 Days</SelectItem>
-              <SelectItem value="30">30 Days</SelectItem>
-              <SelectItem value="90">90 Days</SelectItem>
-            </SelectContent>
-          </Select>
+          <Button onClick={() => setShowObservationsList(true)} variant="outline" size="sm" className="hidden md:flex">
+            <FileText className="h-4 w-4 mr-2" />
+            View Observations
+          </Button>
+          <Button onClick={() => setShowObservationsList(true)} variant="outline" size="sm" className="md:hidden">
+            <FileText className="h-4 w-4" />
+          </Button>
 
           <Button onClick={loadDashboardData} variant="outline" size="sm" disabled={isLoading}>
             {isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
@@ -493,6 +570,116 @@ export function OrganizationOverview({ onZoneDrillDown }: { onZoneDrillDown?: (z
           </Button>
         </div>
       </div>
+
+      {/* Date Range Filter (same as Compliance Dashboard) */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Calendar className="h-5 w-5" />
+            Date Range Filter
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* Quick Select Buttons */}
+          <div>
+            <Label className="text-sm text-muted-foreground mb-2 block">Quick Select:</Label>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setDatePreset('today')}
+                className="h-9"
+              >
+                <Clock className="h-3 w-3 mr-1" />
+                Today
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setDatePreset('yesterday')}
+                className="h-9"
+              >
+                Yesterday
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setDatePreset('last_7_days')}
+                className="h-9"
+              >
+                Last 7 Days
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setDatePreset('last_30_days')}
+                className="h-9"
+              >
+                Last 30 Days
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setDatePreset('last_90_days')}
+                className="h-9"
+              >
+                Last 90 Days
+              </Button>
+            </div>
+          </div>
+
+          {/* Navigation Buttons */}
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handlePreviousDay}
+              className="flex-1"
+            >
+              <ChevronRight className="h-4 w-4 mr-1 rotate-180" />
+              Previous Day
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleNextDay}
+              className="flex-1"
+            >
+              Next Day
+              <ChevronRight className="h-4 w-4 ml-1" />
+            </Button>
+          </div>
+
+          {/* Date Inputs */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="from-date">From Date</Label>
+              <input
+                id="from-date"
+                type="date"
+                value={fromDate}
+                onChange={(e) => setFromDate(e.target.value)}
+                className="w-full px-3 py-2 border rounded-md"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="to-date">To Date</Label>
+              <input
+                id="to-date"
+                type="date"
+                value={toDate}
+                onChange={(e) => setToDate(e.target.value)}
+                className="w-full px-3 py-2 border rounded-md"
+              />
+            </div>
+          </div>
+
+          {/* Current Filter Display */}
+          <div className="text-xs text-muted-foreground text-center p-2 bg-muted/50 rounded">
+            Current filter: <span className="font-semibold">{fromDate}</span> → <span className="font-semibold">{toDate}</span>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Universal Filters */}
       <UniversalFilters
@@ -546,7 +733,7 @@ export function OrganizationOverview({ onZoneDrillDown }: { onZoneDrillDown?: (z
             <CardHeader>
               <CardTitle className="text-lg text-gray-900 dark:text-white flex items-center gap-2">
                 <TrendingUp className="h-5 w-5 text-green-600" />
-                Compliance Trend (Last {dateRange} Days)
+                Compliance Trend ({fromDate} to {toDate})
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -685,6 +872,268 @@ export function OrganizationOverview({ onZoneDrillDown }: { onZoneDrillDown?: (z
           </Card>
         </>
       )}
+
+      {/* Observations List Dialog */}
+      <ObservationsListDialog
+        open={showObservationsList}
+        onClose={() => setShowObservationsList(false)}
+        organizationId={selectedOrganization !== 'all' ? selectedOrganization : user?.organization_id || ''}
+        zoneId={selectedZone !== 'all' ? selectedZone : undefined}
+        fromDate={fromDate}
+        toDate={toDate}
+        onViewObservation={(observationId) => {
+          setSelectedObservationId(observationId);
+          setShowObservationsList(false);
+        }}
+        onEditObservation={(scan) => {
+          setCurrentScan(scan);
+          setShowEditDrawer(true);
+          setShowObservationsList(false);
+        }}
+      />
+
+      {/* Observation Detail Modal */}
+      {selectedObservationId && (
+        <ObservationDetailModal
+          observationId={selectedObservationId}
+          open={!!selectedObservationId}
+          onClose={() => {
+            setSelectedObservationId(null);
+            setShowObservationsList(true);
+          }}
+        />
+      )}
+
+      {/* Vehicle Edit Drawer */}
+      {showEditDrawer && currentScan && (
+        <VehicleEditDrawer
+          scan={currentScan}
+          onClose={() => {
+            setShowEditDrawer(false);
+            setCurrentScan(null);
+            setShowObservationsList(true);
+          }}
+          onUpdate={(updatedScan) => {
+            setShowEditDrawer(false);
+            setCurrentScan(null);
+            setShowObservationsList(true);
+            toast.success('Observation updated successfully');
+            loadDashboardData(); // Reload data
+          }}
+          onCreateIncident={() => {
+            toast.info('Opening incident report...');
+          }}
+          onCreateHSReport={() => {
+            toast.info('Opening H&S report...');
+          }}
+          onCreateMaintenanceReport={() => {
+            toast.info('Opening maintenance report...');
+          }}
+        />
+      )}
     </div>
+  );
+}
+
+// Observations List Dialog Component
+function ObservationsListDialog({
+  open,
+  onClose,
+  organizationId,
+  zoneId,
+  fromDate,
+  toDate,
+  onViewObservation,
+  onEditObservation,
+}: {
+  open: boolean;
+  onClose: () => void;
+  organizationId: string;
+  zoneId?: string;
+  fromDate: string;
+  toDate: string;
+  onViewObservation: (observationId: string) => void;
+  onEditObservation: (scan: SessionScan) => void;
+}) {
+  const [observations, setObservations] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    if (open && organizationId) {
+      loadObservations();
+    }
+  }, [open, organizationId, zoneId, fromDate, toDate]);
+
+  const loadObservations = async () => {
+    setIsLoading(true);
+    try {
+      let query = supabase
+        .from('vehicle_observations_v2')
+        .select(`
+          observation_id,
+          plate_number,
+          zone_id,
+          organization_id,
+          recorded_at,
+          recorded_by,
+          is_compliant,
+          is_breach,
+          officer_notes,
+          photo,
+          zones!inner(id, name),
+          user_profiles!vehicle_observations_v2_recorded_by_fkey(first_name, last_name)
+        `)
+        .eq('organization_id', organizationId)
+        .gte('recorded_at', `${fromDate}T00:00:00`)
+        .lte('recorded_at', `${toDate}T23:59:59`)
+        .order('recorded_at', { ascending: false })
+        .limit(100);
+
+      if (zoneId) {
+        query = query.eq('zone_id', zoneId);
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
+
+      setObservations(data || []);
+    } catch (error: any) {
+      console.error('Failed to load observations:', error);
+      toast.error('Failed to load observations');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleEdit = (obs: any) => {
+    const scan: SessionScan = {
+      id: obs.observation_id,
+      plateNumber: obs.plate_number,
+      zoneName: obs.zones?.name || 'Unknown',
+      zoneId: obs.zone_id,
+      organizationId: obs.organization_id,
+      timestamp: obs.recorded_at,
+      isCompliant: obs.is_compliant,
+      isFlagged: false,
+      vehicleId: undefined,
+      observationId: obs.observation_id,
+      detectionMethod: 'alpr',
+      isSelfContained: false,
+      isHomeless: false,
+      hasHSIssue: false,
+      requiresFollowup: false,
+    };
+    onEditObservation(scan);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <FileText className="h-5 w-5" />
+            Observations ({observations.length})
+          </DialogTitle>
+        </DialogHeader>
+
+        {isLoading ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          </div>
+        ) : observations.length === 0 ? (
+          <div className="text-center py-12 text-muted-foreground">
+            <Activity className="h-16 w-16 mx-auto mb-4 opacity-20" />
+            <p>No observations found in selected date range</p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {observations.map((obs) => (
+              <Card key={obs.observation_id} className="border-2 hover:shadow-md transition-shadow">
+                <CardContent className="p-4">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-3 mb-2">
+                        {obs.photo && (
+                          <img
+                            src={obs.photo}
+                            alt={obs.plate_number}
+                            className="w-16 h-16 object-cover rounded border"
+                          />
+                        )}
+                        <div className="flex-1">
+                          <p className="font-mono font-bold text-lg">{obs.plate_number}</p>
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                            <MapPin className="h-3 w-3" />
+                            <span>{obs.zones?.name || 'Unknown'}</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-2 mb-2">
+                        {obs.is_breach ? (
+                          <Badge variant="destructive">
+                            <AlertTriangle className="h-3 w-3 mr-1" /> Breach
+                          </Badge>
+                        ) : obs.is_compliant ? (
+                          <Badge variant="default">
+                            <CheckCircle2 className="h-3 w-3 mr-1" /> Compliant
+                          </Badge>
+                        ) : (
+                          <Badge variant="secondary">
+                            Non-Compliant
+                          </Badge>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                        <div className="flex items-center gap-1">
+                          <Calendar className="h-3 w-3" />
+                          {new Date(obs.recorded_at).toLocaleString('en-NZ', {
+                            dateStyle: 'short',
+                            timeStyle: 'short',
+                            timeZone: NZ_TIMEZONE,
+                          })}
+                        </div>
+                        {obs.user_profiles && (
+                          <div className="flex items-center gap-1">
+                            <User className="h-3 w-3" />
+                            {obs.user_profiles.first_name} {obs.user_profiles.last_name}
+                          </div>
+                        )}
+                      </div>
+
+                      {obs.officer_notes && (
+                        <p className="text-xs text-muted-foreground mt-2 line-clamp-2">
+                          {obs.officer_notes}
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="flex flex-col gap-2 shrink-0">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => onViewObservation(obs.observation_id)}
+                      >
+                        <FileText className="h-3 w-3 mr-1" />
+                        View
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="default"
+                        onClick={() => handleEdit(obs)}
+                      >
+                        <Edit3 className="h-3 w-3 mr-1" />
+                        Edit
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
   );
 }
