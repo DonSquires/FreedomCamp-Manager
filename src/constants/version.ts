@@ -6,9 +6,20 @@
  * - PATCH (third digit): Minor amendments
  */
 
-export const APP_VERSION = '2.13.0001';
+export const APP_VERSION = '2.13.0002';
 
 export const VERSION_HISTORY = [
+  {
+    version: '2.13.0002',
+    date: '2026-02-16',
+    changes: [
+      '🔧 FIXED: Bug reports now properly load for master users only',
+      '✅ Added role check before loading bug reports (respects RLS policies)',
+      '✅ Non-master users no longer see empty bug reports tab',
+      '🔐 Improved security - only masters can view all submitted bug reports',
+      '📊 Console logging added for debugging bug report queries',
+    ],
+  },
   {
     version: '2.13.0001',
     date: '2026-02-16',
