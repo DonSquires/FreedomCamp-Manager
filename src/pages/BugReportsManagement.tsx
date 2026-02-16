@@ -44,6 +44,8 @@ import {
   Filter,
   Search,
   ExternalLink,
+  Sparkles,
+  Loader2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
@@ -110,6 +112,8 @@ export function BugReportsManagement() {
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [resolutionNotes, setResolutionNotes] = useState('');
   const [newStatus, setNewStatus] = useState('');
+  const [aiAnalyzing, setAiAnalyzing] = useState(false);
+  const [aiSuggestion, setAiSuggestion] = useState<string | null>(null);
 
   // Filters
   const [statusFilter, setStatusFilter] = useState('all');
@@ -226,7 +230,84 @@ export function BugReportsManagement() {
     setSelectedReport(report);
     setNewStatus(report.status);
     setResolutionNotes(report.resolution_notes || '');
+    setAiSuggestion(null);
     setShowDetailModal(true);
+  };
+
+  const analyzeWithAI = async () => {
+    if (!selectedReport) return;
+
+    setAiAnalyzing(true);
+    setAiSuggestion(null);
+
+    try {
+      // Prepare context for AI
+      const bugContext = `
+# Bug Report Analysis Request
+
+**Issue Type:** ${selectedReport.issue_type.replace('_', ' ')}
+**Severity:** ${selectedReport.severity}
+**Title:** ${selectedReport.title}
+
+**Description:**
+${selectedReport.description}
+
+${selectedReport.steps_to_reproduce ? `**Steps to Reproduce:**\n${selectedReport.steps_to_reproduce}\n\n` : ''}
+${selectedReport.expected_behavior ? `**Expected Behavior:**\n${selectedReport.expected_behavior}\n\n` : ''}
+${selectedReport.actual_behavior ? `**Actual Behavior:**\n${selectedReport.actual_behavior}\n\n` : ''}
+
+**System Information:**
+- App Version: ${selectedReport.app_version}
+- Page: ${selectedReport.current_page}
+- Device: ${selectedReport.device_info?.isMobile ? 'Mobile' : selectedReport.device_info?.isTablet ? 'Tablet' : 'Desktop'}
+- Network Status: ${selectedReport.network_status}
+
+${selectedReport.console_errors?.length > 0 ? `**Console Errors:**\n${JSON.stringify(selectedReport.console_errors, null, 2)}\n\n` : ''}
+
+Please analyze this bug report and provide:
+1. **Root Cause Analysis** - What is likely causing this issue?
+2. **Suggested Fix** - Specific code changes or configuration updates needed
+3. **Priority Assessment** - Is the severity rating appropriate?
+4. **Related Issues** - Are there similar issues that might need attention?
+5. **Prevention Tips** - How to prevent similar issues in the future
+
+Provide your analysis in a clear, structured format that a developer can use immediately.
+      `.trim();
+
+      const { data, error } = await supabase.functions.invoke('onspace-ai-chat', {
+        body: {
+          messages: [
+            {
+              role: 'system',
+              content: 'You are an expert software debugging assistant. Analyze bug reports and provide actionable fix suggestions with specific code examples when possible. Be concise but thorough.',
+            },
+            {
+              role: 'user',
+              content: bugContext,
+            },
+          ],
+          model: 'gpt-4o', // Use GPT-4o for best code analysis
+          temperature: 0.3, // Lower temperature for more focused technical responses
+        },
+      });
+
+      if (error) {
+        console.error('AI Analysis Error:', error);
+        throw new Error('AI analysis failed');
+      }
+
+      if (data?.response) {
+        setAiSuggestion(data.response);
+        toast.success('AI analysis complete!');
+      } else {
+        throw new Error('No response from AI');
+      }
+    } catch (error: any) {
+      console.error('Failed to analyze with AI:', error);
+      toast.error('AI analysis failed: ' + (error.message || 'Unknown error'));
+    } finally {
+      setAiAnalyzing(false);
+    }
   };
 
   if (isLoading) {
@@ -541,6 +622,58 @@ export function BugReportsManagement() {
                   }</div>
                   <div><span className="text-muted-foreground">Network:</span> {selectedReport.network_status}</div>
                 </div>
+              </div>
+
+              {/* AI Analysis */}
+              <div className="space-y-3 border-t pt-4">
+                <div className="flex items-center justify-between">
+                  <h4 className="font-semibold flex items-center gap-2">
+                    <Sparkles className="h-5 w-5 text-purple-600" />
+                    AI Assistant
+                  </h4>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={analyzeWithAI}
+                    disabled={aiAnalyzing}
+                    className="bg-gradient-to-r from-purple-500 to-blue-500 text-white hover:from-purple-600 hover:to-blue-600 border-none"
+                  >
+                    {aiAnalyzing ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Analyzing...
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="h-4 w-4 mr-2" />
+                        Analyze Bug & Suggest Fix
+                      </>
+                    )}
+                  </Button>
+                </div>
+
+                {aiSuggestion && (
+                  <div className="p-4 bg-purple-50 dark:bg-purple-950/20 border-2 border-purple-200 dark:border-purple-800 rounded-lg">
+                    <div className="flex items-start gap-2 mb-2">
+                      <Sparkles className="h-5 w-5 text-purple-600 shrink-0 mt-1" />
+                      <div className="flex-1">
+                        <h5 className="font-bold text-purple-900 dark:text-purple-100 mb-2">
+                          AI Analysis & Recommendations
+                        </h5>
+                        <div className="prose prose-sm dark:prose-invert max-w-none text-sm">
+                          <div className="whitespace-pre-wrap text-purple-900 dark:text-purple-100">
+                            {aiSuggestion}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="mt-3 pt-3 border-t border-purple-200 dark:border-purple-800">
+                      <p className="text-xs text-purple-700 dark:text-purple-300">
+                        💡 <strong>Tip:</strong> This analysis is generated by AI and should be reviewed by a developer before implementation.
+                      </p>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Update Status */}
