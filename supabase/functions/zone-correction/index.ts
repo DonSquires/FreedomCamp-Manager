@@ -89,9 +89,18 @@ serve(async (req) => {
     let corrected = 0;
     let movedToOther = 0;
     const otherLocationZones = new Map<string, any>();
+    const corrections: any[] = [];
+
+    // Get zone name map for reporting
+    const zoneNameMap = new Map<string, string>();
+    zones?.forEach(z => zoneNameMap.set(z.id, z.name));
 
     // Process each observation
     for (const obs of observations) {
+      // Get current zone name
+      let currentZoneName = zoneNameMap.get(obs.zone_id) || 'Unknown Zone';
+      
+      // Find correct zone based on GPS coordinates
       const correctZone = findZoneByGPS(
         obs.gps_latitude,
         obs.gps_longitude,
@@ -122,6 +131,7 @@ serve(async (req) => {
           if (existingOther) {
             otherZone = existingOther;
             otherLocationZones.set(obs.organization_id, otherZone);
+            zoneNameMap.set(otherZone.id, otherZone.name);
             console.log(`📍 Using existing Other Location zone: ${otherZone.id}`);
           } else {
             // Create "Other Location" zone
@@ -148,6 +158,7 @@ serve(async (req) => {
             
             otherZone = newOther;
             otherLocationZones.set(obs.organization_id, otherZone);
+            zoneNameMap.set(otherZone.id, otherZone.name);
             console.log(`✅ Created Other Location zone: ${otherZone.id}`);
           }
         }
@@ -171,7 +182,15 @@ serve(async (req) => {
           console.error(`❌ Failed to update ${obs.observation_id}:`, updateError.message);
         } else {
           corrected++;
-          console.log(`✅ Corrected: ${obs.plate_number} → ${targetZoneName}`);
+          corrections.push({
+            observation_id: obs.observation_id,
+            plate_number: obs.plate_number,
+            old_zone_name: currentZoneName,
+            new_zone_name: targetZoneName,
+            recorded_at: obs.recorded_at,
+            gps_coordinates: `${obs.gps_latitude.toFixed(6)}, ${obs.gps_longitude.toFixed(6)}`
+          });
+          console.log(`✅ Corrected: ${obs.plate_number} → ${currentZoneName} to ${targetZoneName}`);
         }
       }
     }
@@ -183,6 +202,7 @@ serve(async (req) => {
         processed: observations.length,
         corrected,
         movedToOther,
+        corrections, // Return list of what was corrected
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );

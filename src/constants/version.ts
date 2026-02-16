@@ -6,9 +6,20 @@
  * - PATCH (third digit): Minor amendments
  */
 
-export const APP_VERSION = '2.13.0015';
+export const APP_VERSION = '2.13.0017';
 
 export const VERSION_HISTORY = [
+  {
+    version: '2.13.0017',
+    date: '2026-02-17',
+    changes: [
+      '🗺️ ENHANCED: Zone Correction now shows detailed correction list',
+      '✅ See which vehicles were moved from which zone to which zone',
+      '📍 GPS coordinates shown for each corrected observation',
+      '📊 Detailed reporting: plate number, old zone → new zone, timestamp',
+      '🎯 Better transparency for zone reassignments',
+    ],
+  },
   {
     version: '2.13.0015',
     date: '2026-02-17',
