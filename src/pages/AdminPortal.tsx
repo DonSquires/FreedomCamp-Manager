@@ -68,6 +68,7 @@ import { DatabaseMaintenance } from './DatabaseMaintenance';
 import { BugReportsManagement } from './BugReportsManagement';
 import { ComplianceDashboard } from './ComplianceDashboard';
 import { VehicleEvidenceReport } from './VehicleEvidenceReport';
+import ObservationsReport from './ObservationsReport';
 
 interface AdminPortalProps {
   onLogout: () => void;
@@ -357,6 +358,18 @@ export function AdminPortal({ onLogout }: AdminPortalProps) {
             </Button>
 
             <Button
+              variant={activeTab === 'observations-report' ? 'default' : 'ghost'}
+              className="w-full justify-start text-sm lg:text-base h-10 lg:h-9 touch-manipulation bg-purple-50 dark:bg-purple-950/20 border border-purple-500/30"
+              onClick={() => {
+                setActiveTab('observations-report');
+                setSidebarOpen(false);
+              }}
+            >
+              <Eye className="h-4 w-4 mr-2 lg:mr-3 text-purple-600" />
+              <span className="text-purple-600 dark:text-purple-400 font-semibold">Observations Report</span>
+            </Button>
+
+            <Button
               variant={activeTab === 'analytics-hub' ? 'default' : 'ghost'}
               className="w-full justify-start text-sm lg:text-base h-10 lg:h-9 touch-manipulation"
               onClick={() => {
@@ -549,6 +562,9 @@ export function AdminPortal({ onLogout }: AdminPortalProps) {
 
               {/* Vehicle Evidence Report - Court-Ready PDF Generator */}
               {activeTab === 'vehicle-evidence-report' && <VehicleEvidenceReport />}
+
+              {/* Observations Report - Comprehensive observation records */}
+              {activeTab === 'observations-report' && <ObservationsReport />}
 
               {/* Analytics Hub - Phase 3 Complete */}
               {activeTab === 'analytics-hub' && <AnalyticsHub />}
