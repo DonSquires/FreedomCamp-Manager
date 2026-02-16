@@ -6,9 +6,50 @@
  * - PATCH (third digit): Minor amendments
  */
 
-export const APP_VERSION = '2.12.0015';
+export const APP_VERSION = '2.13.0001';
 
 export const VERSION_HISTORY = [
+  {
+    version: '2.13.0001',
+    date: '2026-02-16',
+    changes: [
+      '🔧 CRITICAL FIX: Urgent Follow Ups page now uses correct new schema tables',
+      '✅ Updated to query canonical_vehicles instead of deprecated vehicle_records',
+      '✅ Fixed observations query to use vehicle_observations_v2',
+      '✅ Fixed homeless claims query to use canonical_vehicles.homeless_status',
+      '✅ Updated enforcement action creation to work with new schema',
+      '✅ Updated homeless confirmation to only update canonical_vehicles',
+      '📊 Flagged vehicles now properly display in Observations tab',
+      '🏠 Homeless claims now properly display in Homeless tab',
+      '🚨 No more "Failed to load urgent follow ups" error',
+    ],
+  },
+  {
+    version: '2.13.0000',
+    date: '2026-02-16',
+    changes: [
+      '🚨 CRITICAL LEGAL COMPLIANCE UPDATE',
+      '📍 GLOBAL GPS TRACKING: Continuous location tracking across all app modes',
+      '🗺️ AUTO ZONE DETECTION: GPS geofencing automatically detects current zone',
+      '✅ AUTO PATROL MANAGEMENT: Patrols auto-start/stop when entering/exiting zones',
+      '💧 PHOTO WATERMARKING: All photos stamped with GPS, date, time, officer info',
+      '👁️ LIVE ADMIN TRACKING: Admins see real-time officer location and activity',
+      '📊 ACTIVITY STREAM: Real-time feed of all field officer actions',
+      '⚖️ COURT-READY EVIDENCE: Photos have visible watermark + metadata for legal use',
+      '🔒 CHAIN OF CUSTODY: Full audit trail for all evidence collection',
+      '📡 REAL-TIME SYNC: Admin portal shows live field operations',
+    ],
+  },
+  {
+    version: '2.12.0016',
+    date: '2026-02-16',
+    changes: [
+      '🔧 CRITICAL FIX: GPS location now properly sent during Zoom Scan captures',
+      '✅ Scans will now save actual GPS coordinates to database',
+      '📍 Zone correction can now properly reassign based on real GPS location',
+      '⚠️ Previous scans without GPS cannot be corrected - only new scans will work',
+    ],
+  },
   {
     version: '2.12.0015',
     date: '2026-02-16',
