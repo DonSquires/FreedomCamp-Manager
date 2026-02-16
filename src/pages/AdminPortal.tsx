@@ -46,6 +46,7 @@ import { PatrolManagement } from './PatrolManagement';
 import { InvestigationJobs } from './InvestigationJobs';
 import { UrgentFollowUps } from './UrgentFollowUps';
 import { OfficerWelfareHub } from './OfficerWelfareHub';
+import { LiveFieldOperations } from './LiveFieldOperations';
 import { HelpDocumentation } from './HelpDocumentation';
 import { AnalyticsHub } from './AnalyticsHub';
 import { OrganizationDashboard } from './OrganizationDashboard';
@@ -251,6 +252,18 @@ export function AdminPortal({ onLogout }: AdminPortalProps) {
             >
               <Heart className="h-4 w-4 mr-2 lg:mr-3 text-red-600" />
               <span className="text-red-600 dark:text-red-400 font-semibold">Officer Welfare Hub</span>
+            </Button>
+
+            <Button
+              variant={activeTab === 'live-field-ops' ? 'default' : 'ghost'}
+              className="w-full justify-start text-sm lg:text-base h-10 lg:h-9 touch-manipulation bg-green-50 dark:bg-green-950/20 border border-green-500/30"
+              onClick={() => {
+                setActiveTab('live-field-ops');
+                setSidebarOpen(false);
+              }}
+            >
+              <MapPin className="h-4 w-4 mr-2 lg:mr-3 text-green-600" />
+              <span className="text-green-600 dark:text-green-400 font-semibold">Live Field Operations</span>
             </Button>
 
             <Button
@@ -580,6 +593,7 @@ export function AdminPortal({ onLogout }: AdminPortalProps) {
 
               {activeTab === 'patrol-management' && <PatrolManagement />}
               {activeTab === 'officer-welfare-hub' && <OfficerWelfareHub />}
+              {activeTab === 'live-field-ops' && <LiveFieldOperations />}
 
 
 

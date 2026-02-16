@@ -62,6 +62,7 @@ import { UpdateManager } from '@/components/features/UpdateManager';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
 import { useOfficerWelfareMonitor } from '@/hooks/useOfficerWelfareMonitor';
+import { useGlobalLocationTracking } from '@/hooks/useGlobalLocationTracking';
 import { cn } from '@/lib/utils';
 
 interface FieldOfficerPortalProps {
@@ -139,6 +140,19 @@ export function FieldOfficerPortal({ onLogout }: FieldOfficerPortalProps) {
     recordGPSUpdate,
     acknowledgeWarning,
   } = useOfficerWelfareMonitor();
+
+  // ✅ Global GPS Location Tracking (LEGAL COMPLIANCE)
+  const {
+    currentLocation,
+    currentZone: autoDetectedZone,
+    isTracking,
+    setIsTracking,
+    gpsError,
+    updateActivity,
+  } = useGlobalLocationTracking(
+    user?.id || null,
+    user?.organization_id || null
+  );
 
   // Auto-enter fullscreen on mount and restore preference
   useEffect(() => {
@@ -292,22 +306,49 @@ export function FieldOfficerPortal({ onLogout }: FieldOfficerPortalProps) {
     }
   }, [user?.id]);
 
-  // Initialize GPS tracking
+  // Sync global GPS tracking with local state
   useEffect(() => {
-    if (!('geolocation' in navigator)) return;
+    if (currentLocation) {
+      setGpsLocation({
+        lat: currentLocation.latitude,
+        lng: currentLocation.longitude,
+        accuracy: currentLocation.accuracy || 10,
+      });
+    }
+  }, [currentLocation]);
 
-    const watchId = navigator.geolocation.watchPosition(
-      (position) => {
-        const { latitude, longitude, accuracy } = position.coords;
-        setGpsLocation({ lat: latitude, lng: longitude, accuracy });
-        recordGPSUpdate(latitude, longitude, accuracy);
-      },
-      (error) => console.warn('GPS error:', error),
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-    );
+  // ✅ UPDATE activity when user changes views
+  useEffect(() => {
+    if (!user?.id) return;
 
-    return () => navigator.geolocation.clearWatch(watchId);
-  }, [recordGPSUpdate]);
+    const zoneId = selectedZone?.id || autoDetectedZone?.id;
+
+    if (currentView === 'scanning' || currentView === 'zoom_scan') {
+      updateActivity({
+        type: 'scanning',
+        details: `Active ${currentView === 'zoom_scan' ? 'zoom ' : ''}scanning`,
+        zone_id: zoneId,
+      });
+    } else if (currentView === 'reports') {
+      updateActivity({
+        type: 'reporting',
+        details: 'Reviewing reports',
+        zone_id: zoneId,
+      });
+    } else if (currentView === 'history') {
+      updateActivity({
+        type: 'administrative',
+        details: 'Viewing scan history',
+        zone_id: zoneId,
+      });
+    } else {
+      updateActivity({
+        type: 'idle',
+        details: 'Dashboard view',
+        zone_id: zoneId,
+      });
+    }
+  }, [currentView, selectedZone, autoDetectedZone, user?.id, updateActivity]);
 
   // Load session scans on mount
   useEffect(() => {

@@ -116,6 +116,128 @@ Deno.serve(async (req) => {
     const normalizedPlate = scanData.plateNumber.toUpperCase().trim().replace(/[^A-Z0-9]/g, '');
     console.log('🔤 Normalized plate:', normalizedPlate);
 
+    // AUTOMATIC ZONE DETECTION: Match GPS to geofences
+    let finalZoneId = scanData.zoneId;
+    if (scanData.gpsLocation && scanData.gpsLocation.lat && scanData.gpsLocation.lng) {
+      console.log('📍 GPS location detected - checking geofence match...');
+      
+      // Query all active zones with geofences for this organization
+      const { data: zones, error: zonesError } = await supabaseAdmin
+        .from('zones')
+        .select('id, name, geometry, location_lat, location_lng')
+        .eq('organization_id', scanData.organizationId)
+        .eq('is_active', true);
+      
+      if (!zonesError && zones && zones.length > 0) {
+        let matchedZoneId: string | null = null;
+        
+        // 1. Try polygon geofence matching first
+        for (const zone of zones) {
+          if (zone.geometry?.type === 'Polygon' && zone.geometry?.coordinates) {
+            // Simple point-in-polygon check (for simple polygons)
+            const polygon = zone.geometry.coordinates[0]; // First ring
+            const point = [scanData.gpsLocation.lng, scanData.gpsLocation.lat];
+            
+            // Ray casting algorithm
+            let inside = false;
+            for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+              const xi = polygon[i][0], yi = polygon[i][1];
+              const xj = polygon[j][0], yj = polygon[j][1];
+              
+              const intersect = ((yi > point[1]) !== (yj > point[1]))
+                  && (point[0] < (xj - xi) * (point[1] - yi) / (yj - yi) + xi);
+              if (intersect) inside = !inside;
+            }
+            
+            if (inside) {
+              matchedZoneId = zone.id;
+              console.log(`✅ GPS matched polygon geofence: ${zone.name}`);
+              break;
+            }
+          }
+        }
+        
+        // 2. If no polygon match, try point+radius (100m)
+        if (!matchedZoneId) {
+          for (const zone of zones) {
+            if (zone.location_lat && zone.location_lng) {
+              const distance = calculateDistance(
+                scanData.gpsLocation.lat,
+                scanData.gpsLocation.lng,
+                zone.location_lat,
+                zone.location_lng
+              );
+              
+              if (distance <= 100) { // Within 100m
+                matchedZoneId = zone.id;
+                console.log(`✅ GPS matched point zone (${distance.toFixed(0)}m): ${zone.name}`);
+                break;
+              }
+            }
+          }
+        }
+        
+        // 3. If no match, assign to "Other Location"
+        if (!matchedZoneId) {
+          console.log('📍 No geofence match - assigning to "Other Location"');
+          
+          // Try to find or create "Other Location" zone
+          const { data: otherZone, error: otherZoneError } = await supabaseAdmin
+            .from('zones')
+            .select('id')
+            .eq('organization_id', scanData.organizationId)
+            .eq('name', 'Other Location')
+            .maybeSingle();
+          
+          if (!otherZoneError && otherZone) {
+            matchedZoneId = otherZone.id;
+          } else {
+            // Create "Other Location" zone
+            const { data: newZone, error: createError } = await supabaseAdmin
+              .from('zones')
+              .insert({
+                organization_id: scanData.organizationId,
+                name: 'Other Location',
+                description: 'Auto-created zone for observations outside defined geofences',
+                is_active: true,
+                day_visit_only: false,
+              })
+              .select('id')
+              .single();
+            
+            if (!createError && newZone) {
+              matchedZoneId = newZone.id;
+              console.log('✅ Created "Other Location" zone:', matchedZoneId);
+            }
+          }
+        }
+        
+        // Use matched zone if found
+        if (matchedZoneId) {
+          finalZoneId = matchedZoneId;
+          console.log(`🎯 Final zone assignment: ${finalZoneId}`);
+        }
+      }
+    } else {
+      console.log('⚠️ No GPS location - using manually selected zone');
+    }
+
+    // Helper function: Calculate distance between two GPS points (meters)
+    function calculateDistance(lat1: number, lng1: number, lat2: number, lng2: number): number {
+      const R = 6371e3; // Earth radius in meters
+      const φ1 = lat1 * Math.PI / 180;
+      const φ2 = lat2 * Math.PI / 180;
+      const Δφ = (lat2 - lat1) * Math.PI / 180;
+      const Δλ = (lng2 - lng1) * Math.PI / 180;
+
+      const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+                Math.cos(φ1) * Math.cos(φ2) *
+                Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+      return R * c;
+    }
+
     // STEP 1: Get or create canonical vehicle using RPC function
     console.log('🚗 Step 1: Upsert canonical vehicle...');
     const { data: plateResult, error: upsertError } = await supabaseAdmin.rpc('upsert_canonical_vehicle', {
@@ -204,7 +326,7 @@ Deno.serve(async (req) => {
       .insert({
         plate_number: normalizedPlate,
         organization_id: scanData.organizationId,
-        zone_id: scanData.zoneId,
+        zone_id: finalZoneId,
         recorded_by: user.id,
         recorded_at: new Date().toISOString(),
         // Vehicle details - will be auto-populated from canonical if not provided
@@ -244,7 +366,7 @@ Deno.serve(async (req) => {
       const { data: complianceData, error: complianceError } = await supabaseAdmin
         .rpc('calculate_vehicle_compliance_with_results', {
           p_plate_number: normalizedPlate,
-          p_zone_id: scanData.zoneId,
+          p_zone_id: finalZoneId,
           p_check_date: new Date().toISOString().split('T')[0],
           p_observation_id: observation.observation_id // ✅ PASS observation_id to populate compliance_results
         });
