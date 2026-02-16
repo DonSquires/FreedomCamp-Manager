@@ -6,9 +6,18 @@
  * - PATCH (third digit): Minor amendments
  */
 
-export const APP_VERSION = '2.12.0011';
+export const APP_VERSION = '2.12.0012';
 
 export const VERSION_HISTORY = [
+  {
+    version: '2.12.0012',
+    date: '2026-02-16',
+    changes: [
+      '🔧 CRITICAL FIX: Zoom Scan blank screen resolved - missing icon imports',
+      '✅ Added MapPin and Clock imports for zone info header',
+      '✅ Camera now loads properly with zone location and time display',
+    ],
+  },
   {
     version: '2.12.0011',
     date: '2026-02-16',

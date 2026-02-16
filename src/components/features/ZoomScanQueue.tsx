@@ -16,7 +16,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Camera, X, Loader2, ZoomIn, ZoomOut, AlertTriangle, Shield, FileText, Flashlight } from 'lucide-react';
+import { Camera, X, Loader2, ZoomIn, ZoomOut, AlertTriangle, Shield, FileText, Flashlight, MapPin, Clock } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
 import { playSounds } from '@/lib/sounds';
