@@ -16,7 +16,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { Camera, X, Loader2, ZoomIn, ZoomOut, AlertTriangle, Shield, FileText } from 'lucide-react';
+import { Camera, X, Loader2, ZoomIn, ZoomOut, AlertTriangle, Shield, FileText, Flashlight } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
 import { playSounds } from '@/lib/sounds';
@@ -62,10 +62,38 @@ export function ZoomScanQueue({
   });
   const [captureAnimation, setCaptureAnimation] = useState(false);
   const [safetyAlertItem, setSafetyAlertItem] = useState<QueueItem | null>(null);
+  const [torchOn, setTorchOn] = useState(false);
+  const [torchSupported, setTorchSupported] = useState(false);
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const [currentTime, setCurrentTime] = useState(new Date());
+  const [gpsLocation, setGpsLocation] = useState<{ lat: number; lng: number } | null>(null);
+
+  // Update time every second
+  useEffect(() => {
+    const interval = setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Get GPS location
+  useEffect(() => {
+    if (!('geolocation' in navigator)) return;
+    
+    const watchId = navigator.geolocation.watchPosition(
+      (position) => {
+        setGpsLocation({
+          lat: position.coords.latitude,
+          lng: position.coords.longitude,
+        });
+      },
+      (error) => console.warn('GPS error:', error),
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+    );
+    
+    return () => navigator.geolocation.clearWatch(watchId);
+  }, []);
 
   // Load persisted queue
   useEffect(() => {
@@ -95,6 +123,14 @@ export function ZoomScanQueue({
           videoRef.current.srcObject = stream;
           streamRef.current = stream;
           setCameraReady(true);
+          
+          // Check torch support
+          const track = stream.getVideoTracks()[0];
+          const capabilities = track.getCapabilities();
+          if ('torch' in capabilities) {
+            setTorchSupported(true);
+          }
+          
           // Apply initial zoom
           applyZoom(zoom);
         }
@@ -134,6 +170,22 @@ export function ZoomScanQueue({
     setZoom(newZoom);
     localStorage.setItem('zoom-camera-zoom-level', newZoom.toString());
     applyZoom(newZoom);
+  };
+
+  const toggleTorch = async () => {
+    if (!streamRef.current || !torchSupported) return;
+    
+    try {
+      const track = streamRef.current.getVideoTracks()[0];
+      await track.applyConstraints({
+        advanced: [{ torch: !torchOn }]
+      });
+      setTorchOn(!torchOn);
+      playSounds.photoCapture();
+    } catch (error) {
+      console.warn('Torch not supported:', error);
+      toast.error('Torch not available on this device');
+    }
   };
 
   const captureAndProcess = async () => {
@@ -334,19 +386,12 @@ export function ZoomScanQueue({
     }
   };
 
-  const handleViewEvidence = (item: QueueItem) => {
-    // Navigate to vehicle evidence report page
-    toast.info('Opening evidence collection...');
-    // Store the plate number for the evidence report
-    sessionStorage.setItem('evidence-plate-number', item.plateNumber);
-    navigate('/vehicle-evidence-report');
-  };
-
   const handleAcknowledgeSafety = () => {
     if (!safetyAlertItem) return;
     playSounds.processingComplete();
-    toast.success('Safety alert acknowledged');
+    toast.success('Safety alert acknowledged - proceed with caution');
     setSafetyAlertItem(null);
+    // Alert stays in queue for reference, officer can continue scanning
   };
 
   const handleExit = () => {
@@ -373,8 +418,15 @@ export function ZoomScanQueue({
             {queue.map((item) => (
               <div
                 key={item.id}
+                onClick={() => {
+                  // Make flagged/breach items clickable to show full details
+                  if (item.status === 'breach' || item.status === 'at_risk') {
+                    setSafetyAlertItem(item);
+                  }
+                }}
                 className={cn(
-                  "p-3 rounded-lg border-2 flex items-start gap-3",
+                  "p-3 rounded-lg border-2 flex items-start gap-3 transition-all",
+                  (item.status === 'breach' || item.status === 'at_risk') && "cursor-pointer hover:shadow-lg active:scale-[0.98]",
                   item.status === 'compliant' && "bg-green-50 border-green-300 dark:bg-green-950/30 dark:border-green-700",
                   item.status === 'at_risk' && "bg-yellow-50 border-yellow-400 dark:bg-yellow-950/30 dark:border-yellow-600",
                   item.status === 'breach' && "bg-red-50 border-red-500 dark:bg-red-950/30 dark:border-red-600",
@@ -412,30 +464,14 @@ export function ZoomScanQueue({
                   <p className="text-xs mb-2">{item.complianceDetails}</p>
                   
                   <div className="flex gap-2">
-                    {item.status === 'breach' && (
-                      enforcementWorkflow === 'officer_first' ? (
-                        <Button size="sm" variant="destructive" className="h-8 text-xs">
-                          ⚠️ Add Enforcement
-                        </Button>
-                      ) : (
-                        <Button 
-                          size="sm" 
-                          variant="secondary" 
-                          className="h-8 text-xs bg-orange-100 hover:bg-orange-200 text-orange-900 border-orange-300 dark:bg-orange-950/30 dark:hover:bg-orange-900/40 dark:text-orange-100 dark:border-orange-700"
-                          onClick={() => handleAdviseOwner(item)}
-                        >
-                          💬 Advise Owner
-                        </Button>
-                      )
-                    )}
-                    {(item.status === 'breach' || item.status === 'at_risk') && (
+                    {item.status === 'breach' && enforcementWorkflow === 'admin_first' && (
                       <Button 
                         size="sm" 
-                        variant="outline" 
-                        className="h-8 text-xs"
-                        onClick={() => handleViewEvidence(item)}
+                        variant="secondary" 
+                        className="h-8 text-xs bg-orange-100 hover:bg-orange-200 text-orange-900 border-orange-300 dark:bg-orange-950/30 dark:hover:bg-orange-900/40 dark:text-orange-100 dark:border-orange-700"
+                        onClick={() => handleAdviseOwner(item)}
                       >
-                        📸 Evidence
+                        💬 Advise Owner
                       </Button>
                     )}
                     <Button
@@ -464,8 +500,31 @@ export function ZoomScanQueue({
           <div className="absolute inset-0 bg-white animate-slide-left pointer-events-none z-30" />
         )}
         
-        {/* Zoom Controls - Right Side Vertical Slider */}
-        <div className="absolute right-2 top-1/2 -translate-y-1/2 flex flex-col items-center gap-3 bg-black/80 backdrop-blur-sm rounded-full px-3 py-6 shadow-lg border border-white/20 z-40">
+        {/* Zone Info Header */}
+        <div className="absolute top-4 left-4 right-20 bg-black/70 backdrop-blur-md rounded-lg p-3 border border-white/30 z-40">
+          <div className="space-y-1">
+            <p className="text-white font-bold text-base">{zoneName}</p>
+            <div className="flex items-center gap-3 text-white/80 text-xs">
+              <div className="flex items-center gap-1">
+                <MapPin className="h-3 w-3" />
+                {gpsLocation ? `${gpsLocation.lat.toFixed(5)}, ${gpsLocation.lng.toFixed(5)}` : 'Locating...'}
+              </div>
+              <div className="flex items-center gap-1">
+                <Clock className="h-3 w-3" />
+                {currentTime.toLocaleString('en-NZ', {
+                  day: 'numeric',
+                  month: 'short',
+                  hour: '2-digit',
+                  minute: '2-digit',
+                  timeZone: 'Pacific/Auckland',
+                })}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Zoom Controls - Right Side Vertical Slider (50% opacity) */}
+        <div className="absolute right-2 top-1/2 -translate-y-1/2 flex flex-col items-center gap-3 bg-black/40 backdrop-blur-sm rounded-full px-3 py-6 shadow-lg border border-white/10 z-40">
           <button
             onClick={() => handleZoomChange(Math.min(5, zoom + 0.5))}
             className="p-3 hover:bg-white/20 rounded-full transition-colors touch-manipulation active:scale-95"
@@ -515,15 +574,35 @@ export function ZoomScanQueue({
           )}
         </div>
 
-        {/* Exit Button */}
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={handleExit}
-          className="absolute top-4 right-4 h-12 w-12 bg-black/60 hover:bg-black/80 text-white rounded-full"
-        >
-          <X className="h-6 w-6" />
-        </Button>
+        {/* Top Controls */}
+        <div className="absolute top-4 right-4 flex items-center gap-3 z-50">
+          {/* Torch Button */}
+          {torchSupported && (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={toggleTorch}
+              className={cn(
+                "h-12 w-12 rounded-full transition-all",
+                torchOn 
+                  ? "bg-yellow-500/90 hover:bg-yellow-600/90 text-white shadow-[0_0_20px_rgba(234,179,8,0.6)]" 
+                  : "bg-black/60 hover:bg-black/80 text-white"
+              )}
+            >
+              <Flashlight className={cn("h-6 w-6", torchOn && "fill-current")} />
+            </Button>
+          )}
+          
+          {/* Exit Button */}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={handleExit}
+            className="h-12 w-12 bg-black/60 hover:bg-black/80 text-white rounded-full"
+          >
+            <X className="h-6 w-6" />
+          </Button>
+        </div>
 
         {/* Queue Badge */}
         {queue.length > 0 && (
@@ -540,14 +619,16 @@ export function ZoomScanQueue({
 
       {/* Safety Alert Modal - Full Screen */}
       <Dialog open={!!safetyAlertItem} onOpenChange={() => setSafetyAlertItem(null)}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-3 text-2xl">
               <AlertTriangle className="h-8 w-8 text-red-600 animate-pulse" />
-              SAFETY ALERT - FLAGGED VEHICLE
+              {safetyAlertItem?.status === 'breach' ? 'BREACH DETECTED' : 'ATTENTION REQUIRED'}
             </DialogTitle>
             <DialogDescription className="text-base">
-              This vehicle has been flagged for safety concerns. Please exercise caution.
+              {safetyAlertItem?.status === 'breach' 
+                ? 'This vehicle has breached compliance requirements. Review details below.'
+                : 'This vehicle requires attention. Review details and take appropriate action.'}
             </DialogDescription>
           </DialogHeader>
 
@@ -565,45 +646,84 @@ export function ZoomScanQueue({
               )}
 
               {/* Vehicle Details */}
-              <div className="bg-red-50 dark:bg-red-950/30 p-4 rounded-lg border-2 border-red-300 dark:border-red-700">
+              <div className={cn(
+                "p-4 rounded-lg border-2",
+                safetyAlertItem.status === 'breach' && "bg-red-50 dark:bg-red-950/30 border-red-300 dark:border-red-700",
+                safetyAlertItem.status === 'at_risk' && "bg-yellow-50 dark:bg-yellow-950/30 border-yellow-300 dark:border-yellow-700"
+              )}>
                 <div className="flex items-center gap-2 mb-3">
-                  <Shield className="h-5 w-5 text-red-600" />
+                  <Shield className={cn(
+                    "h-5 w-5",
+                    safetyAlertItem.status === 'breach' && "text-red-600",
+                    safetyAlertItem.status === 'at_risk' && "text-yellow-600"
+                  )} />
                   <h3 className="font-bold text-xl">{safetyAlertItem.plateNumber}</h3>
+                  <Badge
+                    variant={safetyAlertItem.status === 'breach' ? 'destructive' : 'secondary'}
+                    className="ml-auto"
+                  >
+                    {safetyAlertItem.status === 'breach' ? '🔴 BREACH' : '🟡 AT RISK'}
+                  </Badge>
                 </div>
                 
                 {safetyAlertItem.vehicleMake && (
-                  <p className="text-sm mb-2">
+                  <p className="text-sm mb-3">
                     <strong>Vehicle:</strong> {safetyAlertItem.vehicleMake} {safetyAlertItem.vehicleModel} ({safetyAlertItem.vehicleColor})
                   </p>
                 )}
 
-                <div className="bg-white dark:bg-gray-900 p-3 rounded border border-red-200 dark:border-red-800">
-                  <p className="text-sm font-semibold mb-1 text-red-800 dark:text-red-200">Safety Concerns:</p>
-                  <p className="text-sm whitespace-pre-wrap">{safetyAlertItem.complianceDetails}</p>
+                <div className="bg-white dark:bg-gray-900 p-4 rounded border-2 border-red-200 dark:border-red-800">
+                  <p className="text-sm font-semibold mb-2 text-red-800 dark:text-red-200 flex items-center gap-2">
+                    <AlertTriangle className="h-4 w-4" />
+                    {safetyAlertItem.status === 'breach' ? 'Breach Details:' : 'Compliance Issues:'}
+                  </p>
+                  <p className="text-sm whitespace-pre-wrap leading-relaxed">{safetyAlertItem.complianceDetails}</p>
+                </div>
+
+                {/* Timestamp */}
+                <div className="mt-3 pt-3 border-t border-red-200 dark:border-red-800">
+                  <p className="text-xs text-muted-foreground">
+                    <strong>Detected:</strong> {safetyAlertItem.timestamp.toLocaleString('en-NZ', {
+                      weekday: 'short',
+                      day: 'numeric',
+                      month: 'short',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                      timeZone: 'Pacific/Auckland',
+                    })}
+                  </p>
                 </div>
               </div>
 
-              {/* Action Buttons */}
-              <div className="flex gap-3">
-                {enforcementWorkflow === 'admin_first' && (
-                  <>
-                    <Button 
-                      variant="secondary"
-                      className="flex-1 bg-orange-100 hover:bg-orange-200 text-orange-900 border-orange-300 dark:bg-orange-950/30 dark:hover:bg-orange-900/40 dark:text-orange-100 dark:border-orange-700"
-                      onClick={() => handleAdviseOwner(safetyAlertItem)}
-                    >
-                      💬 Advise Owner
-                    </Button>
-                    <Button 
-                      variant="outline"
-                      className="flex-1"
-                      onClick={() => handleViewEvidence(safetyAlertItem)}
-                    >
-                      <FileText className="h-4 w-4 mr-2" />
-                      Collect Evidence
-                    </Button>
-                  </>
-                )}
+              {/* Officer Guidance */}
+              <div className="p-4 bg-blue-50 dark:bg-blue-950/30 rounded-lg border-2 border-blue-300 dark:border-blue-700">
+                <div className="flex items-start gap-3">
+                  <Shield className="h-5 w-5 text-blue-600 shrink-0 mt-0.5" />
+                  <div className="flex-1">
+                    <p className="text-sm font-semibold text-blue-900 dark:text-blue-100 mb-2">
+                      Officer Guidance
+                    </p>
+                    <ul className="text-xs text-blue-800 dark:text-blue-200 space-y-1.5">
+                      {safetyAlertItem.status === 'breach' && (
+                        <>
+                          <li>• This vehicle has violated compliance requirements</li>
+                          <li>• Review the breach details above before proceeding</li>
+                          <li>• Consider safety protocols when approaching the vehicle</li>
+                          <li>• Document additional observations if necessary</li>
+                        </>
+                      )}
+                      {safetyAlertItem.status === 'at_risk' && (
+                        <>
+                          <li>• This vehicle is approaching breach threshold</li>
+                          <li>• Monitor for further compliance issues</li>
+                          <li>• Consider advisory notification to vehicle owner</li>
+                          <li>• Document current compliance status</li>
+                        </>
+                      )}
+                      <li className="pt-1 border-t border-blue-200 dark:border-blue-800">• This notification will remain in your queue for reference</li>
+                    </ul>
+                  </div>
+                </div>
               </div>
             </div>
           )}
@@ -611,10 +731,10 @@ export function ZoomScanQueue({
           <DialogFooter>
             <Button 
               onClick={handleAcknowledgeSafety}
-              className="w-full bg-red-600 hover:bg-red-700 text-white text-lg py-6"
+              className="w-full bg-primary hover:bg-primary/90 text-white text-lg py-6"
             >
               <Shield className="h-5 w-5 mr-2" />
-              I Acknowledge This Safety Alert
+              I Acknowledge This Safety Alert - Continue Scanning
             </Button>
           </DialogFooter>
         </DialogContent>
