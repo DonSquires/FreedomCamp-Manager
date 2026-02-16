@@ -113,7 +113,7 @@ export function ZoomScanQueue({
     }
   }, [zoneId]);
 
-  // Initialize camera
+  // Initialize camera (once only)
   useEffect(() => {
     let mounted = true;
     
@@ -191,7 +191,14 @@ export function ZoomScanQueue({
         streamRef.current.getTracks().forEach(track => track.stop());
       }
     };
-  }, [zoom]);
+  }, []); // ✅ Only run once on mount
+  
+  // Apply zoom changes (separate from camera initialization)
+  useEffect(() => {
+    if (cameraReady && streamRef.current) {
+      applyZoom(zoom);
+    }
+  }, [zoom, cameraReady]); // ✅ Only apply zoom when it changes
 
   const applyZoom = async (zoomLevel: number) => {
     if (!streamRef.current) return;

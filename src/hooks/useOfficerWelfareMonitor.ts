@@ -182,21 +182,31 @@ export function useOfficerWelfareMonitor() {
       const activity = queue[i];
       try {
         if (activity.type === 'gps_update') {
-          await supabase.rpc('log_officer_activity', {
+          const { error } = await supabase.rpc('log_officer_activity', {
             p_user_id: user.id,
             p_activity_type: 'gps_update',
             p_gps_latitude: activity.data.latitude,
             p_gps_longitude: activity.data.longitude,
             p_gps_accuracy: activity.data.accuracy,
           });
-          successCount++;
+          
+          if (!error) {
+            successCount++;
+          } else {
+            throw error;
+          }
         } else if (activity.type === 'welfare_acknowledged') {
-          await supabase.rpc('log_officer_activity', {
+          const { error } = await supabase.rpc('log_officer_activity', {
             p_user_id: user.id,
             p_activity_type: 'welfare_acknowledged',
             p_metadata: activity.data.metadata,
           });
-          successCount++;
+          
+          if (!error) {
+            successCount++;
+          } else {
+            throw error;
+          }
         }
         
         // Update progress
@@ -226,26 +236,24 @@ export function useOfficerWelfareMonitor() {
     // Log GPS activity to database or queue if offline
     if (user?.id) {
       if (isOnline()) {
-        // ✅ FIX: Use .then() pattern with error checking (not .catch())
-        supabase.rpc('log_officer_activity', {
-          p_user_id: user.id,
-          p_activity_type: 'gps_update',
-          p_gps_latitude: lat,
-          p_gps_longitude: lng,
-          p_gps_accuracy: accuracy,
-        }).then(({ error }) => {
+        // ✅ FIX: Use async/await with proper error handling
+        (async () => {
+          const { error } = await supabase.rpc('log_officer_activity', {
+            p_user_id: user.id,
+            p_activity_type: 'gps_update',
+            p_gps_latitude: lat,
+            p_gps_longitude: lng,
+            p_gps_accuracy: accuracy,
+          });
+          
           if (error) {
             console.warn('Failed to log GPS activity, queuing for offline sync:', error);
-            // Show user-friendly toast for critical GPS failure
-            import('sonner').then(({ toast }) => {
-              toast.warning('Offline - GPS updates queued for sync when connection returns');
-            });
             queueActivity({
               type: 'gps_update',
               data: { latitude: lat, longitude: lng, accuracy },
             });
           }
-        });
+        })();
       } else {
         // Queue for later sync (offline mode)
         queueActivity({
@@ -420,7 +428,7 @@ export function useOfficerWelfareMonitor() {
         clearInterval(checkIntervalRef.current);
       }
     };
-  }, [settings, lastVehicleScan, lastGPSUpdate, isInActiveInvestigation, user?.id]);
+  }, [settings, lastVehicleScan, lastGPSUpdate, isInActiveInvestigation, user?.id, acknowledgeWarning]);
 
   // Monitor online/offline status
   useEffect(() => {
@@ -439,14 +447,18 @@ export function useOfficerWelfareMonitor() {
         
         // Record back online status
         if (user?.id) {
-          // ✅ FIX: Use .then() pattern with error checking (not .catch())
-          supabase.rpc('log_officer_activity', {
-            p_user_id: user.id,
-            p_activity_type: 'back_online',
-            p_metadata: { reconnected_at: new Date().toISOString() },
-          }).then(({ error }) => {
-            if (error) console.warn('Failed to log back online status:', error);
-          });
+          // ✅ FIX: Use async/await with proper error handling
+          (async () => {
+            const { error } = await supabase.rpc('log_officer_activity', {
+              p_user_id: user.id,
+              p_activity_type: 'back_online',
+              p_metadata: { reconnected_at: new Date().toISOString() },
+            });
+            
+            if (error) {
+              console.warn('Failed to log back online status:', error);
+            }
+          })();
         }
       }
 

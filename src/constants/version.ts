@@ -6,9 +6,31 @@
  * - PATCH (third digit): Minor amendments
  */
 
-export const APP_VERSION = '2.12.0008';
+export const APP_VERSION = '2.12.0010';
 
 export const VERSION_HISTORY = [
+  {
+    version: '2.12.0010',
+    date: '2026-02-16',
+    changes: [
+      '🔧 CRITICAL FIX: Resolved Supabase RPC .catch() error in welfare monitoring',
+      '✅ Changed from .catch() to .then() pattern for proper error handling',
+      '✅ GPS activity logging now works correctly without console errors',
+      '✅ Online/offline status tracking fixed',
+      '📱 Improved error messages and user feedback for GPS failures',
+    ],
+  },
+  {
+    version: '2.12.0009',
+    date: '2026-02-16',
+    changes: [
+      '🔧 CRITICAL FIX: Zoom scan camera no longer loops/re-initializes',
+      '✅ Camera stream now initializes once and stays active',
+      '✅ Zoom slider changes apply smoothly without restarting camera',
+      '🎥 Eliminated camera flicker and performance issues',
+      '⚡ Separated camera initialization from zoom control logic',
+    ],
+  },
   {
     version: '2.12.0008',
     date: '2026-02-16',
