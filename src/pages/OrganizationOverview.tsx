@@ -77,7 +77,8 @@ import {
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/stores/authStore';
-import { format, formatInTimeZone } from 'date-fns';
+import { format } from 'date-fns';
+import { formatInTimeZone } from 'date-fns-tz';
 import { UniversalFilters } from '@/components/features/UniversalFilters';
 import { ObservationDetailModal } from '@/pages/ObservationDetailModal';
 import { VehicleEditDrawer } from '@/components/features/VehicleEditDrawer';
