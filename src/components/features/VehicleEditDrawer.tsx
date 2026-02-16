@@ -93,31 +93,8 @@ export function VehicleEditDrawer({
   }>>([]);
   const [showPreviousNotes, setShowPreviousNotes] = useState(false);
   const [loadingNotes, setLoadingNotes] = useState(false);
-  const [organizationName, setOrganizationName] = useState<string>('');
-  
-  // Load zones for the observation's organization (not the current user's org)
+  // Load zones for this organization
   const { zones, isLoading: zonesLoading } = useZones(scan.organizationId);
-
-  const selectedZone = zones?.find(z => z.id === selectedZoneId);
-
-  // Load organization name
-  useEffect(() => {
-    const loadOrganizationName = async () => {
-      if (!scan.organizationId) return;
-      
-      const { data, error } = await supabase
-        .from('organizations')
-        .select('name')
-        .eq('id', scan.organizationId)
-        .single();
-      
-      if (!error && data) {
-        setOrganizationName(data.name);
-      }
-    };
-    
-    loadOrganizationName();
-  }, [scan.organizationId]);
 
   const loadPreviousNotes = async () => {
     if (!scan.plateNumber) return;
@@ -170,10 +147,11 @@ export function VehicleEditDrawer({
 
       if (observationError) throw observationError;
 
+      const updatedZone = zones?.find(z => z.id === selectedZoneId);
       const updatedScan: SessionScan = {
         ...scan,
         zoneId: selectedZoneId,
-        zoneName: selectedZone?.name || scan.zoneName,
+        zoneName: updatedZone?.name || scan.zoneName,
         isSelfContained: selfContained !== 'none',
         homelessClaimed: hasHomelessClaim,
         requiresFollowup: requiresAdminFollowup,
@@ -282,110 +260,28 @@ export function VehicleEditDrawer({
             </div>
 
             <div className="space-y-4">
-              <Card className="bg-blue-50 dark:bg-blue-950/20 border-blue-200">
-                <CardContent className="p-3">
-                  <div className="text-xs font-semibold text-blue-900 dark:text-blue-100 mb-1">
-                    Recorded in Organization:
-                  </div>
-                  <div className="text-sm font-bold text-blue-600">
-                    {organizationName || scan.organizationId || 'Unknown'}
-                  </div>
-                  <div className="text-xs text-blue-700 dark:text-blue-300 mt-1">
-                    Zone selection shows all zones for this organization
-                  </div>
-                </CardContent>
-              </Card>
 
               <div className="space-y-2">
-                <Label htmlFor="zone" className="flex items-center gap-2 text-base font-bold">
-                  <MapPin className="h-5 w-5 text-primary" />
-                  Zone Location
-                </Label>
-                <div className="text-xs text-muted-foreground mb-2">
-                  Select the correct zone where this vehicle was observed
-                </div>
-                
-                {!scan.organizationId ? (
-                  <div className="p-4 border-2 border-red-300 rounded-md bg-red-50 dark:bg-red-950/20">
-                    <p className="text-sm text-red-600 dark:text-red-400 font-semibold">
-                      ⚠️ Organization ID missing - cannot load zones
-                    </p>
-                    <p className="text-xs text-red-500 dark:text-red-400 mt-1">
-                      This observation record is missing the organization ID. Contact support.
-                    </p>
-                  </div>
-                ) : zonesLoading ? (
-                  <div className="flex items-center justify-center p-4 border-2 rounded-md bg-blue-50 dark:bg-blue-950/20">
-                    <Loader2 className="h-5 w-5 mr-2 animate-spin text-blue-600" />
-                    <span className="text-sm text-blue-600 font-semibold">Loading zones for {organizationName || 'organization'}...</span>
-                  </div>
+                <Label htmlFor="zone">Zone</Label>
+                {zonesLoading ? (
+                  <div className="text-sm text-muted-foreground">Loading zones...</div>
                 ) : !zones || zones.length === 0 ? (
-                  <div className="p-4 border-2 border-amber-300 rounded-md bg-amber-50 dark:bg-amber-950/20">
-                    <p className="text-sm text-amber-600 dark:text-amber-400 font-semibold">
-                      ⚠️ No zones found for {organizationName || 'this organization'}
-                    </p>
-                    <p className="text-xs text-amber-500 dark:text-amber-400 mt-1">
-                      Organization: {scan.organizationId}
-                    </p>
-                  </div>
+                  <div className="text-sm text-red-600">No zones available</div>
                 ) : (
-                  <>
-                    <Select value={selectedZoneId} onValueChange={setSelectedZoneId}>
-                      <SelectTrigger className="w-full h-12 text-base border-2">
-                        <SelectValue>
-                          {selectedZone ? (
-                            <div className="flex items-center gap-2">
-                              <MapPin className="h-5 w-5 text-primary" />
-                              <span className="font-semibold">{selectedZone.name}</span>
-                            </div>
-                          ) : (
-                            <span className="text-muted-foreground">Select zone...</span>
-                          )}
-                        </SelectValue>
-                      </SelectTrigger>
-                      <SelectContent>
-                        <div className="p-2 text-xs text-muted-foreground border-b mb-2">
-                          {zones.length} zone{zones.length !== 1 ? 's' : ''} available
-                        </div>
-                        {zones.map((zone) => (
-                          <SelectItem key={zone.id} value={zone.id} className="h-12">
-                            <div className="flex items-center gap-2">
-                              <MapPin className="h-4 w-4 text-primary" />
-                              <span className="font-medium">{zone.name}</span>
-                            </div>
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    
-                    {selectedZone && (
-                      <div className="flex items-center gap-2 p-3 bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800 rounded-md">
-                        <CheckCircle2 className="h-4 w-4 text-green-600" />
-                        <div className="flex-1">
-                          <p className="text-xs text-green-700 dark:text-green-300 font-semibold">
-                            Currently selected zone:
-                          </p>
-                          <p className="text-sm font-bold text-green-900 dark:text-green-100">
-                            {selectedZone.name}
-                          </p>
-                        </div>
-                      </div>
-                    )}
-                    
-                    {scan.zoneName && selectedZone?.name !== scan.zoneName && (
-                      <div className="flex items-center gap-2 p-3 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 rounded-md">
-                        <AlertTriangle className="h-4 w-4 text-amber-600" />
-                        <div className="flex-1">
-                          <p className="text-xs text-amber-700 dark:text-amber-300 font-semibold">
-                            Original zone:
-                          </p>
-                          <p className="text-sm font-bold text-amber-900 dark:text-amber-100">
-                            {scan.zoneName}
-                          </p>
-                        </div>
-                      </div>
-                    )}
-                  </>
+                  <Select value={selectedZoneId} onValueChange={setSelectedZoneId}>
+                    <SelectTrigger>
+                      <SelectValue>
+                        {zones.find(z => z.id === selectedZoneId)?.name || 'Select zone'}
+                      </SelectValue>
+                    </SelectTrigger>
+                    <SelectContent>
+                      {zones.map((zone) => (
+                        <SelectItem key={zone.id} value={zone.id}>
+                          {zone.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 )}
               </div>
 
