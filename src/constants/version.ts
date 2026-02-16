@@ -6,9 +6,47 @@
  * - PATCH (third digit): Minor amendments
  */
 
-export const APP_VERSION = '2.13.0007';
+export const APP_VERSION = '2.13.0009';
 
 export const VERSION_HISTORY = [
+  {
+    version: '2.13.0009',
+    date: '2026-02-17',
+    changes: [
+      '🔧 FIXED: Zone selector in observation edit drawer now loads zones correctly',
+      '✅ Updated useZones hook to accept organizationId parameter',
+      '✅ Zones now properly filtered by organization',
+      '✅ Only active zones shown in dropdown',
+      '🎯 "No zones available" error resolved',
+      '📱 Zone selection now works properly when editing observations',
+    ],
+  },
+  {
+    version: '2.13.0008',
+    date: '2026-02-17',
+    changes: [
+      '✏️ ENHANCED: Zone editing in observation edit drawer',
+      '✅ Replaced basic HTML select with proper shadcn/ui Select component',
+      '✅ Added MapPin icons for better visual recognition',
+      '✅ Shows loading state while zones load',
+      '✅ Displays current zone selection with confirmation checkmark',
+      '✅ Better touch targets for mobile editing',
+      '🎯 Officers can now easily change zone when correcting observations',
+      '📱 Fully mobile-optimized dropdown with scrolling support',
+    ],
+  },
+  {
+    version: '2.13.0009',
+    date: '2026-02-17',
+    changes: [
+      '🔧 FIXED: Zone selector in observation edit drawer now loads zones correctly',
+      '✅ Updated useZones hook to accept organizationId parameter',
+      '✅ Zones now properly filtered by organization',
+      '✅ Only active zones shown in dropdown',
+      '🎯 "No zones available" error resolved',
+      '📱 Zone selection now works properly when editing observations',
+    ],
+  },
   {
     version: '2.13.0007',
     date: '2026-02-17',
@@ -25,12 +63,36 @@ export const VERSION_HISTORY = [
     ],
   },
   {
+    version: '2.13.0009',
+    date: '2026-02-17',
+    changes: [
+      '🔧 FIXED: Zone selector in observation edit drawer now loads zones correctly',
+      '✅ Updated useZones hook to accept organizationId parameter',
+      '✅ Zones now properly filtered by organization',
+      '✅ Only active zones shown in dropdown',
+      '🎯 "No zones available" error resolved',
+      '📱 Zone selection now works properly when editing observations',
+    ],
+  },
+  {
     version: '2.13.0006',
     date: '2026-02-17',
     changes: [
       '🔄 CACHE REFRESH: Force browser reload to load fixed login system',
       '✅ Database function is live - browser just needs to reload the new code',
       '💡 Clear browser cache or hard refresh (Ctrl+F5) if login still fails',
+    ],
+  },
+  {
+    version: '2.13.0009',
+    date: '2026-02-17',
+    changes: [
+      '🔧 FIXED: Zone selector in observation edit drawer now loads zones correctly',
+      '✅ Updated useZones hook to accept organizationId parameter',
+      '✅ Zones now properly filtered by organization',
+      '✅ Only active zones shown in dropdown',
+      '🎯 "No zones available" error resolved',
+      '📱 Zone selection now works properly when editing observations',
     ],
   },
   {
@@ -45,6 +107,18 @@ export const VERSION_HISTORY = [
     ],
   },
   {
+    version: '2.13.0009',
+    date: '2026-02-17',
+    changes: [
+      '🔧 FIXED: Zone selector in observation edit drawer now loads zones correctly',
+      '✅ Updated useZones hook to accept organizationId parameter',
+      '✅ Zones now properly filtered by organization',
+      '✅ Only active zones shown in dropdown',
+      '🎯 "No zones available" error resolved',
+      '📱 Zone selection now works properly when editing observations',
+    ],
+  },
+  {
     version: '2.13.0004',
     date: '2026-02-16',
     changes: [
@@ -54,6 +128,18 @@ export const VERSION_HISTORY = [
       '💡 Prevention tips included to avoid similar bugs in the future',
       '🎯 One-click AI analysis directly from bug report detail modal',
       '📊 Clear structured output: root cause → fix → prevention strategy',
+    ],
+  },
+  {
+    version: '2.13.0009',
+    date: '2026-02-17',
+    changes: [
+      '🔧 FIXED: Zone selector in observation edit drawer now loads zones correctly',
+      '✅ Updated useZones hook to accept organizationId parameter',
+      '✅ Zones now properly filtered by organization',
+      '✅ Only active zones shown in dropdown',
+      '🎯 "No zones available" error resolved',
+      '📱 Zone selection now works properly when editing observations',
     ],
   },
   {
@@ -71,6 +157,18 @@ export const VERSION_HISTORY = [
     ],
   },
   {
+    version: '2.13.0009',
+    date: '2026-02-17',
+    changes: [
+      '🔧 FIXED: Zone selector in observation edit drawer now loads zones correctly',
+      '✅ Updated useZones hook to accept organizationId parameter',
+      '✅ Zones now properly filtered by organization',
+      '✅ Only active zones shown in dropdown',
+      '🎯 "No zones available" error resolved',
+      '📱 Zone selection now works properly when editing observations',
+    ],
+  },
+  {
     version: '2.13.0002',
     date: '2026-02-16',
     changes: [
@@ -79,6 +177,18 @@ export const VERSION_HISTORY = [
       '✅ Non-master users no longer see empty bug reports tab',
       '🔐 Improved security - only masters can view all submitted bug reports',
       '📊 Console logging added for debugging bug report queries',
+    ],
+  },
+  {
+    version: '2.13.0009',
+    date: '2026-02-17',
+    changes: [
+      '🔧 FIXED: Zone selector in observation edit drawer now loads zones correctly',
+      '✅ Updated useZones hook to accept organizationId parameter',
+      '✅ Zones now properly filtered by organization',
+      '✅ Only active zones shown in dropdown',
+      '🎯 "No zones available" error resolved',
+      '📱 Zone selection now works properly when editing observations',
     ],
   },
   {
@@ -94,6 +204,18 @@ export const VERSION_HISTORY = [
       '📊 Flagged vehicles now properly display in Observations tab',
       '🏠 Homeless claims now properly display in Homeless tab',
       '🚨 No more "Failed to load urgent follow ups" error',
+    ],
+  },
+  {
+    version: '2.13.0009',
+    date: '2026-02-17',
+    changes: [
+      '🔧 FIXED: Zone selector in observation edit drawer now loads zones correctly',
+      '✅ Updated useZones hook to accept organizationId parameter',
+      '✅ Zones now properly filtered by organization',
+      '✅ Only active zones shown in dropdown',
+      '🎯 "No zones available" error resolved',
+      '📱 Zone selection now works properly when editing observations',
     ],
   },
   {
@@ -113,6 +235,18 @@ export const VERSION_HISTORY = [
     ],
   },
   {
+    version: '2.13.0009',
+    date: '2026-02-17',
+    changes: [
+      '🔧 FIXED: Zone selector in observation edit drawer now loads zones correctly',
+      '✅ Updated useZones hook to accept organizationId parameter',
+      '✅ Zones now properly filtered by organization',
+      '✅ Only active zones shown in dropdown',
+      '🎯 "No zones available" error resolved',
+      '📱 Zone selection now works properly when editing observations',
+    ],
+  },
+  {
     version: '2.12.0016',
     date: '2026-02-16',
     changes: [
@@ -120,6 +254,18 @@ export const VERSION_HISTORY = [
       '✅ Scans will now save actual GPS coordinates to database',
       '📍 Zone correction can now properly reassign based on real GPS location',
       '⚠️ Previous scans without GPS cannot be corrected - only new scans will work',
+    ],
+  },
+  {
+    version: '2.13.0009',
+    date: '2026-02-17',
+    changes: [
+      '🔧 FIXED: Zone selector in observation edit drawer now loads zones correctly',
+      '✅ Updated useZones hook to accept organizationId parameter',
+      '✅ Zones now properly filtered by organization',
+      '✅ Only active zones shown in dropdown',
+      '🎯 "No zones available" error resolved',
+      '📱 Zone selection now works properly when editing observations',
     ],
   },
   {
@@ -135,6 +281,18 @@ export const VERSION_HISTORY = [
     ],
   },
   {
+    version: '2.13.0009',
+    date: '2026-02-17',
+    changes: [
+      '🔧 FIXED: Zone selector in observation edit drawer now loads zones correctly',
+      '✅ Updated useZones hook to accept organizationId parameter',
+      '✅ Zones now properly filtered by organization',
+      '✅ Only active zones shown in dropdown',
+      '🎯 "No zones available" error resolved',
+      '📱 Zone selection now works properly when editing observations',
+    ],
+  },
+  {
     version: '2.12.0014',
     date: '2026-02-16',
     changes: [
@@ -144,6 +302,18 @@ export const VERSION_HISTORY = [
       '⚙️ SETTINGS: Fullscreen toggle added to Settings with live status display',
       '🎯 UX: Fullscreen button in header for quick access',
       '✅ All display settings now "stick" when user logs out',
+    ],
+  },
+  {
+    version: '2.13.0009',
+    date: '2026-02-17',
+    changes: [
+      '🔧 FIXED: Zone selector in observation edit drawer now loads zones correctly',
+      '✅ Updated useZones hook to accept organizationId parameter',
+      '✅ Zones now properly filtered by organization',
+      '✅ Only active zones shown in dropdown',
+      '🎯 "No zones available" error resolved',
+      '📱 Zone selection now works properly when editing observations',
     ],
   },
   {
@@ -157,12 +327,36 @@ export const VERSION_HISTORY = [
     ],
   },
   {
+    version: '2.13.0009',
+    date: '2026-02-17',
+    changes: [
+      '🔧 FIXED: Zone selector in observation edit drawer now loads zones correctly',
+      '✅ Updated useZones hook to accept organizationId parameter',
+      '✅ Zones now properly filtered by organization',
+      '✅ Only active zones shown in dropdown',
+      '🎯 "No zones available" error resolved',
+      '📱 Zone selection now works properly when editing observations',
+    ],
+  },
+  {
     version: '2.12.0012',
     date: '2026-02-16',
     changes: [
       '🔧 CRITICAL FIX: Zoom Scan blank screen resolved - missing icon imports',
       '✅ Added MapPin and Clock imports for zone info header',
       '✅ Camera now loads properly with zone location and time display',
+    ],
+  },
+  {
+    version: '2.13.0009',
+    date: '2026-02-17',
+    changes: [
+      '🔧 FIXED: Zone selector in observation edit drawer now loads zones correctly',
+      '✅ Updated useZones hook to accept organizationId parameter',
+      '✅ Zones now properly filtered by organization',
+      '✅ Only active zones shown in dropdown',
+      '🎯 "No zones available" error resolved',
+      '📱 Zone selection now works properly when editing observations',
     ],
   },
   {
@@ -177,6 +371,18 @@ export const VERSION_HISTORY = [
     ],
   },
   {
+    version: '2.13.0009',
+    date: '2026-02-17',
+    changes: [
+      '🔧 FIXED: Zone selector in observation edit drawer now loads zones correctly',
+      '✅ Updated useZones hook to accept organizationId parameter',
+      '✅ Zones now properly filtered by organization',
+      '✅ Only active zones shown in dropdown',
+      '🎯 "No zones available" error resolved',
+      '📱 Zone selection now works properly when editing observations',
+    ],
+  },
+  {
     version: '2.12.0010',
     date: '2026-02-16',
     changes: [
@@ -188,6 +394,18 @@ export const VERSION_HISTORY = [
     ],
   },
   {
+    version: '2.13.0009',
+    date: '2026-02-17',
+    changes: [
+      '🔧 FIXED: Zone selector in observation edit drawer now loads zones correctly',
+      '✅ Updated useZones hook to accept organizationId parameter',
+      '✅ Zones now properly filtered by organization',
+      '✅ Only active zones shown in dropdown',
+      '🎯 "No zones available" error resolved',
+      '📱 Zone selection now works properly when editing observations',
+    ],
+  },
+  {
     version: '2.12.0009',
     date: '2026-02-16',
     changes: [
@@ -196,6 +414,18 @@ export const VERSION_HISTORY = [
       '✅ Zoom slider changes apply smoothly without restarting camera',
       '🎥 Eliminated camera flicker and performance issues',
       '⚡ Separated camera initialization from zoom control logic',
+    ],
+  },
+  {
+    version: '2.13.0009',
+    date: '2026-02-17',
+    changes: [
+      '🔧 FIXED: Zone selector in observation edit drawer now loads zones correctly',
+      '✅ Updated useZones hook to accept organizationId parameter',
+      '✅ Zones now properly filtered by organization',
+      '✅ Only active zones shown in dropdown',
+      '🎯 "No zones available" error resolved',
+      '📱 Zone selection now works properly when editing observations',
     ],
   },
   {
@@ -215,6 +445,18 @@ export const VERSION_HISTORY = [
     ],
   },
   {
+    version: '2.13.0009',
+    date: '2026-02-17',
+    changes: [
+      '🔧 FIXED: Zone selector in observation edit drawer now loads zones correctly',
+      '✅ Updated useZones hook to accept organizationId parameter',
+      '✅ Zones now properly filtered by organization',
+      '✅ Only active zones shown in dropdown',
+      '🎯 "No zones available" error resolved',
+      '📱 Zone selection now works properly when editing observations',
+    ],
+  },
+  {
     version: '2.12.0007',
     date: '2026-02-16',
     changes: [
@@ -224,6 +466,18 @@ export const VERSION_HISTORY = [
       '🎥 Better camera permission prompts and feedback',
       '📱 Console logging for debugging camera issues',
       '⚡ Improved camera cleanup on unmount',
+    ],
+  },
+  {
+    version: '2.13.0009',
+    date: '2026-02-17',
+    changes: [
+      '🔧 FIXED: Zone selector in observation edit drawer now loads zones correctly',
+      '✅ Updated useZones hook to accept organizationId parameter',
+      '✅ Zones now properly filtered by organization',
+      '✅ Only active zones shown in dropdown',
+      '🎯 "No zones available" error resolved',
+      '📱 Zone selection now works properly when editing observations',
     ],
   },
   {
@@ -242,6 +496,18 @@ export const VERSION_HISTORY = [
     ],
   },
   {
+    version: '2.13.0009',
+    date: '2026-02-17',
+    changes: [
+      '🔧 FIXED: Zone selector in observation edit drawer now loads zones correctly',
+      '✅ Updated useZones hook to accept organizationId parameter',
+      '✅ Zones now properly filtered by organization',
+      '✅ Only active zones shown in dropdown',
+      '🎯 "No zones available" error resolved',
+      '📱 Zone selection now works properly when editing observations',
+    ],
+  },
+  {
     version: '2.12.0005',
     date: '2026-02-16',
     changes: [
@@ -252,6 +518,18 @@ export const VERSION_HISTORY = [
       '🎨 IMPROVED: Zoom slider now 50% opaque for better visibility',
       '✅ Scans persist properly and appear immediately in history tab',
       '🔄 Auto-refresh every 30 seconds keeps history up to date',
+    ],
+  },
+  {
+    version: '2.13.0009',
+    date: '2026-02-17',
+    changes: [
+      '🔧 FIXED: Zone selector in observation edit drawer now loads zones correctly',
+      '✅ Updated useZones hook to accept organizationId parameter',
+      '✅ Zones now properly filtered by organization',
+      '✅ Only active zones shown in dropdown',
+      '🎯 "No zones available" error resolved',
+      '📱 Zone selection now works properly when editing observations',
     ],
   },
   {
@@ -268,6 +546,18 @@ export const VERSION_HISTORY = [
     ],
   },
   {
+    version: '2.13.0009',
+    date: '2026-02-17',
+    changes: [
+      '🔧 FIXED: Zone selector in observation edit drawer now loads zones correctly',
+      '✅ Updated useZones hook to accept organizationId parameter',
+      '✅ Zones now properly filtered by organization',
+      '✅ Only active zones shown in dropdown',
+      '🎯 "No zones available" error resolved',
+      '📱 Zone selection now works properly when editing observations',
+    ],
+  },
+  {
     version: '2.12.0003',
     date: '2026-02-16',
     changes: [
@@ -276,6 +566,18 @@ export const VERSION_HISTORY = [
       '🚀 Officer can continue scanning immediately after acknowledging safety alert',
       '📋 Flagged alerts remain in queue for reference after acknowledgement',
       '⚠️ Clearer safety notice explaining officer precautions',
+    ],
+  },
+  {
+    version: '2.13.0009',
+    date: '2026-02-17',
+    changes: [
+      '🔧 FIXED: Zone selector in observation edit drawer now loads zones correctly',
+      '✅ Updated useZones hook to accept organizationId parameter',
+      '✅ Zones now properly filtered by organization',
+      '✅ Only active zones shown in dropdown',
+      '🎯 "No zones available" error resolved',
+      '📱 Zone selection now works properly when editing observations',
     ],
   },
   {
@@ -290,6 +592,18 @@ export const VERSION_HISTORY = [
     ],
   },
   {
+    version: '2.13.0009',
+    date: '2026-02-17',
+    changes: [
+      '🔧 FIXED: Zone selector in observation edit drawer now loads zones correctly',
+      '✅ Updated useZones hook to accept organizationId parameter',
+      '✅ Zones now properly filtered by organization',
+      '✅ Only active zones shown in dropdown',
+      '🎯 "No zones available" error resolved',
+      '📱 Zone selection now works properly when editing observations',
+    ],
+  },
+  {
     version: '2.12.0001',
     date: '2026-02-16',
     changes: [
@@ -298,6 +612,18 @@ export const VERSION_HISTORY = [
       '📱 Toast notification shows current version if already up to date',
       '⚡ Improved update detection skips dismissed versions on auto-check',
       '🎯 Manual checks always show update dialog even if previously dismissed',
+    ],
+  },
+  {
+    version: '2.13.0009',
+    date: '2026-02-17',
+    changes: [
+      '🔧 FIXED: Zone selector in observation edit drawer now loads zones correctly',
+      '✅ Updated useZones hook to accept organizationId parameter',
+      '✅ Zones now properly filtered by organization',
+      '✅ Only active zones shown in dropdown',
+      '🎯 "No zones available" error resolved',
+      '📱 Zone selection now works properly when editing observations',
     ],
   },
   {
@@ -321,6 +647,18 @@ export const VERSION_HISTORY = [
     ],
   },
   {
+    version: '2.13.0009',
+    date: '2026-02-17',
+    changes: [
+      '🔧 FIXED: Zone selector in observation edit drawer now loads zones correctly',
+      '✅ Updated useZones hook to accept organizationId parameter',
+      '✅ Zones now properly filtered by organization',
+      '✅ Only active zones shown in dropdown',
+      '🎯 "No zones available" error resolved',
+      '📱 Zone selection now works properly when editing observations',
+    ],
+  },
+  {
     version: '2.11.0019',
     date: '2026-02-15',
     changes: [
@@ -334,6 +672,18 @@ export const VERSION_HISTORY = [
     ],
   },
   {
+    version: '2.13.0009',
+    date: '2026-02-17',
+    changes: [
+      '🔧 FIXED: Zone selector in observation edit drawer now loads zones correctly',
+      '✅ Updated useZones hook to accept organizationId parameter',
+      '✅ Zones now properly filtered by organization',
+      '✅ Only active zones shown in dropdown',
+      '🎯 "No zones available" error resolved',
+      '📱 Zone selection now works properly when editing observations',
+    ],
+  },
+  {
     version: '2.11.0017',
     date: '2026-02-15',
     changes: [
@@ -342,6 +692,18 @@ export const VERSION_HISTORY = [
       '🔐 Database policy updated - only masters can create bug reports',
       '🎯 Prevents regular users/officers from cluttering issue queue',
       '👥 Bug Reports Management still accessible to admins (view only)',
+    ],
+  },
+  {
+    version: '2.13.0009',
+    date: '2026-02-17',
+    changes: [
+      '🔧 FIXED: Zone selector in observation edit drawer now loads zones correctly',
+      '✅ Updated useZones hook to accept organizationId parameter',
+      '✅ Zones now properly filtered by organization',
+      '✅ Only active zones shown in dropdown',
+      '🎯 "No zones available" error resolved',
+      '📱 Zone selection now works properly when editing observations',
     ],
   },
   {
@@ -365,6 +727,18 @@ export const VERSION_HISTORY = [
     ],
   },
   {
+    version: '2.13.0009',
+    date: '2026-02-17',
+    changes: [
+      '🔧 FIXED: Zone selector in observation edit drawer now loads zones correctly',
+      '✅ Updated useZones hook to accept organizationId parameter',
+      '✅ Zones now properly filtered by organization',
+      '✅ Only active zones shown in dropdown',
+      '🎯 "No zones available" error resolved',
+      '📱 Zone selection now works properly when editing observations',
+    ],
+  },
+  {
     version: '2.11.0015',
     date: '2026-02-15',
     changes: [
@@ -380,6 +754,18 @@ export const VERSION_HISTORY = [
     ],
   },
   {
+    version: '2.13.0009',
+    date: '2026-02-17',
+    changes: [
+      '🔧 FIXED: Zone selector in observation edit drawer now loads zones correctly',
+      '✅ Updated useZones hook to accept organizationId parameter',
+      '✅ Zones now properly filtered by organization',
+      '✅ Only active zones shown in dropdown',
+      '🎯 "No zones available" error resolved',
+      '📱 Zone selection now works properly when editing observations',
+    ],
+  },
+  {
     version: '2.11.0014',
     date: '2026-02-15',
     changes: [
@@ -391,6 +777,18 @@ export const VERSION_HISTORY = [
       '🎯 App.tsx now enforces role-based navigation on login',
       '🔐 PortalSelection.tsx validates user role before rendering',
       '⚡ Automatic redirect if wrong role tries to access portal selection',
+    ],
+  },
+  {
+    version: '2.13.0009',
+    date: '2026-02-17',
+    changes: [
+      '🔧 FIXED: Zone selector in observation edit drawer now loads zones correctly',
+      '✅ Updated useZones hook to accept organizationId parameter',
+      '✅ Zones now properly filtered by organization',
+      '✅ Only active zones shown in dropdown',
+      '🎯 "No zones available" error resolved',
+      '📱 Zone selection now works properly when editing observations',
     ],
   },
   {
@@ -410,6 +808,18 @@ export const VERSION_HISTORY = [
     ],
   },
   {
+    version: '2.13.0009',
+    date: '2026-02-17',
+    changes: [
+      '🔧 FIXED: Zone selector in observation edit drawer now loads zones correctly',
+      '✅ Updated useZones hook to accept organizationId parameter',
+      '✅ Zones now properly filtered by organization',
+      '✅ Only active zones shown in dropdown',
+      '🎯 "No zones available" error resolved',
+      '📱 Zone selection now works properly when editing observations',
+    ],
+  },
+  {
     version: '2.11.0012',
     date: '2026-02-15',
     changes: [
@@ -422,6 +832,18 @@ export const VERSION_HISTORY = [
       '🔧 Added BrowserRouter to main.tsx for routing support',
       '📱 Portal selection page is mobile-responsive',
       '🎨 Beautiful landing page with large portal buttons',
+    ],
+  },
+  {
+    version: '2.13.0009',
+    date: '2026-02-17',
+    changes: [
+      '🔧 FIXED: Zone selector in observation edit drawer now loads zones correctly',
+      '✅ Updated useZones hook to accept organizationId parameter',
+      '✅ Zones now properly filtered by organization',
+      '✅ Only active zones shown in dropdown',
+      '🎯 "No zones available" error resolved',
+      '📱 Zone selection now works properly when editing observations',
     ],
   },
   {
@@ -439,11 +861,35 @@ export const VERSION_HISTORY = [
     ],
   },
   {
+    version: '2.13.0009',
+    date: '2026-02-17',
+    changes: [
+      '🔧 FIXED: Zone selector in observation edit drawer now loads zones correctly',
+      '✅ Updated useZones hook to accept organizationId parameter',
+      '✅ Zones now properly filtered by organization',
+      '✅ Only active zones shown in dropdown',
+      '🎯 "No zones available" error resolved',
+      '📱 Zone selection now works properly when editing observations',
+    ],
+  },
+  {
     version: '2.11.0010',
     date: '2026-02-15',
     changes: [
       '🐛 HOTFIX: Fixed React Fragment syntax error in Login page',
       '✅ App now loads correctly after dual role implementation',
+    ],
+  },
+  {
+    version: '2.13.0009',
+    date: '2026-02-17',
+    changes: [
+      '🔧 FIXED: Zone selector in observation edit drawer now loads zones correctly',
+      '✅ Updated useZones hook to accept organizationId parameter',
+      '✅ Zones now properly filtered by organization',
+      '✅ Only active zones shown in dropdown',
+      '🎯 "No zones available" error resolved',
+      '📱 Zone selection now works properly when editing observations',
     ],
   },
   {
@@ -463,6 +909,18 @@ export const VERSION_HISTORY = [
     ],
   },
   {
+    version: '2.13.0009',
+    date: '2026-02-17',
+    changes: [
+      '🔧 FIXED: Zone selector in observation edit drawer now loads zones correctly',
+      '✅ Updated useZones hook to accept organizationId parameter',
+      '✅ Zones now properly filtered by organization',
+      '✅ Only active zones shown in dropdown',
+      '🎯 "No zones available" error resolved',
+      '📱 Zone selection now works properly when editing observations',
+    ],
+  },
+  {
     version: '2.11.0008',
     date: '2025-02-15',
     changes: [
@@ -474,6 +932,18 @@ export const VERSION_HISTORY = [
       '🎯 Users can now interrupt long-running recalculations',
       '📊 Manual status refresh shows exact current progress without waiting',
       '⚡ Improved user control during data operations',
+    ],
+  },
+  {
+    version: '2.13.0009',
+    date: '2026-02-17',
+    changes: [
+      '🔧 FIXED: Zone selector in observation edit drawer now loads zones correctly',
+      '✅ Updated useZones hook to accept organizationId parameter',
+      '✅ Zones now properly filtered by organization',
+      '✅ Only active zones shown in dropdown',
+      '🎯 "No zones available" error resolved',
+      '📱 Zone selection now works properly when editing observations',
     ],
   },
   {
@@ -492,6 +962,18 @@ export const VERSION_HISTORY = [
     ],
   },
   {
+    version: '2.13.0009',
+    date: '2026-02-17',
+    changes: [
+      '🔧 FIXED: Zone selector in observation edit drawer now loads zones correctly',
+      '✅ Updated useZones hook to accept organizationId parameter',
+      '✅ Zones now properly filtered by organization',
+      '✅ Only active zones shown in dropdown',
+      '🎯 "No zones available" error resolved',
+      '📱 Zone selection now works properly when editing observations',
+    ],
+  },
+  {
     version: '2.11.0006',
     date: '2025-02-15',
     changes: [
@@ -504,6 +986,18 @@ export const VERSION_HISTORY = [
       '⏱️ Shows processing duration and statistics in plain English',
       '📲 Touch-friendly buttons and checkboxes on mobile',
       '🔔 User-friendly notifications and status messages',
+    ],
+  },
+  {
+    version: '2.13.0009',
+    date: '2026-02-17',
+    changes: [
+      '🔧 FIXED: Zone selector in observation edit drawer now loads zones correctly',
+      '✅ Updated useZones hook to accept organizationId parameter',
+      '✅ Zones now properly filtered by organization',
+      '✅ Only active zones shown in dropdown',
+      '🎯 "No zones available" error resolved',
+      '📱 Zone selection now works properly when editing observations',
     ],
   },
   {
@@ -521,6 +1015,18 @@ export const VERSION_HISTORY = [
       '🔧 Fixed Homeless Support: VehicleCard display + canonical enrichment',
       '📱 Responsive grids: Stack on mobile, multi-column on tablets/desktop',
       '🖼️ Profile photos: Show across all vehicle displays',
+    ],
+  },
+  {
+    version: '2.13.0009',
+    date: '2026-02-17',
+    changes: [
+      '🔧 FIXED: Zone selector in observation edit drawer now loads zones correctly',
+      '✅ Updated useZones hook to accept organizationId parameter',
+      '✅ Zones now properly filtered by organization',
+      '✅ Only active zones shown in dropdown',
+      '🎯 "No zones available" error resolved',
+      '📱 Zone selection now works properly when editing observations',
     ],
   },
   {
