@@ -23,7 +23,13 @@ Deno.serve(async (req) => {
       employer_organization_id,
       authorized_work_locations,
       phone,
-      permissions 
+      permissions,
+      coa_required,
+      coa_verified,
+      coa_expiry,
+      warrant_required,
+      warrant_verified,
+      warrant_expiry
     } = await req.json();
 
     // Validation
@@ -95,6 +101,12 @@ Deno.serve(async (req) => {
         phone: phone || null,
         permissions: permissions || [],
         is_active: true,
+        coa_required: coa_required || false,
+        coa_verified: coa_verified || false,
+        coa_expiry: coa_expiry || null,
+        warrant_required: warrant_required || false,
+        warrant_verified: warrant_verified || false,
+        warrant_expiry: warrant_expiry || null,
       })
       .eq('id', authData.user.id)
       .select()

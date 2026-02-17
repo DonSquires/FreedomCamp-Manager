@@ -96,7 +96,12 @@ export function UrgentFollowUps({ onTabChange }: UrgentFollowUpsProps = {}) {
     }
   };
 
-  const handleNavigate = (tabName: string) => {
+  const handleNavigate = (tabName: string, filterKey?: string) => {
+    // Set filter in localStorage so target page can read it
+    if (filterKey) {
+      localStorage.setItem('urgent_followup_filter', filterKey);
+    }
+    
     if (onTabChange) {
       onTabChange(tabName);
       setSidebarOpen(false); // Close mobile sidebar if open
@@ -155,7 +160,7 @@ export function UrgentFollowUps({ onTabChange }: UrgentFollowUpsProps = {}) {
         {/* Active Breaches */}
         <Card 
           className="cursor-pointer hover:shadow-lg hover:border-red-400 transition-all group"
-          onClick={() => handleNavigate('enforcement-hub')}
+          onClick={() => handleNavigate('enforcement-hub', 'unresolved_breaches')}
         >
           <CardContent className="p-6">
             <div className="flex items-start justify-between mb-4">
@@ -180,7 +185,7 @@ export function UrgentFollowUps({ onTabChange }: UrgentFollowUpsProps = {}) {
         {/* Pending Incidents */}
         <Card 
           className="cursor-pointer hover:shadow-lg hover:border-orange-400 transition-all group"
-          onClick={() => handleNavigate('incident-reports')}
+          onClick={() => handleNavigate('incident-reports', 'pending_approval')}
         >
           <CardContent className="p-6">
             <div className="flex items-start justify-between mb-4">
@@ -205,7 +210,7 @@ export function UrgentFollowUps({ onTabChange }: UrgentFollowUpsProps = {}) {
         {/* Homeless Claims */}
         <Card 
           className="cursor-pointer hover:shadow-lg hover:border-cyan-400 transition-all group"
-          onClick={() => handleNavigate('special-vehicles')}
+          onClick={() => handleNavigate('special-vehicles', 'homeless_pending')}
         >
           <CardContent className="p-6">
             <div className="flex items-start justify-between mb-4">

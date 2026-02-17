@@ -18,6 +18,7 @@ import { toast } from 'sonner';
 import { APP_VERSION } from '@/constants/version';
 import { UpdateManager } from '@/components/features/UpdateManager';
 import { ComplianceBlockingModal } from '@/components/features/ComplianceBlockingModal';
+import { ComplianceSetupDialog } from '@/components/features/ComplianceSetupDialog';
 import { supabase } from '@/lib/supabase';
 
 import {
@@ -40,6 +41,8 @@ export function Login() {
   const [loginComplete, setLoginComplete] = useState(false);
   const [showComplianceModal, setShowComplianceModal] = useState(false);
   const [userProfile, setUserProfile] = useState<any>(null);
+  const [showComplianceSetup, setShowComplianceSetup] = useState(false);
+  const [firstTimeLogin, setFirstTimeLogin] = useState(false);
   const loginWithPassword = useAuthStore((state) => state.login);
   const forceLogin = useAuthStore((state) => state.forceLogin);
   const { user } = useAuthStore();
@@ -100,8 +103,21 @@ export function Login() {
           .single();
 
         if (!profileError && profile) {
-          // Check compliance status (only for officers)
+          setUserProfile(profile);
+          
+          // Check if first-time login (for officers only)
           if (profile.role === 'officer' || profile.role === 'admin_officer') {
+            const isFirstTime = profile.coa_required === null && profile.warrant_required === null;
+            
+            if (isFirstTime) {
+              // First-time login - show compliance setup
+              setFirstTimeLogin(true);
+              setShowComplianceSetup(true);
+              setIsLoading(false);
+              return; // Don't proceed to other checks
+            }
+            
+            // Check compliance status
             const { data: complianceStatus, error: complianceError } = await supabase.rpc(
               'check_organization_compliance',
               {
@@ -112,7 +128,6 @@ export function Login() {
 
             if (!complianceError && complianceStatus && !complianceStatus.can_work) {
               // Block with compliance modal
-              setUserProfile(profile);
               setShowComplianceModal(true);
               setIsLoading(false);
               toast.warning('Please upload your credentials to continue');
@@ -228,6 +243,27 @@ export function Login() {
 
   return (
     <>
+      {/* Compliance Setup Dialog - First Time Login */}
+      {showComplianceSetup && userProfile && (
+        <ComplianceSetupDialog
+          userId={userProfile.id}
+          userRole={userProfile.role}
+          onComplete={() => {
+            setShowComplianceSetup(false);
+            setFirstTimeLogin(false);
+            
+            // After setup, check if biometric enrollment needed
+            if (biometricAvailable && !hasBiometricCredential(lastSuccessfulEmail)) {
+              setShowBiometricEnrollment(true);
+            } else {
+              setLoginComplete(true);
+            }
+            
+            toast.success('Welcome! Your compliance settings have been saved.');
+          }}
+        />
+      )}
+      
       {/* Compliance Blocking Modal */}
       {showComplianceModal && userProfile && (
         <ComplianceBlockingModal
