@@ -33,6 +33,7 @@ import { ComplianceMatrixManagement } from './ComplianceMatrixManagement';
 import { PersonRecordsManager } from '@/components/features/PersonRecordsManager';
 import { ComplianceRecalculation } from './DataCleanupUtility';
 import { HistoricalImport } from './HistoricalImport';
+import { NZSCVCertificateImport } from './NZSCVCertificateImport';
 import { toast } from 'sonner';
 
 export function DataManagementHub() {
@@ -135,7 +136,7 @@ export function DataManagementHub() {
 
       {/* Tabbed Interface */}
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-5 h-auto">
+        <TabsList className="grid w-full grid-cols-6 h-auto">
           <TabsTrigger value="vehicles" className="flex items-center gap-2 py-3">
             <Car className="h-4 w-4" />
             <span className="hidden md:inline">Vehicle Registry</span>
@@ -155,6 +156,11 @@ export function DataManagementHub() {
             <Users className="h-4 w-4" />
             <span className="hidden md:inline">Person Records</span>
             <span className="md:hidden">Persons</span>
+          </TabsTrigger>
+          <TabsTrigger value="nzscv" className="flex items-center gap-2 py-3 bg-green-50 dark:bg-green-950/20 data-[state=active]:bg-green-100 dark:data-[state=active]:bg-green-900/40">
+            <Upload className="h-4 w-4" />
+            <span className="hidden md:inline">NZSCV Certificates</span>
+            <span className="md:hidden">NZSCV</span>
           </TabsTrigger>
           <TabsTrigger value="cleanup" className="flex items-center gap-2 py-3 bg-amber-50 dark:bg-amber-950/20 data-[state=active]:bg-amber-100 dark:data-[state=active]:bg-amber-900/40">
             <Wrench className="h-4 w-4" />
@@ -177,6 +183,10 @@ export function DataManagementHub() {
 
         <TabsContent value="persons" className="mt-6">
           <PersonRecordsManager />
+        </TabsContent>
+
+        <TabsContent value="nzscv" className="mt-6">
+          <NZSCVCertificateImport />
         </TabsContent>
 
         <TabsContent value="cleanup" className="mt-6">
