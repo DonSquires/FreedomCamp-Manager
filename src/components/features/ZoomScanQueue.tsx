@@ -358,23 +358,38 @@ export function ZoomScanQueue({
       // Determine status and sound
       let status: QueueItem['status'] = 'compliant';
       let details = 'Vehicle is compliant';
+      const isHomeless = scanResult.homeless_status === 'confirmed' || 
+                         scanResult.alerts?.some((a: string) => a.toLowerCase().includes('homeless'));
+      const isAtRisk = scanResult.alerts?.some((a: string) => a.toLowerCase().includes('at risk'));
       
       if (scanResult.is_flagged) {
         status = 'breach';
         details = `⚠️ FLAGGED: ${scanResult.flagged_details?.reason || 'Requires attention'}`;
-        playSounds.flaggedVehicle();
-      } else if (scanResult.is_compliant === false && scanResult.alerts?.some((a: string) => a.includes('BREACH'))) {
+        playSounds.flaggedVehicle(); // Audio notification for flagged
+        // ✅ FIX: Don't show full-screen modal for flagged vehicles
+        // Modal only shown for actual breaches, flagged just gets queue notification
+      } else if (scanResult.is_compliant === false && isHomeless) {
+        // Homeless + breach = "At Risk (Exempt)"
+        status = 'fc_exempt';
+        details = '⚠️ At Risk (FC Act Exempt) - Homeless protection applies';
+        playSounds.homeless();
+      } else if (scanResult.is_compliant === false) {
+        // Non-compliant and not homeless = actual breach
         status = 'breach';
-        details = scanResult.alerts.find((a: string) => a.includes('BREACH')) || 'Non-compliant - breach detected';
+        details = scanResult.alerts?.find((a: string) => a.includes('BREACH')) || 'Non-compliant - breach detected';
         playSounds.violationAlert();
-      } else if (scanResult.alerts?.some((a: string) => a.toLowerCase().includes('homeless') && a.toLowerCase().includes('exempt'))) {
+      } else if (isAtRisk && !isHomeless) {
+        status = 'at_risk';
+        details = '🟡 At Risk - Monitor compliance';
+        playSounds.violationAlert();
+      } else if (isAtRisk && isHomeless) {
+        status = 'fc_exempt';
+        details = '🟡 At Risk (FC Exempt) - Homeless protection applies';
+        playSounds.homeless();
+      } else if (isHomeless) {
         status = 'fc_exempt';
         details = '💜 Homeless (FC Act Exempt)';
         playSounds.homeless();
-      } else if (scanResult.is_compliant === false) {
-        status = 'at_risk';
-        details = '🟡 At Risk - Attention required';
-        playSounds.violationAlert();
       } else {
         playSounds.processingComplete();
       }
@@ -403,8 +418,9 @@ export function ZoomScanQueue({
         return updated;
       });
 
-      // If flagged/safety concern, show full-screen modal immediately
-      if (status === 'breach' && scanResult.is_flagged) {
+      // ✅ FIX: Only show full-screen modal for actual BREACHES, not flagged vehicles
+      // Flagged vehicles just get audio + queue notification, no modal interrupt
+      if (status === 'breach' && !scanResult.is_flagged) {
         setSafetyAlertItem(newItem);
       }
 

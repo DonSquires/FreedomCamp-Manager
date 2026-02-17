@@ -6,9 +6,38 @@
  * - PATCH (third digit): Minor amendments
  */
 
-export const APP_VERSION = '2.13.0047';
+export const APP_VERSION = '2.13.0049';
 
 export const VERSION_HISTORY = [
+  {
+    version: '2.13.0049',
+    date: '2026-02-17',
+    changes: [
+      '✅ COMPLIANCE FIX READY: SQL migration prepared for execution',
+      '🌙 DAY-VISIT-ONLY SPLIT: 8pm-midnight = at-risk warning, midnight-8am = instant breach',
+      '⚠️ AT-RISK REFINED: Vehicles with exactly ONE night remaining flagged as at-risk',
+      '📊 OBSERVATION ENRICHMENT: compliance_v2 records auto-updated with breach data',
+      '🔗 BREACH LINKING: plate_number column added to breach_alerts for vehicle linking',
+      '📋 READY FOR TESTING: Execute SQL in Supabase, then test compliance detection',
+    ],
+  },
+  {
+    version: '2.13.0048',
+    date: '2026-02-17',
+    changes: [
+      '🚨 CRITICAL COMPLIANCE FIX: Complete rebuild of compliance checking system',
+      '✅ MONTHLY LIMITS: Now properly detects when vehicles exceed nights per month',
+      '✅ CONSECUTIVE LIMITS: Now properly detects when vehicles exceed consecutive nights',
+      '⚠️ AT-RISK DETECTION: Vehicles approaching limits now flagged as "At Risk"',
+      '🌙 DAY-VISIT-ONLY ENFORCEMENT: Nighttime scans (8pm-8am) now create immediate breaches',
+      '🏠 HOMELESS EXEMPTION: FC Act protection properly applied to confirmed homeless vehicles',
+      '📊 BREACH WORKFLOW: Breaches auto-route to Admin Portal (admin_first) or Officer Portal (officer_first)',
+      '🎯 AUTOMATIC BREACH ALERTS: Non-compliant vehicles create active breach records automatically',
+      '✅ TRIGGER-BASED: All new observations trigger real-time compliance evaluation',
+      '💾 COMPLIANCE_RESULTS: Table now properly populated with detailed breach information',
+      '📈 ENFORCEMENT TRACKING: Canonical vehicles now track enforcement count and last action',
+    ],
+  },
   {
     version: '2.13.0047',
     date: '2026-02-17',
