@@ -8,7 +8,7 @@ export interface UserProfile {
   email: string;
   first_name: string;
   last_name: string;
-  role: 'master' | 'admin' | 'officer';
+  role: 'master' | 'admin' | 'officer' | 'admin_officer';
   organization_id: string | null;
   phone: string | null;
   is_active: boolean;
@@ -19,6 +19,8 @@ export interface UserProfile {
     id: string;
     name: string;
   };
+  employer_organization_id?: string | null;
+  authorized_work_locations?: string[];
 }
 
 export interface CreateUserInput {
@@ -26,7 +28,7 @@ export interface CreateUserInput {
   password: string;
   first_name: string;
   last_name: string;
-  role: 'master' | 'admin' | 'officer';
+  role: 'master' | 'admin' | 'officer' | 'admin_officer';
   organization_id?: string;
   phone?: string;
 }
@@ -36,7 +38,7 @@ export interface UpdateUserInput {
   email?: string;
   first_name?: string;
   last_name?: string;
-  role?: 'master' | 'admin' | 'officer';
+  role?: 'master' | 'admin' | 'officer' | 'admin_officer';
   organization_id?: string;
   phone?: string;
   is_active?: boolean;
@@ -54,11 +56,16 @@ export const useUsers = () => {
       // Get current user's profile to check role and organization
       const { data: currentUserProfile, error: profileError } = await supabase
         .from('user_profiles')
-        .select('role, organization_id, organization:organizations(name)')
+        .select('role, organization_id')
         .eq('id', authUser.id)
         .single();
 
-      if (profileError) throw profileError;
+      if (profileError) {
+        console.error('Failed to fetch current user profile:', profileError);
+        throw profileError;
+      }
+
+      console.log('Current user profile:', currentUserProfile);
 
       let query = supabase
         .from('user_profiles')
@@ -69,39 +76,25 @@ export const useUsers = () => {
         .order('created_at', { ascending: false });
 
       // Apply organization-based filtering
-      if (currentUserProfile.role === 'admin') {
+      if (currentUserProfile.role === 'admin' || currentUserProfile.role === 'admin_officer') {
         // Admins: Only see users in their own organization
         if (currentUserProfile.organization_id) {
           query = query.eq('organization_id', currentUserProfile.organization_id);
         } else {
-          // Admin with no organization sees no users (safety)
-          query = query.eq('id', '00000000-0000-0000-0000-000000000000'); // No results
+          // Admin with no organization sees only themselves (safety)
+          query = query.eq('id', authUser.id);
         }
-      } else if (currentUserProfile.role === 'master') {
-        // Masters: See all users EXCEPT those from Iron Eagle
-        // UNLESS the master is in Iron Eagle organization (then see everyone)
-        const userOrgName = currentUserProfile.organization?.name;
-        
-        if (userOrgName !== 'Iron Eagle') {
-          // Master NOT in Iron Eagle: Exclude Iron Eagle users
-          // First get Iron Eagle organization ID
-          const { data: ironEagleOrg } = await supabase
-            .from('organizations')
-            .select('id')
-            .ilike('name', 'Iron Eagle')
-            .single();
-
-          if (ironEagleOrg) {
-            query = query.neq('organization_id', ironEagleOrg.id);
-          }
-        }
-        // If master IS in Iron Eagle: no filter, see everyone
       }
-      // Officers: See everyone (no filter) - field staff need visibility for safety
+      // Masters and officers: See all users (no filter)
 
       const { data, error } = await query;
 
-      if (error) throw error;
+      if (error) {
+        console.error('Failed to fetch users:', error);
+        throw error;
+      }
+      
+      console.log('Loaded users:', data?.length || 0);
       return data as UserProfile[];
     },
   });

@@ -6,9 +6,21 @@
  * - PATCH (third digit): Minor amendments
  */
 
-export const APP_VERSION = '2.13.0041';
+export const APP_VERSION = '2.13.0042';
 
 export const VERSION_HISTORY = [
+  {
+    version: '2.13.0042',
+    date: '2026-02-17',
+    changes: [
+      '🔧 CRITICAL FIX: User Management now loads users correctly',
+      '✅ Fixed useUsers hook - removed broken Iron Eagle filtering logic',
+      '✅ Simplified organization filtering - admins see their org, masters see all',
+      '✅ Added comprehensive console logging for debugging',
+      '✅ Updated TypeScript types to support admin_officer role',
+      '📊 All user roles now display properly in User Management page',
+    ],
+  },
   {
     version: '2.13.0041',
     date: '2026-02-17',
