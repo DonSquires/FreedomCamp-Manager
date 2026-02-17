@@ -6,9 +6,19 @@
  * - PATCH (third digit): Minor amendments
  */
 
-export const APP_VERSION = '2.13.0042';
+export const APP_VERSION = '2.13.0043';
 
 export const VERSION_HISTORY = [
+  {
+    version: '2.13.0043',
+    date: '2026-02-17',
+    changes: [
+      '🔧 CRITICAL FIX: User query now explicitly selects all columns',
+      '✅ Changed from SELECT * to explicit column list for new fields',
+      '✅ Ensures employer_organization_id and authorized_work_locations load correctly',
+      '📊 User Management page should now display all users properly',
+    ],
+  },
   {
     version: '2.13.0042',
     date: '2026-02-17',
