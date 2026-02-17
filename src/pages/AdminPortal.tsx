@@ -67,6 +67,7 @@ import { ProductOverviewDocument } from './ProductOverviewDocument';
 import { DatabaseMaintenance } from './DatabaseMaintenance';
 import { BugReportsManagement } from './BugReportsManagement';
 import { OrganizationManagement } from './OrganizationManagement';
+import { NZSCVCertificateImport } from './NZSCVCertificateImport';
 
 import { VehicleEvidenceReport } from './VehicleEvidenceReport';
 import ObservationsReport from './ObservationsReport';
@@ -618,6 +619,7 @@ export function AdminPortal({ onLogout }: AdminPortalProps) {
               
               {/* Phase 4 & 5: Consolidated Hubs */}
               {activeTab === 'data-management-hub' && <DataManagementHub />}
+              {activeTab === 'nzscv-import' && <NZSCVCertificateImport />}
               {activeTab === 'settings-hub' && <SettingsHub />}
               
               {/* Organization Management - Master Only */}
