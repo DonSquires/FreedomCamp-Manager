@@ -1011,18 +1011,34 @@ export function FieldOfficerPortal({ onLogout }: FieldOfficerPortalProps) {
                 </div>
               </div>
 
-              <Button
-                onClick={() => {
-                  setCurrentView('dashboard');
-                  // Open FieldInvestigationWork component
-                  window.location.hash = 'investigations';
-                }}
-                className="w-full h-14 text-base font-bold bg-purple-600 hover:bg-purple-700"
-              >
-                <FileText className="h-5 w-5 mr-2" />
-                Open Jobs
-                <ChevronRight className="h-5 w-5 ml-2" />
-              </Button>
+              <div className="space-y-2">
+                <Button
+                  onClick={() => {
+                    setCurrentView('dashboard');
+                    // Open FieldInvestigationWork component
+                    window.location.hash = 'investigations';
+                  }}
+                  className="w-full h-14 text-base font-bold bg-purple-600 hover:bg-purple-700"
+                >
+                  <FileText className="h-5 w-5 mr-2" />
+                  Open Jobs
+                  <ChevronRight className="h-5 w-5 ml-2" />
+                </Button>
+
+                {/* Admin View Button - Only for admin_officer role */}
+                {user?.role === 'admin_officer' && (
+                  <Button
+                    onClick={() => {
+                      window.location.href = '/admin?tab=investigation-jobs';
+                    }}
+                    variant="outline"
+                    className="w-full h-12 text-sm"
+                  >
+                    <Shield className="h-4 w-4 mr-2" />
+                    View in Admin Portal
+                  </Button>
+                )}
+              </div>
             </CardContent>
           </Card>
         )}
@@ -1106,6 +1122,20 @@ export function FieldOfficerPortal({ onLogout }: FieldOfficerPortalProps) {
                     </div>
                   </div>
                 ))}
+
+                {/* Admin View Button - Only for admin_officer role */}
+                {user?.role === 'admin_officer' && (
+                  <Button
+                    onClick={() => {
+                      window.location.href = '/admin?tab=enforcement-hub';
+                    }}
+                    variant="outline"
+                    className="w-full h-12 text-sm mt-2"
+                  >
+                    <Shield className="h-4 w-4 mr-2" />
+                    Manage All in Admin Portal
+                  </Button>
+                )}
               </div>
             )}
           </CardContent>

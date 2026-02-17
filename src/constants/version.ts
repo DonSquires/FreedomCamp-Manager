@@ -6,9 +6,37 @@
  * - PATCH (third digit): Minor amendments
  */
 
-export const APP_VERSION = '2.13.0027';
+export const APP_VERSION = '2.13.0029';
 
 export const VERSION_HISTORY = [
+  {
+    version: '2.13.0029',
+    date: '2026-02-17',
+    changes: [
+      '✅ PHASE 2 COMPLETE: Login Process Enhancement - COA & Warrant Checkboxes',
+      '📋 ComplianceSetupDialog: First-time login compliance credential setup',
+      '✅ Officers see COA (Certificate of Approval) checkbox on first login',
+      '✅ Officers see Warrant (Freedom Camping) checkbox on first login',
+      '📅 Optional expiry date tracking for both credentials',
+      '🔐 Compliance verification flow integrated with login process',
+      '⏭️ Skip option available - can configure later in profile',
+      '🎯 Only shown to officer and admin_officer roles',
+      '💾 Settings saved to user_profiles table (coa_required, warrant_required, etc.)',
+    ],
+  },
+  {
+    version: '2.13.0028',
+    date: '2026-02-17',
+    changes: [
+      '✅ PHASE 1 COMPLETE: System Integration Critical Fixes',
+      '🔗 Cross-Portal Navigation: URL parameters now supported in AdminPortal',
+      '👥 admin_officer Dual Role: "Admin View" buttons added to Field Officer Portal',
+      '🔐 COA + Warrant Fields: Database migration created for compliance tracking',
+      '📊 Field Portal → Enforcement Hub cross-link (admin_officer only)',
+      '📊 Field Portal → Investigation Jobs cross-link (admin_officer only)',
+      '🎯 URL parameters auto-cleared after navigation to prevent sticky states',
+    ],
+  },
   {
     version: '2.13.0027',
     date: '2026-02-17',
