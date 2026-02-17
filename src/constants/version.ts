@@ -6,9 +6,63 @@
  * - PATCH (third digit): Minor amendments
  */
 
-export const APP_VERSION = '2.13.0033';
+export const APP_VERSION = '2.13.0038';
 
 export const VERSION_HISTORY = [
+  {
+    version: '2.13.0038',
+    date: '2026-02-17',
+    changes: [
+      '🔍 DIAGNOSTIC: Added comprehensive logging to debug enforcement workflow database constraint',
+      '📊 Logs exact form state, payload values, character codes, and type checks',
+      '🔧 Validates workflow value at every step from database → form → update',
+      '💡 Shows exact enforcement_workflow value being sent to identify constraint mismatch',
+      '🎯 Helps diagnose why database rejects the workflow value',
+    ],
+  },
+  {
+    version: '2.13.0037',
+    date: '2026-02-17',
+    changes: [
+      '🔧 ENHANCED: Enforcement workflow validation with comprehensive logging',
+      '✅ Added step-by-step validation tracking for database constraint debugging',
+      '✅ Explicit string matching instead of array.includes for type safety',
+      '📊 Detailed console logging shows exact values being sent to database',
+      '🎯 Triple-check validation before database update to prevent constraint violations',
+    ],
+  },
+  {
+    version: '2.13.0036',
+    date: '2026-02-17',
+    changes: [
+      '🔧 FIXED: Enforcement workflow validation - prevents database constraint violations',
+      '✅ Added validation to ensure enforcement_workflow is always one of: admin_first, officer_first',
+      '✅ Enhanced logging to track enforcement workflow values during edit',
+      '✅ Safe defaults applied when loading organizations with invalid workflows',
+      '🎯 Automatic fallback to "admin_first" if invalid workflow detected',
+    ],
+  },
+  {
+    version: '2.13.0035',
+    date: '2026-02-17',
+    changes: [
+      '🔧 ENHANCED: Organization type validation - double-checks both on load and save',
+      '✅ Added strict validation when opening edit dialog to sanitize organization_type',
+      '✅ Added validation before database update to ensure only valid values sent',
+      '✅ Enhanced console logging to track organization type transformation',
+      '🎯 Automatic fallback to "client" if invalid type detected',
+    ],
+  },
+  {
+    version: '2.13.0034',
+    date: '2026-02-17',
+    changes: [
+      '🔧 FIXED: Organization type validation - prevents database constraint violations',
+      '✅ Added validation to ensure organization_type is always one of: owner, security_company, client, other',
+      '✅ Enhanced logging to track organization type values during edit',
+      '🎯 Safe defaults applied when loading organizations with invalid types',
+    ],
+  },
   {
     version: '2.13.0033',
     date: '2026-02-17',
