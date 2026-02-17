@@ -6,9 +6,20 @@
  * - PATCH (third digit): Minor amendments
  */
 
-export const APP_VERSION = '2.13.0055';
+export const APP_VERSION = '2.13.0056';
 
 export const VERSION_HISTORY = [
+  {
+    version: '2.13.0056',
+    date: '2026-02-17',
+    changes: [
+      '🔧 CRITICAL FIX: User Management simplified to work with new RLS policies',
+      '✅ Removed circular dependency in user role checking',
+      '✅ RLS policies now handle ALL access control (no client-side filtering)',
+      '🎯 Masters see all users, Admins see org users (enforced by database)',
+      '📊 Better error logging for debugging',
+    ],
+  },
   {
     version: '2.13.0055',
     date: '2026-02-17',

@@ -26,18 +26,9 @@ export const useUsers = () => {
   return useQuery({
     queryKey: ['users'],
     queryFn: async () => {
-      const { data: { user: authUser } } = await supabase.auth.getUser();
-      if (!authUser) throw new Error('Not authenticated');
-
-      const { data: currentUserProfile } = await supabase
-        .from('user_profiles')
-        .select('role, organization_id')
-        .eq('id', authUser.id)
-        .single();
-
-      if (!currentUserProfile) throw new Error('User profile not found');
-
-      let query = supabase
+      // Simplified approach: Let RLS policies handle all filtering
+      // No pre-filtering needed - the database policies control access
+      const { data, error } = await supabase
         .from('user_profiles')
         .select(`
           id,
@@ -57,20 +48,10 @@ export const useUsers = () => {
         `)
         .order('created_at', { ascending: false });
 
-      // Apply organization-based filtering
-      if (currentUserProfile.role === 'admin' || currentUserProfile.role === 'admin_officer') {
-        // Admins: Only see users in their own organization
-        if (currentUserProfile.organization_id) {
-          query = query.eq('organization_id', currentUserProfile.organization_id);
-        } else {
-          // Admin with no organization sees only themselves (safety)
-          query = query.eq('id', authUser.id);
-        }
+      if (error) {
+        console.error('Failed to load users:', error);
+        throw error;
       }
-      // Masters and officers: See all users (no filter)
-
-      const { data, error } = await query;
-      if (error) throw error;
       
       return data as UserProfile[];
     },
