@@ -53,7 +53,7 @@ export const useUsers = () => {
           updated_at,
           employer_organization_id,
           authorized_work_locations,
-          organization:organizations(id, name)
+          organization:organizations!organization_id(id, name)
         `)
         .order('created_at', { ascending: false });
 
