@@ -6,9 +6,22 @@
  * - PATCH (third digit): Minor amendments
  */
 
-export const APP_VERSION = '2.13.0044';
+export const APP_VERSION = '2.13.0045';
 
 export const VERSION_HISTORY = [
+  {
+    version: '2.13.0045',
+    date: '2026-02-17',
+    changes: [
+      '🔒 CRITICAL FIX: Login infinite recursion error resolved',
+      '✅ RLS policies now use get_user_role() and get_user_organization_id() functions',
+      '✅ Eliminated infinite loop caused by policies querying user_profiles within user_profiles',
+      '✅ Login now works correctly without database errors',
+      '✅ Masters can view ALL user profiles across all organizations',
+      '✅ Admins can view profiles within their organization',
+      '🎯 User Management fully operational with proper RLS security',
+    ],
+  },
   {
     version: '2.13.0044',
     date: '2026-02-17',

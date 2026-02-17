@@ -70,7 +70,19 @@ export const useUsers = () => {
       let query = supabase
         .from('user_profiles')
         .select(`
-          *,
+          id,
+          email,
+          first_name,
+          last_name,
+          role,
+          organization_id,
+          phone,
+          is_active,
+          permissions,
+          created_at,
+          updated_at,
+          employer_organization_id,
+          authorized_work_locations,
           organization:organizations(id, name)
         `)
         .order('created_at', { ascending: false });
