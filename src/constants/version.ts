@@ -6,9 +6,49 @@
  * - PATCH (third digit): Minor amendments
  */
 
-export const APP_VERSION = '2.13.0029';
+export const APP_VERSION = '2.13.0032';
 
 export const VERSION_HISTORY = [
+  {
+    version: '2.13.0032',
+    date: '2026-02-17',
+    changes: [
+      '🔧 FIXED: Organization edit dialog not loading - corrected database query syntax',
+      '✅ Improved Supabase query to preserve parent_organization_id UUID field',
+      '✅ Added debug logging to track organization edit flow',
+      '✅ Added null-safety checks for organization field defaults',
+      '🎯 Edit dialog now properly loads with all organization data',
+    ],
+  },
+  {
+    version: '2.13.0031',
+    date: '2026-02-17',
+    changes: [
+      '🏢 ORGANIZATION HIERARCHY: Full parent/child relationship management',
+      '✅ Organization Management: Set parent organization (who manages whom)',
+      '✅ Organization Types: Owner, Security Company, Client, Other',
+      '✅ Hierarchical Display: Organizations sorted by level with visual indentation',
+      '✅ Automatic Levels: System calculates organization level based on parent',
+      '✅ Smart Authorized Work Locations: Shows ALL descendants recursively',
+      '📊 Example: Iron Eagle → First Security → LINZ & Nelson City Council',
+      '🔐 Work Authorization: Officers authorized for employer + all managed clients',
+      '⚡ Prevents circular references: Cannot set self or descendant as parent',
+      '📋 Enhanced Table: Type, Parent/Manager, Level columns for clear hierarchy',
+    ],
+  },
+  {
+    version: '2.13.0030',
+    date: '2026-02-17',
+    changes: [
+      '✅ SYSTEM-WIDE UPDATE: COA & Warrant compliance fields integrated everywhere',
+      '📝 UserManagement: Create/Edit users now include COA & Warrant checkboxes',
+      '🔧 create-user Edge Function: Accepts and stores COA/Warrant credentials',
+      '💾 Database: All user operations now handle compliance credential fields',
+      '🎯 Complete consistency: Backend, frontend, and database all synchronized',
+      '✅ Admins can set/verify credentials when creating/editing officers',
+      '📋 Visual section with checkboxes for COA and Warrant requirements',
+    ],
+  },
   {
     version: '2.13.0029',
     date: '2026-02-17',
