@@ -460,16 +460,22 @@ export function UserManagement() {
           <div className="grid gap-4 py-4">
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <Label>First Name *</Label>
+                <Label htmlFor="create-first-name">First Name *</Label>
                 <Input
+                  id="create-first-name"
+                  name="firstName"
+                  autoComplete="given-name"
                   value={formData.firstName}
                   onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
                   placeholder="John"
                 />
               </div>
               <div>
-                <Label>Last Name *</Label>
+                <Label htmlFor="create-last-name">Last Name *</Label>
                 <Input
+                  id="create-last-name"
+                  name="lastName"
+                  autoComplete="family-name"
                   value={formData.lastName}
                   onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
                   placeholder="Doe"
@@ -478,9 +484,12 @@ export function UserManagement() {
             </div>
 
             <div>
-              <Label>Email *</Label>
+              <Label htmlFor="create-email">Email *</Label>
               <Input
+                id="create-email"
+                name="email"
                 type="email"
+                autoComplete="email"
                 value={formData.email}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                 placeholder="john.doe@example.com"
@@ -488,8 +497,12 @@ export function UserManagement() {
             </div>
 
             <div>
-              <Label>Phone</Label>
+              <Label htmlFor="create-phone">Phone</Label>
               <Input
+                id="create-phone"
+                name="phone"
+                type="tel"
+                autoComplete="tel"
                 value={formData.phone}
                 onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                 placeholder="+64 21 123 4567"
@@ -497,9 +510,9 @@ export function UserManagement() {
             </div>
 
             <div>
-              <Label>Role *</Label>
+              <Label htmlFor="create-role">Role *</Label>
               <Select value={formData.role} onValueChange={(value: any) => setFormData({ ...formData, role: value })}>
-                <SelectTrigger>
+                <SelectTrigger id="create-role" name="role">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -519,9 +532,9 @@ export function UserManagement() {
             </div>
 
             <div>
-              <Label>Primary Organization (Default Work Location)</Label>
+              <Label htmlFor="create-organization">Primary Organization (Default Work Location)</Label>
               <Select value={formData.organizationId} onValueChange={(value) => setFormData({ ...formData, organizationId: value })}>
-                <SelectTrigger>
+                <SelectTrigger id="create-organization" name="organizationId">
                   <SelectValue placeholder="Select primary organization (optional)" />
                 </SelectTrigger>
                 <SelectContent>
@@ -541,7 +554,7 @@ export function UserManagement() {
             {(formData.role === 'officer' || formData.role === 'admin_officer') && (
               <>
                 <div>
-                  <Label>Employer Organization (Who Employs This Officer) *</Label>
+                  <Label htmlFor="create-employer">Employer Organization (Who Employs This Officer) *</Label>
                   <Select 
                     value={formData.employerOrgId} 
                     onValueChange={(value) => {
@@ -552,7 +565,7 @@ export function UserManagement() {
                       });
                     }}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger id="create-employer" name="employerOrgId">
                       <SelectValue placeholder="Select employer organization" />
                     </SelectTrigger>
                     <SelectContent>
@@ -740,15 +753,21 @@ export function UserManagement() {
           <div className="grid gap-4 py-4">
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <Label>First Name *</Label>
+                <Label htmlFor="edit-first-name">First Name *</Label>
                 <Input
+                  id="edit-first-name"
+                  name="firstName"
+                  autoComplete="given-name"
                   value={formData.firstName}
                   onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
                 />
               </div>
               <div>
-                <Label>Last Name *</Label>
+                <Label htmlFor="edit-last-name">Last Name *</Label>
                 <Input
+                  id="edit-last-name"
+                  name="lastName"
+                  autoComplete="family-name"
                   value={formData.lastName}
                   onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
                 />
@@ -756,9 +775,12 @@ export function UserManagement() {
             </div>
 
             <div>
-              <Label>Email</Label>
+              <Label htmlFor="edit-email">Email</Label>
               <Input
+                id="edit-email"
+                name="email"
                 type="email"
+                autoComplete="email"
                 value={formData.email}
                 disabled
                 className="bg-muted"
@@ -769,8 +791,12 @@ export function UserManagement() {
             </div>
 
             <div>
-              <Label>Phone</Label>
+              <Label htmlFor="edit-phone">Phone</Label>
               <Input
+                id="edit-phone"
+                name="phone"
+                type="tel"
+                autoComplete="tel"
                 value={formData.phone}
                 onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
               />
@@ -780,13 +806,13 @@ export function UserManagement() {
             {isAdmin && (
               <>
                 <div>
-                  <Label>Role *</Label>
+                  <Label htmlFor="edit-role">Role *</Label>
                   <Select 
                     value={formData.role} 
                     onValueChange={(value: any) => setFormData({ ...formData, role: value })}
                     disabled={selectedUser?.id === currentUser?.id}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger id="edit-role" name="role">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -811,9 +837,9 @@ export function UserManagement() {
                 </div>
 
                 <div>
-                  <Label>Primary Organization (Default Work Location)</Label>
+                  <Label htmlFor="edit-organization">Primary Organization (Default Work Location)</Label>
                   <Select value={formData.organizationId} onValueChange={(value) => setFormData({ ...formData, organizationId: value })}>
-                    <SelectTrigger>
+                    <SelectTrigger id="edit-organization" name="organizationId">
                       <SelectValue placeholder="No organization" />
                     </SelectTrigger>
                     <SelectContent>
@@ -833,7 +859,7 @@ export function UserManagement() {
                 {(formData.role === 'officer' || formData.role === 'admin_officer') && (
                   <>
                     <div>
-                      <Label>Employer Organization (Who Employs This Officer) *</Label>
+                      <Label htmlFor="edit-employer">Employer Organization (Who Employs This Officer) *</Label>
                       <Select 
                         value={formData.employerOrgId} 
                         onValueChange={(value) => {
@@ -844,7 +870,7 @@ export function UserManagement() {
                           });
                         }}
                       >
-                        <SelectTrigger>
+                        <SelectTrigger id="edit-employer" name="employerOrgId">
                           <SelectValue placeholder="Select employer organization" />
                         </SelectTrigger>
                         <SelectContent>
@@ -967,9 +993,12 @@ export function UserManagement() {
                           
                           {formData.coaVerified && (
                             <div>
-                              <Label className="text-xs">COA Expiry Date (Optional)</Label>
+                              <Label htmlFor="create-coa-expiry" className="text-xs">COA Expiry Date (Optional)</Label>
                               <Input
+                                id="create-coa-expiry"
+                                name="coaExpiry"
                                 type="date"
+                                autoComplete="off"
                                 value={formData.coaExpiry || ''}
                                 onChange={(e) => setFormData({ ...formData, coaExpiry: e.target.value || null })}
                               />
@@ -1005,9 +1034,12 @@ export function UserManagement() {
                           
                           {formData.warrantVerified && (
                             <div>
-                              <Label className="text-xs">Warrant Expiry Date (Optional)</Label>
+                              <Label htmlFor="create-warrant-expiry" className="text-xs">Warrant Expiry Date (Optional)</Label>
                               <Input
+                                id="create-warrant-expiry"
+                                name="warrantExpiry"
                                 type="date"
+                                autoComplete="off"
                                 value={formData.warrantExpiry || ''}
                                 onChange={(e) => setFormData({ ...formData, warrantExpiry: e.target.value || null })}
                               />

@@ -96,8 +96,6 @@ export function OrganizationManagement() {
   const loadOrganizations = async () => {
     setIsLoading(true);
     try {
-      // Load organizations with parent organization info, user and zone counts
-      // Note: Must select all fields explicitly to preserve parent_organization_id UUID
       const { data: orgs, error } = await supabase
         .from('organizations')
         .select(`
@@ -108,10 +106,7 @@ export function OrganizationManagement() {
         .order('name');
 
       if (error) throw error;
-      
-      console.log('Loaded organizations:', orgs);
 
-      // Get counts for each organization
       const orgsWithCounts = await Promise.all(
         (orgs || []).map(async (org) => {
           const [userCount, zoneCount] = await Promise.all([
@@ -151,7 +146,6 @@ export function OrganizationManagement() {
     }
 
     try {
-      // Calculate organization level based on parent
       let orgLevel = 1;
       if (formData.parent_organization_id) {
         const parent = organizations.find(o => o.id === formData.parent_organization_id);
@@ -199,34 +193,46 @@ export function OrganizationManagement() {
       return;
     }
 
-    // Prevent circular parent references
     if (formData.parent_organization_id === selectedOrg.id) {
       toast.error('An organization cannot be its own parent');
       return;
     }
 
     try {
-      // Calculate organization level based on parent
       let orgLevel = 1;
-      if (formData.parent_organization_id) {
+      if (formData.parent_organization_id && formData.parent_organization_id !== 'none') {
         const parent = organizations.find(o => o.id === formData.parent_organization_id);
         if (parent) {
           orgLevel = parent.organization_level + 1;
         }
       }
 
+      const validTypes: Array<'owner' | 'security_company' | 'client' | 'other'> = ['owner', 'security_company', 'client', 'other'];
+      const safeOrgType = validTypes.includes(formData.organization_type as any) ? formData.organization_type : 'client';
+      
+      let safeWorkflow: string;
+      if (formData.enforcement_workflow === 'admin_first') {
+        safeWorkflow = 'admin_first';
+      } else if (formData.enforcement_workflow === 'officer_first') {
+        safeWorkflow = 'officer_first';
+      } else {
+        safeWorkflow = 'admin_first';
+      }
+      
+      const updateData = {
+        name: formData.name.trim(),
+        contact_email: formData.contact_email || null,
+        contact_phone: formData.contact_phone || null,
+        enforcement_workflow: safeWorkflow,
+        parent_organization_id: formData.parent_organization_id === 'none' ? null : formData.parent_organization_id,
+        organization_level: orgLevel,
+        organization_type: safeOrgType,
+        is_active: formData.is_active,
+      };
+      
       const { error } = await supabase
         .from('organizations')
-        .update({
-          name: formData.name.trim(),
-          contact_email: formData.contact_email || null,
-          contact_phone: formData.contact_phone || null,
-          enforcement_workflow: formData.enforcement_workflow,
-          parent_organization_id: formData.parent_organization_id === 'none' ? null : formData.parent_organization_id,
-          organization_level: orgLevel,
-          organization_type: formData.organization_type,
-          is_active: formData.is_active,
-        })
+        .update(updateData)
         .eq('id', selectedOrg.id);
 
       if (error) throw error;
@@ -268,29 +274,38 @@ export function OrganizationManagement() {
   };
 
   const openEditDialog = (org: Organization) => {
-    console.log('Opening edit dialog for org:', org);
-    console.log('Parent organization ID:', org.parent_organization_id);
+    const validTypes: Array<'owner' | 'security_company' | 'client' | 'other'> = ['owner', 'security_company', 'client', 'other'];
+    const orgType = validTypes.includes(org.organization_type as any) ? org.organization_type : 'client';
     
-    setSelectedOrg(org);
-    setFormData({
+    let workflow: 'admin_first' | 'officer_first';
+    if (org.enforcement_workflow === 'admin_first') {
+      workflow = 'admin_first';
+    } else if (org.enforcement_workflow === 'officer_first') {
+      workflow = 'officer_first';
+    } else {
+      workflow = 'admin_first';
+    }
+    
+    const newFormData = {
       name: org.name || '',
       contact_email: org.contact_email || '',
       contact_phone: org.contact_phone || '',
-      enforcement_workflow: org.enforcement_workflow || 'admin_first',
+      enforcement_workflow: workflow,
       parent_organization_id: org.parent_organization_id || 'none',
-      organization_type: org.organization_type || 'client',
-      is_active: org.is_active !== false, // Default to true if undefined
-    });
+      organization_type: orgType,
+      is_active: org.is_active !== false,
+    };
+    
+    setSelectedOrg(org);
+    setFormData(newFormData);
     setIsEditDialogOpen(true);
   };
 
-  // Helper to get available parent organizations (cannot select self or descendants)
   const getAvailableParentOrgs = (excludeOrgId?: string) => {
     if (!excludeOrgId) {
       return organizations;
     }
 
-    // Prevent selecting self or any descendants as parent
     const getDescendants = (orgId: string): string[] => {
       const children = organizations.filter(o => o.parent_organization_id === orgId);
       const descendantIds = children.map(c => c.id);
@@ -320,7 +335,6 @@ export function OrganizationManagement() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div>
         <h2 className="text-3xl font-bold mb-1 flex items-center gap-3">
           <Building2 className="h-8 w-8 text-primary" />
@@ -331,7 +345,6 @@ export function OrganizationManagement() {
         </p>
       </div>
 
-      {/* Actions */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <Badge variant="secondary" className="text-base px-3 py-1">
@@ -352,7 +365,6 @@ export function OrganizationManagement() {
         </div>
       </div>
 
-      {/* Organizations Table */}
       <Card>
         <CardHeader>
           <CardTitle>All Organizations</CardTitle>
@@ -487,8 +499,11 @@ export function OrganizationManagement() {
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label>Organization Name *</Label>
+              <Label htmlFor="create-org-name">Organization Name *</Label>
               <Input
+                id="create-org-name"
+                name="name"
+                autoComplete="organization"
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                 placeholder="e.g., First Security, LINZ, Iron Eagle"
@@ -498,12 +513,12 @@ export function OrganizationManagement() {
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Organization Type *</Label>
+                <Label htmlFor="create-org-type">Organization Type *</Label>
                 <Select
                   value={formData.organization_type}
                   onValueChange={(value: any) => setFormData({ ...formData, organization_type: value })}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger id="create-org-type" name="organizationType">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -516,12 +531,12 @@ export function OrganizationManagement() {
               </div>
 
               <div className="space-y-2">
-                <Label>Parent/Manager Organization</Label>
+                <Label htmlFor="create-parent-org">Parent/Manager Organization</Label>
                 <Select
                   value={formData.parent_organization_id}
                   onValueChange={(value) => setFormData({ ...formData, parent_organization_id: value })}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger id="create-parent-org" name="parentOrganizationId">
                     <SelectValue placeholder="No parent (top level)" />
                   </SelectTrigger>
                   <SelectContent>
@@ -540,9 +555,12 @@ export function OrganizationManagement() {
             </div>
 
             <div className="space-y-2">
-              <Label>Contact Email</Label>
+              <Label htmlFor="create-contact-email">Contact Email</Label>
               <Input
+                id="create-contact-email"
+                name="contactEmail"
                 type="email"
+                autoComplete="email"
                 value={formData.contact_email}
                 onChange={(e) => setFormData({ ...formData, contact_email: e.target.value })}
                 placeholder="contact@organization.com"
@@ -550,9 +568,12 @@ export function OrganizationManagement() {
             </div>
 
             <div className="space-y-2">
-              <Label>Contact Phone</Label>
+              <Label htmlFor="create-contact-phone">Contact Phone</Label>
               <Input
+                id="create-contact-phone"
+                name="contactPhone"
                 type="tel"
+                autoComplete="tel"
                 value={formData.contact_phone}
                 onChange={(e) => setFormData({ ...formData, contact_phone: e.target.value })}
                 placeholder="+64 21 123 4567"
@@ -560,12 +581,12 @@ export function OrganizationManagement() {
             </div>
 
             <div className="space-y-2">
-              <Label>Enforcement Workflow</Label>
+              <Label htmlFor="create-workflow">Enforcement Workflow</Label>
               <Select
                 value={formData.enforcement_workflow}
                 onValueChange={(value: any) => setFormData({ ...formData, enforcement_workflow: value })}
               >
-                <SelectTrigger>
+                <SelectTrigger id="create-workflow" name="enforcementWorkflow">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -583,6 +604,7 @@ export function OrganizationManagement() {
               <input
                 type="checkbox"
                 id="is_active"
+                name="isActive"
                 checked={formData.is_active}
                 onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
                 className="h-4 w-4 rounded border-gray-300"
@@ -612,8 +634,11 @@ export function OrganizationManagement() {
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label>Organization Name *</Label>
+              <Label htmlFor="edit-org-name">Organization Name *</Label>
               <Input
+                id="edit-org-name"
+                name="name"
+                autoComplete="organization"
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                 placeholder="e.g., First Security, LINZ, Iron Eagle"
@@ -622,12 +647,12 @@ export function OrganizationManagement() {
 
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Organization Type *</Label>
+                <Label htmlFor="edit-org-type">Organization Type *</Label>
                 <Select
                   value={formData.organization_type}
                   onValueChange={(value: any) => setFormData({ ...formData, organization_type: value })}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger id="edit-org-type" name="organizationType">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -640,12 +665,12 @@ export function OrganizationManagement() {
               </div>
 
               <div className="space-y-2">
-                <Label>Parent/Manager Organization</Label>
+                <Label htmlFor="edit-parent-org">Parent/Manager Organization</Label>
                 <Select
                   value={formData.parent_organization_id}
                   onValueChange={(value) => setFormData({ ...formData, parent_organization_id: value })}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger id="edit-parent-org" name="parentOrganizationId">
                     <SelectValue placeholder="No parent (top level)" />
                   </SelectTrigger>
                   <SelectContent>
@@ -664,9 +689,12 @@ export function OrganizationManagement() {
             </div>
 
             <div className="space-y-2">
-              <Label>Contact Email</Label>
+              <Label htmlFor="edit-contact-email">Contact Email</Label>
               <Input
+                id="edit-contact-email"
+                name="contactEmail"
                 type="email"
+                autoComplete="email"
                 value={formData.contact_email}
                 onChange={(e) => setFormData({ ...formData, contact_email: e.target.value })}
                 placeholder="contact@organization.com"
@@ -674,9 +702,12 @@ export function OrganizationManagement() {
             </div>
 
             <div className="space-y-2">
-              <Label>Contact Phone</Label>
+              <Label htmlFor="edit-contact-phone">Contact Phone</Label>
               <Input
+                id="edit-contact-phone"
+                name="contactPhone"
                 type="tel"
+                autoComplete="tel"
                 value={formData.contact_phone}
                 onChange={(e) => setFormData({ ...formData, contact_phone: e.target.value })}
                 placeholder="+64 21 123 4567"
@@ -684,12 +715,12 @@ export function OrganizationManagement() {
             </div>
 
             <div className="space-y-2">
-              <Label>Enforcement Workflow</Label>
+              <Label htmlFor="edit-workflow">Enforcement Workflow</Label>
               <Select
                 value={formData.enforcement_workflow}
                 onValueChange={(value: any) => setFormData({ ...formData, enforcement_workflow: value })}
               >
-                <SelectTrigger>
+                <SelectTrigger id="edit-workflow" name="enforcementWorkflow">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -707,6 +738,7 @@ export function OrganizationManagement() {
               <input
                 type="checkbox"
                 id="is_active_edit"
+                name="isActive"
                 checked={formData.is_active}
                 onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
                 className="h-4 w-4 rounded border-gray-300"
