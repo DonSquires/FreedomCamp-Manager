@@ -279,14 +279,9 @@ export function UnifiedDashboard() {
     try {
       console.log('📊 Loading unified dashboard...');
 
-      let orgFilter: string | null = null;
-      if (isMaster && selectedOrgId !== 'all') {
-        orgFilter = selectedOrgId;
-      } else if (!isMaster && user?.organization_id) {
-        orgFilter = user.organization_id;
-      }
-
-      // Load all observations with full joins
+      // Build observations query
+      // ⚠️ RLS automatically filters by accessible orgs (primary + authorized_work_locations + descendants)
+      // Only apply manual org filter if master explicitly selects a specific organization
       let obsQuery = supabase
         .from('vehicle_observations_v2')
         .select(`
@@ -315,7 +310,11 @@ export function UnifiedDashboard() {
         .gte('recorded_at', `${dateFrom}T00:00:00`)
         .lte('recorded_at', `${dateTo}T23:59:59`);
 
-      if (orgFilter) obsQuery = obsQuery.eq('organization_id', orgFilter);
+      // Only filter by org if master user explicitly selects one
+      if (isMaster && selectedOrgId !== 'all') {
+        obsQuery = obsQuery.eq('organization_id', selectedOrgId);
+      }
+      // For non-master users, RLS handles org filtering automatically
 
       const { data: observations } = await obsQuery;
       const obs = observations || [];
@@ -351,7 +350,10 @@ export function UnifiedDashboard() {
         .gte('calendar_month', fromMonth)
         .lte('calendar_month', toMonth);
 
-      if (orgFilter) staysQuery = staysQuery.eq('organization_id', orgFilter);
+      // Only filter by org if master user explicitly selects one
+      if (isMaster && selectedOrgId !== 'all') {
+        staysQuery = staysQuery.eq('organization_id', selectedOrgId);
+      }
 
       const { data: stays } = await staysQuery;
 
@@ -361,7 +363,10 @@ export function UnifiedDashboard() {
         .select('zone_id, max_consecutive_nights, nights_per_month')
         .is('effective_to', null);
 
-      if (orgFilter) matrixQuery = matrixQuery.eq('organization_id', orgFilter);
+      // Only filter by org if master user explicitly selects one
+      if (isMaster && selectedOrgId !== 'all') {
+        matrixQuery = matrixQuery.eq('organization_id', selectedOrgId);
+      }
 
       const { data: matrices } = await matrixQuery;
       const matrixMap = new Map(matrices?.map(m => [m.zone_id, m]) || []);
@@ -392,7 +397,10 @@ export function UnifiedDashboard() {
         .eq('is_active', true)
         .in('role', ['officer', 'admin_officer']);
 
-      if (orgFilter) officerQuery = officerQuery.eq('organization_id', orgFilter);
+      // Only filter by org if master user explicitly selects one
+      if (isMaster && selectedOrgId !== 'all') {
+        officerQuery = officerQuery.eq('organization_id', selectedOrgId);
+      }
 
       const { data: officers } = await officerQuery;
 

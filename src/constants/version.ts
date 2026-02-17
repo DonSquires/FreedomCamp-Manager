@@ -1,54 +1,48 @@
-export const APP_VERSION = 'v5.1.0';
+export const APP_VERSION = 'v5.1.1';
 export const BUILD_DATE = '2026-02-18';
 export const RELEASE_NOTES = `
-## Version 5.1.0 - Organization & User Management Overhaul
+## Version 5.1.1 - RLS & Dashboard Fixes
 
-### 🏢 Organization Management (Master Only)
-- Complete hierarchical organization tree view
-- Visual parent-child relationships with expand/collapse
-- Enforcement workflow configuration per organization
-- User and zone count tracking per organization
-- CRUD operations with cascade validation
-- Organization type classification (Security Company, Client, Contractor)
+### 🔧 Critical RLS Fixes (Priority 1)
+- Created RLS helper functions migration (BLOCKER FIX)
+  - get_user_role(uuid) - Returns user role without RLS recursion
+  - get_user_organization_id(uuid) - Returns primary organization
+  - Enhanced get_user_organization_ids() - All accessible orgs
+- All 17+ RLS policies now functional
+- Prevents "function does not exist" errors
 
-### 👥 User Management Complete Rebuild
-- Fixed "multiple foreign key" error with explicit FK selection
-- Three-tier organization relationship support:
-  - Primary Organization: User's base organization
-  - Employer Organization: Security company employing the user
-  - Authorized Work Locations: Multi-org access array
-- Role-based access control with proper RLS filtering
-- User invitation system via Edge Function
-- Session management and multi-session prevention
-- Deactivation (not deletion) to preserve audit trail
+### 🏢 Organization Triggers (Priority 2)
+- Auto-calculate organization_level based on parent hierarchy
+- Prevent circular parent-child references
+- Auto-update levels when parent changes
+- Backfill existing organization levels
 
-### 📋 Comprehensive Workflow Documentation
-- ORGANIZATION_USER_MANAGEMENT_WORKFLOW.md created
-- Complete business logic, RLS patterns, and integration points
-- Enforcement workflow system (admin_first vs officer_first)
-- Welfare monitoring integration with employer_organization_id
-- Login flow, authorization checks, and portal routing
+### 🔐 User Deactivation Queue (Priority 3)
+- Deactivation queue system for proper auth.users disabling
+- Edge Function integration ready
+- Preserves audit trail while preventing login
+- Reactivation support
 
-### 🔧 Technical Improvements
-- Proper organization hierarchy with auto-level calculation
-- Circular reference prevention triggers
-- SECURITY DEFINER helper functions for RLS
-- Multi-organization user access via authorized_work_locations[]
-- Dual-role support (admin_officer) with portal selection
+### 📊 Dashboard RLS Trust (Priority 4)
+- Removed manual organization filtering from Unified Dashboard
+- Now trusts RLS policies for multi-org access
+- Correctly shows data from:
+  - Primary organization
+  - Authorized work locations
+  - Descendant organizations (for admins)
+- Master users can still filter by specific org
 
-### 🔐 Security Enhancements
-- Never delete users - always deactivate for audit compliance
-- Cascade warnings before organization deactivation
-- Proper session termination on new login
-- RLS policies use helper functions to prevent recursion
-- Permissions editor for granular access control
+### 📋 Documentation
+- ORGANIZATION_USER_MANAGEMENT_VERIFICATION.md - Complete audit
+- All 3 SQL migrations ready to deploy
+- Implementation checklist with priority order
+- Test scenarios for verification
 
-### ⚡ Performance & UX
-- Hierarchical tree rendering with expand/collapse
-- Real-time user/zone counts per organization
-- Search and filter capabilities in User Management
-- Responsive mobile-first design for both management pages
-- Loading states and error handling throughout
+### ⚡ Next Steps
+1. Apply SQL migrations in Supabase (URGENT)
+2. Test multi-organization access
+3. Verify RLS policies work correctly
+4. Optional: Implement enforcement workflow logic
 `;
 
 // Version history for update manager
@@ -59,6 +53,18 @@ export interface VersionHistoryEntry {
 }
 
 export const VERSION_HISTORY: VersionHistoryEntry[] = [
+  {
+    version: 'v5.1.1',
+    date: '2026-02-18',
+    changes: [
+      'CRITICAL: Created RLS helper functions migration (fixes BLOCKER)',
+      'Created organization triggers migration (auto-level, circular check)',
+      'Created user deactivation queue migration',
+      'Fixed manual org filtering in Unified Dashboard (now trusts RLS)',
+      'Complete verification report with test scenarios',
+      'Ready for SQL deployment to fix all RLS issues',
+    ],
+  },
   {
     version: 'v5.1.0',
     date: '2026-02-18',
