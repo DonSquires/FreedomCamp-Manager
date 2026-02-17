@@ -6,9 +6,46 @@
  * - PATCH (third digit): Minor amendments
  */
 
-export const APP_VERSION = '2.13.0038';
+export const APP_VERSION = '2.13.0041';
 
 export const VERSION_HISTORY = [
+  {
+    version: '2.13.0041',
+    date: '2026-02-17',
+    changes: [
+      '🔍 CRITICAL DEBUG: Added database value verification before update',
+      '🔧 HARDENED: Using exact literal values - no string transformations',
+      '📊 ENHANCED: Comprehensive logging shows current DB value vs new value',
+      '✅ Added byte-level validation to detect encoding issues',
+      '🎯 Checking for hidden characters, whitespace, or case mismatches',
+      '💡 Detailed error logging shows full constraint violation details',
+    ],
+  },
+  {
+    version: '2.13.0040',
+    date: '2026-02-17',
+    changes: [
+      '🔍 ENHANCED: Comprehensive enforcement workflow debugging and validation',
+      '📊 Added detailed logging to track workflow values from database → form → update',
+      '✅ String trimming and type coercion for workflow values',
+      '✅ Character code logging to detect hidden characters or encoding issues',
+      '🎯 Explicit type casting to ensure correct union type sent to database',
+      '💡 Console logs show exact workflow value at each transformation step',
+    ],
+  },
+  {
+    version: '2.13.0039',
+    date: '2026-02-17',
+    changes: [
+      '♿ ACCESSIBILITY FIX: All form inputs now have proper id and name attributes',
+      '✅ Added autocomplete attributes for improved browser autofill support',
+      '✅ All Labels properly associated with inputs using htmlFor attribute',
+      '📋 User Management: firstName, lastName, email, phone, role, organization fields',
+      '📋 Organization Management: name, type, parent, email, phone, workflow fields',
+      '🎯 Fixes browser console warnings about form field autofill',
+      '🔍 Improves screen reader accessibility and form usability',
+    ],
+  },
   {
     version: '2.13.0038',
     date: '2026-02-17',

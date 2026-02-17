@@ -67,6 +67,7 @@ interface Organization {
 export function OrganizationManagement() {
   const { user } = useAuthStore();
   const [isLoading, setIsLoading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [organizations, setOrganizations] = useState<Organization[]>([]);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
@@ -198,7 +199,25 @@ export function OrganizationManagement() {
       return;
     }
 
+    setIsSubmitting(true);
+
     try {
+      // STEP 1: Check current database value
+      console.log('🔍 CHECKING CURRENT DATABASE VALUE');
+      const { data: currentOrg, error: fetchError } = await supabase
+        .from('organizations')
+        .select('enforcement_workflow, name')
+        .eq('id', selectedOrg.id)
+        .single();
+      
+      if (fetchError) {
+        console.error('❌ Error fetching current org:', fetchError);
+      } else {
+        console.log('📋 Current DB enforcement_workflow:', currentOrg?.enforcement_workflow);
+        console.log('📋 Type:', typeof currentOrg?.enforcement_workflow);
+        console.log('📋 Raw bytes:', [...(currentOrg?.enforcement_workflow || '')].map(c => c.charCodeAt(0)));
+      }
+
       let orgLevel = 1;
       if (formData.parent_organization_id && formData.parent_organization_id !== 'none') {
         const parent = organizations.find(o => o.id === formData.parent_organization_id);
@@ -211,57 +230,57 @@ export function OrganizationManagement() {
       const validTypes: Array<'owner' | 'security_company' | 'client' | 'other'> = ['owner', 'security_company', 'client', 'other'];
       const safeOrgType = validTypes.includes(formData.organization_type as any) ? formData.organization_type : 'client';
       
-      // Validate enforcement workflow with comprehensive logging
-      console.log('🔍 ENFORCEMENT WORKFLOW DEBUG:');
-      console.log('Raw formData.enforcement_workflow:', formData.enforcement_workflow);
+      // CRITICAL FIX: Direct literal assignment with zero transformations
+      console.log('🔍 WORKFLOW VALIDATION:');
+      console.log('Input:', formData.enforcement_workflow);
       console.log('Type:', typeof formData.enforcement_workflow);
-      console.log('Length:', formData.enforcement_workflow?.length);
-      console.log('Character codes:', Array.from(formData.enforcement_workflow || '').map(c => c.charCodeAt(0)));
+      console.log('Bytes:', [...(formData.enforcement_workflow || '')].map(c => c.charCodeAt(0)));
       
-      let safeWorkflow: 'admin_first' | 'officer_first';
-      const workflowValue = String(formData.enforcement_workflow).trim();
+      // Use conditional expression to ensure exact literal value
+      const finalWorkflow = formData.enforcement_workflow === 'officer_first' ? 'officer_first' : 'admin_first';
       
-      if (workflowValue === 'admin_first') {
-        safeWorkflow = 'admin_first';
-        console.log('✅ Set to admin_first');
-      } else if (workflowValue === 'officer_first') {
-        safeWorkflow = 'officer_first';
-        console.log('✅ Set to officer_first');
-      } else {
-        console.warn('⚠️ Invalid workflow value detected:', workflowValue, '- defaulting to admin_first');
-        safeWorkflow = 'admin_first';
-      }
-      
-      console.log('📤 Final safeWorkflow:', safeWorkflow);
-      console.log('📤 Type:', typeof safeWorkflow);
+      console.log('✅ Final workflow:', finalWorkflow);
+      console.log('✅ Matches admin_first?', finalWorkflow === 'admin_first');
+      console.log('✅ Matches officer_first?', finalWorkflow === 'officer_first');
       
       const updateData = {
         name: formData.name.trim(),
         contact_email: formData.contact_email || null,
         contact_phone: formData.contact_phone || null,
-        enforcement_workflow: safeWorkflow,
+        enforcement_workflow: finalWorkflow,
         parent_organization_id: formData.parent_organization_id === 'none' ? null : formData.parent_organization_id,
         organization_level: orgLevel,
         organization_type: safeOrgType,
         is_active: formData.is_active,
       };
       
-      console.log('📊 Complete update payload:', JSON.stringify(updateData, null, 2));
+      console.log('📊 UPDATE PAYLOAD:', JSON.stringify(updateData, null, 2));
+      console.log('🔍 Workflow in payload:', updateData.enforcement_workflow);
+      console.log('🔍 Stringified:', JSON.stringify(updateData.enforcement_workflow));
       
       const { error } = await supabase
         .from('organizations')
         .update(updateData)
         .eq('id', selectedOrg.id);
 
-      if (error) throw error;
+      if (error) {
+        console.error('❌ DATABASE ERROR:', error);
+        console.error('❌ Error code:', error.code);
+        console.error('❌ Error message:', error.message);
+        console.error('❌ Error details:', error.details);
+        console.error('❌ Error hint:', error.hint);
+        throw error;
+      }
 
       toast.success('Organization updated successfully');
       setIsEditDialogOpen(false);
       setSelectedOrg(null);
       loadOrganizations();
     } catch (error: any) {
-      console.error('Failed to update organization:', error);
+      console.error('💥 FULL ERROR:', error);
       toast.error('Failed to update organization: ' + error.message);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -299,20 +318,10 @@ export function OrganizationManagement() {
     const validTypes: Array<'owner' | 'security_company' | 'client' | 'other'> = ['owner', 'security_company', 'client', 'other'];
     const orgType = validTypes.includes(org.organization_type as any) ? org.organization_type : 'client';
     
-    // Validate and sanitize workflow value from database
-    let workflow: 'admin_first' | 'officer_first';
-    const workflowFromDb = String(org.enforcement_workflow || '').trim();
+    // Simple direct assignment - no trimming or transformation
+    const workflow = org.enforcement_workflow === 'officer_first' ? 'officer_first' : 'admin_first';
     
-    if (workflowFromDb === 'admin_first') {
-      workflow = 'admin_first';
-      console.log('✅ Loaded workflow: admin_first');
-    } else if (workflowFromDb === 'officer_first') {
-      workflow = 'officer_first';
-      console.log('✅ Loaded workflow: officer_first');
-    } else {
-      console.warn('⚠️ Invalid workflow from DB:', workflowFromDb, '- defaulting to admin_first');
-      workflow = 'admin_first';
-    }
+    console.log('✅ Loaded workflow:', workflow);
     
     const newFormData = {
       name: org.name || '',
@@ -324,7 +333,7 @@ export function OrganizationManagement() {
       is_active: org.is_active !== false,
     };
     
-    console.log('📋 Form data populated:', newFormData);
+    console.log('📋 Form data:', newFormData);
     
     setSelectedOrg(org);
     setFormData(newFormData);
@@ -782,7 +791,16 @@ export function OrganizationManagement() {
             <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={handleUpdate}>Update Organization</Button>
+            <Button onClick={handleUpdate} disabled={isSubmitting}>
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Updating...
+                </>
+              ) : (
+                'Update Organization'
+              )}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
