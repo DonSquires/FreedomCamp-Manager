@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import {
   Select,
@@ -35,33 +36,61 @@ import {
   Search,
   Edit,
   Trash2,
-  Shield,
-  User,
   Loader2,
   Mail,
   Phone,
-  Lock,
+  Shield,
+  RefreshCw,
+  Building2,
 } from 'lucide-react';
-import { useUsers, useUpdateUser, useDeleteUser } from '@/hooks/useUsers';
-import { useOrganizations } from '@/hooks/useOrganizations';
-import { useAuthStore } from '@/stores/authStore';
 import { supabase } from '@/lib/supabase';
-import { Label } from '@/components/ui/label';
+import { useAuthStore } from '@/stores/authStore';
 import { PermissionsEditor } from '@/components/features/PermissionsEditor';
+
+interface UserProfile {
+  id: string;
+  email: string;
+  first_name: string;
+  last_name: string;
+  role: 'master' | 'admin' | 'officer' | 'admin_officer';
+  organization_id: string | null;
+  employer_organization_id: string | null;
+  authorized_work_locations: string[];
+  phone: string | null;
+  is_active: boolean;
+  permissions: string[];
+  created_at: string;
+  organization?: {
+    id: string;
+    name: string;
+  };
+}
+
+interface Organization {
+  id: string;
+  name: string;
+  organization_level: number;
+  parent_organization_id: string | null;
+}
 
 export function UserManagement() {
   const { user: currentUser } = useAuthStore();
-  const { data: users, isLoading: usersLoading } = useUsers();
-  const { data: organizations } = useOrganizations();
-  const updateUserMutation = useUpdateUser();
-  const deleteUserMutation = useDeleteUser();
-  
+  const isMaster = currentUser?.role === 'master';
+  const isAdmin = currentUser?.role === 'admin' || currentUser?.role === 'master';
+
+  // State
+  const [isLoading, setIsLoading] = useState(true);
+  const [users, setUsers] = useState<UserProfile[]>([]);
+  const [organizations, setOrganizations] = useState<Organization[]>([]);
+  const [filteredUsers, setFilteredUsers] = useState<UserProfile[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
+  
+  // Modal state
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
-  const [selectedUser, setSelectedUser] = useState<any>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
   
   // Form state
   const [formData, setFormData] = useState({
@@ -71,31 +100,103 @@ export function UserManagement() {
     phone: '',
     role: 'officer' as 'master' | 'admin' | 'officer' | 'admin_officer',
     organizationId: '',
-    employerOrgId: '', // Who employs the officer (payroll/HR)
-    authorizedWorkLocations: [] as string[], // Which orgs they can work for
+    employerOrgId: '',
+    authorizedWorkLocations: [] as string[],
     isActive: true,
     permissions: [] as string[],
-    coaRequired: false,
-    coaVerified: false,
-    coaExpiry: null as string | null,
-    warrantRequired: false,
-    warrantVerified: false,
-    warrantExpiry: null as string | null,
   });
 
-  const isMaster = currentUser?.role === 'master';
-  const isAdmin = currentUser?.role === 'admin' || currentUser?.role === 'master';
+  useEffect(() => {
+    loadData();
+  }, []);
 
-  const filteredUsers = users?.filter(user => {
-    if (!searchQuery) return true;
-    const search = searchQuery.toLowerCase();
-    return (
-      user.first_name.toLowerCase().includes(search) ||
-      user.last_name.toLowerCase().includes(search) ||
-      user.email.toLowerCase().includes(search) ||
-      user.role.toLowerCase().includes(search)
-    );
-  });
+  useEffect(() => {
+    applyFilters();
+  }, [users, searchQuery]);
+
+  const loadData = async () => {
+    setIsLoading(true);
+    try {
+      // Load organizations
+      const { data: orgsData, error: orgsError } = await supabase
+        .from('organizations')
+        .select('*')
+        .eq('is_active', true)
+        .order('organization_level')
+        .order('name');
+
+      if (orgsError) throw orgsError;
+      setOrganizations(orgsData || []);
+
+      // Load users
+      const { data: { user: authUser } } = await supabase.auth.getUser();
+      if (!authUser) throw new Error('Not authenticated');
+
+      const { data: currentUserProfile } = await supabase
+        .from('user_profiles')
+        .select('role, organization_id')
+        .eq('id', authUser.id)
+        .single();
+
+      if (!currentUserProfile) throw new Error('User profile not found');
+
+      let query = supabase
+        .from('user_profiles')
+        .select(`
+          id,
+          email,
+          first_name,
+          last_name,
+          role,
+          organization_id,
+          employer_organization_id,
+          authorized_work_locations,
+          phone,
+          is_active,
+          permissions,
+          created_at,
+          organization:organizations(id, name)
+        `)
+        .order('created_at', { ascending: false });
+
+      // Apply role-based filtering
+      if (currentUserProfile.role === 'admin' || currentUserProfile.role === 'admin_officer') {
+        if (currentUserProfile.organization_id) {
+          query = query.eq('organization_id', currentUserProfile.organization_id);
+        } else {
+          query = query.eq('id', authUser.id);
+        }
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
+      
+      setUsers(data || []);
+      console.log('✅ Loaded', data?.length || 0, 'users');
+    } catch (error: any) {
+      console.error('Failed to load users:', error);
+      toast.error('Failed to load users: ' + error.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const applyFilters = () => {
+    let filtered = [...users];
+
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(
+        u =>
+          u.first_name.toLowerCase().includes(query) ||
+          u.last_name.toLowerCase().includes(query) ||
+          u.email.toLowerCase().includes(query) ||
+          u.role.toLowerCase().includes(query)
+      );
+    }
+
+    setFilteredUsers(filtered);
+  };
 
   const handleCreateUser = async () => {
     if (!formData.firstName || !formData.email) {
@@ -103,26 +204,20 @@ export function UserManagement() {
       return;
     }
 
-    setIsSubmitting(true);
+    setIsSaving(true);
     try {
-      // Call edge function to create user
       const { data, error } = await supabase.functions.invoke('create-user', {
         body: {
           email: formData.email,
-          firstName: formData.firstName,
-          lastName: formData.lastName,
+          password: Math.random().toString(36).slice(-8) + 'Aa1!', // Generate secure temp password
+          first_name: formData.firstName,
+          last_name: formData.lastName,
           phone: formData.phone || null,
           role: formData.role,
-          organizationId: formData.organizationId || null,
-          employerOrganizationId: formData.employerOrgId || null,
-          authorizedWorkLocations: formData.authorizedWorkLocations || [],
+          organization_id: formData.organizationId || null,
+          employer_organization_id: formData.employerOrgId || null,
+          authorized_work_locations: formData.authorizedWorkLocations || [],
           permissions: formData.permissions,
-          coa_required: formData.coaRequired,
-          coa_verified: formData.coaVerified,
-          coa_expiry: formData.coaExpiry,
-          warrant_required: formData.warrantRequired,
-          warrant_verified: formData.warrantVerified,
-          warrant_expiry: formData.warrantExpiry,
         },
       });
 
@@ -131,98 +226,76 @@ export function UserManagement() {
       toast.success('User created successfully');
       setShowCreateDialog(false);
       resetForm();
+      await loadData();
     } catch (error: any) {
       console.error('Failed to create user:', error);
       toast.error('Failed to create user: ' + error.message);
     } finally {
-      setIsSubmitting(false);
+      setIsSaving(false);
     }
   };
 
   const handleUpdateUser = async () => {
     if (!selectedUser) return;
 
-    setIsSubmitting(true);
+    setIsSaving(true);
     try {
-      // Ensure permissions is properly formatted as a clean array of strings
-      let safePermissions: string[] = [];
-      
-      if (Array.isArray(formData.permissions)) {
-        // Filter to ensure only strings, remove any invalid entries
-        safePermissions = formData.permissions.filter(p => typeof p === 'string' && p.length > 0);
-      }
-      
-      console.log('Updating user with permissions:', safePermissions);
-      
-      const updateData = {
-        id: selectedUser.id,
-        first_name: formData.firstName,
-        last_name: formData.lastName,
-        phone: formData.phone || null,
-        role: formData.role,
-        organization_id: formData.organizationId || null,
-        employer_organization_id: formData.employerOrgId || null,
-        authorized_work_locations: formData.authorizedWorkLocations || [],
-        is_active: formData.isActive,
-        permissions: safePermissions,
-        coa_required: formData.coaRequired,
-        coa_verified: formData.coaVerified,
-        coa_expiry: formData.coaExpiry,
-        warrant_required: formData.warrantRequired,
-        warrant_verified: formData.warrantVerified,
-        warrant_expiry: formData.warrantExpiry,
-      };
-      
-      console.log('Update data:', updateData);
-      
-      await updateUserMutation.mutateAsync(updateData);
+      const { error } = await supabase
+        .from('user_profiles')
+        .update({
+          first_name: formData.firstName,
+          last_name: formData.lastName,
+          phone: formData.phone || null,
+          role: formData.role,
+          organization_id: formData.organizationId || null,
+          employer_organization_id: formData.employerOrgId || null,
+          authorized_work_locations: formData.authorizedWorkLocations || [],
+          is_active: formData.isActive,
+          permissions: formData.permissions,
+        })
+        .eq('id', selectedUser.id);
+
+      if (error) throw error;
 
       toast.success('User updated successfully');
       setShowEditDialog(false);
       setSelectedUser(null);
       resetForm();
+      await loadData();
     } catch (error: any) {
       console.error('Failed to update user:', error);
-      console.error('Error details:', JSON.stringify(error));
       toast.error('Failed to update user: ' + error.message);
     } finally {
-      setIsSubmitting(false);
+      setIsSaving(false);
     }
   };
 
   const handleDeleteUser = async () => {
     if (!selectedUser) return;
 
-    setIsSubmitting(true);
+    setIsSaving(true);
     try {
-      await deleteUserMutation.mutateAsync(selectedUser.id);
-      toast.success('User deleted successfully');
+      const { error } = await supabase
+        .from('user_profiles')
+        .update({ is_active: false })
+        .eq('id', selectedUser.id);
+
+      if (error) throw error;
+
+      toast.success('User deactivated successfully');
       setShowDeleteDialog(false);
       setSelectedUser(null);
+      await loadData();
     } catch (error: any) {
       console.error('Failed to delete user:', error);
       toast.error('Failed to delete user: ' + error.message);
     } finally {
-      setIsSubmitting(false);
+      setIsSaving(false);
     }
   };
 
-  const openEditDialog = (user: any) => {
-    console.log('Opening edit dialog for user:', user);
+  const openEditDialog = (user: UserProfile) => {
     setSelectedUser(user);
-    
-    // Safely handle permissions - ensure it's always an array
-    let userPermissions = [];
-    if (user.permissions && Array.isArray(user.permissions)) {
-      userPermissions = user.permissions;
-    } else if (user.permissions && typeof user.permissions === 'string') {
-      try {
-        userPermissions = JSON.parse(user.permissions);
-      } catch {
-        userPermissions = [];
-      }
-    }
-    
     setFormData({
       firstName: user.first_name || '',
       lastName: user.last_name || '',
@@ -233,18 +306,12 @@ export function UserManagement() {
       employerOrgId: user.employer_organization_id || '',
       authorizedWorkLocations: user.authorized_work_locations || [],
       isActive: user.is_active !== false,
-      permissions: userPermissions,
-      coaRequired: user.coa_required || false,
-      coaVerified: user.coa_verified || false,
-      coaExpiry: user.coa_expiry || null,
-      warrantRequired: user.warrant_required || false,
-      warrantVerified: user.warrant_verified || false,
-      warrantExpiry: user.warrant_expiry || null,
+      permissions: Array.isArray(user.permissions) ? user.permissions : [],
     });
     setShowEditDialog(true);
   };
 
-  const openDeleteDialog = (user: any) => {
+  const openDeleteDialog = (user: UserProfile) => {
     setSelectedUser(user);
     setShowDeleteDialog(true);
   };
@@ -261,21 +328,11 @@ export function UserManagement() {
       authorizedWorkLocations: [],
       isActive: true,
       permissions: [],
-      coaRequired: false,
-      coaVerified: false,
-      coaExpiry: null,
-      warrantRequired: false,
-      warrantVerified: false,
-      warrantExpiry: null,
     });
   };
 
-  // Get available work locations based on employer (employer + ALL descendants recursively)
   const getAvailableWorkLocations = () => {
     if (!formData.employerOrgId || !organizations) return [];
-    
-    const employer = organizations.find(o => o.id === formData.employerOrgId);
-    if (!employer) return [];
     
     const getDescendants = (orgId: string): string[] => {
       const children = organizations.filter(o => o.parent_organization_id === orgId);
@@ -292,10 +349,10 @@ export function UserManagement() {
     });
   };
 
-  if (usersLoading) {
+  if (isLoading) {
     return (
       <div className="flex items-center justify-center h-96">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        <Loader2 className="h-12 w-12 animate-spin text-primary" />
       </div>
     );
   }
@@ -303,83 +360,101 @@ export function UserManagement() {
   return (
     <div className="space-y-6 pb-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
-          <h2 className="text-2xl font-bold mb-1">User Management</h2>
+          <h2 className="text-3xl font-bold mb-1 flex items-center gap-2">
+            <Users className="h-8 w-8" />
+            User Management
+          </h2>
           <p className="text-muted-foreground">
             Manage user accounts and permissions
           </p>
         </div>
-        <Button onClick={() => setShowCreateDialog(true)}>
-          <UserPlus className="h-4 w-4 mr-2" />
-          Create User
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button onClick={loadData} variant="outline" disabled={isLoading}>
+            {isLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+            Refresh
+          </Button>
+          <Button onClick={() => setShowCreateDialog(true)}>
+            <UserPlus className="h-4 w-4 mr-2" />
+            Create User
+          </Button>
+        </div>
       </div>
 
       {/* Stats */}
       <div className="grid gap-4 md:grid-cols-4">
         <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium">Total Users</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold">{users?.length || 0}</div>
+          <CardContent className="p-6">
+            <div className="text-sm text-muted-foreground mb-2">Total Users</div>
+            <div className="text-4xl font-bold">{users.length}</div>
           </CardContent>
         </Card>
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium">Active</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-green-500">
-              {users?.filter(u => u.is_active).length || 0}
+        <Card className="border-green-200 bg-green-50 dark:bg-green-950/20">
+          <CardContent className="p-6">
+            <div className="text-sm text-green-700 dark:text-green-300 mb-2">Active</div>
+            <div className="text-4xl font-bold text-green-600">
+              {users.filter(u => u.is_active).length}
             </div>
           </CardContent>
         </Card>
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium">Admins</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-blue-500">
-              {users?.filter(u => u.role === 'admin' || u.role === 'master' || u.role === 'admin_officer').length || 0}
+        <Card className="border-blue-200 bg-blue-50 dark:bg-blue-950/20">
+          <CardContent className="p-6">
+            <div className="text-sm text-blue-700 dark:text-blue-300 mb-2">Admins</div>
+            <div className="text-4xl font-bold text-blue-600">
+              {users.filter(u => u.role === 'admin' || u.role === 'master' || u.role === 'admin_officer').length}
             </div>
           </CardContent>
         </Card>
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium">Officers</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold text-amber-500">
-              {users?.filter(u => u.role === 'officer' || u.role === 'admin_officer').length || 0}
+        <Card className="border-amber-200 bg-amber-50 dark:bg-amber-950/20">
+          <CardContent className="p-6">
+            <div className="text-sm text-amber-700 dark:text-amber-300 mb-2">Officers</div>
+            <div className="text-4xl font-bold text-amber-600">
+              {users.filter(u => u.role === 'officer' || u.role === 'admin_officer').length}
             </div>
           </CardContent>
         </Card>
       </div>
 
       {/* Search */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center gap-2">
-            <Search className="h-4 w-4 text-muted-foreground" />
+      <Card className="border-2 border-primary/20">
+        <CardContent className="p-4">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder="Search users by name, email, or role..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="flex-1"
+              className="pl-10"
             />
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Users List */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Users ({filteredUsers.length})</CardTitle>
         </CardHeader>
         <CardContent>
-          {filteredUsers && filteredUsers.length > 0 ? (
+          {filteredUsers.length === 0 ? (
+            <div className="text-center py-12 text-muted-foreground">
+              <Users className="h-16 w-16 mx-auto mb-4 opacity-20" />
+              <p>No users found</p>
+              {searchQuery && (
+                <Button variant="outline" size="sm" onClick={() => setSearchQuery('')} className="mt-4">
+                  Clear Search
+                </Button>
+              )}
+            </div>
+          ) : (
             <div className="space-y-3">
               {filteredUsers.map((user) => (
                 <Card key={user.id} className={!user.is_active ? 'opacity-60' : ''}>
                   <CardContent className="p-4">
-                    <div className="flex items-start justify-between">
+                    <div className="flex items-start justify-between gap-4">
                       <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-2">
+                        <div className="flex items-center gap-2 mb-2 flex-wrap">
                           <h3 className="font-semibold text-lg">
                             {user.first_name} {user.last_name}
                           </h3>
@@ -408,7 +483,7 @@ export function UserManagement() {
                           )}
                           {user.organization && (
                             <div className="flex items-center gap-2">
-                              <Shield className="h-3 w-3" />
+                              <Building2 className="h-3 w-3" />
                               {user.organization.name}
                             </div>
                           )}
@@ -438,11 +513,6 @@ export function UserManagement() {
                 </Card>
               ))}
             </div>
-          ) : (
-            <div className="text-center py-12 text-muted-foreground">
-              <Users className="h-12 w-12 mx-auto mb-3 opacity-50" />
-              <p>No users found</p>
-            </div>
           )}
         </CardContent>
       </Card>
@@ -460,22 +530,16 @@ export function UserManagement() {
           <div className="grid gap-4 py-4">
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <Label htmlFor="create-first-name">First Name *</Label>
+                <Label>First Name *</Label>
                 <Input
-                  id="create-first-name"
-                  name="firstName"
-                  autoComplete="given-name"
                   value={formData.firstName}
                   onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
                   placeholder="John"
                 />
               </div>
               <div>
-                <Label htmlFor="create-last-name">Last Name *</Label>
+                <Label>Last Name *</Label>
                 <Input
-                  id="create-last-name"
-                  name="lastName"
-                  autoComplete="family-name"
                   value={formData.lastName}
                   onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
                   placeholder="Doe"
@@ -484,12 +548,9 @@ export function UserManagement() {
             </div>
 
             <div>
-              <Label htmlFor="create-email">Email *</Label>
+              <Label>Email *</Label>
               <Input
-                id="create-email"
-                name="email"
                 type="email"
-                autoComplete="email"
                 value={formData.email}
                 onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                 placeholder="john.doe@example.com"
@@ -497,12 +558,9 @@ export function UserManagement() {
             </div>
 
             <div>
-              <Label htmlFor="create-phone">Phone</Label>
+              <Label>Phone</Label>
               <Input
-                id="create-phone"
-                name="phone"
                 type="tel"
-                autoComplete="tel"
                 value={formData.phone}
                 onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                 placeholder="+64 21 123 4567"
@@ -510,32 +568,25 @@ export function UserManagement() {
             </div>
 
             <div>
-              <Label htmlFor="create-role">Role *</Label>
+              <Label>Role *</Label>
               <Select value={formData.role} onValueChange={(value: any) => setFormData({ ...formData, role: value })}>
-                <SelectTrigger id="create-role" name="role">
+                <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {isMaster && (
-                    <SelectItem value="master">Master</SelectItem>
-                  )}
+                  {isMaster && <SelectItem value="master">Master</SelectItem>}
                   <SelectItem value="admin">Admin</SelectItem>
                   <SelectItem value="officer">Officer</SelectItem>
                   <SelectItem value="admin_officer">Admin + Officer (Dual Role)</SelectItem>
                 </SelectContent>
               </Select>
-              <p className="text-xs text-muted-foreground mt-1">
-                {formData.role === 'admin_officer' && (
-                  <span className="text-blue-600 font-semibold">💼 Dual-role: Can access both Admin Portal AND Field Portal. Cannot self-approve enforcement actions.</span>
-                )}
-              </p>
             </div>
 
             <div>
-              <Label htmlFor="create-organization">Primary Organization (Default Work Location)</Label>
+              <Label>Primary Organization</Label>
               <Select value={formData.organizationId} onValueChange={(value) => setFormData({ ...formData, organizationId: value })}>
-                <SelectTrigger id="create-organization" name="organizationId">
-                  <SelectValue placeholder="Select primary organization (optional)" />
+                <SelectTrigger>
+                  <SelectValue placeholder="Select organization (optional)" />
                 </SelectTrigger>
                 <SelectContent>
                   {organizations?.map((org) => (
@@ -545,81 +596,66 @@ export function UserManagement() {
                   ))}
                 </SelectContent>
               </Select>
-              <p className="text-xs text-muted-foreground mt-1">
-                Primary organization for this user (where they primarily work)
-              </p>
             </div>
 
-            {/* Employer Organization (for officers) */}
             {(formData.role === 'officer' || formData.role === 'admin_officer') && (
               <>
                 <div>
-                  <Label htmlFor="create-employer">Employer Organization (Who Employs This Officer) *</Label>
+                  <Label>Employer Organization *</Label>
                   <Select 
                     value={formData.employerOrgId} 
                     onValueChange={(value) => {
                       setFormData({ 
                         ...formData, 
                         employerOrgId: value,
-                        authorizedWorkLocations: [] // Reset work locations when employer changes
+                        authorizedWorkLocations: []
                       });
                     }}
                   >
-                    <SelectTrigger id="create-employer" name="employerOrgId">
-                      <SelectValue placeholder="Select employer organization" />
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select employer" />
                     </SelectTrigger>
                     <SelectContent>
                       {organizations?.map((org) => (
                         <SelectItem key={org.id} value={org.id}>
-                          {org.name} (Level {org.organization_level})
+                          {org.name}
                         </SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    💼 Organization responsible for payroll, HR, and legal liability. Example: First Security employs the officer.
-                  </p>
                 </div>
 
-                {/* Authorized Work Locations (multi-select) */}
                 {formData.employerOrgId && (
                   <div>
-                    <Label>Authorized Work Locations (Multi-Select) *</Label>
-                    <div className="border rounded-md p-3 space-y-2 max-h-48 overflow-y-auto">
-                      {getAvailableWorkLocations().length > 0 ? (
-                        getAvailableWorkLocations().map((org) => (
-                          <div key={org.id} className="flex items-center gap-2">
-                            <input
-                              type="checkbox"
-                              id={`work-location-${org.id}`}
-                              checked={formData.authorizedWorkLocations.includes(org.id)}
-                              onChange={(e) => {
-                                if (e.target.checked) {
-                                  setFormData({
-                                    ...formData,
-                                    authorizedWorkLocations: [...formData.authorizedWorkLocations, org.id]
-                                  });
-                                } else {
-                                  setFormData({
-                                    ...formData,
-                                    authorizedWorkLocations: formData.authorizedWorkLocations.filter(id => id !== org.id)
-                                  });
-                                }
-                              }}
-                              className="rounded"
-                            />
-                            <Label htmlFor={`work-location-${org.id}`} className="cursor-pointer">
-                              {org.name} {org.id === formData.employerOrgId && '(Employer)'}
-                            </Label>
-                          </div>
-                        ))
-                      ) : (
-                        <p className="text-sm text-muted-foreground">Select an employer organization first</p>
-                      )}
+                    <Label>Authorized Work Locations *</Label>
+                    <div className="border rounded-md p-3 space-y-2 max-h-48 overflow-y-auto mt-1">
+                      {getAvailableWorkLocations().map((org) => (
+                        <div key={org.id} className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            id={`work-${org.id}`}
+                            checked={formData.authorizedWorkLocations.includes(org.id)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setFormData({
+                                  ...formData,
+                                  authorizedWorkLocations: [...formData.authorizedWorkLocations, org.id]
+                                });
+                              } else {
+                                setFormData({
+                                  ...formData,
+                                  authorizedWorkLocations: formData.authorizedWorkLocations.filter(id => id !== org.id)
+                                });
+                              }
+                            }}
+                            className="rounded"
+                          />
+                          <Label htmlFor={`work-${org.id}`} className="cursor-pointer">
+                            {org.name}
+                          </Label>
+                        </div>
+                      ))}
                     </div>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      🔐 Officer can only see/work on data from these organizations. Example: First Security officer authorized for LINZ jobs only.
-                    </p>
                   </div>
                 )}
               </>
@@ -628,106 +664,19 @@ export function UserManagement() {
             <div>
               <Label>Permissions</Label>
               <PermissionsEditor
-                selectedPermissions={formData.permissions || []}
+                selectedPermissions={formData.permissions}
                 onPermissionsChange={(permissions) => setFormData({ ...formData, permissions })}
                 userRole={formData.role}
               />
             </div>
-
-            {/* Compliance Credentials - Only for officers */}
-            {(formData.role === 'officer' || formData.role === 'admin_officer') && (
-              <div className="space-y-4 p-4 border rounded-lg bg-blue-50 dark:bg-blue-950/20">
-                <h3 className="font-semibold text-sm">Compliance Credentials</h3>
-                
-                {/* COA Section */}
-                <div className="space-y-2">
-                  <Label className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      checked={formData.coaRequired}
-                      onChange={(e) => setFormData({ ...formData, coaRequired: e.target.checked })}
-                      className="rounded"
-                    />
-                    Certificate of Approval (COA) Required
-                  </Label>
-                  
-                  {formData.coaRequired && (
-                    <div className="ml-6 space-y-2">
-                      <Label className="flex items-center gap-2">
-                        <input
-                          type="checkbox"
-                          checked={formData.coaVerified}
-                          onChange={(e) => setFormData({ ...formData, coaVerified: e.target.checked })}
-                          className="rounded"
-                        />
-                        COA Verified
-                      </Label>
-                      
-                      {formData.coaVerified && (
-                        <div>
-                          <Label className="text-xs">COA Expiry Date (Optional)</Label>
-                          <Input
-                            type="date"
-                            value={formData.coaExpiry || ''}
-                            onChange={(e) => setFormData({ ...formData, coaExpiry: e.target.value || null })}
-                          />
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-
-                {/* Warrant Section */}
-                <div className="space-y-2">
-                  <Label className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      checked={formData.warrantRequired}
-                      onChange={(e) => setFormData({ ...formData, warrantRequired: e.target.checked })}
-                      className="rounded"
-                    />
-                    Freedom Camping Warrant Required
-                  </Label>
-                  
-                  {formData.warrantRequired && (
-                    <div className="ml-6 space-y-2">
-                      <Label className="flex items-center gap-2">
-                        <input
-                          type="checkbox"
-                          checked={formData.warrantVerified}
-                          onChange={(e) => setFormData({ ...formData, warrantVerified: e.target.checked })}
-                          className="rounded"
-                        />
-                        Warrant Verified
-                      </Label>
-                      
-                      {formData.warrantVerified && (
-                        <div>
-                          <Label className="text-xs">Warrant Expiry Date (Optional)</Label>
-                          <Input
-                            type="date"
-                            value={formData.warrantExpiry || ''}
-                            onChange={(e) => setFormData({ ...formData, warrantExpiry: e.target.value || null })}
-                          />
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-
-                <p className="text-xs text-muted-foreground">
-                  ℹ️ Officers can update their own credentials on first login. Admins can verify and set expiry dates here.
-                </p>
-              </div>
-            )}
           </div>
 
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowCreateDialog(false)}>
               Cancel
             </Button>
-            <Button onClick={handleCreateUser} disabled={isSubmitting}>
-              {isSubmitting ? (
+            <Button onClick={handleCreateUser} disabled={isSaving}>
+              {isSaving ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                   Creating...
@@ -753,21 +702,15 @@ export function UserManagement() {
           <div className="grid gap-4 py-4">
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <Label htmlFor="edit-first-name">First Name *</Label>
+                <Label>First Name *</Label>
                 <Input
-                  id="edit-first-name"
-                  name="firstName"
-                  autoComplete="given-name"
                   value={formData.firstName}
                   onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
                 />
               </div>
               <div>
-                <Label htmlFor="edit-last-name">Last Name *</Label>
+                <Label>Last Name *</Label>
                 <Input
-                  id="edit-last-name"
-                  name="lastName"
-                  autoComplete="family-name"
                   value={formData.lastName}
                   onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
                 />
@@ -775,71 +718,52 @@ export function UserManagement() {
             </div>
 
             <div>
-              <Label htmlFor="edit-email">Email</Label>
+              <Label>Email</Label>
               <Input
-                id="edit-email"
-                name="email"
                 type="email"
-                autoComplete="email"
                 value={formData.email}
                 disabled
                 className="bg-muted"
               />
               <p className="text-xs text-muted-foreground mt-1">
-                Email cannot be changed after account creation
+                Email cannot be changed
               </p>
             </div>
 
             <div>
-              <Label htmlFor="edit-phone">Phone</Label>
+              <Label>Phone</Label>
               <Input
-                id="edit-phone"
-                name="phone"
                 type="tel"
-                autoComplete="tel"
                 value={formData.phone}
                 onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
               />
             </div>
 
-            {/* Only allow admin/master to edit these fields */}
             {isAdmin && (
               <>
                 <div>
-                  <Label htmlFor="edit-role">Role *</Label>
+                  <Label>Role *</Label>
                   <Select 
                     value={formData.role} 
                     onValueChange={(value: any) => setFormData({ ...formData, role: value })}
                     disabled={selectedUser?.id === currentUser?.id}
                   >
-                    <SelectTrigger id="edit-role" name="role">
+                    <SelectTrigger>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      {isMaster && (
-                        <SelectItem value="master">Master</SelectItem>
-                      )}
+                      {isMaster && <SelectItem value="master">Master</SelectItem>}
                       <SelectItem value="admin">Admin</SelectItem>
                       <SelectItem value="officer">Officer</SelectItem>
                       <SelectItem value="admin_officer">Admin + Officer (Dual Role)</SelectItem>
                     </SelectContent>
                   </Select>
-                  {selectedUser?.id === currentUser?.id && (
-                    <p className="text-xs text-muted-foreground mt-1">
-                      ℹ️ You cannot change your own role
-                    </p>
-                  )}
-                  {formData.role === 'admin_officer' && (
-                    <p className="text-xs text-blue-600 font-semibold mt-1">
-                      💼 Dual-role: Can access both Admin Portal AND Field Portal. Cannot self-approve enforcement actions.
-                    </p>
-                  )}
                 </div>
 
                 <div>
-                  <Label htmlFor="edit-organization">Primary Organization (Default Work Location)</Label>
+                  <Label>Primary Organization</Label>
                   <Select value={formData.organizationId} onValueChange={(value) => setFormData({ ...formData, organizationId: value })}>
-                    <SelectTrigger id="edit-organization" name="organizationId">
+                    <SelectTrigger>
                       <SelectValue placeholder="No organization" />
                     </SelectTrigger>
                     <SelectContent>
@@ -850,81 +774,66 @@ export function UserManagement() {
                       ))}
                     </SelectContent>
                   </Select>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Primary organization for this user
-                  </p>
                 </div>
 
-                {/* Employer Organization (for officers) */}
                 {(formData.role === 'officer' || formData.role === 'admin_officer') && (
                   <>
                     <div>
-                      <Label htmlFor="edit-employer">Employer Organization (Who Employs This Officer) *</Label>
+                      <Label>Employer Organization *</Label>
                       <Select 
                         value={formData.employerOrgId} 
                         onValueChange={(value) => {
                           setFormData({ 
                             ...formData, 
                             employerOrgId: value,
-                            authorizedWorkLocations: [] // Reset work locations when employer changes
+                            authorizedWorkLocations: []
                           });
                         }}
                       >
-                        <SelectTrigger id="edit-employer" name="employerOrgId">
-                          <SelectValue placeholder="Select employer organization" />
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select employer" />
                         </SelectTrigger>
                         <SelectContent>
                           {organizations?.map((org) => (
                             <SelectItem key={org.id} value={org.id}>
-                              {org.name} (Level {org.organization_level})
+                              {org.name}
                             </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        💼 Organization responsible for payroll, HR, and legal liability
-                      </p>
                     </div>
 
-                    {/* Authorized Work Locations (multi-select) */}
                     {formData.employerOrgId && (
                       <div>
-                        <Label>Authorized Work Locations (Multi-Select) *</Label>
-                        <div className="border rounded-md p-3 space-y-2 max-h-48 overflow-y-auto">
-                          {getAvailableWorkLocations().length > 0 ? (
-                            getAvailableWorkLocations().map((org) => (
-                              <div key={org.id} className="flex items-center gap-2">
-                                <input
-                                  type="checkbox"
-                                  id={`work-location-edit-${org.id}`}
-                                  checked={formData.authorizedWorkLocations.includes(org.id)}
-                                  onChange={(e) => {
-                                    if (e.target.checked) {
-                                      setFormData({
-                                        ...formData,
-                                        authorizedWorkLocations: [...formData.authorizedWorkLocations, org.id]
-                                      });
-                                    } else {
-                                      setFormData({
-                                        ...formData,
-                                        authorizedWorkLocations: formData.authorizedWorkLocations.filter(id => id !== org.id)
-                                      });
-                                    }
-                                  }}
-                                  className="rounded"
-                                />
-                                <Label htmlFor={`work-location-edit-${org.id}`} className="cursor-pointer">
-                                  {org.name} {org.id === formData.employerOrgId && '(Employer)'}
-                                </Label>
-                              </div>
-                            ))
-                          ) : (
-                            <p className="text-sm text-muted-foreground">Select an employer organization first</p>
-                          )}
+                        <Label>Authorized Work Locations *</Label>
+                        <div className="border rounded-md p-3 space-y-2 max-h-48 overflow-y-auto mt-1">
+                          {getAvailableWorkLocations().map((org) => (
+                            <div key={org.id} className="flex items-center gap-2">
+                              <input
+                                type="checkbox"
+                                id={`edit-work-${org.id}`}
+                                checked={formData.authorizedWorkLocations.includes(org.id)}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setFormData({
+                                      ...formData,
+                                      authorizedWorkLocations: [...formData.authorizedWorkLocations, org.id]
+                                    });
+                                  } else {
+                                    setFormData({
+                                      ...formData,
+                                      authorizedWorkLocations: formData.authorizedWorkLocations.filter(id => id !== org.id)
+                                    });
+                                  }
+                                }}
+                                className="rounded"
+                              />
+                              <Label htmlFor={`edit-work-${org.id}`} className="cursor-pointer">
+                                {org.name}
+                              </Label>
+                            </div>
+                          ))}
                         </div>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          🔐 Officer can only see/work on data from these organizations
-                        </p>
                       </div>
                     )}
                   </>
@@ -941,140 +850,17 @@ export function UserManagement() {
                     />
                     Active User
                   </Label>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {selectedUser?.id === currentUser?.id 
-                      ? 'ℹ️ You cannot deactivate yourself'
-                      : 'Inactive users cannot log in'}
-                  </p>
                 </div>
 
                 <div>
                   <Label>Permissions</Label>
                   <PermissionsEditor
-                    selectedPermissions={formData.permissions || []}
+                    selectedPermissions={formData.permissions}
                     onPermissionsChange={(permissions) => setFormData({ ...formData, permissions })}
                     userRole={formData.role}
                   />
-                  {selectedUser?.id === currentUser?.id && (
-                    <p className="text-xs text-amber-600 mt-1">
-                      ⚠️ Be careful editing your own permissions
-                    </p>
-                  )}
                 </div>
-
-                {/* Compliance Credentials - Only for officers */}
-                {(formData.role === 'officer' || formData.role === 'admin_officer') && (
-                  <div className="space-y-4 p-4 border rounded-lg bg-blue-50 dark:bg-blue-950/20">
-                    <h3 className="font-semibold text-sm">Compliance Credentials</h3>
-                    
-                    {/* COA Section */}
-                    <div className="space-y-2">
-                      <Label className="flex items-center gap-2">
-                        <input
-                          type="checkbox"
-                          checked={formData.coaRequired}
-                          onChange={(e) => setFormData({ ...formData, coaRequired: e.target.checked })}
-                          className="rounded"
-                        />
-                        Certificate of Approval (COA) Required
-                      </Label>
-                      
-                      {formData.coaRequired && (
-                        <div className="ml-6 space-y-2">
-                          <Label className="flex items-center gap-2">
-                            <input
-                              type="checkbox"
-                              checked={formData.coaVerified}
-                              onChange={(e) => setFormData({ ...formData, coaVerified: e.target.checked })}
-                              className="rounded"
-                            />
-                            COA Verified
-                          </Label>
-                          
-                          {formData.coaVerified && (
-                            <div>
-                              <Label htmlFor="create-coa-expiry" className="text-xs">COA Expiry Date (Optional)</Label>
-                              <Input
-                                id="create-coa-expiry"
-                                name="coaExpiry"
-                                type="date"
-                                autoComplete="off"
-                                value={formData.coaExpiry || ''}
-                                onChange={(e) => setFormData({ ...formData, coaExpiry: e.target.value || null })}
-                              />
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Warrant Section */}
-                    <div className="space-y-2">
-                      <Label className="flex items-center gap-2">
-                        <input
-                          type="checkbox"
-                          checked={formData.warrantRequired}
-                          onChange={(e) => setFormData({ ...formData, warrantRequired: e.target.checked })}
-                          className="rounded"
-                        />
-                        Freedom Camping Warrant Required
-                      </Label>
-                      
-                      {formData.warrantRequired && (
-                        <div className="ml-6 space-y-2">
-                          <Label className="flex items-center gap-2">
-                            <input
-                              type="checkbox"
-                              checked={formData.warrantVerified}
-                              onChange={(e) => setFormData({ ...formData, warrantVerified: e.target.checked })}
-                              className="rounded"
-                            />
-                            Warrant Verified
-                          </Label>
-                          
-                          {formData.warrantVerified && (
-                            <div>
-                              <Label htmlFor="create-warrant-expiry" className="text-xs">Warrant Expiry Date (Optional)</Label>
-                              <Input
-                                id="create-warrant-expiry"
-                                name="warrantExpiry"
-                                type="date"
-                                autoComplete="off"
-                                value={formData.warrantExpiry || ''}
-                                onChange={(e) => setFormData({ ...formData, warrantExpiry: e.target.value || null })}
-                              />
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-
-                    <p className="text-xs text-muted-foreground">
-                      ℹ️ Officers can update their own credentials on first login. Admins can verify and set expiry dates here.
-                    </p>
-                  </div>
-                )}
               </>
-            )}
-            
-            {/* Non-admin users can only see read-only fields */}
-            {!isAdmin && (
-              <div className="p-4 bg-muted rounded-lg border-2 border-dashed">
-                <p className="text-sm text-muted-foreground text-center">
-                  ℹ️ You can only edit your name and phone number. Contact an administrator to change role, organization, or permissions.
-                </p>
-                <div className="mt-4 space-y-2 text-sm">
-                  <div>
-                    <span className="font-semibold">Role:</span> {formData.role}
-                  </div>
-                  <div>
-                    <span className="font-semibold">Organization:</span> {organizations?.find(o => o.id === formData.organizationId)?.name || 'None'}
-                  </div>
-                  <div>
-                    <span className="font-semibold">Status:</span> {formData.isActive ? 'Active' : 'Inactive'}
-                  </div>
-                </div>
-              </div>
             )}
           </div>
 
@@ -1082,8 +868,8 @@ export function UserManagement() {
             <Button variant="outline" onClick={() => setShowEditDialog(false)}>
               Cancel
             </Button>
-            <Button onClick={handleUpdateUser} disabled={isSubmitting}>
-              {isSubmitting ? (
+            <Button onClick={handleUpdateUser} disabled={isSaving}>
+              {isSaving ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                   Saving...
@@ -1103,13 +889,13 @@ export function UserManagement() {
             <AlertDialogTitle>Delete User?</AlertDialogTitle>
             <AlertDialogDescription>
               Are you sure you want to delete {selectedUser?.first_name} {selectedUser?.last_name}? 
-              This action cannot be undone and will remove all associated data.
+              This will deactivate the user account.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleDeleteUser} disabled={isSubmitting} className="bg-destructive text-destructive-foreground">
-              {isSubmitting ? (
+            <AlertDialogAction onClick={handleDeleteUser} disabled={isSaving} className="bg-destructive text-destructive-foreground">
+              {isSaving ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                   Deleting...

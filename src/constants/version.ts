@@ -6,9 +6,36 @@
  * - PATCH (third digit): Minor amendments
  */
 
-export const APP_VERSION = '2.13.0051';
+export const APP_VERSION = '2.13.0053';
 
 export const VERSION_HISTORY = [
+  {
+    version: '2.13.0053',
+    date: '2026-02-17',
+    changes: [
+      '🔨 COMPLETE REBUILD: User Management page rebuilt from scratch',
+      '✅ Clean, modern UI with comprehensive user management',
+      '✅ Create/Edit/Delete users with full validation',
+      '✅ Organization hierarchy support (employer + authorized work locations)',
+      '✅ Permissions editor integration',
+      '✅ Compliance credentials (COA + Warrant) support',
+      '✅ Role-based access: Masters see all, Admins see org users',
+      '✅ Statistics cards: Total, Active, Admins, Officers',
+      '✅ Search and filtering functionality',
+      '📱 Fully mobile-responsive design',
+      '🎯 Uses proven patterns from working pages',
+    ],
+  },
+  {
+    version: '2.13.0052',
+    date: '2026-02-17',
+    changes: [
+      '⏮️ REVERTED: User Management changes - restored previous organization filtering logic',
+      '✅ Client-side filtering re-enabled for admin/admin_officer roles',
+      '✅ Masters see all users, admins see only their organization users',
+      '🔧 Removed debug logging - back to original implementation',
+    ],
+  },
   {
     version: '2.13.0051',
     date: '2026-02-17',
