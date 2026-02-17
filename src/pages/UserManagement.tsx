@@ -75,6 +75,12 @@ export function UserManagement() {
     authorizedWorkLocations: [] as string[], // Which orgs they can work for
     isActive: true,
     permissions: [] as string[],
+    coaRequired: false,
+    coaVerified: false,
+    coaExpiry: null as string | null,
+    warrantRequired: false,
+    warrantVerified: false,
+    warrantExpiry: null as string | null,
   });
 
   const isMaster = currentUser?.role === 'master';
@@ -111,6 +117,12 @@ export function UserManagement() {
           employerOrganizationId: formData.employerOrgId || null,
           authorizedWorkLocations: formData.authorizedWorkLocations || [],
           permissions: formData.permissions,
+          coa_required: formData.coaRequired,
+          coa_verified: formData.coaVerified,
+          coa_expiry: formData.coaExpiry,
+          warrant_required: formData.warrantRequired,
+          warrant_verified: formData.warrantVerified,
+          warrant_expiry: formData.warrantExpiry,
         },
       });
 
@@ -153,6 +165,12 @@ export function UserManagement() {
         authorized_work_locations: formData.authorizedWorkLocations || [],
         is_active: formData.isActive,
         permissions: safePermissions,
+        coa_required: formData.coaRequired,
+        coa_verified: formData.coaVerified,
+        coa_expiry: formData.coaExpiry,
+        warrant_required: formData.warrantRequired,
+        warrant_verified: formData.warrantVerified,
+        warrant_expiry: formData.warrantExpiry,
       };
       
       console.log('Update data:', updateData);
@@ -216,6 +234,12 @@ export function UserManagement() {
       authorizedWorkLocations: user.authorized_work_locations || [],
       isActive: user.is_active !== false,
       permissions: userPermissions,
+      coaRequired: user.coa_required || false,
+      coaVerified: user.coa_verified || false,
+      coaExpiry: user.coa_expiry || null,
+      warrantRequired: user.warrant_required || false,
+      warrantVerified: user.warrant_verified || false,
+      warrantExpiry: user.warrant_expiry || null,
     });
     setShowEditDialog(true);
   };
@@ -237,6 +261,12 @@ export function UserManagement() {
       authorizedWorkLocations: [],
       isActive: true,
       permissions: [],
+      coaRequired: false,
+      coaVerified: false,
+      coaExpiry: null,
+      warrantRequired: false,
+      warrantVerified: false,
+      warrantExpiry: null,
     });
   };
 
@@ -585,6 +615,93 @@ export function UserManagement() {
                 userRole={formData.role}
               />
             </div>
+
+            {/* Compliance Credentials - Only for officers */}
+            {(formData.role === 'officer' || formData.role === 'admin_officer') && (
+              <div className="space-y-4 p-4 border rounded-lg bg-blue-50 dark:bg-blue-950/20">
+                <h3 className="font-semibold text-sm">Compliance Credentials</h3>
+                
+                {/* COA Section */}
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={formData.coaRequired}
+                      onChange={(e) => setFormData({ ...formData, coaRequired: e.target.checked })}
+                      className="rounded"
+                    />
+                    Certificate of Approval (COA) Required
+                  </Label>
+                  
+                  {formData.coaRequired && (
+                    <div className="ml-6 space-y-2">
+                      <Label className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={formData.coaVerified}
+                          onChange={(e) => setFormData({ ...formData, coaVerified: e.target.checked })}
+                          className="rounded"
+                        />
+                        COA Verified
+                      </Label>
+                      
+                      {formData.coaVerified && (
+                        <div>
+                          <Label className="text-xs">COA Expiry Date (Optional)</Label>
+                          <Input
+                            type="date"
+                            value={formData.coaExpiry || ''}
+                            onChange={(e) => setFormData({ ...formData, coaExpiry: e.target.value || null })}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Warrant Section */}
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={formData.warrantRequired}
+                      onChange={(e) => setFormData({ ...formData, warrantRequired: e.target.checked })}
+                      className="rounded"
+                    />
+                    Freedom Camping Warrant Required
+                  </Label>
+                  
+                  {formData.warrantRequired && (
+                    <div className="ml-6 space-y-2">
+                      <Label className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={formData.warrantVerified}
+                          onChange={(e) => setFormData({ ...formData, warrantVerified: e.target.checked })}
+                          className="rounded"
+                        />
+                        Warrant Verified
+                      </Label>
+                      
+                      {formData.warrantVerified && (
+                        <div>
+                          <Label className="text-xs">Warrant Expiry Date (Optional)</Label>
+                          <Input
+                            type="date"
+                            value={formData.warrantExpiry || ''}
+                            onChange={(e) => setFormData({ ...formData, warrantExpiry: e.target.value || null })}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                <p className="text-xs text-muted-foreground">
+                  ℹ️ Officers can update their own credentials on first login. Admins can verify and set expiry dates here.
+                </p>
+              </div>
+            )}
           </div>
 
           <DialogFooter>
@@ -813,6 +930,93 @@ export function UserManagement() {
                     </p>
                   )}
                 </div>
+
+                {/* Compliance Credentials - Only for officers */}
+                {(formData.role === 'officer' || formData.role === 'admin_officer') && (
+                  <div className="space-y-4 p-4 border rounded-lg bg-blue-50 dark:bg-blue-950/20">
+                    <h3 className="font-semibold text-sm">Compliance Credentials</h3>
+                    
+                    {/* COA Section */}
+                    <div className="space-y-2">
+                      <Label className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={formData.coaRequired}
+                          onChange={(e) => setFormData({ ...formData, coaRequired: e.target.checked })}
+                          className="rounded"
+                        />
+                        Certificate of Approval (COA) Required
+                      </Label>
+                      
+                      {formData.coaRequired && (
+                        <div className="ml-6 space-y-2">
+                          <Label className="flex items-center gap-2">
+                            <input
+                              type="checkbox"
+                              checked={formData.coaVerified}
+                              onChange={(e) => setFormData({ ...formData, coaVerified: e.target.checked })}
+                              className="rounded"
+                            />
+                            COA Verified
+                          </Label>
+                          
+                          {formData.coaVerified && (
+                            <div>
+                              <Label className="text-xs">COA Expiry Date (Optional)</Label>
+                              <Input
+                                type="date"
+                                value={formData.coaExpiry || ''}
+                                onChange={(e) => setFormData({ ...formData, coaExpiry: e.target.value || null })}
+                              />
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Warrant Section */}
+                    <div className="space-y-2">
+                      <Label className="flex items-center gap-2">
+                        <input
+                          type="checkbox"
+                          checked={formData.warrantRequired}
+                          onChange={(e) => setFormData({ ...formData, warrantRequired: e.target.checked })}
+                          className="rounded"
+                        />
+                        Freedom Camping Warrant Required
+                      </Label>
+                      
+                      {formData.warrantRequired && (
+                        <div className="ml-6 space-y-2">
+                          <Label className="flex items-center gap-2">
+                            <input
+                              type="checkbox"
+                              checked={formData.warrantVerified}
+                              onChange={(e) => setFormData({ ...formData, warrantVerified: e.target.checked })}
+                              className="rounded"
+                            />
+                            Warrant Verified
+                          </Label>
+                          
+                          {formData.warrantVerified && (
+                            <div>
+                              <Label className="text-xs">Warrant Expiry Date (Optional)</Label>
+                              <Input
+                                type="date"
+                                value={formData.warrantExpiry || ''}
+                                onChange={(e) => setFormData({ ...formData, warrantExpiry: e.target.value || null })}
+                              />
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    <p className="text-xs text-muted-foreground">
+                      ℹ️ Officers can update their own credentials on first login. Admins can verify and set expiry dates here.
+                    </p>
+                  </div>
+                )}
               </>
             )}
             

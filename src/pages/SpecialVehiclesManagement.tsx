@@ -33,7 +33,19 @@ import { HomelessSupport } from './HomelessSupport';
 
 export function SpecialVehiclesManagement() {
   const { user } = useAuthStore();
-  const [activeTab, setActiveTab] = useState<'flagged' | 'homeless'>('flagged');
+  
+  // Check for urgent follow-up filter from navigation
+  const urgentFilter = localStorage.getItem('urgent_followup_filter');
+  const initialTab = urgentFilter === 'homeless_pending' ? 'homeless' : 'flagged';
+  
+  const [activeTab, setActiveTab] = useState<'flagged' | 'homeless'>(initialTab);
+  
+  // Clear filter after component mounts so it doesn't persist on manual navigation
+  useEffect(() => {
+    if (urgentFilter) {
+      localStorage.removeItem('urgent_followup_filter');
+    }
+  }, [urgentFilter]);
 
   const handleExportPDF = () => {
     toast.info('PDF export coming soon - will include full special vehicles report');
