@@ -279,11 +279,37 @@ export function ScannedVehiclesList({
     const isFlagged = 'isFlagged' in scan ? scan.isFlagged : scan.is_flagged;
     const isCompliant = 'isCompliant' in scan ? scan.isCompliant : scan.is_compliant;
     const isHomeless = 'isHomeless' in scan ? scan.isHomeless : scan.is_homeless;
+    const isAtRisk = 'is_at_risk' in scan ? scan.is_at_risk : false;
     const requiresFollowup = 'requiresFollowup' in scan ? scan.requiresFollowup : false;
     
+    // Priority: Flagged > Breach (with homeless check) > At Risk > Homeless > Followup > Compliant
     if (isFlagged) return <Badge variant="destructive" className="text-xs">🚩 Flagged</Badge>;
-    if (!isCompliant) return <Badge variant="default" className="bg-amber-500 text-xs">⚠️ Breach</Badge>;
-    if (isHomeless) return <Badge variant="default" className="bg-cyan-500 text-xs">🏕️ Homeless (FC Exempt)</Badge>;
+    
+    // If not compliant and homeless - show "At Risk (Exempt)"
+    if (!isCompliant && isHomeless) {
+      return <Badge variant="default" className="bg-purple-500 text-xs">⚠️ At Risk (FC Exempt)</Badge>;
+    }
+    
+    // If not compliant and not homeless - show "Breach"
+    if (!isCompliant) {
+      return <Badge variant="default" className="bg-amber-500 text-xs">⚠️ Breach</Badge>;
+    }
+    
+    // At risk (approaching breach threshold)
+    if (isAtRisk && !isHomeless) {
+      return <Badge variant="default" className="bg-yellow-500 text-xs">🟡 At Risk</Badge>;
+    }
+    
+    // At risk but homeless exempt
+    if (isAtRisk && isHomeless) {
+      return <Badge variant="default" className="bg-purple-400 text-xs">🟡 At Risk (FC Exempt)</Badge>;
+    }
+    
+    // Homeless and compliant
+    if (isHomeless) {
+      return <Badge variant="default" className="bg-cyan-500 text-xs">🏕️ Homeless (FC Exempt)</Badge>;
+    }
+    
     if (requiresFollowup) return <Badge variant="secondary" className="text-xs">⏰ Follow-up</Badge>;
     return <Badge variant="outline" className="text-green-600 text-xs">✓ Compliant</Badge>;
   };
