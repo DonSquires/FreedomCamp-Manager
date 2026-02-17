@@ -520,7 +520,12 @@ export function AdminPortal({ onLogout }: AdminPortalProps) {
           </div>
 
           <div className="flex-1 overflow-y-auto">
-            {urgentFollowUpsCount > 0 && activeTab !== 'urgent-followups' && (
+            {urgentFollowUpsCount > 0 && 
+             activeTab !== 'urgent-followups' && 
+             activeTab !== 'special-vehicles' && 
+             activeTab !== 'incident-reports' && 
+             activeTab !== 'enforcement-hub' && 
+             activeTab !== 'bug-reports' && (
               <div className="sticky top-0 z-20 mx-4 md:mx-6 mt-4">
                 <Card
                   className="border-red-500 bg-gradient-to-r from-red-50 to-orange-50 dark:from-red-950/40 dark:to-orange-950/40 cursor-pointer hover:shadow-lg transition-shadow animate-pulse"

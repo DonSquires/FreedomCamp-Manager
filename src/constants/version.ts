@@ -6,9 +6,21 @@
  * - PATCH (third digit): Minor amendments
  */
 
-export const APP_VERSION = '2.13.0025';
+export const APP_VERSION = '2.13.0026';
 
 export const VERSION_HISTORY = [
+  {
+    version: '2.13.0026',
+    date: '2026-02-17',
+    changes: [
+      '🔗 ENHANCED: Urgent Follow-Ups navigation now filters target pages automatically',
+      '✅ Homeless Claims → Opens Homeless Support tab with pending claims filtered',
+      '✅ Unresolved Breaches → Opens Enforcement Hub showing active breaches needing action',
+      '✅ Incidents Awaiting Approval → Opens Incident Reports filtered to "Pending Approval"',
+      '🎯 Same smooth navigation logic as Bug Reports - click and go directly to filtered view',
+      '🔄 Filter auto-clears on manual navigation to prevent sticky filters',
+    ],
+  },
   {
     version: '2.13.0025',
     date: '2026-02-17',
