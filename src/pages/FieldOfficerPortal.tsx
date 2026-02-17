@@ -154,6 +154,67 @@ export function FieldOfficerPortal({ onLogout }: FieldOfficerPortalProps) {
     user?.organization_id || null
   );
 
+  // ✅ AUTO-UPDATE SELECTED ZONE when GPS geofence detection changes
+  useEffect(() => {
+    if (!autoDetectedZone) {
+      // GPS shows we're outside all geofences - set to "Other Location" zone
+      const loadOtherLocationZone = async () => {
+        if (!user?.organization_id) return;
+        
+        try {
+          // Check if "Other Location" zone exists
+          const { data: otherZone } = await supabase
+            .from('zones')
+            .select('id, name, organization_id, enforcement_workflow:organizations(enforcement_workflow)')
+            .eq('organization_id', user.organization_id)
+            .eq('zone_type', 'fallback')
+            .ilike('name', '%Other Location%')
+            .single();
+          
+          if (otherZone) {
+            setSelectedZone({
+              id: otherZone.id,
+              name: otherZone.name,
+              orgId: otherZone.organization_id,
+              enforcementWorkflow: (otherZone.enforcement_workflow as any)?.enforcement_workflow || 'admin_first',
+            });
+            console.log('📍 Auto-set zone to: Other Location (outside geofences)');
+          }
+        } catch (error) {
+          console.warn('⚠️ Could not load Other Location zone:', error);
+        }
+      };
+      
+      loadOtherLocationZone();
+    } else {
+      // GPS detected a specific zone - auto-update selected zone
+      const loadZoneDetails = async () => {
+        try {
+          const { data: zone } = await supabase
+            .from('zones')
+            .select('id, name, organization_id, enforcement_workflow:organizations(enforcement_workflow)')
+            .eq('id', autoDetectedZone.id)
+            .single();
+          
+          if (zone) {
+            setSelectedZone({
+              id: zone.id,
+              name: zone.name,
+              orgId: zone.organization_id,
+              enforcementWorkflow: (zone.enforcement_workflow as any)?.enforcement_workflow || 'admin_first',
+            });
+            console.log('📍 Auto-set zone to:', zone.name, '(GPS geofence detected)');
+            toast.info(`Zone updated: ${zone.name}`);
+          }
+        } catch (error) {
+          console.warn('⚠️ Could not load zone details:', error);
+        }
+      };
+      
+      loadZoneDetails();
+    }
+  }, [autoDetectedZone, user?.organization_id]);
+
   // Auto-enter fullscreen on mount and restore preference
   useEffect(() => {
     const enterFullscreen = async () => {
