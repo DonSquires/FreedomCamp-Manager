@@ -80,6 +80,17 @@ export function AdminPortal({ onLogout }: AdminPortalProps) {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [urgentFollowUpsCount, setUrgentFollowUpsCount] = useState(0);
+
+  // Handle URL parameters for cross-portal navigation
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const tab = params.get('tab');
+    if (tab) {
+      setActiveTab(tab);
+      // Clear URL parameters after loading
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, []);
   
   const [selectedZone, setSelectedZone] = useState<{ id: string; name: string } | null>(null);
   const [selectedObservation, setSelectedObservation] = useState<string | null>(null);
