@@ -48,8 +48,7 @@ import { UrgentFollowUps } from './UrgentFollowUps';
 import { OfficerWelfareHub } from './OfficerWelfareHub';
 import { LiveFieldOperations } from './LiveFieldOperations';
 import { HelpDocumentation } from './HelpDocumentation';
-import { AnalyticsHub } from './AnalyticsHub';
-import { OrganizationDashboard } from './OrganizationDashboard';
+import { UnifiedDashboard } from './UnifiedDashboard';
 import { OrganizationOverview } from './OrganizationOverview';
 import { ZoneCorrections } from './ZoneCorrections';
 import { VehicleRecords } from './VehicleRecords';
@@ -67,7 +66,8 @@ import { DataRecoveryAnalysis } from './DataRecoveryAnalysis';
 import { ProductOverviewDocument } from './ProductOverviewDocument';
 import { DatabaseMaintenance } from './DatabaseMaintenance';
 import { BugReportsManagement } from './BugReportsManagement';
-import { ComplianceDashboard } from './ComplianceDashboard';
+import { OrganizationManagement } from './OrganizationManagement';
+
 import { VehicleEvidenceReport } from './VehicleEvidenceReport';
 import ObservationsReport from './ObservationsReport';
 
@@ -358,51 +358,39 @@ export function AdminPortal({ onLogout }: AdminPortalProps) {
             </div>
 
             <Button
-              variant={activeTab === 'compliance-dashboard' ? 'default' : 'ghost'}
-              className="w-full justify-start text-sm lg:text-base h-10 lg:h-9 touch-manipulation bg-green-50 dark:bg-green-950/20 border border-green-500/30"
+              variant={activeTab === 'unified-dashboard' ? 'default' : 'ghost'}
+              className="w-full justify-start text-sm lg:text-base h-10 lg:h-9 touch-manipulation bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-950/20 dark:to-purple-950/20 border-2 border-blue-500/30"
               onClick={() => {
-                setActiveTab('compliance-dashboard');
+                setActiveTab('unified-dashboard');
                 setSidebarOpen(false);
               }}
             >
-              <TrendingUp className="h-4 w-4 mr-2 lg:mr-3 text-green-600" />
-              <span className="text-green-600 dark:text-green-400 font-semibold">Compliance Dashboard</span>
+              <LayoutDashboard className="h-4 w-4 mr-2 lg:mr-3 text-blue-600" />
+              <span className="text-blue-600 dark:text-blue-400 font-semibold">BI Dashboard</span>
             </Button>
 
             <Button
               variant={activeTab === 'vehicle-evidence-report' ? 'default' : 'ghost'}
-              className="w-full justify-start text-sm lg:text-base h-10 lg:h-9 touch-manipulation bg-blue-50 dark:bg-blue-950/20 border border-blue-500/30"
+              className="w-full justify-start text-sm lg:text-base h-10 lg:h-9 touch-manipulation"
               onClick={() => {
                 setActiveTab('vehicle-evidence-report');
                 setSidebarOpen(false);
               }}
             >
-              <FileText className="h-4 w-4 mr-2 lg:mr-3 text-blue-600" />
-              <span className="text-blue-600 dark:text-blue-400 font-semibold">Vehicle Evidence Report</span>
+              <FileText className="h-4 w-4 mr-2 lg:mr-3" />
+              Vehicle Evidence Report
             </Button>
 
             <Button
               variant={activeTab === 'observations-report' ? 'default' : 'ghost'}
-              className="w-full justify-start text-sm lg:text-base h-10 lg:h-9 touch-manipulation bg-purple-50 dark:bg-purple-950/20 border border-purple-500/30"
+              className="w-full justify-start text-sm lg:text-base h-10 lg:h-9 touch-manipulation"
               onClick={() => {
                 setActiveTab('observations-report');
                 setSidebarOpen(false);
               }}
             >
-              <Eye className="h-4 w-4 mr-2 lg:mr-3 text-purple-600" />
-              <span className="text-purple-600 dark:text-purple-400 font-semibold">Observations Report</span>
-            </Button>
-
-            <Button
-              variant={activeTab === 'analytics-hub' ? 'default' : 'ghost'}
-              className="w-full justify-start text-sm lg:text-base h-10 lg:h-9 touch-manipulation"
-              onClick={() => {
-                setActiveTab('analytics-hub');
-                setSidebarOpen(false);
-              }}
-            >
-              <TrendingUp className="h-4 w-4 mr-2 lg:mr-3" />
-              Analytics Hub
+              <Eye className="h-4 w-4 mr-2 lg:mr-3" />
+              Observations Report
             </Button>
 
 
@@ -410,6 +398,20 @@ export function AdminPortal({ onLogout }: AdminPortalProps) {
             <div className="text-xs font-semibold text-muted-foreground px-3 py-2 mt-3 lg:mt-4">
               MANAGEMENT
             </div>
+
+            {isMaster && (
+              <Button
+                variant={activeTab === 'organization-management' ? 'default' : 'ghost'}
+                className="w-full justify-start text-sm lg:text-base h-10 lg:h-9 touch-manipulation bg-purple-50 dark:bg-purple-950/20 border border-purple-500/30"
+                onClick={() => {
+                  setActiveTab('organization-management');
+                  setSidebarOpen(false);
+                }}
+              >
+                <Building2 className="h-4 w-4 mr-2 lg:mr-3 text-purple-600" />
+                <span className="text-purple-600 dark:text-purple-400 font-semibold">Organization Management</span>
+              </Button>
+            )}
 
             <Button
               variant={activeTab === 'data-management-hub' ? 'default' : 'ghost'}
@@ -586,17 +588,14 @@ export function AdminPortal({ onLogout }: AdminPortalProps) {
 
 
 
-              {/* Compliance Dashboard - Real-time & Historical Compliance */}
-              {activeTab === 'compliance-dashboard' && <ComplianceDashboard />}
+              {/* Unified BI Dashboard - Consolidates Organization Overview, Compliance Dashboard, and Analytics Hub */}
+              {activeTab === 'unified-dashboard' && <UnifiedDashboard />}
 
               {/* Vehicle Evidence Report - Court-Ready PDF Generator */}
               {activeTab === 'vehicle-evidence-report' && <VehicleEvidenceReport />}
 
               {/* Observations Report - Comprehensive observation records */}
               {activeTab === 'observations-report' && <ObservationsReport />}
-
-              {/* Analytics Hub - Phase 3 Complete */}
-              {activeTab === 'analytics-hub' && <AnalyticsHub />}
 
               {activeTab === 'bulk-scan-review' && <BulkScanReview />}
 
@@ -620,6 +619,9 @@ export function AdminPortal({ onLogout }: AdminPortalProps) {
               {/* Phase 4 & 5: Consolidated Hubs */}
               {activeTab === 'data-management-hub' && <DataManagementHub />}
               {activeTab === 'settings-hub' && <SettingsHub />}
+              
+              {/* Organization Management - Master Only */}
+              {activeTab === 'organization-management' && isMaster && <OrganizationManagement />}
               
               {/* Database Maintenance - Master Only */}
               {activeTab === 'database-maintenance' && isMaster && <DatabaseMaintenance />}
