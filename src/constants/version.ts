@@ -6,9 +6,37 @@
  * - PATCH (third digit): Minor amendments
  */
 
-export const APP_VERSION = '2.13.0021';
+export const APP_VERSION = '2.13.0023';
 
 export const VERSION_HISTORY = [
+  {
+    version: '2.13.0023',
+    date: '2026-02-17',
+    changes: [
+      '🔧 CRITICAL FIX: Urgent Follow-Ups navigation actually works now',
+      '✅ Active Breaches → Enforcement Hub (correct tab name)',
+      '✅ Homeless Claims → Special Vehicles (correct tab name)',
+      '✅ Incident Reports → incident-reports (correct tab name)',
+      '✅ Bug Reports → bug-reports (correct tab name)',
+      '✅ All navigation links now properly change the active tab in Admin Portal',
+      '🎯 No more "Navigate from menu" toast messages - actual navigation implemented',
+    ],
+  },
+  {
+    version: '2.13.0022',
+    date: '2026-02-17',
+    changes: [
+      '✅ SIMPLIFIED: Urgent Follow-Ups completely redesigned',
+      '🎯 Just shows counts - no complex queries or data loading',
+      '🔗 Each card links directly to the management page for that item type',
+      '📊 Active Breaches → Breach Alerts page',
+      '📸 Pending Incidents → Incident Reports page',
+      '🏠 Homeless Claims → Homeless Support page',
+      '🐛 Bug Reports → Bug Reports Management page',
+      '✅ Fast loading - just simple count queries',
+      '💡 Clear guidance on where to go for each follow-up type',
+    ],
+  },
   {
     version: '2.13.0021',
     date: '2026-02-17',
