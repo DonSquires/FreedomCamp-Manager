@@ -96,106 +96,124 @@ export function UrgentFollowUps({ onTabChange }: UrgentFollowUpsProps = {}) {
   const loadFollowUps = async () => {
     setIsLoading(true);
     try {
+      console.log('📋 Loading Urgent Follow-Ups...');
+      
       // Get user's organization and role
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
+      console.log('✅ User authenticated:', user.id);
 
-      const { data: profile } = await supabase
+      const { data: profile, error: profileError } = await supabase
         .from('user_profiles')
         .select('organization_id, role')
         .eq('id', user.id)
         .single();
 
+      if (profileError) {
+        console.error('❌ Profile error:', profileError);
+        throw profileError;
+      }
       if (!profile?.organization_id) throw new Error('Organization not found');
       
+      console.log('✅ Organization ID:', profile.organization_id, 'Role:', profile.role);
       const isMaster = profile.role === 'master';
 
-      // Load vehicle observations requiring follow-up (UPDATED FOR NEW SCHEMA)
-      // Note: requires_followup is on canonical_vehicles now, not observations
-      const { data: flaggedVehicles, error: flaggedError } = await supabase
-        .from('canonical_vehicles')
-        .select('plate_number')
-        .eq('is_flagged', true);
-
-      if (flaggedError) throw flaggedError;
-      
-      const flaggedPlates = flaggedVehicles?.map(v => v.plate_number) || [];
-      
-      // Get recent observations of flagged vehicles
-      const { data: obsData, error: obsError } = await supabase
-        .from('vehicle_observations_v2')
+      // Load ACTIVE BREACHES from breach_alerts table (FIXED: Use plate_number directly)
+      console.log('🔥 Loading active breaches...');
+      const { data: breachData, error: breachError } = await supabase
+        .from('breach_alerts')
         .select(`
-          observation_id,
-          plate_number,
-          zone_id,
-          recorded_at,
+          *,
           zones!inner(id, name, organization_id)
         `)
         .eq('zones.organization_id', profile.organization_id)
-        .in('plate_number', flaggedPlates)
-        .order('recorded_at', { ascending: false })
+        .eq('status', 'active')
+        .order('created_at', { ascending: false })
         .limit(50);
 
-      if (obsError) throw obsError;
+      if (breachError) {
+        console.error('❌ Breach alerts error:', breachError);
+        throw breachError;
+      }
       
-      // Transform to match interface
-      const observations = (obsData || []).map(obs => ({
-        id: obs.observation_id,
-        plate_number: obs.plate_number,
-        zone: { name: obs.zones.name, id: obs.zones.id },
-        recorded_at: obs.recorded_at,
+      console.log(`✅ Loaded ${breachData?.length || 0} active breaches`);
+      
+      // Transform to match interface (use plate_number from breach_alerts directly)
+      const breaches = (breachData || []).map(breach => ({
+        id: breach.id,
+        plate_number: breach.plate_number || 'Unknown', // ✅ Direct from breach_alerts table
+        zone: { name: breach.zones.name, id: breach.zones.id },
+        recorded_at: breach.created_at,
         requires_followup: true,
-        followup_reason: 'Flagged vehicle detected',
+        followup_reason: breach.breach_type + (breach.breach_details?.reason ? ': ' + breach.breach_details.reason : ''),
         followup_priority: 'high',
         homeless_claimed: false,
       }));
       
-      setObservations(observations);
+      setObservations(breaches);
 
       // Load homeless claims (UPDATED FOR NEW SCHEMA)
+      console.log('🏠 Loading homeless claims...');
       const { data: homelessVehicles, error: homelessVehiclesError } = await supabase
         .from('canonical_vehicles')
         .select('plate_number')
         .eq('homeless_status', 'claimed');
 
-      if (homelessVehiclesError) throw homelessVehiclesError;
+      if (homelessVehiclesError) {
+        console.error('❌ Homeless vehicles error:', homelessVehiclesError);
+        throw homelessVehiclesError;
+      }
       
       const homelessPlates = homelessVehicles?.map(v => v.plate_number) || [];
+      console.log(`✅ Found ${homelessPlates.length} vehicles claiming homeless`);
       
-      // Get recent observations of homeless-claiming vehicles
-      const { data: homelessData, error: homelessError } = await supabase
-        .from('vehicle_observations_v2')
-        .select(`
-          observation_id,
-          plate_number,
-          zone_id,
-          recorded_at,
-          officer_notes,
-          zones!inner(id, name, organization_id)
-        `)
-        .eq('zones.organization_id', profile.organization_id)
-        .in('plate_number', homelessPlates)
-        .order('recorded_at', { ascending: false })
-        .limit(50);
+      // Only query observations if there are homeless plates (avoid empty IN clause)
+      let homelessRecords: VehicleRecord[] = [];
+      
+      if (homelessPlates.length > 0) {
+        console.log('🔍 Loading observations for homeless vehicles...');
+        const { data: homelessData, error: homelessError } = await supabase
+          .from('vehicle_observations_v2')
+          .select(`
+            observation_id,
+            plate_number,
+            zone_id,
+            recorded_at,
+            officer_notes,
+            zones!inner(id, name, organization_id)
+          `)
+          .eq('zones.organization_id', profile.organization_id)
+          .in('plate_number', homelessPlates)
+          .order('recorded_at', { ascending: false })
+          .limit(50);
 
-      if (homelessError) throw homelessError;
-      
-      // Transform to match interface
-      const homelessRecords = (homelessData || []).map(obs => ({
-        id: obs.observation_id,
-        plate_number: obs.plate_number,
-        zone: { name: obs.zones.name, id: obs.zones.id },
-        recorded_at: obs.recorded_at,
-        requires_followup: false,
-        followup_reason: '',
-        followup_priority: 'medium',
-        homeless_claimed: true,
-        notes: obs.officer_notes,
-      }));
+        if (homelessError) {
+          console.error('❌ Homeless observations error:', homelessError);
+          throw homelessError;
+        }
+        
+        console.log(`✅ Loaded ${homelessData?.length || 0} homeless observations`);
+        
+        // Transform to match interface
+        homelessRecords = (homelessData || []).map(obs => ({
+          id: obs.observation_id,
+          plate_number: obs.plate_number,
+          zone: { name: obs.zones.name, id: obs.zones.id },
+          recorded_at: obs.recorded_at,
+          requires_followup: false,
+          followup_reason: '',
+          followup_priority: 'medium',
+          homeless_claimed: true,
+          notes: obs.officer_notes,
+        }));
+      } else {
+        console.log('ℹ️ No homeless vehicles - skipping observations query');
+      }
       
       setHomelessRecords(homelessRecords);
 
       // Load incidents requiring review (NEW)
+      console.log('📸 Loading incidents...');
       const { data: incidentData, error: incidentError } = await supabase
         .from('incidents')
         .select(`
@@ -208,12 +226,17 @@ export function UrgentFollowUps({ onTabChange }: UrgentFollowUpsProps = {}) {
         .neq('status', 'closed')
         .order('recorded_at', { ascending: false });
 
-      if (incidentError) throw incidentError;
+      if (incidentError) {
+        console.error('❌ Incidents error:', incidentError);
+        throw incidentError;
+      }
+      
+      console.log(`✅ Loaded ${incidentData?.length || 0} incidents`);
       setIncidentRecords(incidentData || []);
 
       // Load bug reports (submitted status) - ONLY FOR MASTERS
       if (isMaster) {
-        console.log('✅ Loading bug reports (master user)...');
+        console.log('🐛 Loading bug reports (master user)...');
         const { data: bugData, error: bugError } = await supabase
           .from('bug_reports')
           .select(`
@@ -234,9 +257,11 @@ export function UrgentFollowUps({ onTabChange }: UrgentFollowUpsProps = {}) {
         console.log('ℹ️ Bug reports skipped (non-master user)');
         setBugReports([]);
       }
+      
+      console.log('✅ All urgent follow-ups loaded successfully');
     } catch (error: any) {
-      console.error('Failed to load follow-ups:', error);
-      toast.error('Failed to load urgent follow-ups');
+      console.error('❌ Failed to load follow-ups:', error);
+      toast.error('Failed to load urgent follow-ups: ' + error.message);
     } finally {
       setIsLoading(false);
     }

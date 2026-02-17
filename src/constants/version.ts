@@ -6,9 +6,58 @@
  * - PATCH (third digit): Minor amendments
  */
 
-export const APP_VERSION = '2.13.0017';
+export const APP_VERSION = '2.13.0021';
 
 export const VERSION_HISTORY = [
+  {
+    version: '2.13.0021',
+    date: '2026-02-17',
+    changes: [
+      '🔧 CRITICAL FIX: Urgent Follow-Ups now loads correctly',
+      '✅ Fixed breach_alerts query - uses plate_number directly (no broken FK join)',
+      '✅ Added comprehensive error logging for each data load step',
+      '✅ Fixed homeless query - skips if no homeless vehicles (avoids empty IN clause)',
+      '🐛 Better error messages show which specific query failed',
+      '📊 Console logs track: breaches, homeless, incidents, bug reports loading',
+    ],
+  },
+  {
+    version: '2.13.0020',
+    date: '2026-02-17',
+    changes: [
+      '🔧 CRITICAL FIX: Urgent Follow-Ups now correctly loads ACTIVE BREACHES',
+      '✅ Changed from flagged vehicles to breach_alerts table (status=active)',
+      '✅ Shows actual breaches requiring admin action',
+      '✅ Homeless claims, incidents, and bug reports still loading correctly',
+      '🎯 Fix: Was querying wrong table - now shows real enforcement items',
+    ],
+  },
+  {
+    version: '2.13.0019',
+    date: '2026-02-17',
+    changes: [
+      '🔧 CRITICAL FIX: Zone Correction now has comprehensive debug logging',
+      '✅ Improved zone filtering - checks zone_type AND name for Other Location exclusion',
+      '✅ Added GPS coordinate validation (lat/lng range checks)',
+      '✅ Enhanced logging shows which zones are tested and why matches fail',
+      '✅ Better error messages for diagnosing geofence issues',
+      '📊 Detailed console logs show: GPS coords, current zone, tested zones, match results',
+      '🎯 More robust filtering prevents accidental "Other Location" zone matching',
+    ],
+  },
+  {
+    version: '2.13.0018',
+    date: '2026-02-17',
+    changes: [
+      '🔧 CRITICAL FIX: GPS-based zone detection now ALWAYS used when GPS is available',
+      '✅ Observations now correctly assigned to zones based on actual GPS coordinates',
+      '📍 Zone Correction: Shows detailed list of which vehicles moved from where to where',
+      '🎯 Manual zone selection now only used as fallback when GPS unavailable/poor',
+      '📊 Zone assignment method logged for transparency (gps_geofence/manual_selection/manual_fallback)',
+      '⚠️ Previous issue: All scans assigned to manually selected zone regardless of GPS location',
+      '✅ Fixed: GPS coordinates now properly matched against polygon and point geofences',
+    ],
+  },
   {
     version: '2.13.0017',
     date: '2026-02-17',
