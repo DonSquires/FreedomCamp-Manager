@@ -207,17 +207,33 @@ export function OrganizationManagement() {
         }
       }
 
+      // Validate organization type
       const validTypes: Array<'owner' | 'security_company' | 'client' | 'other'> = ['owner', 'security_company', 'client', 'other'];
       const safeOrgType = validTypes.includes(formData.organization_type as any) ? formData.organization_type : 'client';
       
-      let safeWorkflow: string;
-      if (formData.enforcement_workflow === 'admin_first') {
+      // Validate enforcement workflow with comprehensive logging
+      console.log('🔍 ENFORCEMENT WORKFLOW DEBUG:');
+      console.log('Raw formData.enforcement_workflow:', formData.enforcement_workflow);
+      console.log('Type:', typeof formData.enforcement_workflow);
+      console.log('Length:', formData.enforcement_workflow?.length);
+      console.log('Character codes:', Array.from(formData.enforcement_workflow || '').map(c => c.charCodeAt(0)));
+      
+      let safeWorkflow: 'admin_first' | 'officer_first';
+      const workflowValue = String(formData.enforcement_workflow).trim();
+      
+      if (workflowValue === 'admin_first') {
         safeWorkflow = 'admin_first';
-      } else if (formData.enforcement_workflow === 'officer_first') {
+        console.log('✅ Set to admin_first');
+      } else if (workflowValue === 'officer_first') {
         safeWorkflow = 'officer_first';
+        console.log('✅ Set to officer_first');
       } else {
+        console.warn('⚠️ Invalid workflow value detected:', workflowValue, '- defaulting to admin_first');
         safeWorkflow = 'admin_first';
       }
+      
+      console.log('📤 Final safeWorkflow:', safeWorkflow);
+      console.log('📤 Type:', typeof safeWorkflow);
       
       const updateData = {
         name: formData.name.trim(),
@@ -229,6 +245,8 @@ export function OrganizationManagement() {
         organization_type: safeOrgType,
         is_active: formData.is_active,
       };
+      
+      console.log('📊 Complete update payload:', JSON.stringify(updateData, null, 2));
       
       const { error } = await supabase
         .from('organizations')
@@ -274,15 +292,25 @@ export function OrganizationManagement() {
   };
 
   const openEditDialog = (org: Organization) => {
+    console.log('🔧 OPENING EDIT DIALOG FOR:', org.name);
+    console.log('📥 From database - enforcement_workflow:', org.enforcement_workflow);
+    console.log('📥 Type:', typeof org.enforcement_workflow);
+    
     const validTypes: Array<'owner' | 'security_company' | 'client' | 'other'> = ['owner', 'security_company', 'client', 'other'];
     const orgType = validTypes.includes(org.organization_type as any) ? org.organization_type : 'client';
     
+    // Validate and sanitize workflow value from database
     let workflow: 'admin_first' | 'officer_first';
-    if (org.enforcement_workflow === 'admin_first') {
+    const workflowFromDb = String(org.enforcement_workflow || '').trim();
+    
+    if (workflowFromDb === 'admin_first') {
       workflow = 'admin_first';
-    } else if (org.enforcement_workflow === 'officer_first') {
+      console.log('✅ Loaded workflow: admin_first');
+    } else if (workflowFromDb === 'officer_first') {
       workflow = 'officer_first';
+      console.log('✅ Loaded workflow: officer_first');
     } else {
+      console.warn('⚠️ Invalid workflow from DB:', workflowFromDb, '- defaulting to admin_first');
       workflow = 'admin_first';
     }
     
@@ -295,6 +323,8 @@ export function OrganizationManagement() {
       organization_type: orgType,
       is_active: org.is_active !== false,
     };
+    
+    console.log('📋 Form data populated:', newFormData);
     
     setSelectedOrg(org);
     setFormData(newFormData);
