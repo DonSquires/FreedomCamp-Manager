@@ -59,10 +59,21 @@ export function IncidentReports() {
   const { data: zones = [] } = useZones();
   const { data: organizations = [] } = useOrganizations();
 
+  // Check for urgent follow-up filter from navigation
+  const urgentFilter = localStorage.getItem('urgent_followup_filter');
+  const initialFilter = urgentFilter === 'pending_approval' ? 'pending' : 'all';
+  
   const [selectedIncident, setSelectedIncident] = useState<any>(null);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [showApprovalDialog, setShowApprovalDialog] = useState(false);
-  const [filter, setFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all');
+  const [filter, setFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>(initialFilter);
+  
+  // Clear filter after component mounts
+  useEffect(() => {
+    if (urgentFilter) {
+      localStorage.removeItem('urgent_followup_filter');
+    }
+  }, [urgentFilter]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
   const [editedIncident, setEditedIncident] = useState<any>(null);

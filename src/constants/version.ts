@@ -6,9 +6,21 @@
  * - PATCH (third digit): Minor amendments
  */
 
-export const APP_VERSION = '2.13.0026';
+export const APP_VERSION = '2.13.0027';
 
 export const VERSION_HISTORY = [
+  {
+    version: '2.13.0027',
+    date: '2026-02-17',
+    changes: [
+      '📋 SYSTEM INTEGRATION REVIEW: Comprehensive build cleanup analysis',
+      '🔗 IDENTIFIED: Missing cross-portal links (Officer ↔ Admin)',
+      '✅ PLANNED: COA + Warrant checkboxes in login process',
+      '🔍 VALIDATED: admin_officer role flow from Supabase → Both Portals',
+      '📊 CREATED: Complete implementation roadmap with testing checklist',
+      '🎯 NEXT: Phase 1 implementation - URL parameters + cross-portal navigation',
+    ],
+  },
   {
     version: '2.13.0026',
     date: '2026-02-17',

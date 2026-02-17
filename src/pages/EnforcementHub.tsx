@@ -103,7 +103,18 @@ export function EnforcementHub() {
   const { user } = useAuthStore();
   const { data: users = [] } = useUsers();
 
-  const [activeTab, setActiveTab] = useState<'breaches' | 'jobs' | 'completed'>('breaches');
+  // Check for urgent follow-up filter from navigation
+  const urgentFilter = localStorage.getItem('urgent_followup_filter');
+  const initialTab = urgentFilter === 'unresolved_breaches' ? 'breaches' : 'breaches';
+  
+  const [activeTab, setActiveTab] = useState<'breaches' | 'jobs' | 'completed'>(initialTab);
+  
+  // Clear filter after component mounts
+  useEffect(() => {
+    if (urgentFilter) {
+      localStorage.removeItem('urgent_followup_filter');
+    }
+  }, [urgentFilter]);
   const [isLoading, setIsLoading] = useState(false);
   const [activeBreaches, setActiveBreaches] = useState<ActiveBreach[]>([]);
   const [enforcementJobs, setEnforcementJobs] = useState<EnforcementJob[]>([]);
