@@ -6,9 +6,20 @@
  * - PATCH (third digit): Minor amendments
  */
 
-export const APP_VERSION = '2.13.0049';
+export const APP_VERSION = '2.13.0050';
 
 export const VERSION_HISTORY = [
+  {
+    version: '2.13.0050',
+    date: '2026-02-17',
+    changes: [
+      '🎯 SMART NAVIGATION: Homeless Claims card now auto-filters to Pending Review',
+      '✅ Click "Homeless Claims" in Urgent Follow-Ups → Auto-opens Homeless Support tab',
+      '🔍 Automatically sets filter to "Pending Review" (claimed status)',
+      '⚡ No manual filtering needed - direct navigation to exactly what needs attention',
+      '💡 Filter clears on manual navigation to prevent sticky states',
+    ],
+  },
   {
     version: '2.13.0049',
     date: '2026-02-17',
