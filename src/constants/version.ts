@@ -6,9 +6,20 @@
  * - PATCH (third digit): Minor amendments
  */
 
-export const APP_VERSION = '2.13.0057';
+export const APP_VERSION = '2.13.0058';
 
 export const VERSION_HISTORY = [
+  {
+    version: '2.13.0058',
+    date: '2026-02-17',
+    changes: [
+      '✅ DATABASE MIGRATION COMPLETE: Helper functions successfully updated',
+      '🔐 All RLS helper functions now use SECURITY DEFINER to bypass circular dependencies',
+      '🔄 get_user_role(), get_user_organization_id(), get_user_organization_ids() all fixed',
+      '💾 Database ready - User Management should now load correctly',
+      '🎯 NEXT STEP: Hard refresh browser (Ctrl+F5) to clear cache and test User Management',
+    ],
+  },
   {
     version: '2.13.0057',
     date: '2026-02-17',
