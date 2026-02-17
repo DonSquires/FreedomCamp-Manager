@@ -6,9 +6,20 @@
  * - PATCH (third digit): Minor amendments
  */
 
-export const APP_VERSION = '2.13.0056';
+export const APP_VERSION = '2.13.0057';
 
 export const VERSION_HISTORY = [
+  {
+    version: '2.13.0057',
+    date: '2026-02-17',
+    changes: [
+      '✅ CRITICAL FIX: Helper functions now bypass RLS with SECURITY DEFINER',
+      '🔓 Eliminated circular dependency - functions can query user_profiles directly',
+      '🎯 get_user_role(), get_user_organization_id(), get_user_organization_ids() all fixed',
+      '📊 RLS policies can now safely call these functions without infinite loops',
+      '✅ User Management should now load correctly',
+    ],
+  },
   {
     version: '2.13.0056',
     date: '2026-02-17',
