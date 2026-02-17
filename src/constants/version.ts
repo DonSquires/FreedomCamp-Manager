@@ -6,9 +6,37 @@
  * - PATCH (third digit): Minor amendments
  */
 
-export const APP_VERSION = '2.13.0053';
+export const APP_VERSION = '2.13.0055';
 
 export const VERSION_HISTORY = [
+  {
+    version: '2.13.0055',
+    date: '2026-02-17',
+    changes: [
+      '🏗️ COMPLETE REBUILD: Organization-User System - Database Schema Phase 1',
+      '✅ Hierarchical organization structure with parent/child relationships',
+      '✅ Organization types: Owner, Security Company, Client, Other',
+      '✅ Automatic level calculation based on parent hierarchy',
+      '✅ User employer organization + authorized work locations support',
+      '✅ Recursive helper functions: get_descendant_organizations, get_ancestor_organizations',
+      '✅ Comprehensive RLS policies for organization hierarchy access control',
+      '✅ Circular reference prevention with validation triggers',
+      '✅ Multi-organization access: Masters see all, Admins see descendants',
+      '🎯 Database ready for: Iron Eagle → First Security → LINZ hierarchy',
+      '📊 Next: Test User Management page with new schema',
+    ],
+  },
+  {
+    version: '2.13.0054',
+    date: '2026-02-17',
+    changes: [
+      '🔧 CRITICAL FIX: User Management query error resolved',
+      '✅ Fixed "more than one relationship" error when loading users',
+      '✅ Explicitly specified organization_id foreign key in query',
+      '✅ User Management now loads correctly with dual organization relationships',
+      '🎯 Query now uses organization:organizations!organization_id syntax',
+    ],
+  },
   {
     version: '2.13.0053',
     date: '2026-02-17',
