@@ -6,9 +6,32 @@
  * - PATCH (third digit): Minor amendments
  */
 
-export const APP_VERSION = '2.13.0023';
+export const APP_VERSION = '2.13.0025';
 
 export const VERSION_HISTORY = [
+  {
+    version: '2.13.0025',
+    date: '2026-02-17',
+    changes: [
+      '🔧 FIXED: Urgent items banner no longer appears on management pages',
+      '✅ Banner hidden when already working on urgent items (Special Vehicles, Incidents, etc.)',
+      '🎯 Prevents confusing circular navigation loop',
+      '💡 Banner only shows on unrelated pages as reminder',
+    ],
+  },
+  {
+    version: '2.13.0024',
+    date: '2026-02-17',
+    changes: [
+      '🎯 REFINED: Urgent Follow-Ups now shows ONLY items requiring action',
+      '✅ Breaches: Only unresolved (active AND no resolved_at timestamp)',
+      '✅ Incidents: Only pending approval (not yet court-ready AND no approved_at)',
+      '✅ Homeless Claims: Only unconfirmed (claimed but no confirmation timestamp)',
+      '✅ Bug Reports: Only new submissions requiring human review',
+      '📊 More accurate counts - excludes items already processed',
+      '💡 Better labels: "Unresolved Breaches", "Incidents Awaiting Approval", etc.',
+    ],
+  },
   {
     version: '2.13.0023',
     date: '2026-02-17',
