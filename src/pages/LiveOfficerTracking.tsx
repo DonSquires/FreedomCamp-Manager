@@ -118,14 +118,78 @@ export function LiveOfficerTracking() {
   const loadTrackingData = async () => {
     setIsLoading(true);
     try {
-      // Load live officer locations
-      const { data: locations, error: locError } = await supabase
-        .rpc('get_live_officer_locations');
+      // Load live officer locations from activity log (last 30 minutes)
+      const thirtyMinutesAgo = new Date();
+      thirtyMinutesAgo.setMinutes(thirtyMinutesAgo.getMinutes() - 30);
 
-      if (locError) throw locError;
+      const { data: activities, error: locError } = await supabase
+        .from('officer_activity_log')
+        .select(`
+          user_id,
+          activity_type,
+          gps_latitude,
+          gps_longitude,
+          gps_accuracy,
+          metadata,
+          recorded_at,
+          organization_id,
+          user_profiles!inner(
+            first_name,
+            last_name,
+            email,
+            phone,
+            organization_id
+          ),
+          organizations(
+            name
+          )
+        `)
+        .gte('recorded_at', thirtyMinutesAgo.toISOString())
+        .order('recorded_at', { ascending: false });
+
+      if (locError) {
+        console.error('Failed to load activities:', locError);
+        throw locError;
+      }
+
+      // Group by officer and get most recent activity
+      const officerMap = new Map<string, OfficerLocation>();
+      
+      (activities || []).forEach((activity: any) => {
+        if (!officerMap.has(activity.user_id)) {
+          const profile = activity.user_profiles;
+          const minutesSincePing = Math.floor(
+            (Date.now() - new Date(activity.recorded_at).getTime()) / 60000
+          );
+
+          officerMap.set(activity.user_id, {
+            officer_id: activity.user_id,
+            officer_name: `${profile.first_name} ${profile.last_name}`,
+            officer_email: profile.email,
+            officer_phone: profile.phone || null,
+            organization_id: activity.organization_id,
+            organization_name: activity.organizations?.name || 'Unknown',
+            zone_id: activity.metadata?.zone_id || null,
+            zone_name: activity.metadata?.zone_name || 'Unknown Zone',
+            gps_latitude: activity.gps_latitude || 0,
+            gps_longitude: activity.gps_longitude || 0,
+            gps_accuracy: activity.gps_accuracy || 0,
+            recorded_at: activity.recorded_at,
+            activity_type: activity.activity_type,
+            minutes_since_ping: minutesSincePing,
+            has_welfare_alert: false, // Will be updated below
+            alert_type: null,
+            alert_status: null,
+            escalation_level: null,
+            last_activity_at: null,
+            alert_sent_at: null,
+          });
+        }
+      });
+
+      let filteredLocations = Array.from(officerMap.values());
 
       // Filter by organization if not master viewing all
-      let filteredLocations = locations || [];
       if (selectedOrg !== 'all') {
         filteredLocations = filteredLocations.filter(
           (loc: OfficerLocation) => loc.organization_id === selectedOrg
@@ -137,6 +201,7 @@ export function LiveOfficerTracking() {
         );
       }
 
+      console.log('Loaded officer locations:', filteredLocations.length);
       setOfficers(filteredLocations);
 
       // Load active welfare alerts

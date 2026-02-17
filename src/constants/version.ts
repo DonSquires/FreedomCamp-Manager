@@ -6,9 +6,21 @@
  * - PATCH (third digit): Minor amendments
  */
 
-export const APP_VERSION = '2.13.0045';
+export const APP_VERSION = '2.13.0046';
 
 export const VERSION_HISTORY = [
+  {
+    version: '2.13.0046',
+    date: '2026-02-17',
+    changes: [
+      '🔧 CRITICAL FIX: Live Officer Tracking now shows all logged-in officers',
+      '✅ Fixed: Queries officer_activity_log directly instead of using broken RPC function',
+      '✅ Groups by officer and shows most recent activity within last 30 minutes',
+      '✅ Matches data source with Live Field Operations for consistency',
+      '📊 Now properly displays all active officers including squires.don@live.com',
+      '🎯 More reliable officer tracking with activity log as source of truth',
+    ],
+  },
   {
     version: '2.13.0045',
     date: '2026-02-17',
