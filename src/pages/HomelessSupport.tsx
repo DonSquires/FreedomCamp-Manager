@@ -71,11 +71,15 @@ export function HomelessSupport() {
   const { user } = useAuthStore();
   const isAdmin = user?.role === 'admin' || user?.role === 'master';
 
+  // Check for urgent follow-up filter from navigation
+  const urgentFilter = localStorage.getItem('urgent_followup_filter');
+  const initialStatusFilter = urgentFilter === 'homeless_pending' ? 'claimed' : 'all';
+
   const [isLoading, setIsLoading] = useState(true);
   const [vehicles, setVehicles] = useState<HomelessVehicle[]>([]);
   const [filteredVehicles, setFilteredVehicles] = useState<HomelessVehicle[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
-  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [statusFilter, setStatusFilter] = useState<string>(initialStatusFilter);
   const [showEditModal, setShowEditModal] = useState(false);
   const [selectedVehicle, setSelectedVehicle] = useState<HomelessVehicle | null>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -86,7 +90,12 @@ export function HomelessSupport() {
 
   useEffect(() => {
     loadHomelessVehicles();
-  }, []);
+    
+    // Clear urgent filter after component mounts so it doesn't persist on manual navigation
+    if (urgentFilter) {
+      localStorage.removeItem('urgent_followup_filter');
+    }
+  }, [urgentFilter]);
 
   useEffect(() => {
     applyFilters();
