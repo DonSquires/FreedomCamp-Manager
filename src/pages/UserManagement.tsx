@@ -155,7 +155,7 @@ export function UserManagement() {
           is_active,
           permissions,
           created_at,
-          organization:organizations(id, name)
+          organization:organizations!organization_id(id, name)
         `)
         .order('created_at', { ascending: false });
 
