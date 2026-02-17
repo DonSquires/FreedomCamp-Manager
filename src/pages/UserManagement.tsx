@@ -270,21 +270,26 @@ export function UserManagement() {
     });
   };
 
-  // Get available work locations based on employer (employer + descendants)
+  // Get available work locations based on employer (employer + ALL descendants recursively)
   const getAvailableWorkLocations = () => {
     if (!formData.employerOrgId || !organizations) return [];
     
-    // Find employer organization
     const employer = organizations.find(o => o.id === formData.employerOrgId);
     if (!employer) return [];
     
-    // Get employer + all descendants (organizations where parent_organization_id = employer)
-    const availableOrgs = organizations.filter(org => 
-      org.id === formData.employerOrgId || 
-      org.parent_organization_id === formData.employerOrgId
-    );
+    const getDescendants = (orgId: string): string[] => {
+      const children = organizations.filter(o => o.parent_organization_id === orgId);
+      const descendantIds = children.map(c => c.id);
+      children.forEach(child => descendantIds.push(...getDescendants(child.id)));
+      return descendantIds;
+    };
     
-    return availableOrgs;
+    const descendantIds = [formData.employerOrgId, ...getDescendants(formData.employerOrgId)];
+    return organizations.filter(org => descendantIds.includes(org.id)).sort((a, b) => {
+      const aLevel = a.organization_level || 1;
+      const bLevel = b.organization_level || 1;
+      return aLevel !== bLevel ? aLevel - bLevel : a.name.localeCompare(b.name);
+    });
   };
 
   if (usersLoading) {

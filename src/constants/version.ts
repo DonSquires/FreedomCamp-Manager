@@ -6,9 +6,20 @@
  * - PATCH (third digit): Minor amendments
  */
 
-export const APP_VERSION = '2.13.0032';
+export const APP_VERSION = '2.13.0033';
 
 export const VERSION_HISTORY = [
+  {
+    version: '2.13.0033',
+    date: '2026-02-17',
+    changes: [
+      '🔧 FIXED: Organization Management - Select component value error resolved',
+      '✅ Changed "No parent" option from empty string to "none" value',
+      '✅ Properly converts "none" to null when saving to database',
+      '✅ Edit dialog now loads without console errors',
+      '🎯 Parent organization selection now works correctly',
+    ],
+  },
   {
     version: '2.13.0032',
     date: '2026-02-17',

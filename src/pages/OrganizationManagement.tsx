@@ -1,6 +1,6 @@
 /**
  * Organization Management - Master User Only
- * Create, edit, delete, and manage organizations
+ * Create, edit, delete, and manage organizations with hierarchical structure
  */
 
 import { useState, useEffect } from 'react';
@@ -42,7 +42,6 @@ import {
   CheckCircle2,
   XCircle,
   Users,
-  MapPin,
   Shield,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
@@ -55,10 +54,14 @@ interface Organization {
   contact_phone: string | null;
   is_active: boolean;
   enforcement_workflow: 'admin_first' | 'officer_first';
+  parent_organization_id: string | null;
+  organization_level: number;
+  organization_type: 'owner' | 'security_company' | 'client' | 'other';
   created_at: string;
   updated_at: string;
   user_count?: number;
   zone_count?: number;
+  parent?: { id: string; name: string };
 }
 
 export function OrganizationManagement() {
@@ -74,6 +77,8 @@ export function OrganizationManagement() {
     contact_email: '',
     contact_phone: '',
     enforcement_workflow: 'admin_first' as 'admin_first' | 'officer_first',
+    parent_organization_id: 'none' as string,
+    organization_type: 'client' as 'owner' | 'security_company' | 'client' | 'other',
     is_active: true,
   });
 
@@ -91,13 +96,20 @@ export function OrganizationManagement() {
   const loadOrganizations = async () => {
     setIsLoading(true);
     try {
-      // Load organizations with user and zone counts
+      // Load organizations with parent organization info, user and zone counts
+      // Note: Must select all fields explicitly to preserve parent_organization_id UUID
       const { data: orgs, error } = await supabase
         .from('organizations')
-        .select('*')
+        .select(`
+          *,
+          parent:organizations!parent_organization_id(id, name)
+        `)
+        .order('organization_level', { ascending: true })
         .order('name');
 
       if (error) throw error;
+      
+      console.log('Loaded organizations:', orgs);
 
       // Get counts for each organization
       const orgsWithCounts = await Promise.all(
@@ -139,6 +151,15 @@ export function OrganizationManagement() {
     }
 
     try {
+      // Calculate organization level based on parent
+      let orgLevel = 1;
+      if (formData.parent_organization_id) {
+        const parent = organizations.find(o => o.id === formData.parent_organization_id);
+        if (parent) {
+          orgLevel = parent.organization_level + 1;
+        }
+      }
+
       const { error } = await supabase
         .from('organizations')
         .insert({
@@ -146,6 +167,9 @@ export function OrganizationManagement() {
           contact_email: formData.contact_email || null,
           contact_phone: formData.contact_phone || null,
           enforcement_workflow: formData.enforcement_workflow,
+          parent_organization_id: formData.parent_organization_id === 'none' ? null : formData.parent_organization_id,
+          organization_level: orgLevel,
+          organization_type: formData.organization_type,
           is_active: formData.is_active,
         });
 
@@ -158,6 +182,8 @@ export function OrganizationManagement() {
         contact_email: '',
         contact_phone: '',
         enforcement_workflow: 'admin_first',
+        parent_organization_id: 'none',
+        organization_type: 'client',
         is_active: true,
       });
       loadOrganizations();
@@ -173,7 +199,22 @@ export function OrganizationManagement() {
       return;
     }
 
+    // Prevent circular parent references
+    if (formData.parent_organization_id === selectedOrg.id) {
+      toast.error('An organization cannot be its own parent');
+      return;
+    }
+
     try {
+      // Calculate organization level based on parent
+      let orgLevel = 1;
+      if (formData.parent_organization_id) {
+        const parent = organizations.find(o => o.id === formData.parent_organization_id);
+        if (parent) {
+          orgLevel = parent.organization_level + 1;
+        }
+      }
+
       const { error } = await supabase
         .from('organizations')
         .update({
@@ -181,6 +222,9 @@ export function OrganizationManagement() {
           contact_email: formData.contact_email || null,
           contact_phone: formData.contact_phone || null,
           enforcement_workflow: formData.enforcement_workflow,
+          parent_organization_id: formData.parent_organization_id === 'none' ? null : formData.parent_organization_id,
+          organization_level: orgLevel,
+          organization_type: formData.organization_type,
           is_active: formData.is_active,
         })
         .eq('id', selectedOrg.id);
@@ -224,15 +268,40 @@ export function OrganizationManagement() {
   };
 
   const openEditDialog = (org: Organization) => {
+    console.log('Opening edit dialog for org:', org);
+    console.log('Parent organization ID:', org.parent_organization_id);
+    
     setSelectedOrg(org);
     setFormData({
-      name: org.name,
+      name: org.name || '',
       contact_email: org.contact_email || '',
       contact_phone: org.contact_phone || '',
-      enforcement_workflow: org.enforcement_workflow,
-      is_active: org.is_active,
+      enforcement_workflow: org.enforcement_workflow || 'admin_first',
+      parent_organization_id: org.parent_organization_id || 'none',
+      organization_type: org.organization_type || 'client',
+      is_active: org.is_active !== false, // Default to true if undefined
     });
     setIsEditDialogOpen(true);
+  };
+
+  // Helper to get available parent organizations (cannot select self or descendants)
+  const getAvailableParentOrgs = (excludeOrgId?: string) => {
+    if (!excludeOrgId) {
+      return organizations;
+    }
+
+    // Prevent selecting self or any descendants as parent
+    const getDescendants = (orgId: string): string[] => {
+      const children = organizations.filter(o => o.parent_organization_id === orgId);
+      const descendantIds = children.map(c => c.id);
+      children.forEach(child => {
+        descendantIds.push(...getDescendants(child.id));
+      });
+      return descendantIds;
+    };
+
+    const excludeIds = [excludeOrgId, ...getDescendants(excludeOrgId)];
+    return organizations.filter(o => !excludeIds.includes(o.id));
   };
 
   if (!isMaster) {
@@ -258,7 +327,7 @@ export function OrganizationManagement() {
           Organization Management
         </h2>
         <p className="text-muted-foreground">
-          Create and manage organizations across the platform
+          Create and manage organizations with hierarchical structure
         </p>
       </div>
 
@@ -306,18 +375,18 @@ export function OrganizationManagement() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Organization Name</TableHead>
+                    <TableHead>Type</TableHead>
+                    <TableHead>Parent/Manager</TableHead>
+                    <TableHead>Level</TableHead>
                     <TableHead>Contact</TableHead>
-                    <TableHead>Workflow</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Users</TableHead>
-                    <TableHead>Zones</TableHead>
-                    <TableHead>Created</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {organizations.map((org) => (
-                    <TableRow key={org.id}>
+                    <TableRow key={org.id} style={{ paddingLeft: `${(org.organization_level - 1) * 24}px` }}>
                       <TableCell>
                         <div className="flex items-center gap-2 font-semibold">
                           <Building2 className="h-4 w-4 text-muted-foreground" />
@@ -325,22 +394,36 @@ export function OrganizationManagement() {
                         </div>
                       </TableCell>
                       <TableCell>
+                        <Badge variant="secondary" className="capitalize">
+                          {org.organization_type.replace('_', ' ')}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
+                        {org.parent ? (
+                          <div className="text-sm">
+                            <div className="font-medium">{org.parent.name}</div>
+                          </div>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">Top Level</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className="font-mono">
+                          L{org.organization_level}
+                        </Badge>
+                      </TableCell>
+                      <TableCell>
                         <div className="text-sm space-y-1">
                           {org.contact_email && (
-                            <div className="truncate max-w-[200px]">{org.contact_email}</div>
+                            <div className="truncate max-w-[180px]">{org.contact_email}</div>
                           )}
                           {org.contact_phone && (
-                            <div className="text-muted-foreground">{org.contact_phone}</div>
+                            <div className="text-muted-foreground text-xs">{org.contact_phone}</div>
                           )}
                           {!org.contact_email && !org.contact_phone && (
                             <span className="text-muted-foreground">-</span>
                           )}
                         </div>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className="capitalize">
-                          {org.enforcement_workflow.replace('_', ' ')}
-                        </Badge>
                       </TableCell>
                       <TableCell>
                         {org.is_active ? (
@@ -359,17 +442,6 @@ export function OrganizationManagement() {
                         <div className="flex items-center gap-2">
                           <Users className="h-4 w-4 text-muted-foreground" />
                           <span className="font-semibold">{org.user_count || 0}</span>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <MapPin className="h-4 w-4 text-muted-foreground" />
-                          <span className="font-semibold">{org.zone_count || 0}</span>
-                        </div>
-                      </TableCell>
-                      <TableCell>
-                        <div className="text-sm text-muted-foreground">
-                          {new Date(org.created_at).toLocaleDateString('en-NZ')}
                         </div>
                       </TableCell>
                       <TableCell className="text-right">
@@ -419,9 +491,52 @@ export function OrganizationManagement() {
               <Input
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                placeholder="Enter organization name"
+                placeholder="e.g., First Security, LINZ, Iron Eagle"
                 autoFocus
               />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Organization Type *</Label>
+                <Select
+                  value={formData.organization_type}
+                  onValueChange={(value: any) => setFormData({ ...formData, organization_type: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="owner">Owner (Top Level)</SelectItem>
+                    <SelectItem value="security_company">Security Company</SelectItem>
+                    <SelectItem value="client">Client</SelectItem>
+                    <SelectItem value="other">Other</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Parent/Manager Organization</Label>
+                <Select
+                  value={formData.parent_organization_id}
+                  onValueChange={(value) => setFormData({ ...formData, parent_organization_id: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="No parent (top level)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">No parent (top level)</SelectItem>
+                    {getAvailableParentOrgs().map(org => (
+                      <SelectItem key={org.id} value={org.id}>
+                        {org.name} (L{org.organization_level})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  💼 Who manages this organization? E.g., Iron Eagle manages First Security
+                </p>
+              </div>
             </div>
 
             <div className="space-y-2">
@@ -501,8 +616,51 @@ export function OrganizationManagement() {
               <Input
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                placeholder="Enter organization name"
+                placeholder="e.g., First Security, LINZ, Iron Eagle"
               />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Organization Type *</Label>
+                <Select
+                  value={formData.organization_type}
+                  onValueChange={(value: any) => setFormData({ ...formData, organization_type: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="owner">Owner (Top Level)</SelectItem>
+                    <SelectItem value="security_company">Security Company</SelectItem>
+                    <SelectItem value="client">Client</SelectItem>
+                    <SelectItem value="other">Other</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Parent/Manager Organization</Label>
+                <Select
+                  value={formData.parent_organization_id}
+                  onValueChange={(value) => setFormData({ ...formData, parent_organization_id: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="No parent (top level)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">No parent (top level)</SelectItem>
+                    {getAvailableParentOrgs(selectedOrg?.id).map(org => (
+                      <SelectItem key={org.id} value={org.id}>
+                        {org.name} (L{org.organization_level})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">
+                  💼 Who manages this organization? E.g., Iron Eagle manages First Security
+                </p>
+              </div>
             </div>
 
             <div className="space-y-2">
