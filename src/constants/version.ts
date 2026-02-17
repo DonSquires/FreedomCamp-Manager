@@ -6,9 +6,21 @@
  * - PATCH (third digit): Minor amendments
  */
 
-export const APP_VERSION = '2.13.0043';
+export const APP_VERSION = '2.13.0044';
 
 export const VERSION_HISTORY = [
+  {
+    version: '2.13.0044',
+    date: '2026-02-17',
+    changes: [
+      '🔒 CRITICAL FIX: User Management RLS policies completely rebuilt',
+      '✅ Masters can now view ALL user profiles across all organizations',
+      '✅ Admins can view profiles within their organization',
+      '✅ Separate policies for select, update, delete operations',
+      '✅ Fixed: "0 users" display now shows actual user count',
+      '🎯 Database permissions properly configured for user management',
+    ],
+  },
   {
     version: '2.13.0043',
     date: '2026-02-17',
