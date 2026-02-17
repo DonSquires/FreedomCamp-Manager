@@ -6,9 +6,24 @@
  * - PATCH (third digit): Minor amendments
  */
 
-export const APP_VERSION = '2.13.0046';
+export const APP_VERSION = '2.13.0047';
 
 export const VERSION_HISTORY = [
+  {
+    version: '2.13.0047',
+    date: '2026-02-17',
+    changes: [
+      '🔧 CRITICAL FIX: History records now show correct compliance status',
+      '✅ Homeless vehicles show "At Risk (Exempt)" or "Homeless (FC Exempt)"',
+      '✅ At-risk vehicles show "At Risk" badge with yellow indicator',
+      '✅ Homeless + breach shows "At Risk (FC Exempt)" with purple badge',
+      '✅ Flagged vehicles show 🚩 Flagged badge correctly',
+      '🔕 FIXED: Flagged vehicles no longer trigger full-screen modal',
+      '🎵 Flagged vehicles now only play audio + show in queue notification',
+      '📱 Full-screen breach modal ONLY for actual compliance breaches',
+      '🎯 Better status hierarchy: Flagged > Breach > At Risk > Homeless > Compliant',
+    ],
+  },
   {
     version: '2.13.0046',
     date: '2026-02-17',
