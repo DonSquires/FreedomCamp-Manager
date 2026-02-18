@@ -44,7 +44,7 @@ export function ZoomScanQueue({
 }: ZoomScanQueueProps) {
   const { user } = useAuthStore();
   const [queue, setQueue] = useState<QueueItem[]>([]);
-  const [isProcessing, setIsProcessing] = useState(false);
+  const [processingCount, setProcessingCount] = useState(0);
   const [cameraReady, setCameraReady] = useState(false);
   const [zoomLevel, setZoomLevel] = useState(1);
   const [torchEnabled, setTorchEnabled] = useState(false);
@@ -151,7 +151,19 @@ export function ZoomScanQueue({
   const captureAndProcess = async () => {
     if (!videoRef.current || !canvasRef.current || !user) return;
 
-    setIsProcessing(true);
+    // Increment processing count (non-blocking - officer can scan again immediately)
+    setProcessingCount(prev => prev + 1);
+
+    // Create temporary queue item immediately (shows "Processing...")
+    const tempId = `temp-${Date.now()}`;
+    const tempItem: QueueItem = {
+      id: tempId,
+      plateNumber: 'Processing...',
+      status: 'compliant',
+      details: '🔄 Analyzing plate...',
+      timestamp: new Date(),
+    };
+    setQueue(prev => [tempItem, ...prev]);
 
     try {
       const video = videoRef.current;
@@ -164,7 +176,7 @@ export function ZoomScanQueue({
       context.drawImage(video, 0, 0);
 
       const imageDataUrl = canvas.toDataURL('image/jpeg', 0.95);
-      console.log('📸 Photo captured');
+      console.log(`📸 Photo captured (${processingCount + 1} in queue)`)
 
       // STEP 1: Upload photo to storage
       const blob = await fetch(imageDataUrl).then(r => r.blob());
@@ -191,8 +203,27 @@ export function ZoomScanQueue({
         },
       });
 
-      if (alprError || !alprData?.success) {
-        throw new Error(alprData?.error || 'ALPR failed');
+      // Proper error handling with FunctionsHttpError
+      if (alprError) {
+        console.error('ALPR error:', alprError);
+        let errorMessage = alprError.message;
+        
+        // Extract actual error from FunctionsHttpError
+        if (alprError.name === 'FunctionsHttpError' && alprError.context) {
+          try {
+            const errorText = await alprError.context.text();
+            console.error('ALPR error details:', errorText);
+            errorMessage = errorText || errorMessage;
+          } catch {
+            console.error('Could not read error context');
+          }
+        }
+        
+        throw new Error(`ALPR: ${errorMessage}`);
+      }
+
+      if (!alprData?.success) {
+        throw new Error(`ALPR: ${alprData?.error || 'No plate detected'}`);
       }
 
       const plateNumber = alprData.plate_number;
@@ -218,9 +249,23 @@ export function ZoomScanQueue({
         },
       });
 
+      // Proper error handling with FunctionsHttpError
       if (scanError) {
         console.error('Field scan error:', scanError);
-        throw new Error('Failed to process scan');
+        let errorMessage = scanError.message;
+        
+        // Extract actual error from FunctionsHttpError
+        if (scanError.name === 'FunctionsHttpError' && scanError.context) {
+          try {
+            const errorText = await scanError.context.text();
+            console.error('Field scan error details:', errorText);
+            errorMessage = errorText || errorMessage;
+          } catch {
+            console.error('Could not read error context');
+          }
+        }
+        
+        throw new Error(`Field scan: ${errorMessage}`);
       }
 
       console.log('✅ Scan complete:', scanResult);
@@ -249,7 +294,11 @@ export function ZoomScanQueue({
         timestamp: new Date(),
       };
 
-      setQueue(prev => [newItem, ...prev]);
+      // Replace temp item with real result
+      setQueue(prev => {
+        const filtered = prev.filter(item => item.id !== tempId);
+        return [newItem, ...filtered];
+      });
 
       // Auto-dismiss compliant after 5s
       if (status === 'compliant') {
@@ -260,10 +309,29 @@ export function ZoomScanQueue({
 
     } catch (error: any) {
       console.error('Scan error:', error);
-      alert(`Scan failed: ${error.message}`);
+      
+      // Replace temp item with error result
+      const errorItem: QueueItem = {
+        id: `error-${Date.now()}`,
+        plateNumber: 'FAILED',
+        status: 'breach',
+        details: `❌ ${error.message}`,
+        timestamp: new Date(),
+      };
+      
+      setQueue(prev => {
+        const filtered = prev.filter(item => item.id !== tempId);
+        return [errorItem, ...filtered];
+      });
+      
       playSounds.processingComplete();
+      
+      // Auto-dismiss error after 10s
+      setTimeout(() => {
+        setQueue(prev => prev.filter(item => item.id !== errorItem.id));
+      }, 10000);
     } finally {
-      setIsProcessing(false);
+      setProcessingCount(prev => prev - 1);
     }
   };
 
@@ -277,7 +345,7 @@ export function ZoomScanQueue({
       <div className="h-1/4 overflow-y-auto bg-gray-900 border-b-4 border-yellow-500">
         <div className="sticky top-0 bg-gray-900 z-10 p-2 border-b border-gray-700">
           <h3 className="text-white font-bold text-sm">
-            📋 Scan Queue {queue.length > 0 && `(${queue.length})`}
+            📋 Scan Queue {queue.length > 0 && `(${queue.length})`} {processingCount > 0 && `🔄 ${processingCount} processing`}
           </h3>
         </div>
         
@@ -387,17 +455,19 @@ export function ZoomScanQueue({
         </div>
 
         {/* Capture Button */}
+        {/* Capture Button - ALWAYS ENABLED for rapid scanning */}
         <div className="absolute bottom-10 left-1/2 -translate-x-1/2">
           <Button
             onClick={captureAndProcess}
-            disabled={isProcessing || !cameraReady}
-            className="h-24 w-24 rounded-full bg-white hover:bg-gray-200 text-black shadow-[0_0_40px_rgba(255,255,255,0.8)] border-8 border-green-500"
+            disabled={!cameraReady}
+            className="h-24 w-24 rounded-full bg-white hover:bg-gray-200 text-black shadow-[0_0_40px_rgba(255,255,255,0.8)] border-8 border-green-500 relative"
             size="lg"
           >
-            {isProcessing ? (
-              <Loader2 className="h-12 w-12 animate-spin text-green-600" />
-            ) : (
-              <Camera className="h-12 w-12 text-green-600" />
+            <Camera className="h-12 w-12 text-green-600" />
+            {processingCount > 0 && (
+              <div className="absolute -top-2 -right-2 bg-blue-500 text-white rounded-full h-8 w-8 flex items-center justify-center text-xs font-bold border-2 border-white">
+                {processingCount}
+              </div>
             )}
           </Button>
         </div>
