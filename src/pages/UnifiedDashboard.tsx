@@ -825,21 +825,16 @@ export function UnifiedDashboard() {
                 </Card>
 
                 <Card 
-                  className="cursor-pointer hover:shadow-lg transition-all hover:border-purple-300"
+                  className="border-purple-300 bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-950/30 dark:to-purple-900/20 cursor-pointer hover:shadow-lg transition-all"
                   onClick={() => {
-                    const params = new URLSearchParams({
-                      tab: 'vehicle-registry',
-                      dateFrom,
-                      dateTo,
-                      ...(isMaster && selectedOrgId !== 'all' ? { orgId: selectedOrgId } : {})
-                    });
-                    navigate(`/admin?${params.toString()}`);
+                    // Open VehicleRegistry with date filter from BI
+                    window.location.href = `/admin/vehicle-registry?dateFrom=${dateFrom}&dateTo=${dateTo}${isMaster && selectedOrgId !== 'all' ? `&orgId=${selectedOrgId}` : ''}`;
                   }}
                 >
                   <CardContent className="p-6">
                     <Car className="h-8 w-8 text-purple-600 mb-2" />
                     <div className="text-4xl font-black text-purple-600">{metrics.uniqueVehicles}</div>
-                    <div className="text-sm text-muted-foreground">Vehicles</div>
+                    <div className="text-sm text-purple-700">Vehicles</div>
                   </CardContent>
                 </Card>
 
