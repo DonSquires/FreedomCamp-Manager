@@ -54,6 +54,7 @@ import { MaintenanceReportForm } from '@/components/features/MaintenanceReportFo
 import { FieldInvestigationWork } from './FieldInvestigationWork';
 import { MyIncidentReportsList } from '@/components/features/MyIncidentReportsList';
 import { ZoomScanQueue } from '@/components/features/ZoomScanQueue';
+import { PlateScanner } from '@/components/features/PlateScanner';
 import { OfficerWelfareWarningModal } from '@/components/features/OfficerWelfareWarningModal';
 import { DarkModeToggle } from '@/components/features/DarkModeToggle';
 import { NetworkStatusBar } from '@/components/features/NetworkStatusBar';
@@ -69,7 +70,7 @@ interface FieldOfficerPortalProps {
   onLogout: () => void;
 }
 
-type ViewMode = 'dashboard' | 'scanning' | 'zoom_scan' | 'reports' | 'history' | 'settings';
+type ViewMode = 'dashboard' | 'scanning' | 'zoom_scan' | 'plate_scanner' | 'reports' | 'history' | 'settings';
 
 export function FieldOfficerPortal({ onLogout }: FieldOfficerPortalProps) {
   const { user } = useAuthStore();
@@ -747,6 +748,14 @@ export function FieldOfficerPortal({ onLogout }: FieldOfficerPortalProps) {
       );
     }
 
+    if (currentView === 'plate_scanner') {
+      return (
+        <div className="fixed inset-0 bg-background z-50">
+          <PlateScanner onExit={() => setCurrentView('dashboard')} />
+        </div>
+      );
+    }
+
     if (currentView === 'reports') {
       return (
         <div className="space-y-4 pb-20">
@@ -1308,7 +1317,22 @@ export function FieldOfficerPortal({ onLogout }: FieldOfficerPortalProps) {
             disabled={!selectedZone}
           >
             <Zap className="h-5 w-5 mr-3" />
-            Zoom Scan
+            Zoom Scan (Old)
+          </Button>
+
+          <Button
+            variant={currentView === 'plate_scanner' ? 'default' : 'ghost'}
+            className={cn(
+              "w-full justify-start h-12 text-base font-bold",
+              currentView === 'plate_scanner' && "bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white"
+            )}
+            onClick={() => {
+              setCurrentView('plate_scanner');
+              setSidebarOpen(false);
+            }}
+          >
+            <Camera className="h-5 w-5 mr-3" />
+            Plate Scanner 🆕
           </Button>
 
           <Button
@@ -1445,16 +1469,15 @@ export function FieldOfficerPortal({ onLogout }: FieldOfficerPortalProps) {
             </Button>
 
             <Button
-              variant={currentView === 'zoom_scan' ? 'default' : 'ghost'}
+              variant={currentView === 'plate_scanner' ? 'default' : 'ghost'}
               className={cn(
                 "h-16 flex flex-col items-center justify-center gap-1",
-                currentView === 'zoom_scan' && "bg-gradient-to-br from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white"
+                currentView === 'plate_scanner' && "bg-gradient-to-br from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white"
               )}
-              onClick={() => setCurrentView('zoom_scan')}
-              disabled={!selectedZone}
+              onClick={() => setCurrentView('plate_scanner')}
             >
-              <Zap className="h-5 w-5" />
-              <span className="text-xs font-bold">Zoom</span>
+              <Camera className="h-5 w-5" />
+              <span className="text-xs font-bold">Scanner</span>
             </Button>
             
             <Button
