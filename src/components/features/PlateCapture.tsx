@@ -410,6 +410,7 @@ export function PlateCapture({
     try {
       console.log('Requesting camera permission (user action)...');
       setCameraPermissionDenied(false);
+      setIsInitializingCamera(true);
       
       // Step 1: Request permission with basic constraints
       const stream = await navigator.mediaDevices.getUserMedia({ video: true });
@@ -426,6 +427,7 @@ export function PlateCapture({
       
       if (cameras.length === 0) {
         toast.error('No cameras found on this device');
+        setCameraPermissionDenied(true);
         return;
       }
       
@@ -445,19 +447,43 @@ export function PlateCapture({
       
       // Step 4: Initialize camera with selected device
       await initializeCamera();
-      toast.success('Camera permission granted and camera initialized!');
+      toast.success('✅ Camera ready!');
       
     } catch (error: any) {
       console.error('Permission request failed:', error);
       
+      // Enhanced error messages with retry guidance
       if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
         setCameraPermissionDenied(true);
-        toast.error('Camera permission denied. Please grant access to use camera.');
+        toast.error('❌ Camera permission denied. Check browser settings and try again.', {
+          duration: 5000,
+          action: {
+            label: 'Retry',
+            onClick: () => requestCameraPermission(),
+          },
+        });
       } else if (error.name === 'NotFoundError') {
-        toast.error('No camera found on this device');
+        setCameraPermissionDenied(true);
+        toast.error('❌ No camera found. Please connect a camera and try again.');
+      } else if (error.name === 'NotReadableError') {
+        toast.error('❌ Camera in use by another app. Close other apps and try again.', {
+          duration: 5000,
+          action: {
+            label: 'Retry',
+            onClick: () => requestCameraPermission(),
+          },
+        });
       } else {
-        toast.error('Camera access failed: ' + error.message);
+        toast.error('❌ Camera error: ' + error.message, {
+          duration: 5000,
+          action: {
+            label: 'Retry',
+            onClick: () => requestCameraPermission(),
+          },
+        });
       }
+    } finally {
+      setIsInitializingCamera(false);
     }
   };
 
@@ -1581,11 +1607,13 @@ export function PlateCapture({
   const handleAlertIgnore = () => {
     setShowAlertModal(false);
     setCurrentAlert(null);
+    setIsWorkflowLocked(false); // 🔓 Unlock camera when dismissing alert
     toast.info('Alert acknowledged - continuing scan session');
   };
 
   const handleAlertTakeAction = () => {
     setShowAlertModal(false);
+    setIsWorkflowLocked(false); // 🔓 Unlock camera before opening drawer
     
     // Convert alert to notification for drawer
     if (currentAlert) {
@@ -1670,6 +1698,7 @@ export function PlateCapture({
   const handleDuplicateCancel = () => {
     setShowDuplicateModal(false);
     setCurrentDuplicate(null);
+    setIsWorkflowLocked(false); // 🔓 Unlock camera when dismissing duplicate modal
     toast.info('Duplicate scan cancelled - continuing patrol');
   };
 
@@ -1754,6 +1783,7 @@ export function PlateCapture({
     setShowManualEntryModal(false);
     setFailedDetectionData(null);
     setButtonFeedback('idle');
+    setIsWorkflowLocked(false); // 🔓 Unlock camera when cancelling manual entry
     toast.info('Manual entry cancelled - you can retry capture');
   };
 

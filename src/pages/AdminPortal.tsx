@@ -68,6 +68,8 @@ import { DatabaseMaintenance } from './DatabaseMaintenance';
 import { BugReportsManagement } from './BugReportsManagement';
 import { OrganizationManagement } from './OrganizationManagement';
 import { NZSCVCertificateImport } from './NZSCVCertificateImport';
+import { VehicleRegistry } from './VehicleRegistry';
+import { ZoneManagement } from './ZoneManagement';
 
 import { VehicleEvidenceReport } from './VehicleEvidenceReport';
 import ObservationsReport from './ObservationsReport';
@@ -82,14 +84,18 @@ export function AdminPortal({ onLogout }: AdminPortalProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [urgentFollowUpsCount, setUrgentFollowUpsCount] = useState(0);
 
-  // Handle URL parameters for cross-portal navigation
+  // Handle URL parameters for cross-portal navigation and BI drill-down
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const tab = params.get('tab');
     if (tab) {
       setActiveTab(tab);
-      // Clear URL parameters after loading
-      window.history.replaceState({}, '', window.location.pathname);
+      // Keep URL parameters for pages that need them (observations-report, vehicle-registry, etc.)
+      // Don't clear if it's a BI drill-down page
+      const drillDownPages = ['observations-report', 'vehicle-registry', 'zone-management'];
+      if (!drillDownPages.includes(tab)) {
+        window.history.replaceState({}, '', window.location.pathname);
+      }
     }
   }, []);
   
@@ -582,6 +588,12 @@ export function AdminPortal({ onLogout }: AdminPortalProps) {
 
               {/* Observations Report - Comprehensive observation records */}
               {activeTab === 'observations-report' && <ObservationsReport />}
+              
+              {/* Vehicle Registry - Canonical vehicle database */}
+              {activeTab === 'vehicle-registry' && <VehicleRegistry />}
+              
+              {/* Zone Management - Zone configuration */}
+              {activeTab === 'zone-management' && <ZoneManagement />}
 
               {activeTab === 'bulk-scan-review' && <BulkScanReview />}
 
