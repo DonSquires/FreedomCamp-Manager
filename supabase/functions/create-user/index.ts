@@ -65,7 +65,7 @@ Deno.serve(async (req) => {
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
       email,
       password,
-      email_confirm: true, // Skip email verification - user can login immediately
+      email_confirm: false, // ✅ SEND VERIFICATION EMAIL - User must confirm email before login
       user_metadata: {
         first_name: userFirstName,
         last_name: userLastName,
@@ -83,15 +83,16 @@ Deno.serve(async (req) => {
 
     console.log('Auth user created:', authData.user.id);
 
-    // Step 2: Wait for trigger to create profile, then update it with additional details
-    // The database trigger (handle_new_user) automatically creates a basic profile
-    // We need to wait a moment for the trigger to complete, then update with full details
-    console.log('Waiting for database trigger to create profile...');
-    await new Promise(resolve => setTimeout(resolve, 500));
+    // Step 2: Create user profile directly (bypassing disabled trigger)
+    // The on_auth_user_created trigger is disabled on auth.users (Supabase-managed)
+    // So we must manually insert the user profile
+    console.log('Creating user profile directly (trigger is disabled)...');
 
     const { data: profile, error: profileError } = await supabaseAdmin
       .from('user_profiles')
-      .update({
+      .upsert({
+        id: authData.user.id,
+        email,
         first_name: userFirstName,
         last_name: userLastName,
         role,
@@ -107,16 +108,26 @@ Deno.serve(async (req) => {
         warrant_required: warrant_required || false,
         warrant_verified: warrant_verified || false,
         warrant_expiry: warrant_expiry || null,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }, {
+        onConflict: 'id',
+        ignoreDuplicates: false,
       })
-      .eq('id', authData.user.id)
       .select()
       .single();
 
     if (profileError) {
-      console.error('Profile update error:', profileError);
-      // Cleanup: delete the auth user if profile update fails
+      console.error('Profile creation error:', profileError);
+      console.error('Error details:', {
+        code: profileError.code,
+        message: profileError.message,
+        details: profileError.details,
+        hint: profileError.hint,
+      });
+      // Cleanup: delete the auth user if profile creation fails
       await supabaseAdmin.auth.admin.deleteUser(authData.user.id);
-      throw new Error(`Failed to update user profile: ${profileError.message}`);
+      throw new Error(`Failed to create user profile: ${profileError.message}`);
     }
 
     console.log('User profile updated successfully');

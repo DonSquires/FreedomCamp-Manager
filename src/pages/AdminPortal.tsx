@@ -49,7 +49,7 @@ import { OfficerWelfareHub } from './OfficerWelfareHub';
 import { LiveFieldOperations } from './LiveFieldOperations';
 import { HelpDocumentation } from './HelpDocumentation';
 import { UnifiedDashboard } from './UnifiedDashboard';
-import { OrganizationOverview } from './OrganizationOverview';
+
 import { ZoneCorrections } from './ZoneCorrections';
 import { VehicleRecords } from './VehicleRecords';
 import { supabase } from '@/lib/supabase';
@@ -244,14 +244,14 @@ export function AdminPortal({ onLogout }: AdminPortalProps) {
 
             <Button
               variant={activeTab === 'dashboard' ? 'default' : 'ghost'}
-              className="w-full justify-start text-sm lg:text-base h-10 lg:h-9 touch-manipulation"
+              className="w-full justify-start text-sm lg:text-base h-10 lg:h-9 touch-manipulation bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-950/20 dark:to-purple-950/20 border-2 border-blue-500/30"
               onClick={() => {
                 setActiveTab('dashboard');
                 setSidebarOpen(false);
               }}
             >
-              <LayoutDashboard className="h-4 w-4 mr-2 lg:mr-3" />
-              Organization Overview
+              <TrendingUp className="h-4 w-4 mr-2 lg:mr-3 text-blue-600" />
+              <span className="text-blue-600 dark:text-blue-400 font-semibold">BI Dashboard</span>
             </Button>
 
             <Button
@@ -358,17 +358,7 @@ export function AdminPortal({ onLogout }: AdminPortalProps) {
               REPORTING & ANALYTICS
             </div>
 
-            <Button
-              variant={activeTab === 'unified-dashboard' ? 'default' : 'ghost'}
-              className="w-full justify-start text-sm lg:text-base h-10 lg:h-9 touch-manipulation bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-950/20 dark:to-purple-950/20 border-2 border-blue-500/30"
-              onClick={() => {
-                setActiveTab('unified-dashboard');
-                setSidebarOpen(false);
-              }}
-            >
-              <LayoutDashboard className="h-4 w-4 mr-2 lg:mr-3 text-blue-600" />
-              <span className="text-blue-600 dark:text-blue-400 font-semibold">BI Dashboard</span>
-            </Button>
+
 
             <Button
               variant={activeTab === 'vehicle-evidence-report' ? 'default' : 'ghost'}
@@ -572,8 +562,8 @@ export function AdminPortal({ onLogout }: AdminPortalProps) {
             <div className="p-4 lg:p-6 xl:p-8 max-w-[1600px] mx-auto">
               {activeTab === 'urgent-followups' && <UrgentFollowUps onTabChange={setActiveTab} />}
               
-              {/* New BI-Style Landing Page */}
-              {activeTab === 'dashboard' && <OrganizationOverview onZoneDrillDown={handleZoneSelect} />}
+              {/* Unified BI Dashboard - Primary Analytics & Reporting */}
+              {activeTab === 'dashboard' && <UnifiedDashboard />}
               
               {activeTab === 'zone-drilldown' && selectedZone && (
                 <ZoneDrillDown
@@ -586,11 +576,6 @@ export function AdminPortal({ onLogout }: AdminPortalProps) {
                   onObservationSelect={handleObservationSelect}
                 />
               )}
-
-
-
-              {/* Unified BI Dashboard - Consolidates Organization Overview, Compliance Dashboard, and Analytics Hub */}
-              {activeTab === 'unified-dashboard' && <UnifiedDashboard />}
 
               {/* Vehicle Evidence Report - Court-Ready PDF Generator */}
               {activeTab === 'vehicle-evidence-report' && <VehicleEvidenceReport />}
