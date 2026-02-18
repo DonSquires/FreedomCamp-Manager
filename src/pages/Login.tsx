@@ -346,6 +346,17 @@ export function Login() {
               )}
             </form>
 
+            <div className="mt-4 text-center">
+              <Button
+                type="button"
+                variant="link"
+                onClick={() => window.location.href = '/password-reset'}
+                className="text-sm text-muted-foreground hover:text-primary"
+              >
+                Forgot your password?
+              </Button>
+            </div>
+
             <div className="mt-6 p-4 bg-blue-500/10 border border-blue-500/20 rounded-lg">
               <p className="text-xs font-medium text-blue-600 dark:text-blue-500 mb-1">ℹ️ Need Access?</p>
               <p className="text-xs text-muted-foreground">

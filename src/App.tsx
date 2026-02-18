@@ -16,6 +16,7 @@ import { FieldOfficerPortal } from '@/pages/FieldOfficerPortal';
 import { AdminPortal } from '@/pages/AdminPortal';
 import { PortalSelection } from '@/pages/PortalSelection';
 import { Login } from '@/pages/Login';
+import { PasswordReset } from '@/pages/PasswordReset';
 import { FancyLoader } from '@/components/features/FancyLoader';
 import { Toaster } from '@/components/ui/sonner';
 import { toast } from 'sonner';
@@ -96,6 +97,7 @@ function App() {
       <Routes>
         {/* Public Routes */}
         <Route path="/login" element={!isAuthenticated ? <Login /> : <Navigate to="/portal-selection" replace />} />
+        <Route path="/password-reset" element={<PasswordReset />} />
         
         {/* Protected Routes */}
         {isAuthenticated && user ? (
