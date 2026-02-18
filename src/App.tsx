@@ -17,6 +17,7 @@ import { AdminPortal } from '@/pages/AdminPortal';
 import { PortalSelection } from '@/pages/PortalSelection';
 import { Login } from '@/pages/Login';
 import { PasswordReset } from '@/pages/PasswordReset';
+import { VehicleRegistryFiltered } from '@/pages/VehicleRegistryFiltered';
 import { FancyLoader } from '@/components/features/FancyLoader';
 import { Toaster } from '@/components/ui/sonner';
 import { toast } from 'sonner';
@@ -114,7 +115,10 @@ function App() {
             
             {/* Admin Portal - For admins, masters, and admin_officers */}
             {(user.role === 'admin' || user.role === 'master' || user.role === 'admin_officer') && (
-              <Route path="/admin" element={<AdminPortal onLogout={logout} />} />
+              <>
+                <Route path="/admin" element={<AdminPortal onLogout={logout} />} />
+                <Route path="/admin/vehicle-registry" element={<VehicleRegistryFiltered />} />
+              </>
             )}
             
             {/* Root - Redirect based on role */}

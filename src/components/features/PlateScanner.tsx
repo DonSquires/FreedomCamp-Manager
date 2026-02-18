@@ -374,54 +374,20 @@ export function PlateScanner({ onExit }: PlateScannerProps) {
       
       console.log('✅ Photo uploaded:', publicUrl);
 
-      // STEP 3: ALPR recognition
-      console.log('🔍 Running ALPR...');
-      const { data: alprData, error: alprError } = await supabase.functions.invoke('recognize-plate', {
-        body: { 
-          image: imageDataUrl,
-          regions: ['nz'],
-        },
-      });
-
-      if (alprError) {
-        let errorMessage = alprError.message;
-        if (alprError.name === 'FunctionsHttpError' && alprError.context) {
-          try {
-            errorMessage = await alprError.context.text() || errorMessage;
-          } catch {}
-        }
-        throw new Error(`ALPR: ${errorMessage}`);
-      }
-
-      if (!alprData?.success) {
-        throw new Error(`ALPR: ${alprData?.error || 'No plate detected'}`);
-      }
-
-      const plateNumber = alprData.plate_number;
-      console.log('✅ Plate recognized:', plateNumber);
-
-      // STEP 4: Process field scan (creates observation + compliance check)
-      console.log('📤 Processing field scan...');
-      const { data: scanResult, error: scanError } = await supabase.functions.invoke('process-field-scan', {
+      // STEP 3: Call NEW plate-scanner-complete function
+      console.log('📤 Processing with new Plate Scanner function...');
+      const { data: scanResult, error: scanError } = await supabase.functions.invoke('plate-scanner-complete', {
         body: {
-          plateNumber,
+          image: imageDataUrl,
           zoneId: selectedZone.id,
           organizationId: selectedZone.organization_id,
-          imageUrl: publicUrl,
+          userId: user.id,
           gpsLocation: gpsLocation ? {
             lat: gpsLocation.lat,
             lng: gpsLocation.lng,
             accuracy: gpsLocation.accuracy,
           } : null,
-          vehicleDetails: {
-            make: alprData.vehicle_make,
-            model: alprData.vehicle_model,
-            color: alprData.vehicle_color,
-            year: alprData.vehicle_year,
-          },
-          detectionMethod: 'alpr',
-          confidence: alprData.confidence || 0.85,
-          isSelfContained: false,
+          patrolId: currentPatrol?.id,
         },
       });
 
@@ -432,38 +398,35 @@ export function PlateScanner({ onExit }: PlateScannerProps) {
             errorMessage = await scanError.context.text() || errorMessage;
           } catch {}
         }
-        throw new Error(`Field scan: ${errorMessage}`);
+        throw new Error(errorMessage);
+      }
+
+      if (!scanResult?.success) {
+        throw new Error(scanResult?.error || 'Scan failed');
       }
 
       console.log('✅ Scan complete:', scanResult);
 
-      // STEP 5: Determine status
+      // STEP 4: Determine status from result
       let status: QueueItem['status'] = 'compliant';
-      let details = '✅ Compliant with zone requirements';
+      let details = scanResult.alerts?.[0] || '✅ Compliant with zone requirements';
 
       if (scanResult.is_flagged) {
         status = 'breach';
-        details = `🚩 FLAGGED: ${scanResult.flagged_details?.reason || 'Watch list'}`;
+        details = scanResult.alerts?.find((a: string) => a.includes('🚩')) || '🚩 Flagged vehicle';
         playSounds.flaggedVehicle();
-      } else if (scanResult.is_homeless || scanResult.alerts?.some((a: string) => a.includes('FC Act'))) {
+      } else if (scanResult.is_homeless) {
         status = 'fc_exempt';
-        details = '🏕️ Homeless - FC Act Exempt';
+        details = scanResult.alerts?.find((a: string) => a.includes('🏕️')) || '🏕️ Homeless - FC Act Exempt';
         playSounds.processingComplete();
       } else if (!scanResult.is_compliant) {
-        // Check if at-risk (1 night left before breach)
-        const isAtRisk = scanResult.alerts?.some((a: string) => 
-          a.includes('final night') || 
-          a.includes('at risk') ||
-          a.includes('1 night')
-        );
-        
-        if (isAtRisk) {
+        if (scanResult.at_risk) {
           status = 'at_risk';
-          details = '🟡 AT RISK: Final night before breach';
+          details = scanResult.alerts?.find((a: string) => a.includes('🟡')) || '🟡 AT RISK: Final night before breach';
           playSounds.violationAlert();
         } else {
           status = 'breach';
-          details = '🔴 BREACH: ' + (scanResult.alerts?.find((a: string) => a.includes('Non-compliant')) || 'Violation detected');
+          details = scanResult.alerts?.find((a: string) => a.includes('🔴')) || '🔴 Breach detected';
           playSounds.violationAlert();
         }
       } else {
@@ -472,7 +435,7 @@ export function PlateScanner({ onExit }: PlateScannerProps) {
 
       const newItem: QueueItem = {
         id: scanResult.observation_id || `scan-${Date.now()}`,
-        plateNumber,
+        plateNumber: scanResult.plate_number || 'UNKNOWN',
         status,
         details,
         timestamp: new Date(),
