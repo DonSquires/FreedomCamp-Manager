@@ -687,7 +687,9 @@ Return ONLY a JSON object with this structure:
             hasNotes = true;
           }
 
-          // Create observation using Column C date (matches process-field-scan workflow)
+          // Create observation with proper NZ timezone handling
+          // We want the Excel date to display at 08:00 NZ time
+          // PostgreSQL timestamptz with explicit timezone ensures correct conversion
           const { data: observation, error: obsError } = await supabaseAdmin
             .from('vehicle_observations_v2')
             .insert({
@@ -695,7 +697,9 @@ Return ONLY a JSON object with this structure:
               organization_id: targetOrganizationId,
               zone_id: record.zoneId,
               recorded_by: user.id,
-              recorded_at: record.date + 'T12:00:00Z', // Using Column C (recorded date)
+              // Use +13:00 for NZDT (Oct-Apr) - PostgreSQL converts to UTC automatically
+              // Excel date "2026-02-16" → "2026-02-16T08:00:00+13:00" → displays as "16 Feb 2026 08:00 NZDT" ✓
+              recorded_at: `${record.date}T08:00:00+13:00`,
               officer_notes: officerNotes,
               has_notes: hasNotes,
               self_contained: null, // Unknown - historical data didn't capture this
