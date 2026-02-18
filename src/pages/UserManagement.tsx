@@ -238,9 +238,30 @@ export function UserManagement() {
   const handleUpdateUser = async () => {
     if (!selectedUser) return;
 
+    // Validation: Ensure authorized work locations are consistent with employer
+    if ((formData.role === 'officer' || formData.role === 'admin_officer')) {
+      if (!formData.employerOrgId) {
+        toast.error('Employer organization is required for officers');
+        return;
+      }
+      if (formData.authorizedWorkLocations.length === 0) {
+        toast.error('At least one authorized work location is required');
+        return;
+      }
+    }
+
     setIsSaving(true);
     try {
-      const { error } = await supabase
+      console.log('💾 Updating user with data:', {
+        userId: selectedUser.id,
+        email: selectedUser.email,
+        role: formData.role,
+        organization_id: formData.organizationId || null,
+        employer_organization_id: formData.employerOrgId || null,
+        authorized_work_locations: formData.authorizedWorkLocations || [],
+      });
+
+      const { data, error } = await supabase
         .from('user_profiles')
         .update({
           first_name: formData.firstName,
@@ -253,18 +274,43 @@ export function UserManagement() {
           is_active: formData.isActive,
           permissions: formData.permissions,
         })
-        .eq('id', selectedUser.id);
+        .eq('id', selectedUser.id)
+        .select();
 
-      if (error) throw error;
+      if (error) {
+        console.error('❌ Update error:', error);
+        console.error('Error details:', {
+          code: error.code,
+          message: error.message,
+          details: error.details,
+          hint: error.hint,
+        });
+        throw error;
+      }
 
+      console.log('✅ User updated successfully:', data);
       toast.success('User updated successfully');
       setShowEditDialog(false);
       setSelectedUser(null);
       resetForm();
       await loadData();
     } catch (error: any) {
-      console.error('Failed to update user:', error);
-      toast.error('Failed to update user: ' + error.message);
+      console.error('❌ Failed to update user:', error);
+      
+      // Provide more specific error messages
+      let errorMessage = error.message;
+      
+      if (error.code === '42501') {
+        errorMessage = 'Permission denied: You do not have access to update this user';
+      } else if (error.code === '23503') {
+        errorMessage = 'Invalid organization reference: Please check organization selections';
+      } else if (error.code === '23505') {
+        errorMessage = 'A user with this information already exists';
+      } else if (error.message?.includes('RLS')) {
+        errorMessage = 'Access denied: Row-level security policy prevented this update';
+      }
+      
+      toast.error('Failed to update user: ' + errorMessage);
     } finally {
       setIsSaving(false);
     }

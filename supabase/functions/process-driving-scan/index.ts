@@ -99,7 +99,7 @@ async function verifyAndEnrichInBackground(
     // 4. Run AI analysis if we have a photo URL
     let aiAnalysis = null;
     if (photoUrl) {
-      console.log('🤖 [BACKGROUND] Running AI photo analysis...');
+      console.log('🤖 [BACKGROUND] Running AI photo analysis with NZSCV verification...');
       const { data: aiData } = await supabaseAdmin.functions.invoke('analyze-vehicle-photo', {
         body: {
           plateNumber,
@@ -107,9 +107,15 @@ async function verifyAndEnrichInBackground(
         }
       });
 
-      if (aiData && !aiData.skipped) {
+      if (aiData && aiData.success) {
         aiAnalysis = aiData.analysis;
-        console.log('✅ [BACKGROUND] AI analysis complete:', aiAnalysis);
+        console.log('✅ [BACKGROUND] AI analysis complete:', {
+          vehicle: `${aiAnalysis.color} ${aiAnalysis.make} ${aiAnalysis.model} ${aiAnalysis.year}`,
+          ai_detected_sticker: aiAnalysis.ai_sticker_detection?.detected,
+          nzscv_certified: aiAnalysis.nzscv_certification?.is_self_contained,
+          validation_match: aiAnalysis.validation?.match,
+          conflict: aiAnalysis.validation?.conflict_note,
+        });
       }
     }
 
@@ -145,6 +151,11 @@ async function verifyAndEnrichInBackground(
       if (aiAnalysis.year && canonicalVehicle.vehicle_year && aiAnalysis.year !== canonicalVehicle.vehicle_year.toString()) {
         mismatches.push(`⚠️ Year mismatch: AI detected "${aiAnalysis.year}" vs Canonical "${canonicalVehicle.vehicle_year}"`);
       }
+      
+      // Include NZSCV conflict note if present
+      if (aiAnalysis.validation?.conflict_note) {
+        mismatches.push(aiAnalysis.validation.conflict_note);
+      }
     }
 
     if (nzscvMismatch && nzscvData?.mismatch_message) {
@@ -163,8 +174,9 @@ async function verifyAndEnrichInBackground(
       if (aiAnalysis.model) observationUpdate.vehicle_model = aiAnalysis.model;
       if (aiAnalysis.color) observationUpdate.vehicle_color = aiAnalysis.color;
       if (aiAnalysis.year) observationUpdate.vehicle_year = parseInt(aiAnalysis.year);
-      if (aiAnalysis.is_self_contained !== undefined) {
-        observationUpdate.self_contained = aiAnalysis.is_self_contained;
+      // Use NZSCV certification as source of truth (NOT AI sticker detection)
+      if (aiAnalysis.nzscv_certification?.is_self_contained !== undefined) {
+        observationUpdate.self_contained = aiAnalysis.nzscv_certification.is_self_contained;
       }
     }
 

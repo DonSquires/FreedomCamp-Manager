@@ -43,8 +43,8 @@ interface ObservationDetail {
   gps_latitude: number | null;
   gps_longitude: number | null;
   gps_accuracy: number | null;
-  evidence_photos: any;
-  notes: string | null;
+  photo: string | null;
+  officer_notes: string | null;
   created_at: string;
   canonical_vehicles?: {
     plate_number: string;
@@ -450,41 +450,38 @@ export function ObservationDetailModal({
             )}
 
             {/* Notes */}
-            {observation.notes && (
+            {observation.officer_notes && (
               <Card>
                 <CardContent className="p-4">
                   <h3 className="font-bold text-sm mb-2">Officer Notes</h3>
                   <p className="text-sm text-muted-foreground whitespace-pre-wrap">
-                    {observation.notes}
+                    {observation.officer_notes}
                   </p>
                 </CardContent>
               </Card>
             )}
 
-            {/* Evidence Photos */}
-            {observation.evidence_photos && Array.isArray(observation.evidence_photos) && observation.evidence_photos.length > 0 && (
+            {/* Evidence Photos - Show photo field from observation */}
+            {observation.photo && (
               <Card>
                 <CardContent className="p-4">
                   <h3 className="font-bold text-sm mb-3 flex items-center gap-2">
                     <Camera className="h-4 w-4" />
-                    Evidence Photos ({observation.evidence_photos.length})
+                    Evidence Photo
                   </h3>
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                    {observation.evidence_photos.map((photo: string, idx: number) => (
-                      <a
-                        key={idx}
-                        href={photo}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="block rounded-lg overflow-hidden border-2 hover:border-primary transition-colors"
-                      >
-                        <img
-                          src={photo}
-                          alt={`Evidence ${idx + 1}`}
-                          className="w-full h-40 object-cover"
-                        />
-                      </a>
-                    ))}
+                    <a
+                      href={observation.photo}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="block rounded-lg overflow-hidden border-2 hover:border-primary transition-colors"
+                    >
+                      <img
+                        src={observation.photo}
+                        alt="Vehicle evidence photo"
+                        className="w-full h-40 object-cover"
+                      />
+                    </a>
                   </div>
                 </CardContent>
               </Card>
