@@ -763,7 +763,7 @@ export function UnifiedDashboard() {
                       dateTo,
                       ...(isMaster && selectedOrgId !== 'all' ? { orgId: selectedOrgId } : {})
                     });
-                    navigate(`/admin?${params.toString()}`);
+                    window.location.href = `/admin?${params.toString()}`;
                   }}
                 >
                   <CardContent className="p-6">
@@ -794,7 +794,7 @@ export function UnifiedDashboard() {
                       filterType: 'overstayers',
                       ...(isMaster && selectedOrgId !== 'all' ? { orgId: selectedOrgId } : {})
                     });
-                    navigate(`/admin?${params.toString()}`);
+                    window.location.href = `/admin?${params.toString()}`;
                   }}
                 >
                   <CardContent className="p-6">
@@ -814,7 +814,7 @@ export function UnifiedDashboard() {
                       filterType: 'at-risk',
                       ...(isMaster && selectedOrgId !== 'all' ? { orgId: selectedOrgId } : {})
                     });
-                    navigate(`/admin?${params.toString()}`);
+                    window.location.href = `/admin?${params.toString()}`;
                   }}
                 >
                   <CardContent className="p-6">
@@ -827,8 +827,14 @@ export function UnifiedDashboard() {
                 <Card 
                   className="border-purple-300 bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-950/30 dark:to-purple-900/20 cursor-pointer hover:shadow-lg transition-all"
                   onClick={() => {
-                    // Open VehicleRegistry with date filter from BI
-                    window.location.href = `/admin/vehicle-registry?dateFrom=${dateFrom}&dateTo=${dateTo}${isMaster && selectedOrgId !== 'all' ? `&orgId=${selectedOrgId}` : ''}`;
+                    // Open VehicleRegistry tab with date filter from BI
+                    const params = new URLSearchParams({
+                      tab: 'vehicle-registry',
+                      dateFrom,
+                      dateTo,
+                      ...(isMaster && selectedOrgId !== 'all' ? { orgId: selectedOrgId } : {})
+                    });
+                    window.location.href = `/admin?${params.toString()}`;
                   }}
                 >
                   <CardContent className="p-6">
@@ -845,7 +851,7 @@ export function UnifiedDashboard() {
                       tab: 'zone-management',
                       ...(isMaster && selectedOrgId !== 'all' ? { orgId: selectedOrgId } : {})
                     });
-                    navigate(`/admin?${params.toString()}`);
+                    window.location.href = `/admin?${params.toString()}`;
                   }}
                 >
                   <CardContent className="p-6">
