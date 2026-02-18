@@ -12,6 +12,7 @@
  */
 
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -131,6 +132,7 @@ const formatLocalDate = (date: Date): string => {
 
 export function UnifiedDashboard() {
   const { user } = useAuthStore();
+  const navigate = useNavigate();
   const isMaster = user?.role === 'master';
 
   // View state
@@ -666,6 +668,36 @@ export function UnifiedDashboard() {
           <Card className="border-primary/20 bg-gradient-to-r from-primary/5 to-primary/10">
             <CardContent className="p-4">
               <div className="space-y-4">
+                {/* Date Navigation Buttons */}
+                <div className="flex items-center justify-between gap-4 pb-3 border-b">
+                  <div className="flex items-center gap-2">
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => navigateDays('prev')}
+                      className="bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/30 dark:hover:bg-blue-900/40 border-blue-300 text-blue-700 dark:text-blue-300"
+                    >
+                      <ChevronLeft className="h-4 w-4 mr-1" />
+                      Previous Day
+                    </Button>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => navigateDays('next')}
+                      className="bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/30 dark:hover:bg-blue-900/40 border-blue-300 text-blue-700 dark:text-blue-300"
+                    >
+                      Next Day
+                      <ChevronRight className="h-4 w-4 ml-1" />
+                    </Button>
+                  </div>
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <Calendar className="h-4 w-4" />
+                    <span>
+                      <strong>{daysDiff} day{daysDiff !== 1 ? 's' : ''}</strong> selected
+                    </span>
+                  </div>
+                </div>
+
                 <div className="flex flex-wrap items-center gap-2">
                   <Label className="text-sm font-medium mr-2">Quick Select:</Label>
                   <Button variant="outline" size="sm" onClick={() => setDateRange('today')}>Today</Button>
@@ -673,15 +705,6 @@ export function UnifiedDashboard() {
                   <Button variant="outline" size="sm" onClick={() => setDateRange('last7')}>Last 7 Days</Button>
                   <Button variant="outline" size="sm" onClick={() => setDateRange('last30')}>Last 30 Days</Button>
                   <Button variant="outline" size="sm" onClick={() => setDateRange('last90')}>Last 90 Days</Button>
-                  
-                  <div className="ml-auto flex items-center gap-2">
-                    <Button variant="outline" size="sm" onClick={() => navigateDays('prev')}>
-                      <ChevronLeft className="h-4 w-4" />
-                    </Button>
-                    <Button variant="outline" size="sm" onClick={() => navigateDays('next')}>
-                      <ChevronRight className="h-4 w-4" />
-                    </Button>
-                  </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -713,9 +736,9 @@ export function UnifiedDashboard() {
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <Calendar className="h-4 w-4" />
                   <span>
-                    Analyzing <strong>{daysDiff} days</strong> from{' '}
-                    <strong>{new Date(dateFrom).toLocaleDateString('en-NZ')}</strong> to{' '}
-                    <strong>{new Date(dateTo).toLocaleDateString('en-NZ')}</strong>
+                    Showing data from{' '}
+                    <strong>{new Date(dateFrom).toLocaleDateString('en-NZ', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}</strong> to{' '}
+                    <strong>{new Date(dateTo).toLocaleDateString('en-NZ', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}</strong>
                   </span>
                 </div>
               </div>
@@ -731,7 +754,18 @@ export function UnifiedDashboard() {
             <>
               {/* KPI Grid */}
               <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-                <Card className="border-blue-300 bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950/30 dark:to-blue-900/20">
+                <Card 
+                  className="border-blue-300 bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950/30 dark:to-blue-900/20 cursor-pointer hover:shadow-lg transition-all"
+                  onClick={() => {
+                    const params = new URLSearchParams({
+                      tab: 'observations-report',
+                      dateFrom,
+                      dateTo,
+                      ...(isMaster && selectedOrgId !== 'all' ? { orgId: selectedOrgId } : {})
+                    });
+                    navigate(`/admin?${params.toString()}`);
+                  }}
+                >
                   <CardContent className="p-6">
                     <Activity className="h-8 w-8 text-blue-600 mb-2" />
                     <div className="text-4xl font-black text-blue-600">{metrics.totalObservations}</div>
@@ -739,7 +773,10 @@ export function UnifiedDashboard() {
                   </CardContent>
                 </Card>
 
-                <Card className="border-green-300 bg-gradient-to-br from-green-50 to-green-100 dark:from-green-950/30 dark:to-green-900/20">
+                <Card 
+                  className="border-green-300 bg-gradient-to-br from-green-50 to-green-100 dark:from-green-950/30 dark:to-green-900/20 cursor-pointer hover:shadow-lg transition-all"
+                  onClick={() => setActiveTab('summary')}
+                >
                   <CardContent className="p-6">
                     <CheckCircle2 className="h-8 w-8 text-green-600 mb-2" />
                     <div className="text-4xl font-black text-green-600">{metrics.complianceRate}%</div>
@@ -747,7 +784,19 @@ export function UnifiedDashboard() {
                   </CardContent>
                 </Card>
 
-                <Card className="border-red-300 bg-gradient-to-br from-red-50 to-red-100 dark:from-red-950/30 dark:to-red-900/20">
+                <Card 
+                  className="border-red-300 bg-gradient-to-br from-red-50 to-red-100 dark:from-red-950/30 dark:to-red-900/20 cursor-pointer hover:shadow-lg transition-all"
+                  onClick={() => {
+                    const params = new URLSearchParams({
+                      tab: 'observations-report',
+                      dateFrom,
+                      dateTo,
+                      filterType: 'overstayers',
+                      ...(isMaster && selectedOrgId !== 'all' ? { orgId: selectedOrgId } : {})
+                    });
+                    navigate(`/admin?${params.toString()}`);
+                  }}
+                >
                   <CardContent className="p-6">
                     <AlertTriangle className="h-8 w-8 text-red-600 mb-2" />
                     <div className="text-4xl font-black text-red-600">{metrics.overstayers}</div>
@@ -755,7 +804,19 @@ export function UnifiedDashboard() {
                   </CardContent>
                 </Card>
 
-                <Card className="border-amber-300 bg-gradient-to-br from-amber-50 to-amber-100 dark:from-amber-950/30 dark:to-amber-900/20">
+                <Card 
+                  className="border-amber-300 bg-gradient-to-br from-amber-50 to-amber-100 dark:from-amber-950/30 dark:to-amber-900/20 cursor-pointer hover:shadow-lg transition-all"
+                  onClick={() => {
+                    const params = new URLSearchParams({
+                      tab: 'observations-report',
+                      dateFrom,
+                      dateTo,
+                      filterType: 'at-risk',
+                      ...(isMaster && selectedOrgId !== 'all' ? { orgId: selectedOrgId } : {})
+                    });
+                    navigate(`/admin?${params.toString()}`);
+                  }}
+                >
                   <CardContent className="p-6">
                     <Clock className="h-8 w-8 text-amber-600 mb-2" />
                     <div className="text-4xl font-black text-amber-600">{metrics.atRisk}</div>
@@ -763,7 +824,18 @@ export function UnifiedDashboard() {
                   </CardContent>
                 </Card>
 
-                <Card>
+                <Card 
+                  className="cursor-pointer hover:shadow-lg transition-all hover:border-purple-300"
+                  onClick={() => {
+                    const params = new URLSearchParams({
+                      tab: 'vehicle-registry',
+                      dateFrom,
+                      dateTo,
+                      ...(isMaster && selectedOrgId !== 'all' ? { orgId: selectedOrgId } : {})
+                    });
+                    navigate(`/admin?${params.toString()}`);
+                  }}
+                >
                   <CardContent className="p-6">
                     <Car className="h-8 w-8 text-purple-600 mb-2" />
                     <div className="text-4xl font-black text-purple-600">{metrics.uniqueVehicles}</div>
@@ -771,7 +843,16 @@ export function UnifiedDashboard() {
                   </CardContent>
                 </Card>
 
-                <Card>
+                <Card 
+                  className="cursor-pointer hover:shadow-lg transition-all hover:border-indigo-300"
+                  onClick={() => {
+                    const params = new URLSearchParams({
+                      tab: 'zone-management',
+                      ...(isMaster && selectedOrgId !== 'all' ? { orgId: selectedOrgId } : {})
+                    });
+                    navigate(`/admin?${params.toString()}`);
+                  }}
+                >
                   <CardContent className="p-6">
                     <MapPin className="h-8 w-8 text-indigo-600 mb-2" />
                     <div className="text-4xl font-black text-indigo-600">{metrics.uniqueZones}</div>
