@@ -3,7 +3,7 @@
  * Comprehensive report of all vehicle observations with enriched data
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/stores/authStore';
@@ -66,15 +66,29 @@ export default function ObservationsReport() {
   const { user } = useAuthStore();
   const { organizations } = useOrganizations();
   
+  // Check URL parameters for BI dashboard drill-down
+  const urlParams = new URLSearchParams(window.location.search);
+  const urlDateFrom = urlParams.get('dateFrom');
+  const urlDateTo = urlParams.get('dateTo');
+  const urlOrgId = urlParams.get('orgId');
+  const urlFilterType = urlParams.get('filterType');
+  
   // Filters
-  const [selectedOrgId, setSelectedOrgId] = useState<string>('');
+  const [selectedOrgId, setSelectedOrgId] = useState<string>(urlOrgId || '');
   const [selectedZoneId, setSelectedZoneId] = useState<string>('');
   const [startDate, setStartDate] = useState<string>(
-    format(new Date(new Date().setDate(new Date().getDate() - 7)), 'yyyy-MM-dd')
+    urlDateFrom || format(new Date(new Date().setDate(new Date().getDate() - 7)), 'yyyy-MM-dd')
   );
-  const [endDate, setEndDate] = useState<string>(format(new Date(), 'yyyy-MM-dd'));
+  const [endDate, setEndDate] = useState<string>(urlDateTo || format(new Date(), 'yyyy-MM-dd'));
 
   const { zones } = useZones(selectedOrgId || undefined);
+
+  // Clear URL params after applying them
+  useEffect(() => {
+    if (urlDateFrom || urlDateTo || urlOrgId || urlFilterType) {
+      window.history.replaceState({}, '', window.location.pathname + '?tab=observations-report');
+    }
+  }, []);
 
   // Query observations
   const { data: observations, isLoading } = useQuery({
@@ -304,6 +318,15 @@ export default function ObservationsReport() {
                 />
               </div>
             </div>
+            
+            {/* BI Dashboard Filter Indicator */}
+            {urlFilterType && (
+              <div className="p-3 bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+                <p className="text-sm font-semibold text-blue-800 dark:text-blue-200">
+                  📊 BI Dashboard Filter: Showing {urlFilterType === 'overstayers' ? 'Overstayers' : urlFilterType === 'at-risk' ? 'At-Risk Vehicles' : 'All'}
+                </p>
+              </div>
+            )}
           </CardContent>
         </Card>
 

@@ -17,7 +17,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Camera, X, Loader2, ZoomIn, ZoomOut, AlertTriangle, Shield, FileText, Flashlight, MapPin, Clock } from 'lucide-react';
-import { toast } from 'sonner';
+// Toast notifications removed - using visual queue feedback instead
 import { supabase } from '@/lib/supabase';
 import { playSounds } from '@/lib/sounds';
 import { cn } from '@/lib/utils';
@@ -196,7 +196,7 @@ export function ZoomScanQueue({
         
         setCameraError(error.message || 'Failed to access camera');
         setIsCameraLoading(false);
-        toast.error('Camera Error: ' + (error.message || 'Failed to access camera'));
+        playSounds.processingComplete(); // Audio error feedback
       }
     };
 
@@ -253,7 +253,7 @@ export function ZoomScanQueue({
       playSounds.photoCapture();
     } catch (error) {
       console.warn('Torch not supported:', error);
-      toast.error('Torch not available on this device');
+      playSounds.processingComplete(); // Audio error feedback
     }
   };
 
@@ -290,12 +290,14 @@ export function ZoomScanQueue({
           console.log('✅ Watermark applied successfully');
         } catch (error) {
           console.error('❌ Watermark failed:', error);
-          toast.warning('Photo uploaded without watermark - evidence quality reduced');
+          // Continue without watermark - visual queue will show result
         }
       } else {
         console.warn('⚠️ No GPS or user data - skipping watermark');
-        toast.warning('No GPS signal - photo not watermarked');
+        // Continue without watermark - visual queue will show result
       }
+
+      // Visual feedback shown in queue header instead of toast
 
       // Upload watermarked photo
       const blob = await fetch(imageDataUrl).then(r => r.blob());
@@ -321,7 +323,7 @@ export function ZoomScanQueue({
       });
 
       if (recognitionError || !recognitionData?.success) {
-        toast.error('Failed to recognize plate');
+        playSounds.processingComplete(); // Audio feedback for failure
         setIsProcessing(false);
         return;
       }
@@ -412,11 +414,15 @@ export function ZoomScanQueue({
       setCaptureAnimation(true);
       setTimeout(() => setCaptureAnimation(false), 600);
 
+      // ✅ ADD TO QUEUE FIRST (CRITICAL - Must happen before any modals)
       setQueue(prev => {
         const updated = [newItem, ...prev];
         localStorage.setItem(`zoom-queue-${zoneId}`, JSON.stringify(updated));
+        console.log('✅ Added scan to queue:', newItem.plateNumber, 'Status:', newItem.status);
         return updated;
       });
+
+      // Visual feedback shown in queue display - no toast needed
 
       // ✅ FIX: Only show full-screen modal for actual BREACHES, not flagged vehicles
       // Flagged vehicles just get audio + queue notification, no modal interrupt
@@ -447,10 +453,11 @@ export function ZoomScanQueue({
       }
 
     } catch (error: any) {
-      console.error('Capture error:', error);
-      toast.error('Failed to process scan: ' + error.message);
+      console.error('❌ Capture error:', error);
+      playSounds.processingComplete(); // Audio feedback for error
     } finally {
       setIsProcessing(false);
+      console.log('🎬 Scan processing complete. Current queue length:', queue.length + 1);
     }
   };
 
@@ -460,12 +467,10 @@ export function ZoomScanQueue({
       localStorage.setItem(`zoom-queue-${zoneId}`, JSON.stringify(updated));
       return updated;
     });
-    playSounds.photoCapture();
+    playSounds.photoCapture(); // Audio confirmation
   };
 
   const handleAdviseOwner = async (item: QueueItem) => {
-    toast.info('Recording breach advisory - admin will review for official enforcement');
-    
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
@@ -486,8 +491,7 @@ export function ZoomScanQueue({
       
       if (error) throw error;
       
-      playSounds.processingComplete();
-      toast.success('Breach advisory recorded - vehicle owner has been notified');
+      playSounds.processingComplete(); // Audio confirmation
       
       // Remove from queue and close modal
       handleDismiss(item.id);
@@ -495,14 +499,13 @@ export function ZoomScanQueue({
       
     } catch (error: any) {
       console.error('Failed to record breach advisory:', error);
-      toast.error('Failed to record advisory: ' + error.message);
+      playSounds.processingComplete(); // Audio feedback for error
     }
   };
 
   const handleAcknowledgeSafety = () => {
     if (!safetyAlertItem) return;
-    playSounds.processingComplete();
-    toast.success('Safety alert acknowledged - proceed with caution');
+    playSounds.processingComplete(); // Audio confirmation
     setSafetyAlertItem(null);
     // Alert stays in queue for reference, officer can continue scanning
   };
@@ -511,7 +514,8 @@ export function ZoomScanQueue({
     const actionableCount = queue.filter(i => i.status === 'breach' || i.status === 'at_risk').length;
     
     if (actionableCount > 0) {
-      toast.error(`Please action ${actionableCount} item(s) before exiting`);
+      playSounds.violationAlert(); // Audio warning
+      // Visual indicator already shown in queue header
       return;
     }
     
@@ -520,11 +524,33 @@ export function ZoomScanQueue({
 
   return (
     <div className="fixed inset-0 flex flex-col bg-black z-[9999]">
-      {/* TOP 1/4: Queue */}
+      {/* TOP 1/4: Queue - ALWAYS VISIBLE with results */}
       <div className="h-1/4 overflow-y-auto bg-gray-900 border-b-4 border-yellow-500 flex-shrink-0">
+        <div className="sticky top-0 bg-gray-900 z-10 p-2 border-b border-gray-700">
+          <div className="flex items-center justify-between">
+            <h3 className="text-white font-bold text-sm flex items-center gap-2">
+              📋 Scan Queue
+              {queue.length > 0 && (
+                <Badge className="bg-white text-black">
+                  {queue.length} {queue.length === 1 ? 'result' : 'results'}
+                </Badge>
+              )}
+            </h3>
+            {queue.filter(i => i.status === 'breach' || i.status === 'at_risk').length > 0 && (
+              <Badge className="bg-red-600 text-white animate-pulse">
+                {queue.filter(i => i.status === 'breach' || i.status === 'at_risk').length} 🔴 Action Required
+              </Badge>
+            )}
+          </div>
+        </div>
+        
         {queue.length === 0 ? (
-          <div className="flex items-center justify-center h-full text-gray-400">
-            <p className="text-sm">Queue empty - start scanning</p>
+          <div className="flex items-center justify-center h-[calc(100%-3rem)] text-gray-400">
+            <div className="text-center">
+              <Camera className="h-12 w-12 mx-auto mb-2 opacity-30" />
+              <p className="text-sm font-semibold">No scans yet</p>
+              <p className="text-xs mt-1">Results will appear here</p>
+            </div>
           </div>
         ) : (
           <div className="space-y-2 p-2">
