@@ -1,0 +1,320 @@
+/**
+ * analyze-vehicle-photo Edge Function
+ * 
+ * AI-powered vehicle photo analysis with NZSCV self-contained verification
+ * 
+ * KEY FEATURE: Differentiates between AI-detected and NZSCV-registered self-contained status
+ * - NZSCV register is the SINGLE SOURCE OF TRUTH for self-contained certification
+ * - AI detection of stickers is used for validation/conflict detection only
+ * - If mismatch detected: log it but always use NZSCV data
+ * 
+ * WORKFLOW:
+ * 1. AI analyzes photo (make, model, year, color, self-contained STICKER detection)
+ * 2. Check NZSCV register for actual self-contained certification
+ * 3. Compare AI vs NZSCV:
+ *    - Match: Good! AI validated NZSCV data
+ *    - Mismatch: Note conflict but use NZSCV as authoritative
+ * 4. Update canonical_vehicles with NZSCV data (source of truth)
+ */
+
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
+import { corsHeaders } from '../_shared/cors.ts';
+
+const ONSPACE_AI_BASE_URL = Deno.env.get('ONSPACE_AI_BASE_URL');
+const ONSPACE_AI_API_KEY = Deno.env.get('ONSPACE_AI_API_KEY');
+
+interface AIAnalysisResult {
+  make: string | null;
+  model: string | null;
+  year: string | null;
+  color: string | null;
+  ai_detected_self_contained_sticker: boolean;
+  ai_sticker_confidence: number;
+  sticker_type: 'blue' | 'green' | 'none' | 'unclear';
+}
+
+interface NZSCVResult {
+  is_self_contained: boolean;
+  expiry_date: string | null;
+  source: 'nzscv_register';
+  last_checked: string;
+}
+
+interface ValidationResult {
+  match: boolean;
+  conflict_note: string | null;
+  nzscv_authoritative: boolean;
+  ai_detected: boolean;
+  nzscv_certified: boolean;
+}
+
+Deno.serve(async (req) => {
+  // Handle CORS preflight
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', { headers: corsHeaders });
+  }
+
+  try {
+    const supabaseAdmin = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    );
+
+    const { plateNumber, photoUrl, vehicleId } = await req.json();
+
+    if (!plateNumber || !photoUrl) {
+      return new Response(
+        JSON.stringify({ error: 'Missing plateNumber or photoUrl' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    console.log(`🤖 [AI ANALYSIS] Starting analysis for ${plateNumber}`);
+
+    // STEP 1: AI Photo Analysis (including sticker detection)
+    console.log('🔍 [AI ANALYSIS] Analyzing photo with OnSpace AI...');
+    
+    const analysisPrompt = `Analyze this vehicle photo and extract the following details in JSON format:
+
+1. **Vehicle Make**: Brand/manufacturer (e.g., Toyota, Ford, Honda)
+2. **Vehicle Model**: Model name (e.g., Corolla, Ranger, Civic)
+3. **Vehicle Year**: Approximate year (e.g., 2018, 2020)
+4. **Vehicle Color**: Primary color (e.g., White, Silver, Blue)
+5. **Self-Contained Sticker Detection**:
+   - Look for BLUE or GREEN self-contained certification stickers
+   - Blue sticker = New Zealand Motor Caravan Association (NZMCA) certification
+   - Green sticker = New Zealand Self Containment Certification
+   - Rate your confidence (0.0-1.0) in sticker detection
+   - Note sticker type: "blue", "green", "none", or "unclear"
+
+IMPORTANT: You are detecting physical stickers only. The actual certification status will be verified against the official NZSCV register separately.
+
+Respond ONLY with valid JSON (no markdown, no explanations):
+{
+  "make": "Toyota",
+  "model": "Hiace",
+  "year": "2019",
+  "color": "White",
+  "ai_detected_self_contained_sticker": true,
+  "ai_sticker_confidence": 0.85,
+  "sticker_type": "blue"
+}`;
+
+    let aiAnalysis: AIAnalysisResult = {
+      make: null,
+      model: null,
+      year: null,
+      color: null,
+      ai_detected_self_contained_sticker: false,
+      ai_sticker_confidence: 0,
+      sticker_type: 'none',
+    };
+
+    try {
+      const aiResponse = await fetch(`${ONSPACE_AI_BASE_URL}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${ONSPACE_AI_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'google/gemini-3-flash-preview',
+          messages: [
+            {
+              role: 'user',
+              content: [
+                { type: 'text', text: analysisPrompt },
+                { type: 'image_url', image_url: { url: photoUrl } }
+              ]
+            }
+          ],
+          response_format: { type: 'json_object' },
+          temperature: 0.1,
+          max_tokens: 500,
+        }),
+      });
+
+      if (!aiResponse.ok) {
+        const errorText = await aiResponse.text();
+        console.error(`❌ [AI ANALYSIS] OnSpace AI request failed:`, errorText);
+        throw new Error(`AI API error: ${aiResponse.status}`);
+      }
+
+      const aiData = await aiResponse.json();
+      const content = aiData.choices[0]?.message?.content;
+      
+      if (!content) {
+        throw new Error('No content in AI response');
+      }
+
+      // Parse AI response
+      const parsedAnalysis = JSON.parse(content);
+      aiAnalysis = {
+        make: parsedAnalysis.make || null,
+        model: parsedAnalysis.model || null,
+        year: parsedAnalysis.year?.toString() || null,
+        color: parsedAnalysis.color || null,
+        ai_detected_self_contained_sticker: parsedAnalysis.ai_detected_self_contained_sticker || false,
+        ai_sticker_confidence: parsedAnalysis.ai_sticker_confidence || 0,
+        sticker_type: parsedAnalysis.sticker_type || 'none',
+      };
+
+      console.log(`✅ [AI ANALYSIS] AI detected:`, {
+        vehicle: `${aiAnalysis.color} ${aiAnalysis.make} ${aiAnalysis.model} ${aiAnalysis.year}`,
+        sticker_detected: aiAnalysis.ai_detected_self_contained_sticker,
+        sticker_type: aiAnalysis.sticker_type,
+        confidence: Math.round((aiAnalysis.ai_sticker_confidence || 0) * 100) + '%',
+      });
+
+    } catch (aiError: any) {
+      console.error(`⚠️ [AI ANALYSIS] AI analysis failed (non-critical):`, aiError.message);
+      // Continue with null values - NZSCV check is more important
+    }
+
+    // STEP 2: Check NZSCV Register (SOURCE OF TRUTH)
+    console.log('🌐 [AI ANALYSIS] Checking NZSCV register (source of truth)...');
+    
+    let nzscvResult: NZSCVResult = {
+      is_self_contained: false,
+      expiry_date: null,
+      source: 'nzscv_register',
+      last_checked: new Date().toISOString(),
+    };
+
+    try {
+      const { data: nzscvData, error: nzscvError } = await supabaseAdmin.functions.invoke(
+        'check-nzscv-status',
+        {
+          body: {
+            plateNumber: plateNumber.toUpperCase().trim(),
+          },
+        }
+      );
+
+      if (!nzscvError && nzscvData?.result) {
+        nzscvResult = {
+          is_self_contained: nzscvData.result.is_self_contained || false,
+          expiry_date: nzscvData.result.expiry_date || null,
+          source: 'nzscv_register',
+          last_checked: new Date().toISOString(),
+        };
+
+        console.log(`✅ [AI ANALYSIS] NZSCV register checked:`, {
+          certified: nzscvResult.is_self_contained,
+          expiry: nzscvResult.expiry_date,
+        });
+      } else {
+        console.warn(`⚠️ [AI ANALYSIS] NZSCV check failed (non-critical):`, nzscvError?.message);
+      }
+    } catch (nzscvError: any) {
+      console.warn(`⚠️ [AI ANALYSIS] NZSCV check error (non-critical):`, nzscvError.message);
+    }
+
+    // STEP 3: Validation - Compare AI vs NZSCV
+    const validation: ValidationResult = {
+      match: aiAnalysis.ai_detected_self_contained_sticker === nzscvResult.is_self_contained,
+      conflict_note: null,
+      nzscv_authoritative: true, // Always true - NZSCV is source of truth
+      ai_detected: aiAnalysis.ai_detected_self_contained_sticker,
+      nzscv_certified: nzscvResult.is_self_contained,
+    };
+
+    if (!validation.match) {
+      // CONFLICT DETECTED
+      if (aiAnalysis.ai_detected_self_contained_sticker && !nzscvResult.is_self_contained) {
+        validation.conflict_note = `⚠️ CONFLICT: AI detected self-contained sticker (${aiAnalysis.sticker_type}, confidence ${Math.round((aiAnalysis.ai_sticker_confidence || 0) * 100)}%) but vehicle NOT in NZSCV register. Using NZSCV as source of truth - vehicle is NOT certified self-contained.`;
+        console.warn(`🚨 [AI ANALYSIS] ${validation.conflict_note}`);
+      } else if (!aiAnalysis.ai_detected_self_contained_sticker && nzscvResult.is_self_contained) {
+        validation.conflict_note = `ℹ️ NOTE: NZSCV register shows self-contained certification but AI did not detect sticker in photo. Using NZSCV as source of truth - vehicle IS certified self-contained (sticker may be obscured or not visible in photo).`;
+        console.log(`ℹ️ [AI ANALYSIS] ${validation.conflict_note}`);
+      }
+    } else {
+      // MATCH - Good!
+      if (validation.nzscv_certified) {
+        console.log(`✅ [AI ANALYSIS] MATCH: AI detected sticker AND NZSCV register confirms certification ✓`);
+      } else {
+        console.log(`✅ [AI ANALYSIS] MATCH: AI found no sticker AND NZSCV register shows no certification ✓`);
+      }
+    }
+
+    // STEP 4: Update canonical_vehicles with NZSCV data (source of truth)
+    console.log('💾 [AI ANALYSIS] Updating canonical vehicle with NZSCV data...');
+    
+    const updateData: any = {
+      // Vehicle details from AI
+      vehicle_make: aiAnalysis.make,
+      vehicle_model: aiAnalysis.model,
+      vehicle_year: aiAnalysis.year ? parseInt(aiAnalysis.year) : null,
+      vehicle_color: aiAnalysis.color,
+      
+      // Self-contained status from NZSCV (SOURCE OF TRUTH)
+      self_contained: nzscvResult.is_self_contained,
+      self_contained_expiry: nzscvResult.expiry_date,
+      nzscv_source: nzscvResult.source,
+      nzscv_last_checked: nzscvResult.last_checked,
+      
+      // Timestamp
+      updated_at: new Date().toISOString(),
+    };
+
+    const { error: updateError } = await supabaseAdmin
+      .from('canonical_vehicles')
+      .update(updateData)
+      .eq('plate_number', plateNumber.toUpperCase().trim());
+
+    if (updateError) {
+      console.error(`❌ [AI ANALYSIS] Failed to update canonical vehicle:`, updateError);
+      throw updateError;
+    }
+
+    console.log(`✅ [AI ANALYSIS] Canonical vehicle updated successfully`);
+
+    // STEP 5: Return comprehensive result
+    return new Response(
+      JSON.stringify({
+        success: true,
+        analysis: {
+          // Vehicle details from AI
+          make: aiAnalysis.make,
+          model: aiAnalysis.model,
+          year: aiAnalysis.year,
+          color: aiAnalysis.color,
+          
+          // AI sticker detection (for reference/validation only)
+          ai_sticker_detection: {
+            detected: aiAnalysis.ai_detected_self_contained_sticker,
+            confidence: aiAnalysis.ai_sticker_confidence,
+            sticker_type: aiAnalysis.sticker_type,
+          },
+          
+          // NZSCV register (SOURCE OF TRUTH)
+          nzscv_certification: {
+            is_self_contained: nzscvResult.is_self_contained,
+            expiry_date: nzscvResult.expiry_date,
+            source: nzscvResult.source,
+            last_checked: nzscvResult.last_checked,
+          },
+          
+          // Validation results
+          validation: {
+            match: validation.match,
+            conflict_note: validation.conflict_note,
+            authoritative_source: 'NZSCV register',
+            final_self_contained_status: nzscvResult.is_self_contained,
+          },
+        },
+      }),
+      { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+
+  } catch (error: any) {
+    console.error('❌ [AI ANALYSIS] Error:', error);
+    return new Response(
+      JSON.stringify({
+        success: false,
+        error: error.message || 'Internal server error',
+      }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+});
