@@ -323,7 +323,130 @@ export function ZoomScanQueue({
       });
 
       if (recognitionError || !recognitionData?.success) {
+        console.error('❌ Plate recognition failed:', recognitionData?.error || recognitionError?.message || 'Unknown error');
         playSounds.processingComplete(); // Audio feedback for failure
+        
+        // ✅ FIX: Prompt for manual entry when ALPR fails (don't silently fail)
+        const manualPlate = prompt(
+          '❌ Automatic plate recognition failed.\n\nPlease enter the plate number manually:'
+        );
+        
+        if (!manualPlate || !manualPlate.trim()) {
+          // User cancelled - just return to scanning
+          setIsProcessing(false);
+          return;
+        }
+        
+        const plateNumber = manualPlate.toUpperCase().trim();
+        console.log('📝 Manual plate entry:', plateNumber);
+        
+        // Process manual entry (no ALPR vehicle details available)
+        const { data: scanResult, error: scanError } = await supabase.functions.invoke('process-field-scan', {
+          body: {
+            plateNumber,
+            zoneId,
+            organizationId,
+            imageUrl: publicUrl,
+            gpsLocation: gpsLocation ? {
+              lat: gpsLocation.lat,
+              lng: gpsLocation.lng,
+              accuracy: 10,
+            } : undefined,
+            vehicleDetails: {}, // No ALPR data
+            detectionMethod: 'manual', // Mark as manual entry
+            officerNotes: '🔧 MANUALLY ENTERED • ALPR failed to recognize plate',
+          },
+        });
+        
+        if (scanError) {
+          console.error('Manual scan error:', scanError);
+          setIsProcessing(false);
+          return;
+        }
+        
+        // Create queue item with manual entry
+        let status: QueueItem['status'] = 'compliant';
+        let details = 'Manual entry - pending verification';
+        const isHomeless = scanResult.homeless_status === 'confirmed' || 
+                           scanResult.alerts?.some((a: string) => a.toLowerCase().includes('homeless'));
+        const isAtRisk = scanResult.alerts?.some((a: string) => a.toLowerCase().includes('at risk'));
+        
+        if (scanResult.is_flagged) {
+          status = 'breach';
+          details = `⚠️ FLAGGED: ${scanResult.flagged_details?.reason || 'Requires attention'}`;
+          playSounds.flaggedVehicle();
+        } else if (scanResult.is_compliant === false && isHomeless) {
+          status = 'fc_exempt';
+          details = '⚠️ At Risk (FC Act Exempt) - Homeless protection applies';
+          playSounds.homeless();
+        } else if (scanResult.is_compliant === false) {
+          status = 'breach';
+          details = scanResult.alerts?.find((a: string) => a.includes('BREACH')) || 'Non-compliant - breach detected';
+          playSounds.violationAlert();
+        } else if (isAtRisk && !isHomeless) {
+          status = 'at_risk';
+          details = '🟡 At Risk - Monitor compliance';
+          playSounds.violationAlert();
+        } else if (isAtRisk && isHomeless) {
+          status = 'fc_exempt';
+          details = '🟡 At Risk (FC Exempt) - Homeless protection applies';
+          playSounds.homeless();
+        } else if (isHomeless) {
+          status = 'fc_exempt';
+          details = '💜 Homeless (FC Act Exempt)';
+          playSounds.homeless();
+        } else {
+          playSounds.processingComplete();
+        }
+        
+        const newItem: QueueItem = {
+          id: scanResult.observation_id || `queue-${Date.now()}`,
+          plateNumber,
+          vehicleMake: scanResult.vehicle_details?.make, // May be available from canonical_vehicles
+          vehicleModel: scanResult.vehicle_details?.model,
+          vehicleColor: scanResult.vehicle_details?.color,
+          photoUrl: publicUrl,
+          status,
+          complianceDetails: details,
+          timestamp: new Date(),
+          vehicleId: scanResult.vehicle_id,
+          observationId: scanResult.observation_id,
+        };
+        
+        setCaptureAnimation(true);
+        setTimeout(() => setCaptureAnimation(false), 600);
+        
+        setQueue(prev => {
+          const updated = [newItem, ...prev];
+          localStorage.setItem(`zoom-queue-${zoneId}`, JSON.stringify(updated));
+          console.log('✅ Added manual entry to queue:', newItem.plateNumber);
+          return updated;
+        });
+        
+        if (status === 'breach' && !scanResult.is_flagged) {
+          setSafetyAlertItem(newItem);
+        }
+        
+        if (status === 'compliant') {
+          setTimeout(() => {
+            setQueue(prev => {
+              const updated = prev.filter(item => item.id !== newItem.id);
+              localStorage.setItem(`zoom-queue-${zoneId}`, JSON.stringify(updated));
+              return updated;
+            });
+          }, 10000);
+        }
+        
+        if (status === 'fc_exempt') {
+          setTimeout(() => {
+            setQueue(prev => {
+              const updated = prev.filter(item => item.id !== newItem.id);
+              localStorage.setItem(`zoom-queue-${zoneId}`, JSON.stringify(updated));
+              return updated;
+            });
+          }, 15000);
+        }
+        
         setIsProcessing(false);
         return;
       }
