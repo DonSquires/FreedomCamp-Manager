@@ -272,48 +272,10 @@ export function ZoomScanQueue({
       canvas.height = video.videoHeight;
       context.drawImage(video, 0, 0);
 
-      let imageDataUrl = canvas.toDataURL('image/jpeg', 0.95);
+      // ✅ KEEP PHOTO IN MEMORY (don't upload yet - save storage)
+      const imageDataUrl = canvas.toDataURL('image/jpeg', 0.95);
+      console.log('📸 Photo captured - keeping in memory for ALPR attempt...');
 
-      // ✅ APPLY WATERMARK BEFORE UPLOAD (LEGAL COMPLIANCE)
-      if (gpsLocation && user) {
-        try {
-          console.log('📸 Applying GPS watermark to photo...');
-          imageDataUrl = await applyWatermark(imageDataUrl, {
-            gpsLatitude: gpsLocation.lat,
-            gpsLongitude: gpsLocation.lng,
-            gpsAccuracy: 10, // Assume good accuracy for zoom scans
-            timestamp: new Date(),
-            officerName: `${user.first_name} ${user.last_name}`,
-            organizationName: organizationName,
-            zoneName: zoneName,
-          });
-          console.log('✅ Watermark applied successfully');
-        } catch (error) {
-          console.error('❌ Watermark failed:', error);
-          // Continue without watermark - visual queue will show result
-        }
-      } else {
-        console.warn('⚠️ No GPS or user data - skipping watermark');
-        // Continue without watermark - visual queue will show result
-      }
-
-      // Visual feedback shown in queue header instead of toast
-
-      // Upload watermarked photo
-      const blob = await fetch(imageDataUrl).then(r => r.blob());
-      const fileName = `scans/${Date.now()}_${Math.random().toString(36).slice(2)}.jpg`;
-      
-      const { error: uploadError } = await supabase.storage
-        .from('evidence')
-        .upload(fileName, blob);
-
-      if (uploadError) throw uploadError;
-
-      const { data: { publicUrl } } = await supabase.storage
-        .from('evidence')
-        .getPublicUrl(fileName);
-
-      // Recognize plate
       const { data: recognitionData, error: recognitionError } = await supabase.functions.invoke('recognize-plate', {
         body: { 
           image: imageDataUrl,
@@ -323,24 +285,64 @@ export function ZoomScanQueue({
       });
 
       if (recognitionError || !recognitionData?.success) {
-        console.error('❌ Plate recognition failed:', recognitionData?.error || recognitionError?.message || 'Unknown error');
-        playSounds.processingComplete(); // Audio feedback for failure
+        console.error('❌ ALPR failed:', recognitionData?.error || recognitionError?.message);
+        playSounds.processingComplete();
         
-        // ✅ FIX: Prompt for manual entry when ALPR fails (don't silently fail)
+        // ✅ PROMPT: Manual entry or retry (NO UPLOAD YET - save storage)
         const manualPlate = prompt(
-          '❌ Automatic plate recognition failed.\n\nPlease enter the plate number manually:'
+          '❌ Automatic plate recognition failed.\n\nEnter plate manually, or Cancel to retry photo:'
         );
         
         if (!manualPlate || !manualPlate.trim()) {
-          // User cancelled - just return to scanning
+          // ✅ User cancelled - NO PHOTO UPLOADED (save storage)
+          console.log('⚠️ Manual entry cancelled - photo discarded (not uploaded)');
           setIsProcessing(false);
           return;
         }
         
         const plateNumber = manualPlate.toUpperCase().trim();
-        console.log('📝 Manual plate entry:', plateNumber);
+        console.log('📝 Manual entry accepted:', plateNumber);
         
-        // Process manual entry (no ALPR vehicle details available)
+        // ✅ NOW upload photo (manual entry confirmed - don't waste storage on cancels)
+        console.log('📤 Uploading photo with watermark for manual entry...');
+        let finalImageDataUrl = imageDataUrl;
+        
+        // Apply watermark before upload
+        if (gpsLocation && user) {
+          try {
+            finalImageDataUrl = await applyWatermark(imageDataUrl, {
+              gpsLatitude: gpsLocation.lat,
+              gpsLongitude: gpsLocation.lng,
+              gpsAccuracy: 10,
+              timestamp: new Date(),
+              officerName: `${user.first_name} ${user.last_name}`,
+              organizationName: organizationName,
+              zoneName: zoneName,
+            });
+          } catch (error) {
+            console.warn('⚠️ Watermark failed, uploading without watermark:', error);
+          }
+        }
+        
+        const blob = await fetch(finalImageDataUrl).then(r => r.blob());
+        const fileName = `scans/${Date.now()}_${Math.random().toString(36).slice(2)}.jpg`;
+        
+        const { error: uploadError } = await supabase.storage
+          .from('evidence')
+          .upload(fileName, blob);
+
+        if (uploadError) {
+          console.error('❌ Upload failed:', uploadError);
+          throw uploadError;
+        }
+
+        const { data: { publicUrl } } = supabase.storage
+          .from('evidence')
+          .getPublicUrl(fileName);
+        
+        console.log('✅ Photo uploaded:', publicUrl);
+        
+        // Process manual entry
         const { data: scanResult, error: scanError } = await supabase.functions.invoke('process-field-scan', {
           body: {
             plateNumber,
@@ -452,8 +454,48 @@ export function ZoomScanQueue({
       }
 
       const plateNumber = recognitionData.plate_number;
+      console.log('✅ ALPR success:', plateNumber);
 
-      // Process field scan
+      // ✅ STEP 2: Upload photo NOW (ALPR succeeded - commit to storage)
+      console.log('📤 Uploading photo with watermark...');
+      let finalImageDataUrl = imageDataUrl;
+      
+      // Apply watermark
+      if (gpsLocation && user) {
+        try {
+          finalImageDataUrl = await applyWatermark(imageDataUrl, {
+            gpsLatitude: gpsLocation.lat,
+            gpsLongitude: gpsLocation.lng,
+            gpsAccuracy: 10,
+            timestamp: new Date(),
+            officerName: `${user.first_name} ${user.last_name}`,
+            organizationName: organizationName,
+            zoneName: zoneName,
+          });
+        } catch (error) {
+          console.warn('⚠️ Watermark failed, uploading without watermark:', error);
+        }
+      }
+      
+      const blob = await fetch(finalImageDataUrl).then(r => r.blob());
+      const fileName = `scans/${Date.now()}_${Math.random().toString(36).slice(2)}.jpg`;
+      
+      const { error: uploadError } = await supabase.storage
+        .from('evidence')
+        .upload(fileName, blob);
+
+      if (uploadError) {
+        console.error('❌ Upload failed:', uploadError);
+        throw uploadError;
+      }
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('evidence')
+        .getPublicUrl(fileName);
+      
+      console.log('✅ Photo uploaded:', publicUrl);
+
+      // ✅ STEP 3: Process field scan with uploaded photo
       const { data: scanResult, error: scanError } = await supabase.functions.invoke('process-field-scan', {
         body: {
           plateNumber,
