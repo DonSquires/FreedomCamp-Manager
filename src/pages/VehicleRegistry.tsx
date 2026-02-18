@@ -148,6 +148,12 @@ export function VehicleRegistry() {
   const [hasSearched, setHasSearched] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
+  // Read URL parameters (when used from BI drill-down)
+  const urlParams = new URLSearchParams(window.location.search);
+  const biDateFrom = urlParams.get('dateFrom');
+  const biDateTo = urlParams.get('dateTo');
+  const biOrgId = urlParams.get('orgId');
+
   // Filters
   const [searchPlate, setSearchPlate] = useState<string>('');
   const [filterHomeless, setFilterHomeless] = useState<string>('all');
@@ -197,6 +203,12 @@ export function VehicleRegistry() {
   // Load stats on mount
   useEffect(() => {
     loadStats();
+    
+    // Auto-search if BI date filters provided
+    if (biDateFrom && biDateTo) {
+      console.log('📊 BI drill-down detected - auto-loading vehicles for date range:', biDateFrom, 'to', biDateTo);
+      handleSearch();
+    }
   }, []);
 
   const loadStats = async () => {
@@ -232,7 +244,7 @@ export function VehicleRegistry() {
   };
 
   const handleSearch = async () => {
-    if (!searchPlate.trim() && filterHomeless === 'all' && filterFlagged === 'all' && !filterHasBreaches) {
+    if (!searchPlate.trim() && filterHomeless === 'all' && filterFlagged === 'all' && !filterHasBreaches && !biDateFrom && !biDateTo) {
       // Load all if no filters
       toast.info('Loading all vehicles...');
     }
@@ -241,6 +253,68 @@ export function VehicleRegistry() {
     setHasSearched(true);
 
     try {
+      // If BI date filters exist, we need to filter by observations in that date range
+      if (biDateFrom && biDateTo) {
+        console.log('📋 Filtering vehicles by observation date range:', biDateFrom, 'to', biDateTo);
+        
+        // Get plate numbers that have observations in the date range
+        const { data: obsData } = await supabase
+          .from('vehicle_observations_v2')
+          .select('plate_number')
+          .gte('recorded_at', `${biDateFrom}T00:00:00`)
+          .lte('recorded_at', `${biDateTo}T23:59:59`);
+        
+        const platesInRange = Array.from(new Set(obsData?.map(o => o.plate_number) || []));
+        
+        if (platesInRange.length === 0) {
+          setVehicles([]);
+          setFilteredVehicles([]);
+          toast.info('No vehicles found in selected date range');
+          setIsLoading(false);
+          return;
+        }
+        
+        // Now get canonical vehicle records for those plates
+        let query = supabase
+          .from('canonical_vehicles')
+          .select('*')
+          .in('plate_number', platesInRange)
+          .order('last_seen_at', { ascending: false });
+        
+        // Apply additional filters
+        if (searchPlate.trim()) {
+          query = query.ilike('plate_number', `%${searchPlate.trim()}%`);
+        }
+
+        if (filterHomeless === 'confirmed') {
+          query = query.eq('homeless_status', 'confirmed');
+        } else if (filterHomeless === 'claimed') {
+          query = query.eq('homeless_status', 'claimed');
+        } else if (filterHomeless === 'none') {
+          query = query.eq('homeless_status', 'none');
+        }
+
+        if (filterFlagged === 'yes') {
+          query = query.eq('is_flagged', true);
+        } else if (filterFlagged === 'no') {
+          query = query.eq('is_flagged', false);
+        }
+
+        if (filterHasBreaches) {
+          query = query.gt('total_breaches', 0);
+        }
+        
+        const { data, error } = await query.limit(500);
+        
+        if (error) throw error;
+        
+        setVehicles(data || []);
+        setFilteredVehicles(data || []);
+        toast.success(`Found ${data?.length || 0} vehicle(s) in date range ${biDateFrom} to ${biDateTo}`);
+        return;
+      }
+      
+      // Normal search without date filter
       let query = supabase
         .from('canonical_vehicles')
         .select('*')
