@@ -3,7 +3,8 @@
  * Consolidates: Organization Overview + Compliance Dashboard + Analytics Hub
  * 
  * Features:
- * - Three-level drill-down: Overview → Zone → Vehicle Details
+ * - Multi-level drill-down: Overview → Zone → Observation → Vehicle Details
+ * - Date filters pass through all drill-down levels
  * - Real-time compliance monitoring with breach detection
  * - Advanced analytics: trends, zone performance, officer activity
  * - Comprehensive exports: CSV + PDF with photos
@@ -17,7 +18,6 @@ import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import {
   LineChart,
   Line,
@@ -41,11 +41,9 @@ import {
   MapPin,
   Car,
   AlertTriangle,
-  TrendingUp,
   ChevronRight,
   ChevronLeft,
   Home,
-  ArrowLeft,
   Download,
   Eye,
   Clock,
@@ -53,20 +51,21 @@ import {
   CheckCircle2,
   BarChart3,
   Activity,
-  FileText,
-  Users,
   Award,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/stores/authStore';
 import { exportComprehensiveCSV } from '@/lib/csvExport';
+import { ZoneDrillDown } from './ZoneDrillDown';
+import { ObservationDetailModal } from './ObservationDetailModal';
+import { VehicleDetailPage } from './VehicleDetailPage';
 
 const COLORS = ['#22c55e', '#ef4444', '#f59e0b', '#3b82f6', '#8b5cf6', '#ec4899', '#06b6d4'];
 
 // ==================== TYPE DEFINITIONS ====================
 
-type ViewLevel = 'overview' | 'zone';
+type ViewLevel = 'overview' | 'zone' | 'observation' | 'vehicle';
 
 interface DashboardMetrics {
   totalObservations: number;
@@ -94,21 +93,6 @@ interface ZoneStats {
   homeless: number;
   compliance: number;
   breaches: number;
-}
-
-interface VehicleCard {
-  plate_number: string;
-  make: string | null;
-  model: string | null;
-  color: string | null;
-  year: number | null;
-  observations: number;
-  status: 'overstayer' | 'at_risk' | 'compliant' | 'flagged' | 'homeless';
-  is_flagged: boolean;
-  homeless_status: string | null;
-  profile_photo: string | null;
-  first_seen: string;
-  last_seen: string;
 }
 
 interface DailyTrend {
@@ -143,31 +127,6 @@ const formatLocalDate = (date: Date): string => {
   return `${year}-${month}-${day}`;
 };
 
-const getStatusColor = (status: VehicleCard['status']): string => {
-  switch (status) {
-    case 'overstayer': return 'border-2 border-red-500 bg-red-50 dark:bg-red-950/30';
-    case 'at_risk': return 'border-2 border-amber-500 bg-amber-50 dark:bg-amber-950/30';
-    case 'flagged': return 'border-2 border-purple-500 bg-purple-50 dark:bg-purple-950/30';
-    case 'homeless': return 'border-2 border-cyan-500 bg-cyan-50 dark:bg-cyan-950/30';
-    case 'compliant': return 'border-2 border-green-500 bg-green-50 dark:bg-green-950/30';
-  }
-};
-
-const getStatusBadge = (status: VehicleCard['status']) => {
-  switch (status) {
-    case 'overstayer':
-      return <Badge variant="destructive" className="gap-1"><AlertTriangle className="h-3 w-3" />OVERSTAYER</Badge>;
-    case 'at_risk':
-      return <Badge className="gap-1 bg-amber-600"><Clock className="h-3 w-3" />AT RISK</Badge>;
-    case 'flagged':
-      return <Badge className="gap-1 bg-purple-600"><Flag className="h-3 w-3" />FLAGGED</Badge>;
-    case 'homeless':
-      return <Badge className="gap-1 bg-cyan-600"><Home className="h-3 w-3" />HOMELESS</Badge>;
-    case 'compliant':
-      return <Badge className="gap-1 bg-green-600"><CheckCircle2 className="h-3 w-3" />COMPLIANT</Badge>;
-  }
-};
-
 // ==================== MAIN COMPONENT ====================
 
 export function UnifiedDashboard() {
@@ -178,12 +137,13 @@ export function UnifiedDashboard() {
   const [viewLevel, setViewLevel] = useState<ViewLevel>('overview');
   const [activeTab, setActiveTab] = useState<'summary' | 'trends' | 'zones' | 'officers' | 'breaches'>('summary');
   const [selectedZone, setSelectedZone] = useState<ZoneStats | null>(null);
+  const [selectedObservationId, setSelectedObservationId] = useState<string | null>(null);
+  const [selectedVehiclePlate, setSelectedVehiclePlate] = useState<string | null>(null);
 
   // Data state
   const [isLoading, setIsLoading] = useState(false);
   const [metrics, setMetrics] = useState<DashboardMetrics | null>(null);
   const [zones, setZones] = useState<ZoneStats[]>([]);
-  const [vehicles, setVehicles] = useState<VehicleCard[]>([]);
   const [dailyTrends, setDailyTrends] = useState<DailyTrend[]>([]);
   const [breachTypes, setBreachTypes] = useState<BreachType[]>([]);
   const [officerStats, setOfficerStats] = useState<OfficerStats[]>([]);
@@ -279,9 +239,7 @@ export function UnifiedDashboard() {
     try {
       console.log('📊 Loading unified dashboard...');
 
-      // Build observations query
-      // ⚠️ RLS automatically filters by accessible orgs (primary + authorized_work_locations + descendants)
-      // Only apply manual org filter if master explicitly selects a specific organization
+      // Build observations query with date filters
       let obsQuery = supabase
         .from('vehicle_observations_v2')
         .select(`
@@ -314,14 +272,13 @@ export function UnifiedDashboard() {
       if (isMaster && selectedOrgId !== 'all') {
         obsQuery = obsQuery.eq('organization_id', selectedOrgId);
       }
-      // For non-master users, RLS handles org filtering automatically
 
       const { data: observations } = await obsQuery;
       const obs = observations || [];
 
       console.log(`✅ Loaded ${obs.length} observations`);
 
-      // Calculate core metrics
+      // Calculate metrics
       const uniquePlates = new Set(obs.map(o => o.plate_number));
       const uniqueZones = new Set(obs.map(o => o.zone_id));
 
@@ -336,7 +293,6 @@ export function UnifiedDashboard() {
         obs.filter(o => (o.canonical_vehicles as any)?.is_flagged).map(o => o.plate_number)
       );
 
-      const compliantObs = obs.filter(o => o.is_compliant).length;
       const breachObs = obs.filter(o => o.is_breach).length;
 
       // Monthly stays for overstayer/at-risk
@@ -350,7 +306,6 @@ export function UnifiedDashboard() {
         .gte('calendar_month', fromMonth)
         .lte('calendar_month', toMonth);
 
-      // Only filter by org if master user explicitly selects one
       if (isMaster && selectedOrgId !== 'all') {
         staysQuery = staysQuery.eq('organization_id', selectedOrgId);
       }
@@ -363,7 +318,6 @@ export function UnifiedDashboard() {
         .select('zone_id, max_consecutive_nights, nights_per_month')
         .is('effective_to', null);
 
-      // Only filter by org if master user explicitly selects one
       if (isMaster && selectedOrgId !== 'all') {
         matrixQuery = matrixQuery.eq('organization_id', selectedOrgId);
       }
@@ -397,7 +351,6 @@ export function UnifiedDashboard() {
         .eq('is_active', true)
         .in('role', ['officer', 'admin_officer']);
 
-      // Only filter by org if master user explicitly selects one
       if (isMaster && selectedOrgId !== 'all') {
         officerQuery = officerQuery.eq('organization_id', selectedOrgId);
       }
@@ -594,106 +547,9 @@ export function UnifiedDashboard() {
     }
   };
 
-  const drillToZone = async (zone: ZoneStats) => {
+  const drillToZone = (zone: ZoneStats) => {
     setSelectedZone(zone);
-    setIsLoading(true);
-
-    try {
-      // Get all vehicles in this zone during date range
-      const { data: zoneObs } = await supabase
-        .from('vehicle_observations_v2')
-        .select('plate_number')
-        .eq('zone_id', zone.zone_id)
-        .gte('recorded_at', `${dateFrom}T00:00:00`)
-        .lte('recorded_at', `${dateTo}T23:59:59`);
-
-      const plateMap = new Map<string, number>();
-      (zoneObs || []).forEach(o => {
-        plateMap.set(o.plate_number, (plateMap.get(o.plate_number) || 0) + 1);
-      });
-
-      const uniquePlates = Array.from(plateMap.keys());
-
-      if (uniquePlates.length === 0) {
-        setVehicles([]);
-        setViewLevel('zone');
-        setIsLoading(false);
-        return;
-      }
-
-      // Get vehicle details
-      const { data: vehicleDetails } = await supabase
-        .from('canonical_vehicles')
-        .select('*')
-        .in('plate_number', uniquePlates);
-
-      // Get monthly stays for status
-      const fromMonth = dateFrom.slice(0, 7) + '-01';
-      const toMonth = dateTo.slice(0, 7) + '-01';
-
-      const { data: zoneStays } = await supabase
-        .from('vehicle_monthly_stays')
-        .select('plate_number, consecutive_nights, nights_stayed')
-        .in('plate_number', uniquePlates)
-        .eq('zone_id', zone.zone_id)
-        .gte('calendar_month', fromMonth)
-        .lte('calendar_month', toMonth);
-
-      const { data: zoneMatrix } = await supabase
-        .from('zone_compliance_matrix')
-        .select('max_consecutive_nights, nights_per_month')
-        .eq('zone_id', zone.zone_id)
-        .is('effective_to', null)
-        .single();
-
-      const overstayersSet = new Set<string>();
-      const atRiskSet = new Set<string>();
-
-      (zoneStays || []).forEach(stay => {
-        if (!zoneMatrix) return;
-        if (stay.consecutive_nights > zoneMatrix.max_consecutive_nights || stay.nights_stayed > zoneMatrix.nights_per_month) {
-          overstayersSet.add(stay.plate_number);
-        } else if (stay.consecutive_nights === zoneMatrix.max_consecutive_nights || stay.nights_stayed === zoneMatrix.nights_per_month) {
-          atRiskSet.add(stay.plate_number);
-        }
-      });
-
-      let vehicleList: VehicleCard[] = (vehicleDetails || []).map(v => {
-        const obsCount = plateMap.get(v.plate_number) || 0;
-        
-        let status: VehicleCard['status'] = 'compliant';
-        if (overstayersSet.has(v.plate_number)) status = 'overstayer';
-        else if (atRiskSet.has(v.plate_number)) status = 'at_risk';
-        else if (v.is_flagged) status = 'flagged';
-        else if (v.homeless_status === 'confirmed') status = 'homeless';
-
-        return {
-          plate_number: v.plate_number,
-          make: v.vehicle_make,
-          model: v.vehicle_model,
-          color: v.vehicle_color,
-          year: v.vehicle_year,
-          observations: obsCount,
-          status,
-          is_flagged: v.is_flagged,
-          homeless_status: v.homeless_status,
-          profile_photo: v.profile_photo,
-          first_seen: v.first_seen_at,
-          last_seen: v.last_seen_at,
-        };
-      });
-
-      vehicleList.sort((a, b) => b.observations - a.observations);
-
-      setVehicles(vehicleList);
-      setViewLevel('zone');
-
-    } catch (error: any) {
-      console.error('Failed to drill to zone:', error);
-      toast.error('Failed to load zone details');
-    } finally {
-      setIsLoading(false);
-    }
+    setViewLevel('zone');
   };
 
   const exportCSV = async () => {
@@ -712,7 +568,7 @@ export function UnifiedDashboard() {
       userId: user.id,
       stats: metrics,
       zones,
-      vehicles,
+      vehicles: [],
     });
   };
 
@@ -725,7 +581,9 @@ export function UnifiedDashboard() {
   }, [isMaster]);
 
   useEffect(() => {
-    loadDashboard();
+    if (viewLevel === 'overview') {
+      loadDashboard();
+    }
   }, [dateFrom, dateTo, selectedOrgId]);
 
   const daysDiff = Math.ceil((new Date(dateTo).getTime() - new Date(dateFrom).getTime()) / (1000 * 60 * 60 * 24)) + 1;
@@ -734,135 +592,142 @@ export function UnifiedDashboard() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between flex-wrap gap-4">
-        <div>
-          <h1 className="text-3xl font-bold flex items-center gap-3">
-            <BarChart3 className="h-8 w-8 text-primary" />
-            Unified BI Dashboard
-          </h1>
-          <p className="text-muted-foreground mt-1">
-            Complete analytics, compliance monitoring, and reporting
-          </p>
-        </div>
-
-        <div className="flex items-center gap-2">
-          {viewLevel === 'zone' && (
-            <Button variant="outline" onClick={() => {
-              setViewLevel('overview');
-              setSelectedZone(null);
-              setVehicles([]);
-            }}>
-              <ArrowLeft className="h-4 w-4 mr-2" />
-              Back to Overview
-            </Button>
-          )}
-          <Button variant="outline" onClick={exportCSV}>
-            <Download className="h-4 w-4 mr-2" />
-            Export CSV
-          </Button>
-          <Button onClick={loadDashboard} disabled={isLoading}>
-            {isLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
-            Refresh
-          </Button>
-        </div>
-      </div>
-
-      {/* Breadcrumbs */}
-      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => {
+      {/* ZONE DRILL-DOWN VIEW */}
+      {viewLevel === 'zone' && selectedZone && (
+        <ZoneDrillDown
+          zoneId={selectedZone.zone_id}
+          zoneName={selectedZone.zone_name}
+          onBack={() => {
             setViewLevel('overview');
             setSelectedZone(null);
-            setVehicles([]);
           }}
-          className={viewLevel === 'overview' ? 'font-semibold text-foreground' : ''}
-        >
-          <Building2 className="h-3 w-3 mr-1" />
-          Dashboard
-        </Button>
-        
-        {selectedZone && (
-          <>
-            <ChevronRight className="h-4 w-4" />
-            <Button variant="ghost" size="sm" className="font-semibold text-foreground">
-              <MapPin className="h-3 w-3 mr-1" />
-              {selectedZone.zone_name}
-            </Button>
-          </>
-        )}
-      </div>
+          onObservationSelect={(obsId) => {
+            setSelectedObservationId(obsId);
+            setViewLevel('observation');
+          }}
+          dateFrom={dateFrom}
+          dateTo={dateTo}
+        />
+      )}
 
-      {/* Date Filters */}
-      <Card className="border-primary/20 bg-gradient-to-r from-primary/5 to-primary/10">
-        <CardContent className="p-4">
-          <div className="space-y-4">
-            <div className="flex flex-wrap items-center gap-2">
-              <Label className="text-sm font-medium mr-2">Quick Select:</Label>
-              <Button variant="outline" size="sm" onClick={() => setDateRange('today')}>Today</Button>
-              <Button variant="outline" size="sm" onClick={() => setDateRange('yesterday')}>Yesterday</Button>
-              <Button variant="outline" size="sm" onClick={() => setDateRange('last7')}>Last 7 Days</Button>
-              <Button variant="outline" size="sm" onClick={() => setDateRange('last30')}>Last 30 Days</Button>
-              <Button variant="outline" size="sm" onClick={() => setDateRange('last90')}>Last 90 Days</Button>
-              
-              <div className="ml-auto flex items-center gap-2">
-                <Button variant="outline" size="sm" onClick={() => navigateDays('prev')}>
-                  <ChevronLeft className="h-4 w-4" />
-                </Button>
-                <Button variant="outline" size="sm" onClick={() => navigateDays('next')}>
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
-              </div>
+      {/* OBSERVATION DETAIL MODAL */}
+      {viewLevel === 'observation' && selectedObservationId && (
+        <ObservationDetailModal
+          observationId={selectedObservationId}
+          open={true}
+          onClose={() => {
+            setSelectedObservationId(null);
+            setViewLevel('zone');
+          }}
+        />
+      )}
+
+      {/* VEHICLE DETAIL PAGE */}
+      {viewLevel === 'vehicle' && selectedVehiclePlate && (
+        <VehicleDetailPage
+          plateNumber={selectedVehiclePlate}
+          onBack={() => {
+            setSelectedVehiclePlate(null);
+            setViewLevel('zone');
+          }}
+          dateFrom={dateFrom}
+          dateTo={dateTo}
+        />
+      )}
+
+      {/* OVERVIEW */}
+      {viewLevel === 'overview' && (
+        <>
+          {/* Header */}
+          <div className="flex items-center justify-between flex-wrap gap-4">
+            <div>
+              <h1 className="text-3xl font-bold flex items-center gap-3">
+                <BarChart3 className="h-8 w-8 text-primary" />
+                Unified BI Dashboard
+              </h1>
+              <p className="text-muted-foreground mt-1">
+                Complete analytics, compliance monitoring, and reporting
+              </p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {isMaster && organizations.length > 0 && (
-                <div className="space-y-2">
-                  <Label>Organization</Label>
-                  <select
-                    value={selectedOrgId}
-                    onChange={(e) => setSelectedOrgId(e.target.value)}
-                    className="w-full px-3 py-2 border rounded-md bg-background"
-                  >
-                    <option value="all">All Organizations</option>
-                    {organizations.map(org => (
-                      <option key={org.id} value={org.id}>{org.name}</option>
-                    ))}
-                  </select>
-                </div>
-              )}
-              <div className="space-y-2">
-                <Label>From Date</Label>
-                <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
-              </div>
-              <div className="space-y-2">
-                <Label>To Date</Label>
-                <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Calendar className="h-4 w-4" />
-              <span>
-                Analyzing <strong>{daysDiff} days</strong> from{' '}
-                <strong>{new Date(dateFrom).toLocaleDateString('en-NZ')}</strong> to{' '}
-                <strong>{new Date(dateTo).toLocaleDateString('en-NZ')}</strong>
-              </span>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" onClick={exportCSV}>
+                <Download className="h-4 w-4 mr-2" />
+                Export CSV
+              </Button>
+              <Button onClick={loadDashboard} disabled={isLoading}>
+                {isLoading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+                Refresh
+              </Button>
             </div>
           </div>
-        </CardContent>
-      </Card>
 
-      {/* Main Content */}
-      {isLoading ? (
-        <div className="flex items-center justify-center py-24">
-          <Loader2 className="h-12 w-12 animate-spin text-primary" />
-        </div>
-      ) : (
-        <>
-          {viewLevel === 'overview' && metrics && (
+          {/* Date Filters */}
+          <Card className="border-primary/20 bg-gradient-to-r from-primary/5 to-primary/10">
+            <CardContent className="p-4">
+              <div className="space-y-4">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Label className="text-sm font-medium mr-2">Quick Select:</Label>
+                  <Button variant="outline" size="sm" onClick={() => setDateRange('today')}>Today</Button>
+                  <Button variant="outline" size="sm" onClick={() => setDateRange('yesterday')}>Yesterday</Button>
+                  <Button variant="outline" size="sm" onClick={() => setDateRange('last7')}>Last 7 Days</Button>
+                  <Button variant="outline" size="sm" onClick={() => setDateRange('last30')}>Last 30 Days</Button>
+                  <Button variant="outline" size="sm" onClick={() => setDateRange('last90')}>Last 90 Days</Button>
+                  
+                  <div className="ml-auto flex items-center gap-2">
+                    <Button variant="outline" size="sm" onClick={() => navigateDays('prev')}>
+                      <ChevronLeft className="h-4 w-4" />
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => navigateDays('next')}>
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {isMaster && organizations.length > 0 && (
+                    <div className="space-y-2">
+                      <Label>Organization</Label>
+                      <select
+                        value={selectedOrgId}
+                        onChange={(e) => setSelectedOrgId(e.target.value)}
+                        className="w-full px-3 py-2 border rounded-md bg-background"
+                      >
+                        <option value="all">All Organizations</option>
+                        {organizations.map(org => (
+                          <option key={org.id} value={org.id}>{org.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                  <div className="space-y-2">
+                    <Label>From Date</Label>
+                    <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>To Date</Label>
+                    <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <Calendar className="h-4 w-4" />
+                  <span>
+                    Analyzing <strong>{daysDiff} days</strong> from{' '}
+                    <strong>{new Date(dateFrom).toLocaleDateString('en-NZ')}</strong> to{' '}
+                    <strong>{new Date(dateTo).toLocaleDateString('en-NZ')}</strong>
+                  </span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Main Content */}
+          {isLoading ? (
+            <div className="flex items-center justify-center py-24">
+              <Loader2 className="h-12 w-12 animate-spin text-primary" />
+            </div>
+          ) : metrics && (
             <>
               {/* KPI Grid */}
               <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
@@ -1142,75 +1007,6 @@ export function UnifiedDashboard() {
                   )}
                 </TabsContent>
               </Tabs>
-            </>
-          )}
-
-          {viewLevel === 'zone' && selectedZone && (
-            <>
-              <Card className="bg-gradient-to-r from-primary/10 to-primary/5">
-                <CardContent className="p-6">
-                  <h2 className="text-2xl font-bold mb-2">{selectedZone.zone_name}</h2>
-                  <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                    <span>{selectedZone.observations} observations</span>
-                    <span>{selectedZone.vehicles} vehicles</span>
-                    <Badge variant={selectedZone.compliance >= 80 ? 'default' : 'destructive'}>
-                      {selectedZone.compliance}% compliance
-                    </Badge>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card>
-                <CardHeader>
-                  <CardTitle>Vehicles ({vehicles.length})</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    {vehicles.map(vehicle => (
-                      <Card
-                        key={vehicle.plate_number}
-                        className={`${getStatusColor(vehicle.status)} cursor-pointer hover:shadow-xl transition-all`}
-                      >
-                        <CardContent className="p-4">
-                          <div className="flex items-center gap-4">
-                            {vehicle.profile_photo && (
-                              <div className="w-20 h-20 rounded-lg overflow-hidden border-2">
-                                <img src={vehicle.profile_photo} alt={vehicle.plate_number} className="w-full h-full object-cover" />
-                              </div>
-                            )}
-                            
-                            <div className="flex-1">
-                              <div className="flex items-center gap-2 mb-2">
-                                <Badge variant="outline" className="font-mono text-base">
-                                  {vehicle.plate_number}
-                                </Badge>
-                                {getStatusBadge(vehicle.status)}
-                              </div>
-
-                              <div className="grid grid-cols-3 gap-3 text-sm">
-                                <div>
-                                  <div className="text-xs text-muted-foreground">Vehicle</div>
-                                  <div className="font-medium">
-                                    {vehicle.make || 'Unknown'} {vehicle.model || ''}
-                                  </div>
-                                </div>
-                                <div>
-                                  <div className="text-xs text-muted-foreground">Observations</div>
-                                  <div className="font-bold text-lg">{vehicle.observations}</div>
-                                </div>
-                                <div>
-                                  <div className="text-xs text-muted-foreground">Last Seen</div>
-                                  <div className="text-xs">{new Date(vehicle.last_seen).toLocaleDateString('en-NZ')}</div>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
             </>
           )}
         </>
