@@ -16,7 +16,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Camera, X, Loader2, AlertTriangle } from 'lucide-react';
+import { Camera, X, Loader2, AlertTriangle, Flashlight, ZoomIn } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { playSounds } from '@/lib/sounds';
 import { useAuthStore } from '@/stores/authStore';
@@ -46,12 +46,16 @@ export function ZoomScanQueue({
   const [queue, setQueue] = useState<QueueItem[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [cameraReady, setCameraReady] = useState(false);
+  const [zoomLevel, setZoomLevel] = useState(1);
+  const [torchEnabled, setTorchEnabled] = useState(false);
+  const [currentTime, setCurrentTime] = useState(new Date());
+  const [gpsLocation, setGpsLocation] = useState<{ lat: number; lng: number } | null>(null);
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
 
-  // Initialize camera
+  // Initialize camera with zoom capabilities
   useEffect(() => {
     let mounted = true;
     
@@ -89,6 +93,60 @@ export function ZoomScanQueue({
       }
     };
   }, []);
+
+  // Update time every second
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  // Get GPS location
+  useEffect(() => {
+    if ('geolocation' in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          setGpsLocation({
+            lat: position.coords.latitude,
+            lng: position.coords.longitude,
+          });
+        },
+        (error) => {
+          console.error('GPS error:', error);
+        }
+      );
+    }
+  }, []);
+
+  // Handle zoom changes
+  useEffect(() => {
+    if (!streamRef.current) return;
+
+    const videoTrack = streamRef.current.getVideoTracks()[0];
+    const capabilities = videoTrack.getCapabilities();
+
+    if (capabilities.zoom) {
+      videoTrack.applyConstraints({
+        advanced: [{ zoom: zoomLevel }]
+      }).catch(err => console.error('Zoom error:', err));
+    }
+  }, [zoomLevel]);
+
+  // Handle torch toggle
+  useEffect(() => {
+    if (!streamRef.current) return;
+
+    const videoTrack = streamRef.current.getVideoTracks()[0];
+    const capabilities = videoTrack.getCapabilities();
+
+    if (capabilities.torch) {
+      videoTrack.applyConstraints({
+        advanced: [{ torch: torchEnabled }]
+      }).catch(err => console.error('Torch error:', err));
+    }
+  }, [torchEnabled]);
 
   const captureAndProcess = async () => {
     if (!videoRef.current || !canvasRef.current || !user) return;
@@ -275,9 +333,57 @@ export function ZoomScanQueue({
         />
         <canvas ref={canvasRef} className="hidden" />
         
-        {/* Zone Info */}
-        <div className="absolute top-4 left-4 bg-black/50 backdrop-blur-md rounded-lg p-3 border border-white/20">
-          <p className="text-white font-bold">{zoneName}</p>
+        {/* Zone, Location, Date & Time Info - Top Left - 50% Opacity */}
+        <div className="absolute top-4 left-4 bg-black/50 backdrop-blur-md rounded-lg p-3 border border-white/20 opacity-50">
+          <div className="text-white space-y-1">
+            <p className="font-bold text-sm">{zoneName}</p>
+            {gpsLocation && (
+              <p className="text-xs">
+                📍 {gpsLocation.lat.toFixed(5)}, {gpsLocation.lng.toFixed(5)}
+              </p>
+            )}
+            <p className="text-xs">
+              📅 {currentTime.toLocaleDateString('en-NZ')}
+            </p>
+            <p className="text-xs">
+              🕐 {currentTime.toLocaleTimeString('en-NZ', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+            </p>
+          </div>
+        </div>
+
+        {/* Vertical Zoom Slider - Right Side - 50% Opacity */}
+        <div className="absolute right-6 top-1/2 -translate-y-1/2 flex flex-col items-center gap-4 bg-black/50 backdrop-blur-md rounded-full p-4 border border-white/20 opacity-50">
+          <ZoomIn className="h-5 w-5 text-white" />
+          <input
+            type="range"
+            min="1"
+            max="5"
+            step="0.1"
+            value={zoomLevel}
+            onChange={(e) => setZoomLevel(parseFloat(e.target.value))}
+            className="w-48 -rotate-90 origin-center"
+            style={{
+              WebkitAppearance: 'slider-vertical',
+              writingMode: 'bt-lr',
+            }}
+          />
+          <span className="text-white text-xs font-bold">{zoomLevel.toFixed(1)}x</span>
+        </div>
+
+        {/* Torch Toggle - Left Side Bottom - 50% Opacity */}
+        <div className="absolute left-6 bottom-32 opacity-50">
+          <Button
+            onClick={() => setTorchEnabled(!torchEnabled)}
+            variant="ghost"
+            size="icon"
+            className={`h-14 w-14 rounded-full backdrop-blur-md border ${
+              torchEnabled 
+                ? 'bg-yellow-500/80 border-yellow-300 text-white' 
+                : 'bg-black/60 border-white/20 text-white'
+            }`}
+          >
+            <Flashlight className="h-7 w-7" />
+          </Button>
         </div>
 
         {/* Capture Button */}
