@@ -1,92 +1,18 @@
 // ============================================================================
-// PLATE SCANNER PHOTO-FIRST - LAYER 1 INGEST (v2)
+// PLATE SCANNER PHOTO-FIRST - LAYER 1 INGEST (v2 - REBUILT)
 // ============================================================================
 // Purpose: Photo-first observation ingest with immutable evidence and idempotency
-// Flow: Upload → Hash → Verify → Create Observation → Return observation_id
+// Flow: Upload → Hash → Verify → Create Observation → ALPR → Return observation_id
 // Officer App polls get_observation_result() for compliance evaluation
 // ============================================================================
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
 import { corsHeaders } from '../_shared/cors.ts';
+import { detectPlate, computeSHA256 } from '../_shared/alpr.ts';
 
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-
-// ============================================================================
-// CENTRALIZED ALPR HELPER - Single source of truth for plate recognition
-// ============================================================================
-interface ALPRResult {
-  plate: string | null;
-  confidence: number | null;
-  make: string | null;
-  model: string | null;
-  color: string | null;
-  year: string | null;
-  raw: any;
-}
-
-async function detectPlate(photoBytes: Uint8Array): Promise<ALPRResult> {
-  const url = Deno.env.get('ALPR_API_URL') || 'https://api.platerecognizer.com/v1/plate-reader/';
-  const key = Deno.env.get('PLATE_RECOGNIZER_API_KEY');
-  
-  if (!key) {
-    console.error('❌ ALPR key missing - plate detection disabled');
-    return { plate: null, confidence: null, make: null, model: null, color: null, year: null, raw: null };
-  }
-
-  console.log('📡 Calling ALPR:', { url, bytes: photoBytes.length });
-
-  try {
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Token ${key}`,
-        'Content-Type': 'application/octet-stream',
-      },
-      body: photoBytes,
-      signal: AbortSignal.timeout(15000), // 15s timeout for cold starts
-    });
-
-    const text = await res.text();
-    
-    if (!res.ok) {
-      console.error('❌ ALPR API error:', res.status, text.slice(0, 256));
-      return { plate: null, confidence: null, make: null, model: null, color: null, year: null, raw: text };
-    }
-
-    const json = JSON.parse(text);
-    console.log('📊 ALPR raw response:', JSON.stringify(json).slice(0, 500));
-
-    // Extract best result
-    const results = json?.results || [];
-    if (results.length === 0) {
-      console.warn('⚠️ ALPR returned no plates');
-      return { plate: null, confidence: null, make: null, model: null, color: null, year: null, raw: json };
-    }
-
-    const best = results[0];
-    const plate = best?.plate?.toUpperCase?.().replace(/[^A-Z0-9]/g, '') || null;
-    const confidence = best?.score || null;
-    
-    // Extract vehicle details if available (MMC)
-    const makeModel = best?.model_make?.[0];
-    const make = makeModel?.make || null;
-    const model = makeModel?.model || null;
-    const color = best?.color?.[0]?.color || null;
-    const year = best?.year?.year_range?.[0] || null;
-
-    console.log(`✅ ALPR detected: ${plate} (confidence: ${confidence})`);
-    if (make || model || color) {
-      console.log(`📋 Vehicle details: ${make} ${model} ${color} ${year || ''}`);
-    }
-
-    return { plate, confidence, make, model, color, year, raw: json };
-  } catch (error: any) {
-    console.error('❌ ALPR exception:', error.message);
-    return { plate: null, confidence: null, make: null, model: null, color: null, year: null, raw: null };
-  }
-}
 
 serve(async (req) => {
   // CORS preflight
@@ -98,7 +24,6 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     // Parse multipart form data or JSON body
-    let formData: FormData;
     let photoFile: File | null = null;
     let gpsLatitude: number;
     let gpsLongitude: number;
@@ -110,12 +35,13 @@ serve(async (req) => {
     let idempotencyKey: string | null = null;
     let zoneId: string | null = null;
     let organizationId: string | null = null;
+    let gpsAccuracy: number = 0;
 
     const contentType = req.headers.get('content-type') || '';
     
     if (contentType.includes('multipart/form-data')) {
       // Multipart form data (original format)
-      formData = await req.formData();
+      const formData = await req.formData();
       photoFile = formData.get('photo') as File;
       gpsLatitude = parseFloat(formData.get('gps_latitude') as string);
       gpsLongitude = parseFloat(formData.get('gps_longitude') as string);
@@ -127,6 +53,7 @@ serve(async (req) => {
       idempotencyKey = formData.get('idempotency_key') as string;
       zoneId = formData.get('zone_id') as string | null;
       organizationId = formData.get('organization_id') as string | null;
+      gpsAccuracy = parseFloat(formData.get('gps_accuracy') as string || '0');
     } else {
       // JSON body (from UI)
       const body = await req.json();
@@ -140,6 +67,7 @@ serve(async (req) => {
       
       gpsLatitude = body.gpsLocation?.lat || body.gps_latitude;
       gpsLongitude = body.gpsLocation?.lng || body.gps_longitude;
+      gpsAccuracy = body.gpsLocation?.accuracy || body.gps_accuracy || 0;
       recordedAt = body.recordedAt || new Date().toISOString();
       officerId = body.userId || body.officer_id;
       plateNumber = body.plateNumber || null;
@@ -150,12 +78,12 @@ serve(async (req) => {
       organizationId = body.organizationId || body.organization_id || null;
     }
 
-    console.log('📥 Received scan:', { 
-      userId: officerId, 
-      zoneId, 
-      hasPhoto: !!photoFile,
-      contentType,
-    });
+    // ============================================================================
+    // STRUCTURED LOGGING - Breadcrumb format
+    // ============================================================================
+    const scanId = `${officerId}:${Date.now()}`;
+    console.log(`📥 Received scan { scanId: ${scanId}, userId: ${officerId}, zoneId: ${zoneId}, bytes: ${photoFile?.size || 0} }`);
+
     // Validation
     if (!photoFile || !officerId) {
       return new Response(
@@ -175,7 +103,7 @@ serve(async (req) => {
         .single();
 
       if (existing) {
-        console.log(`Duplicate request detected: ${idempotencyKey}, returning existing observation ${existing.observation_id}`);
+        console.log(`⚠️ Duplicate request: ${idempotencyKey}, returning existing ${existing.observation_id}`);
         return new Response(
           JSON.stringify({ observation_id: existing.observation_id, duplicate: true }),
           { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -189,10 +117,9 @@ serve(async (req) => {
     const photoBytes = await photoFile.arrayBuffer();
     const photoBuffer = new Uint8Array(photoBytes);
     
-    // Generate SHA-256 hash
-    const hashBuffer = await crypto.subtle.digest('SHA-256', photoBuffer);
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    const photoHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    // Generate SHA-256 hash using shared helper
+    const photoHash = await computeSHA256(photoBuffer);
+    console.log(`🔐 SHA-256 { hash16: ${photoHash.slice(0, 16)}... }`);
     
     const timestamp = Date.now();
     const fileName = `${officerId}/${timestamp}_${photoHash.substring(0, 8)}.jpg`;
@@ -206,7 +133,7 @@ serve(async (req) => {
       });
 
     if (uploadError) {
-      console.error('Photo upload failed:', uploadError);
+      console.error('❌ Photo upload failed:', uploadError);
       return new Response(
         JSON.stringify({ error: 'Photo upload failed', details: uploadError.message }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -232,7 +159,7 @@ serve(async (req) => {
         user_id: officerId,
         gps_latitude: gpsLatitude,
         gps_longitude: gpsLongitude,
-        gps_accuracy: parseFloat(formData.get('gps_accuracy') as string || '0'),
+        gps_accuracy: gpsAccuracy,
         captured_at: recordedAt,
         retention_policy: 'standard',
         court_ready: false,
@@ -243,7 +170,7 @@ serve(async (req) => {
       .single();
 
     if (metadataError) {
-      console.error('Photo metadata creation failed:', metadataError);
+      console.error('❌ Photo metadata creation failed:', metadataError);
       return new Response(
         JSON.stringify({ error: 'Photo metadata creation failed', details: metadataError.message }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -265,10 +192,10 @@ serve(async (req) => {
       });
 
       if (zoneError) {
-        console.error('Zone detection failed:', zoneError);
+        console.error('❌ Zone detection failed:', zoneError);
       } else if (matchingZones && matchingZones.length > 0) {
         finalZoneId = matchingZones[0].zone_id;
-        console.log('✅ Zone auto-detected:', finalZoneId);
+        console.log(`🗺️ Zone resolved { zoneId: ${finalZoneId} }`);
       }
     }
 
@@ -291,8 +218,6 @@ serve(async (req) => {
       finalOrganizationId = zoneData?.organization_id;
     }
 
-    console.log('🗺️ Zone resolved:', finalZoneId);
-
     // -------------------------------------------------------------------------
     // STEP 4: CREATE OBSERVATION RECORD
     // -------------------------------------------------------------------------
@@ -304,7 +229,7 @@ serve(async (req) => {
         photo_hash: photoHash,
         gps_latitude: gpsLatitude || null,
         gps_longitude: gpsLongitude || null,
-        gps_accuracy: null,
+        gps_accuracy: gpsAccuracy || null,
         recorded_at: recordedAt,
         organization_id: finalOrganizationId,
         zone_id: finalZoneId,
@@ -329,14 +254,17 @@ serve(async (req) => {
       );
     }
 
-    console.log('🆔 Observation inserted:', observation.observation_id);
+    console.log(`🆔 Observation { obsId: ${observation.observation_id} }`);
 
     // -------------------------------------------------------------------------
     // STEP 5: RUN ALPR ON PHOTO (NON-BLOCKING UPDATE)
     // -------------------------------------------------------------------------
+    console.log(`📡 ALPR call { url: ${Deno.env.get('ALPR_API_URL') || 'default'}, bytes: ${photoBuffer.length} }`);
     const alprResult = await detectPlate(photoBuffer);
     
     if (alprResult.plate) {
+      console.log(`✅ ALPR plate { plate: ${alprResult.plate}, conf: ${alprResult.confidence} }`);
+      
       // Update observation with ALPR results
       const { error: updateError } = await supabase
         .from('vehicle_observations_v2')
@@ -351,11 +279,9 @@ serve(async (req) => {
 
       if (updateError) {
         console.error('⚠️ Failed to update plate from ALPR:', updateError);
-      } else {
-        console.log(`✅ Plate updated: ${alprResult.plate} (confidence: ${alprResult.confidence})`);
       }
     } else {
-      console.warn('⚠️ ALPR did not detect a plate - observation saved as PENDING_ALPR');
+      console.warn(`❌ ALPR no plate { status: no_results, hint: check image format/headers/key }`);
     }
 
     // -------------------------------------------------------------------------
@@ -377,7 +303,7 @@ serve(async (req) => {
     // Officer App polls get_observation_result(observation_id) for compliance result
     // ✅ NO 3-SECOND TIMEOUT - Response is instant
 
-    console.log(`✅ Photo-first ingest complete: observation ${observation.observation_id}, zone ${finalZoneId}, plate ${alprResult.plate || 'PENDING'}`);
+    console.log(`✅ Photo-first ingest complete { scanId: ${scanId}, obsId: ${observation.observation_id}, zone: ${finalZoneId}, plate: ${alprResult.plate || 'PENDING'} }`);
 
     return new Response(
       JSON.stringify({
@@ -388,12 +314,16 @@ serve(async (req) => {
         photo_hash: photoHash,
         plate_number: alprResult.plate || null,
         confidence: alprResult.confidence || null,
+        vehicle_make: alprResult.make || null,
+        vehicle_model: alprResult.model || null,
+        vehicle_color: alprResult.color || null,
+        vehicle_year: alprResult.year || null,
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
   } catch (error) {
-    console.error('Unexpected error in plate-scanner-photo-first:', error);
+    console.error('❌ Unexpected error in plate-scanner-photo-first:', error);
     return new Response(
       JSON.stringify({ error: 'Internal server error', details: error.message }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

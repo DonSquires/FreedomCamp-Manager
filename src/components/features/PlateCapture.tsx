@@ -803,6 +803,9 @@ export function PlateCapture({
   const capturePhoto = async () => {
     if (!videoRef.current || !canvasRef.current) return;
 
+    console.log('[🎬 Capture] Starting capture...');
+    const t0 = performance.now();
+
     // Clear previous error state on new capture
     if (buttonFeedback === 'error') {
       setButtonFeedback('idle');
@@ -812,13 +815,17 @@ export function PlateCapture({
     const video = videoRef.current;
     const canvas = canvasRef.current;
     const context = canvas.getContext('2d');
-    if (!context) return;
+    if (!context) {
+      console.error('[❌ Capture] No canvas context');
+      return;
+    }
 
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
     context.drawImage(video, 0, 0, video.videoWidth, video.videoHeight);
 
     const imageDataUrl = canvas.toDataURL('image/jpeg', 0.95);
+    console.log('[📸 Capture] Frame captured:', { size: imageDataUrl.length });
     
     // Increment driving scan count
     if (drivingMode) {
@@ -850,7 +857,31 @@ export function PlateCapture({
     }
     
     // Process in background WITHOUT stopping camera
-    processImageUnified(imageDataUrl, queueId, 'camera');
+    // ⚠️ CRITICAL: Wrap in try/catch/finally to guarantee loading state clears
+    try {
+      await processImageUnified(imageDataUrl, queueId, 'camera');
+      const t1 = performance.now();
+      console.log(`[✅ Capture] Completed in ${Math.round(t1 - t0)}ms`);
+    } catch (error: any) {
+      console.error('[❌ Capture] Failed:', error);
+      toast.error('Capture failed: ' + (error?.message || 'Unknown error'));
+      
+      // Mark queue item as error
+      setProcessingQueue(prev => 
+        prev.map(item => 
+          item.id === queueId 
+            ? { ...item, status: 'error' as const } 
+            : item
+        )
+      );
+    } finally {
+      // ✅ ALWAYS clear loading state, even if error thrown
+      const hasProcessingItems = processingQueue.filter(p => p.status === 'processing' && p.id !== queueId).length > 0;
+      if (!hasProcessingItems) {
+        setIsBackgroundProcessing(false);
+        console.log('[🔓 Capture] Loading state cleared');
+      }
+    }
   };
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -882,53 +913,52 @@ export function PlateCapture({
     reader.readAsDataURL(file);
   };
 
-  // 🔄 UNIFIED PROCESSING FUNCTION - Single Plate Recognizer API call
+  // 🔄 UNIFIED PROCESSING FUNCTION - Calls plate-scanner-photo-first (includes ALPR)
   const processImageUnified = async (
     imageDataUrl: string, 
     queueId: string,
     sourceType: 'camera' | 'file_upload' = 'camera'
   ) => {
-    console.log(`📸 [${sourceType.toUpperCase()}] Starting unified plate recognition...`);
+    console.log(`📸 [${sourceType.toUpperCase()}] Starting unified photo-first ingest...`);
 
     try {
-      // STEP 1: Upload photo IMMEDIATELY (before any processing)
-      console.log('📤 Step 1: Uploading photo to storage...');
-      const fullImageUrl = await uploadToStorage(imageDataUrl);
-      console.log('✅ Photo uploaded:', fullImageUrl);
-
-      // STEP 2: Call Plate Recognizer API (single unified call)
-      console.log('🔍 Step 2: Calling Plate Recognizer API...');
-      const { data: recognitionData, error: recognitionError } = await supabase.functions.invoke('recognize-plate', {
+      // STEP 1: Call unified ingest function (handles upload + ALPR + observation creation)
+      console.log('📤 Step 1: Calling plate-scanner-photo-first...');
+      const { data: recognitionData, error: recognitionError } = await supabase.functions.invoke('plate-scanner-photo-first', {
         body: { 
           image: imageDataUrl,
-          regions: ['nz'], // New Zealand plates
-          enableMMC: true, // Enable Make/Model/Color detection
+          zoneId: zoneId,
+          organizationId: organizationId,
+          userId: user?.id,
+          recordedAt: new Date().toISOString(),
+          gpsLocation: gpsLocation,
+          idempotencyKey: `handheld:${queueId}`,
         },
       });
 
       if (recognitionError) {
-        console.error('❌ Plate Recognizer API error:', recognitionError);
+        console.error('❌ Photo-first ingest error:', recognitionError);
         throw recognitionError;
       }
 
-      // Check if recognition was successful
+      // Check if ingest was successful
       if (!recognitionData?.success) {
-        console.error('❌ Plate recognition failed:', recognitionData?.error || 'Unknown error');
+        console.error('❌ Photo-first ingest failed:', recognitionData?.error || 'Unknown error');
         playSounds.error();
         
         setFeedbackType('error');
-        setFeedbackMessage(`No Plate Read${sourceType === 'file_upload' ? ' from File' : ''}`);
+        setFeedbackMessage(`Scan Failed${sourceType === 'file_upload' ? ' (File)' : ''}`);
         setShowFeedbackBubble(true);
         setTimeout(() => setShowFeedbackBubble(false), 3000);
         
         setFailedDetectionData({
           image: imageDataUrl,
-          photoUrl: fullImageUrl,
+          photoUrl: recognitionData?.photo_url || '',
           gpsLocation,
         });
         setShowManualEntryModal(true);
         
-        setLastErrorMessage('Detection failed - manual entry required');
+        setLastErrorMessage('Ingest failed - manual entry required');
         setButtonFeedback('error');
         
         setProcessingQueue(prev => 
@@ -939,56 +969,72 @@ export function PlateCapture({
           )
         );
         
-        toast.info('Automatic detection failed - please enter details manually');
+        toast.info('Photo saved but plate detection failed - please enter details manually');
         return;
       }
 
       // SUCCESS PATH
-      console.log('✅ PLATE RECOGNIZED:', recognitionData.plate_number, `(${Math.round(recognitionData.confidence * 100)}%)`);
-      console.log('📊 Vehicle details:', {
-        make: recognitionData.vehicle_make,
-        model: recognitionData.vehicle_model,
-        color: recognitionData.vehicle_color,
-        year: recognitionData.vehicle_year,
-        type: recognitionData.vehicle_type,
-      });
+      const plateDetected = recognitionData.plate_number && recognitionData.plate_number !== 'PENDING_ALPR';
+      
+      if (plateDetected) {
+        console.log('✅ PLATE DETECTED:', recognitionData.plate_number, `(confidence: ${recognitionData.confidence})`);
+      } else {
+        console.warn('⚠️ ALPR pending or failed - observation saved');
+      }
       
       setProcessingQueue(prev => 
         prev.map(item => 
           item.id === queueId 
-            ? { ...item, plateNumber: recognitionData.plate_number, status: 'complete' as const } 
+            ? { ...item, plateNumber: recognitionData.plate_number || 'PROCESSING', status: 'complete' as const } 
             : item
         )
       );
       
-      setFeedbackType('success');
-      setFeedbackMessage('Plate Read');
-      setShowFeedbackBubble(true);
-      setTimeout(() => setShowFeedbackBubble(false), 2000);
-      
-      setButtonFeedback('success');
-      setTimeout(() => setButtonFeedback('idle'), 3000);
+      if (plateDetected) {
+        setFeedbackType('success');
+        setFeedbackMessage('Plate Read');
+        setShowFeedbackBubble(true);
+        setTimeout(() => setShowFeedbackBubble(false), 2000);
+        
+        setButtonFeedback('success');
+        setTimeout(() => setButtonFeedback('idle'), 3000);
+      } else {
+        setFeedbackType('warning');
+        setFeedbackMessage('Photo Saved');
+        setShowFeedbackBubble(true);
+        setTimeout(() => setShowFeedbackBubble(false), 2000);
+        
+        // Offer manual entry for ALPR failures
+        setFailedDetectionData({
+          image: imageDataUrl,
+          photoUrl: recognitionData.photo_url,
+          gpsLocation,
+        });
+        setShowManualEntryModal(true);
+        toast.info('Photo saved - ALPR did not detect a plate. Please enter manually.');
+        return;
+      }
       
       // Add source metadata to notes
       const sourceNote = sourceType === 'file_upload' 
-        ? '📁 PHOTO UPLOADED FROM FILE • Processed with Plate Recognizer API'
+        ? '📁 PHOTO UPLOADED FROM FILE • Processed via photo-first ingest'
         : undefined;
       
-      // Process field scan with all extracted data
+      // Process field scan with observation data
+      // Note: Observation already created by plate-scanner-photo-first
+      // We just need to trigger UI updates and compliance checks
       await processFieldScan({
         plateNumber: recognitionData.plate_number,
-        confidence: recognitionData.confidence,
-        vehicleMake: recognitionData.vehicle_make,
-        vehicleModel: recognitionData.vehicle_model,
-        vehicleColor: recognitionData.vehicle_color,
-        vehicleYear: recognitionData.vehicle_year?.toString(),
+        confidence: recognitionData.confidence || 1.0,
+        vehicleMake: undefined, // ALPR doesn't return these yet
+        vehicleModel: undefined,
+        vehicleColor: undefined,
+        vehicleYear: undefined,
         croppedImageUrl: null,
-        fullImageUrl,
+        fullImageUrl: recognitionData.photo_url,
         gpsLocation,
         detectionMethod: 'alpr',
-        isSelfContained: recognitionData.has_green_sticker || recognitionData.has_blue_sticker,
-        hasGreenSticker: recognitionData.has_green_sticker,
-        hasBlueSticker: recognitionData.has_blue_sticker,
+        observationId: recognitionData.observation_id,
         officerNotes: sourceNote,
       });
       
