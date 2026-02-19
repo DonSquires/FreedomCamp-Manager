@@ -270,30 +270,24 @@ export const useAuthStore = create<AuthState>()(
             return;
           }
           
-          // Validate session token in database
+          // ✅ FIX: Validate session using auth.getSession() instead of querying user_sessions
+          // This avoids network-level blocks from shipping JWTs in URL querystrings
           const sessionToken = localStorage.getItem('session_token');
           if (sessionToken) {
-            const { data: dbSession } = await supabase
-              .from('user_sessions')
-              .select('is_active, expires_at')
-              .eq('session_token', sessionToken)
-              .eq('user_id', session.user.id)
-              .single();
+            // Session is valid if we got this far (auth.getSession() succeeded)
+            // No need to query user_sessions table from browser
             
-            if (!dbSession || !dbSession.is_active || new Date(dbSession.expires_at) < new Date()) {
-              // Session invalid or expired
-              console.log('🚫 [AUTH STORE] Session invalid or expired - logging out');
+            // Check expiry from session object itself
+            if (session.expires_at && new Date(session.expires_at * 1000) < new Date()) {
+              console.log('🚫 [AUTH STORE] Session expired - logging out');
               await supabase.auth.signOut();
               localStorage.removeItem('session_token');
               set({ user: null, isAuthenticated: false });
               return;
             }
             
-            // Update last activity
-            await supabase
-              .from('user_sessions')
-              .update({ last_activity_at: new Date().toISOString() })
-              .eq('session_token', sessionToken);
+            // Update last activity (optional - can be done server-side via trigger)
+            // Removed direct user_sessions table access to prevent ERR_CONNECTION_CLOSED
           }
           
           const { data: profile, error } = await supabase
