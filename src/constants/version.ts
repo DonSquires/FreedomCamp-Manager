@@ -1,48 +1,55 @@
-export const APP_VERSION = 'v5.1.1';
-export const BUILD_DATE = '2026-02-18';
+export const APP_VERSION = 'v5.2.0';
+export const BUILD_DATE = '2026-02-19';
 export const RELEASE_NOTES = `
-## Version 5.1.1 - RLS & Dashboard Fixes
+## Version 5.2.0 - Unified ALPR System + Security Fixes
 
-### 🔧 Critical RLS Fixes (Priority 1)
-- Created RLS helper functions migration (BLOCKER FIX)
-  - get_user_role(uuid) - Returns user role without RLS recursion
-  - get_user_organization_id(uuid) - Returns primary organization
-  - Enhanced get_user_organization_ids() - All accessible orgs
-- All 17+ RLS policies now functional
-- Prevents "function does not exist" errors
+### 🎯 Unified Plate Scanner Architecture
+- **Centralized ALPR Helper** (_shared/alpr.ts) - Single source of truth
+- **Photo-First Ingest** - plate-scanner-photo-first handles both modes
+- **Structured Breadcrumb Logging** - Full observability at each step
+- **Immediate Response** - No 3-second compliance timeout (async evaluation)
+- **Both Modes Unified** - Driving & Handheld use same ingest path
 
-### 🏢 Organization Triggers (Priority 2)
-- Auto-calculate organization_level based on parent hierarchy
-- Prevent circular parent-child references
-- Auto-update levels when parent changes
-- Backfill existing organization levels
+### 🔐 Critical Security Fixes
+- **API Key Security** - Moved PLATE_RECOGNIZER_API_KEY to environment variables
+- **No Hardcoded Secrets** - All API keys now in Supabase secrets
+- **Backward Compatible** - recognize-plate updated but still functional
 
-### 🔐 User Deactivation Queue (Priority 3)
-- Deactivation queue system for proper auth.users disabling
-- Edge Function integration ready
-- Preserves audit trail while preventing login
-- Reactivation support
+### 🛠️ UI State Management Fixes
+- **Zone Detection** - Auto-detect with 5-second timeout + manual selector
+- **Loading State Cleanup** - try/catch/finally guarantees spinner clears
+- **Workflow Lock** - Camera disabled when popup/modal active (prevents race conditions)
+- **Error Recovery** - Failed scans auto-open manual entry modal
 
-### 📊 Dashboard RLS Trust (Priority 4)
-- Removed manual organization filtering from Unified Dashboard
-- Now trusts RLS policies for multi-org access
-- Correctly shows data from:
-  - Primary organization
-  - Authorized work locations
-  - Descendant organizations (for admins)
-- Master users can still filter by specific org
+### 📊 Payload Standardization
+- **JSON Format** - Consistent shape across driving & handheld modes
+- **Base64 Images** - Unified image encoding (no multipart/JSON mismatch)
+- **Idempotency Keys** - Prevent duplicate submissions
 
-### 📋 Documentation
-- ORGANIZATION_USER_MANAGEMENT_VERIFICATION.md - Complete audit
-- All 3 SQL migrations ready to deploy
-- Implementation checklist with priority order
-- Test scenarios for verification
+### 📚 Comprehensive Documentation
+- **README_REBUILD.md** - Complete rebuild documentation
+- **Architecture Diagram** - Request flow and function responsibilities
+- **Testing Checklist** - Acceptance criteria for both modes
+- **Deployment Guide** - Environment variable setup + verification
 
-### ⚡ Next Steps
-1. Apply SQL migrations in Supabase (URGENT)
-2. Test multi-organization access
-3. Verify RLS policies work correctly
-4. Optional: Implement enforcement workflow logic
+### ⚡ Performance Improvements
+- **No Blocking Waits** - Functions return immediately (compliance via trigger)
+- **Background Processing** - ALPR runs async, camera never stops
+- **Smart Caching** - Zone selection persisted across sessions
+
+### 🔧 Bug Fixes
+- Fixed infinite loading spinner (PlateScanner)
+- Fixed "No Zone" blocking camera forever
+- Fixed duplicate ALPR code across functions
+- Fixed missing error handling in photo upload
+- Fixed race condition in compliance evaluation
+
+### 📝 Next Steps
+1. Set PLATE_RECOGNIZER_API_KEY in Supabase Secrets (REQUIRED)
+2. Test both Driving & Handheld modes with live scans
+3. Verify breadcrumb logs in Edge Function dashboard
+4. Monitor KPI tiles match drill-down counts
+5. Enable FEATURE_INGEST_V2 for pilot officers
 `;
 
 // Version history for update manager
@@ -53,6 +60,20 @@ export interface VersionHistoryEntry {
 }
 
 export const VERSION_HISTORY: VersionHistoryEntry[] = [
+  {
+    version: 'v5.2.0',
+    date: '2026-02-19',
+    changes: [
+      'Unified ALPR system with centralized helper (_shared/alpr.ts)',
+      'Security fix: Moved API keys to environment variables (no hardcoded secrets)',
+      'Photo-first ingest handles both Driving & Handheld modes',
+      'Fixed infinite loading spinner in Plate Scanner',
+      'Zone detection with 5-second timeout + manual selector fallback',
+      'Structured breadcrumb logging for full observability',
+      'try/catch/finally guarantees UI state cleanup',
+      'Comprehensive documentation (README_REBUILD.md)',
+    ],
+  },
   {
     version: 'v5.1.1',
     date: '2026-02-18',

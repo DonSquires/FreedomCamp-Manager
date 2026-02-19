@@ -1,6 +1,17 @@
 /**
- * AdminPortal - Responsive admin interface optimized for mobile and desktop
- * Comprehensive dashboard with tabbed navigation for all admin features
+ * ADMIN PORTAL - REBUILT FROM SCRATCH
+ * 
+ * Architecture:
+ * - ZoomScan as primary scanning interface (like Field Portal)
+ * - Clean, modern navigation with logical grouping
+ * - Streamlined workflow with 4-layer pipeline integration
+ * - Mobile-first responsive design
+ * 
+ * Changes from legacy:
+ * - Removed duplicate/outdated pages
+ * - Added Quick Scan section at top
+ * - Reorganized navigation into clear hierarchies
+ * - Integrated ZoomScanQueue as first-class feature
  */
 
 import { useState, useEffect } from 'react';
@@ -9,7 +20,6 @@ import { Button } from '@/components/ui/button';
 import {
   LayoutDashboard,
   Database,
-  TrendingUp,
   FileText,
   Settings,
   LogOut,
@@ -19,60 +29,47 @@ import {
   Eye,
   Menu,
   X,
-  Users,
   Heart,
   AlertTriangle,
   HelpCircle,
   ArrowLeftRight,
   Flag,
   Bug,
+  Camera,
+  ClipboardList,
+  BarChart3,
+  Users,
 } from 'lucide-react';
 import { JDSLogo } from '@/components/layout/JDSLogo';
 import { ResponsiveContainer } from '@/components/layout/ResponsiveContainer';
 import { useAuthStore } from '@/stores/authStore';
-import { DriftDashboard } from './DriftDashboard';
-import { ComplianceRecalculation } from './ComplianceRecalculation';
-import { HistoricalImport } from './HistoricalImport';
-import { VehicleLogImport } from './VehicleLogImport';
-import { ZoneDrillDown } from './ZoneDrillDown';
-import { ObservationDetailModal } from './ObservationDetailModal';
-import { LeadershipPackGenerator } from './LeadershipPackGenerator';
-import { PrivacyControlsPanel } from './PrivacyControlsPanel';
+import { Badge } from '@/components/ui/badge';
+
+// Components
+import { ZoomScanQueue } from '@/components/features/ZoomScanQueue';
+import { UnifiedDashboard } from './UnifiedDashboard';
+import { ObservationsReport } from './ObservationsReport';
+import { VehicleRegistry } from './VehicleRegistry';
+import { VehicleEvidenceReport } from './VehicleEvidenceReport';
+import { ZoneManagement } from './ZoneManagement';
+import { UrgentFollowUps } from './UrgentFollowUps';
+import { OfficerWelfareHub } from './OfficerWelfareHub';
+import { LiveFieldOperations } from './LiveFieldOperations';
+import { PatrolManagement } from './PatrolManagement';
+import { InvestigationJobs } from './InvestigationJobs';
 import { BulkScanReview } from './BulkScanReview';
 import { IncidentReports } from './IncidentReports';
 import { EnforcementHub } from './EnforcementHub';
 import { SpecialVehiclesManagement } from './SpecialVehiclesManagement';
-import { PatrolManagement } from './PatrolManagement';
-import { InvestigationJobs } from './InvestigationJobs';
-import { UrgentFollowUps } from './UrgentFollowUps';
-import { OfficerWelfareHub } from './OfficerWelfareHub';
-import { LiveFieldOperations } from './LiveFieldOperations';
-import { HelpDocumentation } from './HelpDocumentation';
-import { UnifiedDashboard } from './UnifiedDashboard';
-
-import { ZoneCorrections } from './ZoneCorrections';
-import { VehicleRecords } from './VehicleRecords';
-import { supabase } from '@/lib/supabase';
-import DataIntegrityCheck from './DataIntegrityCheck';
-import { DarkModeToggle } from '@/components/features/DarkModeToggle';
-import { PWAUpdateNotification } from '@/components/features/PWAUpdateNotification';
-import { DataMigrationUtility } from './DataMigrationUtility';
-import { VehicleEnrichmentMaintenance } from './VehicleEnrichmentMaintenance';
 import { DataManagementHub } from './DataManagementHub';
 import { SettingsHub } from './SettingsHub';
-import { DatabaseDiagnostic } from './DatabaseDiagnostic';
-import { EmergencyDataRecovery } from './EmergencyDataRecovery';
-import { DataRecoveryAnalysis } from './DataRecoveryAnalysis';
-import { ProductOverviewDocument } from './ProductOverviewDocument';
+import { OrganizationManagement } from './OrganizationManagement';
 import { DatabaseMaintenance } from './DatabaseMaintenance';
 import { BugReportsManagement } from './BugReportsManagement';
-import { OrganizationManagement } from './OrganizationManagement';
-import { NZSCVCertificateImport } from './NZSCVCertificateImport';
-import { VehicleRegistry } from './VehicleRegistry';
-import { ZoneManagement } from './ZoneManagement';
-
-import { VehicleEvidenceReport } from './VehicleEvidenceReport';
-import ObservationsReport from './ObservationsReport';
+import { HelpDocumentation } from './HelpDocumentation';
+import { DarkModeToggle } from '@/components/features/DarkModeToggle';
+import { PWAUpdateNotification } from '@/components/features/PWAUpdateNotification';
+import { supabase } from '@/lib/supabase';
 
 interface AdminPortalProps {
   onLogout: () => void;
@@ -83,6 +80,13 @@ export function AdminPortal({ onLogout }: AdminPortalProps) {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [urgentFollowUpsCount, setUrgentFollowUpsCount] = useState(0);
+  
+  // ZoomScan state
+  const [zoomScanActive, setZoomScanActive] = useState(false);
+  const [selectedZone, setSelectedZone] = useState<{ id: string; name: string; organization_id: string } | null>(null);
+  const [zones, setZones] = useState<Array<{ id: string; name: string; organization_id: string }>>([]);
+
+  const isMaster = user?.role === 'master';
 
   // Handle URL parameters for cross-portal navigation and BI drill-down
   useEffect(() => {
@@ -90,42 +94,45 @@ export function AdminPortal({ onLogout }: AdminPortalProps) {
     const tab = params.get('tab');
     if (tab) {
       setActiveTab(tab);
-      // Keep URL parameters for pages that need them (observations-report, vehicle-registry, etc.)
-      // Don't clear if it's a BI drill-down page
+      // Keep URL parameters for pages that need them
       const drillDownPages = ['observations-report', 'vehicle-registry', 'zone-management'];
       if (!drillDownPages.includes(tab)) {
         window.history.replaceState({}, '', window.location.pathname);
       }
     }
   }, []);
-  
-  const [selectedZone, setSelectedZone] = useState<{ id: string; name: string } | null>(null);
-  const [selectedObservation, setSelectedObservation] = useState<string | null>(null);
 
-  const handleZoneSelect = (zoneId: string, zoneName: string) => {
-    setSelectedZone({ id: zoneId, name: zoneName });
-    setActiveTab('zone-drilldown');
-  };
+  // Load zones for ZoomScan
+  useEffect(() => {
+    const loadZones = async () => {
+      if (!user?.organization_id) return;
+      
+      try {
+        const { data } = await supabase
+          .from('zones')
+          .select('id, name, organization_id')
+          .eq('organization_id', user.organization_id)
+          .eq('is_active', true)
+          .order('name');
+        
+        if (data && data.length > 0) {
+          setZones(data);
+          setSelectedZone(data[0]); // Auto-select first zone
+        }
+      } catch (error) {
+        console.error('Failed to load zones:', error);
+      }
+    };
+    
+    loadZones();
+  }, [user?.organization_id]);
 
-  const handleObservationSelect = (observationId: string) => {
-    setSelectedObservation(observationId);
-  };
-
-  const isMaster = user?.role === 'master';
-  const isSuperUser = user?.email === 'don.squire@firstsecurity.co.nz';
-
+  // Load urgent follow-ups count
   useEffect(() => {
     const loadUrgentCount = async () => {
       if (!user?.organization_id) return;
       
       try {
-        const { count: obsCount } = await supabase
-          .from('vehicle_records')
-          .select('id', { count: 'exact', head: true })
-          .eq('organization_id', user.organization_id)
-          .eq('requires_followup', true)
-          .eq('followup_resolved', false);
-
         const { count: incCount } = await supabase
           .from('incidents')
           .select('id', { count: 'exact', head: true })
@@ -133,19 +140,12 @@ export function AdminPortal({ onLogout }: AdminPortalProps) {
           .eq('court_ready', false)
           .neq('status', 'closed');
 
-        const { count: homelessCount } = await supabase
-          .from('vehicle_records')
-          .select('id', { count: 'exact', head: true })
-          .eq('organization_id', user.organization_id)
-          .eq('homeless_claimed', true)
-          .eq('homeless_confirmed', false);
-
         const { count: bugCount } = await supabase
           .from('bug_reports')
           .select('id', { count: 'exact', head: true })
           .eq('status', 'submitted');
 
-        const total = (obsCount || 0) + (incCount || 0) + (homelessCount || 0) + (bugCount || 0);
+        const total = (incCount || 0) + (bugCount || 0);
         setUrgentFollowUpsCount(total);
       } catch (error) {
         console.error('Failed to load urgent count:', error);
@@ -157,12 +157,32 @@ export function AdminPortal({ onLogout }: AdminPortalProps) {
     return () => clearInterval(interval);
   }, [user?.organization_id]);
 
+  // Open Quick Scan
+  const handleQuickScan = () => {
+    if (!selectedZone) {
+      alert('No zones available - please configure zones first');
+      return;
+    }
+    setZoomScanActive(true);
+    setSidebarOpen(false);
+  };
+
   return (
     <ResponsiveContainer maxWidth="full" padding="none" mobileFullHeight>
-      {/* PWA Update Notification */}
       <PWAUpdateNotification />
       
+      {/* ZoomScan Overlay - Full Screen */}
+      {zoomScanActive && selectedZone && (
+        <ZoomScanQueue
+          zoneId={selectedZone.id}
+          zoneName={selectedZone.name}
+          organizationId={selectedZone.organization_id}
+          onCancel={() => setZoomScanActive(false)}
+        />
+      )}
+      
       <div className="flex h-screen bg-background overflow-hidden">
+        {/* Mobile sidebar overlay */}
         {sidebarOpen && (
           <div
             className="fixed inset-0 bg-black/50 z-40 lg:hidden"
@@ -170,6 +190,7 @@ export function AdminPortal({ onLogout }: AdminPortalProps) {
           />
         )}
 
+        {/* Sidebar */}
         <div
           className={`
             fixed lg:static inset-y-0 left-0 z-50
@@ -178,6 +199,7 @@ export function AdminPortal({ onLogout }: AdminPortalProps) {
             ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
           `}
         >
+          {/* Header */}
           <div className="p-4 lg:p-5 xl:p-6 border-b">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -200,11 +222,6 @@ export function AdminPortal({ onLogout }: AdminPortalProps) {
               <p className="text-xs text-gray-600 dark:text-gray-300 font-medium capitalize">
                 {user?.role} Access
               </p>
-              {isSuperUser && (
-                <p className="text-xs font-semibold text-primary mt-1">
-                  🔑 Super User
-                </p>
-              )}
             </div>
             
             {/* Dark Mode Toggle */}
@@ -213,6 +230,7 @@ export function AdminPortal({ onLogout }: AdminPortalProps) {
               <span className="text-xs text-muted-foreground">Display Mode</span>
             </div>
             
+            {/* Portal Switch */}
             {(user?.role === 'admin' || user?.role === 'master') && (
               <div className="mt-4">
                 <Button
@@ -231,57 +249,118 @@ export function AdminPortal({ onLogout }: AdminPortalProps) {
             )}
           </div>
 
+          {/* Navigation */}
           <nav className="flex-1 p-3 lg:p-4 space-y-1.5 lg:space-y-2 overflow-y-auto">
+            {/* QUICK SCAN - NEW TOP SECTION */}
             <div className="text-xs font-semibold text-muted-foreground px-3 py-2">
-              OPERATIONAL
+              ⚡ QUICK ACTIONS
             </div>
 
             <Button
-              variant={activeTab === 'urgent-followups' ? 'default' : 'ghost'}
-              className="w-full justify-start text-sm lg:text-base h-10 lg:h-9 touch-manipulation bg-red-50 dark:bg-red-950/20 border border-red-500/30"
-              onClick={() => {
-                setActiveTab('urgent-followups');
-                setSidebarOpen(false);
-              }}
+              variant={activeTab === 'quick-scan' ? 'default' : 'ghost'}
+              className="w-full justify-start text-sm lg:text-base h-12 lg:h-11 touch-manipulation bg-gradient-to-r from-green-50 to-blue-50 dark:from-green-950/20 dark:to-blue-950/20 border-2 border-green-500/50 shadow-sm hover:shadow-md transition-all"
+              onClick={handleQuickScan}
             >
-              <AlertTriangle className="h-4 w-4 mr-2 lg:mr-3 text-red-500" />
-              <span className="text-red-600 dark:text-red-400 font-semibold">Urgent Follow-Ups</span>
+              <Camera className="h-5 w-5 mr-2 lg:mr-3 text-green-600 dark:text-green-400" />
+              <span className="text-green-700 dark:text-green-300 font-bold">Quick Scan (ZoomScan)</span>
             </Button>
+
+            {urgentFollowUpsCount > 0 && (
+              <Button
+                variant={activeTab === 'urgent-followups' ? 'default' : 'ghost'}
+                className="w-full justify-start text-sm lg:text-base h-10 lg:h-9 touch-manipulation bg-red-50 dark:bg-red-950/20 border border-red-500/30"
+                onClick={() => {
+                  setActiveTab('urgent-followups');
+                  setSidebarOpen(false);
+                }}
+              >
+                <AlertTriangle className="h-4 w-4 mr-2 lg:mr-3 text-red-500" />
+                <span className="text-red-600 dark:text-red-400 font-semibold">
+                  Urgent ({urgentFollowUpsCount})
+                </span>
+              </Button>
+            )}
+
+            {/* ANALYTICS & REPORTING */}
+            <div className="text-xs font-semibold text-muted-foreground px-3 py-2 mt-3 lg:mt-4">
+              📊 ANALYTICS & REPORTING
+            </div>
 
             <Button
               variant={activeTab === 'dashboard' ? 'default' : 'ghost'}
-              className="w-full justify-start text-sm lg:text-base h-10 lg:h-9 touch-manipulation bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-950/20 dark:to-purple-950/20 border-2 border-blue-500/30"
+              className="w-full justify-start text-sm lg:text-base h-10 lg:h-9 touch-manipulation"
               onClick={() => {
                 setActiveTab('dashboard');
                 setSidebarOpen(false);
               }}
             >
-              <TrendingUp className="h-4 w-4 mr-2 lg:mr-3 text-blue-600" />
-              <span className="text-blue-600 dark:text-blue-400 font-semibold">BI Dashboard</span>
+              <BarChart3 className="h-4 w-4 mr-2 lg:mr-3" />
+              BI Dashboard
             </Button>
 
             <Button
+              variant={activeTab === 'observations-report' ? 'default' : 'ghost'}
+              className="w-full justify-start text-sm lg:text-base h-10 lg:h-9 touch-manipulation"
+              onClick={() => {
+                setActiveTab('observations-report');
+                setSidebarOpen(false);
+              }}
+            >
+              <Eye className="h-4 w-4 mr-2 lg:mr-3" />
+              Observations Report
+            </Button>
+
+            <Button
+              variant={activeTab === 'vehicle-registry' ? 'default' : 'ghost'}
+              className="w-full justify-start text-sm lg:text-base h-10 lg:h-9 touch-manipulation"
+              onClick={() => {
+                setActiveTab('vehicle-registry');
+                setSidebarOpen(false);
+              }}
+            >
+              <Database className="h-4 w-4 mr-2 lg:mr-3" />
+              Vehicle Registry
+            </Button>
+
+            <Button
+              variant={activeTab === 'vehicle-evidence-report' ? 'default' : 'ghost'}
+              className="w-full justify-start text-sm lg:text-base h-10 lg:h-9 touch-manipulation"
+              onClick={() => {
+                setActiveTab('vehicle-evidence-report');
+                setSidebarOpen(false);
+              }}
+            >
+              <FileText className="h-4 w-4 mr-2 lg:mr-3" />
+              Evidence Report
+            </Button>
+
+            {/* FIELD OPERATIONS */}
+            <div className="text-xs font-semibold text-muted-foreground px-3 py-2 mt-3 lg:mt-4">
+              🚔 FIELD OPERATIONS
+            </div>
+
+            <Button
               variant={activeTab === 'officer-welfare-hub' ? 'default' : 'ghost'}
-              className="w-full justify-start text-sm lg:text-base h-10 lg:h-9 touch-manipulation bg-red-50 dark:bg-red-950/20 border border-red-500/30"
+              className="w-full justify-start text-sm lg:text-base h-10 lg:h-9 touch-manipulation"
               onClick={() => {
                 setActiveTab('officer-welfare-hub');
                 setSidebarOpen(false);
               }}
             >
               <Heart className="h-4 w-4 mr-2 lg:mr-3 text-red-600" />
-              <span className="text-red-600 dark:text-red-400 font-semibold">Officer Welfare Hub</span>
+              <span className="text-red-600 dark:text-red-400">Officer Welfare</span>
             </Button>
 
             <Button
               variant={activeTab === 'live-field-ops' ? 'default' : 'ghost'}
-              className="w-full justify-start text-sm lg:text-base h-10 lg:h-9 touch-manipulation bg-green-50 dark:bg-green-950/20 border border-green-500/30"
+              className="w-full justify-start text-sm lg:text-base h-10 lg:h-9 touch-manipulation"
               onClick={() => {
                 setActiveTab('live-field-ops');
                 setSidebarOpen(false);
               }}
             >
-              <MapPin className="h-4 w-4 mr-2 lg:mr-3 text-green-600" />
-              <span className="text-green-600 dark:text-green-400 font-semibold">Live Field Operations</span>
+              <MapPin className="h-4 w-4 mr-2 lg:mr-3" />
+              Live Field Operations
             </Button>
 
             <Button
@@ -304,7 +383,7 @@ export function AdminPortal({ onLogout }: AdminPortalProps) {
                 setSidebarOpen(false);
               }}
             >
-              <FileText className="h-4 w-4 mr-2 lg:mr-3" />
+              <ClipboardList className="h-4 w-4 mr-2 lg:mr-3" />
               Investigation Jobs
             </Button>
 
@@ -320,8 +399,9 @@ export function AdminPortal({ onLogout }: AdminPortalProps) {
               Bulk Scan Review
             </Button>
 
+            {/* ENFORCEMENT */}
             <div className="text-xs font-semibold text-muted-foreground px-3 py-2 mt-3 lg:mt-4">
-              ENFORCEMENT
+              ⚖️ ENFORCEMENT
             </div>
 
             <Button
@@ -360,147 +440,108 @@ export function AdminPortal({ onLogout }: AdminPortalProps) {
               Flagged Vehicles
             </Button>
 
+            {/* MANAGEMENT */}
             <div className="text-xs font-semibold text-muted-foreground px-3 py-2 mt-3 lg:mt-4">
-              REPORTING & ANALYTICS
+              ⚙️ MANAGEMENT
             </div>
 
-
-
             <Button
-              variant={activeTab === 'vehicle-evidence-report' ? 'default' : 'ghost'}
+              variant={activeTab === 'zone-management' ? 'default' : 'ghost'}
               className="w-full justify-start text-sm lg:text-base h-10 lg:h-9 touch-manipulation"
               onClick={() => {
-                setActiveTab('vehicle-evidence-report');
+                setActiveTab('zone-management');
                 setSidebarOpen(false);
               }}
             >
-              <FileText className="h-4 w-4 mr-2 lg:mr-3" />
-              Vehicle Evidence Report
+              <MapPin className="h-4 w-4 mr-2 lg:mr-3" />
+              Zone Management
             </Button>
-
-            <Button
-              variant={activeTab === 'observations-report' ? 'default' : 'ghost'}
-              className="w-full justify-start text-sm lg:text-base h-10 lg:h-9 touch-manipulation"
-              onClick={() => {
-                setActiveTab('observations-report');
-                setSidebarOpen(false);
-              }}
-            >
-              <Eye className="h-4 w-4 mr-2 lg:mr-3" />
-              Observations Report
-            </Button>
-
-
-
-            <div className="text-xs font-semibold text-muted-foreground px-3 py-2 mt-3 lg:mt-4">
-              MANAGEMENT
-            </div>
 
             {isMaster && (
               <Button
                 variant={activeTab === 'organization-management' ? 'default' : 'ghost'}
-                className="w-full justify-start text-sm lg:text-base h-10 lg:h-9 touch-manipulation bg-purple-50 dark:bg-purple-950/20 border border-purple-500/30"
+                className="w-full justify-start text-sm lg:text-base h-10 lg:h-9 touch-manipulation"
                 onClick={() => {
                   setActiveTab('organization-management');
                   setSidebarOpen(false);
                 }}
               >
-                <Building2 className="h-4 w-4 mr-2 lg:mr-3 text-purple-600" />
-                <span className="text-purple-600 dark:text-purple-400 font-semibold">Organization Management</span>
+                <Building2 className="h-4 w-4 mr-2 lg:mr-3" />
+                Organizations
               </Button>
             )}
 
             <Button
               variant={activeTab === 'data-management-hub' ? 'default' : 'ghost'}
-              className="w-full justify-start text-sm lg:text-base h-10 lg:h-9 touch-manipulation bg-blue-50 dark:bg-blue-950/20 border border-blue-500/30"
+              className="w-full justify-start text-sm lg:text-base h-10 lg:h-9 touch-manipulation"
               onClick={() => {
                 setActiveTab('data-management-hub');
                 setSidebarOpen(false);
               }}
             >
-              <Database className="h-4 w-4 mr-2 lg:mr-3 text-blue-600" />
-              <span className="text-blue-600 dark:text-blue-400 font-semibold">Data Management Hub</span>
+              <Database className="h-4 w-4 mr-2 lg:mr-3" />
+              Data Management
             </Button>
 
             <Button
               variant={activeTab === 'settings-hub' ? 'default' : 'ghost'}
-              className="w-full justify-start text-sm lg:text-base h-10 lg:h-9 touch-manipulation bg-purple-50 dark:bg-purple-950/20 border border-purple-500/30"
+              className="w-full justify-start text-sm lg:text-base h-10 lg:h-9 touch-manipulation"
               onClick={() => {
                 setActiveTab('settings-hub');
                 setSidebarOpen(false);
               }}
             >
-              <Settings className="h-4 w-4 mr-2 lg:mr-3 text-purple-600" />
-              <span className="text-purple-600 dark:text-purple-400 font-semibold">Settings Hub</span>
+              <Settings className="h-4 w-4 mr-2 lg:mr-3" />
+              Settings
             </Button>
 
             {isMaster && (
               <Button
                 variant={activeTab === 'database-maintenance' ? 'default' : 'ghost'}
-                className="w-full justify-start text-sm lg:text-base h-10 lg:h-9 touch-manipulation bg-amber-50 dark:bg-amber-950/20 border border-amber-500/30"
+                className="w-full justify-start text-sm lg:text-base h-10 lg:h-9 touch-manipulation"
                 onClick={() => {
                   setActiveTab('database-maintenance');
                   setSidebarOpen(false);
                 }}
               >
                 <Database className="h-4 w-4 mr-2 lg:mr-3 text-amber-600" />
-                <span className="text-amber-600 dark:text-amber-400 font-semibold">Database Maintenance</span>
+                <span className="text-amber-600 dark:text-amber-400">DB Maintenance</span>
               </Button>
             )}
 
-
-
+            {/* HELP & SUPPORT */}
             <div className="text-xs font-semibold text-muted-foreground px-3 py-2 mt-3 lg:mt-4">
-              HELP & SUPPORT
+              💡 HELP & SUPPORT
             </div>
 
             <Button
               variant={activeTab === 'help' ? 'default' : 'ghost'}
-              className="w-full justify-start text-sm lg:text-base h-10 lg:h-9 touch-manipulation bg-blue-50 dark:bg-blue-950/20 border border-blue-500/30"
+              className="w-full justify-start text-sm lg:text-base h-10 lg:h-9 touch-manipulation"
               onClick={() => {
                 setActiveTab('help');
                 setSidebarOpen(false);
               }}
             >
-              <HelpCircle className="h-4 w-4 mr-2 lg:mr-3 text-blue-600" />
-              <span className="text-blue-600 dark:text-blue-400 font-semibold">Help & Documentation</span>
+              <HelpCircle className="h-4 w-4 mr-2 lg:mr-3" />
+              Documentation
             </Button>
 
             {isMaster && (
               <Button
                 variant={activeTab === 'bug-reports' ? 'default' : 'ghost'}
-                className="w-full justify-start text-sm lg:text-base h-10 lg:h-9 touch-manipulation bg-red-50 dark:bg-red-950/20 border border-red-500/30"
+                className="w-full justify-start text-sm lg:text-base h-10 lg:h-9 touch-manipulation"
                 onClick={() => {
                   setActiveTab('bug-reports');
                   setSidebarOpen(false);
                 }}
               >
-                <Bug className="h-4 w-4 mr-2 lg:mr-3 text-red-600" />
-                <span className="text-red-600 dark:text-red-400 font-semibold">Bug Reports</span>
+                <Bug className="h-4 w-4 mr-2 lg:mr-3" />
+                Bug Reports
               </Button>
-            )}
-
-            {isMaster && (
-              <>
-                <div className="text-xs font-semibold text-muted-foreground px-3 py-2 mt-3 lg:mt-4">
-                  DOCUMENTS
-                </div>
-
-                <Button
-                  variant={activeTab === 'product-overview' ? 'default' : 'ghost'}
-                  className="w-full justify-start text-sm lg:text-base h-10 lg:h-9 touch-manipulation bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-950/20 dark:to-purple-950/20 border border-blue-500/30"
-                  onClick={() => {
-                    setActiveTab('product-overview');
-                    setSidebarOpen(false);
-                  }}
-                >
-                  <FileText className="h-4 w-4 mr-2 lg:mr-3 text-blue-600" />
-                  <span className="text-blue-600 dark:text-blue-400 font-semibold">Product Overview</span>
-                </Button>
-              </>
             )}
           </nav>
 
+          {/* Logout Button */}
           <div className="p-3 lg:p-4 border-t">
             <Button
               variant="ghost"
@@ -513,7 +554,9 @@ export function AdminPortal({ onLogout }: AdminPortalProps) {
           </div>
         </div>
 
+        {/* Main Content */}
         <div className="flex-1 overflow-hidden flex flex-col">
+          {/* Mobile Header */}
           <div className="sticky top-0 z-30 lg:hidden bg-background/95 backdrop-blur-sm border-b">
             <div className="flex items-center justify-between p-4">
               <Button
@@ -525,122 +568,75 @@ export function AdminPortal({ onLogout }: AdminPortalProps) {
                 <Menu className="h-6 w-6" />
               </Button>
               <h1 className="text-lg font-bold">Admin Portal</h1>
-              <div className="w-10" />
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={handleQuickScan}
+                className="h-10 w-10 text-green-600 touch-manipulation"
+                title="Quick Scan"
+              >
+                <Camera className="h-6 w-6" />
+              </Button>
             </div>
           </div>
 
-          <div className="flex-1 overflow-y-auto">
-            {urgentFollowUpsCount > 0 && 
-             activeTab !== 'urgent-followups' && 
-             activeTab !== 'special-vehicles' && 
-             activeTab !== 'incident-reports' && 
-             activeTab !== 'enforcement-hub' && 
-             activeTab !== 'bug-reports' && (
-              <div className="sticky top-0 z-20 mx-4 md:mx-6 mt-4">
-                <Card
-                  className="border-red-500 bg-gradient-to-r from-red-50 to-orange-50 dark:from-red-950/40 dark:to-orange-950/40 cursor-pointer hover:shadow-lg transition-shadow animate-pulse"
-                  onClick={() => setActiveTab('urgent-followups')}
-                >
-                  <CardContent className="p-4">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className="h-12 w-12 rounded-full bg-red-500 flex items-center justify-center shrink-0">
-                          <AlertTriangle className="h-6 w-6 text-white" />
-                        </div>
-                        <div>
-                          <p className="font-bold text-red-900 dark:text-red-100 text-lg">
-                            {urgentFollowUpsCount} Urgent Item{urgentFollowUpsCount !== 1 ? 's' : ''} Requiring Attention
-                          </p>
-                          <p className="text-sm text-red-700 dark:text-red-300">
-                            Tap to review observations, incidents, and homeless claims
-                          </p>
-                        </div>
+          {/* Urgent Banner */}
+          {urgentFollowUpsCount > 0 && activeTab !== 'urgent-followups' && (
+            <div className="sticky top-0 z-20 mx-4 md:mx-6 mt-4">
+              <Card
+                className="border-red-500 bg-gradient-to-r from-red-50 to-orange-50 dark:from-red-950/40 dark:to-orange-950/40 cursor-pointer hover:shadow-lg transition-shadow"
+                onClick={() => setActiveTab('urgent-followups')}
+              >
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="h-12 w-12 rounded-full bg-red-500 flex items-center justify-center shrink-0">
+                        <AlertTriangle className="h-6 w-6 text-white" />
                       </div>
-                      <Button className="bg-red-600 hover:bg-red-700">
-                        Review Now
-                      </Button>
+                      <div>
+                        <p className="font-bold text-red-900 dark:text-red-100 text-lg">
+                          {urgentFollowUpsCount} Urgent Item{urgentFollowUpsCount !== 1 ? 's' : ''}
+                        </p>
+                        <p className="text-sm text-red-700 dark:text-red-300">
+                          Tap to review incidents and reports
+                        </p>
+                      </div>
                     </div>
-                  </CardContent>
-                </Card>
-              </div>
-            )}
+                    <Button className="bg-red-600 hover:bg-red-700">
+                      Review Now
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          )}
 
+          {/* Content Area */}
+          <div className="flex-1 overflow-y-auto">
             <div className="p-4 lg:p-6 xl:p-8 max-w-[1600px] mx-auto">
-              {activeTab === 'urgent-followups' && <UrgentFollowUps onTabChange={setActiveTab} />}
-              
-              {/* Unified BI Dashboard - Primary Analytics & Reporting */}
               {activeTab === 'dashboard' && <UnifiedDashboard />}
-              
-              {activeTab === 'zone-drilldown' && selectedZone && (
-                <ZoneDrillDown
-                  zoneId={selectedZone.id}
-                  zoneName={selectedZone.name}
-                  onBack={() => {
-                    setSelectedZone(null);
-                    setActiveTab('dashboard');
-                  }}
-                  onObservationSelect={handleObservationSelect}
-                />
-              )}
-
-              {/* Vehicle Evidence Report - Court-Ready PDF Generator */}
-              {activeTab === 'vehicle-evidence-report' && <VehicleEvidenceReport />}
-
-              {/* Observations Report - Comprehensive observation records */}
+              {activeTab === 'urgent-followups' && <UrgentFollowUps onTabChange={setActiveTab} />}
               {activeTab === 'observations-report' && <ObservationsReport />}
-              
-              {/* Vehicle Registry - Canonical vehicle database */}
               {activeTab === 'vehicle-registry' && <VehicleRegistry />}
-              
-              {/* Zone Management - Zone configuration */}
+              {activeTab === 'vehicle-evidence-report' && <VehicleEvidenceReport />}
               {activeTab === 'zone-management' && <ZoneManagement />}
-
+              {activeTab === 'officer-welfare-hub' && <OfficerWelfareHub />}
+              {activeTab === 'live-field-ops' && <LiveFieldOperations />}
+              {activeTab === 'patrol-management' && <PatrolManagement />}
+              {activeTab === 'investigation-jobs' && <InvestigationJobs />}
               {activeTab === 'bulk-scan-review' && <BulkScanReview />}
-
-
               {activeTab === 'incident-reports' && <IncidentReports />}
               {activeTab === 'enforcement-hub' && <EnforcementHub />}
               {activeTab === 'special-vehicles' && <SpecialVehiclesManagement />}
-
-              {activeTab === 'investigation-jobs' && <InvestigationJobs />}
-
-              {activeTab === 'patrol-management' && <PatrolManagement />}
-              {activeTab === 'officer-welfare-hub' && <OfficerWelfareHub />}
-              {activeTab === 'live-field-ops' && <LiveFieldOperations />}
-
-
-
-
-
-              {activeTab === 'help' && <HelpDocumentation />}
-              
-              {/* Phase 4 & 5: Consolidated Hubs */}
               {activeTab === 'data-management-hub' && <DataManagementHub />}
-              {activeTab === 'nzscv-import' && <NZSCVCertificateImport />}
               {activeTab === 'settings-hub' && <SettingsHub />}
-              
-              {/* Organization Management - Master Only */}
               {activeTab === 'organization-management' && isMaster && <OrganizationManagement />}
-              
-              {/* Database Maintenance - Master Only */}
               {activeTab === 'database-maintenance' && isMaster && <DatabaseMaintenance />}
-              
-              {/* Bug Reports Management - Master Only */}
               {activeTab === 'bug-reports' && isMaster && <BugReportsManagement />}
-              
-              {/* Documents - Master Only */}
-              {activeTab === 'product-overview' && isMaster && <ProductOverviewDocument />}
+              {activeTab === 'help' && <HelpDocumentation />}
             </div>
           </div>
         </div>
-
-        {selectedObservation && (
-          <ObservationDetailModal
-            observationId={selectedObservation}
-            open={!!selectedObservation}
-            onClose={() => setSelectedObservation(null)}
-          />
-        )}
       </div>
     </ResponsiveContainer>
   );
