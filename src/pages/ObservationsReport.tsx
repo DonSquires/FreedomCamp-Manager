@@ -27,6 +27,7 @@ import { toast } from 'sonner';
 import { useOrganizations } from '@/hooks/useOrganizations';
 import { useZones } from '@/hooks/useZones';
 import { ZoneRequirementsChecklist } from '@/components/features/ZoneRequirementsChecklist';
+import { ComplianceMetricsSummary } from '@/components/features/ComplianceMetricsSummary';
 
 interface ObservationRecord {
   observation_id: string;
@@ -195,6 +196,7 @@ export default function ObservationsReport() {
           zone:zones(name),
           officer:user_profiles!vehicle_observations_v2_recorded_by_fkey(first_name, last_name),
           organization:organizations(name),
+          weather_conditions,
           canonical:canonical_vehicles!vehicle_observations_v2_plate_number_fkey(
             vehicle_make,
             vehicle_model,
@@ -232,6 +234,7 @@ export default function ObservationsReport() {
         gps_latitude: obs.gps_latitude,
         gps_longitude: obs.gps_longitude,
         gps_accuracy: obs.gps_accuracy,
+        weather_conditions: obs.weather_conditions,
         is_compliant: obs.is_compliant,
         breach_type: obs.breach_type,
         breach_details: obs.breach_details,
@@ -543,7 +546,7 @@ export default function ObservationsReport() {
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-3">
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-3">
                       {/* Location */}
                       <div>
                         <div className="flex items-center gap-1 text-xs text-muted-foreground mb-1">
@@ -578,6 +581,14 @@ export default function ObservationsReport() {
                           </div>
                         )}
                       </div>
+
+                      {/* Weather Conditions */}
+                      {obs.weather_conditions && (
+                        <div>
+                          <div className="text-xs text-muted-foreground mb-1">WEATHER</div>
+                          <div className="font-semibold text-sm">{obs.weather_conditions}</div>
+                        </div>
+                      )}
                     </div>
 
                     {/* Breach Details */}
@@ -599,6 +610,11 @@ export default function ObservationsReport() {
                         <div className="text-sm">{obs.officer_notes}</div>
                       </div>
                     )}
+
+                    {/* Compliance Metrics Summary */}
+                    <div className="mb-3">
+                      <ComplianceMetricsSummary observationId={obs.observation_id} />
+                    </div>
 
                     {/* Zone Requirements Checklist */}
                     <ZoneRequirementsChecklist observationId={obs.observation_id} />
