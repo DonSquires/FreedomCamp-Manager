@@ -2,7 +2,7 @@
  * ADMIN PORTAL - REBUILT FROM SCRATCH
  * 
  * Architecture:
- * - ZoomScan as primary scanning interface (like Field Portal)
+ * - PlateScanner as primary scanning interface
  * - Clean, modern navigation with logical grouping
  * - Streamlined workflow with 4-layer pipeline integration
  * - Mobile-first responsive design
@@ -11,7 +11,7 @@
  * - Removed duplicate/outdated pages
  * - Added Quick Scan section at top
  * - Reorganized navigation into clear hierarchies
- * - Integrated ZoomScanQueue as first-class feature
+ * - Integrated PlateScanner as single unified scanner
  */
 
 import { useState, useEffect } from 'react';
@@ -46,7 +46,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { Badge } from '@/components/ui/badge';
 
 // Components
-import { ZoomScanQueue } from '@/components/features/ZoomScanQueue';
+import { ZoomScan } from '@/components/features/ZoomScan';
 import { UnifiedDashboard } from './UnifiedDashboard';
 import ObservationsReport from './ObservationsReport';
 import { VehicleRegistry } from './VehicleRegistry';
@@ -102,7 +102,7 @@ export function AdminPortal({ onLogout }: AdminPortalProps) {
     }
   }, []);
 
-  // Load zones for ZoomScan
+  // Load zones for PlateScanner
   useEffect(() => {
     const loadZones = async () => {
       if (!user?.organization_id) return;
@@ -159,10 +159,6 @@ export function AdminPortal({ onLogout }: AdminPortalProps) {
 
   // Open Quick Scan
   const handleQuickScan = () => {
-    if (!selectedZone) {
-      alert('No zones available - please configure zones first');
-      return;
-    }
     setZoomScanActive(true);
     setSidebarOpen(false);
   };
@@ -172,13 +168,8 @@ export function AdminPortal({ onLogout }: AdminPortalProps) {
       <PWAUpdateNotification />
       
       {/* ZoomScan Overlay - Full Screen */}
-      {zoomScanActive && selectedZone && (
-        <ZoomScanQueue
-          zoneId={selectedZone.id}
-          zoneName={selectedZone.name}
-          organizationId={selectedZone.organization_id}
-          onCancel={() => setZoomScanActive(false)}
-        />
+      {zoomScanActive && (
+        <ZoomScan onExit={() => setZoomScanActive(false)} />
       )}
       
       <div className="flex h-screen bg-background overflow-hidden">
@@ -262,7 +253,7 @@ export function AdminPortal({ onLogout }: AdminPortalProps) {
               onClick={handleQuickScan}
             >
               <Camera className="h-5 w-5 mr-2 lg:mr-3 text-green-600 dark:text-green-400" />
-              <span className="text-green-700 dark:text-green-300 font-bold">Quick Scan (ZoomScan)</span>
+              <span className="text-green-700 dark:text-green-300 font-bold">Quick Scan</span>
             </Button>
 
             {urgentFollowUpsCount > 0 && (
