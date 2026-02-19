@@ -29,6 +29,31 @@ import { useZones } from '@/hooks/useZones';
 import { ZoneRequirementsChecklist } from '@/components/features/ZoneRequirementsChecklist';
 import { ComplianceMetricsSummary } from '@/components/features/ComplianceMetricsSummary';
 
+interface ComplianceSummary {
+  status: 'compliant' | 'at_risk' | 'breach' | 'breach_homeless_exempt';
+  explanation: string;
+  metrics: {
+    nights_per_month_allowed: number;
+    nights_stayed_this_month: number;
+    max_consecutive_nights_allowed: number;
+    consecutive_nights_stayed: number;
+    self_contained_required: boolean;
+    is_self_contained: boolean;
+    self_contained_expiry: string | null;
+    self_contained_expired: boolean;
+  };
+  flags: {
+    exceeds_monthly_limit: boolean;
+    exceeds_consecutive_limit: boolean;
+    sc_required_but_missing: boolean;
+    sc_expired: boolean;
+    is_homeless_exempt: boolean;
+    homeless_status: string;
+  };
+  calculated_at: string;
+  zone_name: string;
+}
+
 interface ObservationRecord {
   observation_id: string;
   plate_number: string;
@@ -54,6 +79,7 @@ interface ObservationRecord {
   homeless_status: string;
   organization_id: string;
   organization_name: string;
+  compliance_summary: ComplianceSummary | null;
 }
 
 export default function ObservationsReport() {
@@ -193,6 +219,7 @@ export default function ObservationsReport() {
           breach_details,
           officer_notes,
           organization_id,
+          compliance_summary,
           zone:zones(name),
           officer:user_profiles!vehicle_observations_v2_recorded_by_fkey(first_name, last_name),
           organization:organizations(name),
@@ -249,6 +276,7 @@ export default function ObservationsReport() {
         homeless_status: obs.canonical?.homeless_status || 'none',
         organization_id: obs.organization_id,
         organization_name: obs.organization?.name || 'Unknown',
+        compliance_summary: obs.compliance_summary,
       }));
 
       // Apply KPI filter if active
@@ -613,8 +641,94 @@ export default function ObservationsReport() {
                       </div>
                     )}
 
-                    {/* Zone Requirements Checklist - Compact Mode Only */}
-                    <ZoneRequirementsChecklist observationId={obs.observation_id} compact />
+                    {/* Pre-Calculated Compliance Summary */}
+                    {obs.compliance_summary && (
+                      <div className="mt-4 space-y-3">
+                        {/* Status Badge */}
+                        <div className="flex items-center gap-2">
+                          <Badge className={{
+                            compliant: 'bg-emerald-600 text-white',
+                            at_risk: 'bg-amber-500 text-white',
+                            breach: 'bg-red-600 text-white',
+                            breach_homeless_exempt: 'bg-violet-600 text-white',
+                          }[obs.compliance_summary.status]}>
+                            {{
+                              compliant: '✓ COMPLIANT',
+                              at_risk: '⚠ AT RISK',
+                              breach: '✗ BREACH',
+                              breach_homeless_exempt: '⚠ BREACH (HOMELESS EXEMPT)',
+                            }[obs.compliance_summary.status]}
+                          </Badge>
+                          <span className="text-xs text-muted-foreground">
+                            Calculated: {format(new Date(obs.compliance_summary.calculated_at), 'dd/MM/yyyy HH:mm')}
+                          </span>
+                        </div>
+
+                        {/* Compliance Explanation */}
+                        <div className={`p-3 rounded-lg border-l-4 ${
+                          obs.compliance_summary.status === 'compliant' ? 'bg-emerald-50 dark:bg-emerald-950/20 border-emerald-500' :
+                          obs.compliance_summary.status === 'at_risk' ? 'bg-amber-50 dark:bg-amber-950/20 border-amber-500' :
+                          obs.compliance_summary.status === 'breach_homeless_exempt' ? 'bg-violet-50 dark:bg-violet-950/20 border-violet-500' :
+                          'bg-red-50 dark:bg-red-950/20 border-red-500'
+                        }`}>
+                          <div className="text-sm font-semibold mb-1">Compliance Assessment</div>
+                          <div className="text-sm leading-relaxed">
+                            {obs.compliance_summary.explanation}
+                          </div>
+                        </div>
+
+                        {/* Compliance Metrics Grid */}
+                        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
+                          <div className="p-2 bg-muted rounded">
+                            <div className="text-muted-foreground mb-1">Monthly</div>
+                            <div className={`font-bold ${
+                              obs.compliance_summary.flags.exceeds_monthly_limit ? 'text-red-600' :
+                              obs.compliance_summary.metrics.nights_stayed_this_month === obs.compliance_summary.metrics.nights_per_month_allowed ? 'text-amber-500' :
+                              'text-emerald-600'
+                            }`}>
+                              {obs.compliance_summary.metrics.nights_stayed_this_month} / {obs.compliance_summary.metrics.nights_per_month_allowed} nights
+                            </div>
+                          </div>
+                          <div className="p-2 bg-muted rounded">
+                            <div className="text-muted-foreground mb-1">Consecutive</div>
+                            <div className={`font-bold ${
+                              obs.compliance_summary.flags.exceeds_consecutive_limit ? 'text-red-600' :
+                              obs.compliance_summary.metrics.consecutive_nights_stayed === obs.compliance_summary.metrics.max_consecutive_nights_allowed ? 'text-amber-500' :
+                              'text-emerald-600'
+                            }`}>
+                              {obs.compliance_summary.metrics.consecutive_nights_stayed} / {obs.compliance_summary.metrics.max_consecutive_nights_allowed} nights
+                            </div>
+                          </div>
+                          <div className="p-2 bg-muted rounded">
+                            <div className="text-muted-foreground mb-1">Self-Contained</div>
+                            <div className={`font-bold ${
+                              obs.compliance_summary.flags.sc_required_but_missing || obs.compliance_summary.flags.sc_expired ? 'text-red-600' :
+                              obs.compliance_summary.metrics.is_self_contained ? 'text-emerald-600' :
+                              'text-gray-500'
+                            }`}>
+                              {obs.compliance_summary.metrics.self_contained_required ? (
+                                obs.compliance_summary.metrics.is_self_contained ? (
+                                  obs.compliance_summary.flags.sc_expired ? '✗ EXPIRED' : '✓ Valid'
+                                ) : '✗ Missing'
+                              ) : 'Not Required'}
+                            </div>
+                          </div>
+                          <div className="p-2 bg-muted rounded">
+                            <div className="text-muted-foreground mb-1">Homeless</div>
+                            <div className={`font-bold ${
+                              obs.compliance_summary.flags.is_homeless_exempt ? 'text-violet-600' : 'text-gray-500'
+                            }`}>
+                              {obs.compliance_summary.flags.is_homeless_exempt ? '✓ Exempt' : 'None'}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Fallback to Zone Requirements Checklist if no compliance summary */}
+                    {!obs.compliance_summary && (
+                      <ZoneRequirementsChecklist observationId={obs.observation_id} compact />
+                    )}
                   </div>
                 </div>
               </Card>
