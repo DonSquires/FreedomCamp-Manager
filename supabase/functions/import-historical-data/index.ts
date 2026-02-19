@@ -688,8 +688,7 @@ Return ONLY a JSON object with this structure:
           }
 
           // Create observation with proper NZ timezone handling
-          // We want the Excel date to display at 08:00 NZ time
-          // PostgreSQL timestamptz with explicit timezone ensures correct conversion
+          // LEGACY IMPORT: No photo available - use placeholder and set legacy flags
           const { data: observation, error: obsError } = await supabaseAdmin
             .from('vehicle_observations_v2')
             .insert({
@@ -705,6 +704,16 @@ Return ONLY a JSON object with this structure:
               self_contained: null, // Unknown - historical data didn't capture this
               is_compliant: true, // Default - will be recalculated by triggers based on zone rules
               is_breach: false, // Default - will be recalculated by triggers based on compliance history
+              
+              // ============================================================
+              // LEGACY IMPORT FLAGS - Evidence Act 2006 Compliance
+              // ============================================================
+              is_legacy_import: true, // Mark as historical data import
+              evidence_state: 'original_missing', // No original photo available
+              legacy_source_tag: 'excel_import', // Source of import
+              legacy_note: `Imported from Excel file: ${file_path.split('/').pop()} on ${new Date().toISOString().split('T')[0]}`,
+              photo: `legacy/placeholder_${record.plate}_${record.date}.jpg`, // Placeholder for NOT NULL constraint
+              photo_hash: 'LEGACY_IMPORT_NO_PHOTO', // Placeholder hash
             })
             .select('observation_id')
             .single();

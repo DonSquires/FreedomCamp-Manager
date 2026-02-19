@@ -36,6 +36,7 @@ serve(async (req) => {
     let zoneId: string | null = null;
     let organizationId: string | null = null;
     let gpsAccuracy: number = 0;
+    let weatherConditions: string | null = null;
 
     const contentType = req.headers.get('content-type') || '';
     
@@ -54,6 +55,7 @@ serve(async (req) => {
       zoneId = formData.get('zone_id') as string | null;
       organizationId = formData.get('organization_id') as string | null;
       gpsAccuracy = parseFloat(formData.get('gps_accuracy') as string || '0');
+      weatherConditions = formData.get('weather_conditions') as string | null;
     } else {
       // JSON body (from UI)
       const body = await req.json();
@@ -76,6 +78,7 @@ serve(async (req) => {
       idempotencyKey = body.idempotencyKey || `${officerId}:${Date.now()}`;
       zoneId = body.zoneId || body.zone_id || null;
       organizationId = body.organizationId || body.organization_id || null;
+      weatherConditions = body.weatherConditions || body.weather_conditions || null;
     }
 
     // ============================================================================
@@ -241,7 +244,8 @@ serve(async (req) => {
         device_time: recordedAt,
         server_received_at: new Date().toISOString(),
         evidence_state: 'original_present',
-        is_legacy_import: false
+        is_legacy_import: false,
+        weather_conditions: weatherConditions
       })
       .select()
       .single();
