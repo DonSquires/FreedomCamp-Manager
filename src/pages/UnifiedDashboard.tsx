@@ -14,6 +14,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Progress } from '@/components/ui/progress';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -53,6 +54,7 @@ import {
   BarChart3,
   Activity,
   Award,
+  Database,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
@@ -753,7 +755,25 @@ export function UnifiedDashboard() {
           ) : metrics && (
             <>
               {/* KPI Grid */}
-              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                {/* Vehicle Data Quality Card */}
+                <Card 
+                  className="cursor-pointer hover:shadow-lg transition-all hover:border-primary/50"
+                  onClick={() => setActiveTab('summary')}
+                >
+                  <CardContent className="p-6">
+                    <Database className="h-8 w-8 text-indigo-600 mb-2" />
+                    <div className="space-y-2 mt-3">
+                      <div className="text-xs text-muted-foreground">Data Quality</div>
+                      <div className="space-y-1">
+                        <Progress value={75} className="h-1" />
+                        <div className="text-xs font-medium">75% Complete</div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+
+
                 <Card 
                   className="border-blue-300 bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950/30 dark:to-blue-900/20 cursor-pointer hover:shadow-lg transition-all"
                   onClick={() => {

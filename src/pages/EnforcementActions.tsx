@@ -57,6 +57,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
+import { EnforcementGuardModal } from '@/components/features/EnforcementGuardModal';
 import {
   Shield,
   AlertTriangle,
@@ -138,6 +139,11 @@ export function EnforcementActions() {
   const [isCreateEnforcementOpen, setIsCreateEnforcementOpen] = useState(false);
   const [selectedBreach, setSelectedBreach] = useState<ActiveBreach | null>(null);
   const [selectedJob, setSelectedJob] = useState<EnforcementJob | null>(null);
+
+  // Enforcement guard state
+  const [isEnforcementGuardOpen, setIsEnforcementGuardOpen] = useState(false);
+  const [enforcementCheckResult, setEnforcementCheckResult] = useState<any>(null);
+  const [pendingObservationId, setPendingObservationId] = useState<string | null>(null);
 
   // Form data with flagged vehicle options
   const [assignForm, setAssignForm] = useState({
@@ -385,6 +391,33 @@ export function EnforcementActions() {
     } catch (error: any) {
       console.error('Failed to create flagged vehicle:', error);
       throw error;
+    }
+  };
+
+  // Check if observation is enforceable
+  const checkEnforceability = async (observationId: string): Promise<boolean> => {
+    try {
+      const { data, error } = await supabase.rpc('is_observation_enforceable', {
+        obs_id: observationId
+      });
+
+      if (error) {
+        console.error('Enforcement check failed:', error);
+        toast.error('Failed to verify observation enforceability');
+        return false;
+      }
+
+      if (!data?.enforceable) {
+        setEnforcementCheckResult(data);
+        setIsEnforcementGuardOpen(true);
+        return false;
+      }
+
+      return true;
+    } catch (error: any) {
+      console.error('Enforcement check error:', error);
+      toast.error('Enforcement verification failed');
+      return false;
     }
   };
 
@@ -1005,6 +1038,17 @@ export function EnforcementActions() {
       </Tabs>
 
       {/* Create Enforcement Action Dialog - NEW FEATURE */}
+      {/* Enforcement Guard Modal */}
+      <EnforcementGuardModal
+        open={isEnforcementGuardOpen}
+        onClose={() => {
+          setIsEnforcementGuardOpen(false);
+          setEnforcementCheckResult(null);
+          setPendingObservationId(null);
+        }}
+        checkResult={enforcementCheckResult}
+      />
+
       <Dialog open={isCreateEnforcementOpen} onOpenChange={setIsCreateEnforcementOpen}>
         <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
@@ -1070,14 +1114,13 @@ export function EnforcementActions() {
               <div className="space-y-2">
                 <Label>Officer Issuing (Optional)</Label>
                 <Select 
-                  value={createEnforcementForm.assigned_to} 
+                  value={createEnforcementForm.assigned_to || undefined}
                   onValueChange={(value) => setCreateEnforcementForm({ ...createEnforcementForm, assigned_to: value })}
                 >
                   <SelectTrigger>
-                    <SelectValue placeholder="Select officer (optional)" />
+                    <SelectValue placeholder="None (select to assign)" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">None</SelectItem>
                     {users.filter(u => u.role === 'officer' || u.role === 'admin').map((officer) => (
                       <SelectItem key={officer.id} value={officer.id}>
                         {officer.first_name} {officer.last_name}
