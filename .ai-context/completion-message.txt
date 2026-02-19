@@ -1,1 +1,0 @@
-Fixed zone requirements NULL reason bug + Single source of truth for KPI cohorts—dashboard and report now use identical RPC functions (cohort_overstayers, cohort_homeless_exempt) ensuring counts and drill-downs always match, with homeless-exempt properly excluded from overstayers/breach KPIs.

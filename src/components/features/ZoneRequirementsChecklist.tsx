@@ -62,26 +62,16 @@ export function ZoneRequirementsChecklist({
     async function loadRequirements() {
       setIsLoading(true);
       try {
-        console.log('🔍 [Zone Requirements] Loading for observation:', observationId);
-        
         const { data, error } = await supabase
           .rpc('evaluate_observation_requirements', { p_obs_id: observationId });
 
-        if (error) {
-          console.error('❌ [Zone Requirements] RPC failed:', error);
-          throw error;
-        }
-
-        console.log('✅ [Zone Requirements] Received data:', data);
+        if (error) throw error;
 
         if (mounted) {
-          const sorted = (data || []).sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
-          console.log('📊 [Zone Requirements] Setting requirements:', sorted);
-          setRequirements(sorted);
+          setRequirements((data || []).sort((a, b) => a.sort_order - b.sort_order));
         }
       } catch (error: any) {
-        console.error('❌ [Zone Requirements] Failed to load:', error);
-        console.error('   Error details:', error.message, error.details, error.hint);
+        console.error('Failed to load zone requirements:', error);
       } finally {
         if (mounted) {
           setIsLoading(false);
@@ -158,11 +148,9 @@ export function ZoneRequirementsChecklist({
                 </Badge>
                 
                 <div className="flex-1 min-w-0">
-                  <div className="font-semibold text-sm mb-1">
-                    {req.requirement_label || req.requirement_code}
-                  </div>
+                  <div className="font-semibold text-sm mb-1">{req.requirement_label}</div>
                   <div className="text-sm text-muted-foreground leading-relaxed">
-                    {req.reason || '(No details available)'}
+                    {req.reason}
                   </div>
                   
                   {req.status === 'breach_exempt' && (

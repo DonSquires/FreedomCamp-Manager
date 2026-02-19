@@ -27,7 +27,6 @@ import { toast } from 'sonner';
 import { useOrganizations } from '@/hooks/useOrganizations';
 import { useZones } from '@/hooks/useZones';
 import { ZoneRequirementsChecklist } from '@/components/features/ZoneRequirementsChecklist';
-import { KPI, KPI_LABELS } from '@/types/kpi';
 
 interface ObservationRecord {
   observation_id: string;
@@ -62,10 +61,10 @@ export default function ObservationsReport() {
   
   // Check URL parameters for BI dashboard drill-down
   const urlParams = new URLSearchParams(window.location.search);
-  const urlDateFrom = urlParams.get('from');
-  const urlDateTo = urlParams.get('to');
-  const urlOrgId = urlParams.get('org');
-  const urlKpi = urlParams.get('kpi');
+  const urlDateFrom = urlParams.get('dateFrom');
+  const urlDateTo = urlParams.get('dateTo');
+  const urlOrgId = urlParams.get('orgId');
+  const urlFilterType = urlParams.get('filterType');
   
   // Filters
   const [selectedOrgId, setSelectedOrgId] = useState<string>(urlOrgId || '');
@@ -74,77 +73,109 @@ export default function ObservationsReport() {
     urlDateFrom || format(new Date(new Date().setDate(new Date().getDate() - 7)), 'yyyy-MM-dd')
   );
   const [endDate, setEndDate] = useState<string>(urlDateTo || format(new Date(), 'yyyy-MM-dd'));
-  const [kpiFilter, setKpiFilter] = useState<string | null>(urlKpi || null);
+  const [kpiFilter, setKpiFilter] = useState<string | null>(urlFilterType || null);
   const [overstayerPlates, setOverstayerPlates] = useState<Set<string>>(new Set());
   const [atRiskPlates, setAtRiskPlates] = useState<Set<string>>(new Set());
   const [homelessExemptObs, setHomelessExemptObs] = useState<Set<string>>(new Set());
 
   const { zones } = useZones(selectedOrgId || undefined);
 
-  // Clear URL params after applying them
+  // Clear URL params after applying them (but keep tab param)
   useEffect(() => {
-    if (urlDateFrom || urlDateTo || urlOrgId || urlKpi) {
-      window.history.replaceState({}, '', window.location.pathname);
+    if (urlDateFrom || urlDateTo || urlOrgId || urlFilterType) {
+      window.history.replaceState({}, '', window.location.pathname + '?tab=observations-report');
     }
   }, []);
 
-  // REMOVED: Old monthly stays calculation (replaced by RPC)
+  // Load overstayer/at-risk plates when KPI filter is active
+  useEffect(() => {
+    if (kpiFilter === 'overstayers' || kpiFilter === 'at-risk') {
+      loadOverstayerData();
+    }
+  }, [kpiFilter, startDate, endDate, selectedOrgId]);
 
-  // Query observations - uses RPC cohorts for KPI filters
+  // Load homeless exempt observations when KPI filter is active
+  useEffect(() => {
+    if (kpiFilter === 'homeless_exempt') {
+      loadHomelessExemptData();
+    }
+  }, [kpiFilter, startDate, endDate, selectedOrgId]);
+
+  const loadHomelessExemptData = async () => {
+    try {
+      const { data, error } = await supabase.rpc('observations_homeless_exempt', {
+        p_from: `${startDate}T00:00:00`,
+        p_to: `${endDate}T23:59:59`,
+        p_org_id: selectedOrgId || null,
+        p_zone_id: selectedZoneId || null,
+      });
+
+      if (error) throw error;
+
+      const obsIds = new Set((data || []).map((d: any) => d.observation_id));
+      setHomelessExemptObs(obsIds);
+    } catch (error: any) {
+      console.error('Failed to load homeless exempt data:', error);
+    }
+  };
+
+  const loadOverstayerData = async () => {
+    try {
+      // Query monthly stays to identify overstayers/at-risk
+      const fromMonth = startDate.slice(0, 7) + '-01';
+      const toMonth = endDate.slice(0, 7) + '-01';
+
+      let staysQuery = supabase
+        .from('vehicle_monthly_stays')
+        .select('plate_number, zone_id, consecutive_nights, nights_stayed')
+        .gte('calendar_month', fromMonth)
+        .lte('calendar_month', toMonth);
+
+      if (selectedOrgId) {
+        staysQuery = staysQuery.eq('organization_id', selectedOrgId);
+      }
+
+      const { data: stays } = await staysQuery;
+
+      // Get compliance matrix rules
+      let matrixQuery = supabase
+        .from('zone_compliance_matrix')
+        .select('zone_id, max_consecutive_nights, nights_per_month')
+        .is('effective_to', null);
+
+      if (selectedOrgId) {
+        matrixQuery = matrixQuery.eq('organization_id', selectedOrgId);
+      }
+
+      const { data: matrices } = await matrixQuery;
+      const matrixMap = new Map(matrices?.map(m => [m.zone_id, m]) || []);
+
+      const overstayers = new Set<string>();
+      const atRisk = new Set<string>();
+
+      (stays || []).forEach(stay => {
+        const rules = matrixMap.get(stay.zone_id);
+        if (!rules) return;
+
+        if (stay.consecutive_nights > rules.max_consecutive_nights || stay.nights_stayed > rules.nights_per_month) {
+          overstayers.add(stay.plate_number);
+        } else if (stay.consecutive_nights === rules.max_consecutive_nights || stay.nights_stayed === rules.nights_per_month) {
+          atRisk.add(stay.plate_number);
+        }
+      });
+
+      setOverstayerPlates(overstayers);
+      setAtRiskPlates(atRisk);
+
+    } catch (error: any) {
+      console.error('Failed to load overstayer data:', error);
+    }
+  };
+
+  // Query observations
   const { data: observations, isLoading } = useQuery({
-    queryKey: ['observations-report', selectedOrgId, selectedZoneId, startDate, endDate, kpiFilter],
+    queryKey: ['observations-report', selectedOrgId, selectedZoneId, startDate, endDate, kpiFilter, overstayerPlates.size, atRiskPlates.size],
     queryFn: async () => {
-      // Build UTC timestamps with NZ timezone
-      const utcFrom = `${startDate}T00:00:00+13:00`;
-      const utcTo = `${endDate}T23:59:59+13:00`;
-      const orgIdParam = (selectedOrgId && selectedOrgId !== 'ALL') ? selectedOrgId : null;
-      const zoneIdParam = selectedZoneId || null;
-
-      // Use RPC cohorts for KPI filters (single source of truth)
-      if (kpiFilter === KPI.OVERSTAYERS) {
-        const { data, error } = await supabase.rpc('cohort_overstayers', {
-          p_from: utcFrom,
-          p_to: utcTo,
-          p_org_id: orgIdParam,
-          p_zone_id: zoneIdParam,
-        });
-        if (error) throw error;
-        return transformObservations(data || []);
-      }
-
-      if (kpiFilter === KPI.HOMELESS_EXEMPT) {
-        const { data, error } = await supabase.rpc('cohort_homeless_exempt', {
-          p_from: utcFrom,
-          p_to: utcTo,
-          p_org_id: orgIdParam,
-          p_zone_id: zoneIdParam,
-        });
-        if (error) throw error;
-        return transformObservations(data || []);
-      }
-
-      if (kpiFilter === KPI.COMPLIANT) {
-        const { data, error } = await supabase.rpc('cohort_compliant', {
-          p_from: utcFrom,
-          p_to: utcTo,
-          p_org_id: orgIdParam,
-          p_zone_id: zoneIdParam,
-        });
-        if (error) throw error;
-        return transformObservations(data || []);
-      }
-
-      if (kpiFilter === KPI.BREACHES) {
-        const { data, error } = await supabase.rpc('cohort_all_breaches', {
-          p_from: utcFrom,
-          p_to: utcTo,
-          p_org_id: orgIdParam,
-          p_zone_id: zoneIdParam,
-        });
-        if (error) throw error;
-        return transformObservations(data || []);
-      }
-      // No KPI filter - fetch all observations with standard query
       let query = supabase
         .from('vehicle_observations_v2')
         .select(`
@@ -174,28 +205,25 @@ export default function ObservationsReport() {
             homeless_status
           )
         `)
-        .gte('recorded_at', utcFrom)
-        .lte('recorded_at', utcTo)
+        .gte('recorded_at', `${startDate}T00:00:00`)
+        .lte('recorded_at', `${endDate}T23:59:59`)
         .order('recorded_at', { ascending: false });
 
-      if (orgIdParam) {
-        query = query.eq('organization_id', orgIdParam);
+      if (selectedOrgId) {
+        query = query.eq('organization_id', selectedOrgId);
       }
 
-      if (zoneIdParam) {
-        query = query.eq('zone_id', zoneIdParam);
+      if (selectedZoneId) {
+        query = query.eq('zone_id', selectedZoneId);
       }
 
       const { data, error } = await query;
+
       if (error) throw error;
 
-      return transformObservations(data || []);
-    },
-  });
-
-  // Transform observations helper
-  const transformObservations = (data: any[]): ObservationRecord[] => {
-    return data.map((obs: any) => ({
+      // Transform data
+      let results = (data || []).map((obs: any) => ({
+        observation_id: obs.observation_id,
         plate_number: obs.plate_number,
         photo: obs.photo,
         recorded_at: obs.recorded_at,
@@ -217,9 +245,25 @@ export default function ObservationsReport() {
         self_contained_expiry: obs.canonical?.self_contained_expiry || null,
         homeless_status: obs.canonical?.homeless_status || 'none',
         organization_id: obs.organization_id,
-      organization_name: obs.organization?.name || obs.organizations?.name || 'Unknown',
-    }));
-  };
+        organization_name: obs.organization?.name || 'Unknown',
+      }));
+
+      // Apply KPI filter if active
+      if (kpiFilter === 'overstayers') {
+        results = results.filter(obs => overstayerPlates.has(obs.plate_number));
+      } else if (kpiFilter === 'at-risk') {
+        results = results.filter(obs => atRiskPlates.has(obs.plate_number));
+      } else if (kpiFilter === 'breaches') {
+        results = results.filter(obs => !obs.is_compliant && obs.breach_type);
+      } else if (kpiFilter === 'compliant') {
+        results = results.filter(obs => obs.is_compliant);
+      } else if (kpiFilter === 'homeless_exempt') {
+        results = results.filter(obs => homelessExemptObs.has(obs.observation_id));
+      }
+
+      return results as ObservationRecord[];
+    },
+  });
 
   const exportToCSV = () => {
     if (!observations || observations.length === 0) {
@@ -379,7 +423,12 @@ export default function ObservationsReport() {
                     📊 KPI Filter:
                   </span>
                   <Badge variant="default" className="bg-blue-600">
-                    {KPI_LABELS[kpiFilter] || kpiFilter} ({observations?.length || 0})
+                    {kpiFilter === 'overstayers' ? `Overstayers (${observations?.length || 0})` : 
+                     kpiFilter === 'at-risk' ? `At-Risk (${observations?.length || 0})` :
+                     kpiFilter === 'breaches' ? `Breaches (${observations?.length || 0})` :
+                     kpiFilter === 'compliant' ? `Compliant (${observations?.length || 0})` :
+                     kpiFilter === 'homeless_exempt' ? `Homeless Exempt (${observations?.length || 0})` :
+                     'Active'}
                   </Badge>
                 </div>
                 <Button 
