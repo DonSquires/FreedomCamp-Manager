@@ -880,6 +880,26 @@ export function UnifiedDashboard() {
                     <div className="text-sm text-muted-foreground">Zones</div>
                   </CardContent>
                 </Card>
+
+                <Card 
+                  className="border-violet-300 bg-gradient-to-br from-violet-50 to-violet-100 dark:from-violet-950/30 dark:to-violet-900/20 cursor-pointer hover:shadow-lg transition-all"
+                  onClick={() => {
+                    const params = new URLSearchParams({
+                      tab: 'observations-report',
+                      dateFrom,
+                      dateTo,
+                      filterType: 'homeless_exempt',
+                      ...(isMaster && selectedOrgId !== 'all' ? { orgId: selectedOrgId } : {})
+                    });
+                    window.location.href = `/admin?${params.toString()}`;
+                  }}
+                >
+                  <CardContent className="p-6">
+                    <Home className="h-8 w-8 text-violet-600 mb-2" />
+                    <div className="text-4xl font-black text-violet-600">{metrics.homeless}</div>
+                    <div className="text-sm text-violet-700">Homeless (Exempt)</div>
+                  </CardContent>
+                </Card>
               </div>
 
               {/* Tabs */}
