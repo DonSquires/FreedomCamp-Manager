@@ -624,44 +624,39 @@ export function PlateScanner({ onExit }: PlateScannerProps) {
         />
         <canvas ref={canvasRef} className="hidden" />
         
-        {/* Zone/GPS/Time Info - Top Left - 50% Opacity */}
+        {/* Zone/GPS/Time Info - Top Left - 50% Opacity - ZoomScan Style */}
         <div className="absolute top-4 left-4 bg-black/50 backdrop-blur-md rounded-lg p-3 border border-white/20 opacity-50">
           <div className="text-white space-y-1">
-            <div className="flex items-center gap-2">
-              <MapPin className="h-4 w-4" />
-              <div className="flex flex-col">
-                <p className="font-bold text-sm">
-                  {zoneDetectionStatus === 'detecting' && '🔍 Detecting zone...'}
-                  {zoneDetectionStatus === 'found' && selectedZone?.name}
-                  {zoneDetectionStatus === 'failed' && (
-                    <button
-                      onClick={() => setShowZoneSelector(true)}
-                      className="text-yellow-300 underline hover:text-yellow-100"
-                    >
-                      ⚠️ Select Zone
-                    </button>
-                  )}
-                  {zoneDetectionStatus === 'idle' && 'No Zone'}
-                </p>
-                {zoneDetectionStatus === 'detecting' && (
-                  <p className="text-xs text-gray-300">Using GPS...</p>
-                )}
-              </div>
-            </div>
+            {/* Zone Name - Always visible, clickable if not set */}
+            <p className="font-bold text-sm">
+              {zoneDetectionStatus === 'detecting' && '🔍 Detecting zone...'}
+              {zoneDetectionStatus === 'found' && selectedZone?.name}
+              {(zoneDetectionStatus === 'failed' || zoneDetectionStatus === 'idle') && (
+                <button
+                  onClick={() => setShowZoneSelector(true)}
+                  className="text-yellow-300 underline hover:text-yellow-100"
+                >
+                  ⚠️ Select Zone
+                </button>
+              )}
+            </p>
+            
+            {/* GPS Coordinates - Always show if available */}
             {gpsLocation && (
-              <div className="flex items-center gap-2 text-xs">
-                <Navigation className="h-3 w-3" />
-                <p>{gpsLocation.lat.toFixed(5)}, {gpsLocation.lng.toFixed(5)}</p>
-              </div>
+              <p className="text-xs">
+                📍 {gpsLocation.lat.toFixed(5)}, {gpsLocation.lng.toFixed(5)}
+              </p>
             )}
-            <div className="flex items-center gap-2 text-xs">
-              <Calendar className="h-3 w-3" />
-              <p>{currentTime.toLocaleDateString('en-NZ')}</p>
-            </div>
-            <div className="flex items-center gap-2 text-xs">
-              <Clock className="h-3 w-3" />
-              <p>{currentTime.toLocaleTimeString('en-NZ', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</p>
-            </div>
+            
+            {/* Date */}
+            <p className="text-xs">
+              📅 {currentTime.toLocaleDateString('en-NZ')}
+            </p>
+            
+            {/* Time */}
+            <p className="text-xs">
+              🕐 {currentTime.toLocaleTimeString('en-NZ', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+            </p>
           </div>
         </div>
 
@@ -746,20 +741,26 @@ export function PlateScanner({ onExit }: PlateScannerProps) {
           </>
         )}
 
-        {/* Capture Button */}
+        {/* Capture Button - Show warning if no zone, but don't disable */}
         <div className="absolute bottom-10 left-1/2 -translate-x-1/2">
           <Button
             onClick={captureAndProcess}
             disabled={!cameraReady || !selectedZone}
-            className="h-24 w-24 rounded-full bg-white hover:bg-gray-200 text-black shadow-[0_0_40px_rgba(255,255,255,0.8)] border-8 border-green-500 relative"
+            className={cn(
+              "h-24 w-24 rounded-full shadow-[0_0_40px_rgba(255,255,255,0.8)] border-8 relative",
+              !selectedZone 
+                ? "bg-yellow-500 hover:bg-yellow-600 text-white border-yellow-600" 
+                : "bg-white hover:bg-gray-200 text-black border-green-500"
+            )}
             size="lg"
           >
             {!cameraReady ? (
               <Loader2 className="h-12 w-12 text-gray-400 animate-spin" />
             ) : !selectedZone ? (
               <div className="text-center">
-                <MapPin className="h-8 w-8 text-red-500 mx-auto mb-1" />
-                <p className="text-xs text-red-600 font-bold">No Zone</p>
+                <MapPin className="h-8 w-8 mx-auto mb-1" />
+                <p className="text-[10px] font-bold">Select</p>
+                <p className="text-[10px] font-bold">Zone</p>
               </div>
             ) : (
               <Camera className="h-12 w-12 text-green-600" />
@@ -771,8 +772,8 @@ export function PlateScanner({ onExit }: PlateScannerProps) {
             )}
           </Button>
           {!selectedZone && (
-            <p className="text-white text-xs text-center mt-2 bg-black/60 px-3 py-1 rounded-full">
-              Tap zone selector above
+            <p className="text-white text-xs text-center mt-2 bg-black/60 px-3 py-1 rounded-full animate-pulse">
+              👆 Tap yellow button or zone name above
             </p>
           )}
         </div>
