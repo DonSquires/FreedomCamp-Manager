@@ -689,6 +689,7 @@ Return ONLY a JSON object with this structure:
 
           // Create observation with proper NZ timezone handling
           // LEGACY IMPORT: No photo available - use placeholder and set legacy flags
+          // ⚠️ NO COMPLIANCE CALCULATION DURING IMPORT - run recalculation afterward
           const { data: observation, error: obsError } = await supabaseAdmin
             .from('vehicle_observations_v2')
             .insert({
@@ -701,19 +702,31 @@ Return ONLY a JSON object with this structure:
               recorded_at: `${record.date}T08:00:00+13:00`,
               officer_notes: officerNotes,
               has_notes: hasNotes,
-              self_contained: null, // Unknown - historical data didn't capture this
-              is_compliant: true, // Default - will be recalculated by triggers based on zone rules
-              is_breach: false, // Default - will be recalculated by triggers based on compliance history
+              
+              // ============================================================
+              // MINIMAL IMPORT - ONLY ESSENTIAL FIELDS
+              // All other fields will be populated during recalculation phase
+              // ============================================================
+              self_contained: null, // Unknown - will be enriched from NZSCV during recalculation
+              vehicle_make: null, // Unknown - will be enriched during recalculation
+              vehicle_model: null, // Unknown - will be enriched during recalculation
+              vehicle_year: null, // Unknown - will be enriched during recalculation
+              vehicle_color: null, // Unknown - will be enriched during recalculation
+              
+              // Skip compliance fields - will be calculated during recalculation
+              is_compliant: null, // Will be set during recalculation
+              is_breach: null, // Will be set during recalculation
               
               // ============================================================
               // LEGACY IMPORT FLAGS - Evidence Act 2006 Compliance
               // ============================================================
               is_legacy_import: true, // Mark as historical data import
-              evidence_state: 'original_missing', // No original photo available
+              evidence_state: 'legacy_no_photo', // No original photo available
               legacy_source_tag: 'excel_import', // Source of import
               legacy_note: `Imported from Excel file: ${file_path.split('/').pop()} on ${new Date().toISOString().split('T')[0]}`,
               photo: `legacy/placeholder_${record.plate}_${record.date}.jpg`, // Placeholder for NOT NULL constraint
               photo_hash: 'LEGACY_IMPORT_NO_PHOTO', // Placeholder hash
+              review_blocked: true, // Block from enforcement until recalculation completes
             })
             .select('observation_id')
             .single();
@@ -723,12 +736,15 @@ Return ONLY a JSON object with this structure:
             throw obsError || new Error('Failed to create observation');
           }
 
-          // Note: Compliance calculation is automatic via database triggers
-          // - trigger_update_canonical_stats_v2: Updates canonical vehicle stats
-          // - trigger_update_monthly_stays: Updates vehicle_monthly_stays for compliance tracking
-          // - trigger_day_visit_evaluation: Evaluates day-visit compliance
-          // No manual compliance calculation needed - triggers handle it automatically
-          console.log(`✅ [IMPORT] Observation created for ${record.plate}, compliance will be calculated automatically by triggers`);
+          // ============================================================
+          // IMPORT COMPLETE - NO COMPLIANCE CALCULATION
+          // Run recalculation process after import to:
+          // 1. Match/create canonical vehicle records
+          // 2. Enrich from NZSCV data
+          // 3. Calculate compliance based on zone rules
+          // 4. Unblock observations for enforcement
+          // ============================================================
+          console.log(`✅ [IMPORT] Observation created for ${record.plate}, recalculation needed`);
 
           record.status = 'success';
           successful++;

@@ -27,6 +27,7 @@ interface ScanRequest {
   detectionMethod: 'alpr' | 'manual';
   confidence: number;
   isSelfContained?: boolean;
+  weatherConditions?: string;
 }
 
 Deno.serve(async (req) => {
@@ -109,6 +110,7 @@ Deno.serve(async (req) => {
         gps_latitude: scanData.gpsLocation?.lat,
         gps_longitude: scanData.gpsLocation?.lng,
         gps_accuracy: scanData.gpsLocation?.accuracy,
+        weather_conditions: scanData.weatherConditions,
       })
       .select()
       .single();
