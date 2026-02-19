@@ -53,6 +53,9 @@ export function PlateScanner({ onExit }: PlateScannerProps) {
   const [gpsLocation, setGpsLocation] = useState<{ lat: number; lng: number; accuracy: number } | null>(null);
   const [selectedZone, setSelectedZone] = useState<{ id: string; name: string; organization_id: string } | null>(null);
   const [currentPatrol, setCurrentPatrol] = useState<{ id: string; zone_id: string; shift: string } | null>(null);
+  const [zoneDetectionStatus, setZoneDetectionStatus] = useState<'idle' | 'detecting' | 'found' | 'failed'>('idle');
+  const [availableZones, setAvailableZones] = useState<Array<{ id: string; name: string; organization_id: string }>>([]);
+  const [showZoneSelector, setShowZoneSelector] = useState(false);
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -104,6 +107,34 @@ export function PlateScanner({ onExit }: PlateScannerProps) {
     return () => clearInterval(interval);
   }, []);
 
+  // Load available zones on mount
+  useEffect(() => {
+    const loadZones = async () => {
+      if (!user?.organization_id) return;
+      
+      try {
+        const { data: zones } = await supabase
+          .from('zones')
+          .select('id, name, organization_id')
+          .eq('organization_id', user.organization_id)
+          .eq('is_active', true)
+          .order('name');
+        
+        if (zones && zones.length > 0) {
+          setAvailableZones(zones);
+          console.log(`📍 Loaded ${zones.length} zones`);
+        } else {
+          console.warn('⚠️ No zones found for organization');
+          toast.error('No zones configured - please contact admin');
+        }
+      } catch (error) {
+        console.error('❌ Failed to load zones:', error);
+      }
+    };
+    
+    loadZones();
+  }, [user?.organization_id]);
+
   // Get GPS location and auto-detect zone
   useEffect(() => {
     if (!('geolocation' in navigator)) {
@@ -111,6 +142,16 @@ export function PlateScanner({ onExit }: PlateScannerProps) {
       loadDefaultZone();
       return;
     }
+
+    setZoneDetectionStatus('detecting');
+    const detectionTimeout = setTimeout(() => {
+      if (!selectedZone) {
+        console.warn('⚠️ Zone detection timeout - showing manual selector');
+        setZoneDetectionStatus('failed');
+        setShowZoneSelector(true);
+        toast.warning('Auto-detect failed - please select zone manually');
+      }
+    }, 5000); // 5 second timeout
 
     const watchId = navigator.geolocation.watchPosition(
       async (position) => {
@@ -129,6 +170,8 @@ export function PlateScanner({ onExit }: PlateScannerProps) {
       },
       (error) => {
         console.error('❌ GPS error:', error);
+        clearTimeout(detectionTimeout);
+        setZoneDetectionStatus('failed');
         loadDefaultZone();
       },
       {
@@ -138,7 +181,10 @@ export function PlateScanner({ onExit }: PlateScannerProps) {
       }
     );
 
-    return () => navigator.geolocation.clearWatch(watchId);
+    return () => {
+      navigator.geolocation.clearWatch(watchId);
+      clearTimeout(detectionTimeout);
+    };
   }, [user?.organization_id]);
 
   // Load default zone if GPS fails
@@ -156,10 +202,17 @@ export function PlateScanner({ onExit }: PlateScannerProps) {
 
       if (zones && zones.length > 0) {
         setSelectedZone(zones[0]);
+        setZoneDetectionStatus('found');
         console.log('📍 Default zone set:', zones[0].name);
+      } else {
+        setZoneDetectionStatus('failed');
+        setShowZoneSelector(true);
+        toast.error('No zones available - please contact admin');
       }
     } catch (error) {
       console.error('❌ Failed to load default zone:', error);
+      setZoneDetectionStatus('failed');
+      setShowZoneSelector(true);
     }
   };
 
@@ -182,6 +235,7 @@ export function PlateScanner({ onExit }: PlateScannerProps) {
             name: zone.zone_name,
             organization_id: organizationId,
           });
+          setZoneDetectionStatus('found');
           console.log('📍 Auto-detected zone:', zone.zone_name);
           toast.success(`Zone detected: ${zone.zone_name}`);
         }
@@ -197,12 +251,21 @@ export function PlateScanner({ onExit }: PlateScannerProps) {
 
         if (fallbackZone && (!selectedZone || selectedZone.id !== fallbackZone.id)) {
           setSelectedZone(fallbackZone);
+          setZoneDetectionStatus('found');
           console.log('📍 Auto-set to Other Location (outside geofences)');
           toast.info('Outside patrol zones - using Other Location');
+        } else {
+          // No fallback zone found - show manual selector
+          console.warn('⚠️ No zones match GPS and no fallback zone exists');
+          setZoneDetectionStatus('failed');
+          setShowZoneSelector(true);
+          toast.warning('Outside patrol zones - please select manually');
         }
       }
     } catch (error) {
       console.error('❌ Auto-detect zone failed:', error);
+      setZoneDetectionStatus('failed');
+      // Don't show selector yet - wait for timeout
     }
   };
 
@@ -374,20 +437,21 @@ export function PlateScanner({ onExit }: PlateScannerProps) {
       
       console.log('✅ Photo uploaded:', publicUrl);
 
-      // STEP 3: Call NEW plate-scanner-complete function
-      console.log('📤 Processing with new Plate Scanner function...');
-      const { data: scanResult, error: scanError } = await supabase.functions.invoke('plate-scanner-complete', {
+      // STEP 3: Call UNIFIED plate-scanner-photo-first function
+      console.log('📤 Processing with unified photo-first ingest...');
+      const { data: scanResult, error: scanError } = await supabase.functions.invoke('plate-scanner-photo-first', {
         body: {
           image: imageDataUrl,
           zoneId: selectedZone.id,
           organizationId: selectedZone.organization_id,
           userId: user.id,
+          recordedAt: new Date().toISOString(),
           gpsLocation: gpsLocation ? {
             lat: gpsLocation.lat,
             lng: gpsLocation.lng,
             accuracy: gpsLocation.accuracy,
           } : null,
-          patrolId: currentPatrol?.id,
+          idempotencyKey: `driving:${Date.now()}:${Math.random().toString(36).slice(2)}`,
         },
       });
 
@@ -405,37 +469,23 @@ export function PlateScanner({ onExit }: PlateScannerProps) {
         throw new Error(scanResult?.error || 'Scan failed');
       }
 
-      console.log('✅ Scan complete:', scanResult);
+      console.log('✅ Photo-first ingest complete:', scanResult);
 
-      // STEP 4: Determine status from result
+      // STEP 4: Determine status (initially just show plate detected)
+      // Compliance evaluation happens via trigger - poll get_observation_result() for full details
       let status: QueueItem['status'] = 'compliant';
-      let details = scanResult.alerts?.[0] || '✅ Compliant with zone requirements';
+      let details = `✅ Plate detected: ${scanResult.plate_number || 'PENDING'}`;
 
-      if (scanResult.is_flagged) {
-        status = 'breach';
-        details = scanResult.alerts?.find((a: string) => a.includes('🚩')) || '🚩 Flagged vehicle';
-        playSounds.flaggedVehicle();
-      } else if (scanResult.is_homeless) {
-        status = 'fc_exempt';
-        details = scanResult.alerts?.find((a: string) => a.includes('🏕️')) || '🏕️ Homeless - FC Act Exempt';
+      if (scanResult.plate_number) {
         playSounds.processingComplete();
-      } else if (!scanResult.is_compliant) {
-        if (scanResult.at_risk) {
-          status = 'at_risk';
-          details = scanResult.alerts?.find((a: string) => a.includes('🟡')) || '🟡 AT RISK: Final night before breach';
-          playSounds.violationAlert();
-        } else {
-          status = 'breach';
-          details = scanResult.alerts?.find((a: string) => a.includes('🔴')) || '🔴 Breach detected';
-          playSounds.violationAlert();
-        }
       } else {
+        details = '⏳ ALPR processing...';
         playSounds.processingComplete();
       }
 
       const newItem: QueueItem = {
         id: scanResult.observation_id || `scan-${Date.now()}`,
-        plateNumber: scanResult.plate_number || 'UNKNOWN',
+        plateNumber: scanResult.plate_number || 'PROCESSING',
         status,
         details,
         timestamp: new Date(),
@@ -579,7 +629,24 @@ export function PlateScanner({ onExit }: PlateScannerProps) {
           <div className="text-white space-y-1">
             <div className="flex items-center gap-2">
               <MapPin className="h-4 w-4" />
-              <p className="font-bold text-sm">{selectedZone?.name || 'No Zone'}</p>
+              <div className="flex flex-col">
+                <p className="font-bold text-sm">
+                  {zoneDetectionStatus === 'detecting' && '🔍 Detecting zone...'}
+                  {zoneDetectionStatus === 'found' && selectedZone?.name}
+                  {zoneDetectionStatus === 'failed' && (
+                    <button
+                      onClick={() => setShowZoneSelector(true)}
+                      className="text-yellow-300 underline hover:text-yellow-100"
+                    >
+                      ⚠️ Select Zone
+                    </button>
+                  )}
+                  {zoneDetectionStatus === 'idle' && 'No Zone'}
+                </p>
+                {zoneDetectionStatus === 'detecting' && (
+                  <p className="text-xs text-gray-300">Using GPS...</p>
+                )}
+              </div>
             </div>
             {gpsLocation && (
               <div className="flex items-center gap-2 text-xs">
@@ -634,6 +701,51 @@ export function PlateScanner({ onExit }: PlateScannerProps) {
           </Button>
         </div>
 
+        {/* Manual Zone Selector Modal */}
+        {showZoneSelector && (
+          <>
+            <div 
+              className="fixed inset-0 bg-black/80 z-40"
+              onClick={() => setShowZoneSelector(false)}
+            />
+            <div className="fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-900 rounded-t-2xl shadow-2xl z-50 max-h-[70vh] flex flex-col">
+              <div className="p-4 border-b-2 border-gray-200 dark:border-gray-700 bg-primary/10">
+                <p className="text-base font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                  <MapPin className="h-5 w-5" />
+                  Select Zone
+                </p>
+                <p className="text-sm text-muted-foreground mt-1">
+                  {availableZones.length} zone{availableZones.length !== 1 ? 's' : ''} available
+                </p>
+              </div>
+              <div className="flex-1 overflow-y-auto p-3 space-y-2">
+                {availableZones.map((zone) => (
+                  <button
+                    key={zone.id}
+                    onClick={() => {
+                      setSelectedZone(zone);
+                      setZoneDetectionStatus('found');
+                      setShowZoneSelector(false);
+                      toast.success(`Zone selected: ${zone.name}`);
+                    }}
+                    className={cn(
+                      "w-full text-left px-5 py-4 rounded-xl text-base touch-manipulation transition-all",
+                      selectedZone?.id === zone.id
+                        ? "bg-primary text-primary-foreground shadow-lg border-2 border-primary/50"
+                        : "bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 border-2 border-transparent"
+                    )}
+                  >
+                    <div className="flex items-center gap-3">
+                      {selectedZone?.id === zone.id && <MapPin className="h-5 w-5" />}
+                      <span className="font-bold">{zone.name}</span>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </>
+        )}
+
         {/* Capture Button */}
         <div className="absolute bottom-10 left-1/2 -translate-x-1/2">
           <Button
@@ -642,8 +754,13 @@ export function PlateScanner({ onExit }: PlateScannerProps) {
             className="h-24 w-24 rounded-full bg-white hover:bg-gray-200 text-black shadow-[0_0_40px_rgba(255,255,255,0.8)] border-8 border-green-500 relative"
             size="lg"
           >
-            {!cameraReady || !selectedZone ? (
+            {!cameraReady ? (
               <Loader2 className="h-12 w-12 text-gray-400 animate-spin" />
+            ) : !selectedZone ? (
+              <div className="text-center">
+                <MapPin className="h-8 w-8 text-red-500 mx-auto mb-1" />
+                <p className="text-xs text-red-600 font-bold">No Zone</p>
+              </div>
             ) : (
               <Camera className="h-12 w-12 text-green-600" />
             )}
@@ -653,6 +770,11 @@ export function PlateScanner({ onExit }: PlateScannerProps) {
               </div>
             )}
           </Button>
+          {!selectedZone && (
+            <p className="text-white text-xs text-center mt-2 bg-black/60 px-3 py-1 rounded-full">
+              Tap zone selector above
+            </p>
+          )}
         </div>
 
         {/* Exit Button */}
