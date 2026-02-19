@@ -48,7 +48,7 @@ import { Badge } from '@/components/ui/badge';
 // Components
 import { ZoomScanQueue } from '@/components/features/ZoomScanQueue';
 import { UnifiedDashboard } from './UnifiedDashboard';
-import { ObservationsReport } from './ObservationsReport';
+import ObservationsReport from './ObservationsReport';
 import { VehicleRegistry } from './VehicleRegistry';
 import { VehicleEvidenceReport } from './VehicleEvidenceReport';
 import { ZoneManagement } from './ZoneManagement';
