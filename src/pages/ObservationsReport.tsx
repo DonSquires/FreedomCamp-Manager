@@ -1,15 +1,17 @@
+
 /**
  * Observations Report
  * Comprehensive report of all vehicle observations with enriched data
+ * Supports KPI drill-down filters from BI Dashboard
  */
 
 import { useState, useEffect } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query'; // Fixed: Corrected the import path for useQuery
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/stores/authStore';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -19,37 +21,29 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Loader2, Download, Calendar, MapPin, Camera, FileText } from 'lucide-react';
+import { Loader2, Download, Calendar, MapPin, FileText, X } from 'lucide-react';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { useOrganizations } from '@/hooks/useOrganizations';
 import { useZones } from '@/hooks/useZones';
+import { ZoneRequirementsChecklist } from '@/components/features/ZoneRequirementsChecklist';
 
 interface ObservationRecord {
   observation_id: string;
   plate_number: string;
-  // Photo
   photo: string | null;
-  // Date/Time
   recorded_at: string;
-  // Zone
   zone_id: string;
   zone_name: string;
-  // GPS
   gps_latitude: number | null;
   gps_longitude: number | null;
   gps_accuracy: number | null;
-  // Weather
   weather_conditions?: string;
-  // Compliance
   is_compliant: boolean;
   breach_type: string | null;
   breach_details: any;
-  // Notes
   officer_notes: string | null;
-  // Officer
   officer_name: string;
-  // Enriched from canonical_vehicles
   vehicle_make: string | null;
   vehicle_model: string | null;
   vehicle_year: number | null;
@@ -57,7 +51,6 @@ interface ObservationRecord {
   self_contained: boolean;
   self_contained_expiry: string | null;
   homeless_status: string;
-  // Organization
   organization_id: string;
   organization_name: string;
 }
@@ -80,19 +73,108 @@ export default function ObservationsReport() {
     urlDateFrom || format(new Date(new Date().setDate(new Date().getDate() - 7)), 'yyyy-MM-dd')
   );
   const [endDate, setEndDate] = useState<string>(urlDateTo || format(new Date(), 'yyyy-MM-dd'));
+  const [kpiFilter, setKpiFilter] = useState<string | null>(urlFilterType || null);
+  const [overstayerPlates, setOverstayerPlates] = useState<Set<string>>(new Set());
+  const [atRiskPlates, setAtRiskPlates] = useState<Set<string>>(new Set());
+  const [homelessExemptObs, setHomelessExemptObs] = useState<Set<string>>(new Set());
 
   const { zones } = useZones(selectedOrgId || undefined);
 
-  // Clear URL params after applying them
+  // Clear URL params after applying them (but keep tab param)
   useEffect(() => {
     if (urlDateFrom || urlDateTo || urlOrgId || urlFilterType) {
       window.history.replaceState({}, '', window.location.pathname + '?tab=observations-report');
     }
   }, []);
 
+  // Load overstayer/at-risk plates when KPI filter is active
+  useEffect(() => {
+    if (kpiFilter === 'overstayers' || kpiFilter === 'at-risk') {
+      loadOverstayerData();
+    }
+  }, [kpiFilter, startDate, endDate, selectedOrgId]);
+
+  // Load homeless exempt observations when KPI filter is active
+  useEffect(() => {
+    if (kpiFilter === 'homeless_exempt') {
+      loadHomelessExemptData();
+    }
+  }, [kpiFilter, startDate, endDate, selectedOrgId]);
+
+  const loadHomelessExemptData = async () => {
+    try {
+      const { data, error } = await supabase.rpc('observations_homeless_exempt', {
+        p_from: `${startDate}T00:00:00`,
+        p_to: `${endDate}T23:59:59`,
+        p_org_id: selectedOrgId || null,
+        p_zone_id: selectedZoneId || null,
+      });
+
+      if (error) throw error;
+
+      const obsIds = new Set((data || []).map((d: any) => d.observation_id));
+      setHomelessExemptObs(obsIds);
+    } catch (error: any) {
+      console.error('Failed to load homeless exempt data:', error);
+    }
+  };
+
+  const loadOverstayerData = async () => {
+    try {
+      // Query monthly stays to identify overstayers/at-risk
+      const fromMonth = startDate.slice(0, 7) + '-01';
+      const toMonth = endDate.slice(0, 7) + '-01';
+
+      let staysQuery = supabase
+        .from('vehicle_monthly_stays')
+        .select('plate_number, zone_id, consecutive_nights, nights_stayed')
+        .gte('calendar_month', fromMonth)
+        .lte('calendar_month', toMonth);
+
+      if (selectedOrgId) {
+        staysQuery = staysQuery.eq('organization_id', selectedOrgId);
+      }
+
+      const { data: stays } = await staysQuery;
+
+      // Get compliance matrix rules
+      let matrixQuery = supabase
+        .from('zone_compliance_matrix')
+        .select('zone_id, max_consecutive_nights, nights_per_month')
+        .is('effective_to', null);
+
+      if (selectedOrgId) {
+        matrixQuery = matrixQuery.eq('organization_id', selectedOrgId);
+      }
+
+      const { data: matrices } = await matrixQuery;
+      const matrixMap = new Map(matrices?.map(m => [m.zone_id, m]) || []);
+
+      const overstayers = new Set<string>();
+      const atRisk = new Set<string>();
+
+      (stays || []).forEach(stay => {
+        const rules = matrixMap.get(stay.zone_id);
+        if (!rules) return;
+
+        if (stay.consecutive_nights > rules.max_consecutive_nights || stay.nights_stayed > rules.nights_per_month) {
+          overstayers.add(stay.plate_number);
+        } else if (stay.consecutive_nights === rules.max_consecutive_nights || stay.nights_stayed === rules.nights_per_month) {
+          atRisk.add(stay.plate_number);
+        }
+      });
+
+      setOverstayerPlates(overstayers);
+      setAtRiskPlates(atRisk);
+
+    } catch (error: any) {
+      console.error('Failed to load overstayer data:', error);
+    }
+  };
+
   // Query observations
   const { data: observations, isLoading } = useQuery({
-    queryKey: ['observations-report', selectedOrgId, selectedZoneId, startDate, endDate],
+    queryKey: ['observations-report', selectedOrgId, selectedZoneId, startDate, endDate, kpiFilter, overstayerPlates.size, atRiskPlates.size],
     queryFn: async () => {
       let query = supabase
         .from('vehicle_observations_v2')
@@ -140,7 +222,7 @@ export default function ObservationsReport() {
       if (error) throw error;
 
       // Transform data
-      return (data || []).map((obs: any) => ({
+      let results = (data || []).map((obs: any) => ({
         observation_id: obs.observation_id,
         plate_number: obs.plate_number,
         photo: obs.photo,
@@ -164,7 +246,22 @@ export default function ObservationsReport() {
         homeless_status: obs.canonical?.homeless_status || 'none',
         organization_id: obs.organization_id,
         organization_name: obs.organization?.name || 'Unknown',
-      })) as ObservationRecord[];
+      }));
+
+      // Apply KPI filter if active
+      if (kpiFilter === 'overstayers') {
+        results = results.filter(obs => overstayerPlates.has(obs.plate_number));
+      } else if (kpiFilter === 'at-risk') {
+        results = results.filter(obs => atRiskPlates.has(obs.plate_number));
+      } else if (kpiFilter === 'breaches') {
+        results = results.filter(obs => !obs.is_compliant && obs.breach_type);
+      } else if (kpiFilter === 'compliant') {
+        results = results.filter(obs => obs.is_compliant);
+      } else if (kpiFilter === 'homeless_exempt') {
+        results = results.filter(obs => homelessExemptObs.has(obs.observation_id));
+      }
+
+      return results as ObservationRecord[];
     },
   });
 
@@ -230,7 +327,7 @@ export default function ObservationsReport() {
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
-    link.download = `observations-report-${format(new Date(), 'yyyy-MM-dd-HHmm')}.csv`;
+    link.download = `observations-report-${kpiFilter ? `${kpiFilter}-` : ''}${format(new Date(), 'yyyy-MM-dd-HHmm')}.csv`;
     link.click();
 
     toast.success('Report exported to CSV');
@@ -245,6 +342,7 @@ export default function ObservationsReport() {
             <h1 className="text-3xl font-bold">Observations Report</h1>
             <p className="text-muted-foreground mt-1">
               Detailed observation records with enriched vehicle data
+              {kpiFilter && ` • Filtered: ${kpiFilter}`}
             </p>
           </div>
           <Button onClick={exportToCSV} disabled={!observations || observations.length === 0}>
@@ -264,12 +362,11 @@ export default function ObservationsReport() {
               {user?.role === 'master' && (
                 <div className="space-y-2">
                   <Label>Organization</Label>
-                  <Select value={selectedOrgId} onValueChange={setSelectedOrgId}>
+                  <Select value={selectedOrgId || undefined} onValueChange={setSelectedOrgId}>
                     <SelectTrigger>
                       <SelectValue placeholder="All Organizations" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">All Organizations</SelectItem>
                       {organizations?.map(org => (
                         <SelectItem key={org.id} value={org.id}>
                           {org.name}
@@ -283,12 +380,11 @@ export default function ObservationsReport() {
               {/* Zone */}
               <div className="space-y-2">
                 <Label>Zone</Label>
-                <Select value={selectedZoneId} onValueChange={setSelectedZoneId}>
+                <Select value={selectedZoneId || undefined} onValueChange={setSelectedZoneId}>
                   <SelectTrigger>
                     <SelectValue placeholder="All Zones" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">All Zones</SelectItem>
                     {zones?.map(zone => (
                       <SelectItem key={zone.id} value={zone.id}>
                         {zone.name}
@@ -319,12 +415,31 @@ export default function ObservationsReport() {
               </div>
             </div>
             
-            {/* BI Dashboard Filter Indicator */}
-            {urlFilterType && (
-              <div className="p-3 bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-                <p className="text-sm font-semibold text-blue-800 dark:text-blue-200">
-                  📊 BI Dashboard Filter: Showing {urlFilterType === 'overstayers' ? 'Overstayers' : urlFilterType === 'at-risk' ? 'At-Risk Vehicles' : 'All'}
-                </p>
+            {/* KPI Filter Chip */}
+            {kpiFilter && (
+              <div className="p-3 bg-blue-50 dark:bg-blue-950/20 border-2 border-blue-500 dark:border-blue-700 rounded-lg flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-bold text-blue-900 dark:text-blue-100">
+                    📊 KPI Filter:
+                  </span>
+                  <Badge variant="default" className="bg-blue-600">
+                    {kpiFilter === 'overstayers' ? `Overstayers (${observations?.length || 0})` : 
+                     kpiFilter === 'at-risk' ? `At-Risk (${observations?.length || 0})` :
+                     kpiFilter === 'breaches' ? `Breaches (${observations?.length || 0})` :
+                     kpiFilter === 'compliant' ? `Compliant (${observations?.length || 0})` :
+                     kpiFilter === 'homeless_exempt' ? `Homeless Exempt (${observations?.length || 0})` :
+                     'Active'}
+                  </Badge>
+                </div>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={() => setKpiFilter(null)}
+                  className="text-blue-700 hover:text-blue-900 dark:text-blue-200 dark:hover:text-blue-100"
+                >
+                  <X className="h-4 w-4 mr-1" />
+                  Clear Filter
+                </Button>
               </div>
             )}
           </CardContent>
@@ -339,6 +454,7 @@ export default function ObservationsReport() {
                   <FileText className="h-5 w-5 text-muted-foreground" />
                   <span className="text-lg font-semibold">
                     {observations.length} Observation{observations.length !== 1 ? 's' : ''}
+                    {kpiFilter && ` (${kpiFilter})`}
                   </span>
                 </div>
                 <div className="flex gap-4 text-sm">
@@ -376,6 +492,11 @@ export default function ObservationsReport() {
               <div className="text-center text-muted-foreground">
                 <Calendar className="h-12 w-12 mx-auto mb-3 opacity-50" />
                 <p>No observations found for selected filters</p>
+                {kpiFilter && (
+                  <p className="text-sm mt-2">
+                    Try clearing the KPI filter to see all observations
+                  </p>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -473,11 +594,14 @@ export default function ObservationsReport() {
 
                     {/* Officer Notes */}
                     {obs.officer_notes && (
-                      <div className="bg-muted rounded-md p-3">
+                      <div className="bg-muted rounded-md p-3 mb-3">
                         <div className="text-xs text-muted-foreground mb-1">OFFICER NOTES</div>
                         <div className="text-sm">{obs.officer_notes}</div>
                       </div>
                     )}
+
+                    {/* Zone Requirements Checklist */}
+                    <ZoneRequirementsChecklist observationId={obs.observation_id} />
                   </div>
                 </div>
               </Card>

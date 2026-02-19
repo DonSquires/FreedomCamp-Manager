@@ -1067,14 +1067,13 @@ export function EnforcementActions() {
               <div className="space-y-2">
                 <Label>Officer Issuing (Optional)</Label>
                 <Select 
-                  value={createEnforcementForm.assigned_to} 
-                  onValueChange={(value) => setCreateEnforcementForm({ ...createEnforcementForm, assigned_to: value })}
+                  value={createEnforcementForm.assigned_to || undefined} 
+                  onValueChange={(value) => setCreateEnforcementForm({ ...createEnforcementForm, assigned_to: value || '' })}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select officer (optional)" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">None</SelectItem>
                     {users.filter(u => u.role === 'officer' || u.role === 'admin').map((officer) => (
                       <SelectItem key={officer.id} value={officer.id}>
                         {officer.first_name} {officer.last_name}
