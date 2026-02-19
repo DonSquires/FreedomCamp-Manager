@@ -704,10 +704,17 @@ Return ONLY a JSON object with this structure:
               has_notes: hasNotes,
               
               // ============================================================
-              // MINIMAL IMPORT - ONLY ESSENTIAL FIELDS
-              // All other fields will be populated during recalculation phase
+              // MINIMAL IMPORT - DEFAULTS PER USER REQUIREMENT
+              // All fields will be populated during recalculation phase
               // ============================================================
-              self_contained: null, // Unknown - will be enriched from NZSCV during recalculation
+              // DEFAULT: NOT self-contained (will be updated from canonical/NZSCV)
+              self_contained: false,
+              
+              // DEFAULT: NO homeless claim (will be updated if canonical has confirmed status)
+              has_homeless_claim: false,
+              homeless_claim_notes: null,
+              
+              // Vehicle details unknown from historical data
               vehicle_make: null, // Unknown - will be enriched during recalculation
               vehicle_model: null, // Unknown - will be enriched during recalculation
               vehicle_year: null, // Unknown - will be enriched during recalculation
