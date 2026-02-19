@@ -63,6 +63,7 @@ import { exportComprehensiveCSV } from '@/lib/csvExport';
 import { ZoneDrillDown } from './ZoneDrillDown';
 import { ObservationDetailModal } from './ObservationDetailModal';
 import { VehicleDetailPage } from './VehicleDetailPage';
+import { KPI, KPI_LABELS } from '@/types/kpi';
 
 const COLORS = ['#22c55e', '#ef4444', '#f59e0b', '#3b82f6', '#8b5cf6', '#ec4899', '#06b6d4'];
 
@@ -286,12 +287,31 @@ export function UnifiedDashboard() {
       const uniquePlates = new Set(obs.map(o => o.plate_number));
       const uniqueZones = new Set(obs.map(o => o.zone_id));
 
-      const homelessPlates = new Set(
-        obs.filter(o => {
-          const v = o.canonical_vehicles as any;
-          return v?.homeless_status === 'confirmed' || v?.homeless_status === 'claimed';
-        }).map(o => o.plate_number)
-      );
+      // Use RPC cohorts for accurate counts (matches report drill-down)
+      const utcFrom = `${dateFrom}T00:00:00+13:00`;
+      const utcTo = `${dateTo}T23:59:59+13:00`;
+      const orgIdParam = (isMaster && selectedOrgId !== 'all') ? selectedOrgId : null;
+
+      // Overstayers (breach but NOT homeless-exempt)
+      const { data: overstayerObs } = await supabase.rpc('cohort_overstayers', {
+        p_from: utcFrom,
+        p_to: utcTo,
+        p_org_id: orgIdParam,
+        p_zone_id: null,
+      });
+
+      // Homeless exempt (breach AND homeless)
+      const { data: homelessExemptObs } = await supabase.rpc('cohort_homeless_exempt', {
+        p_from: utcFrom,
+        p_to: utcTo,
+        p_org_id: orgIdParam,
+        p_zone_id: null,
+      });
+
+      const overstayerCount = overstayerObs?.length || 0;
+      const homelessExemptCount = homelessExemptObs?.length || 0;
+
+      const homelessPlates = new Set((homelessExemptObs || []).map((o: any) => o.plate_number));
 
       const flaggedPlates = new Set(
         obs.filter(o => (o.canonical_vehicles as any)?.is_flagged).map(o => o.plate_number)
@@ -343,7 +363,7 @@ export function UnifiedDashboard() {
         }
       });
 
-      const compliantCount = uniquePlates.size - overstayersSet.size;
+      const compliantCount = uniquePlates.size - overstayerCount;
       const complianceRate = uniquePlates.size > 0 
         ? Math.round((compliantCount / uniquePlates.size) * 100) 
         : 100;
@@ -366,11 +386,11 @@ export function UnifiedDashboard() {
         uniqueVehicles: uniquePlates.size,
         uniqueZones: uniqueZones.size,
         complianceRate,
-        overstayers: overstayersSet.size,
+        overstayers: overstayerCount,  // RPC count (excludes homeless-exempt)
         atRisk: atRiskSet.size,
         compliant: compliantCount,
         flagged: flaggedPlates.size,
-        homeless: homelessPlates.size,
+        homeless: homelessExemptCount,  // RPC count (homeless-exempt breaches)
         totalBreaches: breachObs,
         officers: officers?.length || 0,
       });
@@ -809,12 +829,12 @@ export function UnifiedDashboard() {
                   onClick={() => {
                     const params = new URLSearchParams({
                       tab: 'observations-report',
-                      dateFrom,
-                      dateTo,
-                      filterType: 'overstayers',
-                      ...(isMaster && selectedOrgId !== 'all' ? { orgId: selectedOrgId } : {})
+                      from: dateFrom,
+                      to: dateTo,
+                      kpi: KPI.OVERSTAYERS,
+                      ...(isMaster && selectedOrgId !== 'all' ? { org: selectedOrgId } : { org: 'ALL' })
                     });
-                    window.location.href = `/admin?${params.toString()}`;
+                    navigate(`/reports/observations?${params.toString()}`);
                   }}
                 >
                   <CardContent className="p-6">
@@ -885,13 +905,12 @@ export function UnifiedDashboard() {
                   className="border-violet-300 bg-gradient-to-br from-violet-50 to-violet-100 dark:from-violet-950/30 dark:to-violet-900/20 cursor-pointer hover:shadow-lg transition-all"
                   onClick={() => {
                     const params = new URLSearchParams({
-                      tab: 'observations-report',
-                      dateFrom,
-                      dateTo,
-                      filterType: 'homeless_exempt',
-                      ...(isMaster && selectedOrgId !== 'all' ? { orgId: selectedOrgId } : {})
+                      from: dateFrom,
+                      to: dateTo,
+                      kpi: KPI.HOMELESS_EXEMPT,
+                      ...(isMaster && selectedOrgId !== 'all' ? { org: selectedOrgId } : { org: 'ALL' })
                     });
-                    window.location.href = `/admin?${params.toString()}`;
+                    navigate(`/reports/observations?${params.toString()}`);
                   }}
                 >
                   <CardContent className="p-6">
