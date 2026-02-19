@@ -137,7 +137,7 @@ export function ZoomScan({ onExit }: ZoomScanProps) {
     loadZones();
   }, [user?.organization_id]);
 
-  // Get GPS and auto-detect zone
+  // Get GPS and auto-detect zone (ONCE only, no repeated popups)
   useEffect(() => {
     if (!('geolocation' in navigator)) {
       console.warn('⚠️ Geolocation not supported');
@@ -145,17 +145,22 @@ export function ZoomScan({ onExit }: ZoomScanProps) {
       return;
     }
 
+    // Skip if zone already selected
+    if (selectedZone) {
+      console.log('✅ Zone already selected, skipping auto-detect');
+      return;
+    }
+
     setZoneDetectionStatus('detecting');
-    const detectionTimeout = setTimeout(() => {
-      if (!selectedZone) {
-        setZoneDetectionStatus('failed');
-        setShowZoneSelector(true);
-        toast.warning('Auto-detect failed - please select zone');
-      }
-    }, 5000);
+    let detectionTimeout: NodeJS.Timeout | null = null;
+    let hasDetected = false;
 
     const watchId = navigator.geolocation.watchPosition(
       async (position) => {
+        // Only detect once
+        if (hasDetected) return;
+        hasDetected = true;
+
         const gps = {
           lat: position.coords.latitude,
           lng: position.coords.longitude,
@@ -167,25 +172,43 @@ export function ZoomScan({ onExit }: ZoomScanProps) {
         if (user?.organization_id) {
           await autoDetectZone(gps.lat, gps.lng, user.organization_id);
         }
+
+        // Clear timeout after first successful GPS read
+        if (detectionTimeout) {
+          clearTimeout(detectionTimeout);
+          detectionTimeout = null;
+        }
       },
       (error) => {
         console.error('❌ GPS error:', error);
-        clearTimeout(detectionTimeout);
+        if (detectionTimeout) {
+          clearTimeout(detectionTimeout);
+        }
         setZoneDetectionStatus('failed');
         loadDefaultZone();
       },
       {
         enableHighAccuracy: true,
         timeout: 10000,
-        maximumAge: 5000,
+        maximumAge: 0, // Always get fresh location
       }
     );
 
+    // Fallback timeout: auto-select "Other Location" after 8 seconds if no zone found
+    detectionTimeout = setTimeout(async () => {
+      if (!selectedZone && user?.organization_id) {
+        console.log('⏰ Auto-detect timeout - setting to Other Location');
+        await autoCreateOrSelectOtherLocation(user.organization_id);
+      }
+    }, 8000);
+
     return () => {
       navigator.geolocation.clearWatch(watchId);
-      clearTimeout(detectionTimeout);
+      if (detectionTimeout) {
+        clearTimeout(detectionTimeout);
+      }
     };
-  }, [user?.organization_id]);
+  }, [user?.organization_id, selectedZone]);
 
   const loadDefaultZone = async () => {
     if (!user?.organization_id || availableZones.length === 0) return;
@@ -205,81 +228,96 @@ export function ZoomScan({ onExit }: ZoomScanProps) {
       if (matchingZones && matchingZones.length > 0) {
         // Inside a geofence - use detected zone
         const zone = matchingZones[0];
-        if (!selectedZone || selectedZone.id !== zone.zone_id) {
-          setSelectedZone({
-            id: zone.zone_id,
-            name: zone.zone_name,
-            organization_id: organizationId,
-          });
-          setZoneDetectionStatus('found');
-          console.log('📍 GPS inside geofence:', zone.zone_name);
-          toast.success(`📍 Zone detected: ${zone.zone_name}`, {
-            duration: 3000,
-          });
-        }
+        setSelectedZone({
+          id: zone.zone_id,
+          name: zone.zone_name,
+          organization_id: organizationId,
+        });
+        setZoneDetectionStatus('found');
+        console.log('📍 GPS inside geofence:', zone.zone_name);
+        toast.success(`📍 Zone: ${zone.zone_name}`, {
+          duration: 2000,
+        });
       } else {
-        // Outside all geofences - fallback to "Other Location"
-        console.log('📍 GPS outside all geofences, using Other Location');
-        
-        const { data: fallbackZone, error: fallbackError } = await supabase
-          .from('zones')
-          .select('id, name, organization_id')
-          .eq('organization_id', organizationId)
-          .eq('zone_type', 'fallback')
-          .ilike('name', '%Other Location%')
-          .single();
-
-        if (fallbackError) {
-          console.warn('⚠️ No "Other Location" fallback zone found:', fallbackError);
-          
-          // Create "Other Location" zone if it doesn't exist
-          const { data: newFallbackZone } = await supabase
-            .from('zones')
-            .insert({
-              organization_id: organizationId,
-              name: 'Other Location',
-              zone_type: 'fallback',
-              description: 'Fallback zone for GPS locations outside defined geofences',
-              is_active: true,
-            })
-            .select()
-            .single();
-          
-          if (newFallbackZone) {
-            setSelectedZone({
-              id: newFallbackZone.id,
-              name: newFallbackZone.name,
-              organization_id: newFallbackZone.organization_id,
-            });
-            setZoneDetectionStatus('found');
-            toast.info('📍 Outside geofences → Other Location', {
-              duration: 4000,
-            });
-          } else {
-            setZoneDetectionStatus('failed');
-            setShowZoneSelector(true);
-          }
-        } else if (fallbackZone) {
-          if (!selectedZone || selectedZone.id !== fallbackZone.id) {
-            setSelectedZone({
-              id: fallbackZone.id,
-              name: fallbackZone.name,
-              organization_id: fallbackZone.organization_id,
-            });
-            setZoneDetectionStatus('found');
-            toast.info('📍 Outside geofences → Other Location', {
-              duration: 4000,
-            });
-          }
-        } else {
-          setZoneDetectionStatus('failed');
-          setShowZoneSelector(true);
-        }
+        // Outside all geofences - auto-create/select "Other Location"
+        console.log('📍 GPS outside all geofences, auto-setting Other Location');
+        await autoCreateOrSelectOtherLocation(organizationId);
       }
     } catch (error) {
       console.error('❌ Auto-detect zone failed:', error);
       setZoneDetectionStatus('failed');
-      toast.warning('GPS zone detection failed - please select manually');
+      // Don't show toast or modal - silently fall back to Other Location
+      await autoCreateOrSelectOtherLocation(organizationId);
+    }
+  };
+
+  const autoCreateOrSelectOtherLocation = async (organizationId: string) => {
+    try {
+      // Try to find existing "Other Location" zone
+      const { data: fallbackZone } = await supabase
+        .from('zones')
+        .select('id, name, organization_id')
+        .eq('organization_id', organizationId)
+        .eq('zone_type', 'fallback')
+        .ilike('name', '%Other%')
+        .maybeSingle();
+
+      if (fallbackZone) {
+        setSelectedZone({
+          id: fallbackZone.id,
+          name: fallbackZone.name,
+          organization_id: fallbackZone.organization_id,
+        });
+        setZoneDetectionStatus('found');
+        console.log('📍 Auto-set to:', fallbackZone.name);
+        toast.info(`📍 Zone: ${fallbackZone.name}`, {
+          duration: 2000,
+        });
+      } else {
+        // Create "Other Location" zone
+        const { data: newZone, error } = await supabase
+          .from('zones')
+          .insert({
+            organization_id: organizationId,
+            name: 'Other Location',
+            zone_type: 'fallback',
+            description: 'Fallback zone for GPS locations outside defined geofences',
+            is_active: true,
+          })
+          .select()
+          .single();
+        
+        if (!error && newZone) {
+          setSelectedZone({
+            id: newZone.id,
+            name: newZone.name,
+            organization_id: newZone.organization_id,
+          });
+          setZoneDetectionStatus('found');
+          console.log('📍 Created and set to: Other Location');
+          toast.info('📍 Zone: Other Location', {
+            duration: 2000,
+          });
+        } else {
+          // Last resort: use first available zone
+          if (availableZones.length > 0) {
+            setSelectedZone(availableZones[0]);
+            setZoneDetectionStatus('found');
+            console.log('📍 Fallback to first zone:', availableZones[0].name);
+          } else {
+            setZoneDetectionStatus('failed');
+          }
+        }
+      }
+    } catch (error) {
+      console.error('❌ Failed to create/select Other Location:', error);
+      // Use first available zone as last resort
+      if (availableZones.length > 0) {
+        setSelectedZone(availableZones[0]);
+        setZoneDetectionStatus('found');
+      } else {
+        setZoneDetectionStatus('failed');
+      }
     }
   };
 
