@@ -18,6 +18,7 @@ import { PortalSelection } from '@/pages/PortalSelection';
 import { Login } from '@/pages/Login';
 import { PasswordReset } from '@/pages/PasswordReset';
 import { VehicleRegistryFiltered } from '@/pages/VehicleRegistryFiltered';
+import ALPRDiagnostic from '@/pages/ALPRDiagnostic';
 import { FancyLoader } from '@/components/features/FancyLoader';
 import { Toaster } from '@/components/ui/sonner';
 import { toast } from 'sonner';
@@ -118,6 +119,7 @@ function App() {
               <>
                 <Route path="/admin" element={<AdminPortal onLogout={logout} />} />
                 <Route path="/admin/vehicle-registry" element={<VehicleRegistryFiltered />} />
+                <Route path="/admin/alpr-diagnostic" element={<ALPRDiagnostic />} />
               </>
             )}
             
