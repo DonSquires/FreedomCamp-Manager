@@ -45,7 +45,7 @@ import {
 import { JDSLogo } from '@/components/layout/JDSLogo';
 import { useAuthStore } from '@/stores/authStore';
 import { isOnline } from '@/lib/pwa';
-import { PlateCapture } from '@/components/features/PlateCapture';
+import { ZoomScan } from '@/components/features/ZoomScan';
 import { SessionScan } from '@/components/features/SessionList';
 import { VehicleEditDrawer } from '@/components/features/VehicleEditDrawer';
 import { IncidentCreationForm } from '@/components/features/IncidentCreationForm';
@@ -720,17 +720,9 @@ export function FieldOfficerPortal({ onLogout }: FieldOfficerPortalProps) {
   };
 
   const renderContent = () => {
-    if (currentView === 'scanning' && selectedZone) {
+    if (currentView === 'scanning') {
       return (
-        <div className="fixed inset-0 bg-background z-50">
-          <PlateCapture
-            zoneId={selectedZone.id}
-            zoneName={selectedZone.name}
-            organizationId={selectedZone.orgId}
-            onPlateDetected={handlePlateDetected}
-            onCancel={() => setCurrentView('dashboard')}
-          />
-        </div>
+        <ZoomScan onExit={() => setCurrentView('dashboard')} />
       );
     }
 
