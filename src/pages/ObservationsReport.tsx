@@ -538,14 +538,39 @@ export default function ObservationsReport() {
             {observations.map((obs) => (
               <Card key={obs.observation_id} className="overflow-hidden">
                 <div className="flex flex-col md:flex-row">
-                  {/* Photo */}
+                  {/* Photo with Watermark Overlay */}
                   {obs.photo && (
-                    <div className="md:w-48 h-48 md:h-auto bg-muted flex-shrink-0">
+                    <div className="md:w-48 h-48 md:h-auto bg-muted flex-shrink-0 relative">
                       <img
                         src={obs.photo}
                         alt={obs.plate_number}
                         className="w-full h-full object-cover"
                       />
+                      {/* Watermark Overlay */}
+                      <div className="absolute bottom-0 left-0 right-0 bg-black/70 text-white text-[10px] leading-tight p-2 font-mono">
+                        <div className="font-bold">
+                          GPS: {obs.gps_latitude?.toFixed(6)}, {obs.gps_longitude?.toFixed(6)} (±{obs.gps_accuracy?.toFixed(0)}m)
+                          {obs.weather_conditions && ` | ${obs.weather_conditions}`}
+                        </div>
+                        <div>
+                          {format(new Date(obs.recorded_at), 'dd MMM yyyy, HH:mm:ss')} NZDT
+                        </div>
+                        <div>
+                          Officer: {obs.officer_name} | {obs.zone_name}
+                        </div>
+                        <div className="flex items-center justify-between mt-1">
+                          <span className="text-[8px]">{obs.organization_name}</span>
+                          <div 
+                            className="w-2 h-2 rounded-full" 
+                            style={{
+                              backgroundColor: obs.gps_accuracy && obs.gps_accuracy <= 10 ? '#00FF00' : 
+                                             obs.gps_accuracy && obs.gps_accuracy <= 30 ? '#FFFF00' : 
+                                             obs.gps_accuracy && obs.gps_accuracy <= 50 ? '#FFA500' : '#FF0000'
+                            }}
+                            title={`GPS Accuracy: ${obs.gps_accuracy?.toFixed(0)}m`}
+                          />
+                        </div>
+                      </div>
                     </div>
                   )}
 
