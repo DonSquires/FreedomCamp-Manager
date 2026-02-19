@@ -365,11 +365,12 @@ export default function ObservationsReport() {
               {user?.role === 'master' && (
                 <div className="space-y-2">
                   <Label>Organization</Label>
-                  <Select value={selectedOrgId || undefined} onValueChange={setSelectedOrgId}>
+                  <Select value={selectedOrgId || 'all'} onValueChange={(val) => setSelectedOrgId(val === 'all' ? '' : val)}>
                     <SelectTrigger>
                       <SelectValue placeholder="All Organizations" />
                     </SelectTrigger>
                     <SelectContent>
+                      <SelectItem value="all">All Organizations</SelectItem>
                       {organizations?.map(org => (
                         <SelectItem key={org.id} value={org.id}>
                           {org.name}
@@ -383,11 +384,12 @@ export default function ObservationsReport() {
               {/* Zone */}
               <div className="space-y-2">
                 <Label>Zone</Label>
-                <Select value={selectedZoneId || undefined} onValueChange={setSelectedZoneId}>
+                <Select value={selectedZoneId || 'all'} onValueChange={(val) => setSelectedZoneId(val === 'all' ? '' : val)}>
                   <SelectTrigger>
                     <SelectValue placeholder="All Zones" />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="all">All Zones</SelectItem>
                     {zones?.map(zone => (
                       <SelectItem key={zone.id} value={zone.id}>
                         {zone.name}
@@ -611,13 +613,8 @@ export default function ObservationsReport() {
                       </div>
                     )}
 
-                    {/* Compliance Metrics Summary */}
-                    <div className="mb-3">
-                      <ComplianceMetricsSummary observationId={obs.observation_id} />
-                    </div>
-
-                    {/* Zone Requirements Checklist */}
-                    <ZoneRequirementsChecklist observationId={obs.observation_id} />
+                    {/* Zone Requirements Checklist - Compact Mode Only */}
+                    <ZoneRequirementsChecklist observationId={obs.observation_id} compact />
                   </div>
                 </div>
               </Card>
