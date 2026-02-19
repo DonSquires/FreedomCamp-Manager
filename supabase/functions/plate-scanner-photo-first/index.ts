@@ -13,6 +13,81 @@ import { corsHeaders } from '../_shared/cors.ts';
 const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
+// ============================================================================
+// CENTRALIZED ALPR HELPER - Single source of truth for plate recognition
+// ============================================================================
+interface ALPRResult {
+  plate: string | null;
+  confidence: number | null;
+  make: string | null;
+  model: string | null;
+  color: string | null;
+  year: string | null;
+  raw: any;
+}
+
+async function detectPlate(photoBytes: Uint8Array): Promise<ALPRResult> {
+  const url = Deno.env.get('ALPR_API_URL') || 'https://api.platerecognizer.com/v1/plate-reader/';
+  const key = Deno.env.get('PLATE_RECOGNIZER_API_KEY');
+  
+  if (!key) {
+    console.error('❌ ALPR key missing - plate detection disabled');
+    return { plate: null, confidence: null, make: null, model: null, color: null, year: null, raw: null };
+  }
+
+  console.log('📡 Calling ALPR:', { url, bytes: photoBytes.length });
+
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Token ${key}`,
+        'Content-Type': 'application/octet-stream',
+      },
+      body: photoBytes,
+      signal: AbortSignal.timeout(15000), // 15s timeout for cold starts
+    });
+
+    const text = await res.text();
+    
+    if (!res.ok) {
+      console.error('❌ ALPR API error:', res.status, text.slice(0, 256));
+      return { plate: null, confidence: null, make: null, model: null, color: null, year: null, raw: text };
+    }
+
+    const json = JSON.parse(text);
+    console.log('📊 ALPR raw response:', JSON.stringify(json).slice(0, 500));
+
+    // Extract best result
+    const results = json?.results || [];
+    if (results.length === 0) {
+      console.warn('⚠️ ALPR returned no plates');
+      return { plate: null, confidence: null, make: null, model: null, color: null, year: null, raw: json };
+    }
+
+    const best = results[0];
+    const plate = best?.plate?.toUpperCase?.().replace(/[^A-Z0-9]/g, '') || null;
+    const confidence = best?.score || null;
+    
+    // Extract vehicle details if available (MMC)
+    const makeModel = best?.model_make?.[0];
+    const make = makeModel?.make || null;
+    const model = makeModel?.model || null;
+    const color = best?.color?.[0]?.color || null;
+    const year = best?.year?.year_range?.[0] || null;
+
+    console.log(`✅ ALPR detected: ${plate} (confidence: ${confidence})`);
+    if (make || model || color) {
+      console.log(`📋 Vehicle details: ${make} ${model} ${color} ${year || ''}`);
+    }
+
+    return { plate, confidence, make, model, color, year, raw: json };
+  } catch (error: any) {
+    console.error('❌ ALPR exception:', error.message);
+    return { plate: null, confidence: null, make: null, model: null, color: null, year: null, raw: null };
+  }
+}
+
 serve(async (req) => {
   // CORS preflight
   if (req.method === 'OPTIONS') {
@@ -22,23 +97,69 @@ serve(async (req) => {
   try {
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Parse multipart form data
-    const formData = await req.formData();
-    
-    const photoFile = formData.get('photo') as File;
-    const gpsLatitude = parseFloat(formData.get('gps_latitude') as string);
-    const gpsLongitude = parseFloat(formData.get('gps_longitude') as string);
-    const recordedAt = formData.get('recorded_at') as string;
-    const officerId = formData.get('officer_id') as string;
-    const plateNumber = formData.get('plate_number') as string | null;
-    const selfContained = formData.get('self_contained') === 'true';
-    const homelessClaimed = formData.get('homeless_claimed') === 'true';
-    const idempotencyKey = formData.get('idempotency_key') as string;
+    // Parse multipart form data or JSON body
+    let formData: FormData;
+    let photoFile: File | null = null;
+    let gpsLatitude: number;
+    let gpsLongitude: number;
+    let recordedAt: string;
+    let officerId: string;
+    let plateNumber: string | null = null;
+    let selfContained: boolean = false;
+    let homelessClaimed: boolean = false;
+    let idempotencyKey: string | null = null;
+    let zoneId: string | null = null;
+    let organizationId: string | null = null;
 
+    const contentType = req.headers.get('content-type') || '';
+    
+    if (contentType.includes('multipart/form-data')) {
+      // Multipart form data (original format)
+      formData = await req.formData();
+      photoFile = formData.get('photo') as File;
+      gpsLatitude = parseFloat(formData.get('gps_latitude') as string);
+      gpsLongitude = parseFloat(formData.get('gps_longitude') as string);
+      recordedAt = formData.get('recorded_at') as string;
+      officerId = formData.get('officer_id') as string;
+      plateNumber = formData.get('plate_number') as string | null;
+      selfContained = formData.get('self_contained') === 'true';
+      homelessClaimed = formData.get('homeless_claimed') === 'true';
+      idempotencyKey = formData.get('idempotency_key') as string;
+      zoneId = formData.get('zone_id') as string | null;
+      organizationId = formData.get('organization_id') as string | null;
+    } else {
+      // JSON body (from UI)
+      const body = await req.json();
+      
+      // Convert base64 image to File object
+      const base64Data = body.image?.replace(/^data:image\/\w+;base64,/, '');
+      if (!base64Data) throw new Error('Missing image data');
+      
+      const buffer = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0));
+      photoFile = new File([buffer], 'capture.jpg', { type: 'image/jpeg' });
+      
+      gpsLatitude = body.gpsLocation?.lat || body.gps_latitude;
+      gpsLongitude = body.gpsLocation?.lng || body.gps_longitude;
+      recordedAt = body.recordedAt || new Date().toISOString();
+      officerId = body.userId || body.officer_id;
+      plateNumber = body.plateNumber || null;
+      selfContained = body.selfContained || body.self_contained || false;
+      homelessClaimed = body.homelessClaimed || body.homeless_claimed || false;
+      idempotencyKey = body.idempotencyKey || `${officerId}:${Date.now()}`;
+      zoneId = body.zoneId || body.zone_id || null;
+      organizationId = body.organizationId || body.organization_id || null;
+    }
+
+    console.log('📥 Received scan:', { 
+      userId: officerId, 
+      zoneId, 
+      hasPhoto: !!photoFile,
+      contentType,
+    });
     // Validation
-    if (!photoFile || !gpsLatitude || !gpsLongitude || !recordedAt || !officerId) {
+    if (!photoFile || !officerId) {
       return new Response(
-        JSON.stringify({ error: 'Missing required fields: photo, gps_latitude, gps_longitude, recorded_at, officer_id' }),
+        JSON.stringify({ error: 'Missing required fields: photo, officer_id (userId)' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -130,39 +251,47 @@ serve(async (req) => {
     }
 
     // -------------------------------------------------------------------------
-    // STEP 3: DETERMINE ZONE FROM GPS COORDINATES
+    // STEP 3: DETERMINE ZONE (from GPS if not provided)
     // -------------------------------------------------------------------------
-    const { data: matchingZones, error: zoneError } = await supabase.rpc('find_all_matching_zones', {
-      p_latitude: gpsLatitude,
-      p_longitude: gpsLongitude
-    });
+    let finalZoneId = zoneId;
+    let finalOrganizationId = organizationId;
 
-    if (zoneError) {
-      console.error('Zone detection failed:', zoneError);
-      return new Response(
-        JSON.stringify({ error: 'Zone detection failed', details: zoneError.message }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+    if (!finalZoneId && gpsLatitude && gpsLongitude) {
+      console.log('🗺️ Auto-detecting zone from GPS:', { gpsLatitude, gpsLongitude });
+      
+      const { data: matchingZones, error: zoneError } = await supabase.rpc('find_all_matching_zones', {
+        p_latitude: gpsLatitude,
+        p_longitude: gpsLongitude
+      });
+
+      if (zoneError) {
+        console.error('Zone detection failed:', zoneError);
+      } else if (matchingZones && matchingZones.length > 0) {
+        finalZoneId = matchingZones[0].zone_id;
+        console.log('✅ Zone auto-detected:', finalZoneId);
+      }
     }
 
-    const zoneId = matchingZones && matchingZones.length > 0 ? matchingZones[0].zone_id : null;
-
-    if (!zoneId) {
-      console.warn('No zone found for GPS coordinates:', { gpsLatitude, gpsLongitude });
+    if (!finalZoneId) {
+      console.warn('❌ No zone found - required for observation');
       return new Response(
-        JSON.stringify({ error: 'No zone found for provided GPS coordinates' }),
+        JSON.stringify({ error: 'No zone found for provided GPS coordinates or zone_id' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Get organization_id from zone
-    const { data: zoneData } = await supabase
-      .from('zones')
-      .select('organization_id')
-      .eq('id', zoneId)
-      .single();
+    // Get organization_id from zone if not provided
+    if (!finalOrganizationId) {
+      const { data: zoneData } = await supabase
+        .from('zones')
+        .select('organization_id')
+        .eq('id', finalZoneId)
+        .single();
 
-    const organizationId = zoneData?.organization_id;
+      finalOrganizationId = zoneData?.organization_id;
+    }
+
+    console.log('🗺️ Zone resolved:', finalZoneId);
 
     // -------------------------------------------------------------------------
     // STEP 4: CREATE OBSERVATION RECORD
@@ -170,15 +299,15 @@ serve(async (req) => {
     const { data: observation, error: obsError } = await supabase
       .from('vehicle_observations_v2')
       .insert({
-        plate_number: plateNumber || 'UNKNOWN',
+        plate_number: plateNumber || 'PENDING_ALPR',
         photo: photoUrl,
         photo_hash: photoHash,
-        gps_latitude: gpsLatitude,
-        gps_longitude: gpsLongitude,
-        gps_accuracy: parseFloat(formData.get('gps_accuracy') as string || '0'),
+        gps_latitude: gpsLatitude || null,
+        gps_longitude: gpsLongitude || null,
+        gps_accuracy: null,
         recorded_at: recordedAt,
-        organization_id: organizationId,
-        zone_id: zoneId,
+        organization_id: finalOrganizationId,
+        zone_id: finalZoneId,
         recorded_by: officerId,
         self_contained: selfContained,
         has_homeless_claim: homelessClaimed,
@@ -193,39 +322,72 @@ serve(async (req) => {
       .single();
 
     if (obsError) {
-      console.error('Observation creation failed:', obsError);
+      console.error('❌ Observation creation failed:', obsError);
       return new Response(
         JSON.stringify({ error: 'Observation creation failed', details: obsError.message }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
+    console.log('🆔 Observation inserted:', observation.observation_id);
+
     // -------------------------------------------------------------------------
-    // STEP 5: STORE IDEMPOTENCY KEY
+    // STEP 5: RUN ALPR ON PHOTO (NON-BLOCKING UPDATE)
+    // -------------------------------------------------------------------------
+    const alprResult = await detectPlate(photoBuffer);
+    
+    if (alprResult.plate) {
+      // Update observation with ALPR results
+      const { error: updateError } = await supabase
+        .from('vehicle_observations_v2')
+        .update({
+          plate_number: alprResult.plate,
+          vehicle_make: alprResult.make,
+          vehicle_model: alprResult.model,
+          vehicle_color: alprResult.color,
+          vehicle_year: alprResult.year ? parseInt(alprResult.year) : null,
+        })
+        .eq('observation_id', observation.observation_id);
+
+      if (updateError) {
+        console.error('⚠️ Failed to update plate from ALPR:', updateError);
+      } else {
+        console.log(`✅ Plate updated: ${alprResult.plate} (confidence: ${alprResult.confidence})`);
+      }
+    } else {
+      console.warn('⚠️ ALPR did not detect a plate - observation saved as PENDING_ALPR');
+    }
+
+    // -------------------------------------------------------------------------
+    // STEP 6: STORE IDEMPOTENCY KEY
     // -------------------------------------------------------------------------
     if (idempotencyKey) {
       await supabase.from('scan_idempotency_keys').insert({
         idempotency_key: idempotencyKey,
         observation_id: observation.observation_id,
-        device_id: idempotencyKey.split(':')[0],
-        local_capture_id: idempotencyKey.split(':')[1]
+        device_id: idempotencyKey.split(':')[0] || 'unknown',
+        local_capture_id: idempotencyKey.split(':')[1] || idempotencyKey
       });
     }
 
     // -------------------------------------------------------------------------
-    // STEP 6: RETURN observation_id IMMEDIATELY
+    // STEP 7: RETURN observation_id IMMEDIATELY (NO BLOCKING)
     // -------------------------------------------------------------------------
     // Layer 2/3 evaluation happens via database trigger (pipeline_layer_2_and_3)
     // Officer App polls get_observation_result(observation_id) for compliance result
+    // ✅ NO 3-SECOND TIMEOUT - Response is instant
 
-    console.log(`✅ Photo-first ingest complete: observation ${observation.observation_id}, zone ${zoneId}`);
+    console.log(`✅ Photo-first ingest complete: observation ${observation.observation_id}, zone ${finalZoneId}, plate ${alprResult.plate || 'PENDING'}`);
 
     return new Response(
       JSON.stringify({
+        success: true,
         observation_id: observation.observation_id,
-        zone_id: zoneId,
+        zone_id: finalZoneId,
         photo_url: photoUrl,
-        photo_hash: photoHash
+        photo_hash: photoHash,
+        plate_number: alprResult.plate || null,
+        confidence: alprResult.confidence || null,
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );

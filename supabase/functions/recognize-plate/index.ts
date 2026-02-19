@@ -10,8 +10,13 @@
 
 import { corsHeaders } from '../_shared/cors.ts';
 
-const PLATE_RECOGNIZER_API_KEY = '23d201648202e77fd91611ebac9e5e6da5c63683';
-const PLATE_RECOGNIZER_URL = 'https://api.platerecognizer.com/v1/plate-reader/';
+// ✅ SECURITY FIX: Use environment variable instead of hardcoded key
+const PLATE_RECOGNIZER_API_KEY = Deno.env.get('PLATE_RECOGNIZER_API_KEY');
+const PLATE_RECOGNIZER_URL = Deno.env.get('ALPR_API_URL') || 'https://api.platerecognizer.com/v1/plate-reader/';
+
+if (!PLATE_RECOGNIZER_API_KEY) {
+  throw new Error('PLATE_RECOGNIZER_API_KEY not configured in Supabase secrets');
+}
 
 interface RecognitionRequest {
   image: string; // base64 encoded image
