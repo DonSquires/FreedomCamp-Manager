@@ -522,14 +522,13 @@ export function OrganizationManagement() {
             <div className="space-y-2">
               <Label>Parent Organization</Label>
               <Select
-                value={formData.parent_organization_id}
-                onValueChange={(value) => setFormData({ ...formData, parent_organization_id: value })}
+                value={formData.parent_organization_id || undefined}
+                onValueChange={(value) => setFormData({ ...formData, parent_organization_id: value || '' })}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="None (Root Organization)" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">None (Root Organization)</SelectItem>
                   {/* Flatten all orgs for parent selection */}
                   {(() => {
                     const flatOrgs: Organization[] = [];
