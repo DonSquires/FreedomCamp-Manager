@@ -61,6 +61,7 @@ export function ZoomScan({ onExit }: ZoomScanProps) {
   const [zoneDetectionStatus, setZoneDetectionStatus] = useState<'idle' | 'detecting' | 'found' | 'failed'>('idle');
   const [availableZones, setAvailableZones] = useState<Array<{ id: string; name: string; organization_id: string }>>([]);
   const [showZoneSelector, setShowZoneSelector] = useState(false);
+  const [weatherConditions, setWeatherConditions] = useState<string>('');
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -136,6 +137,31 @@ export function ZoomScan({ onExit }: ZoomScanProps) {
     
     loadZones();
   }, [user?.organization_id]);
+
+  // Fetch weather conditions when GPS is available
+  useEffect(() => {
+    const fetchWeather = async () => {
+      if (!gpsLocation) return;
+      
+      try {
+        const { data, error } = await supabase.functions.invoke('get-weather', {
+          body: {
+            latitude: gpsLocation.lat,
+            longitude: gpsLocation.lng,
+          },
+        });
+        
+        if (!error && data?.weather) {
+          setWeatherConditions(data.weather);
+          console.log('🌤️ Weather:', data.weather);
+        }
+      } catch (error) {
+        console.warn('⚠️ Weather fetch failed (non-critical):', error);
+      }
+    };
+    
+    fetchWeather();
+  }, [gpsLocation?.lat, gpsLocation?.lng]);
 
   // Get GPS and auto-detect zone (ONCE only, no repeated popups)
   useEffect(() => {
@@ -519,6 +545,7 @@ export function ZoomScan({ onExit }: ZoomScanProps) {
           detectionMethod: 'alpr',
           confidence: alprData.confidence,
           isSelfContained: false,
+          weatherConditions: weatherConditions || undefined,
         },
       });
 
