@@ -53,7 +53,7 @@ import { HSReportingForm } from '@/components/features/HSReportingForm';
 import { MaintenanceReportForm } from '@/components/features/MaintenanceReportForm';
 import { FieldInvestigationWork } from './FieldInvestigationWork';
 import { MyIncidentReportsList } from '@/components/features/MyIncidentReportsList';
-import { ZoomScanQueue } from '@/components/features/ZoomScanQueue';
+
 import { PlateScanner } from '@/components/features/PlateScanner';
 import { OfficerWelfareWarningModal } from '@/components/features/OfficerWelfareWarningModal';
 import { DarkModeToggle } from '@/components/features/DarkModeToggle';
@@ -70,7 +70,7 @@ interface FieldOfficerPortalProps {
   onLogout: () => void;
 }
 
-type ViewMode = 'dashboard' | 'scanning' | 'zoom_scan' | 'plate_scanner' | 'reports' | 'history' | 'settings';
+type ViewMode = 'dashboard' | 'scanning' | 'reports' | 'history' | 'settings';
 
 export function FieldOfficerPortal({ onLogout }: FieldOfficerPortalProps) {
   const { user } = useAuthStore();
@@ -385,10 +385,10 @@ export function FieldOfficerPortal({ onLogout }: FieldOfficerPortalProps) {
 
     const zoneId = selectedZone?.id || autoDetectedZone?.id;
 
-    if (currentView === 'scanning' || currentView === 'zoom_scan') {
+    if (currentView === 'scanning') {
       updateActivity({
         type: 'scanning',
-        details: `Active ${currentView === 'zoom_scan' ? 'zoom ' : ''}scanning`,
+        details: 'Active scanning',
         zone_id: zoneId,
       });
     } else if (currentView === 'reports') {
@@ -734,27 +734,7 @@ export function FieldOfficerPortal({ onLogout }: FieldOfficerPortalProps) {
       );
     }
 
-    if (currentView === 'zoom_scan' && selectedZone) {
-      return (
-        <div className="fixed inset-0 bg-background z-50">
-          <ZoomScanQueue
-            zoneId={selectedZone.id}
-            zoneName={selectedZone.name}
-            organizationId={selectedZone.orgId}
-            enforcementWorkflow={selectedZone.enforcementWorkflow || 'admin_first'}
-            onCancel={() => setCurrentView('dashboard')}
-          />
-        </div>
-      );
-    }
 
-    if (currentView === 'plate_scanner') {
-      return (
-        <div className="fixed inset-0 bg-background z-50">
-          <PlateScanner onExit={() => setCurrentView('dashboard')} />
-        </div>
-      );
-    }
 
     if (currentView === 'reports') {
       return (
@@ -1307,33 +1287,7 @@ export function FieldOfficerPortal({ onLogout }: FieldOfficerPortalProps) {
             Scan Vehicle
           </Button>
 
-          <Button
-            variant={currentView === 'zoom_scan' ? 'default' : 'ghost'}
-            className="w-full justify-start h-12 text-base"
-            onClick={() => {
-              setCurrentView('zoom_scan');
-              setSidebarOpen(false);
-            }}
-            disabled={!selectedZone}
-          >
-            <Zap className="h-5 w-5 mr-3" />
-            Zoom Scan (Old)
-          </Button>
 
-          <Button
-            variant={currentView === 'plate_scanner' ? 'default' : 'ghost'}
-            className={cn(
-              "w-full justify-start h-12 text-base font-bold",
-              currentView === 'plate_scanner' && "bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white"
-            )}
-            onClick={() => {
-              setCurrentView('plate_scanner');
-              setSidebarOpen(false);
-            }}
-          >
-            <Camera className="h-5 w-5 mr-3" />
-            Plate Scanner 🆕
-          </Button>
 
           <Button
             variant={currentView === 'reports' ? 'default' : 'ghost'}
@@ -1391,7 +1345,7 @@ export function FieldOfficerPortal({ onLogout }: FieldOfficerPortalProps) {
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        {currentView !== 'scanning' && currentView !== 'zoom_scan' && (
+        {currentView !== 'scanning' && (
           <>
             {/* Mobile Header */}
             <div className="border-b bg-background/95 backdrop-blur-sm">
@@ -1445,10 +1399,10 @@ export function FieldOfficerPortal({ onLogout }: FieldOfficerPortalProps) {
           {renderContent()}
         </div>
 
-        {/* Bottom Navigation - 5 TABS */}
-        {currentView !== 'scanning' && currentView !== 'zoom_scan' && (
+        {/* Bottom Navigation - 4 TABS */}
+        {currentView !== 'scanning' && (
           <div className="border-t bg-background/95 backdrop-blur-sm">
-            <div className="grid grid-cols-5 gap-1 p-2 max-w-3xl mx-auto">
+            <div className="grid grid-cols-4 gap-1 p-2 max-w-3xl mx-auto">
             <Button
               variant={currentView === 'dashboard' ? 'default' : 'ghost'}
               className="h-16 flex flex-col items-center justify-center gap-1"
@@ -1466,18 +1420,6 @@ export function FieldOfficerPortal({ onLogout }: FieldOfficerPortalProps) {
             >
               <Camera className="h-5 w-5" />
               <span className="text-xs">Scan</span>
-            </Button>
-
-            <Button
-              variant={currentView === 'plate_scanner' ? 'default' : 'ghost'}
-              className={cn(
-                "h-16 flex flex-col items-center justify-center gap-1",
-                currentView === 'plate_scanner' && "bg-gradient-to-br from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white"
-              )}
-              onClick={() => setCurrentView('plate_scanner')}
-            >
-              <Camera className="h-5 w-5" />
-              <span className="text-xs font-bold">Scanner</span>
             </Button>
             
             <Button
@@ -1627,7 +1569,7 @@ export function FieldOfficerPortal({ onLogout }: FieldOfficerPortalProps) {
       />
 
       {/* Keep Screen Awake */}
-      <KeepScreenAwake isActive={currentView === 'scanning' || currentView === 'zoom_scan'} />
+      <KeepScreenAwake isActive={currentView === 'scanning'} />
       
       {/* Update Manager - Manual Check */}
       {triggerUpdateCheck && (
