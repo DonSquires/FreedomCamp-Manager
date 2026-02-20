@@ -437,7 +437,9 @@ export function ZoomScan({ onExit }: ZoomScanProps) {
     }
   }, [torchEnabled]);
 
-  // Capture and process with two-step approach
+  // Capture and process with PARALLEL SPLIT workflow
+  // Path A: Raw photo → ALPR (clean image)
+  // Path B: Watermarked photo → Storage (evidence)
   const captureAndProcess = async () => {
     if (!videoRef.current || !canvasRef.current || !user || !selectedZone) {
       toast.error('Not ready to scan');
@@ -457,77 +459,113 @@ export function ZoomScan({ onExit }: ZoomScanProps) {
     setQueue(prev => [tempItem, ...prev]);
 
     try {
-      // STEP 1: Capture photo with watermark
       const video = videoRef.current;
       const canvas = canvasRef.current;
       const context = canvas.getContext('2d');
       if (!context) throw new Error('Canvas not available');
 
+      // ============================================================================
+      // STEP 1: Capture RAW photo (no watermark)
+      // ============================================================================
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
       context.drawImage(video, 0, 0);
 
-      // Watermark
-      context.fillStyle = 'rgba(0, 0, 0, 0.7)';
-      context.fillRect(10, 10, 400, 120);
-      context.fillStyle = 'white';
-      context.font = 'bold 16px monospace';
-      context.fillText(selectedZone.name, 20, 35);
-      if (gpsLocation) {
-        context.fillText(`📍 ${gpsLocation.lat.toFixed(5)}, ${gpsLocation.lng.toFixed(5)}`, 20, 60);
-      }
-      context.fillText(new Date().toLocaleString('en-NZ'), 20, 85);
-      context.fillText(`Patrol: ${currentPatrol?.shift || 'N/A'}`, 20, 110);
+      // Save raw image data for ALPR (clean, unwatermarked)
+      const rawImageDataUrl = canvas.toDataURL('image/jpeg', 0.95);
+      console.log('📸 Raw photo captured (for ALPR)');
 
-      const imageDataUrl = canvas.toDataURL('image/jpeg', 0.95);
-      console.log('📸 Photo captured');
+      // ============================================================================
+      // STEP 2: PARALLEL PROCESSING (Fork A + Fork B)
+      // ============================================================================
+      
+      // Fork A: Send RAW photo to ALPR (no watermark interference)
+      const alprPromise = (async () => {
+        console.log('📤 Fork A: Sending to ALPR...');
+        const { data: alprData, error: alprError } = await supabase.functions.invoke('recognize-plate', {
+          body: {
+            image: rawImageDataUrl,
+            regions: ['nz'],
+            enableMMC: true,
+          },
+        });
 
-      // STEP 2: Call recognize-plate for ALPR
-      console.log('📤 Calling recognize-plate...');
-      const { data: alprData, error: alprError } = await supabase.functions.invoke('recognize-plate', {
-        body: {
-          image: imageDataUrl,
-          regions: ['nz'],
-          enableMMC: true,
-        },
-      });
-
-      if (alprError) {
-        let errorMessage = alprError.message;
-        if (alprError.name === 'FunctionsHttpError' && alprError.context) {
-          try {
-            const statusCode = alprError.context?.status ?? 500;
-            const textContent = await alprError.context?.text();
-            errorMessage = `[Code: ${statusCode}] ${textContent || alprError.message || 'Unknown error'}`;
-          } catch {
-            errorMessage = `${alprError.message || 'Failed to read response'}`;
+        if (alprError) {
+          let errorMessage = alprError.message;
+          if (alprError.name === 'FunctionsHttpError' && alprError.context) {
+            try {
+              const statusCode = alprError.context?.status ?? 500;
+              const textContent = await alprError.context?.text();
+              errorMessage = `[Code: ${statusCode}] ${textContent || alprError.message || 'Unknown error'}`;
+            } catch {
+              errorMessage = `${alprError.message || 'Failed to read response'}`;
+            }
           }
+          throw new Error(`ALPR: ${errorMessage}`);
         }
-        throw new Error(`ALPR: ${errorMessage}`);
-      }
 
-      if (!alprData?.success || !alprData?.plate_number) {
-        throw new Error('No plate detected by ALPR');
-      }
+        if (!alprData?.success || !alprData?.plate_number) {
+          throw new Error('No plate detected by ALPR');
+        }
 
-      console.log('✅ ALPR detected:', alprData.plate_number, `(${alprData.confidence})`);
+        console.log('✅ Fork A: ALPR detected:', alprData.plate_number);
+        return alprData;
+      })();
+
+      // Fork B: Add watermark and upload to storage
+      const storagePromise = (async () => {
+        console.log('📤 Fork B: Creating watermarked photo...');
+        
+        // Re-draw image (fresh canvas)
+        context.drawImage(video, 0, 0);
+        
+        // Add watermark overlay
+        context.fillStyle = 'rgba(0, 0, 0, 0.7)';
+        context.fillRect(10, 10, 400, 120);
+        context.fillStyle = 'white';
+        context.font = 'bold 16px monospace';
+        context.fillText(selectedZone.name, 20, 35);
+        if (gpsLocation) {
+          context.fillText(`📍 ${gpsLocation.lat.toFixed(5)}, ${gpsLocation.lng.toFixed(5)}`, 20, 60);
+        }
+        context.fillText(new Date().toLocaleString('en-NZ'), 20, 85);
+        context.fillText(`Patrol: ${currentPatrol?.shift || 'N/A'}`, 20, 110);
+        if (weatherConditions) {
+          context.fillText(`🌤️ ${weatherConditions}`, 20, 135);
+        }
+
+        // Convert to blob and upload
+        const watermarkedBlob = await new Promise<Blob>((resolve) => {
+          canvas.toBlob((blob) => resolve(blob!), 'image/jpeg', 0.95);
+        });
+        
+        const fileName = `scans/${Date.now()}_${Math.random().toString(36).slice(2)}.jpg`;
+        
+        const { error: uploadError } = await supabase.storage
+          .from('evidence')
+          .upload(fileName, watermarkedBlob);
+
+        if (uploadError) throw uploadError;
+
+        const { data: { publicUrl } } = supabase.storage
+          .from('evidence')
+          .getPublicUrl(fileName);
+        
+        console.log('✅ Fork B: Watermarked photo uploaded');
+        return publicUrl;
+      })();
+
+      // ============================================================================
+      // STEP 3: Wait for BOTH forks to complete
+      // ============================================================================
+      const [alprData, publicUrl] = await Promise.all([alprPromise, storagePromise]);
+      
+      console.log('✅ Both forks completed!');
       playSounds.plateRecognized();
 
-      // STEP 3: Upload photo to storage
-      const blob = await fetch(imageDataUrl).then(r => r.blob());
-      const fileName = `scans/${Date.now()}_${Math.random().toString(36).slice(2)}.jpg`;
-      
-      const { error: uploadError } = await supabase.storage
-        .from('evidence')
-        .upload(fileName, blob);
-
-      if (uploadError) throw uploadError;
-
-      const { data: { publicUrl } } = supabase.storage
-        .from('evidence')
-        .getPublicUrl(fileName);
-
-      // STEP 4: Call process-field-scan to create observation
+      // ============================================================================
+      // STEP 4: Create observation with ALPR data + watermarked photo
+      // ============================================================================
       console.log('📤 Creating observation...');
       const { data: scanResult, error: scanError } = await supabase.functions.invoke('process-field-scan', {
         body: {

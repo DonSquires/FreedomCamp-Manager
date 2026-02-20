@@ -1,78 +1,296 @@
 // ============================================================================
-// CENTRALIZED ALPR HELPER - Plate Recognizer API Integration
+// ALPR HELPER - Plate Recognizer Cloud API (Production-Ready, Cloud-Only)
 // ============================================================================
-// Single source of truth for all ALPR operations
-// Environment variables required:
-// - PLATE_RECOGNIZER_API_KEY (required)
-// - ALPR_API_URL (optional, defaults to Plate Recognizer Cloud)
+// Official API: https://docs.platerecognizer.com
+// Endpoint: https://api.platerecognizer.com/v1/plate-reader/
+// Auth: Token <API_TOKEN>
+//
+// Supports:
+// - Multipart uploads (@file via bytes)
+// - Base64 uploads (string)
+// - NZ region configuration
+// - MMC (Make/Model/Color/Year/Orientation)
+// - Direction detection
+// - Robust error handling and logging
 // ============================================================================
 
-export interface ALPRResult {
-  success: boolean;
-  plate: string | null;
-  confidence: number | null;
-  
-  // Vehicle details from MMC
-  make: string | null;
-  model: string | null;
-  color: string | null;
-  year: string | null;
-  bodyStyle: string | null;
-  
-  // Additional metadata
-  regionCode: string | null;
-  regionConfidence: number | null;
-  detectionConfidence: number | null;
-  
-  // Raw response for debugging
-  raw: any;
-  error?: string;
-}
-
-interface PlateRecognizerConfig {
-  apiKey: string;
-  apiUrl: string;
-  regions: string[];
-  enableMMC: boolean;
-  timeoutMs: number;
-}
+type AlprResult = { 
+  plate: string | null; 
+  confidence: number | null; 
+  raw: any 
+};
 
 /**
- * Get ALPR configuration from environment variables
+ * Get environment variable with optional fallback
  */
-function getConfig(): PlateRecognizerConfig {
-  const apiKey = Deno.env.get('PLATE_RECOGNIZER_API_KEY');
-  
-  if (!apiKey || apiKey.trim() === '') {
-    throw new Error('PLATE_RECOGNIZER_API_KEY not configured in Supabase Secrets');
+function env(name: string, fallback?: string): string | undefined {
+  const v = Deno.env.get(name);
+  return (v === undefined || v === null || v === '') ? fallback : v;
+}
+
+// ============================================================================
+// ENVIRONMENT CONFIGURATION (Supabase Secrets)
+// ============================================================================
+const ALPR_CLOUD_URL = env('ALPR_CLOUD_URL', 'https://api.platerecognizer.com/v1/plate-reader/');
+const TOKEN = env('PLATE_RECOGNIZER_TOKEN')!;
+const REGIONS = (env('ALPR_REGIONS', 'nz') || 'nz').split(',').map(s => s.trim()).filter(Boolean);
+const MMC = env('ALPR_MMC', 'false') === 'true';
+const CONFIG_STR = env('ALPR_CONFIG', ''); // JSON string like {"mode":"fast"}
+const TIMEOUT_MS = parseInt(env('ALPR_TIMEOUT_MS', '15000')!, 10);
+
+if (!TOKEN) {
+  throw new Error('❌ PLATE_RECOGNIZER_TOKEN is not set in Supabase Secrets');
+}
+
+console.log('🔧 ALPR Config:', {
+  endpoint: ALPR_CLOUD_URL,
+  regions: REGIONS,
+  mmc: MMC,
+  timeout: `${TIMEOUT_MS}ms`,
+  hasConfig: !!CONFIG_STR,
+});
+
+/**
+ * Extract best plate candidate from API response
+ */
+function pickBest(resp: any): { plate: string | null; confidence: number | null } {
+  const r = resp?.results;
+  if (!Array.isArray(r) || r.length === 0) {
+    return { plate: null, confidence: null };
   }
 
+  const top = r[0];
+  
+  // Try candidates array first (best OCR results)
+  if (Array.isArray(top?.candidates) && top.candidates.length > 0) {
+    const best = top.candidates[0];
+    return {
+      plate: (best?.plate || top?.plate || '').toUpperCase() || null,
+      confidence: (typeof best?.score === 'number') ? best.score :
+                  (typeof top?.score === 'number' ? top.score : null)
+    };
+  }
+
+  // Fall back to direct plate field
   return {
-    apiKey: apiKey.trim(),
-    apiUrl: Deno.env.get('ALPR_API_URL') || 'https://api.platerecognizer.com/v1/plate-reader/',
-    regions: ['nz'], // Default to New Zealand
-    enableMMC: true, // Always enable Make/Model/Color detection
-    timeoutMs: 15000, // 15 second timeout
+    plate: (top?.plate || '').toUpperCase() || null,
+    confidence: (typeof top?.score === 'number') ? top?.score : null
   };
 }
 
 /**
- * Convert base64 data URL to Uint8Array
+ * Safe JSON parse with fallback to raw text
+ */
+function tryParse(text: string): any {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return text;
+  }
+}
+
+/**
+ * Build multipart form data with configured parameters
+ */
+function buildForm(): FormData {
+  const form = new FormData();
+  
+  // 1. Set region(s) - NZ by default
+  REGIONS.forEach(r => form.append('regions', r));
+  
+  // 2. Enable MMC if configured (Make/Model/Color/Year/Orientation)
+  if (MMC) {
+    form.append('mmc', 'true');
+  }
+  
+  // 3. Add optional engine config (e.g., {"mode":"fast"})
+  if (CONFIG_STR) {
+    form.append('config', CONFIG_STR);
+  }
+  
+  return form;
+}
+
+/**
+ * POST form data to Plate Recognizer API with timeout
+ */
+async function postForm(form: FormData): Promise<AlprResult> {
+  try {
+    const res = await fetch(ALPR_CLOUD_URL!, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Token ${TOKEN}`,
+      },
+      body: form,
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+    });
+
+    const text = await res.text();
+    
+    if (!res.ok) {
+      console.error('❌ ALPR Cloud Error:', {
+        status: res.status,
+        statusText: res.statusText,
+        response: text.slice(0, 512),
+      });
+      
+      // Standardized error messages
+      let errorMessage = text;
+      if (res.status === 401) {
+        errorMessage = '401: Invalid API token or expired subscription';
+      } else if (res.status === 403) {
+        errorMessage = '403: Insufficient credits or invalid API key';
+      } else if (res.status === 413) {
+        errorMessage = '413: Image too large (max 10MB)';
+      } else if (res.status === 415) {
+        errorMessage = '415: Unsupported image format (use JPEG/PNG)';
+      } else if (res.status === 422) {
+        errorMessage = '422: Invalid request parameters';
+      } else if (res.status === 429) {
+        errorMessage = '429: Rate limit exceeded (Free: 1/sec, Paid: 8/sec)';
+      }
+      
+      return { 
+        plate: null, 
+        confidence: null, 
+        raw: { error: errorMessage, status: res.status, body: tryParse(text) }
+      };
+    }
+
+    const json = tryParse(text);
+    const { plate, confidence } = pickBest(json);
+    
+    if (plate) {
+      console.log('✅ ALPR Plate:', plate, 'confidence:', confidence);
+    } else {
+      console.warn('⚠️ ALPR: No plate candidates in response');
+    }
+    
+    return { plate, confidence: confidence ?? null, raw: json };
+
+  } catch (error: any) {
+    console.error('❌ ALPR Request Failed:', error.message);
+    
+    let errorMessage = error.message || 'Unknown error';
+    if (error.name === 'TimeoutError' || error.name === 'AbortError') {
+      errorMessage = `Timeout after ${TIMEOUT_MS}ms - API did not respond in time`;
+    }
+    
+    return { 
+      plate: null, 
+      confidence: null, 
+      raw: { error: errorMessage, type: error.name }
+    };
+  }
+}
+
+// ============================================================================
+// PUBLIC API
+// ============================================================================
+
+/**
+ * Detect plate from image bytes (multipart upload - RECOMMENDED)
+ * 
+ * @param bytes - Image data as Uint8Array (JPEG/PNG)
+ * @returns AlprResult with plate number and confidence
+ */
+export async function alprWithBytes(bytes: Uint8Array): Promise<AlprResult> {
+  const form = buildForm();
+  const file = new File([bytes], 'upload.jpg', { type: 'image/jpeg' });
+  form.append('upload', file); // Multipart @file upload
+  
+  console.log('📤 ALPR Upload (bytes):', { size: `${(bytes.length / 1024).toFixed(1)} KB` });
+  return postForm(form);
+}
+
+/**
+ * Detect plate from base64 data URL (base64 upload)
+ * 
+ * @param dataUrl - Base64 encoded image (with or without data URL prefix)
+ * @returns AlprResult with plate number and confidence
+ */
+export async function alprWithDataUrl(dataUrl: string): Promise<AlprResult> {
+  const form = buildForm();
+  
+  // Strip data URL prefix if present
+  const base64 = dataUrl.includes(',') ? dataUrl.split(',')[1] : dataUrl;
+  
+  // Plate Recognizer accepts base64 directly in 'upload' field
+  form.append('upload', base64);
+  
+  console.log('📤 ALPR Upload (base64):', { size: `${(base64.length / 1024).toFixed(1)} KB` });
+  return postForm(form);
+}
+
+// ============================================================================
+// LEGACY COMPATIBILITY (for existing code)
+// ============================================================================
+
+/**
+ * DEPRECATED: Use alprWithBytes() instead
+ * Kept for backward compatibility with existing code
+ */
+export async function detectPlate(photoBytes: Uint8Array): Promise<any> {
+  const result = await alprWithBytes(photoBytes);
+  
+  // Convert to legacy format
+  return {
+    success: result.plate !== null,
+    plate: result.plate,
+    confidence: result.confidence,
+    make: null,
+    model: null,
+    color: null,
+    year: null,
+    bodyStyle: null,
+    orientation: null,
+    direction: null,
+    regionCode: null,
+    regionConfidence: null,
+    detectionConfidence: null,
+    raw: result.raw,
+    error: result.plate === null ? 'No plate detected' : undefined,
+  };
+}
+
+/**
+ * DEPRECATED: Use alprWithDataUrl() instead
+ * Kept for backward compatibility with existing code
+ */
+export async function detectPlateFromBase64(base64Image: string): Promise<any> {
+  const result = await alprWithDataUrl(base64Image);
+  
+  // Convert to legacy format
+  return {
+    success: result.plate !== null,
+    plate: result.plate,
+    confidence: result.confidence,
+    make: null,
+    model: null,
+    color: null,
+    year: null,
+    bodyStyle: null,
+    orientation: null,
+    direction: null,
+    regionCode: null,
+    regionConfidence: null,
+    detectionConfidence: null,
+    raw: result.raw,
+    error: result.plate === null ? 'No plate detected' : undefined,
+  };
+}
+
+/**
+ * Utility: Convert base64 data URL to Uint8Array
  */
 export function base64ToBytes(dataUrl: string): Uint8Array {
   try {
-    // Remove data URL prefix if present
     const base64Data = dataUrl.replace(/^data:image\/\w+;base64,/, '');
-    
-    // Decode base64 to binary
     const binaryString = atob(base64Data);
-    
-    // Convert to Uint8Array
     const bytes = new Uint8Array(binaryString.length);
     for (let i = 0; i < binaryString.length; i++) {
       bytes[i] = binaryString.charCodeAt(i);
     }
-    
     return bytes;
   } catch (error) {
     console.error('❌ Base64 decode failed:', error);
@@ -81,7 +299,7 @@ export function base64ToBytes(dataUrl: string): Uint8Array {
 }
 
 /**
- * Compute SHA-256 hash of bytes
+ * Utility: Compute SHA-256 hash of bytes
  */
 export async function computeSHA256(bytes: Uint8Array): Promise<string> {
   try {
@@ -94,249 +312,29 @@ export async function computeSHA256(bytes: Uint8Array): Promise<string> {
   }
 }
 
-/**
- * Detect license plate from image bytes using Plate Recognizer API
- * 
- * @param photoBytes - Image data as Uint8Array (JPEG/PNG)
- * @param options - Optional configuration overrides
- * @returns ALPRResult with plate number and vehicle details
- */
-export async function detectPlate(
-  photoBytes: Uint8Array,
-  options?: Partial<PlateRecognizerConfig>
-): Promise<ALPRResult> {
-  const startTime = Date.now();
-  
-  try {
-    // Get configuration
-    const config = { ...getConfig(), ...options };
-    
-    console.log('📡 ALPR Request:', {
-      url: config.apiUrl,
-      imageSize: photoBytes.length,
-      regions: config.regions,
-      mmc: config.enableMMC,
-      timeout: config.timeoutMs,
-    });
-
-    // Prepare form data
-    const formData = new FormData();
-    
-    // Add image as blob
-    const blob = new Blob([photoBytes], { type: 'image/jpeg' });
-    formData.append('upload', blob, 'image.jpg');
-    
-    // Add regions
-    config.regions.forEach(region => {
-      formData.append('regions', region);
-    });
-    
-    // Enable MMC (Make/Model/Color)
-    if (config.enableMMC) {
-      formData.append('mmc', 'true');
-    }
-    
-    // Engine configuration for better NZ results
-    formData.append('config', JSON.stringify({
-      threshold_d: 0.5, // Detection threshold
-      threshold_o: 0.5, // OCR threshold
-    }));
-
-    // Call Plate Recognizer API
-    const response = await fetch(config.apiUrl, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Token ${config.apiKey}`,
-      },
-      body: formData,
-      signal: AbortSignal.timeout(config.timeoutMs),
-    });
-
-    const processingTime = Date.now() - startTime;
-    
-    // Read response text
-    const responseText = await response.text();
-    
-    // Check for HTTP errors
-    if (!response.ok) {
-      console.error('❌ ALPR API Error:', {
-        status: response.status,
-        statusText: response.statusText,
-        response: responseText.slice(0, 500),
-        processingTime,
-      });
-      
-      return {
-        success: false,
-        plate: null,
-        confidence: null,
-        make: null,
-        model: null,
-        color: null,
-        year: null,
-        bodyStyle: null,
-        regionCode: null,
-        regionConfidence: null,
-        detectionConfidence: null,
-        raw: null,
-        error: `API Error ${response.status}: ${responseText}`,
-      };
-    }
-
-    // Parse JSON response
-    let apiResult: any;
-    try {
-      apiResult = JSON.parse(responseText);
-    } catch (parseError) {
-      console.error('❌ Failed to parse ALPR response:', parseError);
-      return {
-        success: false,
-        plate: null,
-        confidence: null,
-        make: null,
-        model: null,
-        color: null,
-        year: null,
-        bodyStyle: null,
-        regionCode: null,
-        regionConfidence: null,
-        detectionConfidence: null,
-        raw: responseText,
-        error: 'Failed to parse API response',
-      };
-    }
-
-    console.log('📊 ALPR Response:', {
-      processingTime,
-      resultsCount: apiResult.results?.length || 0,
-      apiProcessingTime: apiResult.processing_time,
-    });
-
-    // Check if any plates were detected
-    if (!apiResult.results || apiResult.results.length === 0) {
-      console.warn('⚠️ No plates detected in image');
-      return {
-        success: false,
-        plate: null,
-        confidence: null,
-        make: null,
-        model: null,
-        color: null,
-        year: null,
-        bodyStyle: null,
-        regionCode: null,
-        regionConfidence: null,
-        detectionConfidence: null,
-        raw: apiResult,
-        error: 'No license plates detected',
-      };
-    }
-
-    // Get the best result (highest confidence)
-    const bestResult = apiResult.results.reduce((best: any, current: any) => 
-      (current.score > best.score) ? current : best
-    );
-
-    // Extract plate number (normalized)
-    const plate = bestResult.plate?.toUpperCase?.().replace(/[^A-Z0-9]/g, '') || null;
-    const confidence = bestResult.score || null;
-    const detectionConfidence = bestResult.dscore || null;
-
-    // Extract region info
-    const regionCode = bestResult.region?.code || null;
-    const regionConfidence = bestResult.region?.score || null;
-
-    // Extract vehicle details from MMC
-    const makeModel = bestResult.model_make?.[0];
-    const make = makeModel?.make || null;
-    const model = makeModel?.model || null;
-    
-    const colorData = bestResult.color?.[0];
-    const color = colorData?.color || null;
-    
-    const yearData = bestResult.year;
-    const year = yearData?.year_range?.[0] || null;
-    
-    const vehicleData = bestResult.vehicle;
-    const bodyStyle = vehicleData?.type || null;
-
-    console.log('✅ ALPR Success:', {
-      plate,
-      confidence: confidence ? `${(confidence * 100).toFixed(1)}%` : 'N/A',
-      detectionConfidence: detectionConfidence ? `${(detectionConfidence * 100).toFixed(1)}%` : 'N/A',
-      region: regionCode,
-      vehicle: `${make || '?'} ${model || '?'} ${color || '?'} ${year || '?'}`.trim(),
-      processingTime,
-    });
-
-    return {
-      success: true,
-      plate,
-      confidence,
-      make,
-      model,
-      color,
-      year,
-      bodyStyle,
-      regionCode,
-      regionConfidence,
-      detectionConfidence,
-      raw: apiResult,
-    };
-
-  } catch (error: any) {
-    const processingTime = Date.now() - startTime;
-    
-    console.error('❌ ALPR Exception:', {
-      error: error.message,
-      type: error.name,
-      processingTime,
-    });
-
-    return {
-      success: false,
-      plate: null,
-      confidence: null,
-      make: null,
-      model: null,
-      color: null,
-      year: null,
-      bodyStyle: null,
-      regionCode: null,
-      regionConfidence: null,
-      detectionConfidence: null,
-      raw: null,
-      error: error.message || 'Unknown error',
-    };
-  }
-}
-
-/**
- * Detect plate from base64 image string
- * 
- * @param base64Image - Base64 encoded image (with or without data URL prefix)
- * @returns ALPRResult
- */
-export async function detectPlateFromBase64(base64Image: string): Promise<ALPRResult> {
-  try {
-    const photoBytes = base64ToBytes(base64Image);
-    return await detectPlate(photoBytes);
-  } catch (error: any) {
-    console.error('❌ Base64 ALPR failed:', error);
-    return {
-      success: false,
-      plate: null,
-      confidence: null,
-      make: null,
-      model: null,
-      color: null,
-      year: null,
-      bodyStyle: null,
-      regionCode: null,
-      regionConfidence: null,
-      detectionConfidence: null,
-      raw: null,
-      error: error.message || 'Failed to process base64 image',
-    };
-  }
-}
+// ============================================================================
+// CONFIGURATION NOTES
+// ============================================================================
+//
+// Environment Variables (Supabase Secrets):
+// - PLATE_RECOGNIZER_TOKEN (required) - API token from ParkPow/Plate Recognizer
+// - ALPR_CLOUD_URL (optional) - Default: https://api.platerecognizer.com/v1/plate-reader/
+// - ALPR_REGIONS (optional) - Default: nz (comma-separated: nz,au,us-ca)
+// - ALPR_MMC (optional) - Default: false (set to 'true' to enable Make/Model/Color)
+// - ALPR_CONFIG (optional) - JSON string like {"mode":"fast"} for engine tuning
+// - ALPR_TIMEOUT_MS (optional) - Default: 15000 (15 seconds)
+//
+// Rate Limits:
+// - Free Trial: 1 call/sec
+// - Paid Plan: 8 calls/sec
+//
+// Error Codes:
+// - 401: Invalid/expired token
+// - 403: Insufficient credits
+// - 413: Image too large (>10MB)
+// - 415: Unsupported format (use JPEG/PNG)
+// - 422: Invalid parameters
+// - 429: Rate limit exceeded
+// - 408: Timeout (slow API or large image)
+//
+// ============================================================================
