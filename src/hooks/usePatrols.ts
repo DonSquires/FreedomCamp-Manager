@@ -24,14 +24,16 @@ export const usePatrols = (organizationId?: string | null) => {
         `);
       
       // Apply organization filter if specified
-      if (organizationId && organizationId !== 'all') {
+      if (organizationId && organizationId !== 'all' && organizationId !== '') {
         console.log('📊 Applying org filter:', organizationId);
         query = query.eq('organization_id', organizationId);
       } else {
         console.log('🌍 No org filter - fetching ALL (RLS will apply)');
       }
       
-      const { data, error } = await query.order('patrol_date', { ascending: false });
+      const { data, error } = await query
+        .order('patrol_date', { ascending: false })
+        .limit(100);
 
       if (error) {
         console.error('❌ Patrol fetch error:', error);

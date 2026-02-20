@@ -3,7 +3,7 @@
  * 
  * Features:
  * - Manual capture (press button each time)
- * - Two-step process: recognize-plate → process-field-scan
+ * - Unified ingest: plate-scanner-photo-first (photo-first ALPR)
  * - Auto-zone detection with GPS geofence
  * - Auto-start/resume patrol
  * - Results queue with auto-dismiss
@@ -12,7 +12,7 @@
  * 
  * Workflow:
  * 1. Capture → Watermark
- * 2. Call recognize-plate (ALPR only)
+ * 2. Call plate-scanner-photo-first (unified ALPR + observation creation)
  * 3. Call process-field-scan (observation creation)
  * 4. Queue result with auto-dismiss
  */
@@ -479,14 +479,21 @@ export function ZoomScan({ onExit }: ZoomScanProps) {
       // STEP 2: PARALLEL PROCESSING (Fork A + Fork B)
       // ============================================================================
       
-      // Fork A: Send RAW photo to ALPR (no watermark interference)
+      // Fork A: Send RAW photo to unified ALPR ingest (no watermark interference)
       const alprPromise = (async () => {
-        console.log('📤 Fork A: Sending to ALPR...');
-        const { data: alprData, error: alprError } = await supabase.functions.invoke('recognize-plate', {
+        console.log('📤 Fork A: Sending to unified ALPR ingest...');
+        const { data: alprData, error: alprError } = await supabase.functions.invoke('plate-scanner-photo-first', {
           body: {
             image: rawImageDataUrl,
-            regions: ['nz'],
-            enableMMC: true,
+            gpsLatitude: gpsLocation?.lat || 0,
+            gpsLongitude: gpsLocation?.lng || 0,
+            gps_accuracy: gpsLocation?.accuracy || 0,
+            recordedAt: new Date().toISOString(),
+            officerId: user?.id,
+            organizationId: selectedZone?.organization_id,
+            zoneId: selectedZone?.id,
+            weatherConditions: weatherConditions || null,
+            idempotencyKey: `zoomscan:${user?.id}:${Date.now()}`,
           },
         });
 
@@ -504,12 +511,21 @@ export function ZoomScan({ onExit }: ZoomScanProps) {
           throw new Error(`ALPR: ${errorMessage}`);
         }
 
-        if (!alprData?.success || !alprData?.plate_number) {
+        if (!alprData?.success || !alprData?.plate_number || alprData.plate_number === 'PENDING_ALPR') {
           throw new Error('No plate detected by ALPR');
         }
 
         console.log('✅ Fork A: ALPR detected:', alprData.plate_number);
-        return alprData;
+        return {
+          success: true,
+          plate_number: alprData.plate_number,
+          confidence: alprData.confidence,
+          vehicle_make: alprData.vehicle_make,
+          vehicle_model: alprData.vehicle_model,
+          vehicle_color: alprData.vehicle_color,
+          vehicle_year: alprData.vehicle_year,
+          observation_id: alprData.observation_id,
+        };
       })();
 
       // Fork B: Add watermark and upload to storage
@@ -556,57 +572,22 @@ export function ZoomScan({ onExit }: ZoomScanProps) {
       })();
 
       // ============================================================================
-      // STEP 3: Wait for BOTH forks to complete
+      // STEP 3: Wait for Fork A (ALPR) - Fork B (watermark) runs in background
       // ============================================================================
-      const [alprData, publicUrl] = await Promise.all([alprPromise, storagePromise]);
+      const alprData = await alprPromise;
       
-      console.log('✅ Both forks completed!');
+      console.log('✅ ALPR completed, observation created via unified ingest!');
       playSounds.plateRecognized();
-
-      // ============================================================================
-      // STEP 4: Create observation with ALPR data + watermarked photo
-      // ============================================================================
-      console.log('📤 Creating observation...');
-      const { data: scanResult, error: scanError } = await supabase.functions.invoke('process-field-scan', {
-        body: {
-          plateNumber: alprData.plate_number,
-          zoneId: selectedZone.id,
-          organizationId: selectedZone.organization_id,
-          imageUrl: publicUrl,
-          gpsLocation: gpsLocation,
-          vehicleDetails: {
-            make: alprData.vehicle_make,
-            model: alprData.vehicle_model,
-            color: alprData.vehicle_color,
-            year: alprData.vehicle_year,
-          },
-          detectionMethod: 'alpr',
-          confidence: alprData.confidence,
-          isSelfContained: false,
-          weatherConditions: weatherConditions || undefined,
-        },
-      });
-
-      if (scanError) {
-        let errorMessage = scanError.message;
-        if (scanError.name === 'FunctionsHttpError' && scanError.context) {
-          try {
-            const statusCode = scanError.context?.status ?? 500;
-            const textContent = await scanError.context?.text();
-            errorMessage = `[Code: ${statusCode}] ${textContent || scanError.message || 'Unknown error'}`;
-          } catch {
-            errorMessage = `${scanError.message || 'Failed to read response'}`;
-          }
-        }
-        throw new Error(errorMessage);
-      }
-
-      if (!scanResult?.success) {
-        throw new Error(scanResult?.error || 'Scan processing failed');
-      }
-
-      console.log('✅ Observation created:', scanResult);
       playSounds.processingComplete();
+
+      // Fork B still running in background (watermark upload)
+      // ALPR has already created the observation in plate-scanner-photo-first
+      const scanResult = {
+        success: true,
+        observation_id: alprData.observation_id,
+        is_compliant: true, // Will be evaluated by trigger
+        is_flagged: false,
+      };
 
       // STEP 5: Determine status
       let status: QueueItem['status'] = 'compliant';
