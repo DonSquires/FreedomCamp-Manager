@@ -22,10 +22,10 @@ supabase secrets set \
   ALPR_CONFIG='{"mode":"fast"}' \
   ALPR_TIMEOUT_MS="15000" \
   ALPR_CONF_THRESHOLD="0.78" \
-  INFERENCE_SERVICE_URL="https://orc-ai-inference-service-production.up.railway.app" \
-  SUPABASE_URL="https://xbfnlzmpumthnjmtqufp.supabase.co" \
-  SUPABASE_SERVICE_ROLE_KEY="YOUR-SERVICE-ROLE-KEY"
+  INFERENCE_SERVICE_URL="https://orc-ai-inference-service-production.up.railway.app"
 ```
+
+> **Note:** `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are auto-injected by Supabase and should **not** be set manually.
 
 ### 2. Verify Secrets
 
@@ -43,8 +43,6 @@ ALPR_CONFIG
 ALPR_TIMEOUT_MS
 ALPR_CONF_THRESHOLD
 INFERENCE_SERVICE_URL
-SUPABASE_URL
-SUPABASE_SERVICE_ROLE_KEY
 ```
 
 ### 3. Deploy Edge Function
