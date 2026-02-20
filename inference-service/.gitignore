@@ -1,0 +1,42 @@
+# Dependencies
+node_modules/
+package-lock.json
+npm-debug.log*
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Models (too large for git)
+models/*.onnx
+models/*.pt
+models/*.pth
+
+# Keep models directory structure
+!models/.gitkeep
+
+# Build outputs
+dist/
+build/
+
+# Logs
+logs/
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Testing
+coverage/
+.nyc_output/
+
+# Deployment
+.fly/

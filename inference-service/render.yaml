@@ -1,0 +1,39 @@
+# Render.com Blueprint Configuration
+# 
+# Deploy: Connect GitHub repo → Render dashboard → Auto-deploy from this file
+# Docs: https://render.com/docs/blueprint-spec
+
+services:
+  - type: web
+    name: orc-ai-inference
+    env: docker
+    plan: starter  # $7/month
+    region: oregon  # us-west (closest to NZ)
+    
+    # Build settings
+    dockerfilePath: ./Dockerfile
+    dockerContext: ./
+    
+    # Environment variables
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3000
+      - key: ALLOWED_ORIGINS
+        sync: false  # Set manually in Render dashboard
+    
+    # Health check
+    healthCheckPath: /health
+    
+    # Auto-deploy on push
+    autoDeploy: true
+    
+    # Scaling
+    numInstances: 1
+    
+    # Persistent disk (optional - for model caching)
+    # disk:
+    #   name: models-cache
+    #   mountPath: /app/models
+    #   sizeGB: 1
