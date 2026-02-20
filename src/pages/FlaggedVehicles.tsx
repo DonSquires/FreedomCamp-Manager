@@ -172,15 +172,45 @@ export function FlaggedVehicles() {
     toast.info('🤖 ALPR recognizing plate number...');
 
     try {
-      const { data: alprData, error: alprError } = await supabase.functions.invoke('recognize-plate', {
-        body: { photoUrl },
+      // Convert photo URL to base64 for ALPR
+      const response = await fetch(photoUrl);
+      const blob = await response.blob();
+      const base64 = await new Promise<string>((resolve) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result as string);
+        reader.readAsDataURL(blob);
       });
 
-      if (alprError) throw alprError;
+      // Call unified plate-scanner-photo-first (server-side ALPR)
+      const { data: scanData, error: scanError } = await supabase.functions.invoke('plate-scanner-photo-first', {
+        body: {
+          image: base64,
+          gpsLatitude: 0,
+          gpsLongitude: 0,
+          recordedAt: new Date().toISOString(),
+          officerId: user?.id,
+          organizationId: user?.organization_id,
+          idempotencyKey: `flagged-photo:${Date.now()}`,
+        },
+      });
 
-      const recognizedPlate = alprData?.results?.[0]?.plate?.toUpperCase().trim();
+      if (scanError) {
+        let errorMessage = scanError.message;
+        if (scanError.name === 'FunctionsHttpError' && scanError.context) {
+          try {
+            const statusCode = scanError.context?.status ?? 500;
+            const textContent = await scanError.context?.text();
+            errorMessage = `[${statusCode}] ${textContent || scanError.message || 'Unknown error'}`;
+          } catch {
+            errorMessage = scanError.message || 'Failed to read response';
+          }
+        }
+        throw new Error(errorMessage);
+      }
 
-      if (!recognizedPlate) {
+      const recognizedPlate = scanData?.plate_number?.toUpperCase().trim();
+
+      if (!recognizedPlate || recognizedPlate === 'PENDING_ALPR' || !scanData?.success) {
         toast.warning('Could not recognize plate - enter manually');
         return;
       }
