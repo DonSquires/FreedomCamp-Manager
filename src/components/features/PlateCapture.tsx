@@ -913,130 +913,25 @@ export function PlateCapture({
     reader.readAsDataURL(file);
   };
 
-  // 🔄 UNIFIED PROCESSING FUNCTION - Calls plate-scanner-photo-first (includes ALPR)
+  // TODO: Replace with ORC/AI vehicle fingerprinting
+  // REMOVED: ALPR-based processing - will be replaced with ORC/AI
   const processImageUnified = async (
     imageDataUrl: string, 
     queueId: string,
     sourceType: 'camera' | 'file_upload' = 'camera'
   ) => {
-    console.log(`📸 [${sourceType.toUpperCase()}] Starting unified photo-first ingest...`);
+    console.log(`📸 [${sourceType.toUpperCase()}] ALPR REMOVED - ORC/AI rebuild pending...`);
 
     try {
-      // STEP 1: Call unified ingest function (handles upload + ALPR + observation creation)
-      console.log('📤 Step 1: Calling plate-scanner-photo-first...');
-      const { data: recognitionData, error: recognitionError } = await supabase.functions.invoke('plate-scanner-photo-first', {
-        body: { 
-          image: imageDataUrl,
-          zoneId: zoneId,
-          organizationId: organizationId,
-          userId: user?.id,
-          recordedAt: new Date().toISOString(),
-          gpsLocation: gpsLocation,
-          idempotencyKey: `handheld:${queueId}`,
-        },
-      });
+      // TODO: Implement ORC/AI processing here
+      // 1. Upload photo to evidence bucket
+      // 2. Call ORC inference (vehicle detection + embedding)
+      // 3. Match against existing vehicle signatures
+      // 4. Create observation with vehicle fingerprint
+      
+      throw new Error('ALPR removed - ORC/AI system under development');
 
-      if (recognitionError) {
-        console.error('❌ Photo-first ingest error:', recognitionError);
-        throw recognitionError;
-      }
-
-      // Check if ingest was successful
-      if (!recognitionData?.success) {
-        console.error('❌ Photo-first ingest failed:', recognitionData?.error || 'Unknown error');
-        playSounds.error();
-        
-        setFeedbackType('error');
-        setFeedbackMessage(`Scan Failed${sourceType === 'file_upload' ? ' (File)' : ''}`);
-        setShowFeedbackBubble(true);
-        setTimeout(() => setShowFeedbackBubble(false), 3000);
-        
-        setFailedDetectionData({
-          image: imageDataUrl,
-          photoUrl: recognitionData?.photo_url || '',
-          gpsLocation,
-        });
-        setShowManualEntryModal(true);
-        
-        setLastErrorMessage('Ingest failed - manual entry required');
-        setButtonFeedback('error');
-        
-        setProcessingQueue(prev => 
-          prev.map(item => 
-            item.id === queueId 
-              ? { ...item, status: 'error' as const } 
-              : item
-          )
-        );
-        
-        toast.info('Photo saved but plate detection failed - please enter details manually');
-        return;
-      }
-
-      // SUCCESS PATH
-      const plateDetected = recognitionData.plate_number && recognitionData.plate_number !== 'PENDING_ALPR';
-      
-      if (plateDetected) {
-        console.log('✅ PLATE DETECTED:', recognitionData.plate_number, `(confidence: ${recognitionData.confidence})`);
-      } else {
-        console.warn('⚠️ ALPR pending or failed - observation saved');
-      }
-      
-      setProcessingQueue(prev => 
-        prev.map(item => 
-          item.id === queueId 
-            ? { ...item, plateNumber: recognitionData.plate_number || 'PROCESSING', status: 'complete' as const } 
-            : item
-        )
-      );
-      
-      if (plateDetected) {
-        setFeedbackType('success');
-        setFeedbackMessage('Plate Read');
-        setShowFeedbackBubble(true);
-        setTimeout(() => setShowFeedbackBubble(false), 2000);
-        
-        setButtonFeedback('success');
-        setTimeout(() => setButtonFeedback('idle'), 3000);
-      } else {
-        setFeedbackType('warning');
-        setFeedbackMessage('Photo Saved');
-        setShowFeedbackBubble(true);
-        setTimeout(() => setShowFeedbackBubble(false), 2000);
-        
-        // Offer manual entry for ALPR failures
-        setFailedDetectionData({
-          image: imageDataUrl,
-          photoUrl: recognitionData.photo_url,
-          gpsLocation,
-        });
-        setShowManualEntryModal(true);
-        toast.info('Photo saved - ALPR did not detect a plate. Please enter manually.');
-        return;
-      }
-      
-      // Add source metadata to notes
-      const sourceNote = sourceType === 'file_upload' 
-        ? '📁 PHOTO UPLOADED FROM FILE • Processed via photo-first ingest'
-        : undefined;
-      
-      // Process field scan with observation data
-      // Note: Observation already created by plate-scanner-photo-first
-      // We just need to trigger UI updates and compliance checks
-      await processFieldScan({
-        plateNumber: recognitionData.plate_number,
-        confidence: recognitionData.confidence || 1.0,
-        vehicleMake: undefined, // ALPR doesn't return these yet
-        vehicleModel: undefined,
-        vehicleColor: undefined,
-        vehicleYear: undefined,
-        croppedImageUrl: null,
-        fullImageUrl: recognitionData.photo_url,
-        gpsLocation,
-        detectionMethod: 'alpr',
-        observationId: recognitionData.observation_id,
-        officerNotes: sourceNote,
-      });
+      // REMOVED: All ALPR processing logic
       
     } catch (error: any) {
       console.error('❌ Image processing failed:', error);
