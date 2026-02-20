@@ -1,0 +1,59 @@
+# Fly.io Configuration for ORC/AI Inference Service
+# 
+# Deployment: fly deploy
+# Logs: fly logs
+# Scale: fly scale count 2 (for high availability)
+
+app = "orc-ai-inference"
+primary_region = "sjc"  # San Jose (closest to NZ traffic via edge)
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  PORT = "3000"
+  NODE_ENV = "production"
+
+[http_service]
+  internal_port = 3000
+  force_https = true
+  auto_stop_machines = false  # Keep always running
+  auto_start_machines = true
+  min_machines_running = 1
+  
+  [[http_service.checks]]
+    interval = "30s"
+    timeout = "10s"
+    grace_period = "30s"
+    method = "get"
+    path = "/health"
+    protocol = "http"
+
+[[services]]
+  protocol = "tcp"
+  internal_port = 3000
+
+  [[services.ports]]
+    port = 80
+    handlers = ["http"]
+    force_https = true
+
+  [[services.ports]]
+    port = 443
+    handlers = ["tls", "http"]
+
+  [services.concurrency]
+    type = "connections"
+    hard_limit = 100
+    soft_limit = 50
+
+# Resource allocation
+[compute]
+  cpu_kind = "shared"
+  cpus = 1
+  memory = "256mb"
+
+# Auto-scaling (optional - upgrade plan required)
+# [[vm]]
+#   size = "shared-cpu-1x"
+#   memory = "512mb"
