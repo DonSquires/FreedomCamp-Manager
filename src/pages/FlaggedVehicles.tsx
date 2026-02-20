@@ -181,8 +181,12 @@ export function FlaggedVehicles() {
         reader.readAsDataURL(blob);
       });
 
-      // Call unified plate-scanner-photo-first (server-side ALPR)
-      const { data: scanData, error: scanError } = await supabase.functions.invoke('plate-scanner-photo-first', {
+      // REMOVED: ALPR function call - will be replaced with ORC/AI
+      // TODO: Implement ORC/AI vehicle detection here
+      const scanData = null;
+      const scanError = new Error('ALPR removed - manual entry required');
+      
+      /*const { data: scanData, error: scanError } = await supabase.functions.invoke('plate-scanner-photo-first', {
         body: {
           image: base64,
           gpsLatitude: 0,
@@ -192,7 +196,7 @@ export function FlaggedVehicles() {
           organizationId: user?.organization_id,
           idempotencyKey: `flagged-photo:${Date.now()}`,
         },
-      });
+      });*/
 
       if (scanError) {
         let errorMessage = scanError.message;
