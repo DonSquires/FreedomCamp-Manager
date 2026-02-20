@@ -479,53 +479,12 @@ export function ZoomScan({ onExit }: ZoomScanProps) {
       // STEP 2: PARALLEL PROCESSING (Fork A + Fork B)
       // ============================================================================
       
-      // Fork A: Send RAW photo to unified ALPR ingest (no watermark interference)
+      // TODO: Replace Fork A with ORC/AI inference
       const alprPromise = (async () => {
-        console.log('📤 Fork A: Sending to unified ALPR ingest...');
-        const { data: alprData, error: alprError } = await supabase.functions.invoke('plate-scanner-photo-first', {
-          body: {
-            image: rawImageDataUrl,
-            gpsLatitude: gpsLocation?.lat || 0,
-            gpsLongitude: gpsLocation?.lng || 0,
-            gps_accuracy: gpsLocation?.accuracy || 0,
-            recordedAt: new Date().toISOString(),
-            officerId: user?.id,
-            organizationId: selectedZone?.organization_id,
-            zoneId: selectedZone?.id,
-            weatherConditions: weatherConditions || null,
-            idempotencyKey: `zoomscan:${user?.id}:${Date.now()}`,
-          },
-        });
+        console.log('📤 Fork A: ALPR REMOVED - ORC/AI pending...');
+        throw new Error('ALPR removed - ORC/AI system under development');
 
-        if (alprError) {
-          let errorMessage = alprError.message;
-          if (alprError.name === 'FunctionsHttpError' && alprError.context) {
-            try {
-              const statusCode = alprError.context?.status ?? 500;
-              const textContent = await alprError.context?.text();
-              errorMessage = `[Code: ${statusCode}] ${textContent || alprError.message || 'Unknown error'}`;
-            } catch {
-              errorMessage = `${alprError.message || 'Failed to read response'}`;
-            }
-          }
-          throw new Error(`ALPR: ${errorMessage}`);
-        }
-
-        if (!alprData?.success || !alprData?.plate_number || alprData.plate_number === 'PENDING_ALPR') {
-          throw new Error('No plate detected by ALPR');
-        }
-
-        console.log('✅ Fork A: ALPR detected:', alprData.plate_number);
-        return {
-          success: true,
-          plate_number: alprData.plate_number,
-          confidence: alprData.confidence,
-          vehicle_make: alprData.vehicle_make,
-          vehicle_model: alprData.vehicle_model,
-          vehicle_color: alprData.vehicle_color,
-          vehicle_year: alprData.vehicle_year,
-          observation_id: alprData.observation_id,
-        };
+        // REMOVED: All ALPR error handling and response processing
       })();
 
       // Fork B: Add watermark and upload to storage
