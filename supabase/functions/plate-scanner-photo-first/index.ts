@@ -15,9 +15,12 @@ const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
 const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 
 serve(async (req) => {
-  // CORS preflight
+  // CORS preflight - MUST return explicit status 200
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders });
+    return new Response('ok', { 
+      status: 200, 
+      headers: corsHeaders 
+    });
   }
 
   try {
