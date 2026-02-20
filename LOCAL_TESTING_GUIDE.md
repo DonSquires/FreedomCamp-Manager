@@ -11,10 +11,6 @@
    - Get from: https://app.platerecognizer.com/accounts/plan/
    - Copy API token
 
-3. **Service Role Key**
-   - From Supabase Dashboard → Settings → API
-   - Copy `service_role` key (secret)
-
 ---
 
 ## Setup (One-Time)
@@ -25,8 +21,9 @@ Edit `supabase/.env.functions.local`:
 
 ```bash
 PLATE_RECOGNIZER_TOKEN=sk_xxxxx  # Your actual token
-SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOi...  # Your actual key
 ```
+
+> **Note:** `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are auto-injected in local testing and should **not** be set in `.env.functions.local`
 
 ### 2. Ensure Database Columns Exist
 
@@ -214,7 +211,7 @@ Access-Control-Allow-Methods: POST, OPTIONS
 Once all tests pass:
 
 ```bash
-# Set production secrets
+# Set production secrets (SUPABASE_* vars are auto-injected)
 supabase secrets set \
   PLATE_RECOGNIZER_TOKEN="sk_xxxxx" \
   ALPR_CLOUD_URL="https://api.platerecognizer.com/v1/plate-reader/" \

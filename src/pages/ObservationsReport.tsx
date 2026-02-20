@@ -21,7 +21,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Loader2, Download, Calendar, MapPin, FileText, X } from 'lucide-react';
+import { Loader2, Download, Calendar, MapPin, FileText, X, Archive } from 'lucide-react';
+import historicalPlaceholder from '@/assets/historical-record-placeholder.jpg';
 import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { useOrganizations } from '@/hooks/useOrganizations';
@@ -57,7 +58,8 @@ interface ComplianceSummary {
 interface ObservationRecord {
   observation_id: string;
   plate_number: string;
-  photo: string | null;
+  photo_url: string | null;
+  is_historical: boolean;
   recorded_at: string;
   zone_id: string;
   zone_name: string;
@@ -208,7 +210,7 @@ export default function ObservationsReport() {
         .select(`
           observation_id,
           plate_number,
-          photo,
+          photo_hash,
           recorded_at,
           zone_id,
           gps_latitude,
@@ -220,7 +222,7 @@ export default function ObservationsReport() {
           officer_notes,
           organization_id,
           compliance_summary,
-          zone:zones(name),
+          zone:zones(name, location_lat, location_lng),
           officer:user_profiles!vehicle_observations_v2_recorded_by_fkey(first_name, last_name),
           organization:organizations(name),
           weather_conditions,
@@ -232,6 +234,9 @@ export default function ObservationsReport() {
             self_contained,
             self_contained_expiry,
             homeless_status
+          ),
+          photo_metadata:photo_metadata!photo_metadata_observation_id_fkey(
+            photo_url
           )
         `)
         .gte('recorded_at', `${startDate}T00:00:00`)
@@ -250,16 +255,18 @@ export default function ObservationsReport() {
 
       if (error) throw error;
 
-      // Transform data
+      // Transform data with fallbacks for legacy records
       let results = (data || []).map((obs: any) => ({
         observation_id: obs.observation_id,
         plate_number: obs.plate_number,
-        photo: obs.photo,
+        photo_url: obs.photo_metadata?.[0]?.photo_url || null,
+        is_historical: !obs.photo_metadata?.[0]?.photo_url,
         recorded_at: obs.recorded_at,
         zone_id: obs.zone_id,
         zone_name: obs.zone?.name || 'Unknown',
-        gps_latitude: obs.gps_latitude,
-        gps_longitude: obs.gps_longitude,
+        // Use observation GPS if available, otherwise fallback to zone GPS
+        gps_latitude: obs.gps_latitude || obs.zone?.location_lat || null,
+        gps_longitude: obs.gps_longitude || obs.zone?.location_lng || null,
         gps_accuracy: obs.gps_accuracy,
         weather_conditions: obs.weather_conditions,
         is_compliant: obs.is_compliant,
@@ -538,15 +545,39 @@ export default function ObservationsReport() {
             {observations.map((obs) => (
               <Card key={obs.observation_id} className="overflow-hidden">
                 <div className="flex flex-col md:flex-row">
-                  {/* Photo with Watermark Overlay */}
-                  {obs.photo && (
-                    <div className="md:w-48 h-48 md:h-auto bg-muted flex-shrink-0 relative">
+                  {/* Photo with Watermark Overlay or Historical Placeholder */}
+                  <div className="md:w-48 h-48 md:h-auto bg-muted flex-shrink-0 relative">
+                    {obs.is_historical ? (
+                      <>
+                        <img
+                          src={historicalPlaceholder}
+                          alt="Historical Record - No Photo"
+                          className="w-full h-full object-cover"
+                        />
+                        <div className="absolute inset-0 flex items-center justify-center bg-black/40">
+                          <div className="text-center text-white p-4">
+                            <Archive className="h-8 w-8 mx-auto mb-2" />
+                            <div className="text-xs font-semibold">HISTORICAL RECORD</div>
+                            <div className="text-[10px]">Photo Not Available</div>
+                          </div>
+                        </div>
+                      </>
+                    ) : obs.photo_url ? (
                       <img
-                        src={obs.photo}
+                        src={obs.photo_url}
                         alt={obs.plate_number}
                         className="w-full h-full object-cover"
                       />
-                      {/* Watermark Overlay */}
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center bg-gray-200 dark:bg-gray-800">
+                        <div className="text-center text-gray-500">
+                          <Archive className="h-8 w-8 mx-auto mb-2" />
+                          <div className="text-xs">No Photo</div>
+                        </div>
+                      </div>
+                    )}
+                    {/* Watermark Overlay (only for non-historical photos) */}
+                    {!obs.is_historical && obs.photo_url && (
                       <div className="absolute bottom-0 left-0 right-0 bg-black/70 text-white text-[10px] leading-tight p-2 font-mono">
                         <div className="font-bold">
                           GPS: {obs.gps_latitude?.toFixed(6)}, {obs.gps_longitude?.toFixed(6)} (±{obs.gps_accuracy?.toFixed(0)}m)
@@ -571,8 +602,8 @@ export default function ObservationsReport() {
                           />
                         </div>
                       </div>
-                    </div>
-                  )}
+                    )}
+                  </div>
 
                   {/* Details */}
                   <div className="flex-1 p-4">
@@ -613,6 +644,9 @@ export default function ObservationsReport() {
                           <div className="text-xs text-muted-foreground">
                             {obs.gps_latitude.toFixed(6)}, {obs.gps_longitude.toFixed(6)}
                             {obs.gps_accuracy && ` (±${obs.gps_accuracy.toFixed(0)}m)`}
+                            {obs.is_historical && !obs.gps_accuracy && (
+                              <span className="ml-1 text-amber-600">(Zone Center)</span>
+                            )}
                           </div>
                         )}
                       </div>
