@@ -37,7 +37,7 @@
 ### **Phase 2B: Code Infrastructure** ✅ 100%
 - ✅ Inference service code created (`inference-service/`)
 - ✅ orc-ingest Edge Function created
-- ✅ Deployment configs (Fly.io, Render)
+- ✅ **Railway deployment config** (uses existing account!)
 - ✅ Helper scripts:
   - Model downloader
   - Local test suite
@@ -47,27 +47,34 @@
 
 ---
 
-## ⏸️ **PENDING (Requires Manual Deployment)**
+## ⏸️ **PENDING (Web-Based Deployment Only)**
 
 ### **Phase 2C: Inference Service** ⏸️ 0%
 **What:** Node.js service for vehicle detection + embedding generation  
-**Where:** Fly.io or Render  
+**Where:** **Railway** (your existing platform!)  
 **Blockers:** None - ready to deploy  
-**Time:** 10 minutes  
+**Time:** 5 minutes (web UI only)  
 
-**Actions Required:**
-```bash
-cd inference-service
-npm install
-npm run download-models
-fly deploy
-```
+**Actions Required (100% Web-Based):**
+
+**Option 1: Railway Web UI** (Easiest)
+1. Go to https://railway.app/dashboard
+2. Click **New Project** → **Deploy from GitHub repo**
+3. Select your repository → Root: `inference-service`
+4. Add environment variables:
+   - `PORT` = `3000`
+   - `ALLOWED_ORIGINS` = `https://xbfnlzmpumthnjmtqufp.supabase.co`
+5. Click **Deploy**
+6. Generate domain → Copy URL
+
+**No CLI installation needed!**
 
 **Dependencies:**
 - ✅ Code ready
 - ✅ Dockerfile configured
-- ✅ Models identified
-- ⏸️ Awaiting user deployment
+- ✅ Models auto-download on first build
+- ✅ Railway account (you already have this!)
+- ⏸️ Awaiting web UI deployment
 
 ---
 
@@ -75,14 +82,15 @@ fly deploy
 **What:** Supabase Edge Function to orchestrate ORC/AI pipeline  
 **Where:** Supabase Functions  
 **Blockers:** Requires inference service URL from Phase 2C  
-**Time:** 2 minutes  
+**Time:** 2 minutes (web UI)  
 
-**Actions Required:**
-```bash
-# After inference service deployed
-supabase secrets set INFERENCE_SERVICE_URL="https://your-url.fly.dev"
-supabase functions deploy orc-ingest
-```
+**Actions Required (100% Web-Based):**
+1. Supabase Dashboard → Project Settings → Edge Functions
+2. Add secret: `INFERENCE_SERVICE_URL` = `https://your-railway-url.up.railway.app`
+3. Go to https://supabase.com/dashboard/project/xbfnlzmpumthnjmtqufp/functions
+4. Click **orc-ingest** → **Deploy**
+
+**No CLI needed!**
 
 **Dependencies:**
 - ✅ Code ready
@@ -109,20 +117,21 @@ supabase functions deploy orc-ingest
 
 ---
 
-## 📋 **Deployment Sequence**
+## 📋 **Deployment Sequence (100% Web-Based)**
 
 ```
 ┌──────────────────────────────────────────────────────┐
 │  Current Position: All SQL Configuration Complete    │
+│  Next: Railway Web UI Deployment (5 minutes)         │
 └──────────────────────────────────────────────────────┘
 
-Step 1: Deploy Inference Service (10 min) ⏸️
+Step 1: Deploy to Railway (Web UI, 5 min) ⏸️
    ↓
-Step 2: Update Database Config (SQL, 30 sec) ⏸️
+Step 2: Update Supabase Config (Web UI, 1 min) ⏸️
    ↓
-Step 3: Deploy orc-ingest Function (2 min) ⏸️
+Step 3: Deploy orc-ingest (Web UI, 2 min) ⏸️
    ↓
-Step 4: Update Frontend (30 min) ⏸️
+Step 4: Update Frontend (Code changes, 30 min) ⏸️
    ↓
 Step 5: Test End-to-End (5 min) ⏸️
    ↓
@@ -131,29 +140,21 @@ Step 5: Test End-to-End (5 min) ⏸️
 
 ---
 
-## 🚀 **Quick Start Commands**
+## 🚂 **Railway Deployment - Web UI Steps**
 
-### **Deploy Everything (Copy-Paste)**
+### **No CLI Required!**
 
-```bash
-# Step 1: Deploy Inference Service
-cd inference-service
-npm install
-npm run download-models
-fly deploy
-fly secrets set ALLOWED_ORIGINS="https://xbfnlzmpumthnjmtqufp.supabase.co"
-FLY_URL=$(fly info --json | jq -r '.Hostname')
-echo "✅ Deployed to: https://$FLY_URL"
+1. **https://railway.app/dashboard**
+2. **New Project** → **Deploy from GitHub repo**
+3. **Select:** Your repository
+4. **Root directory:** `inference-service`
+5. **Variables:**
+   - `PORT` = `3000`
+   - `ALLOWED_ORIGINS` = `https://xbfnlzmpumthnjmtqufp.supabase.co`
+6. **Deploy** → Wait 2-3 minutes
+7. **Generate Domain** → Copy URL
 
-# Step 2: Configure Database (I'll do via SQL)
-# Just tell me the URL!
-
-# Step 3: Deploy Edge Function
-cd ..
-supabase functions deploy orc-ingest
-
-# Done!
-```
+**✅ That's it!**
 
 ---
 
@@ -165,12 +166,14 @@ supabase functions deploy orc-ingest
 - Set configuration values
 - Monitor system status
 - Verify deployments
+- **Update code files**
 
-### **What You Must Do (Manual)** ⏸️
-- Deploy Node.js service to Fly.io
-- Run npm install/download commands
-- Deploy Edge Functions via CLI
-- Update frontend code (I'll provide the code)
+### **What You Must Do (Web UI Only)** ⏸️
+- Deploy to Railway via web dashboard
+- Copy/paste Railway URL into Supabase dashboard
+- Deploy orc-ingest via Supabase web UI
+
+**No terminal commands required!**
 
 ---
 
@@ -197,41 +200,30 @@ Inference Service URL  | ⏸️ Pending  | https://pending-deployment.example.co
 
 ## 🔄 **Next Session Commands**
 
-### **If You Deploy Inference Service:**
+### **When You Deploy to Railway:**
 Tell me:
 ```
-✅ Inference deployed
-URL: https://orc-ai-inference.fly.dev
+✅ Railway deployed
+URL: https://orc-ai-inference-production.up.railway.app
 ```
 
 I'll immediately configure it via SQL:
 ```sql
-SELECT update_inference_url('https://orc-ai-inference.fly.dev');
+SELECT update_inference_url('https://orc-ai-inference-production.up.railway.app');
 ```
-
-### **If You Want Me to Continue:**
-Just say:
-```
-continue
-```
-
-I'll proceed with creating frontend update code.
 
 ---
 
-## 💡 **Alternative: Skip Manual Deployment**
+## 💡 **Why Railway?**
 
-If you want to skip manual deployment, I can:
-1. Create all frontend code updates NOW
-2. Mark them with `// TODO: Deploy inference service first`
-3. You deploy whenever convenient
-4. Everything works once deployed
-
-Would you prefer this approach?
+✅ **You already have an account** - no new service signup  
+✅ **Web UI deployment** - no CLI installation needed  
+✅ **Auto-deploys from GitHub** - push and forget  
+✅ **Same cost as alternatives** - $5/month  
+✅ **Built-in health checks** - monitoring included  
 
 ---
 
 **Current Status:** All SQL configuration complete ✅  
-**Blocking:** Manual deployment of inference service  
-**Time to Complete:** ~15 minutes (if you deploy now)
-
+**Blocking:** Web UI deployment to Railway (5 minutes)  
+**No new services needed!** Using your existing Railway account.

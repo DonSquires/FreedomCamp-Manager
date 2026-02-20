@@ -1,161 +1,89 @@
 # 🚀 Quick Start Guide - ORC/AI Inference Service
 
-**Get running in 10 minutes**
+**Deploy to Railway in 5 minutes - using your existing account!**
 
 ---
 
 ## Prerequisites
 
-- ✅ Node.js 18+ installed
-- ✅ Git installed
-- ✅ Terminal/command line access
+- ✅ Railway account (you already have this!)
+- ✅ GitHub repo with code
+- ✅ That's it!
 
 ---
 
-## Step 1: Setup (2 minutes)
+## 🚂 **Railway Deployment (Recommended)**
 
-```bash
-# Navigate to inference service
-cd inference-service
+### **Option 1: Web UI (Easiest)**
 
-# Install dependencies
-npm install
+1. **Go to Railway Dashboard**
+   - https://railway.app/dashboard
 
-# Download models (27 MB total)
-npm run download-models
-```
+2. **New Project → Deploy from GitHub**
+   - Select your repository
+   - Root directory: `inference-service`
 
-**Expected output:**
-```
-📥 Downloading YOLOv8n (6.2 MB)...
-✅ YOLOv8n downloaded successfully
-📥 Downloading MobileNetV3 (21 MB)...
-✅ MobileNetV3 downloaded successfully
-```
+3. **Configure Variables**
+   - `PORT` = `3000`
+   - `NODE_ENV` = `production`
+   - `ALLOWED_ORIGINS` = `https://xbfnlzmpumthnjmtqufp.supabase.co`
 
----
+4. **Deploy**
+   - Click Deploy button
+   - Wait 2-3 minutes
 
-## Step 2: Test Locally (1 minute)
+5. **Generate Domain**
+   - Settings → Networking → Generate Domain
+   - Copy URL: `https://orc-ai-inference-production.up.railway.app`
 
-**Terminal 1 - Start server:**
-```bash
-npm start
-```
-
-**Terminal 2 - Run tests:**
-```bash
-chmod +x test-local.sh
-./test-local.sh
-```
-
-**Expected output:**
-```
-✅ Models found
-✅ Server is running
-✅ Health check passed
-✅ Inference successful!
-   📊 Results:
-      - Embedding Quality: 0.87
-      - Detection Confidence: 0.92
-      - Vector Dimension: 384
-      - Processing Time: 245ms
-🚀 Performance: GOOD (< 1 second)
-✨ All tests passed! Ready for deployment.
-```
-
-**✅ If you see this, local testing is complete!**
+**✅ Done!**
 
 ---
 
-## Step 3: Deploy to Production (5 minutes)
-
-### **Option A: Fly.io (Recommended)**
+### **Option 2: Railway CLI** (For advanced users)
 
 ```bash
-# Install Fly CLI
-curl -L https://fly.io/install.sh | sh
+# Install Railway CLI
+npm i -g @railway/cli
 
 # Login
-fly auth login
+railway login
 
-# Deploy (will use fly.toml config)
-fly deploy
+# Link to project
+railway link
 
-# Get your URL
-fly info
+# Deploy
+railway up
+
+# Get URL
+railway domain
 ```
-
-**Copy this URL - you'll need it:**
-```
-https://orc-ai-inference.fly.dev
-```
-
-**Set environment variable:**
-```bash
-fly secrets set ALLOWED_ORIGINS="https://xbfnlzmpumthnjmtqufp.supabase.co"
-```
-
-**Cost:** ~$5/month (Free tier available with credit card)
 
 ---
 
-### **Option B: Render.com (Easier)**
-
-1. Go to https://render.com
-2. Sign up / login
-3. Click **New** → **Web Service**
-4. Connect your GitHub repo
-5. Select `inference-service` directory
-6. Click **Create Web Service**
-7. In **Environment** tab, add:
-   - `ALLOWED_ORIGINS` = `https://xbfnlzmpumthnjmtqufp.supabase.co`
-8. Wait 5-10 minutes for deployment
-
-**Your URL will be:**
-```
-https://orc-ai-inference.onrender.com
-```
-
-**Cost:** $7/month (Starter plan)
-
----
-
-## Step 4: Test Production (2 minutes)
+## 🧪 **Test Deployment**
 
 ```bash
-# Replace with YOUR deployed URL
-INFERENCE_URL="https://orc-ai-inference.fly.dev"
+# Replace with YOUR Railway URL
+RAILWAY_URL="https://orc-ai-inference-production.up.railway.app"
 
 # Test health
-curl "$INFERENCE_URL/health" | jq .
+curl "$RAILWAY_URL/health" | jq .
 
-# Test inference
-curl -X POST "$INFERENCE_URL/infer" \
-  -F "photo=@test-vehicle.jpg" \
-  | jq .
+# Expected:
+# {
+#   "status": "healthy",
+#   "models": { "yolo": "loaded", "embedding": "loaded" }
+# }
 ```
-
-**Expected:**
-```json
-{
-  "success": true,
-  "data": {
-    "embedding_quality": 0.87,
-    "embedding_model_version": "yolov8n_mobilenetv3_v1.0",
-    ...
-  }
-}
-```
-
-**✅ If you see this, deployment is successful!**
 
 ---
 
-## Step 5: Configure Supabase (1 minute)
+## 📝 **Configure Supabase**
 
 ```bash
-# Set inference service URL in Supabase
-supabase secrets set INFERENCE_SERVICE_URL="https://orc-ai-inference.fly.dev"
+# Set inference URL in Supabase
+supabase secrets set INFERENCE_SERVICE_URL="https://orc-ai-inference-production.up.railway.app"
 
 # Verify
 supabase secrets list
@@ -163,52 +91,22 @@ supabase secrets list
 
 ---
 
-## ✅ Success Checklist
+## ✅ **Success Checklist**
 
-- [ ] Models downloaded (27 MB)
-- [ ] Local server starts without errors
-- [ ] Local test script passes
-- [ ] Deployed to Fly.io or Render
-- [ ] Production health check returns "healthy"
-- [ ] Production inference endpoint works
+- [ ] Railway project created
+- [ ] Environment variables set
+- [ ] Deployment successful
+- [ ] Health check passes
 - [ ] `INFERENCE_SERVICE_URL` set in Supabase
 
 ---
 
-## 🚨 Troubleshooting
+## 🎯 **Next Steps**
 
-### "Models not found"
-```bash
-npm run download-models
+Reply with:
 ```
-
-### "Server won't start"
-```bash
-# Check logs
-npm start
-
-# Common issue: Port 3000 in use
-# Kill process: lsof -ti:3000 | xargs kill
-```
-
-### "Inference fails with 404"
-- Photo must contain a visible vehicle
-- Photo should be JPEG/PNG/WEBP
-- Vehicle should fill ≥30% of frame
-
-### "Deployment timeout on Render"
-- Wait 10-15 minutes (ONNX models take time to load)
-- Check logs in Render dashboard
-
----
-
-## 📝 Next Steps
-
-Once deployed, reply with:
-
-```
-✅ Inference service deployed
-URL: https://orc-ai-inference.fly.dev
+✅ Railway deployed
+URL: https://orc-ai-inference-production.up.railway.app
 ```
 
 Then I'll proceed with:
@@ -217,4 +115,27 @@ Then I'll proceed with:
 
 ---
 
-**Need help?** Check full guide in `PHASE_2_INFERENCE_SERVICE_SETUP.md`
+## 💰 **Cost**
+
+Railway Starter: **$5/month**  
+Uses your **existing Railway account** - no new services!
+
+---
+
+## 🚨 **Troubleshooting**
+
+**"Can't find repository"**
+- Grant Railway access to your GitHub repo
+- Railway dashboard → GitHub permissions
+
+**"Build failing"**
+- Check build logs in Railway dashboard
+- Ensure Dockerfile is in `inference-service/` directory
+
+**"Models not loading"**
+- Wait for first build to complete (downloads 27 MB)
+- Models are cached after first deployment
+
+---
+
+**Need help?** Check Railway logs or see full guide in `RAILWAY_DEPLOY.md`
