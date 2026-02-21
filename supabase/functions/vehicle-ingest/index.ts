@@ -15,9 +15,9 @@ import { alprWithDataUrl, alprWithBytes } from "../_shared/alpr.ts";
 
 const ALLOWED_ORIGINS = new Set([
   "https://preview-react-vite-vite-typescript-fvdypijc-d.onspace.build",
+  "https://react-9b4t5o.onspace.build", // ✅ Production Onspace UI
   "http://localhost:5173",
   "http://localhost:3000",
-  // Add your production domains here
 ]);
 
 function getCorsHeaders(req: Request) {

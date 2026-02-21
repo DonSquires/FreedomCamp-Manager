@@ -14,6 +14,8 @@ import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import {
   Activity,
   AlertTriangle,
@@ -80,6 +82,8 @@ export function AdminPortal() {
   const [breachesByType, setBreachesByType] = useState<BreachByType[]>([]);
   const [topZones, setTopZones] = useState<TopZone[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [errorId, setErrorId] = useState<string | null>(null);
 
   // Load dashboard stats when filters change
   useEffect(() => {
@@ -88,6 +92,8 @@ export function AdminPortal() {
 
   const loadDashboardData = async () => {
     setIsLoading(true);
+    setError(null);
+    setErrorId(null);
     try {
       // Convert date strings to ISO with time boundaries
       const startOfDay = new Date(dateFrom);
@@ -190,8 +196,11 @@ export function AdminPortal() {
       }
 
     } catch (error: any) {
-      console.error('Failed to load dashboard data:', error);
-      toast.error('Failed to load dashboard: ' + error.message);
+      const errorIdStr = `ERR-${Date.now()}`;
+      console.error('Failed to load dashboard data:', error, { errorId: errorIdStr });
+      setError(error.message || 'Failed to load dashboard data');
+      setErrorId(errorIdStr);
+      toast.error(`Couldn't load dashboard. Try Refresh. (${errorIdStr})`);
     } finally {
       setIsLoading(false);
     }
@@ -199,7 +208,15 @@ export function AdminPortal() {
 
   // Drilldown navigation - preserves global filters
   const handleDrilldown = (path: string, params?: Record<string, string>) => {
-    const searchParams = new URLSearchParams(params);
+    // Preserve global filters as query params
+    const allParams = {
+      dateFrom,
+      dateTo,
+      ...(organizationId && { organizationId }),
+      ...(zoneId && { zoneId }),
+      ...params, // Additional params override if needed
+    };
+    const searchParams = new URLSearchParams(allParams);
     navigate(`${path}?${searchParams.toString()}`);
   };
 
@@ -228,25 +245,65 @@ export function AdminPortal() {
         <div className="flex-1 overflow-y-auto p-6">
           <div className="max-w-7xl mx-auto space-y-6">
 
+            {/* Error Banner */}
+            {error && (
+              <Card className="border-red-500 bg-red-50 dark:bg-red-950/20">
+                <CardContent className="pt-6">
+                  <div className="flex items-start gap-3">
+                    <AlertTriangle className="h-5 w-5 text-red-600 mt-0.5" />
+                    <div className="flex-1">
+                      <p className="font-semibold text-red-900 dark:text-red-100">Dashboard Load Error</p>
+                      <p className="text-sm text-red-700 dark:text-red-200 mt-1">{error}</p>
+                      {errorId && (
+                        <p className="text-xs text-red-600 dark:text-red-300 mt-1">Error ID: {errorId}</p>
+                      )}
+                      <Button
+                        onClick={loadDashboardData}
+                        variant="outline"
+                        size="sm"
+                        className="mt-3 border-red-600 text-red-600 hover:bg-red-100 dark:hover:bg-red-900/30"
+                      >
+                        <RefreshCw className="h-3 w-3 mr-2" />
+                        Retry
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
             {/* KPI Cards - Now Clickable for Drilldowns */}
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
               {/* Total Observations */}
-              <Card 
-                className="cursor-pointer hover:shadow-lg transition-all"
-                onClick={() => handleDrilldown('/admin/observations')}
-              >
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Observations</CardTitle>
-                  <Activity className="h-4 w-4 text-blue-600" />
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">{isLoading ? '...' : stats?.total_observations || 0}</div>
-                  <p className="text-xs text-muted-foreground mt-1 flex items-center">
-                    Click to view details
-                    <ArrowRight className="h-3 w-3 ml-1" />
-                  </p>
-                </CardContent>
-              </Card>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Card 
+                      className="cursor-pointer hover:shadow-lg transition-all"
+                      onClick={() => handleDrilldown('/admin/observations')}
+                    >
+                      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium">Observations</CardTitle>
+                        <Activity className="h-4 w-4 text-blue-600" />
+                      </CardHeader>
+                      <CardContent>
+                        {isLoading ? (
+                          <Skeleton className="h-8 w-20 mb-2" />
+                        ) : (
+                          <div className="text-2xl font-bold">{stats?.total_observations || 0}</div>
+                        )}
+                        <p className="text-xs text-muted-foreground mt-1 flex items-center">
+                          Click to view details
+                          <ArrowRight className="h-3 w-3 ml-1" />
+                        </p>
+                      </CardContent>
+                    </Card>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>View all vehicle observations for selected period</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
 
               {/* Pending Breaches */}
               <Card 
