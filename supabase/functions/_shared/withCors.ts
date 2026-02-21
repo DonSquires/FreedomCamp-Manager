@@ -1,0 +1,200 @@
+/**
+ * Reusable CORS Helper for Supabase Edge Functions (Deno)
+ * 
+ * Provides consistent CORS handling across all functions with:
+ * - Strict origin allowlist (production domains)
+ * - Preview subdomain pattern matching (ephemeral Onspace builds)
+ * - Dev mode toggle via DEV_CORS env var (allows wildcard *)
+ * - Automatic preflight handling
+ * - Error response wrapping with CORS headers
+ * 
+ * Usage:
+ * ```typescript
+ * import { withCors } from '../_shared/withCors.ts';
+ * 
+ * serve(withCors(async (req) => {
+ *   // Your function logic here
+ *   return new Response(JSON.stringify({ success: true }));
+ * }));
+ * ```
+ */
+
+type OriginMatcher = (origin: string | null) => string | null;
+
+// Exact production domains (strict allowlist)
+const ALLOWED_ORIGINS_EXACT = new Set<string>([
+  'https://freedomcampmanager.onspace.build',  // Custom Onspace subdomain
+  'https://fcmanager.co.nz',                   // Custom domain
+  'https://www.onspace.ai',                    // Onspace main site
+  'https://react-9b4t5o.onspace.build',        // Static build
+  'http://localhost:5173',                      // Local dev
+  'http://localhost:3000',                      // Local dev (alternate port)
+]);
+
+/**
+ * Check if origin matches ephemeral preview subdomain pattern
+ * Onspace generates: preview-react-9b4t5o-<random>.onspace.build
+ */
+function isAllowedPreview(origin: string): boolean {
+  try {
+    const u = new URL(origin);
+    const host = u.host;
+    return (
+      host.endsWith('.onspace.build') &&
+      host.startsWith('preview-react-9b4t5o-')
+    );
+  } catch {
+    return false;
+  }
+}
+
+// Dev mode: allow wildcard * (set DEV_CORS=true in Supabase env vars)
+const DEV_CORS = Deno.env.get('DEV_CORS') === 'true';
+
+const matchOrigin: OriginMatcher = (origin) => {
+  if (!origin) return null;
+  if (ALLOWED_ORIGINS_EXACT.has(origin)) return origin;
+  if (isAllowedPreview(origin)) return origin;
+  return null;
+};
+
+export function getCorsHeaders(req: Request): Record<string, string> {
+  const origin = req.headers.get('origin');
+  
+  // Dev mode: allow wildcard (simplifies preview debugging)
+  if (DEV_CORS) {
+    return {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+      'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-request-id',
+      'Access-Control-Max-Age': '3600',
+    };
+  }
+  
+  // Production mode: match exact or preview pattern
+  const allowed = matchOrigin(origin);
+  const base: Record<string, string> = {
+    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-request-id',
+    'Access-Control-Max-Age': '3600',
+  };
+  
+  if (allowed) {
+    return {
+      ...base,
+      'Access-Control-Allow-Origin': allowed,
+      'Vary': 'Origin',
+    };
+  }
+  
+  // Block unknown origins: return base without Access-Control-Allow-Origin
+  return base;
+}
+
+export function corsHeaders(req: Request): Record<string, string> {
+  return getCorsHeaders(req);
+}
+
+/**
+ * Wraps a handler function with automatic CORS handling
+ * 
+ * - Handles OPTIONS preflight automatically (always returns 200, not 204)
+ * - Adds CORS headers to all responses (success and error)
+ * - Catches errors and returns JSON with CORS headers
+ */
+export function withCors(
+  handler: (req: Request) => Promise<Response> | Response
+): (req: Request) => Promise<Response> {
+  return async (req: Request) => {
+    const headers = getCorsHeaders(req);
+    
+    // Handle preflight requests (must return 200, not 204)
+    if (req.method === 'OPTIONS') {
+      return new Response('ok', { status: 200, headers });
+    }
+    
+    try {
+      // Call the actual handler (support both sync and async)
+      const response = await Promise.resolve(handler(req));
+      
+      // Merge CORS headers into response
+      const responseHeaders = new Headers(response.headers);
+      for (const [k, v] of Object.entries(headers)) {
+        responseHeaders.set(k, v);
+      }
+      
+      return new Response(response.body, {
+        status: response.status,
+        headers: responseHeaders,
+      });
+    } catch (err: any) {
+      // Ensure errors also include CORS headers
+      const errorId = `ERR-${Date.now()}`;
+      console.error('Function error:', { error: String(err?.message ?? err), errorId });
+      
+      const errorHeaders = new Headers({
+        ...headers,
+        'Content-Type': 'application/json',
+      });
+      
+      return new Response(
+        JSON.stringify({
+          error: String(err?.message ?? err),
+          errorId,
+        }),
+        {
+          status: 500,
+          headers: errorHeaders,
+        }
+      );
+    }
+  };
+}
+
+/**
+ * Helper to create JSON response with CORS headers
+ */
+export function jsonResponse(
+  data: any,
+  req: Request,
+  status = 200
+): Response {
+  return new Response(
+    JSON.stringify(data),
+    {
+      status,
+      headers: {
+        ...getCorsHeaders(req),
+        'Content-Type': 'application/json',
+      },
+    }
+  );
+}
+
+/**
+ * Helper to create error response with CORS headers and correlation ID
+ */
+export function errorResponse(
+  message: string,
+  req: Request,
+  status = 500,
+  details?: any
+): Response {
+  const errorId = `ERR-${Date.now()}`;
+  console.error('Error response:', { message, status, errorId, details });
+  
+  return new Response(
+    JSON.stringify({
+      error: message,
+      errorId,
+      ...(details ? { details } : {}),
+    }),
+    {
+      status,
+      headers: {
+        ...getCorsHeaders(req),
+        'Content-Type': 'application/json',
+      },
+    }
+  );
+}
