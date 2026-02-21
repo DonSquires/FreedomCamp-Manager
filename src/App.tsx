@@ -19,6 +19,9 @@ import { Login } from '@/pages/Login';
 import { PasswordReset } from '@/pages/PasswordReset';
 import { VehicleRegistryFiltered } from '@/pages/VehicleRegistryFiltered';
 import ALPRDiagnostic from '@/pages/ALPRDiagnostic';
+import HotspotsMapPage from '@/pages/HotspotsMap';
+import DatabaseToolsPage from '@/pages/DatabaseTools';
+import ObservationsPage from '@/pages/ObservationsPage';
 import { FancyLoader } from '@/components/features/FancyLoader';
 import { Toaster } from '@/components/ui/sonner';
 import { toast } from 'sonner';
@@ -118,6 +121,10 @@ function App() {
             {(user.role === 'admin' || user.role === 'master' || user.role === 'admin_officer') && (
               <>
                 <Route path="/admin" element={<AdminPortal onLogout={logout} />} />
+                <Route path="/admin/dashboard" element={<AdminPortal onLogout={logout} />} />
+                <Route path="/admin/hotspots" element={<HotspotsMapPage />} />
+                <Route path="/admin/observations" element={<ObservationsPage />} />
+                <Route path="/admin/db-tools" element={<DatabaseToolsPage />} />
                 <Route path="/admin/vehicle-registry" element={<VehicleRegistryFiltered />} />
                 <Route path="/admin/alpr-diagnostic" element={<ALPRDiagnostic />} />
               </>
