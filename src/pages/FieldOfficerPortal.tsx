@@ -424,17 +424,17 @@ export function FieldOfficerPortal({ onLogout }: FieldOfficerPortalProps) {
         twentyFourHoursAgo.setHours(twentyFourHoursAgo.getHours() - 24);
         
         const { data, error } = await supabase
-          .from('vehicle_observations_v2')
+          .from('observations')
           .select(`
-            observation_id,
+            id,
             plate_number,
             vehicle_make,
             vehicle_model,
             vehicle_color,
             recorded_at,
             is_compliant,
-            is_breach,
-            has_homeless_claim,
+            breach_type,
+            self_contained,
             zones(id, name, organization_id)
           `)
           .eq('recorded_by', user.id)
@@ -444,21 +444,21 @@ export function FieldOfficerPortal({ onLogout }: FieldOfficerPortalProps) {
         if (error) throw error;
         
         const scans: SessionScan[] = (data || []).map(obs => ({
-          id: obs.observation_id,
+          id: obs.id,
           plateNumber: obs.plate_number,
           zoneName: (obs.zones as any)?.name || 'Unknown',
           zoneId: (obs.zones as any)?.id || '',
           organizationId: (obs.zones as any)?.organization_id || '',
           timestamp: new Date(obs.recorded_at),
           isCompliant: obs.is_compliant,
-          isFlagged: obs.is_breach,
+          isFlagged: !!obs.breach_type,
           vehicleMake: obs.vehicle_make,
           vehicleModel: obs.vehicle_model,
           vehicleColor: obs.vehicle_color,
-          observationId: obs.observation_id,
-          detectionMethod: 'alpr',
-          isSelfContained: false,
-          isHomeless: obs.has_homeless_claim,
+          observationId: obs.id,
+          detectionMethod: 'manual',
+          isSelfContained: obs.self_contained,
+          isHomeless: false,
           hasHSIssue: false,
           requiresFollowup: false,
         }));
@@ -493,21 +493,21 @@ export function FieldOfficerPortal({ onLogout }: FieldOfficerPortalProps) {
 
         // Today's scans
         const { count: todayCount } = await supabase
-          .from('vehicle_observations_v2')
+          .from('observations')
           .select('*', { count: 'exact', head: true })
           .eq('recorded_by', user.id)
           .gte('recorded_at', today.toISOString());
 
         // Last 24h scans
         const { count: last24h } = await supabase
-          .from('vehicle_observations_v2')
+          .from('observations')
           .select('*', { count: 'exact', head: true })
           .eq('recorded_by', user.id)
           .gte('recorded_at', twentyFourHoursAgo.toISOString());
 
         // Compliance rate (today)
         const { data: todayObs } = await supabase
-          .from('vehicle_observations_v2')
+          .from('observations')
           .select('is_compliant')
           .eq('recorded_by', user.id)
           .gte('recorded_at', today.toISOString());
@@ -670,9 +670,9 @@ export function FieldOfficerPortal({ onLogout }: FieldOfficerPortalProps) {
     setIsDeleting(true);
     try {
       const { error } = await supabase
-        .from('vehicle_observations_v2')
+        .from('observations')
         .delete()
-        .eq('observation_id', scanToDelete.observationId);
+        .eq('id', scanToDelete.observationId);
       
       if (error) throw error;
       

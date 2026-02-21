@@ -55,6 +55,17 @@ interface DashboardStats {
   zones_with_activity: number;
   total_vehicles: number;
   flagged_vehicles: number;
+  homeless_vehicles: number;
+  homeless_exempt: number;
+}
+
+interface Zone {
+  zone_id: string;
+  zone_name: string;
+  organization_id: string;
+  observation_count: number;
+  breach_count: number;
+  last_activity: string | null;
 }
 
 export function AdminPortal() {
@@ -68,6 +79,10 @@ export function AdminPortal() {
   // Organization filter (masters only)
   const [selectedOrgId, setSelectedOrgId] = useState<string>('');
   
+  // Zone filter
+  const [selectedZoneId, setSelectedZoneId] = useState<string>('');
+  const [availableZones, setAvailableZones] = useState<Zone[]>([]);
+  
   // Stats
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -75,7 +90,12 @@ export function AdminPortal() {
   // Load dashboard stats
   useEffect(() => {
     loadStats();
-  }, [selectedDate, selectedOrgId]);
+  }, [selectedDate, selectedOrgId, selectedZoneId]);
+
+  // Load zones when organization changes
+  useEffect(() => {
+    loadZones();
+  }, [selectedOrgId]);
 
   const loadStats = async () => {
     setIsLoading(true);
@@ -88,111 +108,63 @@ export function AdminPortal() {
       // Build organization filter
       const orgFilter = user?.role === 'master' && selectedOrgId 
         ? selectedOrgId 
-        : user?.organization_id || '';
+        : user?.organization_id || null;
 
-      // Total observations for selected date
-      let obsQuery = supabase
-        .from('vehicle_observations_v2')
-        .select('*', { count: 'exact', head: false })
-        .gte('recorded_at', startOfDay.toISOString())
-        .lte('recorded_at', endOfDay.toISOString());
-
-      if (orgFilter) {
-        obsQuery = obsQuery.eq('organization_id', orgFilter);
-      }
-
-      const { count: totalObs } = await obsQuery;
-
-      // Total breaches
-      let breachQuery = supabase
-        .from('breach_alerts')
-        .select('*', { count: 'exact', head: true });
-
-      if (orgFilter) {
-        breachQuery = breachQuery.eq('organization_id', orgFilter);
-      }
-
-      const { count: totalBreaches } = await breachQuery;
-
-      // Pending breaches
-      let pendingQuery = supabase
-        .from('breach_alerts')
-        .select('*', { count: 'exact', head: true })
-        .eq('status', 'pending');
-
-      if (orgFilter) {
-        pendingQuery = pendingQuery.eq('organization_id', orgFilter);
-      }
-
-      const { count: pendingBreaches } = await pendingQuery;
-
-      // Active investigations
-      let investigationsQuery = supabase
-        .from('investigation_jobs')
-        .select('*', { count: 'exact', head: true })
-        .in('status', ['pending', 'in_progress']);
-
-      if (orgFilter) {
-        investigationsQuery = investigationsQuery.eq('organization_id', orgFilter);
-      }
-
-      const { count: activeInvestigations } = await investigationsQuery;
-
-      // Active officers (those who recorded observations today)
-      let officersQuery = supabase
-        .from('vehicle_observations_v2')
-        .select('recorded_by', { count: 'exact' })
-        .gte('recorded_at', startOfDay.toISOString())
-        .lte('recorded_at', endOfDay.toISOString());
-
-      if (orgFilter) {
-        officersQuery = officersQuery.eq('organization_id', orgFilter);
-      }
-
-      const { data: officerObs } = await officersQuery;
-      const uniqueOfficers = new Set(officerObs?.map((o: any) => o.recorded_by) || []);
-
-      // Zones with activity today
-      let zonesQuery = supabase
-        .from('vehicle_observations_v2')
-        .select('zone_id', { count: 'exact' })
-        .gte('recorded_at', startOfDay.toISOString())
-        .lte('recorded_at', endOfDay.toISOString());
-
-      if (orgFilter) {
-        zonesQuery = zonesQuery.eq('organization_id', orgFilter);
-      }
-
-      const { data: zoneObs } = await zonesQuery;
-      const uniqueZones = new Set(zoneObs?.map((z: any) => z.zone_id) || []);
-
-      // Total vehicles
-      const { count: totalVehicles } = await supabase
-        .from('canonical_vehicles')
-        .select('*', { count: 'exact', head: true });
-
-      // Flagged vehicles
-      const { count: flaggedVehicles } = await supabase
-        .from('canonical_vehicles')
-        .select('*', { count: 'exact', head: true })
-        .eq('is_flagged', true);
-
-      setStats({
-        total_observations: totalObs || 0,
-        total_breaches: totalBreaches || 0,
-        pending_breaches: pendingBreaches || 0,
-        active_investigations: activeInvestigations || 0,
-        active_officers: uniqueOfficers.size,
-        zones_with_activity: uniqueZones.size,
-        total_vehicles: totalVehicles || 0,
-        flagged_vehicles: flaggedVehicles || 0,
+      // Use the new RPC function for efficient stats
+      const { data, error } = await supabase.rpc('get_admin_dashboard_stats', {
+        p_start_date: startOfDay.toISOString(),
+        p_end_date: endOfDay.toISOString(),
+        p_organization_id: orgFilter,
       });
+
+      if (error) throw error;
+
+      if (data && data.length > 0) {
+        const statsRow = data[0];
+        setStats({
+          total_observations: Number(statsRow.total_observations) || 0,
+          total_breaches: Number(statsRow.total_breaches) || 0,
+          pending_breaches: Number(statsRow.pending_breaches) || 0,
+          active_investigations: Number(statsRow.active_investigations) || 0,
+          active_officers: Number(statsRow.active_officers) || 0,
+          zones_with_activity: Number(statsRow.zones_with_activity) || 0,
+          total_vehicles: Number(statsRow.total_vehicles) || 0,
+          flagged_vehicles: Number(statsRow.flagged_vehicles) || 0,
+          homeless_vehicles: Number(statsRow.homeless_vehicles) || 0,
+          homeless_exempt: Number(statsRow.homeless_exempt) || 0,
+        });
+      }
 
     } catch (error: any) {
       console.error('Failed to load stats:', error);
-      toast.error('Failed to load dashboard stats');
+      toast.error('Failed to load dashboard stats: ' + error.message);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const loadZones = async () => {
+    try {
+      const orgFilter = user?.role === 'master' && selectedOrgId 
+        ? selectedOrgId 
+        : user?.organization_id || null;
+
+      const startOfDay = new Date(selectedDate);
+      startOfDay.setHours(0, 0, 0, 0);
+      const endOfDay = new Date(selectedDate);
+      endOfDay.setHours(23, 59, 59, 999);
+
+      const { data, error } = await supabase.rpc('get_zones_with_activity', {
+        p_organization_id: orgFilter,
+        p_start_date: startOfDay.toISOString(),
+        p_end_date: endOfDay.toISOString(),
+      });
+
+      if (error) throw error;
+      setAvailableZones(data || []);
+
+    } catch (error: any) {
+      console.error('Failed to load zones:', error);
     }
   };
 
@@ -284,7 +256,7 @@ export function AdminPortal() {
 
               {/* Organization Filter (Masters Only) */}
               {user?.role === 'master' && (
-                <div className="md:col-span-4">
+                <div className="md:col-span-2">
                   <Label className="text-xs text-muted-foreground mb-1 block">Organization</Label>
                   <Select value={selectedOrgId || 'all'} onValueChange={(val) => setSelectedOrgId(val === 'all' ? '' : val)}>
                     <SelectTrigger>
@@ -301,6 +273,24 @@ export function AdminPortal() {
                   </Select>
                 </div>
               )}
+
+              {/* Zone Filter */}
+              <div className="md:col-span-2">
+                <Label className="text-xs text-muted-foreground mb-1 block">Zone (Optional)</Label>
+                <Select value={selectedZoneId || 'all'} onValueChange={(val) => setSelectedZoneId(val === 'all' ? '' : val)}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="All Zones" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Zones</SelectItem>
+                    {availableZones.map(zone => (
+                      <SelectItem key={zone.zone_id} value={zone.zone_id}>
+                        {zone.zone_name} ({zone.observation_count} obs)
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -401,6 +391,34 @@ export function AdminPortal() {
               <div className="text-2xl font-bold text-orange-600">{isLoading ? '...' : stats?.flagged_vehicles || 0}</div>
               <p className="text-xs text-muted-foreground mt-1">
                 Requiring attention
+              </p>
+            </CardContent>
+          </Card>
+
+          {/* Homeless Vehicles */}
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Homeless</CardTitle>
+              <Home className="h-4 w-4 text-emerald-600" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-emerald-600">{isLoading ? '...' : stats?.homeless_vehicles || 0}</div>
+              <p className="text-xs text-muted-foreground mt-1">
+                Confirmed homeless status
+              </p>
+            </CardContent>
+          </Card>
+
+          {/* Homeless Exempt */}
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Exempt</CardTitle>
+              <Home className="h-4 w-4 text-teal-600" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-teal-600">{isLoading ? '...' : stats?.homeless_exempt || 0}</div>
+              <p className="text-xs text-muted-foreground mt-1">
+                Homeless exemptions today
               </p>
             </CardContent>
           </Card>
