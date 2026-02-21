@@ -97,13 +97,14 @@ export function useOfficerWelfareMonitor() {
     if (!user?.id) return;
 
     const checkInvestigation = async () => {
+      // ✅ FIX: Use maybeSingle() instead of single() to avoid 406 error when no rows exist
       const { data } = await supabase
         .from('investigation_jobs')
         .select('id')
         .eq('assigned_to', user.id)
         .eq('status', 'in_progress')
         .limit(1)
-        .single();
+        .maybeSingle();
 
       setIsInActiveInvestigation(!!data);
     };
