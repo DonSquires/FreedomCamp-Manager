@@ -1,0 +1,234 @@
+/**
+ * Observations Export - Server-Generated CSV Export
+ * 
+ * Returns CSV file matching current table filters with RLS enforcement.
+ * Streams up to 200k rows with proper escaping and filename generation.
+ * 
+ * Request:
+ * {
+ *   "date_from": "YYYY-MM-DD",
+ *   "date_to": "YYYY-MM-DD",
+ *   "organization_id": "uuid|null",
+ *   "zone_id": "uuid|null",
+ *   "search": "ABC123",
+ *   "bbox": { "north": -43.51, "south": -43.55, "east": 172.67, "west": 172.60 }
+ * }
+ * 
+ * Response: CSV file download
+ */
+
+import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
+import { corsHeaders } from '../_shared/cors.ts';
+
+interface ExportRequest {
+  date_from: string;
+  date_to: string;
+  organization_id?: string | null;
+  zone_id?: string | null;
+  search?: string;
+  bbox?: {
+    north: number;
+    south: number;
+    east: number;
+    west: number;
+  };
+}
+
+function csvEscape(value: any): string {
+  if (value === null || value === undefined) return '';
+  const str = String(value);
+  // Escape quotes and wrap if contains comma, quote, or newline
+  if (/[,"\n\r]/.test(str)) {
+    return `"${str.replace(/"/g, '""')}"`;
+  }
+  return str;
+}
+
+function rowToCSV(row: any, columns: string[]): string {
+  return columns.map(col => csvEscape(row[col])).join(',');
+}
+
+serve(async (req) => {
+  // Handle CORS preflight
+  if (req.method === 'OPTIONS') {
+    return new Response('ok', { headers: corsHeaders });
+  }
+
+  try {
+    const supabaseClient = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+      {
+        auth: {
+          autoRefreshToken: false,
+          persistSession: false,
+          detectSessionInUrl: false,
+        },
+      }
+    );
+
+    // Get auth token from request
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      return new Response(
+        JSON.stringify({ error: 'Missing authorization header' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const token = authHeader.replace('Bearer ', '');
+    const { data: { user }, error: userError } = await supabaseClient.auth.getUser(token);
+
+    if (userError || !user) {
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const {
+      date_from,
+      date_to,
+      organization_id,
+      zone_id,
+      search,
+      bbox,
+    } = await req.json() as ExportRequest;
+
+    // Validate required fields
+    if (!date_from || !date_to) {
+      return new Response(
+        JSON.stringify({ error: 'date_from and date_to are required' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Validate date format
+    const datePattern = /^\d{4}-\d{2}-\d{2}$/;
+    if (!datePattern.test(date_from) || !datePattern.test(date_to)) {
+      return new Response(
+        JSON.stringify({ error: 'Invalid date format. Use YYYY-MM-DD' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Build query
+    let query = supabaseClient
+      .from('observations')
+      .select(`
+        id,
+        recorded_at,
+        plate_number,
+        is_compliant,
+        breach_type,
+        gps_latitude,
+        gps_longitude,
+        photo_url,
+        zone:zones(name),
+        recorded_by_user:user_profiles(first_name, last_name),
+        organization:organizations(name)
+      `)
+      .gte('recorded_at', `${date_from}T00:00:00Z`)
+      .lte('recorded_at', `${date_to}T23:59:59Z`)
+      .order('recorded_at', { ascending: false })
+      .limit(200000); // Safety limit
+
+    if (organization_id) {
+      query = query.eq('organization_id', organization_id);
+    }
+
+    if (zone_id) {
+      query = query.eq('zone_id', zone_id);
+    }
+
+    // Apply bbox filter if provided
+    if (bbox && typeof bbox === 'object') {
+      const { north, south, east, west } = bbox;
+      if (typeof north === 'number' && typeof south === 'number' && typeof east === 'number' && typeof west === 'number') {
+        query = query
+          .gte('gps_latitude', south)
+          .lte('gps_latitude', north)
+          .gte('gps_longitude', west)
+          .lte('gps_longitude', east)
+          .neq('gps_latitude', 0) // Exclude (0,0) "Null Island"
+          .neq('gps_longitude', 0);
+      }
+    }
+
+    // Apply search filter
+    if (search && search.trim()) {
+      query = query.or(`plate_number.ilike.%${search.trim()}%`);
+    }
+
+    const { data, error } = await query;
+
+    if (error) {
+      console.error('Database error:', error);
+      const errorId = `ERR-${Date.now()}`;
+      return new Response(
+        JSON.stringify({ error: error.message, errorId }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Build CSV
+    const columns = [
+      'id',
+      'recorded_at_utc',
+      'plate_number',
+      'zone',
+      'organization',
+      'officer',
+      'is_compliant',
+      'breach_type',
+      'latitude',
+      'longitude',
+      'photo_url',
+    ];
+
+    const csvHeader = columns.join(',') + '\n';
+
+    const csvRows = (data || []).map((obs: any) => {
+      const row = {
+        id: obs.id,
+        recorded_at_utc: obs.recorded_at,
+        plate_number: obs.plate_number || 'Unknown',
+        zone: obs.zone?.name || 'Unknown',
+        organization: obs.organization?.name || 'Unknown',
+        officer: obs.recorded_by_user
+          ? `${obs.recorded_by_user.first_name} ${obs.recorded_by_user.last_name}`
+          : 'Unknown',
+        is_compliant: obs.is_compliant ? 'Yes' : 'No',
+        breach_type: obs.breach_type || '',
+        latitude: obs.gps_latitude,
+        longitude: obs.gps_longitude,
+        photo_url: obs.photo_url || '',
+      };
+      return rowToCSV(row, columns);
+    }).join('\n');
+
+    const csv = csvHeader + csvRows + '\n';
+
+    // Generate filename
+    const filename = `observations_${date_from}_to_${date_to}.csv`;
+
+    // Return CSV with appropriate headers
+    return new Response(csv, {
+      headers: {
+        ...corsHeaders,
+        'Content-Type': 'text/csv; charset=utf-8',
+        'Content-Disposition': `attachment; filename="${filename}"`,
+        'Cache-Control': 'no-store',
+      },
+    });
+
+  } catch (error) {
+    console.error('Function error:', error);
+    const errorId = `ERR-${Date.now()}`;
+    return new Response(
+      JSON.stringify({ error: error.message || 'Internal server error', errorId }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+});

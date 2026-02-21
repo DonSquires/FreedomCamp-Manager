@@ -1,17 +1,29 @@
 // ============================================================================
-// Unified Vehicle Ingest - ALPR Primary + ORC Fallback
+// Unified Vehicle Ingest - Production Pipeline with Onspace AI Fallback
 // ============================================================================
 // Purpose: Production-ready vehicle observation ingest pipeline
-// - ALPR primary detection (Snapshot Cloud API)
-// - ORC/AI fallback with vehicle embeddings
-// - Direct insert to new clean observations table
+//
+// DEPLOYMENT MODES:
+// - Onspace AI Fallback (current): UI provides pre-processed plate data
+// - Railway Inference (future): Edge Function calls standalone service
+//
+// Features:
+// - Direct insert to observations table
 // - Photo upload with SHA-256 hashing
 // - GPS validation and offline sync support
+// - Idempotency for reliable offline-first architecture
 // ============================================================================
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.7";
 import { corsHeaders } from "../_shared/cors.ts";
-import { alprWithDataUrl, alprWithBytes } from "../_shared/alpr.ts";
+
+// ============================================================================
+// DEPLOYMENT MODE FLAG
+// ============================================================================
+// Set to true for temporary Onspace AI fallback mode (ALPR/ORC handled by UI)
+// Set to false to re-enable Railway inference service
+const USE_ONSPACE_AI = true;
+// ============================================================================
 
 const ALLOWED_ORIGINS = new Set([
   "https://preview-react-vite-vite-typescript-fvdypijc-d.onspace.build",
@@ -61,15 +73,21 @@ Deno.serve(async (req) => {
     let idempotencyKey: string | null = null;
     let officerNotes: string | null = null;
     let weatherConditions: string | null = null;
+    
+    // Onspace AI fallback mode - plate data from client
+    let clientPlate: string | null = null;
+    let clientConfidence: number | null = null;
+    let clientRequiresManualEntry = false;
+    let clientRawCandidates: string[] | null = null;
 
     const contentType = req.headers.get("content-type") ?? "";
 
     if (contentType.includes("application/json")) {
       const body = await req.json();
-      imageDataUrl = body.image ?? body.photo_base64;
-      gpsLatitude = body.gpsLatitude ?? body.gps_latitude;
-      gpsLongitude = body.gpsLongitude ?? body.gps_longitude;
-      gpsAccuracy = body.gpsAccuracy ?? body.gps_accuracy;
+      imageDataUrl = body.image ?? body.photo_base64 ?? body.photoDataUrl;
+      gpsLatitude = body.gpsLatitude ?? body.gps_latitude ?? body.gps?.lat;
+      gpsLongitude = body.gpsLongitude ?? body.gps_longitude ?? body.gps?.lng;
+      gpsAccuracy = body.gpsAccuracy ?? body.gps_accuracy ?? body.gps?.accuracy;
       recordedAt = body.recordedAt ?? body.recorded_at;
       officerId = body.officerId ?? body.officer_id ?? body.recorded_by;
       organizationId = body.organizationId ?? body.organization_id;
@@ -77,6 +95,14 @@ Deno.serve(async (req) => {
       idempotencyKey = body.idempotencyKey ?? body.idempotency_key;
       officerNotes = body.notes ?? body.officer_notes;
       weatherConditions = body.weather ?? body.weather_conditions;
+      
+      // Onspace AI provided plate data
+      if (USE_ONSPACE_AI) {
+        clientPlate = body.plate;
+        clientConfidence = body.confidence;
+        clientRequiresManualEntry = body.requires_manual_entry ?? false;
+        clientRawCandidates = body.raw_candidates;
+      }
     } else if (contentType.includes("multipart/form-data")) {
       const formData = await req.formData();
       const photoFile = formData.get("photo") as File;
@@ -94,6 +120,14 @@ Deno.serve(async (req) => {
       idempotencyKey = formData.get("idempotencyKey") as string;
       officerNotes = formData.get("notes") as string;
       weatherConditions = formData.get("weather") as string;
+      
+      // Onspace AI provided plate data
+      if (USE_ONSPACE_AI) {
+        clientPlate = formData.get("plate") as string;
+        const confStr = formData.get("confidence") as string;
+        clientConfidence = confStr ? parseFloat(confStr) : null;
+        clientRequiresManualEntry = (formData.get("requires_manual_entry") as string) === "true";
+      }
     }
 
     // Validate required fields
@@ -137,6 +171,7 @@ Deno.serve(async (req) => {
       org: organizationId,
       zone: zoneId,
       idempotency: idempotencyKey,
+      mode: USE_ONSPACE_AI ? "onspace_fallback" : "railway_inference",
       hasBytes: !!imageBytes,
       hasDataUrl: !!imageDataUrl,
     });
@@ -163,7 +198,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Convert imageDataUrl to bytes if needed for ALPR
+    // Convert imageDataUrl to bytes if needed
     if (!imageBytes && imageDataUrl) {
       const base64Data = imageDataUrl.split(",")[1];
       const binaryString = atob(base64Data);
@@ -200,38 +235,91 @@ Deno.serve(async (req) => {
 
     console.log("📸 Photo uploaded:", { path: photoFileName, hash: photoHash });
 
-    // Step 2: Try ALPR detection
-    const confMin = Number(Deno.env.get("ALPR_CONF_THRESHOLD") ?? 0.78);
-    let plateNumber: string | null = null;
-    let plateConfidence: number | null = null;
-    let alprResult = null;
+    // ========================================================================
+    // INFERENCE ROUTING
+    // ========================================================================
+    let inferenceResult: {
+      success: boolean;
+      path: string;
+      plate: string | null;
+      requires_manual_entry: boolean;
+      confidence: number | null;
+      raw_candidates?: string[];
+    };
 
-    try {
-      alprResult = await alprWithBytes(imageBytes!);
-
-      if (alprResult?.plate && (alprResult.confidence ?? 0) >= confMin) {
-        plateNumber = alprResult.plate;
-        plateConfidence = alprResult.confidence;
-        console.log("📡 ALPR ✅", { plate: plateNumber, conf: plateConfidence });
-      } else {
-        console.log("⚠️ ALPR ❌", {
-          plate: alprResult?.plate,
-          conf: alprResult?.confidence,
-          threshold: confMin,
-        });
+    if (USE_ONSPACE_AI) {
+      // Onspace AI mode - Accept pre-processed plate data from client
+      console.log('📱 Using Onspace AI fallback mode');
+      inferenceResult = {
+        success: true,
+        path: 'onspace_fallback',
+        plate: clientPlate,
+        requires_manual_entry: clientRequiresManualEntry,
+        confidence: clientConfidence,
+        raw_candidates: clientRawCandidates ?? undefined,
+      };
+      
+      // Log for debugging
+      console.log('Onspace inference result:', {
+        plate: inferenceResult.plate,
+        confidence: inferenceResult.confidence,
+        requires_manual_entry: inferenceResult.requires_manual_entry,
+      });
+    } else {
+      // Railway inference mode - Call standalone service
+      console.log('🚂 Using Railway inference service');
+      const inferenceUrl = Deno.env.get('INFERENCE_SERVICE_URL');
+      
+      if (!inferenceUrl) {
+        throw new Error('INFERENCE_SERVICE_URL not configured');
       }
-    } catch (error: any) {
-      console.error("❌ ALPR error:", error.message);
-    }
 
-    // Step 3: If ALPR failed, manual entry required
-    if (!plateNumber) {
-      console.log("⚠️ No plate detected - manual entry required");
-      // Still create observation without plate for manual review
-      plateNumber = "MANUAL_REQUIRED";
-    }
+      try {
+        const inferenceResponse = await fetch(`${inferenceUrl}/infer`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            image_base64: imageDataUrl?.split(',')[1] ?? btoa(String.fromCharCode(...imageBytes!)),
+            mode: 'alpr_with_orc_fallback',
+          }),
+        });
 
-    // Step 4: Get or create canonical vehicle
+        if (!inferenceResponse.ok) {
+          throw new Error(`Inference service returned ${inferenceResponse.status}`);
+        }
+
+        const inferenceData = await inferenceResponse.json();
+        inferenceResult = {
+          success: true,
+          path: 'railway_inference',
+          plate: inferenceData.plate,
+          requires_manual_entry: !inferenceData.plate,
+          confidence: inferenceData.confidence,
+        };
+        
+        console.log('🚂 Railway inference success:', {
+          plate: inferenceResult.plate,
+          confidence: inferenceResult.confidence,
+        });
+      } catch (error: any) {
+        console.error('❌ Railway inference failed:', error.message);
+        // Fallback to manual entry
+        inferenceResult = {
+          success: false,
+          path: 'railway_failed',
+          plate: null,
+          requires_manual_entry: true,
+          confidence: null,
+        };
+      }
+    }
+    // ========================================================================
+
+    const plateNumber = inferenceResult.plate;
+    const requiresManualEntry = inferenceResult.requires_manual_entry;
+    const plateConfidence = inferenceResult.confidence;
+
+    // Step 3: Get or create canonical vehicle
     if (plateNumber && plateNumber !== "MANUAL_REQUIRED") {
       const { data: vehicle } = await supabase
         .from("canonical_vehicles")
@@ -258,10 +346,10 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Step 5: Insert observation into new observations table
+    // Step 4: Insert observation into observations table
     const observationData = {
       idempotency_key: idempotencyKey,
-      plate_number: plateNumber,
+      plate_number: plateNumber || "MANUAL_REQUIRED",
       photo_url: photoUrl,
       photo_hash: photoHash,
       recorded_at: recordedAt ?? new Date().toISOString(),
@@ -308,12 +396,12 @@ Deno.serve(async (req) => {
       JSON.stringify({
         success: true,
         observation_id: observation.id,
-        path: plateNumber !== "MANUAL_REQUIRED" ? "alpr" : "manual",
+        source: inferenceResult.path,
         plate: plateNumber !== "MANUAL_REQUIRED" ? plateNumber : null,
         confidence: plateConfidence,
         photo_url: photoUrl,
         photo_hash: photoHash,
-        requires_manual_entry: plateNumber === "MANUAL_REQUIRED",
+        requires_manual_entry: requiresManualEntry,
       }),
       {
         status: 200,
