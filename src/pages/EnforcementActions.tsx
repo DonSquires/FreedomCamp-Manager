@@ -198,21 +198,22 @@ export function EnforcementActions() {
     try {
       // Load active breaches
       if (activeTab === 'breaches') {
-        // Query observations with breach status
+        // Query observations with breach status (is_compliant = false means breach)
         let query = supabase
-          .from('vehicle_observations_v2')
+          .from('observations')
           .select(`
             plate_number,
             zone_id,
             organization_id,
-            is_breach,
+            is_compliant,
             breach_type,
-            breach_details,
+            breach_reason,
+            nights_stayed_this_month,
+            consecutive_nights,
             recorded_at,
-            zones (name),
-            canonical_vehicles (homeless_status, is_flagged)
+            zones (name)
           `)
-          .eq('is_breach', true)
+          .eq('is_compliant', false)
           .gte('recorded_at', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString())
           .order('recorded_at', { ascending: false });
 
@@ -224,11 +225,33 @@ export function EnforcementActions() {
 
         if (error) throw error;
 
+        // Get plate numbers to fetch vehicle data
+        const plateNumbers = [...new Set((observations || []).map(o => o.plate_number))];
+        
+        // Fetch vehicle data separately
+        let vehicleData: any[] = [];
+        if (plateNumbers.length > 0) {
+          const { data: vehicles, error: vehiclesError } = await supabase
+            .from('canonical_vehicles')
+            .select('plate_number, homeless_status, is_flagged')
+            .in('plate_number', plateNumbers);
+
+          if (vehiclesError) {
+            console.error('Failed to load vehicle data:', vehiclesError);
+          } else {
+            vehicleData = vehicles || [];
+          }
+        }
+
+        const vehicleMap = new Map(vehicleData.map(v => [v.plate_number, v]));
+
         // Group by plate + zone to get active breaches
         const breachMap = new Map<string, any>();
         
         (observations || []).forEach(obs => {
           const key = `${obs.plate_number}-${obs.zone_id}`;
+          const vehicle = vehicleMap.get(obs.plate_number);
+          
           if (!breachMap.has(key)) {
             breachMap.set(key, {
               plate_number: obs.plate_number,
@@ -239,19 +262,19 @@ export function EnforcementActions() {
               breach_count: 0,
               last_breach_date: obs.recorded_at,
               last_breach_type: obs.breach_type || 'overstay',
-              homeless_status: (obs.canonical_vehicles as any)?.homeless_status || null,
-              is_flagged: (obs.canonical_vehicles as any)?.is_flagged || false,
-              consecutive_nights: (obs.breach_details as any)?.consecutive_nights || 0,
-              nights_stayed: (obs.breach_details as any)?.nights_stayed || 0,
-              max_allowed_consecutive: (obs.breach_details as any)?.max_consecutive || 3,
-              max_allowed_monthly: (obs.breach_details as any)?.nights_per_month || 28,
+              homeless_status: vehicle?.homeless_status || null,
+              is_flagged: vehicle?.is_flagged || false,
+              consecutive_nights: obs.consecutive_nights || 0,
+              nights_stayed: obs.nights_stayed_this_month || 0,
+              max_allowed_consecutive: 3, // Default from zone rules
+              max_allowed_monthly: 28, // Default from zone rules
               has_active_enforcement: false,
               enforcement_status: null,
             });
           }
           const breach = breachMap.get(key);
           breach.total_observations++;
-          if (obs.is_breach) breach.breach_count++;
+          if (!obs.is_compliant) breach.breach_count++;
         });
 
         const breaches = Array.from(breachMap.values());
