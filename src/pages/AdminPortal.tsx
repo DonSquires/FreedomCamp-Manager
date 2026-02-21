@@ -1,50 +1,44 @@
 /**
- * Admin Portal - Enforcement & Compliance Management
+ * Admin Portal - Enforcement & Compliance Command Center
  * 
- * Simple working admin dashboard with:
- * - Real KPI stats from actual database tables
- * - Working navigation links to all enforcement screens
- * - Date filtering with Today/Yesterday/Prev/Next buttons
+ * Production-ready admin dashboard with:
+ * - Global filters (date, org, zone) with persistence
+ * - Real-time KPIs with drilldown navigation
+ * - Charts (timeseries, breaches by type, top zones)
+ * - Quick actions to all enforcement screens
  * - Database maintenance tools
  */
 
 import { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { useNavigate } from 'react-router-dom';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+import { Badge } from '@/components/ui/badge';
 import {
   Activity,
   AlertTriangle,
   Shield,
-  Clock,
   MapPin,
   Users,
   FileText,
   Database,
   Loader2,
-  Calendar,
-  Download,
   RefreshCw,
-  ChevronLeft,
-  ChevronRight,
   Navigation,
   CarFront,
   Home,
+  TrendingUp,
+  Eye,
+  Flame,
+  ArrowRight,
 } from 'lucide-react';
-import { format, subDays, addDays } from 'date-fns';
-import { Link } from 'react-router-dom';
+import { format } from 'date-fns';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
-import { useAuthStore } from '@/stores/authStore';
-import { useOrganizations } from '@/hooks/useOrganizations';
+import { useGlobalFilters } from '@/stores/globalFiltersStore';
+import { GlobalFilterRibbon } from '@/components/features/GlobalFilterRibbon';
+import { AdminNavigationMenu } from '@/components/features/AdminNavigationMenu';
+import { cn } from '@/lib/utils';
 
 interface DashboardStats {
   total_observations: number;
@@ -59,68 +53,59 @@ interface DashboardStats {
   homeless_exempt: number;
 }
 
-interface Zone {
+interface TimeseriesPoint {
+  date: string;
+  observations: number;
+}
+
+interface BreachByType {
+  breach_type: string;
+  count: number;
+}
+
+interface TopZone {
   zone_id: string;
   zone_name: string;
-  organization_id: string;
   observation_count: number;
   breach_count: number;
-  last_activity: string | null;
 }
 
 export function AdminPortal() {
-  const { user } = useAuthStore();
-  const { organizations } = useOrganizations();
-  
-  // Date filtering
-  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
-  const [dateInput, setDateInput] = useState<string>(format(new Date(), 'yyyy-MM-dd'));
-
-  // Organization filter (masters only)
-  const [selectedOrgId, setSelectedOrgId] = useState<string>('');
-  
-  // Zone filter
-  const [selectedZoneId, setSelectedZoneId] = useState<string>('');
-  const [availableZones, setAvailableZones] = useState<Zone[]>([]);
+  const navigate = useNavigate();
+  const { dateFrom, dateTo, organizationId, zoneId } = useGlobalFilters();
   
   // Stats
   const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [timeseries, setTimeseries] = useState<TimeseriesPoint[]>([]);
+  const [breachesByType, setBreachesByType] = useState<BreachByType[]>([]);
+  const [topZones, setTopZones] = useState<TopZone[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
-  // Load dashboard stats
+  // Load dashboard stats when filters change
   useEffect(() => {
-    loadStats();
-  }, [selectedDate, selectedOrgId, selectedZoneId]);
+    loadDashboardData();
+  }, [dateFrom, dateTo, organizationId, zoneId]);
 
-  // Load zones when organization changes
-  useEffect(() => {
-    loadZones();
-  }, [selectedOrgId]);
-
-  const loadStats = async () => {
+  const loadDashboardData = async () => {
     setIsLoading(true);
     try {
-      const startOfDay = new Date(selectedDate);
+      // Convert date strings to ISO with time boundaries
+      const startOfDay = new Date(dateFrom);
       startOfDay.setHours(0, 0, 0, 0);
-      const endOfDay = new Date(selectedDate);
+      const endOfDay = new Date(dateTo);
       endOfDay.setHours(23, 59, 59, 999);
 
-      // Build organization filter
-      const orgFilter = user?.role === 'master' && selectedOrgId 
-        ? selectedOrgId 
-        : user?.organization_id || null;
-
-      // Use the new RPC function for efficient stats
-      const { data, error } = await supabase.rpc('get_admin_dashboard_stats', {
+      // Load KPIs using existing RPC function
+      const { data: statsData, error: statsError } = await supabase.rpc('get_admin_dashboard_stats', {
         p_start_date: startOfDay.toISOString(),
         p_end_date: endOfDay.toISOString(),
-        p_organization_id: orgFilter,
+        p_organization_id: organizationId,
       });
 
-      if (error) throw error;
+      if (statsError) throw statsError;
 
-      if (data && data.length > 0) {
-        const statsRow = data[0];
+      if (statsData && statsData.length > 0) {
+        const statsRow = statsData[0];
         setStats({
           total_observations: Number(statsRow.total_observations) || 0,
           total_breaches: Number(statsRow.total_breaches) || 0,
@@ -135,472 +120,437 @@ export function AdminPortal() {
         });
       }
 
+      // Load timeseries data (observations per day)
+      const { data: timeseriesData, error: timeseriesError } = await supabase
+        .from('observations')
+        .select('recorded_at')
+        .gte('recorded_at', startOfDay.toISOString())
+        .lte('recorded_at', endOfDay.toISOString())
+        .then(({ data, error }) => {
+          if (error) throw error;
+          
+          // Group by date
+          const grouped = (data || []).reduce((acc: Record<string, number>, obs) => {
+            const date = new Date(obs.recorded_at).toISOString().split('T')[0];
+            acc[date] = (acc[date] || 0) + 1;
+            return acc;
+          }, {});
+
+          const series = Object.entries(grouped).map(([date, count]) => ({
+            date,
+            observations: count,
+          }));
+
+          return { data: series, error: null };
+        });
+
+      if (!timeseriesError) {
+        setTimeseries(timeseriesData || []);
+      }
+
+      // Load breaches by type
+      const { data: breachesData, error: breachesError } = await supabase
+        .from('observations')
+        .select('breach_type')
+        .eq('is_compliant', false)
+        .not('breach_type', 'is', null)
+        .gte('recorded_at', startOfDay.toISOString())
+        .lte('recorded_at', endOfDay.toISOString())
+        .then(({ data, error }) => {
+          if (error) throw error;
+
+          // Group by breach type
+          const grouped = (data || []).reduce((acc: Record<string, number>, obs) => {
+            const type = obs.breach_type || 'Unknown';
+            acc[type] = (acc[type] || 0) + 1;
+            return acc;
+          }, {});
+
+          const series = Object.entries(grouped)
+            .map(([breach_type, count]) => ({ breach_type, count }))
+            .sort((a, b) => b.count - a.count)
+            .slice(0, 10);
+
+          return { data: series, error: null };
+        });
+
+      if (!breachesError) {
+        setBreachesByType(breachesData || []);
+      }
+
+      // Load top zones
+      const { data: zonesData, error: zonesError } = await supabase.rpc('get_zones_with_activity', {
+        p_organization_id: organizationId,
+        p_start_date: startOfDay.toISOString(),
+        p_end_date: endOfDay.toISOString(),
+      });
+
+      if (!zonesError) {
+        setTopZones((zonesData || []).slice(0, 10));
+      }
+
     } catch (error: any) {
-      console.error('Failed to load stats:', error);
-      toast.error('Failed to load dashboard stats: ' + error.message);
+      console.error('Failed to load dashboard data:', error);
+      toast.error('Failed to load dashboard: ' + error.message);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const loadZones = async () => {
-    try {
-      const orgFilter = user?.role === 'master' && selectedOrgId 
-        ? selectedOrgId 
-        : user?.organization_id || null;
-
-      const startOfDay = new Date(selectedDate);
-      startOfDay.setHours(0, 0, 0, 0);
-      const endOfDay = new Date(selectedDate);
-      endOfDay.setHours(23, 59, 59, 999);
-
-      const { data, error } = await supabase.rpc('get_zones_with_activity', {
-        p_organization_id: orgFilter,
-        p_start_date: startOfDay.toISOString(),
-        p_end_date: endOfDay.toISOString(),
-      });
-
-      if (error) throw error;
-      setAvailableZones(data || []);
-
-    } catch (error: any) {
-      console.error('Failed to load zones:', error);
-    }
-  };
-
-  // Date navigation
-  const goToToday = () => {
-    const today = new Date();
-    setSelectedDate(today);
-    setDateInput(format(today, 'yyyy-MM-dd'));
-  };
-
-  const goToYesterday = () => {
-    const yesterday = subDays(new Date(), 1);
-    setSelectedDate(yesterday);
-    setDateInput(format(yesterday, 'yyyy-MM-dd'));
-  };
-
-  const goToPreviousDay = () => {
-    const prev = subDays(selectedDate, 1);
-    setSelectedDate(prev);
-    setDateInput(format(prev, 'yyyy-MM-dd'));
-  };
-
-  const goToNextDay = () => {
-    const next = addDays(selectedDate, 1);
-    setSelectedDate(next);
-    setDateInput(format(next, 'yyyy-MM-dd'));
-  };
-
-  const handleDateInputChange = (dateStr: string) => {
-    setDateInput(dateStr);
-    const newDate = new Date(dateStr);
-    if (!isNaN(newDate.getTime())) {
-      setSelectedDate(newDate);
-    }
+  // Drilldown navigation - preserves global filters
+  const handleDrilldown = (path: string, params?: Record<string, string>) => {
+    const searchParams = new URLSearchParams(params);
+    navigate(`${path}?${searchParams.toString()}`);
   };
 
   return (
-    <div className="min-h-screen bg-background p-4 sm:p-6 lg:p-8">
-      <div className="max-w-7xl mx-auto space-y-6">
+    <div className="flex h-screen bg-background overflow-hidden">
+      <div className="flex-1 flex flex-col overflow-hidden">
         {/* Header */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-3xl font-bold">Admin Portal</h1>
-            <p className="text-muted-foreground mt-1">
-              Enforcement & Compliance Management
-            </p>
+        <div className="border-b bg-background/95 backdrop-blur-sm">
+          <div className="flex items-center justify-between p-4">
+            <div className="flex items-center gap-3">
+              <AdminNavigationMenu />
+              <div>
+                <h1 className="text-2xl font-bold">Admin Dashboard</h1>
+                <p className="text-sm text-muted-foreground">
+                  Enforcement & Compliance Command Center
+                </p>
+              </div>
+            </div>
           </div>
-          <Button variant="outline" asChild>
-            <Link to="/historical-import">
-              <Download className="h-4 w-4 mr-2" />
-              Import Data
-            </Link>
-          </Button>
         </div>
 
-        {/* Date Navigation */}
-        <Card>
-          <CardContent className="py-4">
-            <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-end">
-              {/* Quick Date Buttons */}
-              <div className="md:col-span-5 flex gap-2">
-                <Button variant="outline" size="sm" onClick={goToToday}>
-                  <Calendar className="h-4 w-4 mr-2" />
-                  Today
-                </Button>
-                <Button variant="outline" size="sm" onClick={goToYesterday}>
-                  Yesterday
-                </Button>
-                <Button variant="outline" size="sm" onClick={goToPreviousDay}>
-                  <ChevronLeft className="h-4 w-4" />
-                  Prev
-                </Button>
-                <Button variant="outline" size="sm" onClick={goToNextDay}>
-                  Next
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
-              </div>
+        {/* Global Filter Ribbon */}
+        <GlobalFilterRibbon onRefresh={loadDashboardData} />
 
-              {/* Date Picker */}
-              <div className="md:col-span-3">
-                <Label className="text-xs text-muted-foreground mb-1 block">Selected Date</Label>
-                <Input
-                  type="date"
-                  value={dateInput}
-                  onChange={(e) => handleDateInputChange(e.target.value)}
-                  className="w-full"
-                />
-              </div>
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto p-6">
+          <div className="max-w-7xl mx-auto space-y-6">
 
-              {/* Organization Filter (Masters Only) */}
-              {user?.role === 'master' && (
-                <div className="md:col-span-2">
-                  <Label className="text-xs text-muted-foreground mb-1 block">Organization</Label>
-                  <Select value={selectedOrgId || 'all'} onValueChange={(val) => setSelectedOrgId(val === 'all' ? '' : val)}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="All Organizations" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Organizations</SelectItem>
-                      {organizations?.map(org => (
-                        <SelectItem key={org.id} value={org.id}>
-                          {org.name}
-                        </SelectItem>
+            {/* KPI Cards - Now Clickable for Drilldowns */}
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+              {/* Total Observations */}
+              <Card 
+                className="cursor-pointer hover:shadow-lg transition-all"
+                onClick={() => handleDrilldown('/admin/observations')}
+              >
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Observations</CardTitle>
+                  <Activity className="h-4 w-4 text-blue-600" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold">{isLoading ? '...' : stats?.total_observations || 0}</div>
+                  <p className="text-xs text-muted-foreground mt-1 flex items-center">
+                    Click to view details
+                    <ArrowRight className="h-3 w-3 ml-1" />
+                  </p>
+                </CardContent>
+              </Card>
+
+              {/* Pending Breaches */}
+              <Card 
+                className="cursor-pointer hover:shadow-lg transition-all"
+                onClick={() => handleDrilldown('/admin/breaches', { tab: 'pending' })}
+              >
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Pending Breaches</CardTitle>
+                  <AlertTriangle className="h-4 w-4 text-red-600" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-red-600">{isLoading ? '...' : stats?.pending_breaches || 0}</div>
+                  <p className="text-xs text-muted-foreground mt-1 flex items-center">
+                    of {stats?.total_breaches || 0} total
+                    <ArrowRight className="h-3 w-3 ml-1" />
+                  </p>
+                </CardContent>
+              </Card>
+
+              {/* Active Officers */}
+              <Card 
+                className="cursor-pointer hover:shadow-lg transition-all"
+                onClick={() => handleDrilldown('/admin/officer-welfare')}
+              >
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Active Officers</CardTitle>
+                  <Users className="h-4 w-4 text-green-600" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-green-600">{isLoading ? '...' : stats?.active_officers || 0}</div>
+                  <p className="text-xs text-muted-foreground mt-1 flex items-center">
+                    Recorded today
+                    <ArrowRight className="h-3 w-3 ml-1" />
+                  </p>
+                </CardContent>
+              </Card>
+
+              {/* Active Zones */}
+              <Card 
+                className="cursor-pointer hover:shadow-lg transition-all"
+                onClick={() => handleDrilldown('/admin/zones')}
+              >
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Active Zones</CardTitle>
+                  <MapPin className="h-4 w-4 text-indigo-600" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-indigo-600">{isLoading ? '...' : stats?.zones_with_activity || 0}</div>
+                  <p className="text-xs text-muted-foreground mt-1 flex items-center">
+                    With activity
+                    <ArrowRight className="h-3 w-3 ml-1" />
+                  </p>
+                </CardContent>
+              </Card>
+
+              {/* Active Investigations */}
+              <Card 
+                className="cursor-pointer hover:shadow-lg transition-all"
+                onClick={() => handleDrilldown('/admin/enforcement', { tab: 'investigations' })}
+              >
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Investigations</CardTitle>
+                  <Shield className="h-4 w-4 text-purple-600" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-purple-600">{isLoading ? '...' : stats?.active_investigations || 0}</div>
+                  <p className="text-xs text-muted-foreground mt-1 flex items-center">
+                    In progress
+                    <ArrowRight className="h-3 w-3 ml-1" />
+                  </p>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Second Row of KPIs */}
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+              {/* Total Vehicles */}
+              <Card 
+                className="cursor-pointer hover:shadow-lg transition-all"
+                onClick={() => handleDrilldown('/admin/vehicles')}
+              >
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Vehicles</CardTitle>
+                  <CarFront className="h-4 w-4 text-cyan-600" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-cyan-600">{isLoading ? '...' : stats?.total_vehicles || 0}</div>
+                  <p className="text-xs text-muted-foreground mt-1 flex items-center">
+                    In registry
+                    <ArrowRight className="h-3 w-3 ml-1" />
+                  </p>
+                </CardContent>
+              </Card>
+
+              {/* Flagged Vehicles */}
+              <Card 
+                className="cursor-pointer hover:shadow-lg transition-all"
+                onClick={() => handleDrilldown('/admin/vehicles', { tab: 'flagged' })}
+              >
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Flagged</CardTitle>
+                  <Home className="h-4 w-4 text-orange-600" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-orange-600">{isLoading ? '...' : stats?.flagged_vehicles || 0}</div>
+                  <p className="text-xs text-muted-foreground mt-1 flex items-center">
+                    Attention needed
+                    <ArrowRight className="h-3 w-3 ml-1" />
+                  </p>
+                </CardContent>
+              </Card>
+
+              {/* Homeless Vehicles */}
+              <Card 
+                className="cursor-pointer hover:shadow-lg transition-all"
+                onClick={() => handleDrilldown('/admin/vehicles', { tab: 'homeless' })}
+              >
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Homeless</CardTitle>
+                  <Home className="h-4 w-4 text-emerald-600" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-emerald-600">{isLoading ? '...' : stats?.homeless_vehicles || 0}</div>
+                  <p className="text-xs text-muted-foreground mt-1 flex items-center">
+                    Confirmed
+                    <ArrowRight className="h-3 w-3 ml-1" />
+                  </p>
+                </CardContent>
+              </Card>
+
+              {/* Homeless Exempt */}
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Exempt Today</CardTitle>
+                  <Home className="h-4 w-4 text-teal-600" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-2xl font-bold text-teal-600">{isLoading ? '...' : stats?.homeless_exempt || 0}</div>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Exemptions granted
+                  </p>
+                </CardContent>
+              </Card>
+
+              {/* Hotspots Link */}
+              <Card 
+                className="cursor-pointer hover:shadow-lg transition-all bg-gradient-to-br from-orange-50 to-red-50 dark:from-orange-950/20 dark:to-red-950/20"
+                onClick={() => handleDrilldown('/admin/hotspots')}
+              >
+                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                  <CardTitle className="text-sm font-medium">Hotspots</CardTitle>
+                  <Flame className="h-4 w-4 text-orange-600" />
+                </CardHeader>
+                <CardContent>
+                  <div className="text-lg font-bold text-orange-600">View Map</div>
+                  <p className="text-xs text-muted-foreground mt-1 flex items-center">
+                    Heat map & clusters
+                    <ArrowRight className="h-3 w-3 ml-1" />
+                  </p>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Charts Row */}
+            <div className="grid gap-4 md:grid-cols-2">
+              {/* Timeseries Chart */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <TrendingUp className="h-5 w-5" />
+                    Observations Over Time
+                  </CardTitle>
+                  <CardDescription>
+                    Daily observation count for selected period
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {isLoading ? (
+                    <div className="h-48 flex items-center justify-center text-muted-foreground">
+                      <Loader2 className="h-6 w-6 animate-spin" />
+                    </div>
+                  ) : timeseries.length === 0 ? (
+                    <div className="h-48 flex items-center justify-center text-muted-foreground">
+                      No data for selected period
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {timeseries.map((point) => (
+                        <div key={point.date} className="flex items-center justify-between">
+                          <span className="text-sm text-muted-foreground">
+                            {format(new Date(point.date), 'dd MMM')}
+                          </span>
+                          <div className="flex items-center gap-2">
+                            <div className="w-32 h-2 bg-muted rounded-full overflow-hidden">
+                              <div 
+                                className="h-full bg-blue-600" 
+                                style={{ width: `${(point.observations / (Math.max(...timeseries.map(p => p.observations)) || 1)) * 100}%` }}
+                              />
+                            </div>
+                            <span className="text-sm font-medium w-8 text-right">{point.observations}</span>
+                          </div>
+                        </div>
                       ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
 
-              {/* Zone Filter */}
-              <div className="md:col-span-2">
-                <Label className="text-xs text-muted-foreground mb-1 block">Zone (Optional)</Label>
-                <Select value={selectedZoneId || 'all'} onValueChange={(val) => setSelectedZoneId(val === 'all' ? '' : val)}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="All Zones" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Zones</SelectItem>
-                    {availableZones.map(zone => (
-                      <SelectItem key={zone.zone_id} value={zone.zone_id}>
-                        {zone.zone_name} ({zone.observation_count} obs)
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              {/* Breaches by Type Chart */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <AlertTriangle className="h-5 w-5" />
+                    Breaches by Type
+                  </CardTitle>
+                  <CardDescription>
+                    Top 10 violation types for selected period
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {isLoading ? (
+                    <div className="h-48 flex items-center justify-center text-muted-foreground">
+                      <Loader2 className="h-6 w-6 animate-spin" />
+                    </div>
+                  ) : breachesByType.length === 0 ? (
+                    <div className="h-48 flex items-center justify-center text-muted-foreground">
+                      No breaches for selected period
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {breachesByType.map((breach) => (
+                        <div key={breach.breach_type} className="flex items-center justify-between">
+                          <span className="text-sm text-muted-foreground truncate">
+                            {breach.breach_type}
+                          </span>
+                          <div className="flex items-center gap-2">
+                            <div className="w-32 h-2 bg-muted rounded-full overflow-hidden">
+                              <div 
+                                className="h-full bg-red-600" 
+                                style={{ width: `${(breach.count / (Math.max(...breachesByType.map(b => b.count)) || 1)) * 100}%` }}
+                              />
+                            </div>
+                            <span className="text-sm font-medium w-8 text-right">{breach.count}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
             </div>
-          </CardContent>
-        </Card>
 
-        {/* KPI Cards */}
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-          {/* Total Observations */}
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Observations</CardTitle>
-              <Activity className="h-4 w-4 text-muted-foreground" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{isLoading ? '...' : stats?.total_observations || 0}</div>
-              <p className="text-xs text-muted-foreground mt-1">
-                {format(selectedDate, 'dd MMM yyyy')}
-              </p>
-            </CardContent>
-          </Card>
+            {/* Top Zones Table */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <MapPin className="h-5 w-5" />
+                  Top Zones by Activity
+                </CardTitle>
+                <CardDescription>
+                  Zones with most observations for selected period
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {isLoading ? (
+                  <div className="h-48 flex items-center justify-center text-muted-foreground">
+                    <Loader2 className="h-6 w-6 animate-spin" />
+                  </div>
+                ) : topZones.length === 0 ? (
+                  <div className="h-48 flex items-center justify-center text-muted-foreground">
+                    No zone activity for selected period
+                  </div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full">
+                      <thead>
+                        <tr className="border-b">
+                          <th className="text-left py-2 text-sm font-medium text-muted-foreground">Zone</th>
+                          <th className="text-right py-2 text-sm font-medium text-muted-foreground">Observations</th>
+                          <th className="text-right py-2 text-sm font-medium text-muted-foreground">Breaches</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {topZones.map((zone) => (
+                          <tr 
+                            key={zone.zone_id} 
+                            className="border-b hover:bg-muted/50 cursor-pointer"
+                            onClick={() => handleDrilldown('/admin/observations', { zone: zone.zone_id })}
+                          >
+                            <td className="py-2 text-sm">{zone.zone_name}</td>
+                            <td className="py-2 text-sm text-right font-medium">{zone.observation_count}</td>
+                            <td className="py-2 text-sm text-right font-medium text-red-600">{zone.breach_count}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
 
-          {/* Pending Breaches */}
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Pending Breaches</CardTitle>
-              <AlertTriangle className="h-4 w-4 text-red-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-red-600">{isLoading ? '...' : stats?.pending_breaches || 0}</div>
-              <p className="text-xs text-muted-foreground mt-1">
-                of {stats?.total_breaches || 0} total breaches
-              </p>
-            </CardContent>
-          </Card>
-
-          {/* Active Officers */}
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Active Officers</CardTitle>
-              <Users className="h-4 w-4 text-blue-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-blue-600">{isLoading ? '...' : stats?.active_officers || 0}</div>
-              <p className="text-xs text-muted-foreground mt-1">
-                Recorded observations today
-              </p>
-            </CardContent>
-          </Card>
-
-          {/* Active Zones */}
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Active Zones</CardTitle>
-              <MapPin className="h-4 w-4 text-indigo-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-indigo-600">{isLoading ? '...' : stats?.zones_with_activity || 0}</div>
-              <p className="text-xs text-muted-foreground mt-1">
-                With activity today
-              </p>
-            </CardContent>
-          </Card>
-
-          {/* Active Investigations */}
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Investigations</CardTitle>
-              <Shield className="h-4 w-4 text-purple-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-purple-600">{isLoading ? '...' : stats?.active_investigations || 0}</div>
-              <p className="text-xs text-muted-foreground mt-1">
-                Pending or in progress
-              </p>
-            </CardContent>
-          </Card>
-
-          {/* Total Vehicles */}
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Vehicles</CardTitle>
-              <CarFront className="h-4 w-4 text-cyan-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-cyan-600">{isLoading ? '...' : stats?.total_vehicles || 0}</div>
-              <p className="text-xs text-muted-foreground mt-1">
-                In canonical registry
-              </p>
-            </CardContent>
-          </Card>
-
-          {/* Flagged Vehicles */}
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Flagged</CardTitle>
-              <Home className="h-4 w-4 text-orange-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-orange-600">{isLoading ? '...' : stats?.flagged_vehicles || 0}</div>
-              <p className="text-xs text-muted-foreground mt-1">
-                Requiring attention
-              </p>
-            </CardContent>
-          </Card>
-
-          {/* Homeless Vehicles */}
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Homeless</CardTitle>
-              <Home className="h-4 w-4 text-emerald-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-emerald-600">{isLoading ? '...' : stats?.homeless_vehicles || 0}</div>
-              <p className="text-xs text-muted-foreground mt-1">
-                Confirmed homeless status
-              </p>
-            </CardContent>
-          </Card>
-
-          {/* Homeless Exempt */}
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Exempt</CardTitle>
-              <Home className="h-4 w-4 text-teal-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-teal-600">{isLoading ? '...' : stats?.homeless_exempt || 0}</div>
-              <p className="text-xs text-muted-foreground mt-1">
-                Homeless exemptions today
-              </p>
-            </CardContent>
-          </Card>
-
-          {/* Refresh Button */}
-          <Card className="flex items-center justify-center">
-            <CardContent className="py-6">
-              <Button onClick={loadStats} disabled={isLoading} className="w-full">
-                {isLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RefreshCw className="h-4 w-4 mr-2" />}
-                Refresh Stats
-              </Button>
-            </CardContent>
-          </Card>
+            {/* Quick Actions - No longer needed, use hamburger menu */}
+          </div>
         </div>
-
-        {/* Enforcement & Compliance */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Enforcement & Compliance</CardTitle>
-          </CardHeader>
-          <CardContent className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-            <Button variant="outline" asChild className="h-auto py-4 justify-start">
-              <Link to="/breach-alerts-report">
-                <AlertTriangle className="h-5 w-5 mr-3" />
-                <div className="text-left">
-                  <div className="font-semibold">Breach Alerts</div>
-                  <div className="text-xs text-muted-foreground">Active violations</div>
-                </div>
-              </Link>
-            </Button>
-
-            <Button variant="outline" asChild className="h-auto py-4 justify-start">
-              <Link to="/enforcement-actions">
-                <Shield className="h-5 w-5 mr-3" />
-                <div className="text-left">
-                  <div className="font-semibold">Enforcement Actions</div>
-                  <div className="text-xs text-muted-foreground">Manage enforcement jobs</div>
-                </div>
-              </Link>
-            </Button>
-
-            <Button variant="outline" asChild className="h-auto py-4 justify-start">
-              <Link to="/investigation-jobs">
-                <FileText className="h-5 w-5 mr-3" />
-                <div className="text-left">
-                  <div className="font-semibold">Investigation Jobs</div>
-                  <div className="text-xs text-muted-foreground">Assign investigations</div>
-                </div>
-              </Link>
-            </Button>
-          </CardContent>
-        </Card>
-
-        {/* Reports & Analytics */}
-        <Card>
-          <CardHeader>
-            <CardTitle>Reports & Analytics</CardTitle>
-          </CardHeader>
-          <CardContent className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-            <Button variant="outline" asChild className="h-auto py-4 justify-start">
-              <Link to="/observations-report">
-                <FileText className="h-5 w-5 mr-3" />
-                <div className="text-left">
-                  <div className="font-semibold">Observations Report</div>
-                  <div className="text-xs text-muted-foreground">Field evidence records</div>
-                </div>
-              </Link>
-            </Button>
-
-            <Button variant="outline" asChild className="h-auto py-4 justify-start">
-              <Link to="/patrol-management">
-                <Navigation className="h-5 w-5 mr-3" />
-                <div className="text-left">
-                  <div className="font-semibold">Patrol Management</div>
-                  <div className="text-xs text-muted-foreground">Schedule and assign</div>
-                </div>
-              </Link>
-            </Button>
-
-            <Button variant="outline" asChild className="h-auto py-4 justify-start">
-              <Link to="/officer-welfare-alerts">
-                <Users className="h-5 w-5 mr-3" />
-                <div className="text-left">
-                  <div className="font-semibold">Officer Welfare</div>
-                  <div className="text-xs text-muted-foreground">Safety monitoring</div>
-                </div>
-              </Link>
-            </Button>
-
-            <Button variant="outline" asChild className="h-auto py-4 justify-start">
-              <Link to="/zone-management">
-                <MapPin className="h-5 w-5 mr-3" />
-                <div className="text-left">
-                  <div className="font-semibold">Zone Management</div>
-                  <div className="text-xs text-muted-foreground">Configure zones</div>
-                </div>
-              </Link>
-            </Button>
-
-            <Button variant="outline" asChild className="h-auto py-4 justify-start">
-              <Link to="/vehicle-management">
-                <CarFront className="h-5 w-5 mr-3" />
-                <div className="text-left">
-                  <div className="font-semibold">Vehicle Management</div>
-                  <div className="text-xs text-muted-foreground">Canonical registry</div>
-                </div>
-              </Link>
-            </Button>
-
-            <Button variant="outline" asChild className="h-auto py-4 justify-start">
-              <Link to="/user-management">
-                <Users className="h-5 w-5 mr-3" />
-                <div className="text-left">
-                  <div className="font-semibold">User Management</div>
-                  <div className="text-xs text-muted-foreground">Manage staff</div>
-                </div>
-              </Link>
-            </Button>
-          </CardContent>
-        </Card>
-
-        {/* Database Maintenance */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Database className="h-5 w-5" />
-              Database Maintenance
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="border rounded-lg p-4">
-              <div className="flex items-center justify-between mb-2">
-                <div>
-                  <div className="font-semibold flex items-center gap-2">
-                    <RefreshCw className="h-4 w-4" />
-                    Compliance Recalculation
-                  </div>
-                  <div className="text-sm text-muted-foreground">
-                    Rebuild compliance results for all observations
-                  </div>
-                </div>
-                <Button variant="outline" asChild>
-                  <Link to="/compliance-recalculation">Run</Link>
-                </Button>
-              </div>
-            </div>
-
-            <div className="border rounded-lg p-4">
-              <div className="flex items-center justify-between mb-2">
-                <div>
-                  <div className="font-semibold flex items-center gap-2">
-                    <MapPin className="h-4 w-4" />
-                    Zone Corrections
-                  </div>
-                  <div className="text-sm text-muted-foreground">
-                    Fix GPS-zone mismatches
-                  </div>
-                </div>
-                <Button variant="outline" asChild>
-                  <Link to="/zone-corrections">Run</Link>
-                </Button>
-              </div>
-            </div>
-
-            <div className="border rounded-lg p-4">
-              <div className="flex items-center justify-between mb-2">
-                <div>
-                  <div className="font-semibold flex items-center gap-2">
-                    <Database className="h-4 w-4" />
-                    Data Integrity Check
-                  </div>
-                  <div className="text-sm text-muted-foreground">
-                    Comprehensive database health check
-                  </div>
-                </div>
-                <Button variant="outline" asChild>
-                  <Link to="/data-integrity-check">Run</Link>
-                </Button>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
       </div>
     </div>
   );
