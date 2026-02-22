@@ -1,25 +1,15 @@
-const corsHeaders = {
+// Add this to your Edge Function headers
+export const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-client-timezone', // <--- Added here
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-client-timezone', // <--- MUST include this
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 }
 
+// Ensure your serve function handles OPTIONS requests first
 serve(async (req) => {
-  // Handle the Preflight (OPTIONS) request from the browser
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
-
-  try {
-    // Your actual vehicle-ingest logic...
-    return new Response(JSON.stringify({ success: true }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      status: 200,
-    })
-  } catch (error) {
-    return new Response(JSON.stringify({ error: error.message }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      status: 400,
-    })
-  }
+  
+  // Your vehicle-ingest logic follows...
 })
