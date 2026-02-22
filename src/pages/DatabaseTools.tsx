@@ -20,6 +20,7 @@ import {
   Trash2,
   RefreshCw,
   Activity,
+  Car,
 } from 'lucide-react';
 import { GlobalFilterRibbon } from '@/components/features/GlobalFilterRibbon';
 import { AdminNavigationMenu } from '@/components/features/AdminNavigationMenu';
@@ -154,6 +155,44 @@ export default function DatabaseToolsPage() {
       }, ...prev]);
     } catch (error: any) {
       toast.error('Failed to run integrity check: ' + error.message);
+    } finally {
+      setIsRunning(false);
+    }
+  };
+
+  const handleRunEnrichment = async () => {
+    setIsRunning(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('enrich-vehicle-worker', {
+        body: {},
+      });
+
+      if (error) {
+        let errorMessage = error.message;
+        if (error instanceof FunctionsHttpError) {
+          try {
+            const statusCode = error.context?.status ?? 500;
+            const textContent = await error.context?.text();
+            errorMessage = `[Code: ${statusCode}] ${textContent || error.message || 'Unknown error'}`;
+          } catch {
+            errorMessage = error.message || 'Failed to read response';
+          }
+        }
+        throw new Error(errorMessage);
+      }
+
+      toast.success('Vehicle enrichment started');
+      
+      setJobs(prev => [{
+        id: Date.now().toString(),
+        type: 'Vehicle Enrichment',
+        status: 'running',
+        progress: 0,
+        message: 'Fetching vehicle data from external sources...',
+        createdAt: new Date(),
+      }, ...prev]);
+    } catch (error: any) {
+      toast.error('Failed to start vehicle enrichment: ' + error.message);
     } finally {
       setIsRunning(false);
     }
@@ -357,6 +396,42 @@ export default function DatabaseToolsPage() {
                         <>
                           <CheckCircle2 className="h-4 w-4 mr-2" />
                           Run Check
+                        </>
+                      )}
+                    </Button>
+                  </CardContent>
+                </Card>
+
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Car className="h-5 w-5" />
+                      Vehicle Enrichment
+                    </CardTitle>
+                    <CardDescription>
+                      Enrich vehicle data from external sources
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-sm text-muted-foreground mb-4">
+                      Fetch missing vehicle data (make, model, year, color, SC status)
+                      from MotorWeb and NZSCV registry for all canonical vehicles.
+                    </p>
+                    <Button
+                      onClick={handleRunEnrichment}
+                      disabled={isRunning}
+                      variant="outline"
+                      className="w-full"
+                    >
+                      {isRunning ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Running...
+                        </>
+                      ) : (
+                        <>
+                          <Car className="h-4 w-4 mr-2" />
+                          Run Enrichment
                         </>
                       )}
                     </Button>
