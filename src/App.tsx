@@ -27,6 +27,9 @@ import BreachAlertsReport from '@/pages/BreachAlertsReport';
 import EnforcementActions from '@/pages/EnforcementActions';
 import OfficerWelfareManagement from '@/pages/OfficerWelfareManagement';
 import ReportsHub from '@/pages/ReportsHub';
+import ZoneManagement from '@/pages/ZoneManagement';
+import UserManagement from '@/pages/UserManagement';
+import VehicleRegistryFiltered from '@/pages/VehicleRegistryFiltered';
 import { FancyLoader } from '@/components/features/FancyLoader';
 import { Toaster } from '@/components/ui/sonner';
 import { toast } from 'sonner';
@@ -130,6 +133,8 @@ function App() {
                 <Route path="/admin/hotspots" element={<HotspotsMapPage />} />
                 <Route path="/admin/observations" element={<ObservationsPage />} />
                 <Route path="/admin/vehicles" element={<VehicleRegistryFiltered />} />
+                <Route path="/admin/zones" element={<ZoneManagement />} />
+                <Route path="/admin/users" element={<UserManagement />} />
                 
                 {/* Enforcement Review Portal */}
                 <Route path="/admin/enforcement-review" element={<EnforcementReviewPortal />} />
