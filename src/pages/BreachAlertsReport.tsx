@@ -61,6 +61,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { useZones } from '@/hooks/useZones';
 import { useUsers } from '@/hooks/useUsers';
 import { supabase } from '@/lib/supabase';
+import { AdminNavigationMenu } from '@/components/features/AdminNavigationMenu';
 
 interface BreachAlert {
   id: string;
@@ -410,16 +411,19 @@ export default function BreachAlertsReport() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
+      {/* Header with Hamburger Menu */}
       <div className="flex items-center justify-between flex-wrap gap-4">
-        <div>
-          <h1 className="text-3xl font-bold flex items-center gap-3">
+        <div className="flex items-center gap-3">
+          <AdminNavigationMenu />
+          <div>
+            <h1 className="text-3xl font-bold flex items-center gap-3">
             <AlertTriangle className="h-8 w-8 text-red-600" />
-            Breach Alerts Report
-          </h1>
-          <p className="text-muted-foreground mt-1">
-            All compliance breaches and overstayers requiring attention
-          </p>
+              Breach Alerts Report
+            </h1>
+            <p className="text-muted-foreground mt-1">
+              All compliance breaches and overstayers requiring attention
+            </p>
+          </div>
         </div>
 
         <div className="flex items-center gap-2">

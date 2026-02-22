@@ -22,6 +22,8 @@ import ALPRDiagnostic from '@/pages/ALPRDiagnostic';
 import HotspotsMapPage from '@/pages/HotspotsMap';
 import DatabaseToolsPage from '@/pages/DatabaseTools';
 import ObservationsPage from '@/pages/ObservationsPage';
+import { EnforcementReviewPortal } from '@/pages/EnforcementReviewPortal';
+import BreachAlertsReport from '@/pages/BreachAlertsReport';
 import { FancyLoader } from '@/components/features/FancyLoader';
 import { Toaster } from '@/components/ui/sonner';
 import { toast } from 'sonner';
@@ -126,9 +128,12 @@ function App() {
                 <Route path="/admin/observations" element={<ObservationsPage />} />
                 <Route path="/admin/vehicles" element={<VehicleRegistryFiltered />} />
                 
-                {/* Temporary redirects until pages are built */}
-                <Route path="/admin/breaches" element={<Navigate to="/admin/observations" replace />} />
-                <Route path="/admin/enforcement" element={<Navigate to="/admin/observations" replace />} />
+                {/* Enforcement Review Portal */}
+                <Route path="/admin/enforcement-review" element={<EnforcementReviewPortal />} />
+                
+                {/* Breach Alerts Page */}
+                <Route path="/admin/breaches" element={<BreachAlertsReport />} />
+                <Route path="/admin/enforcement" element={<Navigate to="/admin/enforcement-review" replace />} />
                 <Route path="/admin/officer-welfare" element={<Navigate to="/admin/dashboard" replace />} />
                 <Route path="/admin/zones" element={<Navigate to="/admin/dashboard" replace />} />
                 <Route path="/admin/users" element={<Navigate to="/admin/dashboard" replace />} />
