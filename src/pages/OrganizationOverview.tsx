@@ -4,7 +4,7 @@
  * UPDATED: Now uses NEW compliance architecture (Feb 2025)
  * - Primary source: compliance_results table (authoritative compliance)
  * - Breach data: breach_alerts table (enforcement queue)
- * - Synced fields: vehicle_observations_v2.is_breach (auto-synced)
+ * - Synced fields: observations.is_breach (auto-synced)
  * - Vehicle details: canonical_vehicles (master data)
  * 
  * Features:
@@ -219,7 +219,7 @@ export function OrganizationOverview({ onZoneDrillDown }: { onZoneDrillDown?: (z
       // NZ is UTC+13:00 (or UTC+12:00 during standard time)
       // Adding timezone offset ensures correct date boundary matching
       let obsQuery = supabase
-        .from('vehicle_observations_v2')
+        .from('observations')
         .select(`
           observation_id,
           plate_number,
@@ -972,7 +972,7 @@ function ObservationsListDialog({
     setIsLoading(true);
     try {
       let query = supabase
-        .from('vehicle_observations_v2')
+        .from('observations')
         .select(`
           observation_id,
           plate_number,
@@ -985,7 +985,7 @@ function ObservationsListDialog({
           officer_notes,
           photo,
           zones!inner(id, name),
-          user_profiles!vehicle_observations_v2_recorded_by_fkey(first_name, last_name)
+          user_profiles!observations_recorded_by_fkey(first_name, last_name)
         `)
         .eq('organization_id', organizationId)
         .gte('recorded_at', `${fromDate}T00:00:00+13:00`)

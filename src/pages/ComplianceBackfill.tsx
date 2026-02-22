@@ -35,6 +35,7 @@ import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/stores/authStore';
 import { useZones } from '@/hooks/useZones';
 import { useOrganizations } from '@/hooks/useOrganizations';
+import { FunctionsHttpError } from '@supabase/supabase-js';
 
 interface ComplianceBackfillProps {
   onBack: () => void;
@@ -119,7 +120,7 @@ export function ComplianceBackfill({ onBack }: ComplianceBackfillProps) {
 
     try {
       // Invoke backfill edge function
-      const { data, error } = await supabase.functions.invoke('recalculate-compliance', {
+      const { data, error } = await supabase.functions.invoke('recalculate-compliance-v2', {
         body: {
           scope_type: selectedScope === 'all' ? 'build_wide' : selectedScope,
           target_zone_ids: selectedScope === 'zone' ? selectedZones : null,
@@ -130,7 +131,20 @@ export function ComplianceBackfill({ onBack }: ComplianceBackfillProps) {
         },
       });
 
-      if (error) throw error;
+      if (error) {
+        // Extract actual error message from Edge Function
+        let errorMessage = error.message;
+        if (error instanceof FunctionsHttpError) {
+          try {
+            const statusCode = error.context?.status ?? 500;
+            const textContent = await error.context?.text();
+            errorMessage = `[Code: ${statusCode}] ${textContent || error.message || 'Unknown error'}`;
+          } catch {
+            errorMessage = error.message || 'Failed to read response';
+          }
+        }
+        throw new Error(errorMessage);
+      }
 
       toast.success(`✅ Backfill completed: ${data.observations_processed} observations processed`);
       setBackfillProgress({

@@ -259,7 +259,7 @@ export function VehicleRegistry() {
         
         // Get plate numbers that have observations in the date range
         const { data: obsData } = await supabase
-          .from('vehicle_observations_v2')
+          .from('observations')
           .select('plate_number')
           .gte('recorded_at', `${biDateFrom}T00:00:00`)
           .lte('recorded_at', `${biDateTo}T23:59:59`);
@@ -398,7 +398,7 @@ export function VehicleRegistry() {
     try {
       // Load observations
       const { data: obsData, error: obsError } = await supabase
-        .from('vehicle_observations_v2')
+        .from('observations')
         .select(`
           observation_id,
           recorded_at,
@@ -410,7 +410,7 @@ export function VehicleRegistry() {
           gps_longitude,
           zones!inner(name),
           organizations(name),
-          user_profiles!vehicle_observations_v2_recorded_by_fkey(first_name, last_name)
+          user_profiles!observations_recorded_by_fkey(first_name, last_name)
         `)
         .eq('plate_number', vehicle.plate_number)
         .order('recorded_at', { ascending: false })
@@ -505,7 +505,7 @@ export function VehicleRegistry() {
       if (deleteType === 'permanent' && user?.role === 'master') {
         // PERMANENT DELETE - Master only
         // Delete all associated records first
-        await supabase.from('vehicle_observations_v2').delete().eq('plate_number', viewingVehicle.plate_number);
+        await supabase.from('observations').delete().eq('plate_number', viewingVehicle.plate_number);
         await supabase.from('compliance_results').delete().eq('vehicle_id', viewingVehicle.plate_number);
         await supabase.from('breach_alerts').delete().eq('vehicle_record_id', viewingVehicle.plate_number);
         await supabase.from('enforcement_actions').delete().eq('plate_number', viewingVehicle.plate_number);

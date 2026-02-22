@@ -177,8 +177,8 @@ export function ComplianceDashboard() {
 
       // Get all observations in date range
       const { data: observations, error: obsError } = await supabase
-        .from('vehicle_observations_v2')
-        .select('observation_id, plate_number, zone_id, recorded_at, is_breach, is_compliant')
+        .from('observations')
+        .select('id, plate_number, zone_id, recorded_at, is_breach, is_compliant')
         .eq('organization_id', selectedOrgId)
         .gte('recorded_at', `${fromDate}T00:00:00`)
         .lte('recorded_at', `${toDate}T23:59:59`);
@@ -293,8 +293,8 @@ export function ComplianceDashboard() {
       for (const zone of zones || []) {
         // Get observations
         const { data: observations } = await supabase
-          .from('vehicle_observations_v2')
-          .select('observation_id, plate_number, is_breach, is_compliant')
+          .from('observations')
+          .select('id, plate_number, is_breach, is_compliant')
           .eq('zone_id', zone.id)
           .gte('recorded_at', `${fromDate}T00:00:00`)
           .lte('recorded_at', `${toDate}T23:59:59`);
