@@ -81,6 +81,7 @@ async function requireSession() {
  * 
  * Uploads file via Edge Function with server-side validation.
  * Bypasses CORS issues and centralizes security rules.
+ * Uses Supabase SDK for automatic JWT auth handling.
  * 
  * @param bucket - Target bucket ('evidence' or 'incident-evidence')
  * @param file - File object from <input type="file">
@@ -93,16 +94,25 @@ export async function uploadViaFunction(
   // Client-side pre-validation (fast fail)
   validateFile(file, bucket);
 
-  const session = await requireSession();
-  const url = `${supabase.supabaseUrl}/functions/v1/upload-file/${bucket}`;
+  await requireSession();
 
+  // Use Supabase SDK for automatic auth header injection
+  // Note: functions.invoke() doesn't support FormData, so we use raw fetch with proper headers
   const formData = new FormData();
   formData.append('file', file);
+
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) {
+    throw new Error('User not authenticated');
+  }
+
+  const url = `${supabase.supabaseUrl}/functions/v1/upload-file/${bucket}`;
 
   const response = await fetch(url, {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${session.access_token}`,
+      // Note: Don't set Content-Type - browser sets it automatically with boundary for multipart/form-data
     },
     body: formData,
   });
