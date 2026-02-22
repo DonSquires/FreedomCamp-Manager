@@ -36,6 +36,7 @@ import {
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
+import { AdminNavigationMenu } from '@/components/features/AdminNavigationMenu';
 
 interface VehicleRecord {
   plate_number: string;
@@ -245,6 +246,7 @@ export function VehicleRegistryFiltered() {
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div className="flex items-center gap-3">
+          <AdminNavigationMenu />
           <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
             <ArrowLeft className="h-5 w-5" />
           </Button>

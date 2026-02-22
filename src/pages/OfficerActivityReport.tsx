@@ -169,7 +169,7 @@ export function OfficerActivityReport() {
         officerList.map(async (officer) => {
           // Count observations
           let obsQuery = supabase
-            .from('vehicle_observations_v2')
+            .from('observations')
             .select('observation_id, zone_id, is_compliant', { count: 'exact' })
             .eq('recorded_by', officer.id)
             .gte('recorded_at', `${startDate}T00:00:00`)
@@ -236,7 +236,7 @@ export function OfficerActivityReport() {
 
           // Get last activity
           const { data: lastObs } = await supabase
-            .from('vehicle_observations_v2')
+            .from('observations')
             .select('recorded_at')
             .eq('recorded_by', officer.id)
             .order('recorded_at', { ascending: false })
@@ -275,7 +275,7 @@ export function OfficerActivityReport() {
 
       // Aggregate observations by date
       let dailyObsQuery = supabase
-        .from('vehicle_observations_v2')
+        .from('observations')
         .select('recorded_at')
         .gte('recorded_at', `${startDate}T00:00:00`)
         .lte('recorded_at', `${endDate}T23:59:59`);
