@@ -17,7 +17,7 @@ import { AdminPortal } from '@/pages/AdminPortal';
 import { PortalSelection } from '@/pages/PortalSelection';
 import { Login } from '@/pages/Login';
 import { PasswordReset } from '@/pages/PasswordReset';
-import { VehicleRegistryFiltered } from '@/pages/VehicleRegistryFiltered';
+import VehicleRegistryFiltered from '@/pages/VehicleRegistryFiltered';
 import ALPRDiagnostic from '@/pages/ALPRDiagnostic';
 import HotspotsMapPage from '@/pages/HotspotsMap';
 import DatabaseToolsPage from '@/pages/DatabaseTools';

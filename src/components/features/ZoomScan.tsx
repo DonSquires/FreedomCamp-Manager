@@ -1,35 +1,49 @@
 /**
- * ZoomScan - Production-Ready Vehicle Scanner
- * Connects to new vehicle-ingest Edge Function
+ * ZoomScan - Split-Screen Vehicle Scanner (Original Spec)
+ * Top 25%: Queue of scan results
+ * Bottom 75%: Live camera feed
+ * Connects to vehicle-ingest Edge Function with Onspace AI fallback
  */
 
 import { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Camera, X, Loader2, ZoomIn, ZoomOut, RotateCcw, CheckCircle2 } from 'lucide-react';
+import { Camera, X, Loader2, ZoomIn, ZoomOut, Flashlight, MapPin, Clock, Flag, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/stores/authStore';
+import { playSounds } from '@/lib/sounds';
+import { FunctionsHttpError } from '@supabase/supabase-js';
 
 interface ZoomScanProps {
   onExit: () => void;
+}
+
+interface QueueItem {
+  id: string;
+  plateNumber: string;
+  status: 'processing' | 'compliant' | 'breach' | 'flagged' | 'error';
+  details: string;
+  timestamp: Date;
+  autoDismiss?: number; // seconds until auto-dismiss
 }
 
 export function ZoomScan({ onExit }: ZoomScanProps) {
   const { user } = useAuthStore();
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [isProcessing, setIsProcessing] = useState(false);
-  const [stream, setStream] = useState<MediaStream | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  
+  // State
+  const [queue, setQueue] = useState<QueueItem[]>([]);
+  const [processingCount, setProcessingCount] = useState(0);
+  const [cameraReady, setCameraReady] = useState(false);
   const [zoom, setZoom] = useState(1);
-  const [facingMode, setFacingMode] = useState<'user' | 'environment'>('environment');
+  const [torchEnabled, setTorchEnabled] = useState(false);
+  const [currentTime, setCurrentTime] = useState(new Date());
+  const [gpsLocation, setGpsLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [selectedZone, setSelectedZone] = useState<{ id: string; name: string } | null>(null);
-  const [scanResult, setScanResult] = useState<{
-    plate: string | null;
-    isCompliant: boolean;
-    message: string;
-  } | null>(null);
 
   // Load user's zone on mount
   useEffect(() => {
@@ -57,13 +71,47 @@ export function ZoomScan({ onExit }: ZoomScanProps) {
   useEffect(() => {
     startCamera();
     return () => stopCamera();
-  }, [facingMode]);
+  }, []);
+
+  // Update time every second
+  useEffect(() => {
+    const interval = setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Get GPS location
+  useEffect(() => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          setGpsLocation({
+            lat: position.coords.latitude,
+            lng: position.coords.longitude,
+          });
+        },
+        (error) => console.warn('GPS not available:', error),
+        { enableHighAccuracy: true }
+      );
+    }
+  }, []);
+
+  // Auto-dismiss queue items
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setQueue(prev => prev.filter(item => {
+        if (!item.autoDismiss) return true;
+        const age = (Date.now() - item.timestamp.getTime()) / 1000;
+        return age < item.autoDismiss;
+      }));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, []);
 
   const startCamera = async () => {
     try {
       const mediaStream = await navigator.mediaDevices.getUserMedia({
         video: {
-          facingMode: facingMode,
+          facingMode: 'environment',
           width: { ideal: 1920 },
           height: { ideal: 1080 },
         },
@@ -71,10 +119,11 @@ export function ZoomScan({ onExit }: ZoomScanProps) {
 
       if (videoRef.current) {
         videoRef.current.srcObject = mediaStream;
-        videoRef.current.play();
+        await videoRef.current.play();
+        setCameraReady(true);
       }
 
-      setStream(mediaStream);
+      streamRef.current = mediaStream;
     } catch (error: any) {
       console.error('Camera access failed:', error);
       toast.error('Failed to access camera: ' + error.message);
@@ -82,27 +131,52 @@ export function ZoomScan({ onExit }: ZoomScanProps) {
   };
 
   const stopCamera = () => {
-    if (stream) {
-      stream.getTracks().forEach(track => track.stop());
-      setStream(null);
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => track.stop());
+      streamRef.current = null;
     }
   };
 
-  const captureAndScan = async () => {
+  const toggleTorch = async () => {
+    if (!streamRef.current) return;
+
+    try {
+      const track = streamRef.current.getVideoTracks()[0];
+      const capabilities: any = track.getCapabilities();
+
+      if (capabilities.torch) {
+        await track.applyConstraints({
+          advanced: [{ torch: !torchEnabled }]
+        } as any);
+        setTorchEnabled(!torchEnabled);
+      } else {
+        toast.error('Torch not supported on this device');
+      }
+    } catch (error) {
+      console.error('Torch toggle failed:', error);
+      toast.error('Failed to toggle torch');
+    }
+  };
+
+  const captureAndProcess = async () => {
     if (!videoRef.current || !canvasRef.current || !selectedZone) {
       toast.error('Camera or zone not ready');
       return;
     }
 
-    setIsProcessing(true);
-    setScanResult(null);
-
-    console.log('🎯 Starting vehicle scan...', {
-      zone: selectedZone.name,
-      zoneId: selectedZone.id,
-      userId: user?.id,
-      orgId: user?.organization_id,
-    });
+    // ✅ NON-BLOCKING: Increment processing count immediately
+    setProcessingCount(prev => prev + 1);
+    
+    // ✅ Add temp processing item to queue
+    const tempId = `temp-${Date.now()}`;
+    const tempItem: QueueItem = {
+      id: tempId,
+      plateNumber: 'Processing...',
+      status: 'processing',
+      details: '🔄 Analyzing plate...',
+      timestamp: new Date(),
+    };
+    setQueue(prev => [tempItem, ...prev]);
 
     try {
       const video = videoRef.current;
@@ -113,115 +187,155 @@ export function ZoomScan({ onExit }: ZoomScanProps) {
       const ctx = canvas.getContext('2d');
       if (!ctx) throw new Error('Canvas context not available');
 
+      // Draw video frame
       ctx.drawImage(video, 0, 0);
 
+      // Convert to blob
       const blob = await new Promise<Blob>((resolve) => {
-        canvas.toBlob((blob) => resolve(blob!), 'image/jpeg', 0.9);
+        canvas.toBlob((blob) => resolve(blob!), 'image/jpeg', 0.95);
       });
 
-      // Get GPS location
-      let gpsLat = null;
-      let gpsLng = null;
-      let gpsAccuracy = null;
+      // Convert to base64
+      const reader = new FileReader();
+      const photoDataUrl = await new Promise<string>((resolve) => {
+        reader.onloadend = () => resolve(reader.result as string);
+        reader.readAsDataURL(blob);
+      });
 
-      try {
-        const position = await new Promise<GeolocationPosition>((resolve, reject) => {
-          navigator.geolocation.getCurrentPosition(resolve, reject, {
-            enableHighAccuracy: true,
-            timeout: 5000,
-            maximumAge: 0,
-          });
-        });
+      // Prepare request (Onspace AI fallback mode - no client-side ALPR)
+      const requestBody = {
+        image: photoDataUrl,
+        plate: null, // Server-side ALPR will handle this
+        confidence: null,
+        requires_manual_entry: false, // Let server decide
+        gpsLatitude: gpsLocation?.lat || -41.2865,
+        gpsLongitude: gpsLocation?.lng || 174.7762,
+        gpsAccuracy: 10,
+        recordedAt: new Date().toISOString(),
+        officerId: user?.id || '',
+        organizationId: user?.organization_id || '',
+        zoneId: selectedZone.id,
+        idempotencyKey: `scan-${Date.now()}-${Math.random()}`,
+        officerNotes: '',
+        weatherConditions: null,
+      };
 
-        gpsLat = position.coords.latitude;
-        gpsLng = position.coords.longitude;
-        gpsAccuracy = position.coords.accuracy;
-      } catch (gpsError) {
-        console.warn('GPS not available:', gpsError);
-        toast.warning('GPS not available - using zone default location');
-      }
+      console.log('📤 Calling vehicle-ingest...');
 
-      // Create FormData for multipart upload
-      const formData = new FormData();
-      formData.append('photo', blob, 'scan.jpg');
-      formData.append('gpsLatitude', String(gpsLat || -41.2865));
-      formData.append('gpsLongitude', String(gpsLng || 174.7762));
-      formData.append('gpsAccuracy', String(gpsAccuracy || 10));
-      formData.append('recordedAt', new Date().toISOString());
-      formData.append('officerId', user?.id || '');
-      formData.append('organizationId', user?.organization_id || '');
-      formData.append('zoneId', selectedZone.id);
-      formData.append('idempotencyKey', `scan-${Date.now()}-${Math.random()}`);
-
-      // Call vehicle-ingest Edge Function
-      console.log('📤 Calling vehicle-ingest Edge Function...');
-      
       const { data, error } = await supabase.functions.invoke('vehicle-ingest', {
-        body: formData,
+        body: requestBody,
       });
 
-      console.log('📥 Edge Function response:', { data, error });
-
+      // Extract detailed error if FunctionsHttpError
       if (error) {
-        console.error('❌ Edge Function error:', error);
-        throw new Error(error.message || 'Edge Function invocation failed');
+        let errorMessage = error.message;
+        if (error instanceof FunctionsHttpError) {
+          try {
+            const statusCode = (error as any).context?.status ?? 500;
+            const textContent = await (error as any).context?.text();
+            errorMessage = `[${statusCode}] ${textContent || error.message || 'Unknown error'}`;
+          } catch {
+            errorMessage = error.message || 'Failed to read response';
+          }
+        }
+        throw new Error(errorMessage);
       }
 
-      if (data.success) {
-        setScanResult({
-          plate: data.plate || null,
-          isCompliant: true,
-          message: data.plate
-            ? `Plate detected: ${data.plate}`
-            : 'Photo captured - manual entry required',
-        });
-
-        toast.success(data.plate ? `Scanned: ${data.plate}` : 'Photo captured');
-
-        // Auto-exit after 2 seconds
-        setTimeout(() => {
-          onExit();
-        }, 2000);
+      if (!data.success) {
+        throw new Error(data.error || 'Scan failed');
       }
+
+      // ✅ Determine status from response
+      let status: QueueItem['status'] = 'compliant';
+      let details = '✅ Compliant with zone requirements';
+      let autoDismiss = 5; // Compliant auto-dismiss after 5s
+
+      if (data.requires_manual_entry) {
+        status = 'error';
+        details = '❌ No plate detected - manual entry required';
+        autoDismiss = 10;
+      } else if (data.is_flagged) {
+        status = 'flagged';
+        details = '🚩 FLAGGED: Watch list vehicle';
+        autoDismiss = undefined; // Manual dismiss only
+        playSounds.flaggedVehicle();
+      } else if (data.is_compliant === false) {
+        status = 'breach';
+        details = '🔴 BREACH DETECTED';
+        autoDismiss = undefined; // Manual dismiss only
+        playSounds.violationAlert();
+      } else {
+        playSounds.processingComplete();
+      }
+
+      // ✅ Replace temp item with real result
+      const resultItem: QueueItem = {
+        id: data.observation_id || tempId,
+        plateNumber: data.plate || 'UNKNOWN',
+        status,
+        details,
+        timestamp: new Date(),
+        autoDismiss,
+      };
+
+      setQueue(prev => prev.map(item => item.id === tempId ? resultItem : item));
+
     } catch (error: any) {
       console.error('❌ Scan failed:', error);
-      const errorMessage = error.message || 'Unknown error occurred';
-      toast.error('Scan failed: ' + errorMessage);
       
-      setScanResult({
-        plate: null,
-        isCompliant: false,
-        message: 'Scan failed - try again',
-      });
+      // ✅ Replace temp item with error
+      const errorItem: QueueItem = {
+        id: tempId,
+        plateNumber: 'FAILED',
+        status: 'error',
+        details: `❌ ${error.message || 'Scan failed'}`,
+        timestamp: new Date(),
+        autoDismiss: 10,
+      };
 
-      // Clear error message after 5 seconds
-      setTimeout(() => {
-        setScanResult(null);
-        console.log('🧹 Cleared error message');
-      }, 5000);
+      setQueue(prev => prev.map(item => item.id === tempId ? errorItem : item));
     } finally {
-      setIsProcessing(false);
+      // ✅ Decrement processing count
+      setProcessingCount(prev => Math.max(0, prev - 1));
     }
   };
 
-  const switchCamera = () => {
-    stopCamera();
-    setFacingMode(facingMode === 'user' ? 'environment' : 'user');
+  const dismissQueueItem = (id: string) => {
+    setQueue(prev => prev.filter(item => item.id !== id));
+  };
+
+  const getStatusColor = (status: QueueItem['status']) => {
+    switch (status) {
+      case 'compliant': return 'border-green-500 bg-green-50 dark:bg-green-950/30';
+      case 'breach': return 'border-red-500 bg-red-50 dark:bg-red-950/30';
+      case 'flagged': return 'border-yellow-500 bg-yellow-50 dark:bg-yellow-950/30';
+      case 'processing': return 'border-gray-300 bg-gray-50 dark:bg-gray-800';
+      case 'error': return 'border-red-400 bg-red-50 dark:bg-red-950/30';
+    }
+  };
+
+  const getStatusIcon = (status: QueueItem['status']) => {
+    switch (status) {
+      case 'compliant': return <CheckCircle2 className="h-5 w-5 text-green-600" />;
+      case 'breach': return <AlertCircle className="h-5 w-5 text-red-600" />;
+      case 'flagged': return <Flag className="h-5 w-5 text-yellow-600" />;
+      case 'processing': return <Loader2 className="h-5 w-5 text-gray-500 animate-spin" />;
+      case 'error': return <X className="h-5 w-5 text-red-600" />;
+    }
   };
 
   return (
     <div className="fixed inset-0 bg-black z-50 flex flex-col">
-      {/* Header */}
-      <div className="absolute top-0 left-0 right-0 p-4 bg-gradient-to-b from-black/80 to-transparent z-10">
-        <div className="flex items-center justify-between">
+      {/* ========== QUEUE (TOP 25%) ========== */}
+      <div className="h-1/4 bg-gray-900 border-b-2 border-white/20 overflow-y-auto">
+        <div className="sticky top-0 bg-gray-800 border-b border-white/20 p-3 flex items-center justify-between z-10">
           <div className="flex items-center gap-2">
-            <Camera className="h-6 w-6 text-white" />
-            <div>
-              <h2 className="text-white font-bold">Vehicle Scanner</h2>
-              {selectedZone && (
-                <p className="text-white/80 text-xs">{selectedZone.name}</p>
-              )}
-            </div>
+            <h3 className="text-white font-bold">Scan Queue</h3>
+            {processingCount > 0 && (
+              <Badge variant="secondary" className="bg-blue-500 text-white">
+                {processingCount} processing
+              </Badge>
+            )}
           </div>
           <Button
             variant="ghost"
@@ -229,12 +343,48 @@ export function ZoomScan({ onExit }: ZoomScanProps) {
             onClick={onExit}
             className="text-white hover:bg-white/20"
           >
-            <X className="h-6 w-6" />
+            <X className="h-5 w-5" />
           </Button>
+        </div>
+
+        <div className="p-2 space-y-2">
+          {queue.length === 0 ? (
+            <div className="text-center py-8 text-white/60 text-sm">
+              No scans yet - tap camera button to start
+            </div>
+          ) : (
+            queue.map(item => (
+              <div
+                key={item.id}
+                className={cn(
+                  'p-3 rounded-lg border-2 flex items-start justify-between gap-3',
+                  getStatusColor(item.status)
+                )}
+              >
+                <div className="flex items-start gap-2 flex-1">
+                  {getStatusIcon(item.status)}
+                  <div className="flex-1 min-w-0">
+                    <p className="font-mono font-bold text-sm truncate">{item.plateNumber}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">{item.details}</p>
+                  </div>
+                </div>
+                {item.status !== 'processing' && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => dismissQueueItem(item.id)}
+                    className="shrink-0 h-6 px-2 text-xs"
+                  >
+                    ✓ Dismiss
+                  </Button>
+                )}
+              </div>
+            ))
+          )}
         </div>
       </div>
 
-      {/* Camera View */}
+      {/* ========== CAMERA (BOTTOM 75%) ========== */}
       <div className="flex-1 relative overflow-hidden">
         <video
           ref={videoRef}
@@ -246,78 +396,80 @@ export function ZoomScan({ onExit }: ZoomScanProps) {
         />
         <canvas ref={canvasRef} className="hidden" />
 
-        {/* Scan Result Overlay */}
-        {scanResult && (
-          <div className="absolute inset-0 flex items-center justify-center bg-black/70">
-            <div className={cn(
-              "max-w-md p-8 rounded-2xl text-center",
-              scanResult.isCompliant ? "bg-green-600" : "bg-red-600"
-            )}>
-              <CheckCircle2 className="h-16 w-16 text-white mx-auto mb-4" />
-              <h3 className="text-white text-2xl font-bold mb-2">
-                {scanResult.plate || 'Scan Complete'}
-              </h3>
-              <p className="text-white/90">{scanResult.message}</p>
-            </div>
+        {/* Zone/GPS/Time Info (Top Left) */}
+        <div className="absolute top-4 left-4 bg-black/50 backdrop-blur-sm border border-white/20 rounded-lg p-3 text-white text-xs space-y-1" style={{ opacity: 0.5 }}>
+          <div className="flex items-center gap-1 font-bold">
+            <MapPin className="h-3 w-3" />
+            {selectedZone?.name || 'No Zone'}
           </div>
-        )}
+          {gpsLocation && (
+            <div className="font-mono text-[10px] text-white/80">
+              {gpsLocation.lat.toFixed(5)}, {gpsLocation.lng.toFixed(5)}
+            </div>
+          )}
+          <div className="flex items-center gap-1 text-white/80">
+            <Clock className="h-3 w-3" />
+            {currentTime.toLocaleTimeString('en-NZ', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+          </div>
+        </div>
+
+        {/* Zoom Slider (Right Vertical) */}
+        <div className="absolute right-6 top-1/2 -translate-y-1/2" style={{ opacity: 0.5 }}>
+          <div className="bg-black/50 backdrop-blur-sm border border-white/20 rounded-full p-3 flex flex-col items-center gap-2">
+            <Button
+              size="icon"
+              variant="ghost"
+              onClick={() => setZoom(Math.min(5, zoom + 0.5))}
+              disabled={zoom >= 5}
+              className="text-white hover:bg-white/20 h-8 w-8"
+            >
+              <ZoomIn className="h-4 w-4" />
+            </Button>
+            <div className="text-white text-xs font-mono">{zoom.toFixed(1)}x</div>
+            <Button
+              size="icon"
+              variant="ghost"
+              onClick={() => setZoom(Math.max(1, zoom - 0.5))}
+              disabled={zoom <= 1}
+              className="text-white hover:bg-white/20 h-8 w-8"
+            >
+              <ZoomOut className="h-4 w-4" />
+            </Button>
+          </div>
+        </div>
+
+        {/* Torch Toggle (Left Bottom) */}
+        <Button
+          size="icon"
+          onClick={toggleTorch}
+          className={cn(
+            'absolute left-6 bottom-32 h-14 w-14 rounded-full',
+            torchEnabled ? 'bg-yellow-500/80 border-yellow-300' : 'bg-black/60 border-white/20',
+            'border-2 text-white'
+          )}
+          style={{ opacity: 0.5 }}
+        >
+          <Flashlight className="h-6 w-6" />
+        </Button>
+
+        {/* Capture Button (Center Bottom) */}
+        <Button
+          onClick={captureAndProcess}
+          disabled={!cameraReady || !selectedZone}
+          className="absolute bottom-10 left-1/2 -translate-x-1/2 h-24 w-24 rounded-full bg-white border-8 border-green-500 hover:bg-gray-100 disabled:opacity-50"
+          style={{ boxShadow: '0 0 40px rgba(255,255,255,0.8)' }}
+        >
+          {processingCount > 0 && (
+            <Badge className="absolute -top-2 -right-2 h-8 w-8 rounded-full bg-blue-500 text-white flex items-center justify-center">
+              {processingCount}
+            </Badge>
+          )}
+          <Camera className="h-12 w-12 text-green-600" />
+        </Button>
 
         {/* Guide Frame */}
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-          <div className="w-80 h-20 border-4 border-green-500 rounded-lg" />
-        </div>
-      </div>
-
-      {/* Bottom Controls */}
-      <div className="absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-black/80 to-transparent">
-        <div className="flex items-center justify-between mb-4">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setZoom(Math.max(1, zoom - 0.5))}
-            className="text-white hover:bg-white/20"
-            disabled={zoom <= 1}
-          >
-            <ZoomOut className="h-6 w-6" />
-          </Button>
-
-          <Button
-            onClick={captureAndScan}
-            disabled={isProcessing || !selectedZone}
-            className="h-20 w-20 rounded-full bg-green-600 hover:bg-green-700"
-            size="lg"
-          >
-            {isProcessing ? (
-              <Loader2 className="h-8 w-8 animate-spin" />
-            ) : (
-              <Camera className="h-8 w-8" />
-            )}
-          </Button>
-
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setZoom(Math.min(3, zoom + 0.5))}
-            className="text-white hover:bg-white/20"
-            disabled={zoom >= 3}
-          >
-            <ZoomIn className="h-6 w-6" />
-          </Button>
-        </div>
-
-        <div className="flex justify-center gap-2">
-          <Badge variant="secondary" className="bg-white/20 text-white">
-            Zoom: {zoom}x
-          </Badge>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={switchCamera}
-            className="text-white hover:bg-white/20"
-          >
-            <RotateCcw className="h-4 w-4 mr-2" />
-            Switch Camera
-          </Button>
+          <div className="w-80 h-20 border-4 border-green-500 rounded-lg opacity-30" />
         </div>
       </div>
     </div>
