@@ -54,7 +54,7 @@ function App() {
       const currentPath = window.location.pathname;
       
       // Skip if already on a portal page
-      if (currentPath === '/field-officer' || currentPath === '/admin' || currentPath === '/portal-selection') {
+      if (currentPath.startsWith('/field-officer') || currentPath.startsWith('/admin') || currentPath === '/portal-selection') {
         return;
       }
 
@@ -124,8 +124,17 @@ function App() {
                 <Route path="/admin/dashboard" element={<AdminPortal onLogout={logout} />} />
                 <Route path="/admin/hotspots" element={<HotspotsMapPage />} />
                 <Route path="/admin/observations" element={<ObservationsPage />} />
+                <Route path="/admin/vehicles" element={<VehicleRegistryFiltered />} />
+                
+                {/* Temporary redirects until pages are built */}
+                <Route path="/admin/breaches" element={<Navigate to="/admin/observations" replace />} />
+                <Route path="/admin/enforcement" element={<Navigate to="/admin/observations" replace />} />
+                <Route path="/admin/officer-welfare" element={<Navigate to="/admin/dashboard" replace />} />
+                <Route path="/admin/zones" element={<Navigate to="/admin/dashboard" replace />} />
+                <Route path="/admin/users" element={<Navigate to="/admin/dashboard" replace />} />
+                
+                {/* Database/System Tools */}
                 <Route path="/admin/db-tools" element={<DatabaseToolsPage />} />
-                <Route path="/admin/vehicle-registry" element={<VehicleRegistryFiltered />} />
                 <Route path="/admin/alpr-diagnostic" element={<ALPRDiagnostic />} />
               </>
             )}
