@@ -67,7 +67,7 @@ interface Observation {
   officer_notes: string | null;
 }
 
-export function VehicleRegistryFiltered() {
+export default function VehicleRegistryFiltered() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
 

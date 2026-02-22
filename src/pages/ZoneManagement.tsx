@@ -39,6 +39,11 @@ import {
   CheckCircle2,
   Loader2,
   Settings,
+  BarChart3,
+  TrendingUp,
+  Eye,
+  AlertTriangle,
+  Car,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
@@ -62,7 +67,7 @@ interface Zone {
   organizations?: { name: string };
 }
 
-export function ZoneManagement() {
+export default function ZoneManagement() {
   const { user } = useAuthStore();
   const isMaster = user?.role === 'master';
 
@@ -94,6 +99,9 @@ export function ZoneManagement() {
   const [mapType, setMapType] = useState<'satellite' | 'street'>('satellite');
   const [drawingPoints, setDrawingPoints] = useState<any[]>([]);
   const [isAutoDetecting, setIsAutoDetecting] = useState(false);
+  const [showPerformanceMetrics, setShowPerformanceMetrics] = useState(false);
+  const [zoneMetrics, setZoneMetrics] = useState<any>(null);
+  const [loadingMetrics, setLoadingMetrics] = useState(false);
 
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<any>(null);
@@ -322,6 +330,56 @@ export function ZoneManagement() {
     } catch (error: any) {
       console.error('Failed to deactivate zone:', error);
       toast.error('Failed to deactivate zone');
+    }
+  };
+
+  const loadZoneMetrics = async (zone: Zone) => {
+    setLoadingMetrics(true);
+    setShowPerformanceMetrics(true);
+    try {
+      // Get observation count for this zone
+      const { count: observationCount } = await supabase
+        .from('observations')
+        .select('*', { count: 'exact', head: true })
+        .eq('zone_id', zone.id);
+
+      // Get breach count
+      const { count: breachCount } = await supabase
+        .from('breach_alerts')
+        .select('*', { count: 'exact', head: true })
+        .eq('zone_id', zone.id);
+
+      // Get unique vehicle count
+      const { data: uniqueVehicles } = await supabase
+        .from('observations')
+        .select('plate_number')
+        .eq('zone_id', zone.id);
+
+      const uniqueCount = new Set((uniqueVehicles || []).map(v => v.plate_number)).size;
+
+      // Get compliance rate
+      const { data: complianceData } = await supabase
+        .from('observations')
+        .select('is_compliant')
+        .eq('zone_id', zone.id);
+
+      const compliantCount = (complianceData || []).filter(o => o.is_compliant).length;
+      const complianceRate = complianceData && complianceData.length > 0
+        ? Math.round((compliantCount / complianceData.length) * 100)
+        : 0;
+
+      setZoneMetrics({
+        zone,
+        observationCount: observationCount || 0,
+        breachCount: breachCount || 0,
+        uniqueVehicles: uniqueCount,
+        complianceRate,
+      });
+    } catch (error: any) {
+      console.error('Failed to load zone metrics:', error);
+      toast.error('Failed to load zone metrics');
+    } finally {
+      setLoadingMetrics(false);
     }
   };
 
@@ -802,6 +860,13 @@ export function ZoneManagement() {
                     <Button
                       variant="outline"
                       size="sm"
+                      onClick={() => loadZoneMetrics(zone)}
+                    >
+                      <BarChart3 className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
                       onClick={() => handleEdit(zone)}
                     >
                       <Edit className="h-4 w-4" />
@@ -1091,6 +1156,115 @@ export function ZoneManagement() {
                   Save Zone
                 </>
               )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Zone Performance Metrics Dialog */}
+      <Dialog open={showPerformanceMetrics} onOpenChange={setShowPerformanceMetrics}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-3">
+              <BarChart3 className="h-6 w-6 text-blue-600" />
+              Zone Performance Metrics
+            </DialogTitle>
+            <DialogDescription>
+              {zoneMetrics?.zone.name}
+            </DialogDescription>
+          </DialogHeader>
+
+          {loadingMetrics ? (
+            <div className="text-center py-12">
+              <Loader2 className="h-12 w-12 animate-spin text-primary mx-auto" />
+            </div>
+          ) : zoneMetrics && (
+            <div className="space-y-6 py-4">
+              {/* Metrics Grid */}
+              <div className="grid grid-cols-2 gap-4">
+                <Card className="border-2">
+                  <CardContent className="p-6">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="text-sm text-muted-foreground">Total Observations</div>
+                      <Eye className="h-5 w-5 text-blue-500" />
+                    </div>
+                    <div className="text-4xl font-bold">{zoneMetrics.observationCount}</div>
+                  </CardContent>
+                </Card>
+
+                <Card className="border-2">
+                  <CardContent className="p-6">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="text-sm text-muted-foreground">Unique Vehicles</div>
+                      <Car className="h-5 w-5 text-purple-500" />
+                    </div>
+                    <div className="text-4xl font-bold">{zoneMetrics.uniqueVehicles}</div>
+                  </CardContent>
+                </Card>
+
+                <Card className="border-2">
+                  <CardContent className="p-6">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="text-sm text-muted-foreground">Breach Alerts</div>
+                      <AlertTriangle className="h-5 w-5 text-red-500" />
+                    </div>
+                    <div className="text-4xl font-bold text-red-600">{zoneMetrics.breachCount}</div>
+                  </CardContent>
+                </Card>
+
+                <Card className="border-2">
+                  <CardContent className="p-6">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="text-sm text-muted-foreground">Compliance Rate</div>
+                      <TrendingUp className="h-5 w-5 text-green-500" />
+                    </div>
+                    <div className="text-4xl font-bold text-green-600">{zoneMetrics.complianceRate}%</div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* Zone Details */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">Compliance Rules</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Self-Contained Required:</span>
+                      <span className="font-semibold">
+                        {zoneMetrics.zone.self_contained_required ? 'Yes' : 'No'}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Nights per Month:</span>
+                      <span className="font-semibold">{zoneMetrics.zone.nights_per_month}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Max Consecutive Nights:</span>
+                      <span className="font-semibold">{zoneMetrics.zone.max_consecutive_nights}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Day Visit Only:</span>
+                      <span className="font-semibold">
+                        {zoneMetrics.zone.day_visit_only ? 'Yes' : 'No'}
+                      </span>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button onClick={() => setShowPerformanceMetrics(false)} variant="outline">
+              Close
+            </Button>
+            <Button onClick={() => {
+              setShowPerformanceMetrics(false);
+              navigate('/admin/zone-performance');
+            }}>
+              View Detailed Report
             </Button>
           </DialogFooter>
         </DialogContent>
