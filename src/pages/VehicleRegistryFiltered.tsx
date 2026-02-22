@@ -36,6 +36,7 @@ import {
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
+import { useAuthStore } from '@/stores/authStore';
 import { AdminNavigationMenu } from '@/components/features/AdminNavigationMenu';
 
 interface VehicleRecord {
@@ -70,9 +71,9 @@ interface Observation {
 export default function VehicleRegistryFiltered() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
+  const { user } = useAuthStore();
 
   const plateFilter = searchParams.get('plate');
-  const { user } = useAuthStore();
 
   const [vehicles, setVehicles] = useState<VehicleRecord[]>([]);
   const [filteredVehicles, setFilteredVehicles] = useState<VehicleRecord[]>([]);
@@ -250,11 +251,12 @@ export default function VehicleRegistryFiltered() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800">
+      <AdminNavigationMenu />
+      <div className="container mx-auto p-6 space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div className="flex items-center gap-3">
-          <AdminNavigationMenu />
           <div>
             <h1 className="text-3xl font-bold flex items-center gap-3">
               <Car className="h-8 w-8 text-purple-600" />
@@ -712,6 +714,7 @@ export default function VehicleRegistryFiltered() {
           )}
         </DialogContent>
       </Dialog>
+      </div>
     </div>
   );
 }
