@@ -56,7 +56,8 @@ export function GlobalFilterRibbon({
   const [organizations, setOrganizations] = useState<{ id: string; name: string }[]>([]);
   const [zones, setZones] = useState<{ id: string; name: string }[]>([]);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [showCalendar, setShowCalendar] = useState(false);
+  const [showFromCalendar, setShowFromCalendar] = useState(false);
+  const [showToCalendar, setShowToCalendar] = useState(false);
 
   // Load organizations (for masters only)
   useEffect(() => {
@@ -122,14 +123,35 @@ export function GlobalFilterRibbon({
     }
   };
 
-  const handleDateRangeSelect = (range: { from: Date; to?: Date } | undefined) => {
-    if (!range?.from) return;
+  const handleFromDateSelect = (date: Date | undefined) => {
+    if (!date) return;
 
-    const from = range.from.toISOString().split('T')[0];
-    const to = range.to ? range.to.toISOString().split('T')[0] : from;
+    const newFrom = date.toISOString().split('T')[0];
+    
+    // If the new "from" date is after the current "to" date, update "to" to match
+    if (newFrom > dateTo) {
+      setDateRange(newFrom, newFrom, 'custom');
+      toast.info('"To" date adjusted to match "From" date');
+    } else {
+      setDateRange(newFrom, dateTo, 'custom');
+    }
+    
+    setShowFromCalendar(false);
+  };
 
-    setDateRange(from, to, 'custom');
-    setShowCalendar(false);
+  const handleToDateSelect = (date: Date | undefined) => {
+    if (!date) return;
+
+    const newTo = date.toISOString().split('T')[0];
+    
+    // Prevent "to" date from being before "from" date
+    if (newTo < dateFrom) {
+      toast.error('"To" date cannot be before "From" date');
+      return;
+    }
+    
+    setDateRange(dateFrom, newTo, 'custom');
+    setShowToCalendar(false);
   };
 
   return (
@@ -165,37 +187,60 @@ export function GlobalFilterRibbon({
             </Button>
           </div>
 
-          <Popover open={showCalendar} onOpenChange={setShowCalendar}>
-            <PopoverTrigger asChild>
-              <Button
-                variant="outline"
-                className={cn(
-                  "h-9 justify-start text-left font-normal",
-                  !dateFrom && "text-muted-foreground"
-                )}
-              >
-                <CalendarIcon className="mr-2 h-4 w-4" />
-                {dateFrom === dateTo ? (
-                  format(new Date(dateFrom), 'PPP')
-                ) : (
-                  <>
-                    {format(new Date(dateFrom), 'PP')} - {format(new Date(dateTo), 'PP')}
-                  </>
-                )}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-0" align="start">
-              <Calendar
-                mode="range"
-                selected={{
-                  from: new Date(dateFrom),
-                  to: new Date(dateTo),
-                }}
-                onSelect={handleDateRangeSelect}
-                numberOfMonths={2}
-              />
-            </PopoverContent>
-          </Popover>
+          {/* From Date Picker */}
+          <div className="flex items-center gap-1">
+            <span className="text-xs text-muted-foreground font-medium">From:</span>
+            <Popover open={showFromCalendar} onOpenChange={setShowFromCalendar}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  className={cn(
+                    "h-9 w-[140px] justify-start text-left font-normal",
+                    !dateFrom && "text-muted-foreground"
+                  )}
+                >
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {format(new Date(dateFrom), 'dd MMM yyyy')}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar
+                  mode="single"
+                  selected={new Date(dateFrom)}
+                  onSelect={handleFromDateSelect}
+                  initialFocus
+                />
+              </PopoverContent>
+            </Popover>
+          </div>
+
+          {/* To Date Picker */}
+          <div className="flex items-center gap-1">
+            <span className="text-xs text-muted-foreground font-medium">To:</span>
+            <Popover open={showToCalendar} onOpenChange={setShowToCalendar}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  className={cn(
+                    "h-9 w-[140px] justify-start text-left font-normal",
+                    !dateTo && "text-muted-foreground"
+                  )}
+                >
+                  <CalendarIcon className="mr-2 h-4 w-4" />
+                  {format(new Date(dateTo), 'dd MMM yyyy')}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <Calendar
+                  mode="single"
+                  selected={new Date(dateTo)}
+                  onSelect={handleToDateSelect}
+                  disabled={(date) => date < new Date(dateFrom)}
+                  initialFocus
+                />
+              </PopoverContent>
+            </Popover>
+          </div>
 
           <Button
             variant="outline"

@@ -58,7 +58,7 @@ export const useVehicleLookup = (plateNumber: string) => {
 
       // Get most recent observation for this vehicle
       const { data: recentObs, error: obsError } = await supabase
-        .from('vehicle_observations_v2')
+        .from('observations')
         .select(`
           *,
           zone:zones(*)

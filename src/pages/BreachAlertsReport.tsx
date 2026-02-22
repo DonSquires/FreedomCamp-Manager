@@ -9,6 +9,7 @@
  */
 
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -56,6 +57,7 @@ import {
   FileText,
   X,
   UserPlus,
+  Image as ImageIcon,
 } from 'lucide-react';
 import { useAuthStore } from '@/stores/authStore';
 import { useZones } from '@/hooks/useZones';
@@ -93,6 +95,7 @@ interface NewBreachForm {
 }
 
 export default function BreachAlertsReport() {
+  const navigate = useNavigate();
   const { user } = useAuthStore();
   const { data: zones = [] } = useZones();
   const { data: users = [] } = useUsers();
@@ -615,6 +618,7 @@ export default function BreachAlertsReport() {
               <Table>
                 <TableHeader>
                   <TableRow>
+                    <TableHead className="w-[120px]">Photo</TableHead>
                     <TableHead>Plate Number</TableHead>
                     <TableHead>Vehicle</TableHead>
                     <TableHead>Zone</TableHead>
@@ -627,12 +631,36 @@ export default function BreachAlertsReport() {
                 </TableHeader>
                 <TableBody>
                   {filteredAlerts.map((breach) => (
-                    <TableRow key={breach.id}>
-                      <TableCell>
-                        <div className="flex items-center gap-2 font-mono font-semibold">
+                    <TableRow 
+                      key={breach.id}
+                      className="cursor-pointer hover:bg-muted/50"
+                      onClick={() => navigate(`/admin/vehicles?plate=${breach.plate_number}`)}
+                    >
+                      <TableCell onClick={(e) => e.stopPropagation()}>
+                        {breach.observation_id ? (
+                          <img 
+                            src={`https://xbfnlzmpumthnjmtqufp.supabase.co/storage/v1/object/public/evidence/${breach.plate_number}`}
+                            alt="Evidence"
+                            className="w-24 h-16 object-cover rounded border"
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).style.display = 'none';
+                              (e.target as HTMLImageElement).parentElement!.innerHTML = '<div class="w-24 h-16 bg-muted rounded border flex items-center justify-center"><svg class="h-6 w-6 text-muted-foreground opacity-30" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg></div>';
+                            }}
+                          />
+                        ) : (
+                          <div className="w-24 h-16 bg-muted rounded border flex items-center justify-center">
+                            <ImageIcon className="h-6 w-6 text-muted-foreground opacity-30" />
+                          </div>
+                        )}
+                      </TableCell>
+                      <TableCell onClick={(e) => e.stopPropagation()}>
+                        <button
+                          onClick={() => navigate(`/admin/vehicles?plate=${breach.plate_number}`)}
+                          className="flex items-center gap-2 font-mono font-bold text-lg hover:text-blue-600 transition-colors"
+                        >
                           <Car className="h-4 w-4 text-muted-foreground" />
                           {breach.plate_number}
-                        </div>
+                        </button>
                       </TableCell>
                       <TableCell>
                         <div className="text-sm">
