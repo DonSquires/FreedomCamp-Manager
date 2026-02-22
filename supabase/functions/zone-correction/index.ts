@@ -99,10 +99,16 @@ serve(async (req) => {
 
     // Process each observation
     for (const obs of observations) {
+      // Validate GPS data before processing
+      if (!obs.gps_latitude || !obs.gps_longitude || typeof obs.gps_latitude !== 'number' || typeof obs.gps_longitude !== 'number') {
+        console.warn(`⚠️ Skipping observation ${obs.observation_id}: Invalid GPS data`);
+        continue;
+      }
+
       console.log(`\n📋 Processing observation ${obs.observation_id}:`);
       console.log(`   Plate: ${obs.plate_number}`);
       console.log(`   Current Zone: ${zoneNameMap.get(obs.zone_id) || 'Unknown'} (${obs.zone_id})`);
-      console.log(`   GPS: (${obs.gps_latitude.toFixed(6)}, ${obs.gps_longitude.toFixed(6)}) ±${obs.gps_accuracy}m`);
+      console.log(`   GPS: (${obs.gps_latitude.toFixed(6)}, ${obs.gps_longitude.toFixed(6)}) ±${obs.gps_accuracy || 0}m`);
       // Get current zone name
       let currentZoneName = zoneNameMap.get(obs.zone_id) || 'Unknown Zone';
       

@@ -46,8 +46,27 @@ export default function DatabaseToolsPage() {
   const handleRunComplianceRecalculation = async () => {
     setIsRunning(true);
     try {
+      // Get all zone IDs for full recalculation
+      const { data: allZones, error: zonesError } = await supabase
+        .from('zones')
+        .select('id')
+        .eq('is_active', true);
+
+      if (zonesError) throw zonesError;
+
+      const zoneIds = allZones?.map(z => z.id) || [];
+
+      if (zoneIds.length === 0) {
+        toast.error('No active zones found');
+        setIsRunning(false);
+        return;
+      }
+
       const { data, error } = await supabase.functions.invoke('recalculate-compliance-v2', {
-        body: { full_rebuild: true },
+        body: { 
+          zoneIds,
+          get_total: true 
+        },
       });
 
       if (error) {
