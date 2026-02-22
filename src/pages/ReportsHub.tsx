@@ -19,10 +19,10 @@ import {
   Download,
   Eye,
   Activity,
-  Clock,
   Briefcase,
   Search,
   FileBarChart,
+  Mail,
 } from 'lucide-react';
 import { AdminNavigationMenu } from '@/components/features/AdminNavigationMenu';
 
@@ -210,151 +210,153 @@ export default function ReportsHub() {
   };
 
   return (
-    <div className="space-y-6 p-6">
-      {/* Header */}
-      <div className="flex items-center gap-3">
-        <AdminNavigationMenu />
-        <div>
-          <h1 className="text-3xl font-bold flex items-center gap-3">
-            <FileBarChart className="h-8 w-8 text-primary" />
-            Reports & Analytics
-          </h1>
-          <p className="text-muted-foreground mt-1">
-            Access all system reports and analytics dashboards
-          </p>
-        </div>
-      </div>
-
-      {/* Quick Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card className="border-2">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between mb-2">
-              <div className="h-12 w-12 rounded-full bg-blue-500 flex items-center justify-center">
-                <Activity className="h-6 w-6 text-white" />
-              </div>
-              <Badge variant="secondary">{getReportsByCategory('operations').length}</Badge>
-            </div>
-            <div className="text-sm text-muted-foreground">Operations Reports</div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-2">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between mb-2">
-              <div className="h-12 w-12 rounded-full bg-green-500 flex items-center justify-center">
-                <Shield className="h-6 w-6 text-white" />
-              </div>
-              <Badge variant="secondary">{getReportsByCategory('compliance').length}</Badge>
-            </div>
-            <div className="text-sm text-muted-foreground">Compliance Reports</div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-2">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between mb-2">
-              <div className="h-12 w-12 rounded-full bg-purple-500 flex items-center justify-center">
-                <TrendingUp className="h-6 w-6 text-white" />
-              </div>
-              <Badge variant="secondary">{getReportsByCategory('analytics').length}</Badge>
-            </div>
-            <div className="text-sm text-muted-foreground">Analytics Reports</div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-2">
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between mb-2">
-              <div className="h-12 w-12 rounded-full bg-amber-500 flex items-center justify-center">
-                <FileBarChart className="h-6 w-6 text-white" />
-              </div>
-              <Badge variant="secondary">{getReportsByCategory('admin').length}</Badge>
-            </div>
-            <div className="text-sm text-muted-foreground">Admin Reports</div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Report Categories */}
-      <div className="space-y-8">
-        {categories.map((category) => {
-          const Icon = category.icon;
-          const categoryReports = getReportsByCategory(category.id);
-
-          return (
-            <div key={category.id}>
-              <div className="flex items-center gap-3 mb-4">
-                <div className={`h-10 w-10 rounded-full flex items-center justify-center ${getCategoryColor(category.color)}`}>
-                  <Icon className={`h-5 w-5 ${getIconColor(category.color)}`} />
-                </div>
-                <div>
-                  <h2 className="text-xl font-bold">{category.name}</h2>
-                  <p className="text-sm text-muted-foreground">{category.description}</p>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {categoryReports.map((report) => {
-                  const ReportIcon = report.icon;
-
-                  return (
-                    <Card
-                      key={report.id}
-                      className="cursor-pointer hover:shadow-lg transition-all border-2 hover:border-primary"
-                      onClick={() => navigate(report.path)}
-                    >
-                      <CardHeader>
-                        <div className="flex items-start justify-between">
-                          <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center mb-3">
-                            <ReportIcon className="h-6 w-6 text-primary" />
-                          </div>
-                          {report.badge && (
-                            <Badge variant="secondary" className="text-xs">
-                              {report.badge}
-                            </Badge>
-                          )}
-                        </div>
-                        <CardTitle className="text-lg">{report.title}</CardTitle>
-                        <CardDescription className="text-sm">
-                          {report.description}
-                        </CardDescription>
-                      </CardHeader>
-                      <CardContent>
-                        <Button variant="outline" className="w-full" size="sm">
-                          <Eye className="h-4 w-4 mr-2" />
-                          Open Report
-                        </Button>
-                      </CardContent>
-                    </Card>
-                  );
-                })}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Footer Help */}
-      <Card className="border-2 border-dashed">
-        <CardContent className="p-6">
-          <div className="flex items-start gap-4">
-            <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center shrink-0">
-              <FileText className="h-6 w-6 text-muted-foreground" />
-            </div>
-            <div>
-              <h3 className="font-semibold mb-1">Need a custom report?</h3>
-              <p className="text-sm text-muted-foreground mb-3">
-                Contact your system administrator to request new reports or custom analytics dashboards tailored to your organization's needs.
-              </p>
-              <Button variant="outline" size="sm">
-                <Mail className="h-4 w-4 mr-2" />
-                Request Custom Report
-              </Button>
-            </div>
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800">
+      <AdminNavigationMenu />
+      <div className="container mx-auto p-6 space-y-6">
+        {/* Header */}
+        <div className="flex items-center gap-3">
+          <div>
+            <h1 className="text-3xl font-bold flex items-center gap-3">
+              <FileBarChart className="h-8 w-8 text-primary" />
+              Reports & Analytics
+            </h1>
+            <p className="text-muted-foreground mt-1">
+              Access all system reports and analytics dashboards
+            </p>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+
+        {/* Quick Stats */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <Card className="border-2">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between mb-2">
+                <div className="h-12 w-12 rounded-full bg-blue-500 flex items-center justify-center">
+                  <Activity className="h-6 w-6 text-white" />
+                </div>
+                <Badge variant="secondary">{getReportsByCategory('operations').length}</Badge>
+              </div>
+              <div className="text-sm text-muted-foreground">Operations Reports</div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-2">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between mb-2">
+                <div className="h-12 w-12 rounded-full bg-green-500 flex items-center justify-center">
+                  <Shield className="h-6 w-6 text-white" />
+                </div>
+                <Badge variant="secondary">{getReportsByCategory('compliance').length}</Badge>
+              </div>
+              <div className="text-sm text-muted-foreground">Compliance Reports</div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-2">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between mb-2">
+                <div className="h-12 w-12 rounded-full bg-purple-500 flex items-center justify-center">
+                  <TrendingUp className="h-6 w-6 text-white" />
+                </div>
+                <Badge variant="secondary">{getReportsByCategory('analytics').length}</Badge>
+              </div>
+              <div className="text-sm text-muted-foreground">Analytics Reports</div>
+            </CardContent>
+          </Card>
+
+          <Card className="border-2">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between mb-2">
+                <div className="h-12 w-12 rounded-full bg-amber-500 flex items-center justify-center">
+                  <FileBarChart className="h-6 w-6 text-white" />
+                </div>
+                <Badge variant="secondary">{getReportsByCategory('admin').length}</Badge>
+              </div>
+              <div className="text-sm text-muted-foreground">Admin Reports</div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Report Categories */}
+        <div className="space-y-8">
+          {categories.map((category) => {
+            const Icon = category.icon;
+            const categoryReports = getReportsByCategory(category.id);
+
+            return (
+              <div key={category.id}>
+                <div className="flex items-center gap-3 mb-4">
+                  <div className={`h-10 w-10 rounded-full flex items-center justify-center ${getCategoryColor(category.color)}`}>
+                    <Icon className={`h-5 w-5 ${getIconColor(category.color)}`} />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-bold">{category.name}</h2>
+                    <p className="text-sm text-muted-foreground">{category.description}</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {categoryReports.map((report) => {
+                    const ReportIcon = report.icon;
+
+                    return (
+                      <Card
+                        key={report.id}
+                        className="cursor-pointer hover:shadow-lg transition-all border-2 hover:border-primary"
+                        onClick={() => navigate(report.path)}
+                      >
+                        <CardHeader>
+                          <div className="flex items-start justify-between">
+                            <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center mb-3">
+                              <ReportIcon className="h-6 w-6 text-primary" />
+                            </div>
+                            {report.badge && (
+                              <Badge variant="secondary" className="text-xs">
+                                {report.badge}
+                              </Badge>
+                            )}
+                          </div>
+                          <CardTitle className="text-lg">{report.title}</CardTitle>
+                          <CardDescription className="text-sm">
+                            {report.description}
+                          </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                          <Button variant="outline" className="w-full" size="sm">
+                            <Eye className="h-4 w-4 mr-2" />
+                            Open Report
+                          </Button>
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Footer Help */}
+        <Card className="border-2 border-dashed">
+          <CardContent className="p-6">
+            <div className="flex items-start gap-4">
+              <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center shrink-0">
+                <FileText className="h-6 w-6 text-muted-foreground" />
+              </div>
+              <div>
+                <h3 className="font-semibold mb-1">Need a custom report?</h3>
+                <p className="text-sm text-muted-foreground mb-3">
+                  Contact your system administrator to request new reports or custom analytics dashboards tailored to your organization's needs.
+                </p>
+                <Button variant="outline" size="sm">
+                  <Mail className="h-4 w-4 mr-2" />
+                  Request Custom Report
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }

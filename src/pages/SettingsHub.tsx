@@ -28,7 +28,7 @@ import { UserManagement } from './UserManagement';
 import { useAuthStore } from '@/stores/authStore';
 import { toast } from 'sonner';
 
-export function SettingsHub() {
+export default function SettingsHub() {
   const { user } = useAuthStore();
   const [activeTab, setActiveTab] = useState('organizations');
   const isMaster = user?.role === 'master';
