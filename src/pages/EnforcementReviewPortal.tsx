@@ -60,6 +60,7 @@ import {
   ThumbsDown,
   Home,
   Flag,
+  X,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
@@ -696,45 +697,51 @@ export function EnforcementReviewPortal() {
                           {breach.status === 'pending' && (
                             <>
                               <Button
-                                onClick={() => handleReviewClick(breach, 'approve')}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleReviewClick(breach, 'approve');
+                                }}
                                 className="w-full bg-green-600 hover:bg-green-700 gap-2"
                               >
                                 <ThumbsUp className="h-4 w-4" />
-                                Approve
+                                Initiate Enforcement
                               </Button>
                               <Button
-                                onClick={() => handleReviewClick(breach, 'reject')}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleReviewClick(breach, 'reject');
+                                }}
                                 variant="outline"
-                                className="w-full gap-2"
+                                className="w-full gap-2 border-red-500 text-red-600 hover:bg-red-50"
                               >
-                                <ThumbsDown className="h-4 w-4" />
-                                Dismiss
+                                <X className="h-4 w-4" />
+                                Cancel & Close
                               </Button>
                             </>
                           )}
                           <Button
                             variant="outline"
                             size="sm"
-                            onClick={() => {
-                              setSelectedBreach(breach);
-                              setIsReviewDialogOpen(true);
-                              setReviewAction(null);
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              window.location.href = `/admin/vehicles?plate=${breach.plate_number}`;
                             }}
                             className="w-full gap-2"
                           >
-                            <Eye className="h-4 w-4" />
-                            View Details
+                            <FileText className="h-4 w-4" />
+                            View Full Record
                           </Button>
                           {breach.observation_gps_lat && breach.observation_gps_lng && (
                             <Button
                               variant="outline"
                               size="sm"
-                              onClick={() =>
+                              onClick={(e) => {
+                                e.stopPropagation();
                                 window.open(
                                   `https://www.google.com/maps?q=${breach.observation_gps_lat},${breach.observation_gps_lng}`,
                                   '_blank'
-                                )
-                              }
+                                );
+                              }}
                               className="w-full gap-2"
                             >
                               <MapPin className="h-4 w-4" />
@@ -759,15 +766,15 @@ export function EnforcementReviewPortal() {
             <DialogTitle className="flex items-center gap-2">
               <Shield className="h-5 w-5" />
               {reviewAction === 'approve'
-                ? 'Approve for Enforcement'
+                ? 'Initiate Enforcement Action'
                 : reviewAction === 'reject'
-                ? 'Dismiss Breach Alert'
+                ? 'Cancel & Close Breach'
                 : 'Breach Alert Details'}
             </DialogTitle>
             <DialogDescription>
-              {reviewAction === 'approve' && 'This breach will be approved for enforcement action.'}
-              {reviewAction === 'reject' && 'This breach will be dismissed and not pursued.'}
-              {!reviewAction && 'Review breach alert details and evidence.'}
+              {reviewAction === 'approve' && 'This will create an enforcement action and assign it for processing.'}
+              {reviewAction === 'reject' && 'This breach will be cancelled and closed. It will not be pursued further.'}
+              {!reviewAction && 'Review breach alert details, evidence, and canonical vehicle record.'}
             </DialogDescription>
           </DialogHeader>
 
@@ -849,7 +856,7 @@ export function EnforcementReviewPortal() {
 
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsReviewDialogOpen(false)}>
-              Cancel
+              Close
             </Button>
             {reviewAction && (
               <Button
@@ -864,11 +871,11 @@ export function EnforcementReviewPortal() {
                 {isSubmitting ? (
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                 ) : reviewAction === 'approve' ? (
-                  <CheckCircle2 className="h-4 w-4 mr-2" />
+                  <Shield className="h-4 w-4 mr-2" />
                 ) : (
-                  <XCircle className="h-4 w-4 mr-2" />
+                  <X className="h-4 w-4 mr-2" />
                 )}
-                {reviewAction === 'approve' ? 'Approve & Issue' : 'Dismiss'}
+                {reviewAction === 'approve' ? 'Initiate Enforcement Action' : 'Cancel & Close Breach'}
               </Button>
             )}
           </DialogFooter>

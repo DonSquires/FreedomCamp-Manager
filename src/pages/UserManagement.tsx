@@ -46,6 +46,7 @@ import {
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/stores/authStore';
 import { PermissionsEditor } from '@/components/features/PermissionsEditor';
+import { AdminNavigationMenu } from '@/components/features/AdminNavigationMenu';
 
 interface UserProfile {
   id: string;
@@ -73,7 +74,7 @@ interface Organization {
   parent_organization_id: string | null;
 }
 
-export function UserManagement() {
+export default function UserManagement() {
   const { user: currentUser } = useAuthStore();
   const isMaster = currentUser?.role === 'master';
   const isAdmin = currentUser?.role === 'admin' || currentUser?.role === 'master';
@@ -407,14 +408,17 @@ export function UserManagement() {
     <div className="space-y-6 pb-6">
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-4">
-        <div>
-          <h2 className="text-3xl font-bold mb-1 flex items-center gap-2">
-            <Users className="h-8 w-8" />
-            User Management
-          </h2>
-          <p className="text-muted-foreground">
-            Manage user accounts and permissions
-          </p>
+        <div className="flex items-center gap-3">
+          <AdminNavigationMenu />
+          <div>
+            <h2 className="text-3xl font-bold mb-1 flex items-center gap-2">
+              <Users className="h-8 w-8" />
+              User Management
+            </h2>
+            <p className="text-muted-foreground">
+              Manage user accounts and permissions
+            </p>
+          </div>
         </div>
         <div className="flex items-center gap-2">
           <Button onClick={loadData} variant="outline" disabled={isLoading}>
