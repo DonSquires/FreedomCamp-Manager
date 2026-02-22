@@ -25,17 +25,20 @@ import { corsHeaders } from "../_shared/cors.ts";
 const USE_ONSPACE_AI = true;
 // ============================================================================
 
-const ALLOWED_ORIGINS = new Set([
-  "https://preview-react-vite-vite-typescript-fvdypijc-d.onspace.build",
-  "https://react-9b4t5o.onspace.build", // ✅ Production Onspace UI
+const ALLOWED_LOCALHOST_ORIGINS = new Set([
   "http://localhost:5173",
   "http://localhost:3000",
 ]);
 
 function getCorsHeaders(req: Request) {
   const origin = req.headers.get("origin") ?? "";
+  
+  // Allow all OnSpace domains (production + preview URLs)
+  const isOnspaceDomain = origin.endsWith('.onspace.build');
+  const isAllowed = ALLOWED_LOCALHOST_ORIGINS.has(origin) || isOnspaceDomain;
+  
   return {
-    ...(ALLOWED_ORIGINS.has(origin) ? { "Access-Control-Allow-Origin": origin } : {}),
+    ...(isAllowed ? { "Access-Control-Allow-Origin": origin } : {}),
     "Vary": "Origin",
     "Access-Control-Allow-Methods": "POST, OPTIONS",
     "Access-Control-Allow-Headers": "authorization, apikey, x-client-info, content-type",
