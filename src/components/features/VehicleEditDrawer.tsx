@@ -136,7 +136,7 @@ export function VehicleEditDrawer({
 
     try {
       const { error: observationError } = await supabase
-        .from('vehicle_observations_v2')
+        .from('observations')
         .update({
           zone_id: selectedZoneId,
           officer_notes: additionalNotes || null,

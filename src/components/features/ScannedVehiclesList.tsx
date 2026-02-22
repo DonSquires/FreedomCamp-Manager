@@ -213,9 +213,9 @@ export function ScannedVehiclesList({
       }
       
       const { error } = await supabase
-        .from('vehicle_observations_v2')
+        .from('observations')
         .delete()
-        .eq('observation_id', observationId);
+        .eq('id', observationId);
       
       if (error) throw error;
       

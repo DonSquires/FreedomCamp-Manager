@@ -46,6 +46,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { FunctionsHttpError } from '@supabase/supabase-js';
 
 interface DriftEvent {
   id: string;
@@ -206,7 +207,7 @@ export function DriftDashboard() {
   // Re-run recalculation mutation
   const rerunMutation = useMutation({
     mutationFn: async (event: DriftEvent) => {
-      const { data, error } = await supabase.functions.invoke('recalculate-compliance', {
+      const { data, error } = await supabase.functions.invoke('recalculate-compliance-v2', {
         body: {
           scope: 'ZONE',
           zoneIds: [event.zone_id],
@@ -216,7 +217,20 @@ export function DriftDashboard() {
         },
       });
 
-      if (error) throw error;
+      if (error) {
+        // Extract actual error message from Edge Function
+        let errorMessage = error.message;
+        if (error instanceof FunctionsHttpError) {
+          try {
+            const statusCode = error.context?.status ?? 500;
+            const textContent = await error.context?.text();
+            errorMessage = `[Code: ${statusCode}] ${textContent || error.message || 'Unknown error'}`;
+          } catch {
+            errorMessage = error.message || 'Failed to read response';
+          }
+        }
+        throw new Error(errorMessage);
+      }
       return data;
     },
     onSuccess: () => {

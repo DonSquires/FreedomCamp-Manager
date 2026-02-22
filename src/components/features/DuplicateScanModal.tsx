@@ -57,7 +57,7 @@ export function DuplicateScanModal({
     try {
       // Delete the just-created observation
       const { error: deleteError } = await supabase
-        .from('vehicle_observations_v2')
+        .from('observations')
         .delete()
         .eq('observation_id', observationId);
 

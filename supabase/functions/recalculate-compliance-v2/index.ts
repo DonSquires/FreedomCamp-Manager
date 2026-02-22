@@ -46,10 +46,10 @@ Deno.serve(async (req) => {
       throw new Error('zoneIds required');
     }
 
-    // Build query on vehicle_observations_v2
+    // Build query on observations table
     let query = supabaseAdmin
-      .from('vehicle_observations_v2')
-      .select('observation_id, plate_number, zone_id, organization_id, recorded_at', { count: 'exact' });
+      .from('observations')
+      .select('id, plate_number, zone_id, organization_id, recorded_at', { count: 'exact' });
 
     // Filter by zones
     query = query.in('zone_id', zoneIds);
@@ -123,6 +123,7 @@ Deno.serve(async (req) => {
     for (const obs of observations) {
       try {
         const plateNumber = obs.plate_number;
+        const observationId = obs.id; // Use 'id' as primary key
         if (!plateNumber) {
           processed++;
           continue;
@@ -197,12 +198,12 @@ Deno.serve(async (req) => {
         const { data: currentResult } = await supabaseAdmin
           .from('compliance_results')
           .select('is_compliant')
-          .eq('observation_id', obs.observation_id)
+          .eq('observation_id', observationId)
           .maybeSingle();
 
         // Save compliance result
         await supabaseAdmin.from('compliance_results').upsert({
-          observation_id: obs.observation_id,
+          observation_id: observationId,
           vehicle_id: null,
           zone_id: obs.zone_id,
           organization_id: obs.organization_id,
@@ -230,14 +231,14 @@ Deno.serve(async (req) => {
           const { data: existingBreach } = await supabaseAdmin
             .from('breach_alerts')
             .select('id')
-            .eq('observation_id', obs.observation_id)
+            .eq('observation_id', observationId)
             .maybeSingle();
 
           if (!existingBreach) {
             await supabaseAdmin.from('breach_alerts').insert({
               organization_id: obs.organization_id,
               zone_id: obs.zone_id,
-              observation_id: obs.observation_id,
+              observation_id: observationId,
               breach_type: compliance.violation_type || 'compliance_violation',
               breach_details: {
                 violation_message: compliance.violation_message,
@@ -255,7 +256,7 @@ Deno.serve(async (req) => {
         processed++;
 
       } catch (error: any) {
-        console.error(`❌ Error processing ${obs.observation_id}:`, error.message);
+        console.error(`❌ Error processing observation ${obs.id}:`, error.message);
         processed++;
       }
     }
