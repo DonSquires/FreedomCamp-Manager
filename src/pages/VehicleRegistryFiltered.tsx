@@ -71,9 +71,8 @@ export function VehicleRegistryFiltered() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
 
-  const dateFrom = searchParams.get('dateFrom') || new Date().toISOString().split('T')[0];
-  const dateTo = searchParams.get('dateTo') || new Date().toISOString().split('T')[0];
-  const orgId = searchParams.get('orgId');
+  const plateFilter = searchParams.get('plate');
+  const { user } = useAuthStore();
 
   const [vehicles, setVehicles] = useState<VehicleRecord[]>([]);
   const [filteredVehicles, setFilteredVehicles] = useState<VehicleRecord[]>([]);
@@ -93,7 +92,17 @@ export function VehicleRegistryFiltered() {
 
   useEffect(() => {
     loadVehicles();
-  }, [dateFrom, dateTo, orgId]);
+  }, [user?.organization_id]);
+
+  // Auto-focus on specific plate if provided in URL
+  useEffect(() => {
+    if (plateFilter && vehicles.length > 0) {
+      const vehicle = vehicles.find(v => v.plate_number === plateFilter);
+      if (vehicle) {
+        handleVehicleClick(vehicle);
+      }
+    }
+  }, [plateFilter, vehicles]);
 
   useEffect(() => {
     if (searchTerm.trim() === '') {
@@ -114,41 +123,41 @@ export function VehicleRegistryFiltered() {
   const loadVehicles = async () => {
     setIsLoading(true);
     try {
-      console.log('📊 Loading vehicles for date range:', dateFrom, 'to', dateTo);
+      console.log('📊 Loading canonical vehicles...');
 
-      // Get all vehicles that were seen during the date range
-      let obsQuery = supabase
-        .from('vehicle_observations_v2')
-        .select('plate_number')
-        .gte('recorded_at', `${dateFrom}T00:00:00`)
-        .lte('recorded_at', `${dateTo}T23:59:59`);
-
-      if (orgId && orgId !== 'all') {
-        obsQuery = obsQuery.eq('organization_id', orgId);
-      }
-
-      const { data: observations } = await obsQuery;
-      const uniquePlates = Array.from(new Set(observations?.map(o => o.plate_number) || []));
-
-      if (uniquePlates.length === 0) {
-        setVehicles([]);
-        setFilteredVehicles([]);
-        setIsLoading(false);
-        return;
-      }
-
-      // Get canonical vehicle records for those plates
-      const { data: vehicleData, error } = await supabase
+      // Get all canonical vehicles for the organization
+      let query = supabase
         .from('canonical_vehicles')
         .select('*')
-        .in('plate_number', uniquePlates)
         .order('last_seen_at', { ascending: false });
+
+      // Filter by organization if not master
+      if (user?.role !== 'master' && user?.organization_id) {
+        // Get observation plate numbers for this org to filter vehicles
+        const { data: orgObs } = await supabase
+          .from('observations')
+          .select('plate_number')
+          .eq('organization_id', user.organization_id);
+
+        if (orgObs && orgObs.length > 0) {
+          const orgPlates = Array.from(new Set(orgObs.map(o => o.plate_number)));
+          query = query.in('plate_number', orgPlates);
+        } else {
+          // No observations for this org
+          setVehicles([]);
+          setFilteredVehicles([]);
+          setIsLoading(false);
+          return;
+        }
+      }
+
+      const { data: vehicleData, error } = await query;
 
       if (error) throw error;
 
       setVehicles(vehicleData || []);
       setFilteredVehicles(vehicleData || []);
-      console.log(`✅ Loaded ${vehicleData?.length || 0} vehicles`);
+      console.log(`✅ Loaded ${vehicleData?.length || 0} canonical vehicles`);
 
     } catch (error: any) {
       console.error('Failed to load vehicles:', error);
@@ -162,32 +171,31 @@ export function VehicleRegistryFiltered() {
     setLoadingObservations(true);
     try {
       const { data, error } = await supabase
-        .from('vehicle_observations_v2')
+        .from('observations')
         .select(`
-          observation_id,
+          id,
           recorded_at,
-          photo,
+          photo_url,
           is_compliant,
-          is_breach,
+          breach_type,
           officer_notes,
           zones(name),
-          user_profiles!recorded_by(first_name, last_name)
+          user_profiles!observations_recorded_by_fkey(first_name, last_name)
         `)
         .eq('plate_number', plateNumber)
-        .gte('recorded_at', `${dateFrom}T00:00:00`)
-        .lte('recorded_at', `${dateTo}T23:59:59`)
-        .order('recorded_at', { ascending: false });
+        .order('recorded_at', { ascending: false })
+        .limit(50);
 
       if (error) throw error;
 
       const observations: Observation[] = (data || []).map(o => ({
-        observation_id: o.observation_id,
+        observation_id: o.id,
         recorded_at: o.recorded_at,
         zone_name: (o.zones as any)?.name || 'Unknown',
         officer_name: `${(o.user_profiles as any)?.first_name || ''} ${(o.user_profiles as any)?.last_name || ''}`.trim() || 'Unknown',
-        photo: o.photo,
+        photo: o.photo_url,
         is_compliant: o.is_compliant,
-        is_breach: o.is_breach,
+        is_breach: !!o.breach_type,
         officer_notes: o.officer_notes,
       }));
 
@@ -247,17 +255,13 @@ export function VehicleRegistryFiltered() {
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div className="flex items-center gap-3">
           <AdminNavigationMenu />
-          <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
           <div>
             <h1 className="text-3xl font-bold flex items-center gap-3">
               <Car className="h-8 w-8 text-purple-600" />
-              Vehicle Registry
+              Vehicle Registry (Canonical)
             </h1>
-            <p className="text-muted-foreground mt-1 flex items-center gap-2">
-              <Calendar className="h-4 w-4" />
-              {new Date(dateFrom).toLocaleDateString('en-NZ')} - {new Date(dateTo).toLocaleDateString('en-NZ')}
+            <p className="text-muted-foreground mt-1">
+              All vehicles in the system with complete observation history
             </p>
           </div>
         </div>

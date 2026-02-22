@@ -24,6 +24,9 @@ import DatabaseToolsPage from '@/pages/DatabaseTools';
 import ObservationsPage from '@/pages/ObservationsPage';
 import { EnforcementReviewPortal } from '@/pages/EnforcementReviewPortal';
 import BreachAlertsReport from '@/pages/BreachAlertsReport';
+import EnforcementActions from '@/pages/EnforcementActions';
+import OfficerWelfareManagement from '@/pages/OfficerWelfareManagement';
+import ReportsHub from '@/pages/ReportsHub';
 import { FancyLoader } from '@/components/features/FancyLoader';
 import { Toaster } from '@/components/ui/sonner';
 import { toast } from 'sonner';
@@ -133,10 +136,12 @@ function App() {
                 
                 {/* Breach Alerts Page */}
                 <Route path="/admin/breaches" element={<BreachAlertsReport />} />
-                <Route path="/admin/enforcement" element={<Navigate to="/admin/enforcement-review" replace />} />
-                <Route path="/admin/officer-welfare" element={<Navigate to="/admin/dashboard" replace />} />
-                <Route path="/admin/zones" element={<Navigate to="/admin/dashboard" replace />} />
-                <Route path="/admin/users" element={<Navigate to="/admin/dashboard" replace />} />
+                
+                {/* Reports Hub */}
+                <Route path="/admin/reports" element={<ReportsHub />} />
+                {/* Full Pages - No longer redirects */}
+                <Route path="/admin/enforcement" element={<EnforcementActions />} />
+                <Route path="/admin/officer-welfare" element={<OfficerWelfareManagement />} />
                 
                 {/* Database/System Tools */}
                 <Route path="/admin/db-tools" element={<DatabaseToolsPage />} />

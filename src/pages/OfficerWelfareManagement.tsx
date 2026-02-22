@@ -1,98 +1,101 @@
 /**
- * Officer Welfare Settings Management
- * Admin interface to configure auto-logoff and welfare check parameters per officer
+ * Officer Welfare Management - Complete Welfare Monitoring System
+ * 
+ * Features:
+ * - Live officer tracking map
+ * - Active welfare alerts dashboard
+ * - Welfare settings configuration
+ * - Historical incident tracking
  */
 
 import { useState, useEffect } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import {
-  Shield,
   Heart,
-  Clock,
-  Users,
-  Loader2,
-  Save,
+  MapPin,
   AlertTriangle,
   Settings,
+  History,
+  RefreshCw,
+  Loader2,
+  Phone,
+  ExternalLink,
+  CheckCircle2,
+  Clock,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/stores/authStore';
+import { AdminNavigationMenu } from '@/components/features/AdminNavigationMenu';
 
-interface OfficerSettings {
-  user_id: string;
-  first_name: string;
-  last_name: string;
-  phone: string | null;
-  auto_logoff_enabled: boolean;
-  welfare_check_enabled: boolean;
-  inactivity_warning_time: number;
-  auto_logoff_time: number;
-  gps_inactivity_threshold: number;
-  admin_escalation_time: number;
-  critical_escalation_time: number;
-  investigation_exception_enabled: boolean;
-  gps_ping_interval: number;
+interface WelfareStats {
+  totalOfficers: number;
+  activeOfficers: number;
+  activeAlerts: number;
+  criticalAlerts: number;
 }
 
-export function OfficerWelfareManagement() {
-  const { user } = useAuthStore();
-  const isMaster = user?.role === 'master';
+interface WelfareAlert {
+  id: string;
+  officer_id: string;
+  officer_name: string;
+  officer_phone: string | null;
+  alert_type: string;
+  status: string;
+  escalation_level: number;
+  gps_latitude: number | null;
+  gps_longitude: number | null;
+  last_activity_at: string;
+  alert_sent_at: string;
+}
 
+export default function OfficerWelfareManagement() {
+  const { user } = useAuthStore();
+  const [activeTab, setActiveTab] = useState<'alerts' | 'live' | 'settings' | 'history'>('alerts');
   const [isLoading, setIsLoading] = useState(true);
-  const [isSaving, setIsSaving] = useState(false);
-  const [officers, setOfficers] = useState<OfficerSettings[]>([]);
-  const [selectedOfficer, setSelectedOfficer] = useState<OfficerSettings | null>(null);
-  const [organizations, setOrganizations] = useState<{ id: string; name: string }[]>([]);
-  const [selectedOrg, setSelectedOrg] = useState<string>('all');
+  const [stats, setStats] = useState<WelfareStats>({
+    totalOfficers: 0,
+    activeOfficers: 0,
+    activeAlerts: 0,
+    criticalAlerts: 0,
+  });
+  const [alerts, setAlerts] = useState<WelfareAlert[]>([]);
 
   useEffect(() => {
-    if (isMaster) {
-      loadOrganizations();
-    }
-    loadOfficers();
-  }, [isMaster, selectedOrg]);
+    loadData();
 
-  const loadOrganizations = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('organizations')
-        .select('id, name')
-        .eq('is_active', true)
-        .order('name');
+    // Auto-refresh every 30 seconds
+    const interval = setInterval(loadData, 30000);
 
-      if (error) throw error;
-      setOrganizations(data || []);
-    } catch (error: any) {
-      console.error('Failed to load organizations:', error);
-      toast.error('Failed to load organizations');
-    }
-  };
+    // Subscribe to real-time updates
+    const subscription = supabase
+      .channel('welfare_alerts_channel')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'officer_welfare_alerts' }, () => {
+        loadData();
+      })
+      .subscribe();
 
-  const loadOfficers = async () => {
+    return () => {
+      clearInterval(interval);
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  const loadData = async () => {
     setIsLoading(true);
     try {
-      // Step 1: Get officers
-      let officersQuery = supabase
-        .from('user_profiles')
-        .select('id, first_name, last_name, phone, organization_id')
-        .eq('role', 'officer')
-        .eq('is_active', true)
-        .order('first_name');
+      // Load active alerts
+      let query = supabase
+        .from('officer_welfare_alerts')
+        .select('*')
+        .eq('status', 'pending')
+        .order('escalation_level', { ascending: false })
+        .order('alert_sent_at', { ascending: true });
 
-      if (!isMaster) {
+      if (user?.role !== 'master') {
         const { data: profile } = await supabase
           .from('user_profiles')
           .select('organization_id')
@@ -100,454 +103,322 @@ export function OfficerWelfareManagement() {
           .single();
 
         if (profile?.organization_id) {
-          officersQuery = officersQuery.eq('organization_id', profile.organization_id);
+          query = query.eq('organization_id', profile.organization_id);
         }
-      } else if (selectedOrg !== 'all') {
-        officersQuery = officersQuery.eq('organization_id', selectedOrg);
       }
 
-      const { data: officersData, error: officersError } = await officersQuery;
-      if (officersError) throw officersError;
+      const { data, error } = await query;
 
-      if (!officersData || officersData.length === 0) {
-        setOfficers([]);
-        setIsLoading(false);
-        return;
-      }
+      if (error) throw error;
+      setAlerts(data || []);
 
-      // Step 2: Get welfare settings for all officers
-      const { data: settingsData, error: settingsError } = await supabase
-        .from('officer_welfare_settings')
-        .select('*')
-        .in('user_id', officersData.map(o => o.id));
+      // Calculate stats
+      const totalOfficers = new Set(data?.map((a) => a.officer_id)).size || 0;
+      const activeAlerts = data?.length || 0;
+      const criticalAlerts = data?.filter((a) => a.escalation_level >= 3).length || 0;
 
-      if (settingsError) throw settingsError;
-
-      // Step 3: Merge data
-      const formattedOfficers: OfficerSettings[] = officersData.map(officer => {
-        const settings = settingsData?.find(s => s.user_id === officer.id);
-        
-        return {
-          user_id: officer.id,
-          first_name: officer.first_name,
-          last_name: officer.last_name,
-          phone: officer.phone,
-          auto_logoff_enabled: settings?.auto_logoff_enabled ?? true,
-          welfare_check_enabled: settings?.welfare_check_enabled ?? true,
-          inactivity_warning_time: settings?.inactivity_warning_time ?? 10,
-          auto_logoff_time: settings?.auto_logoff_time ?? 20,
-          gps_inactivity_threshold: settings?.gps_inactivity_threshold ?? 10,
-          admin_escalation_time: settings?.admin_escalation_time ?? 5,
-          critical_escalation_time: settings?.critical_escalation_time ?? 5,
-          investigation_exception_enabled: settings?.investigation_exception_enabled ?? true,
-          gps_ping_interval: settings?.gps_ping_interval ?? 30,
-        };
+      setStats({
+        totalOfficers,
+        activeOfficers: totalOfficers,
+        activeAlerts,
+        criticalAlerts,
       });
-
-      setOfficers(formattedOfficers);
-      
-      if (formattedOfficers.length > 0 && !selectedOfficer) {
-        setSelectedOfficer(formattedOfficers[0]);
-      }
-
     } catch (error: any) {
-      console.error('Failed to load officers:', error);
-      toast.error('Failed to load officer settings');
+      console.error('Failed to load welfare data:', error);
+      toast.error('Failed to load welfare data');
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleSaveSettings = async () => {
-    if (!selectedOfficer) return;
+  const handleCallOfficer = (alert: WelfareAlert) => {
+    if (!alert.officer_phone) {
+      toast.error('Officer phone number not available');
+      return;
+    }
 
-    setIsSaving(true);
+    window.location.href = `tel:${alert.officer_phone}`;
+    toast.info(`Calling ${alert.officer_name}...`);
+  };
+
+  const handleOpenMaps = (alert: WelfareAlert) => {
+    if (!alert.gps_latitude || !alert.gps_longitude) {
+      toast.error('GPS location not available');
+      return;
+    }
+
+    const mapsUrl = `https://www.google.com/maps?q=${alert.gps_latitude},${alert.gps_longitude}`;
+    window.open(mapsUrl, '_blank');
+    toast.success(`Opening Google Maps for ${alert.officer_name}`);
+  };
+
+  const handleAcknowledge = async (alert: WelfareAlert) => {
     try {
       const { error } = await supabase
-        .from('officer_welfare_settings')
-        .upsert({
-          user_id: selectedOfficer.user_id,
-          organization_id: user?.organization_id,
-          auto_logoff_enabled: selectedOfficer.auto_logoff_enabled,
-          welfare_check_enabled: selectedOfficer.welfare_check_enabled,
-          inactivity_warning_time: selectedOfficer.inactivity_warning_time,
-          auto_logoff_time: selectedOfficer.auto_logoff_time,
-          gps_inactivity_threshold: selectedOfficer.gps_inactivity_threshold,
-          admin_escalation_time: selectedOfficer.admin_escalation_time,
-          critical_escalation_time: selectedOfficer.critical_escalation_time,
-          investigation_exception_enabled: selectedOfficer.investigation_exception_enabled,
-          gps_ping_interval: selectedOfficer.gps_ping_interval,
-        }, {
-          onConflict: 'user_id'
-        });
+        .from('officer_welfare_alerts')
+        .update({
+          status: 'acknowledged',
+          acknowledged_at: new Date().toISOString(),
+          acknowledged_by: user?.id,
+        })
+        .eq('id', alert.id);
 
       if (error) throw error;
 
-      toast.success('Welfare settings saved successfully');
-      
-      // Reload officers
-      await loadOfficers();
-
+      toast.success(`Welfare check acknowledged for ${alert.officer_name}`);
+      await loadData();
     } catch (error: any) {
-      console.error('Failed to save settings:', error);
-      toast.error('Failed to save settings: ' + error.message);
-    } finally {
-      setIsSaving(false);
+      console.error('Failed to acknowledge alert:', error);
+      toast.error('Failed to acknowledge alert');
     }
   };
 
+  const getAlertBadge = (level: number) => {
+    switch (level) {
+      case 1:
+        return (
+          <Badge variant="outline" className="bg-blue-50 dark:bg-blue-950 text-blue-700 border-blue-300">
+            Initial Check
+          </Badge>
+        );
+      case 2:
+        return <Badge className="bg-amber-500 text-white">High Priority</Badge>;
+      case 3:
+        return <Badge className="bg-red-600 text-white animate-pulse">CRITICAL</Badge>;
+      default:
+        return <Badge variant="outline">Unknown</Badge>;
+    }
+  };
+
+  const getTimeAgo = (timestamp: string) => {
+    const now = new Date();
+    const then = new Date(timestamp);
+    const diffMs = now.getTime() - then.getTime();
+    const diffMins = Math.floor(diffMs / (1000 * 60));
+
+    if (diffMins < 1) return 'Just now';
+    if (diffMins === 1) return '1 minute ago';
+    if (diffMins < 60) return `${diffMins} minutes ago`;
+
+    const diffHours = Math.floor(diffMins / 60);
+    if (diffHours === 1) return '1 hour ago';
+    return `${diffHours} hours ago`;
+  };
+
   return (
-    <div className="space-y-6 max-w-7xl mx-auto">
+    <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold flex items-center gap-2 text-gray-900 dark:text-white">
-          <Heart className="h-8 w-8 text-red-600" />
-          Officer Welfare Management
-        </h1>
-        <p className="text-gray-600 dark:text-gray-300 mt-1">
-          Configure auto-logoff and welfare check settings for field officers
-        </p>
+      <div className="flex items-center justify-between flex-wrap gap-4">
+        <div className="flex items-center gap-3">
+          <AdminNavigationMenu />
+          <div>
+            <h1 className="text-3xl font-bold flex items-center gap-3">
+              <Heart className="h-8 w-8 text-red-600" />
+              Officer Welfare Management
+            </h1>
+            <p className="text-muted-foreground mt-1">
+              Real-time monitoring, alerts, and safety management
+            </p>
+          </div>
+        </div>
+
+        <Button variant="outline" onClick={loadData} disabled={isLoading}>
+          {isLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <RefreshCw className="h-4 w-4 mr-2" />}
+          Refresh
+        </Button>
       </div>
 
-      {/* Organization Filter for Masters */}
-      {isMaster && (
-        <Card className="border-2 border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900">
-          <CardContent className="p-6">
-            <div className="flex items-center gap-4">
-              <Label className="text-base font-semibold min-w-[120px]">Organisation:</Label>
-              <Select value={selectedOrg} onValueChange={setSelectedOrg}>
-                <SelectTrigger className="w-full max-w-md">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Organisations</SelectItem>
-                  {organizations.map(org => (
-                    <SelectItem key={org.id} value={org.id}>
-                      {org.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+      {/* Summary Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <Card className="border-2 border-blue-200">
+          <CardContent className="p-6 text-center">
+            <div className="text-4xl font-black text-blue-600">{stats.totalOfficers}</div>
+            <div className="text-sm font-semibold text-muted-foreground mt-2">Officers Monitored</div>
           </CardContent>
         </Card>
-      )}
 
-      {isLoading ? (
-        <div className="flex items-center justify-center py-12">
-          <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
-        </div>
-      ) : (
-        <div className="grid gap-6 lg:grid-cols-3">
-          {/* Officer List */}
-          <Card className="lg:col-span-1 border-2 border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900">
-            <CardHeader className="bg-gray-100 dark:bg-gray-800 border-b-2 border-gray-300 dark:border-gray-600">
-              <CardTitle className="text-lg flex items-center gap-2">
-                <Users className="h-5 w-5" />
-                Officers ({officers.length})
-              </CardTitle>
+        <Card className="border-2 border-green-200">
+          <CardContent className="p-6 text-center">
+            <div className="text-4xl font-black text-green-600">{stats.activeOfficers}</div>
+            <div className="text-sm font-semibold text-muted-foreground mt-2">Active Now</div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-2 border-amber-200">
+          <CardContent className="p-6 text-center">
+            <div className="text-4xl font-black text-amber-600">{stats.activeAlerts}</div>
+            <div className="text-sm font-semibold text-muted-foreground mt-2">Active Alerts</div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-2 border-red-200">
+          <CardContent className="p-6 text-center">
+            <div className="text-4xl font-black text-red-600 animate-pulse">{stats.criticalAlerts}</div>
+            <div className="text-sm font-semibold text-muted-foreground mt-2">CRITICAL</div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Tabs */}
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)}>
+        <TabsList className="grid w-full grid-cols-4">
+          <TabsTrigger value="alerts" className="gap-2">
+            <AlertTriangle className="h-4 w-4" />
+            Active Alerts
+            {stats.activeAlerts > 0 && (
+              <Badge variant="destructive" className="ml-2 animate-pulse">
+                {stats.activeAlerts}
+              </Badge>
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="live" className="gap-2">
+            <MapPin className="h-4 w-4" />
+            Live Tracking
+          </TabsTrigger>
+          <TabsTrigger value="settings" className="gap-2">
+            <Settings className="h-4 w-4" />
+            Settings
+          </TabsTrigger>
+          <TabsTrigger value="history" className="gap-2">
+            <History className="h-4 w-4" />
+            History
+          </TabsTrigger>
+        </TabsList>
+
+        {/* Active Alerts Tab */}
+        <TabsContent value="alerts" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Active Welfare Checks</CardTitle>
+              <p className="text-sm text-muted-foreground mt-1">
+                Officers requiring immediate welfare check
+              </p>
             </CardHeader>
-            <CardContent className="p-4 space-y-2 max-h-[600px] overflow-y-auto">
-              {officers.map(officer => (
-                <button
-                  key={officer.user_id}
-                  onClick={() => setSelectedOfficer(officer)}
-                  className={`w-full p-3 rounded-lg border-2 text-left transition-colors ${
-                    selectedOfficer?.user_id === officer.user_id
-                      ? 'border-blue-500 bg-blue-100 dark:bg-blue-900/50'
-                      : 'border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 hover:border-blue-400 dark:hover:border-blue-500'
-                  }`}
-                >
-                  <div className="font-semibold text-gray-900 dark:text-white">
-                    {officer.first_name} {officer.last_name}
-                  </div>
-                  {officer.phone && (
-                    <div className="text-xs text-gray-600 dark:text-gray-300 mt-1">
-                      📞 {officer.phone}
+            <CardContent>
+              {isLoading ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+                </div>
+              ) : alerts.length === 0 ? (
+                <div className="text-center py-12 text-muted-foreground">
+                  <Heart className="h-16 w-16 mx-auto mb-4 opacity-20" />
+                  <p className="text-base">No active welfare checks</p>
+                  <p className="text-sm mt-2">All officers are reporting normally</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {alerts.map((alert) => (
+                    <div
+                      key={alert.id}
+                      className={`p-5 border-2 rounded-lg transition-colors ${
+                        alert.escalation_level === 3
+                          ? 'border-red-500 bg-red-100 dark:bg-red-900/50 animate-pulse'
+                          : alert.escalation_level === 2
+                          ? 'border-amber-500 bg-amber-100 dark:bg-amber-900/50'
+                          : 'border-blue-500 bg-blue-100 dark:bg-blue-900/50'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between mb-4">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-3 mb-2">
+                            {getAlertBadge(alert.escalation_level)}
+                            <h3 className="font-bold text-xl">{alert.officer_name}</h3>
+                          </div>
+                          {alert.officer_phone && <p className="text-sm text-muted-foreground">📞 {alert.officer_phone}</p>}
+                        </div>
+                        <div className="text-right text-sm text-muted-foreground">
+                          <div className="flex items-center gap-1">
+                            <Clock className="h-3 w-3" />
+                            {getTimeAgo(alert.alert_sent_at)}
+                          </div>
+                          {alert.last_activity_at && <div className="mt-1">Last activity: {getTimeAgo(alert.last_activity_at)}</div>}
+                        </div>
+                      </div>
+
+                      {/* GPS Location */}
+                      {alert.gps_latitude && alert.gps_longitude && (
+                        <div className="p-3 bg-white dark:bg-gray-900 rounded border mb-4">
+                          <div className="flex items-center gap-2 mb-2">
+                            <MapPin className="h-4 w-4 text-muted-foreground" />
+                            <span className="text-sm font-semibold">Last Known Location</span>
+                          </div>
+                          <div className="text-xs text-muted-foreground font-mono">
+                            {alert.gps_latitude.toFixed(6)}, {alert.gps_longitude.toFixed(6)}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Action Buttons */}
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <Button
+                          onClick={() => handleCallOfficer(alert)}
+                          disabled={!alert.officer_phone}
+                          className="bg-green-600 hover:bg-green-700 h-14"
+                        >
+                          <Phone className="h-5 w-5 mr-2" />
+                          Call Officer
+                        </Button>
+
+                        <Button
+                          onClick={() => handleOpenMaps(alert)}
+                          disabled={!alert.gps_latitude || !alert.gps_longitude}
+                          variant="outline"
+                          className="h-14 border-2"
+                        >
+                          <MapPin className="h-5 w-5 mr-2" />
+                          Open Maps
+                          <ExternalLink className="h-4 w-4 ml-2" />
+                        </Button>
+
+                        <Button onClick={() => handleAcknowledge(alert)} className="bg-blue-600 hover:bg-blue-700 h-14">
+                          <CheckCircle2 className="h-5 w-5 mr-2" />
+                          Acknowledge
+                        </Button>
+                      </div>
                     </div>
-                  )}
-                  <div className="flex gap-2 mt-2">
-                    {officer.auto_logoff_enabled && (
-                      <Badge variant="outline" className="text-xs bg-green-50 dark:bg-green-950">
-                        Auto-Logoff
-                      </Badge>
-                    )}
-                    {officer.welfare_check_enabled && (
-                      <Badge variant="outline" className="text-xs bg-blue-50 dark:bg-blue-950">
-                        Welfare Check
-                      </Badge>
-                    )}
-                  </div>
-                </button>
-              ))}
-              {officers.length === 0 && (
-                <div className="text-center py-8 text-gray-500 dark:text-gray-400">
-                  <Users className="h-12 w-12 mx-auto mb-3 opacity-20" />
-                  <p className="text-sm">No officers found</p>
+                  ))}
                 </div>
               )}
             </CardContent>
           </Card>
+        </TabsContent>
 
-          {/* Settings Panel */}
-          {selectedOfficer && (
-            <Card className="lg:col-span-2 border-2 border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900">
-              <CardHeader className="bg-gray-100 dark:bg-gray-800 border-b-2 border-gray-300 dark:border-gray-600">
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <Settings className="h-5 w-5" />
-                  Settings for {selectedOfficer.first_name} {selectedOfficer.last_name}
-                </CardTitle>
-                <CardDescription>
-                  Configure welfare monitoring and auto-logoff parameters
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="p-6 space-y-8">
-                {/* Auto-Logoff Settings */}
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between p-4 bg-amber-100 dark:bg-amber-900/50 rounded-lg border-2 border-amber-300 dark:border-amber-700">
-                    <div className="flex items-center gap-3">
-                      <Clock className="h-6 w-6 text-amber-600" />
-                      <div>
-                        <h3 className="font-semibold text-gray-900 dark:text-white">Auto-Logoff System</h3>
-                        <p className="text-sm text-gray-600 dark:text-gray-300">
-                          Automatic logout based on vehicle scan inactivity
-                        </p>
-                      </div>
-                    </div>
-                    <Switch
-                      checked={selectedOfficer.auto_logoff_enabled}
-                      onCheckedChange={(checked) =>
-                        setSelectedOfficer({ ...selectedOfficer, auto_logoff_enabled: checked })
-                      }
-                    />
-                  </div>
+        {/* Live Tracking Tab */}
+        <TabsContent value="live" className="space-y-4">
+          <Card>
+            <CardContent className="p-12 text-center text-muted-foreground">
+              <MapPin className="h-16 w-16 mx-auto mb-4 opacity-20" />
+              <p className="text-lg font-medium">Live Officer Tracking</p>
+              <p className="text-sm mt-2">This feature shows real-time officer GPS locations on an interactive map</p>
+              <p className="text-xs mt-4 text-muted-foreground">To be integrated from LiveOfficerTracking.tsx</p>
+            </CardContent>
+          </Card>
+        </TabsContent>
 
-                  {selectedOfficer.auto_logoff_enabled && (
-                    <div className="ml-8 space-y-4">
-                      <div>
-                        <Label htmlFor="warning_time">
-                          Inactivity Warning Time (minutes)
-                        </Label>
-                        <Input
-                          id="warning_time"
-                          type="number"
-                          min="1"
-                          max="60"
-                          value={selectedOfficer.inactivity_warning_time}
-                          onChange={(e) =>
-                            setSelectedOfficer({
-                              ...selectedOfficer,
-                              inactivity_warning_time: parseInt(e.target.value),
-                            })
-                          }
-                          className="mt-1 max-w-xs"
-                        />
-                        <p className="text-xs text-gray-600 dark:text-gray-300 mt-1">
-                          Send warning when no vehicle scans for this duration
-                        </p>
-                      </div>
+        {/* Settings Tab */}
+        <TabsContent value="settings" className="space-y-4">
+          <Card>
+            <CardContent className="p-12 text-center text-muted-foreground">
+              <Settings className="h-16 w-16 mx-auto mb-4 opacity-20" />
+              <p className="text-lg font-medium">Welfare Settings</p>
+              <p className="text-sm mt-2">Configure welfare check intervals, escalation thresholds, and notification preferences</p>
+              <p className="text-xs mt-4 text-muted-foreground">Settings configuration coming soon</p>
+            </CardContent>
+          </Card>
+        </TabsContent>
 
-                      <div>
-                        <Label htmlFor="logoff_time">
-                          Auto-Logoff Time (minutes)
-                        </Label>
-                        <Input
-                          id="logoff_time"
-                          type="number"
-                          min="1"
-                          max="120"
-                          value={selectedOfficer.auto_logoff_time}
-                          onChange={(e) =>
-                            setSelectedOfficer({
-                              ...selectedOfficer,
-                              auto_logoff_time: parseInt(e.target.value),
-                            })
-                          }
-                          className="mt-1 max-w-xs"
-                        />
-                        <p className="text-xs text-gray-600 dark:text-gray-300 mt-1">
-                          Automatically log off when no vehicle scans for this duration
-                        </p>
-                      </div>
-
-                      <div className="flex items-center gap-2 p-3 bg-blue-100 dark:bg-blue-900/50 rounded-lg border-2 border-blue-300 dark:border-blue-700">
-                        <Shield className="h-4 w-4 text-blue-600" />
-                        <div className="flex-1">
-                          <Label htmlFor="investigation_exception" className="text-sm font-medium">
-                            Skip if conducting investigation
-                          </Label>
-                        </div>
-                        <Switch
-                          id="investigation_exception"
-                          checked={selectedOfficer.investigation_exception_enabled}
-                          onCheckedChange={(checked) =>
-                            setSelectedOfficer({
-                              ...selectedOfficer,
-                              investigation_exception_enabled: checked,
-                            })
-                          }
-                        />
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Welfare Check Settings */}
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between p-4 bg-red-100 dark:bg-red-900/50 rounded-lg border-2 border-red-300 dark:border-red-700">
-                    <div className="flex items-center gap-3">
-                      <Heart className="h-6 w-6 text-red-600" />
-                      <div>
-                        <h3 className="font-semibold text-gray-900 dark:text-white">Welfare Check System</h3>
-                        <p className="text-sm text-gray-600 dark:text-gray-300">
-                          GPS-based inactivity monitoring and escalation
-                        </p>
-                      </div>
-                    </div>
-                    <Switch
-                      checked={selectedOfficer.welfare_check_enabled}
-                      onCheckedChange={(checked) =>
-                        setSelectedOfficer({ ...selectedOfficer, welfare_check_enabled: checked })
-                      }
-                    />
-                  </div>
-
-                  {selectedOfficer.welfare_check_enabled && (
-                    <div className="ml-8 space-y-4">
-                      <div>
-                        <Label htmlFor="gps_threshold">
-                          GPS Inactivity Threshold (minutes)
-                        </Label>
-                        <Input
-                          id="gps_threshold"
-                          type="number"
-                          min="1"
-                          max="60"
-                          value={selectedOfficer.gps_inactivity_threshold}
-                          onChange={(e) =>
-                            setSelectedOfficer({
-                              ...selectedOfficer,
-                              gps_inactivity_threshold: parseInt(e.target.value),
-                            })
-                          }
-                          className="mt-1 max-w-xs"
-                        />
-                        <p className="text-xs text-gray-600 dark:text-gray-300 mt-1">
-                          Initial welfare check when GPS hasn't moved for this duration
-                        </p>
-                      </div>
-
-                      <div>
-                        <Label htmlFor="admin_escalation">
-                          Admin Escalation Time (minutes)
-                        </Label>
-                        <Input
-                          id="admin_escalation"
-                          type="number"
-                          min="1"
-                          max="30"
-                          value={selectedOfficer.admin_escalation_time}
-                          onChange={(e) =>
-                            setSelectedOfficer({
-                              ...selectedOfficer,
-                              admin_escalation_time: parseInt(e.target.value),
-                            })
-                          }
-                          className="mt-1 max-w-xs"
-                        />
-                        <p className="text-xs text-gray-600 dark:text-gray-300 mt-1">
-                          Escalate to HIGH PRIORITY if no response after this duration
-                        </p>
-                      </div>
-
-                      <div>
-                        <Label htmlFor="critical_escalation">
-                          Critical Escalation Time (minutes)
-                        </Label>
-                        <Input
-                          id="critical_escalation"
-                          type="number"
-                          min="1"
-                          max="30"
-                          value={selectedOfficer.critical_escalation_time}
-                          onChange={(e) =>
-                            setSelectedOfficer({
-                              ...selectedOfficer,
-                              critical_escalation_time: parseInt(e.target.value),
-                            })
-                          }
-                          className="mt-1 max-w-xs"
-                        />
-                        <p className="text-xs text-gray-600 dark:text-gray-300 mt-1">
-                          Escalate to CRITICAL PRIORITY after additional duration
-                        </p>
-                      </div>
-
-                      <div>
-                        <Label htmlFor="gps_ping_interval">
-                          GPS Ping Interval (seconds)
-                        </Label>
-                        <Input
-                          id="gps_ping_interval"
-                          type="number"
-                          min="10"
-                          max="300"
-                          value={(selectedOfficer as any).gps_ping_interval || 30}
-                          onChange={(e) =>
-                            setSelectedOfficer({
-                              ...selectedOfficer,
-                              gps_ping_interval: parseInt(e.target.value),
-                            } as any)
-                          }
-                          className="mt-1 max-w-xs"
-                        />
-                        <p className="text-xs text-gray-600 dark:text-gray-300 mt-1">
-                          How often the officer's device sends GPS location updates (10-300 seconds)
-                        </p>
-                      </div>
-
-                      <div className="p-4 bg-amber-100 dark:bg-amber-900/50 rounded-lg border-2 border-amber-300 dark:border-amber-700">
-                        <div className="flex items-start gap-2">
-                          <AlertTriangle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
-                          <div className="text-sm text-gray-700 dark:text-gray-300">
-                            <p className="font-semibold mb-1">Escalation Timeline:</p>
-                            <ul className="space-y-1 list-disc list-inside">
-                              <li>@ {selectedOfficer.gps_inactivity_threshold}min: Initial welfare check sent to officer</li>
-                              <li>@ {selectedOfficer.gps_inactivity_threshold + selectedOfficer.admin_escalation_time}min: HIGH PRIORITY - Admin team notified</li>
-                              <li>@ {selectedOfficer.gps_inactivity_threshold + selectedOfficer.admin_escalation_time + selectedOfficer.critical_escalation_time}min: CRITICAL PRIORITY - Masters notified with GPS location</li>
-                            </ul>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                {/* Save Button */}
-                <div className="flex justify-end gap-3 pt-4 border-t">
-                  <Button
-                    onClick={handleSaveSettings}
-                    disabled={isSaving}
-                    className="bg-blue-600 hover:bg-blue-700 min-w-[200px]"
-                  >
-                    {isSaving ? (
-                      <>
-                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        Saving...
-                      </>
-                    ) : (
-                      <>
-                        <Save className="h-4 w-4 mr-2" />
-                        Save Settings
-                      </>
-                    )}
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-        </div>
-      )}
+        {/* History Tab */}
+        <TabsContent value="history" className="space-y-4">
+          <Card>
+            <CardContent className="p-12 text-center text-muted-foreground">
+              <History className="h-16 w-16 mx-auto mb-4 opacity-20" />
+              <p className="text-lg font-medium">Welfare Incident History</p>
+              <p className="text-sm mt-2">View past welfare alerts and their resolutions</p>
+              <p className="text-xs mt-4 text-muted-foreground">Historical data coming soon</p>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
