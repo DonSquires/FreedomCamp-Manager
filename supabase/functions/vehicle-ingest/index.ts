@@ -128,6 +128,9 @@ Deno.serve(async (req) => {
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
+    // Log all incoming request headers for debugging
+    console.log('📥 Incoming request headers:', Object.fromEntries(req.headers.entries()));
+
     // Parse request (JSON or multipart)
     let imageBytes: Uint8Array | null = null;
     let imageDataUrl: string | null = null;
@@ -149,9 +152,13 @@ Deno.serve(async (req) => {
     let clientRawCandidates: string[] | null = null;
 
     const contentType = req.headers.get("content-type") ?? "";
+    console.log('📋 Content-Type header:', contentType);
 
-    if (contentType.includes("application/json")) {
+    // Default to JSON if no content-type specified (Supabase client default)
+    if (!contentType || contentType.includes("application/json")) {
+      console.log('🔄 Parsing as JSON...');
       const body = await req.json();
+      console.log('✅ JSON parsed successfully, keys:', Object.keys(body));
       imageDataUrl = body.image ?? body.photo_base64 ?? body.photoDataUrl;
       gpsLatitude = body.gpsLatitude ?? body.gps_latitude ?? body.gps?.lat;
       gpsLongitude = body.gpsLongitude ?? body.gps_longitude ?? body.gps?.lng;
@@ -172,7 +179,9 @@ Deno.serve(async (req) => {
         clientRawCandidates = body.raw_candidates;
       }
     } else if (contentType.includes("multipart/form-data")) {
+      console.log('🔄 Parsing as FormData...');
       const formData = await req.formData();
+      console.log('✅ FormData parsed successfully');
       const photoFile = formData.get("photo") as File;
       if (photoFile) {
         const arrayBuffer = await photoFile.arrayBuffer();
@@ -196,10 +205,28 @@ Deno.serve(async (req) => {
         clientConfidence = confStr ? parseFloat(confStr) : null;
         clientRequiresManualEntry = (formData.get("requires_manual_entry") as string) === "true";
       }
+    } else {
+      // Unknown content type - log and return error
+      console.error('❌ Unsupported Content-Type:', contentType);
+      return new Response(
+        JSON.stringify({ 
+          error: `Unsupported Content-Type: ${contentType}. Expected application/json or multipart/form-data.`,
+          hint: 'Make sure you are calling this function via supabase.functions.invoke() with a body object',
+        }),
+        {
+          status: 400,
+          headers: { ...getCorsHeaders(req), "content-type": "application/json" },
+        }
+      );
     }
 
     // Validate required fields
     if (!imageBytes && !imageDataUrl) {
+      console.error('❌ Missing image data. Received:', {
+        hasImageBytes: !!imageBytes,
+        hasImageDataUrl: !!imageDataUrl,
+        imageDataUrlLength: imageDataUrl?.length,
+      });
       return new Response(JSON.stringify({ error: "Missing image data" }), {
         status: 400,
         headers: { ...getCorsHeaders(req), "content-type": "application/json" },
@@ -478,8 +505,28 @@ Deno.serve(async (req) => {
     );
   } catch (error: any) {
     console.error("❌ Vehicle ingest error:", error.message);
+    console.error("❌ Full error:", error);
+    
+    // Provide more helpful error message for JSON parsing failures
+    if (error.message?.includes('JSON')) {
+      return new Response(
+        JSON.stringify({ 
+          error: 'Failed to parse request body as JSON',
+          details: error.message,
+          hint: 'Ensure you are sending a valid JSON object with an "image" field containing a base64 data URL',
+        }),
+        {
+          status: 400,
+          headers: { ...getCorsHeaders(req), "content-type": "application/json" },
+        }
+      );
+    }
+    
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ 
+        error: error.message || 'Unknown error',
+        hint: 'Check Supabase Edge Function logs for details',
+      }),
       {
         status: 500,
         headers: { ...getCorsHeaders(req), "content-type": "application/json" },
