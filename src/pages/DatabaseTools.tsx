@@ -25,6 +25,7 @@ import { GlobalFilterRibbon } from '@/components/features/GlobalFilterRibbon';
 import { AdminNavigationMenu } from '@/components/features/AdminNavigationMenu';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
+import { FunctionsHttpError } from '@supabase/supabase-js';
 
 interface JobStatus {
   id: string;
@@ -48,7 +49,20 @@ export default function DatabaseToolsPage() {
         body: { full_rebuild: true },
       });
 
-      if (error) throw error;
+      if (error) {
+        // Extract actual error message from Edge Function
+        let errorMessage = error.message;
+        if (error instanceof FunctionsHttpError) {
+          try {
+            const statusCode = error.context?.status ?? 500;
+            const textContent = await error.context?.text();
+            errorMessage = `[Code: ${statusCode}] ${textContent || error.message || 'Unknown error'}`;
+          } catch {
+            errorMessage = error.message || 'Failed to read response';
+          }
+        }
+        throw new Error(errorMessage);
+      }
 
       toast.success('Compliance recalculation started');
       
@@ -75,7 +89,19 @@ export default function DatabaseToolsPage() {
         body: { mode: 'auto' },
       });
 
-      if (error) throw error;
+      if (error) {
+        let errorMessage = error.message;
+        if (error instanceof FunctionsHttpError) {
+          try {
+            const statusCode = error.context?.status ?? 500;
+            const textContent = await error.context?.text();
+            errorMessage = `[Code: ${statusCode}] ${textContent || error.message || 'Unknown error'}`;
+          } catch {
+            errorMessage = error.message || 'Failed to read response';
+          }
+        }
+        throw new Error(errorMessage);
+      }
 
       toast.success('Zone corrections started');
       
@@ -101,7 +127,19 @@ export default function DatabaseToolsPage() {
         body: {},
       });
 
-      if (error) throw error;
+      if (error) {
+        let errorMessage = error.message;
+        if (error instanceof FunctionsHttpError) {
+          try {
+            const statusCode = error.context?.status ?? 500;
+            const textContent = await error.context?.text();
+            errorMessage = `[Code: ${statusCode}] ${textContent || error.message || 'Unknown error'}`;
+          } catch {
+            errorMessage = error.message || 'Failed to read response';
+          }
+        }
+        throw new Error(errorMessage);
+      }
 
       toast.success('Data integrity check completed');
       
