@@ -6,6 +6,7 @@
  * - Enact enforcement action on any breach
  * - Filter by zone, date, status
  * - Export capabilities
+ * - Evidence trail for consecutive/overstay breaches
  */
 
 import { useState, useEffect } from 'react';
@@ -59,8 +60,8 @@ import {
   X,
   UserPlus,
   Image as ImageIcon,
+  User,
 } from 'lucide-react';
-import { useAuthStore } from '@/stores/authStore';
 import { useZones } from '@/hooks/useZones';
 import { useUsers } from '@/hooks/useUsers';
 import { supabase } from '@/lib/supabase';
@@ -84,6 +85,7 @@ interface BreachAlert {
   created_at: string;
   updated_at: string;
   observation_id: string | null;
+  photo_url: string | null;
   homeless_status: string | null;
   is_flagged: boolean;
   enforcement_assigned: boolean;
@@ -140,6 +142,11 @@ export default function BreachAlertsReport() {
   const [selectedVehicleDetails, setSelectedVehicleDetails] = useState<any>(null);
   const [loadingVehicleDetails, setLoadingVehicleDetails] = useState(false);
 
+  // Evidence trail modal
+  const [evidenceTrailOpen, setEvidenceTrailOpen] = useState(false);
+  const [evidenceTrailData, setEvidenceTrailData] = useState<any[]>([]);
+  const [loadingEvidenceTrail, setLoadingEvidenceTrail] = useState(false);
+
   useEffect(() => {
     loadBreachAlerts();
   }, []);
@@ -151,7 +158,6 @@ export default function BreachAlertsReport() {
   const loadBreachAlerts = async () => {
     setIsLoading(true);
     try {
-      // OPTIMIZED: Single query with all joins - no loops, no separate fetches
       let query = supabase
         .from('breach_alerts')
         .select(`
@@ -164,13 +170,10 @@ export default function BreachAlertsReport() {
           status,
           created_at,
           observation_id,
-          zones!inner(name),
-          observations(photo_url),
-          canonical_vehicles(vehicle_make, vehicle_model, vehicle_color, homeless_status, is_flagged)
+          zones(name)
         `)
         .order('created_at', { ascending: false });
 
-      // Filter by organization if not master
       if (user?.role !== 'master') {
         query = query.eq('organization_id', user?.organization_id || '');
       }
@@ -179,20 +182,46 @@ export default function BreachAlertsReport() {
 
       if (error) throw error;
 
-      // Map to expected format - all data already joined
-      const enrichedData = (data || []).map(breach => ({
-        ...breach,
-        zone_name: (breach.zones as any)?.name || 'Unknown',
-        vehicle_make: (breach.canonical_vehicles as any)?.vehicle_make || null,
-        vehicle_model: (breach.canonical_vehicles as any)?.vehicle_model || null,
-        vehicle_color: (breach.canonical_vehicles as any)?.vehicle_color || null,
-        homeless_status: (breach.canonical_vehicles as any)?.homeless_status || null,
-        is_flagged: (breach.canonical_vehicles as any)?.is_flagged || false,
-        enforcement_assigned: false, // Will be computed client-side if needed
-      }));
+      // Fetch vehicle data for all unique plates
+      const uniquePlates = [...new Set(data?.map(b => b.plate_number) || [])];
+      const { data: vehicleData } = await supabase
+        .from('canonical_vehicles')
+        .select('plate_number, make, model, colour, homeless_status, is_flagged')
+        .in('plate_number', uniquePlates);
+
+      const vehicleMap = new Map(
+        (vehicleData || []).map(v => [v.plate_number, v])
+      );
+
+      // Fetch observation photos for all observation IDs
+      const observationIds = data?.filter(b => b.observation_id).map(b => b.observation_id) || [];
+      const { data: observationData } = await supabase
+        .from('observations')
+        .select('id, photo_url')
+        .in('id', observationIds);
+
+      const observationMap = new Map(
+        (observationData || []).map(o => [o.id, o])
+      );
+
+      const enrichedData = (data || []).map(breach => {
+        const vehicle = vehicleMap.get(breach.plate_number);
+        const observation = breach.observation_id ? observationMap.get(breach.observation_id) : null;
+        return {
+          ...breach,
+          zone_name: (breach.zones as any)?.name || 'Unknown',
+          vehicle_make: vehicle?.make || null,
+          vehicle_model: vehicle?.model || null,
+          vehicle_color: vehicle?.colour || null,
+          homeless_status: vehicle?.homeless_status || null,
+          is_flagged: vehicle?.is_flagged || false,
+          photo_url: observation?.photo_url || null,
+          enforcement_assigned: false,
+        };
+      });
 
       setBreachAlerts(enrichedData);
-      console.log('✅ Loaded', enrichedData.length, 'breach alerts (optimized)');
+      console.log('✅ Loaded', enrichedData.length, 'breach alerts');
 
     } catch (error: any) {
       console.error('❌ Failed to load breach alerts:', error);
@@ -225,6 +254,48 @@ export default function BreachAlertsReport() {
     setFilteredAlerts(filtered);
   };
 
+  const loadEvidenceTrail = async (breach: BreachAlert) => {
+    setLoadingEvidenceTrail(true);
+    setEvidenceTrailOpen(true);
+    try {
+      let dateRangeStart = new Date();
+      if (breach.breach_type === 'consecutive_days' || breach.breach_type === 'overstay') {
+        dateRangeStart.setDate(dateRangeStart.getDate() - 7);
+      } else if (breach.breach_type === 'nights_exceeded') {
+        dateRangeStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+      }
+
+      const { data: observations, error: obsError } = await supabase
+        .from('observations')
+        .select(`
+          *,
+          user_profiles!observations_recorded_by_fkey(first_name, last_name),
+          zones(name)
+        `)
+        .eq('plate_number', breach.plate_number)
+        .eq('zone_id', breach.zone_id)
+        .gte('recorded_at', dateRangeStart.toISOString())
+        .order('recorded_at', { ascending: true });
+
+      if (obsError) throw obsError;
+
+      const enrichedObs = (observations || []).map((obs) => ({
+        ...obs,
+        officer_name: (obs.user_profiles as any)
+          ? `${(obs.user_profiles as any).first_name} ${(obs.user_profiles as any).last_name}`
+          : 'Unknown',
+        zone_name: (obs.zones as any)?.name || 'Unknown',
+      }));
+
+      setEvidenceTrailData(enrichedObs);
+    } catch (error: any) {
+      console.error('Failed to load evidence trail:', error);
+      toast.error('Failed to load evidence trail');
+    } finally {
+      setLoadingEvidenceTrail(false);
+    }
+  };
+
   const handleAddManualBreach = async () => {
     if (!newBreachForm.plate_number || !newBreachForm.zone_id) {
       toast.error('Please fill in all required fields');
@@ -232,7 +303,6 @@ export default function BreachAlertsReport() {
     }
 
     try {
-      // Get organization ID
       const orgId = user?.role === 'master' 
         ? zones.find(z => z.id === newBreachForm.zone_id)?.organization_id
         : user?.organization_id;
@@ -242,7 +312,6 @@ export default function BreachAlertsReport() {
         return;
       }
 
-      // Insert breach alert
       const { error } = await supabase
         .from('breach_alerts')
         .insert({
@@ -284,7 +353,6 @@ export default function BreachAlertsReport() {
     }
 
     try {
-      // Create enforcement action
       const { error } = await supabase
         .from('enforcement_actions')
         .insert({
@@ -304,7 +372,6 @@ export default function BreachAlertsReport() {
 
       if (error) throw error;
 
-      // Update breach alert status
       await supabase
         .from('breach_alerts')
         .update({ status: 'enforcing' })
@@ -397,14 +464,114 @@ export default function BreachAlertsReport() {
     );
   };
 
+  const formatBreachProof = (breachDetails: any, breachType: string) => {
+    if (!breachDetails) return 'No proof recorded';
+
+    const proofItems: string[] = [];
+
+    // Extract violation reasons if present
+    if (breachDetails.violation_reasons && Array.isArray(breachDetails.violation_reasons)) {
+      const reasons = breachDetails.violation_reasons.map((r: string) => {
+        if (r === 'not_self_contained') return 'Vehicle not self-contained';
+        if (r === 'nights_exceeded') return 'Monthly nights limit exceeded';
+        if (r === 'consecutive_exceeded') return 'Consecutive nights exceeded';
+        if (r === 'unauthorized_zone') return 'Unauthorized zone';
+        return r.replace(/_/g, ' ');
+      });
+      proofItems.push(...reasons);
+    }
+
+    if (breachType === 'nights_exceeded' || breachType === 'overstay') {
+      if (breachDetails.nights_stayed !== undefined) {
+        proofItems.push(`${breachDetails.nights_stayed} nights this month`);
+      }
+      if (breachDetails.max_nights !== undefined) {
+        proofItems.push(`Limit: ${breachDetails.max_nights} nights`);
+      }
+      if (breachDetails.consecutive_nights !== undefined) {
+        proofItems.push(`${breachDetails.consecutive_nights} consecutive`);
+      }
+    }
+
+    if (breachType === 'consecutive_days') {
+      if (breachDetails.consecutive_nights !== undefined) {
+        proofItems.push(`${breachDetails.consecutive_nights} consecutive nights`);
+      }
+      if (breachDetails.max_consecutive !== undefined) {
+        proofItems.push(`Limit: ${breachDetails.max_consecutive}`);
+      }
+    }
+
+    if (breachType === 'no_self_contained') {
+      if (breachDetails.required_sc !== undefined) {
+        proofItems.push(`Self-contained: ${breachDetails.required_sc ? 'Required' : 'Not required'}`);
+      }
+      if (breachDetails.has_sc !== undefined) {
+        proofItems.push(`Vehicle has SC: ${breachDetails.has_sc ? 'Yes' : 'No'}`);
+      }
+      // Default message for no_self_contained if no other data
+      if (proofItems.length === 0) {
+        proofItems.push('Zone requires self-contained certification');
+      }
+    }
+
+    // Add evaluation date in human-friendly format
+    if (breachDetails.evaluated_at) {
+      try {
+        const detectedDate = new Date(breachDetails.evaluated_at);
+        proofItems.push(`Evaluated: ${detectedDate.toLocaleDateString('en-NZ', {
+          day: 'numeric',
+          month: 'short',
+          year: 'numeric',
+          hour: '2-digit',
+          minute: '2-digit'
+        })}`);
+      } catch {}
+    }
+
+    if (breachDetails.rule_applied) {
+      proofItems.push(`Rule: ${breachDetails.rule_applied}`);
+    }
+
+    if (breachDetails.matrix_version) {
+      proofItems.push(`Policy Version: ${breachDetails.matrix_version}`);
+    }
+
+    if (breachDetails.notes) {
+      proofItems.push(`Notes: ${breachDetails.notes}`);
+    }
+
+    return proofItems.length > 0 ? proofItems.join(' • ') : 'Breach detected - details pending';
+  };
+
+  const loadVehicleDetails = async (plateNumber: string) => {
+    setLoadingVehicleDetails(true);
+    setVehicleDetailOpen(true);
+    try {
+      const { data, error } = await supabase
+        .from('canonical_vehicles')
+        .select('*')
+        .eq('plate_number', plateNumber)
+        .single();
+
+      if (error) throw error;
+      setSelectedVehicleDetails(data);
+    } catch (error: any) {
+      console.error('Failed to load vehicle details:', error);
+      toast.error('Failed to load vehicle details');
+    } finally {
+      setLoadingVehicleDetails(false);
+    }
+  };
+
   const isAdmin = user?.role === 'admin' || user?.role === 'master';
 
   return (
-    <div className="space-y-6">
-      {/* Header with Hamburger Menu */}
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800">
+      <AdminNavigationMenu />
+      <div className="container mx-auto p-6 space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div className="flex items-center gap-3">
-          <AdminNavigationMenu />
           <div>
             <h1 className="text-3xl font-bold flex items-center gap-3">
             <AlertTriangle className="h-8 w-8 text-red-600" />
@@ -434,7 +601,6 @@ export default function BreachAlertsReport() {
         </div>
       </div>
 
-      {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card>
           <CardContent className="p-6">
@@ -483,7 +649,6 @@ export default function BreachAlertsReport() {
         </Card>
       </div>
 
-      {/* Filters */}
       <Card>
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
@@ -579,7 +744,6 @@ export default function BreachAlertsReport() {
         </CardContent>
       </Card>
 
-      {/* Breach Alerts Table */}
       <Card>
         <CardHeader>
           <CardTitle>Breach Alerts ({filteredAlerts.length})</CardTitle>
@@ -610,6 +774,7 @@ export default function BreachAlertsReport() {
                     <TableHead>Vehicle</TableHead>
                     <TableHead>Zone</TableHead>
                     <TableHead>Breach Type</TableHead>
+                    <TableHead className="min-w-[300px]">Breach Proof</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Flags</TableHead>
                     <TableHead>Created</TableHead>
@@ -627,19 +792,21 @@ export default function BreachAlertsReport() {
                       }}
                     >
                       <TableCell onClick={(e) => e.stopPropagation()}>
-                        {breach.observation_id ? (
+                        {breach.photo_url ? (
                           <img
                             onClick={() => {
-                              const photoUrl = `https://xbfnlzmpumthnjmtqufp.supabase.co/storage/v1/object/public/evidence/${breach.plate_number}`;
-                              setCurrentPhoto(photoUrl);
+                              setCurrentPhoto(breach.photo_url!);
                               setPhotoViewerOpen(true);
                             }}
-                            src={`https://xbfnlzmpumthnjmtqufp.supabase.co/storage/v1/object/public/evidence/${breach.plate_number}`}
+                            src={breach.photo_url}
                             alt="Evidence"
-                            className="w-24 h-16 object-cover rounded border cursor-pointer"
+                            className="w-24 h-16 object-cover rounded border cursor-pointer hover:opacity-80 transition-opacity"
                             onError={(e) => {
                               (e.target as HTMLImageElement).style.display = 'none';
-                              (e.target as HTMLImageElement).parentElement!.innerHTML = '<div class="w-24 h-16 bg-muted rounded border flex items-center justify-center"><svg class="h-6 w-6 text-muted-foreground opacity-30" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg></div>';
+                              const parent = (e.target as HTMLImageElement).parentElement;
+                              if (parent) {
+                                parent.innerHTML = '<div class="w-24 h-16 bg-muted rounded border flex items-center justify-center"><svg class="h-6 w-6 text-muted-foreground opacity-30" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg></div>';
+                              }
                             }}
                           />
                         ) : (
@@ -680,6 +847,29 @@ export default function BreachAlertsReport() {
                         {getBreachTypeBadge(breach.breach_type)}
                       </TableCell>
                       <TableCell>
+                        <div className="space-y-2">
+                          <div className="text-xs text-muted-foreground">
+                            {formatBreachProof(breach.breach_details, breach.breach_type)}
+                          </div>
+                          {(breach.breach_type === 'consecutive_days' || 
+                            breach.breach_type === 'nights_exceeded' || 
+                            breach.breach_type === 'overstay') && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                loadEvidenceTrail(breach);
+                              }}
+                              className="h-7 text-xs gap-1"
+                            >
+                              <FileText className="h-3 w-3" />
+                              View Evidence Trail
+                            </Button>
+                          )}
+                        </div>
+                      </TableCell>
+                      <TableCell>
                         {getStatusBadge(breach.status)}
                       </TableCell>
                       <TableCell>
@@ -708,7 +898,8 @@ export default function BreachAlertsReport() {
                         {isAdmin && !breach.enforcement_assigned && breach.status !== 'resolved' && (
                           <Button
                             size="sm"
-                            onClick={() => {
+                            onClick={(e) => {
+                              e.stopPropagation();
                               setSelectedBreach(breach);
                               setIsEnforceDialogOpen(true);
                             }}
@@ -733,7 +924,204 @@ export default function BreachAlertsReport() {
         </CardContent>
       </Card>
 
-      {/* Add Manual Breach Dialog */}
+      {/* Evidence Trail Modal */}
+      <Dialog open={evidenceTrailOpen} onOpenChange={setEvidenceTrailOpen}>
+        <DialogContent className="max-w-6xl max-h-[90vh] overflow-hidden flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-3 text-xl">
+              <FileText className="h-6 w-6 text-blue-600" />
+              Evidence Trail - Complete Audit History
+            </DialogTitle>
+            <DialogDescription>
+              All observations that contributed to this breach violation
+            </DialogDescription>
+          </DialogHeader>
+
+          {loadingEvidenceTrail ? (
+            <div className="text-center py-12">
+              <Loader2 className="h-12 w-12 animate-spin text-primary mx-auto" />
+              <p className="text-muted-foreground mt-3">Loading evidence trail...</p>
+            </div>
+          ) : evidenceTrailData.length === 0 ? (
+            <div className="text-center py-12">
+              <FileText className="h-12 w-12 mx-auto mb-3 text-muted-foreground opacity-30" />
+              <p className="font-medium">No observations found</p>
+            </div>
+          ) : (
+            <div className="flex-1 overflow-y-auto space-y-4 pr-2">
+              <Card className="border-2 border-blue-500 bg-blue-50/50">
+                <CardContent className="p-4">
+                  <div className="grid grid-cols-4 gap-4 text-center">
+                    <div>
+                      <div className="text-2xl font-bold text-blue-600">{evidenceTrailData.length}</div>
+                      <div className="text-xs text-muted-foreground">Total Observations</div>
+                    </div>
+                    <div>
+                      <div className="text-2xl font-bold text-purple-600">
+                        {evidenceTrailData.filter(o => o.is_compliant === false).length}
+                      </div>
+                      <div className="text-xs text-muted-foreground">Non-Compliant</div>
+                    </div>
+                    <div>
+                      <div className="text-2xl font-bold text-green-600">
+                        {evidenceTrailData.filter(o => o.is_compliant === true).length}
+                      </div>
+                      <div className="text-xs text-muted-foreground">Compliant</div>
+                    </div>
+                    <div>
+                      <div className="text-2xl font-bold text-amber-600">
+                        {new Set(evidenceTrailData.map(o => o.recorded_by)).size}
+                      </div>
+                      <div className="text-xs text-muted-foreground">Different Officers</div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <div className="space-y-3">
+                {evidenceTrailData.map((obs, idx) => (
+                  <Card 
+                    key={obs.id} 
+                    className={cn(
+                      'border-l-4',
+                      obs.is_compliant === false ? 'border-l-red-500 bg-red-50/30' : 'border-l-green-500'
+                    )}
+                  >
+                    <CardContent className="p-4">
+                      <div className="flex gap-4">
+                        <div className="shrink-0">
+                          {obs.photo_url ? (
+                            <img
+                              src={obs.photo_url}
+                              alt={`Evidence ${idx + 1}`}
+                              className="w-32 h-24 object-cover rounded border-2 cursor-pointer hover:opacity-80 transition-opacity"
+                              onClick={() => {
+                                setCurrentPhoto(obs.photo_url);
+                                setPhotoViewerOpen(true);
+                              }}
+                            />
+                          ) : (
+                            <div className="w-32 h-24 bg-muted rounded border-2 flex items-center justify-center">
+                              <ImageIcon className="h-8 w-8 text-muted-foreground opacity-30" />
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="flex-1 space-y-2">
+                          <div className="flex items-start justify-between">
+                            <div>
+                              <div className="flex items-center gap-2 mb-1">
+                                <Badge variant="outline" className="font-mono">
+                                  #{idx + 1}
+                                </Badge>
+                                <span className="font-bold text-lg">{obs.plate_number}</span>
+                                {obs.is_compliant === false && (
+                                  <Badge variant="destructive" className="gap-1">
+                                    <AlertTriangle className="h-3 w-3" />
+                                    BREACH
+                                  </Badge>
+                                )}
+                              </div>
+                              <div className="text-sm text-muted-foreground">
+                                {obs.zone_name}
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <div className="font-semibold">
+                                {new Date(obs.recorded_at).toLocaleDateString('en-NZ', {
+                                  day: 'numeric',
+                                  month: 'short',
+                                  year: 'numeric',
+                                })}
+                              </div>
+                              <div className="text-sm text-muted-foreground">
+                                {new Date(obs.recorded_at).toLocaleTimeString('en-NZ', {
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                })}
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
+                            <div className="flex items-center gap-2 p-2 bg-white rounded border">
+                              <User className="h-4 w-4 text-blue-600" />
+                              <div>
+                                <div className="text-muted-foreground">Officer</div>
+                                <div className="font-semibold">{obs.officer_name}</div>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-2 p-2 bg-white rounded border">
+                              <MapPin className="h-4 w-4 text-green-600" />
+                              <div>
+                                <div className="text-muted-foreground">GPS</div>
+                                <div className="font-semibold font-mono">
+                                  {obs.gps_latitude?.toFixed(4)}, {obs.gps_longitude?.toFixed(4)}
+                                </div>
+                              </div>
+                            </div>
+
+                            {obs.nights_stayed_this_month !== undefined && (
+                              <div className="flex items-center gap-2 p-2 bg-white rounded border">
+                                <Clock className="h-4 w-4 text-purple-600" />
+                                <div>
+                                  <div className="text-muted-foreground">Monthly Count</div>
+                                  <div className="font-semibold">{obs.nights_stayed_this_month} nights</div>
+                                </div>
+                              </div>
+                            )}
+
+                            {obs.consecutive_nights !== undefined && (
+                              <div className="flex items-center gap-2 p-2 bg-white rounded border">
+                                <Calendar className="h-4 w-4 text-amber-600" />
+                                <div>
+                                  <div className="text-muted-foreground">Consecutive</div>
+                                  <div className="font-semibold">{obs.consecutive_nights} nights</div>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+
+                          {obs.officer_notes && (
+                            <div className="p-3 bg-amber-50 border border-amber-200 rounded text-sm">
+                              <div className="font-semibold text-amber-900 mb-1">Officer Notes:</div>
+                              <div className="text-amber-800">{obs.officer_notes}</div>
+                            </div>
+                          )}
+
+                          {obs.breach_reason && (
+                            <div className="p-3 bg-red-50 border border-red-200 rounded text-sm">
+                              <div className="font-semibold text-red-900 mb-1">Breach Reason:</div>
+                              <div className="text-red-800">{obs.breach_reason}</div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <DialogFooter className="border-t pt-4">
+            <Button variant="outline" onClick={() => setEvidenceTrailOpen(false)}>
+              Close
+            </Button>
+            <Button
+              onClick={() => {
+                toast.info('Export feature coming soon');
+              }}
+            >
+              <Download className="h-4 w-4 mr-2" />
+              Export Evidence Pack
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Other modals remain unchanged */}
       <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
         <DialogContent>
           <DialogHeader>
@@ -808,7 +1196,6 @@ export default function BreachAlertsReport() {
         </DialogContent>
       </Dialog>
 
-      {/* Enact Enforcement Dialog */}
       <Dialog open={isEnforceDialogOpen} onOpenChange={setIsEnforceDialogOpen}>
         <DialogContent>
           <DialogHeader>
@@ -825,6 +1212,12 @@ export default function BreachAlertsReport() {
                 <div className="text-sm text-muted-foreground">
                   Breach: {selectedBreach.breach_type.replace(/_/g, ' ')}
                 </div>
+                {selectedBreach.breach_details && (
+                  <div className="text-xs text-muted-foreground mt-2 p-2 bg-amber-50 dark:bg-amber-950/20 rounded border border-amber-200 dark:border-amber-800">
+                    <strong className="text-amber-900 dark:text-amber-200">Proof:</strong>{' '}
+                    {formatBreachProof(selectedBreach.breach_details, selectedBreach.breach_type)}
+                  </div>
+                )}
               </div>
 
               <div className="space-y-2">
@@ -881,7 +1274,6 @@ export default function BreachAlertsReport() {
         </DialogContent>
       </Dialog>
 
-      {/* Photo Viewer Modal */}
       <Dialog open={photoViewerOpen} onOpenChange={setPhotoViewerOpen}>
         <DialogContent className="max-w-4xl p-0 overflow-hidden bg-black">
           <div className="relative">
@@ -902,7 +1294,6 @@ export default function BreachAlertsReport() {
         </DialogContent>
       </Dialog>
 
-      {/* Vehicle Detail Modal */}
       <Dialog open={vehicleDetailOpen} onOpenChange={setVehicleDetailOpen}>
         <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
@@ -926,15 +1317,15 @@ export default function BreachAlertsReport() {
                         <div className="space-y-2 text-sm">
                           <div className="flex justify-between">
                             <span className="text-muted-foreground">Make:</span>
-                            <span className="font-semibold">{selectedVehicleDetails.vehicle_make || '-'}</span>
+                            <span className="font-semibold">{selectedVehicleDetails.make || '-'}</span>
                           </div>
                           <div className="flex justify-between">
                             <span className="text-muted-foreground">Model:</span>
-                            <span className="font-semibold">{selectedVehicleDetails.vehicle_model || '-'}</span>
+                            <span className="font-semibold">{selectedVehicleDetails.model || '-'}</span>
                           </div>
                           <div className="flex justify-between">
                             <span className="text-muted-foreground">Color:</span>
-                            <span className="font-semibold">{selectedVehicleDetails.vehicle_color || '-'}</span>
+                            <span className="font-semibold">{selectedVehicleDetails.colour || '-'}</span>
                           </div>
                         </div>
                       </div>
@@ -972,26 +1363,7 @@ export default function BreachAlertsReport() {
           )}
         </DialogContent>
       </Dialog>
+      </div>
     </div>
   );
-
-  async function loadVehicleDetails(plateNumber: string) {
-    setLoadingVehicleDetails(true);
-    setVehicleDetailOpen(true);
-    try {
-      const { data, error } = await supabase
-        .from('canonical_vehicles')
-        .select('*')
-        .eq('plate_number', plateNumber)
-        .single();
-
-      if (error) throw error;
-      setSelectedVehicleDetails(data);
-    } catch (error: any) {
-      console.error('Failed to load vehicle details:', error);
-      toast.error('Failed to load vehicle details');
-    } finally {
-      setLoadingVehicleDetails(false);
-    }
-  }
 }

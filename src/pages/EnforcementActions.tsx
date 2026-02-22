@@ -10,7 +10,8 @@
  */
 
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+// Navigation import (not needed for this page)
+// import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -97,7 +98,6 @@ interface EnforcementJob {
 }
 
 export default function EnforcementActions() {
-  const navigate = useNavigate();
   const { user } = useAuthStore();
   const { data: users = [] } = useUsers();
   const { data: zones = [] } = useZones();
