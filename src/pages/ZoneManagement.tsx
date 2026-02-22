@@ -43,6 +43,7 @@ import {
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/stores/authStore';
+import { AdminNavigationMenu } from '@/components/features/AdminNavigationMenu';
 
 interface Zone {
   id: string;
@@ -716,14 +717,17 @@ export function ZoneManagement() {
     <div className="space-y-6 max-w-7xl mx-auto">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold flex items-center gap-2 text-gray-900 dark:text-white">
-            <MapPin className="h-8 w-8 text-blue-600" />
-            Zone Management
-          </h1>
-          <p className="text-gray-700 dark:text-gray-200 mt-1 font-semibold">
-            Configure zones with geofencing and compliance rules
-          </p>
+        <div className="flex items-center gap-3">
+          <AdminNavigationMenu />
+          <div>
+            <h1 className="text-3xl font-bold flex items-center gap-2 text-gray-900 dark:text-white">
+              <MapPin className="h-8 w-8 text-blue-600" />
+              Zone Management
+            </h1>
+            <p className="text-gray-700 dark:text-gray-200 mt-1 font-semibold">
+              Configure zones with geofencing and compliance rules
+            </p>
+          </div>
         </div>
         <Button onClick={handleCreateNew} className="bg-blue-600 hover:bg-blue-700">
           <Plus className="h-4 w-4 mr-2" />
