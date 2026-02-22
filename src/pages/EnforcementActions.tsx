@@ -129,6 +129,10 @@ export default function EnforcementActions() {
     notes: '',
   });
 
+  // Photo viewer
+  const [photoViewerOpen, setPhotoViewerOpen] = useState(false);
+  const [currentPhoto, setCurrentPhoto] = useState<string>('');
+
   const [createForm, setCreateForm] = useState({
     plate_number: '',
     zone_id: '',
@@ -517,7 +521,12 @@ export default function EnforcementActions() {
                               <img
                                 src={breach.photo_url}
                                 alt="Evidence"
-                                className="w-24 h-16 object-cover rounded border"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setCurrentPhoto(breach.photo_url!);
+                                  setPhotoViewerOpen(true);
+                                }}
+                                className="w-24 h-16 object-cover rounded border cursor-pointer hover:opacity-80 transition-opacity"
                               />
                             ) : (
                               <div className="w-24 h-16 bg-muted rounded border flex items-center justify-center">
@@ -969,6 +978,27 @@ export default function EnforcementActions() {
               Record Enforcement Action
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Photo Viewer Modal */}
+      <Dialog open={photoViewerOpen} onOpenChange={setPhotoViewerOpen}>
+        <DialogContent className="max-w-4xl p-0 overflow-hidden bg-black">
+          <div className="relative">
+            <img
+              src={currentPhoto}
+              alt="Evidence photo"
+              className="w-full h-auto max-h-[90vh] object-contain"
+            />
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setPhotoViewerOpen(false)}
+              className="absolute top-4 right-4 text-white hover:bg-white/20"
+            >
+              <X className="h-5 w-5" />
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

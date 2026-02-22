@@ -405,12 +405,13 @@ export default function ObservationsPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>Date/Time</TableHead>
+                  <TableHead className="w-[100px]">Photo</TableHead>
                   <TableHead>Plate Number</TableHead>
+                  <TableHead>Date/Time</TableHead>
                   <TableHead>Zone</TableHead>
                   <TableHead>Officer</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead>Evidence</TableHead>
+                  <TableHead>Notes</TableHead>
                   <TableHead>Location</TableHead>
                 </TableRow>
               </TableHeader>
@@ -421,11 +422,27 @@ export default function ObservationsPage() {
                     className="cursor-pointer hover:bg-muted/50"
                     onClick={() => handleRowClick(obs)}
                   >
-                    <TableCell className="font-medium">
-                      {format(new Date(obs.recorded_at), 'PPp')}
+                    <TableCell>
+                      {obs.photo_url ? (
+                        <img 
+                          src={obs.photo_url} 
+                          alt={`Evidence ${obs.plate_number}`}
+                          className="w-20 h-14 object-cover rounded border"
+                        />
+                      ) : (
+                        <div className="w-20 h-14 bg-muted rounded border flex items-center justify-center">
+                          <ImageIcon className="h-6 w-6 text-muted-foreground opacity-30" />
+                        </div>
+                      )}
                     </TableCell>
-                    <TableCell className="font-mono font-semibold">
-                      {obs.plate_number}
+                    <TableCell>
+                      <div className="font-mono font-bold text-lg">
+                        {obs.plate_number}
+                      </div>
+                    </TableCell>
+                    <TableCell className="font-medium">
+                      <div>{format(new Date(obs.recorded_at), 'dd MMM yyyy')}</div>
+                      <div className="text-xs text-muted-foreground">{format(new Date(obs.recorded_at), 'HH:mm')}</div>
                     </TableCell>
                     <TableCell>{obs.zone_name}</TableCell>
                     <TableCell className="text-muted-foreground text-sm">
@@ -440,15 +457,21 @@ export default function ObservationsPage() {
                         </Badge>
                       )}
                     </TableCell>
-                    <TableCell>
-                      {obs.photo_url ? (
-                        <ImageIcon className="h-4 w-4 text-blue-600" />
-                      ) : (
-                        <span className="text-xs text-muted-foreground">No photo</span>
-                      )}
+                    <TableCell className="max-w-[200px]">
+                      <div className="text-xs text-muted-foreground truncate">
+                        {obs.officer_name || '—'}
+                      </div>
                     </TableCell>
                     <TableCell className="text-xs text-muted-foreground">
-                      {obs.gps_latitude.toFixed(4)}, {obs.gps_longitude.toFixed(4)}
+                      <a
+                        href={`https://www.google.com/maps?q=${obs.gps_latitude},${obs.gps_longitude}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="hover:underline text-blue-600"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        {obs.gps_latitude.toFixed(4)}, {obs.gps_longitude.toFixed(4)}
+                      </a>
                     </TableCell>
                   </TableRow>
                 ))}
