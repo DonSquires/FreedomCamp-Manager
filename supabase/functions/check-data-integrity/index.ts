@@ -65,10 +65,10 @@ Deno.serve(async (req) => {
 
     console.log('📥 Request:', { get_total, offset, batch_size });
 
-    // Build query on vehicle_observations_v2
+    // Build query on observations (new primary table)
     let query = supabaseAdmin
-      .from('vehicle_observations_v2')
-      .select('observation_id, plate_number, zone_id, recorded_at', { count: 'exact' });
+      .from('observations')
+      .select('id, plate_number, zone_id, recorded_at', { count: 'exact' });
 
     // GET TOTAL MODE
     if (get_total) {
@@ -113,35 +113,35 @@ Deno.serve(async (req) => {
       if (seen.has(key)) {
         // DELETE duplicate observation (keep first one)
         const { error: deleteError } = await supabaseAdmin
-          .from('vehicle_observations_v2')
+          .from('observations')
           .delete()
-          .eq('observation_id', obs.observation_id);
+          .eq('id', obs.id);
 
         if (!deleteError) {
           duplicatesDeleted++;
           issues.push({
-            table: 'vehicle_observations_v2',
+            table: 'observations',
             issue_type: 'duplicate',
             severity: 'critical',
-            record_id: obs.observation_id,
+            record_id: obs.id,
             plate_number: obs.plate_number,
             description: `Duplicate observation for ${obs.plate_number} on ${date} - DELETED`,
             action_taken: 'deleted',
           });
         } else {
-          console.error('Failed to delete duplicate:', obs.observation_id, deleteError);
+          console.error('Failed to delete duplicate:', obs.id, deleteError);
           issues.push({
-            table: 'vehicle_observations_v2',
+            table: 'observations',
             issue_type: 'duplicate',
             severity: 'critical',
-            record_id: obs.observation_id,
+            record_id: obs.id,
             plate_number: obs.plate_number,
             description: `Duplicate observation for ${obs.plate_number} on ${date} - FAILED TO DELETE`,
             action_taken: 'none',
           });
         }
       } else {
-        seen.set(key, { obs_id: obs.observation_id, plate: obs.plate_number });
+        seen.set(key, { obs_id: obs.id, plate: obs.plate_number });
       }
     }
 
@@ -159,10 +159,10 @@ Deno.serve(async (req) => {
       for (const obs of observations) {
         if (!validPlateSet.has(obs.plate_number)) {
           issues.push({
-            table: 'vehicle_observations_v2',
+            table: 'observations',
             issue_type: 'orphaned',
             severity: 'critical',
-            record_id: obs.observation_id,
+            record_id: obs.id,
             plate_number: obs.plate_number,
             description: `Orphaned observation - plate ${obs.plate_number} not in canonical_vehicles`,
             action_taken: 'none',

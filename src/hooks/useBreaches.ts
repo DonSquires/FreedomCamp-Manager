@@ -20,7 +20,7 @@ export const useBreaches = (organizationId?: string | null) => {
           *,
           zone:zones(id, name),
           organization:organizations(id, name),
-          vehicle_record:vehicle_records(plate_number, vehicle_make, vehicle_model, vehicle_color)
+          vehicle:canonical_vehicles!breach_alerts_plate_number_fkey(plate_number, make, model, colour, homeless_status, is_flagged)
         `);
       
       // Apply organization filter if specified
