@@ -220,8 +220,14 @@ export function ZoomScan({ onExit }: ZoomScanProps) {
         weatherConditions: null,
       };
 
-      console.log('📤 Calling vehicle-ingest...');
+      console.log('📤 Calling vehicle-ingest...', {
+        hasImage: !!photoDataUrl,
+        imagePrefix: photoDataUrl?.substring(0, 30),
+        zoneId: selectedZone.id,
+        orgId: user?.organization_id,
+      });
 
+      // Use supabase.functions.invoke() - it handles headers correctly
       const { data, error } = await supabase.functions.invoke('vehicle-ingest', {
         body: requestBody,
       });
