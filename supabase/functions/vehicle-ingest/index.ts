@@ -55,6 +55,74 @@ Deno.serve(async (req) => {
     return new Response("ok", { status: 200, headers: getCorsHeaders(req) });
   }
 
+  // ============================================================================
+  // AUTH GUARD - Verify user is logged in
+  // ============================================================================
+  const authHeader = req.headers.get("Authorization");
+  
+  if (!authHeader) {
+    console.error("🚫 AUTH ERROR: Missing Authorization header");
+    return new Response(
+      JSON.stringify({
+        error: "Missing login token. Please log out and log back in.",
+        auth_error: "MISSING_AUTHORIZATION_HEADER",
+        hint: "Make sure you're calling this via supabase.functions.invoke() from an authenticated session",
+      }),
+      {
+        status: 401,
+        headers: { ...getCorsHeaders(req), "content-type": "application/json" },
+      }
+    );
+  }
+
+  const jwt = authHeader.replace("Bearer ", "");
+  
+  if (!jwt || jwt === authHeader) {
+    console.error("🚫 AUTH ERROR: Malformed Authorization header");
+    return new Response(
+      JSON.stringify({
+        error: "Invalid login token format. Please log out and log back in.",
+        auth_error: "MALFORMED_AUTHORIZATION_HEADER",
+        hint: "Authorization header should be 'Bearer <token>'",
+      }),
+      {
+        status: 401,
+        headers: { ...getCorsHeaders(req), "content-type": "application/json" },
+      }
+    );
+  }
+
+  // Verify JWT is valid by parsing payload
+  try {
+    const parts = jwt.split(".");
+    if (parts.length !== 3) {
+      throw new Error("Invalid JWT structure");
+    }
+    
+    const payload = JSON.parse(atob(parts[1]));
+    const userId = payload.sub || payload.user_id;
+    
+    if (!userId) {
+      throw new Error("JWT missing user ID");
+    }
+    
+    console.log("✅ Authenticated user:", userId);
+  } catch (jwtError: any) {
+    console.error("🚫 AUTH ERROR: Invalid JWT:", jwtError.message);
+    return new Response(
+      JSON.stringify({
+        error: "Session expired or invalid. Please log out and log back in.",
+        auth_error: "INVALID_JWT",
+        hint: jwtError.message,
+      }),
+      {
+        status: 401,
+        headers: { ...getCorsHeaders(req), "content-type": "application/json" },
+      }
+    );
+  }
+  // ============================================================================
+
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
