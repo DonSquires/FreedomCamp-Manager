@@ -173,7 +173,7 @@ export function ZoomScan({ onExit }: ZoomScanProps) {
       id: tempId,
       plateNumber: 'Processing...',
       status: 'processing',
-      details: '🔄 Analyzing plate...',
+      details: '🔄 Capturing photo...',
       timestamp: new Date(),
     };
     setQueue(prev => [tempItem, ...prev]);
@@ -190,6 +190,23 @@ export function ZoomScan({ onExit }: ZoomScanProps) {
       // Draw video frame
       ctx.drawImage(video, 0, 0);
 
+      // Apply watermark overlay
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+      ctx.fillRect(0, canvas.height - 100, canvas.width, 100);
+      ctx.fillStyle = 'white';
+      ctx.font = 'bold 20px monospace';
+      
+      const watermarkLines = [
+        `📍 ${selectedZone.name}`,
+        `👤 ${user?.first_name} ${user?.last_name}`,
+        `🕐 ${currentTime.toLocaleString('en-NZ')}`,
+        gpsLocation ? `📌 ${gpsLocation.lat.toFixed(5)}, ${gpsLocation.lng.toFixed(5)}` : '',
+      ].filter(Boolean);
+      
+      watermarkLines.forEach((line, i) => {
+        ctx.fillText(line, 20, canvas.height - 80 + (i * 25));
+      });
+
       // Convert to blob
       const blob = await new Promise<Blob>((resolve) => {
         canvas.toBlob((blob) => resolve(blob!), 'image/jpeg', 0.95);
@@ -202,12 +219,54 @@ export function ZoomScan({ onExit }: ZoomScanProps) {
         reader.readAsDataURL(blob);
       });
 
-      // Prepare request (Onspace AI fallback mode - no client-side ALPR)
+      // ✅ STEP 3: UPLOAD PHOTO IMMEDIATELY (Before ALPR)
+      setQueue(prev => prev.map(item => 
+        item.id === tempId 
+          ? { ...item, details: '📤 Uploading photo...' }
+          : item
+      ));
+
+      // Generate unique filename
+      const timestamp = Date.now();
+      const fileName = `${user?.id}/${timestamp}-scan.jpg`;
+      
+      // Upload to Supabase Storage
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('evidence')
+        .upload(fileName, blob, {
+          contentType: 'image/jpeg',
+          cacheControl: '3600',
+        });
+
+      if (uploadError) throw new Error(`Upload failed: ${uploadError.message}`);
+
+      // Get public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from('evidence')
+        .getPublicUrl(fileName);
+
+      console.log('✅ Photo uploaded:', publicUrl);
+
+      // ✅ STEP 4: Process with ALPR (plate recognition + observation creation)
+      setQueue(prev => prev.map(item => 
+        item.id === tempId 
+          ? { ...item, details: '🔍 Processing scan...' }
+          : item
+      ));
+
+      // Calculate SHA-256 hash for photo integrity
+      const arrayBuffer = await blob.arrayBuffer();
+      const hashBuffer = await crypto.subtle.digest('SHA-256', arrayBuffer);
+      const hashArray = Array.from(new Uint8Array(hashBuffer));
+      const photoHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+
       const requestBody = {
         image: photoDataUrl,
-        plate: null, // Server-side ALPR will handle this
-        confidence: null,
-        requires_manual_entry: false, // Let server decide
+        photo_url: publicUrl,
+        photo_hash: photoHash,
+        regions: ['nz'],
+        camera_id: selectedZone.id,
+        mmc: true, // Get vehicle make/model/color
         gpsLatitude: gpsLocation?.lat || -41.2865,
         gpsLongitude: gpsLocation?.lng || 174.7762,
         gpsAccuracy: 10,
@@ -215,20 +274,19 @@ export function ZoomScan({ onExit }: ZoomScanProps) {
         officerId: user?.id || '',
         organizationId: user?.organization_id || '',
         zoneId: selectedZone.id,
-        idempotencyKey: `scan-${Date.now()}-${Math.random()}`,
+        idempotencyKey: `scan-${timestamp}`,
         officerNotes: '',
         weatherConditions: null,
       };
 
-      console.log('📤 Calling vehicle-ingest...', {
-        hasImage: !!photoDataUrl,
-        imagePrefix: photoDataUrl?.substring(0, 30),
+      console.log('📤 Calling alpr-process...', {
+        hasPhoto: !!publicUrl,
+        photoHash: photoHash.substring(0, 16),
         zoneId: selectedZone.id,
-        orgId: user?.organization_id,
       });
 
       // Use supabase.functions.invoke() - it handles headers correctly
-      const { data, error } = await supabase.functions.invoke('vehicle-ingest', {
+      const { data, error } = await supabase.functions.invoke('alpr-process', {
         body: requestBody,
       });
 
@@ -247,7 +305,7 @@ export function ZoomScan({ onExit }: ZoomScanProps) {
         throw new Error(errorMessage);
       }
 
-      if (!data.success) {
+      if (!data.success && !data.requires_manual_entry) {
         throw new Error(data.error || 'Scan failed');
       }
 
@@ -260,6 +318,7 @@ export function ZoomScan({ onExit }: ZoomScanProps) {
         status = 'error';
         details = '❌ No plate detected - manual entry required';
         autoDismiss = 10;
+        playSounds.processingComplete();
       } else if (data.is_flagged) {
         status = 'flagged';
         details = '🚩 FLAGGED: Watch list vehicle';
