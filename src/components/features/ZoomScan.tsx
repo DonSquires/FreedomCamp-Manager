@@ -276,25 +276,17 @@ export function ZoomScan({ onExit }: ZoomScanProps) {
       }
 
       // ✅ Determine status from response
+      // Note: is_compliant / is_flagged are now computed asynchronously by DB
+      // triggers and delivered via push notifications — not returned here.
       let status: QueueItem['status'] = 'compliant';
-      let details = '✅ Compliant with zone requirements';
-      let autoDismiss = 5; // Compliant auto-dismiss after 5s
+      let details = '✅ Recorded — compliance check in progress';
+      let autoDismiss: number | undefined = 5; // Auto-dismiss after 5s
 
       if (data.requires_manual_entry) {
         status = 'error';
-        details = '❌ No plate detected - manual entry required';
+        details = '❌ No plate detected — manual entry required';
         autoDismiss = 10;
         playSounds.processingComplete();
-      } else if (data.is_flagged) {
-        status = 'flagged';
-        details = '🚩 FLAGGED: Watch list vehicle';
-        autoDismiss = undefined; // Manual dismiss only
-        playSounds.flaggedVehicle();
-      } else if (data.is_compliant === false) {
-        status = 'breach';
-        details = '🔴 BREACH DETECTED';
-        autoDismiss = undefined; // Manual dismiss only
-        playSounds.violationAlert();
       } else {
         playSounds.processingComplete();
       }
