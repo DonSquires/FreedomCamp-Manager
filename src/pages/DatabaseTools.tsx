@@ -41,6 +41,15 @@ interface JobStatus {
 export default function DatabaseToolsPage() {
   const [activeTab, setActiveTab] = useState('imports');
   const [jobs, setJobs] = useState<JobStatus[]>([]);
+
+  // Enrichment progress state
+  const [enrichmentRunning, setEnrichmentRunning] = useState(false);
+  const [enrichmentProgress, setEnrichmentProgress] = useState(0);
+  const [enrichmentProcessed, setEnrichmentProcessed] = useState(0);
+  const [enrichmentTotal, setEnrichmentTotal] = useState(0);
+  const [enrichmentEnriched, setEnrichmentEnriched] = useState(0);
+  const [enrichmentFailed, setEnrichmentFailed] = useState(0);
+  const [enrichmentLog, setEnrichmentLog] = useState<string[]>([]);
   const [isRunning, setIsRunning] = useState(false);
 
   const handleRunComplianceRecalculation = async () => {
@@ -180,10 +189,22 @@ export default function DatabaseToolsPage() {
   };
 
   const handleRunEnrichment = async () => {
-    setIsRunning(true);
+    setEnrichmentRunning(true);
+    setEnrichmentProgress(0);
+    setEnrichmentProcessed(0);
+    setEnrichmentEnriched(0);
+    setEnrichmentFailed(0);
+    setEnrichmentLog([]);
+    
     try {
+      setEnrichmentLog(prev => [...prev, 'Starting vehicle enrichment worker...']);
+      toast.info('Starting vehicle enrichment batch process...');
+
+      // Call the deployed enrich-vehicle-worker function
       const { data, error } = await supabase.functions.invoke('enrich-vehicle-worker', {
-        body: {},
+        body: { 
+          batchSize: 50, // Process 50 vehicles at a time
+        },
       });
 
       if (error) {
@@ -200,20 +221,39 @@ export default function DatabaseToolsPage() {
         throw new Error(errorMessage);
       }
 
-      toast.success('Vehicle enrichment started');
-      
-      setJobs(prev => [{
-        id: Date.now().toString(),
-        type: 'Vehicle Enrichment',
-        status: 'running',
-        progress: 0,
-        message: 'Fetching vehicle data from external sources...',
-        createdAt: new Date(),
-      }, ...prev]);
+      // Update state with results from Edge Function
+      if (data) {
+        setEnrichmentTotal(data.total_processed || 0);
+        setEnrichmentProcessed(data.total_processed || 0);
+        setEnrichmentEnriched(data.enriched || 0);
+        setEnrichmentFailed(data.failed || 0);
+        setEnrichmentProgress(100);
+        
+        setEnrichmentLog(prev => [
+          ...prev,
+          `✅ Enrichment complete`,
+          `📊 Total processed: ${data.total_processed || 0}`,
+          `✅ Successfully enriched: ${data.enriched || 0}`,
+          `❌ Failed: ${data.failed || 0}`,
+        ]);
+
+        if (data.details && Array.isArray(data.details)) {
+          data.details.slice(-10).forEach((detail: any) => {
+            if (detail.success) {
+              setEnrichmentLog(prev => [...prev, `✅ ${detail.plate_number}: ${detail.message || 'Enriched'}`]);
+            } else {
+              setEnrichmentLog(prev => [...prev, `❌ ${detail.plate_number}: ${detail.error || 'Failed'}`]);
+            }
+          });
+        }
+
+        toast.success(`Enrichment complete: ${data.enriched || 0} enriched, ${data.failed || 0} failed`);
+      }
     } catch (error: any) {
       toast.error('Failed to start vehicle enrichment: ' + error.message);
+      setEnrichmentLog(prev => [...prev, `❌ Fatal error: ${error.message}`]);
     } finally {
-      setIsRunning(false);
+      setEnrichmentRunning(false);
     }
   };
 
@@ -434,26 +474,60 @@ export default function DatabaseToolsPage() {
                   <CardContent>
                     <p className="text-sm text-muted-foreground mb-4">
                       Fetch missing vehicle data (make, model, year, color, SC status)
-                      from MotorWeb and NZSCV registry for all canonical vehicles.
+                      from MotorWeb registry for vehicles with incomplete data.
                     </p>
-                    <Button
-                      onClick={handleRunEnrichment}
-                      disabled={isRunning}
-                      variant="outline"
-                      className="w-full"
-                    >
-                      {isRunning ? (
-                        <>
-                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                          Running...
-                        </>
-                      ) : (
-                        <>
-                          <Car className="h-4 w-4 mr-2" />
-                          Run Enrichment
-                        </>
-                      )}
-                    </Button>
+                    
+                    {enrichmentRunning ? (
+                      <div className="space-y-4">
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-muted-foreground">Progress</span>
+                          <span className="font-medium">
+                            {enrichmentProcessed} / {enrichmentTotal} vehicles
+                          </span>
+                        </div>
+                        <Progress value={enrichmentProgress} className="h-2" />
+                        
+                        <div className="grid grid-cols-3 gap-2 text-xs">
+                          <div className="text-center p-2 bg-green-50 border border-green-200 rounded">
+                            <div className="font-bold text-green-700">{enrichmentEnriched}</div>
+                            <div className="text-green-600">Enriched</div>
+                          </div>
+                          <div className="text-center p-2 bg-red-50 border border-red-200 rounded">
+                            <div className="font-bold text-red-700">{enrichmentFailed}</div>
+                            <div className="text-red-600">Failed</div>
+                          </div>
+                          <div className="text-center p-2 bg-gray-50 border border-gray-200 rounded">
+                            <div className="font-bold text-gray-700">{enrichmentTotal - enrichmentProcessed}</div>
+                            <div className="text-gray-600">Remaining</div>
+                          </div>
+                        </div>
+
+                        <div className="max-h-48 overflow-y-auto border rounded p-3 bg-gray-50 text-xs font-mono space-y-1">
+                          {enrichmentLog.slice(-10).map((log, i) => (
+                            <div key={i} className="text-gray-700">{log}</div>
+                          ))}
+                        </div>
+                      </div>
+                    ) : (
+                      <Button
+                        onClick={handleRunEnrichment}
+                        disabled={isRunning}
+                        variant="outline"
+                        className="w-full"
+                      >
+                        {isRunning ? (
+                          <>
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            Running...
+                          </>
+                        ) : (
+                          <>
+                            <Car className="h-4 w-4 mr-2" />
+                            Run Enrichment
+                          </>
+                        )}
+                      </Button>
+                    )}
                   </CardContent>
                 </Card>
 
