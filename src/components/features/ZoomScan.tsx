@@ -42,7 +42,7 @@ export function ZoomScan({ onExit }: ZoomScanProps) {
   const [zoom, setZoom] = useState(1);
   const [torchEnabled, setTorchEnabled] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
-  const [gpsLocation, setGpsLocation] = useState<{ lat: number; lng: number } | null>(null);
+  const [gpsLocation, setGpsLocation] = useState<{ lat: number; lng: number; accuracy?: number } | null>(null);
   const [selectedZone, setSelectedZone] = useState<{ id: string; name: string } | null>(null);
 
   // Load user's zone on mount
@@ -87,6 +87,7 @@ export function ZoomScan({ onExit }: ZoomScanProps) {
           setGpsLocation({
             lat: position.coords.latitude,
             lng: position.coords.longitude,
+            accuracy: position.coords.accuracy,
           });
         },
         (error) => console.warn('GPS not available:', error),
@@ -265,6 +266,7 @@ export function ZoomScan({ onExit }: ZoomScanProps) {
         hash: photoHash,
         lat: gpsLocation?.lat || -41.2865,
         lng: gpsLocation?.lng || 174.7762,
+        accuracy: gpsLocation?.accuracy,
         orgId: user?.organization_id || '',
         zoneId: selectedZone.id,
       });
