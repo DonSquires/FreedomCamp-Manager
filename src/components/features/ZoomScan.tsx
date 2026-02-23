@@ -12,9 +12,9 @@ import { Camera, X, Loader2, ZoomIn, ZoomOut, Flashlight, MapPin, Clock, Flag, A
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
+import { scanVehicle } from '@/lib/alprService';
 import { useAuthStore } from '@/stores/authStore';
 import { playSounds } from '@/lib/sounds';
-import { FunctionsHttpError } from '@supabase/supabase-js';
 
 interface ZoomScanProps {
   onExit: () => void;
@@ -212,13 +212,6 @@ export function ZoomScan({ onExit }: ZoomScanProps) {
         canvas.toBlob((blob) => resolve(blob!), 'image/jpeg', 0.95);
       });
 
-      // Convert to base64
-      const reader = new FileReader();
-      const photoDataUrl = await new Promise<string>((resolve) => {
-        reader.onloadend = () => resolve(reader.result as string);
-        reader.readAsDataURL(blob);
-      });
-
       // ✅ STEP 3: UPLOAD PHOTO IMMEDIATELY (Before ALPR)
       setQueue(prev => prev.map(item => 
         item.id === tempId 
@@ -260,50 +253,21 @@ export function ZoomScan({ onExit }: ZoomScanProps) {
       const hashArray = Array.from(new Uint8Array(hashBuffer));
       const photoHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 
-      const requestBody = {
-        image: photoDataUrl,
-        photo_url: publicUrl,
-        photo_hash: photoHash,
-        regions: ['nz'],
-        camera_id: selectedZone.id,
-        mmc: true, // Get vehicle make/model/color
-        gpsLatitude: gpsLocation?.lat || -41.2865,
-        gpsLongitude: gpsLocation?.lng || 174.7762,
-        gpsAccuracy: 10,
-        recordedAt: new Date().toISOString(),
-        officerId: user?.id || '',
-        organizationId: user?.organization_id || '',
-        zoneId: selectedZone.id,
-        idempotencyKey: `scan-${timestamp}`,
-        officerNotes: '',
-        weatherConditions: null,
-      };
-
       console.log('📤 Calling alpr-process...', {
         hasPhoto: !!publicUrl,
         photoHash: photoHash.substring(0, 16),
         zoneId: selectedZone.id,
       });
 
-      // Use supabase.functions.invoke() - it handles headers correctly
-      const { data, error } = await supabase.functions.invoke('alpr-process', {
-        body: requestBody,
+      // Use scanVehicle() - adds Authorization header (fixes 403) and base64 payload (fixes 400)
+      const data = await scanVehicle(blob, {
+        publicUrl,
+        hash: photoHash,
+        lat: gpsLocation?.lat || -41.2865,
+        lng: gpsLocation?.lng || 174.7762,
+        orgId: user?.organization_id || '',
+        zoneId: selectedZone.id,
       });
-
-      // Extract detailed error if FunctionsHttpError
-      if (error) {
-        let errorMessage = error.message;
-        if (error instanceof FunctionsHttpError) {
-          try {
-            const statusCode = (error as any).context?.status ?? 500;
-            const textContent = await (error as any).context?.text();
-            errorMessage = `[${statusCode}] ${textContent || error.message || 'Unknown error'}`;
-          } catch {
-            errorMessage = error.message || 'Failed to read response';
-          }
-        }
-        throw new Error(errorMessage);
-      }
 
       if (!data.success && !data.requires_manual_entry) {
         throw new Error(data.error || 'Scan failed');
