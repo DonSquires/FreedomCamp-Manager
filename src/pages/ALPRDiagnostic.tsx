@@ -21,24 +21,48 @@ export default function ALPRDiagnostic() {
   const [testingImage, setTestingImage] = useState(false);
   const [imageTestResult, setImageTestResult] = useState<any>(null);
 
-  // Test 1: Check if API key is configured and valid
+  // Test: Verify alpr-process is reachable and ALPR_API_TOKEN is configured
   const testCredentials = async () => {
     setTesting(true);
     setTestResult(null);
 
     try {
-      const { data, error } = await supabase.functions.invoke('test-alpr-credentials');
+      // Send a minimal payload — the function will return 400 (missing fields) or 500 (token missing)
+      // but NOT 404. A structured JSON error response confirms the function is deployed.
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error('Not logged in');
 
-      if (error) {
-        throw new Error(`Function call failed: ${error.message}`);
-      }
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL || 'https://xbfnlzmpumthnjmtqufp.supabase.co'}/functions/v1/alpr-process`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({}), // empty — will trigger validation error, confirming function is live
+        }
+      );
 
-      setTestResult(data);
-      
-      if (data.success) {
-        toast.success('✅ API key is valid!');
+      const data = await response.json();
+
+      // 400 means the function is live and validating correctly
+      // 500 means the function is live but ALPR_API_TOKEN may be missing
+      const isLive = response.status === 400 || response.status === 500;
+      const tokenConfigured = !(data?.error || '').includes('ALPR_API_TOKEN');
+
+      setTestResult({
+        success: isLive,
+        http_status: response.status,
+        function_live: isLive,
+        token_configured: tokenConfigured,
+        raw: data,
+      });
+
+      if (isLive) {
+        toast.success(`✅ alpr-process function is live (HTTP ${response.status})`);
       } else {
-        toast.error('❌ API key test failed');
+        toast.error(`❌ Unexpected response: HTTP ${response.status}`);
       }
     } catch (error: any) {
       console.error('Test failed:', error);
@@ -125,9 +149,9 @@ export default function ALPRDiagnostic() {
         {/* Test 1: Credentials Check */}
         <Card>
           <CardHeader>
-            <CardTitle>Test 1: API Key Configuration</CardTitle>
+            <CardTitle>Test 1: alpr-process Function Health</CardTitle>
             <CardDescription>
-              Verify that PLATE_RECOGNIZER_API_KEY is configured in Supabase Secrets and is valid
+              Verify that the alpr-process Edge Function is deployed and ALPR_API_TOKEN is configured in Supabase Secrets
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -208,7 +232,7 @@ export default function ALPRDiagnostic() {
           <CardHeader>
             <CardTitle>Test 2: Plate Recognition</CardTitle>
             <CardDescription>
-              Test the unified ALPR system (plate-scanner-photo-first) with a sample image
+              Test the unified ALPR system (alpr-process) with a sample image
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">

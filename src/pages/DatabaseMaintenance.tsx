@@ -6,7 +6,7 @@
  * 1. Zone Correction: GPS-based automatic zone reassignment (zone-correction function)
  * 2. Duplicate Detection: Find and remove duplicate observations (duplicate-detection function)
  * 3. Compliance Recalculation: Full recalculation page (embedded component)
- * 4. Vehicle Enrichment: Enrich vehicle data from external sources (enrich-vehicle-worker function)
+ * 4. Vehicle Enrichment: Enrich vehicle data from external sources (enrich-from-motorweb function)
  * 
  * Each operation runs separately with live progress tracking
  */
@@ -225,7 +225,7 @@ export function DatabaseMaintenance() {
 
       // Step 1: Get total count of vehicles needing enrichment
       const { data: totalData, error: totalError } = await supabase.functions.invoke(
-        'enrich-vehicle-worker',
+        'enrich-from-motorweb',
         {
           body: {
             get_total: true,
@@ -257,7 +257,7 @@ export function DatabaseMaintenance() {
         setEnrichCurrentBatch(i + 1);
 
         const { data: batchData, error: batchError } = await supabase.functions.invoke(
-          'enrich-vehicle-worker',
+          'enrich-from-motorweb',
           {
             body: {
               get_total: false,

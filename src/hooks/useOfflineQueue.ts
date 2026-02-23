@@ -134,19 +134,19 @@ export function useOfflineQueue() {
           // Update status to syncing
           await offlineStorage.updateScanStatus(scan.id, 'syncing');
 
-          // Call process-field-scan Edge Function
-          const { error: syncError } = await supabase.functions.invoke('process-field-scan', {
+          // Call vehicle-ingest Edge Function
+          const { error: syncError } = await supabase.functions.invoke('vehicle-ingest', {
             body: {
-              plateNumber: scan.plateNumber,
-              zoneId: scan.zoneId,
+              plate: scan.plateNumber,
+              image: scan.photoDataUrl || null,
+              gpsLatitude: scan.gpsLocation?.lat || null,
+              gpsLongitude: scan.gpsLocation?.lng || null,
+              gpsAccuracy: scan.gpsLocation?.accuracy || null,
+              recordedAt: scan.timestamp,
               organizationId: scan.organizationId,
-              imageUrl: scan.photoDataUrl || null, // Base64 data URL
-              gpsLocation: scan.gpsLocation,
-              vehicleDetails: scan.vehicleDetails,
-              detectionMethod: scan.detectionMethod,
-              isSelfContained: scan.isSelfContained,
-              notes: scan.notes,
-              timestamp: scan.timestamp,
+              zoneId: scan.zoneId,
+              idempotencyKey: scan.id,
+              requires_manual_entry: false,
             },
           });
 

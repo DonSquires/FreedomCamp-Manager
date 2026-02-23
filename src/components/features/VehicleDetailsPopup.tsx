@@ -177,7 +177,7 @@ export function VehicleDetailsPopup({
 
         if (photoUrl && !initialMake && !initialModel) {
           console.log('🤖 New vehicle - triggering AI analysis...');
-          // AI analysis will be triggered in process-field-scan
+          // AI analysis will be triggered in vehicle-ingest
         }
       }
 

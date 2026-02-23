@@ -200,8 +200,8 @@ export default function DatabaseToolsPage() {
       setEnrichmentLog(prev => [...prev, 'Starting vehicle enrichment worker...']);
       toast.info('Starting vehicle enrichment batch process...');
 
-      // Call the deployed enrich-vehicle-worker function
-      const { data, error } = await supabase.functions.invoke('enrich-vehicle-worker', {
+      // Call the deployed enrich-from-motorweb function
+      const { data, error } = await supabase.functions.invoke('enrich-from-motorweb', {
         body: { 
           batchSize: 50, // Process 50 vehicles at a time
         },

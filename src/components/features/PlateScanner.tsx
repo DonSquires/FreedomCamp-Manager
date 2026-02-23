@@ -21,6 +21,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Camera, X, Loader2, MapPin, Clock, Flashlight, ZoomIn, Navigation, Calendar } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { scanVehicle } from '@/lib/alprService';
 import { playSounds } from '@/lib/sounds';
 import { useAuthStore } from '@/stores/authStore';
 import { toast } from 'sonner';
@@ -437,46 +438,37 @@ export function PlateScanner({ onExit }: PlateScannerProps) {
       
       console.log('✅ Photo uploaded:', publicUrl);
 
-      // STEP 3: Call UNIFIED plate-scanner-photo-first function
-      console.log('📤 Processing with unified photo-first ingest...');
-      const { data: scanResult, error: scanError } = await supabase.functions.invoke('plate-scanner-photo-first', {
-        body: {
-          image: imageDataUrl,
-          zoneId: selectedZone.id,
-          organizationId: selectedZone.organization_id,
-          userId: user.id,
-          recordedAt: new Date().toISOString(),
-          gpsLocation: gpsLocation ? {
-            lat: gpsLocation.lat,
-            lng: gpsLocation.lng,
-            accuracy: gpsLocation.accuracy,
-          } : null,
-          idempotencyKey: `driving:${Date.now()}:${Math.random().toString(36).slice(2)}`,
-        },
-      });
+      // STEP 3: Call alpr-process via scanVehicle (handles auth + base64)
+      console.log('📤 Processing with alpr-process...');
 
-      if (scanError) {
-        let errorMessage = scanError.message;
-        if (scanError.name === 'FunctionsHttpError' && scanError.context) {
-          try {
-            errorMessage = await scanError.context.text() || errorMessage;
-          } catch {}
-        }
-        throw new Error(errorMessage);
-      }
+      // Calculate SHA-256 hash for photo integrity
+      const arrayBuffer = await blob.arrayBuffer();
+      const hashBuffer = await crypto.subtle.digest('SHA-256', arrayBuffer);
+      const hashArray = Array.from(new Uint8Array(hashBuffer));
+      const photoHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+
+      const scanResult = await scanVehicle(blob, {
+        publicUrl,
+        hash: photoHash,
+        lat: gpsLocation?.lat || -41.2865,
+        lng: gpsLocation?.lng || 174.7762,
+        accuracy: gpsLocation?.accuracy,
+        orgId: selectedZone.organization_id,
+        zoneId: selectedZone.id,
+      });
 
       if (!scanResult?.success) {
         throw new Error(scanResult?.error || 'Scan failed');
       }
 
-      console.log('✅ Photo-first ingest complete:', scanResult);
+      console.log('✅ alpr-process complete:', scanResult);
 
       // STEP 4: Determine status (initially just show plate detected)
-      // Compliance evaluation happens via trigger - poll get_observation_result() for full details
+      // Compliance evaluation happens via trigger - breach alerts arrive via push notification
       let status: QueueItem['status'] = 'compliant';
-      let details = `✅ Plate detected: ${scanResult.plate_number || 'PENDING'}`;
+      let details = `✅ Plate detected: ${scanResult.plate || 'PENDING'}`;
 
-      if (scanResult.plate_number) {
+      if (scanResult.plate) {
         playSounds.processingComplete();
       } else {
         details = '⏳ ALPR processing...';
@@ -485,7 +477,7 @@ export function PlateScanner({ onExit }: PlateScannerProps) {
 
       const newItem: QueueItem = {
         id: scanResult.observation_id || `scan-${Date.now()}`,
-        plateNumber: scanResult.plate_number || 'PROCESSING',
+        plateNumber: scanResult.plate || 'PROCESSING',
         status,
         details,
         timestamp: new Date(),

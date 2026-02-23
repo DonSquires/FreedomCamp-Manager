@@ -77,7 +77,7 @@ interface PlateDetectionResult {
   hasGreenSticker?: boolean;
   hasBlueSticker?: boolean;
   officerNotes?: string; // Metadata notes (manual entry, file upload indicators)
-  // Enriched from process-field-scan
+  // Enriched from vehicle-ingest
   vehicleId?: string;
   observationId?: string;
   isCompliant?: boolean;
@@ -974,7 +974,7 @@ export function PlateCapture({
       return;
     }
 
-    console.log('Calling process-field-scan Edge Function...');
+    console.log('Calling vehicle-ingest Edge Function...');
     console.log('Request data:', {
       plateNumber: detectionResult.plateNumber,
       zoneId,
@@ -984,24 +984,20 @@ export function PlateCapture({
     });
 
     try {
-      const { data: scanResult, error: scanError } = await supabase.functions.invoke('process-field-scan', {
+      const { data: scanResult, error: scanError } = await supabase.functions.invoke('vehicle-ingest', {
         body: {
-          plateNumber: detectionResult.plateNumber,
-          zoneId,
-          organizationId,
-          imageUrl: detectionResult.fullImageUrl,
-          gpsLocation,
-          vehicleDetails: {
-            make: detectionResult.vehicleMake,
-            model: detectionResult.vehicleModel,
-            color: detectionResult.vehicleColor,
-            year: detectionResult.vehicleYear,
-          },
-          detectionMethod: detectionResult.detectionMethod,
+          plate: detectionResult.plateNumber,
           confidence: detectionResult.confidence,
-          isSelfContained: detectionResult.isSelfContained,
-          hasGreenSticker: detectionResult.hasGreenSticker,
-          hasBlueSticker: detectionResult.hasBlueSticker,
+          image: detectionResult.fullImageUrl,
+          gpsLatitude: gpsLocation?.lat || null,
+          gpsLongitude: gpsLocation?.lng || null,
+          gpsAccuracy: gpsLocation?.accuracy || null,
+          recordedAt: new Date().toISOString(),
+          officerId: organizationId, // will be overridden by JWT sub in function
+          organizationId,
+          zoneId,
+          idempotencyKey: `scan:${Date.now()}:${Math.random().toString(36).slice(2)}`,
+          requires_manual_entry: false,
         },
       });
 
@@ -1081,7 +1077,7 @@ export function PlateCapture({
         (!drivingMode && handheldMode === 'collect_details');
       
       if (shouldShowPopup) {
-        // Use enriched vehicle data from process-field-scan (includes canonical_vehicles data)
+        // Use enriched vehicle data from vehicle-ingest
         const enrichedDetails = {
           ...detectionResult,
           vehicleId: scanResult.vehicle_id,
