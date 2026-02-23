@@ -195,7 +195,7 @@ export function EnforcementActions() {
       if (activeTab === 'breaches') {
         // Query observations with breach status
         let query = supabase
-          .from('vehicle_observations_v2')
+          .from('observations')
           .select(`
             plate_number,
             zone_id,

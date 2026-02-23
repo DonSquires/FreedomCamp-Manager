@@ -52,14 +52,14 @@ export function DatabaseDiagnostic() {
       const results: TableStats[] = [];
 
       // ============================================
-      // CHECK 1: vehicle_observations_v2 (CURRENT TABLE)
+      // CHECK 1: observations (CURRENT TABLE)
       // ============================================
-      console.log('📊 Checking vehicle_observations_v2...');
+      console.log('📊 Checking observations...');
       
       const { data: v2Data, error: v2Error } = await supabase
-        .from('vehicle_observations_v2')
+        .from('observations')
         .select(`
-          observation_id,
+          id,
           plate_number,
           zone_id,
           recorded_at,
@@ -69,10 +69,10 @@ export function DatabaseDiagnostic() {
         .limit(10);
 
       if (v2Error) {
-        console.error('Error querying vehicle_observations_v2:', v2Error);
+        console.error('Error querying observations:', v2Error);
       } else {
         const { count } = await supabase
-          .from('vehicle_observations_v2')
+          .from('observations')
           .select('*', { count: 'exact', head: true });
 
         const uniquePlates = new Set(v2Data?.map(r => r.plate_number) || []);
@@ -83,7 +83,7 @@ export function DatabaseDiagnostic() {
         const latest = dates.length > 0 ? dates[0] : null;
 
         results.push({
-          table_name: 'vehicle_observations_v2 ✅ CURRENT',
+          table_name: 'observations ✅ CURRENT',
           total_records: count || 0,
           earliest_date: earliest,
           latest_date: latest,
@@ -92,7 +92,7 @@ export function DatabaseDiagnostic() {
           sample_records: v2Data || [],
         });
 
-        console.log(`✅ vehicle_observations_v2: ${count || 0} records`);
+        console.log(`✅ observations: ${count || 0} records`);
         console.log(`   - Unique plates: ${uniquePlates.size}`);
         console.log(`   - Unique zones: ${uniqueZones.size}`);
         console.log(`   - Date range: ${earliest} → ${latest}`);
@@ -197,7 +197,7 @@ export function DatabaseDiagnostic() {
       setStats(results);
 
       // Summary
-      const v2Count = results.find(r => r.table_name.includes('vehicle_observations_v2'))?.total_records || 0;
+      const v2Count = results.find(r => r.table_name.includes('observations'))?.total_records || 0;
       const legacyCount = results.find(r => r.table_name.includes('vehicle_observations '))?.total_records || 0;
 
       if (v2Count === 0 && legacyCount > 0) {
@@ -381,11 +381,11 @@ export function DatabaseDiagnostic() {
                             </h4>
                             <p className="text-sm text-red-800 dark:text-red-200">
                               This table contains {stat.total_records.toLocaleString()} observations that should be migrated to
-                              vehicle_observations_v2. The cleanup function only works with the new table structure.
+                              observations. The cleanup function only works with the new table structure.
                             </p>
                             <p className="text-sm text-red-800 dark:text-red-200 mt-2">
                               <strong>Action Required:</strong> Run data migration to move all records from vehicle_observations
-                              → vehicle_observations_v2
+                              → observations
                             </p>
                           </div>
                         </div>
@@ -408,7 +408,7 @@ export function DatabaseDiagnostic() {
               </CardHeader>
               <CardContent className="space-y-3">
                 {(() => {
-                  const v2Count = stats.find(s => s.table_name.includes('vehicle_observations_v2'))?.total_records || 0;
+                  const v2Count = stats.find(s => s.table_name.includes('observations'))?.total_records || 0;
                   const legacyCount = stats.find(s => s.table_name.includes('vehicle_observations '))?.total_records || 0;
                   const vehicleCount = stats.find(s => s.table_name.includes('canonical_vehicles'))?.total_records || 0;
 
@@ -419,7 +419,7 @@ export function DatabaseDiagnostic() {
                           ❌ All {legacyCount.toLocaleString()} observations are in the LEGACY table
                         </p>
                         <p className="text-sm text-red-800 dark:text-red-200 mt-2">
-                          The cleanup function queries vehicle_observations_v2 which is empty. You need to migrate data from
+                          The cleanup function queries observations which is empty. You need to migrate data from
                           the legacy table first.
                         </p>
                       </div>
@@ -431,11 +431,11 @@ export function DatabaseDiagnostic() {
                           ⚠️ Data split across tables
                         </p>
                         <ul className="text-sm text-amber-800 dark:text-amber-200 mt-2 space-y-1">
-                          <li>• vehicle_observations_v2 (current): {v2Count.toLocaleString()} records</li>
+                          <li>• observations (current): {v2Count.toLocaleString()} records</li>
                           <li>• vehicle_observations (legacy): {legacyCount.toLocaleString()} records</li>
                         </ul>
                         <p className="text-sm text-amber-800 dark:text-amber-200 mt-2">
-                          Complete migration needed to consolidate all data in vehicle_observations_v2
+                          Complete migration needed to consolidate all data in observations
                         </p>
                       </div>
                     );
@@ -443,7 +443,7 @@ export function DatabaseDiagnostic() {
                     return (
                       <div className="p-4 bg-green-100 dark:bg-green-950/40 border border-green-500 rounded">
                         <p className="font-semibold text-green-900 dark:text-green-100">
-                          ✅ Data correctly located in vehicle_observations_v2
+                          ✅ Data correctly located in observations
                         </p>
                         <ul className="text-sm text-green-800 dark:text-green-200 mt-2 space-y-1">
                           <li>• {v2Count.toLocaleString()} observations in current table</li>

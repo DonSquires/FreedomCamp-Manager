@@ -93,7 +93,7 @@ interface CanonicalVehicle {
 }
 
 interface VehicleObservation {
-  observation_id: string;
+  id: string;
   recorded_at: string;
   zone_id: string;
   organization_id: string;
@@ -182,12 +182,12 @@ export function VehicleDetailPage({
 
     try {
       let query = supabase
-        .from('vehicle_observations_v2')
+        .from('observations')
         .select(`
           *,
           zones(name),
           organizations(name),
-          user_profiles!vehicle_observations_v2_recorded_by_fkey(first_name, last_name),
+          user_profiles(first_name, last_name),
           compliance_results(is_compliant, is_exempt, exemption_reason, violation_reasons)
         `)
         .eq('plate_number', plateNumber)
@@ -503,7 +503,7 @@ export function VehicleDetailPage({
 
                     return (
                       <div
-                        key={obs.observation_id}
+                        key={obs.id}
                         className={`p-4 border-2 rounded-lg ${
                           obs.is_breach && isExempt
                             ? 'border-amber-500 bg-amber-50 dark:bg-amber-950/30'

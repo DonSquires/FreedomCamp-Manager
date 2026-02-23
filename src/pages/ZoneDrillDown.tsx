@@ -106,20 +106,20 @@ export function ZoneDrillDown({
       console.log('🔍 Loading observations for zone:', zoneId);
       
       let query = supabase
-        .from('vehicle_observations_v2')
+        .from('observations')
         .select(`
-          observation_id,
+          id as observation_id,
           recorded_at,
           plate_number,
           recorded_by,
           gps_latitude,
           gps_longitude,
           officer_notes,
-          user_profiles!vehicle_observations_v2_recorded_by_fkey(
+          user_profiles(
             first_name,
             last_name
           ),
-          canonical_vehicles!vehicle_observations_v2_plate_number_fkey(
+          canonical_vehicles(
             vehicle_make,
             vehicle_model,
             vehicle_year,

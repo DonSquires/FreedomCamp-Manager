@@ -45,9 +45,9 @@ export async function fetchCompleteObservationData(
   }
 
   const { data: observations, error } = await supabase
-    .from('vehicle_observations_v2')
+    .from('observations')
     .select(`
-      observation_id,
+      id as observation_id,
       plate_number,
       organization_id,
       zone_id,
@@ -68,7 +68,7 @@ export async function fetchCompleteObservationData(
         name
       )
     `)
-    .in('observation_id', observationIds);
+    .in('id', observationIds);
 
   if (error) {
     console.error('Failed to fetch observation data:', error);

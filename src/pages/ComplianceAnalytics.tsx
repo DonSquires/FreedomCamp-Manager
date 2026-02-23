@@ -151,9 +151,9 @@ export function ComplianceAnalytics() {
 
       // Load observations in date range WITH homeless status
       let obsQuery = supabase
-        .from('vehicle_observations_v2')
+        .from('observations')
         .select(`
-          observation_id,
+          id,
           plate_number,
           zone_id,
           organization_id,

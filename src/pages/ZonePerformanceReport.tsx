@@ -151,8 +151,8 @@ export function ZonePerformanceReport() {
         zonesList.map(async (zone) => {
           // Count observations
           let obsQuery = supabase
-            .from('vehicle_observations_v2')
-            .select('observation_id, plate_number, is_compliant', { count: 'exact' })
+            .from('observations')
+            .select('id, plate_number, is_compliant', { count: 'exact' })
             .eq('zone_id', zone.id)
             .gte('recorded_at', `${startDate}T00:00:00`)
             .lte('recorded_at', `${endDate}T23:59:59`);

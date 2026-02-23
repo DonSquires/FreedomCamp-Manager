@@ -116,7 +116,7 @@ export function BulkScanReview() {
     try {
       // Create vehicle observation
       const { data: vehicleRecord, error: vehicleError } = await supabase
-        .from('vehicle_observations_v2')
+        .from('observations')
         .insert({
           organization_id: selectedScan.organization_id,
           zone_id: selectedScan.zone_id,
@@ -140,7 +140,7 @@ export function BulkScanReview() {
       // Update plate scan
       await updatePlateScan(selectedScan.id, {
         converted_to_record: true,
-        vehicle_record_id: vehicleRecord.observation_id,
+        vehicle_record_id: vehicleRecord.id,
         reviewed: true,
         reviewed_by: user?.id,
         reviewed_at: new Date().toISOString(),

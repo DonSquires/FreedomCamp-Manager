@@ -179,9 +179,9 @@ export function AnalyticsHub() {
 
       // Build base observation query
       let obsQuery = supabase
-        .from('vehicle_observations_v2')
+        .from('observations')
         .select(`
-          observation_id,
+          id,
           plate_number,
           zone_id,
           recorded_by,

@@ -95,9 +95,9 @@ export function ComplianceDrillDownModal({
 
       // Get all observations in date range
       const { data: observations, error: obsError } = await supabase
-        .from('vehicle_observations_v2')
+        .from('observations')
         .select(`
-          observation_id,
+          id,
           plate_number,
           zone_id,
           recorded_at,

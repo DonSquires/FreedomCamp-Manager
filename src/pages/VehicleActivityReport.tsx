@@ -136,7 +136,7 @@ export function VehicleActivityReport() {
 
       // Get unique plates from observations filtered by organization
       let obsQuery = supabase
-        .from('vehicle_observations_v2')
+        .from('observations')
         .select('plate_number', { count: 'exact' });
 
       // Apply organization filter
@@ -216,9 +216,9 @@ export function VehicleActivityReport() {
 
       // Get all observations with filters
       let observationsQuery = supabase
-        .from('vehicle_observations_v2')
+        .from('observations')
         .select(`
-          observation_id,
+          id as observation_id,
           zone_id,
           organization_id,
           recorded_at,
@@ -231,7 +231,7 @@ export function VehicleActivityReport() {
           gps_longitude,
           zones!inner(name),
           organizations(name),
-          user_profiles!vehicle_observations_v2_recorded_by_fkey(first_name, last_name)
+          user_profiles(first_name, last_name)
         `)
         .eq('plate_number', plateNumber)
         .gte('recorded_at', `${startDate}T00:00:00`)
