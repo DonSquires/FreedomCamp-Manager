@@ -1,5 +1,11 @@
 import { createClient } from 'npm:@supabase/supabase-js@2.45.3';
-import { corsHeaders } from '../_shared/cors.ts';
+
+// Inline CORS headers (replacement for ../_shared/cors.ts)
+export const corsHeaders: HeadersInit = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+};
 
 // CONFIGURATION
 const ALPR_API_URL = 'https://api.platerecognizer.com/v1/plate-reader/';
@@ -64,7 +70,6 @@ Deno.serve(async (req) => {
     if (body.gpsLongitude === undefined || body.gpsLongitude === null) missingFields.push('gpsLongitude');
 
     if (missingFields.length > 0) {
-      console.error('Validation Error. Missing:', missingFields);
       return new Response(
         JSON.stringify({ success: false, error: `Missing required fields: ${missingFields.join(', ')}` }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -78,11 +83,15 @@ Deno.serve(async (req) => {
     );
 
     // 6. Idempotency Check (Prevent Double Billing)
-    const { data: existingObs } = await supabase
+    const { data: existingObs, error: idempErr } = await supabase
       .from('observations')
       .select('id, plate_number, is_compliant')
       .eq('idempotency_key', body.idempotencyKey)
       .maybeSingle();
+
+    if (idempErr) {
+      console.error('Idempotency check failed', idempErr);
+    }
 
     if (existingObs) {
       return new Response(
@@ -119,7 +128,7 @@ Deno.serve(async (req) => {
     
     formData.append('config', JSON.stringify({
       region: 'strict',
-      detection_rule: 'strict' // Only returns if vehicle/plate found
+      detection_rule: 'strict'
     }));
 
     // 8. Call External API
