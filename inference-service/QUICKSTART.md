@@ -85,38 +85,43 @@ curl "$RAILWAY_URL/health" | jq .
 The system uses **three independent secrets** — set whichever you have:
 
 ```bash
-# ── REQUIRED ─────────────────────────────────────────────────────────────────
-# Plate Recognizer API — primary plate recognition (paid subscription)
-# This is the most important secret; the system works without Railway.
-supabase secrets set PLATE_RECOGNIZER_TOKEN="your-plate-recognizer-token"
+# ── ALREADY SET ───────────────────────────────────────────────────────────────
+# The following secrets are already configured in your Supabase project:
+#   PLATERECOGNIZER_TOKEN   ← primary token name used by orc-ingest / vehicle-ingest
+#   ALPR_API_TOKEN          ← same value, alternate name (both accepted)
+#   ALPR_API_URL            ← API endpoint URL
+#   PARKPOW_API_TOKEN       ← ParkPow enforcement integration
 
-# Optional: override the API endpoint (default shown)
-# supabase secrets set PLATE_RECOGNIZER_API_URL="https://api.platerecognizer.com/v1/plate-reader/"
+# To verify they are present:
+supabase secrets list
+
+# To update/rotate the Plate Recognizer token:
+supabase secrets set PLATERECOGNIZER_TOKEN="new-token-here"
 
 # ── OPTIONAL ─────────────────────────────────────────────────────────────────
 # Railway ORC/AI — adds 384-D visual embedding (vehicle fingerprinting)
 # Set this AFTER deploying the inference service to Railway.
-# When absent, the system still works fully via Plate Recognizer alone.
+# The system works fully with Plate Recognizer alone if Railway is not deployed.
 supabase secrets set INFERENCE_SERVICE_URL="https://orc-ai-inference-production.up.railway.app"
-
-# Verify all secrets
-supabase secrets list
 ```
 
 **Priority order once secrets are set:**
-1. 🥇 **Plate Recognizer API** → plate + make/model/colour
-2. 🥈 **Railway ORC/AI** → 384-D visual embedding (runs in parallel with tier 1)
+1. 🥇 **Plate Recognizer API** (`PLATERECOGNIZER_TOKEN` / `ALPR_API_TOKEN`) → plate + make/model/colour
+2. 🥈 **Railway ORC/AI** (`INFERENCE_SERVICE_URL`) → 384-D visual embedding (runs in parallel with tier 1)
 3. 🥉 **OnSpace AI / manual** → client-side fallback if both above unavailable
 
 ---
 
 ## ✅ **Success Checklist**
 
-- [ ] Railway project created
+- [x] `PLATERECOGNIZER_TOKEN` set in Supabase ✅ already configured
+- [x] `ALPR_API_TOKEN` set in Supabase ✅ already configured
+- [x] `ALPR_API_URL` set in Supabase ✅ already configured
+- [x] `PARKPOW_API_TOKEN` set in Supabase ✅ already configured
+- [ ] Railway project created (optional — adds visual embeddings)
 - [ ] Environment variables set on Railway
 - [ ] Deployment successful
 - [ ] Health check passes
-- [ ] `PLATE_RECOGNIZER_TOKEN` set in Supabase ← **start here**
 - [ ] `INFERENCE_SERVICE_URL` set in Supabase ← add once Railway is deployed
 
 ---

@@ -121,13 +121,18 @@ async function callPlateRecognizer(
   imageBytes: Uint8Array,
   regions: string[],
 ): Promise<Omit<PlateResult, "embedding" | "embedding_quality" | "embedding_model_version" | "source"> | null> {
-  const token = Deno.env.get("PLATE_RECOGNIZER_TOKEN");
+  // Accept all known secret name variants (most specific first)
+  const token =
+    Deno.env.get("PLATERECOGNIZER_TOKEN") ??
+    Deno.env.get("ALPR_API_TOKEN") ??
+    Deno.env.get("PLATE_RECOGNIZER_TOKEN"); // legacy — kept for backward compat
   if (!token) {
-    console.warn("⚠️  PLATE_RECOGNIZER_TOKEN not set — skipping tier 1");
+    console.warn("⚠️  No Plate Recognizer token set (PLATERECOGNIZER_TOKEN / ALPR_API_TOKEN) — skipping tier 1");
     return null;
   }
 
   const apiUrl =
+    Deno.env.get("ALPR_API_URL") ??
     Deno.env.get("PLATE_RECOGNIZER_API_URL") ??
     "https://api.platerecognizer.com/v1/plate-reader/";
 

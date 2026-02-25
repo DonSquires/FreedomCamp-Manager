@@ -20,15 +20,24 @@ import { corsHeaders } from "../_shared/cors.ts";
 // ============================================================================
 // DEPLOYMENT MODE — auto-detected from environment
 // ============================================================================
-// PLATE_RECOGNIZER_TOKEN set → Plate Recognizer API used for plate recognition
+// PLATERECOGNIZER_TOKEN (or ALPR_API_TOKEN) set → Plate Recognizer API
 // INFERENCE_SERVICE_URL set  → Railway ORC/AI used for visual embedding
 // Both absent → OnSpace AI fallback (client provides plate data)
 //
-// These two env vars are fully independent: you can use Plate Recognizer
-// without Railway (recommended minimal setup), or both together for full
-// vehicle fingerprinting capability.
-const PLATE_RECOGNIZER_TOKEN = Deno.env.get("PLATE_RECOGNIZER_TOKEN");
+// Secret name lookup order (all accepted, first wins):
+//   PLATERECOGNIZER_TOKEN   ← canonical name in Supabase secrets
+//   ALPR_API_TOKEN          ← alternate name in Supabase secrets
+//   PLATE_RECOGNIZER_TOKEN  ← legacy name (backward compat)
+//
+// API URL lookup order:
+//   ALPR_API_URL            ← set in Supabase secrets
+//   PLATE_RECOGNIZER_API_URL ← legacy name
+const PLATE_RECOGNIZER_TOKEN =
+  Deno.env.get("PLATERECOGNIZER_TOKEN") ??
+  Deno.env.get("ALPR_API_TOKEN") ??
+  Deno.env.get("PLATE_RECOGNIZER_TOKEN");
 const PLATE_RECOGNIZER_API_URL =
+  Deno.env.get("ALPR_API_URL") ??
   Deno.env.get("PLATE_RECOGNIZER_API_URL") ??
   "https://api.platerecognizer.com/v1/plate-reader/";
 const USE_ONSPACE_AI = !PLATE_RECOGNIZER_TOKEN && !Deno.env.get("INFERENCE_SERVICE_URL");
