@@ -7,6 +7,7 @@ export type Database = {
           name: string;
           contact_email: string | null;
           contact_phone: string | null;
+          enforcement_workflow: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -26,6 +27,7 @@ export type Database = {
           created_at?: string;
           updated_at?: string;
         };
+        Relationships: [];
       };
       zones: {
         Row: {
@@ -85,6 +87,7 @@ export type Database = {
           created_at?: string;
           updated_at?: string;
         };
+        Relationships: [];
       };
       patrols: {
         Row: {
@@ -135,6 +138,7 @@ export type Database = {
           created_at: string;
           updated_at: string;
         }>;
+        Relationships: [];
       };
       breach_alerts: {
         Row: {
@@ -143,6 +147,7 @@ export type Database = {
           patrol_id: string | null;
           vehicle_record_id: string | null; // Deprecated - use observation_id
           observation_id: string | null; // New - links to vehicle_observations
+          compliance_result_id: string | null;
           zone_id: string;
           breach_type: 'overstay' | 'no_self_contained' | 'no_wof' | 'consecutive_days' | 'unauthorized_zone' | 'nights_exceeded';
           breach_details: any;
@@ -151,7 +156,11 @@ export type Database = {
           notification_method: string | null;
           notified_at: string | null;
           notified_by: string | null;
-          status: 'pending' | 'notified' | 'resolved' | 'escalated';
+          status: 'pending' | 'notified' | 'resolved' | 'escalated' | 'acknowledged' | 'enforcement_started' | 'dismissed';
+          plate_number: string | null;
+          assigned_to: string | null;
+          assigned_at: string | null;
+          admin_reviewed_by: string | null;
           resolution_notes: string | null;
           resolved_at: string | null;
           created_at: string;
@@ -197,6 +206,7 @@ export type Database = {
           created_at: string;
           updated_at: string;
         }>;
+        Relationships: [];
       };
       // ⚠️ vehicle_records DEPRECATED - Use vehicle_observations instead
       // This type is kept for backward compatibility only
@@ -256,6 +266,7 @@ export type Database = {
           created_at: string;
           updated_at: string;
         }>;
+        Relationships: [];
       };
       incidents: {
         Row: {
@@ -366,6 +377,7 @@ export type Database = {
           issue_detected: boolean;
           enforcement_required: boolean;
         }>;
+        Relationships: [];
       };
       user_profiles: {
         Row: {
@@ -377,6 +389,8 @@ export type Database = {
           role: string;
           phone: string | null;
           is_active: boolean;
+          employer_organization_id: string | null;
+          authorized_work_locations: string[] | null;
           permissions: ('super_delete' | 'admin' | 'master' | 'officer')[];
           created_at: string;
           updated_at: string;
@@ -407,6 +421,7 @@ export type Database = {
           created_at: string;
           updated_at: string;
         }>;
+        Relationships: [];
       };
       verification_results: {
         Row: {
@@ -463,6 +478,7 @@ export type Database = {
           location_lng: number | null;
           created_at: string;
         }>;
+        Relationships: [];
       };
       audit_log: {
         Row: {
@@ -504,6 +520,7 @@ export type Database = {
           user_agent: string | null;
           created_at: string;
         }>;
+        Relationships: [];
       };
       plate_history: {
         Row: {
@@ -542,6 +559,7 @@ export type Database = {
           stayed_overnight: boolean | null;
           created_at: string;
         }>;
+        Relationships: [];
       };
       canonical_vehicles: {
         Row: {
@@ -550,6 +568,18 @@ export type Database = {
           vehicle_make: string | null;
           vehicle_model: string | null;
           vehicle_color: string | null;
+          vehicle_year: number | null;
+          make: string | null;
+          model: string | null;
+          colour: string | null;
+          self_contained: boolean | null;
+          self_contained_expiry: string | null;
+          homeless_status: string | null;
+          profile_photo_url: string | null;
+          profile_photo: string | null;
+          profile_photo_score: number | null;
+          profile_photo_updated_at: string | null;
+          total_breaches: number | null;
           first_seen_at: string;
           last_seen_at: string;
           total_observations: number;
@@ -613,11 +643,14 @@ export type Database = {
           created_at: string;
           updated_at: string;
         }>;
+        Relationships: [];
       };
       vehicle_observations: {
         Row: {
+          id: string;
           observation_id: string;
           vehicle_id: string;
+          plate_number: string | null;
           organization_id: string | null;
           zone_id: string;
           recorded_by: string | null;
@@ -748,6 +781,7 @@ export type Database = {
           compliance_matrix_version: number | null;
           evidence_timestamp: string;
         }>;
+        Relationships: [];
       };
       compliance_results: {
         Row: {
@@ -808,6 +842,7 @@ export type Database = {
           gps_verified_consecutive_nights: number | null;
           gps_evidence_json: any;
         }>;
+        Relationships: [];
       };
       zone_compliance_matrix: {
         Row: {
@@ -864,6 +899,7 @@ export type Database = {
           change_notes: string | null;
           created_at: string;
         }>;
+        Relationships: [];
       };
       drift_events: {
         Row: {
@@ -920,6 +956,7 @@ export type Database = {
           reviewed_at: string | null;
           reviewed_by: string | null;
         }>;
+        Relationships: [];
       };
       admin_recalculation_actions: {
         Row: {
@@ -973,6 +1010,7 @@ export type Database = {
           completed_at: string | null;
           duration_seconds: number | null;
         }>;
+        Relationships: [];
       };
       photo_metadata: {
         Row: {
@@ -1062,6 +1100,7 @@ export type Database = {
           created_at: string;
           deleted_at: string | null;
         }>;
+        Relationships: [];
       };
       plate_scans: {
         Row: {
@@ -1157,6 +1196,7 @@ export type Database = {
           created_at: string;
           updated_at: string;
         }>;
+        Relationships: [];
       };
       observations: {
         Row: {
@@ -1175,6 +1215,7 @@ export type Database = {
           gps_accuracy: number | null;
           recorded_by: string;
           officer_notes: string | null;
+          notes: string | null;
           weather_conditions: string | null;
           vehicle_make: string | null;
           vehicle_model: string | null;
@@ -1183,9 +1224,14 @@ export type Database = {
           self_contained: boolean;
           self_contained_expiry: string | null;
           is_compliant: boolean;
+          is_self_contained: boolean | null;
+          photo: string | null;
+          breach_details: any | null;
           // is_breach is the inverse of is_compliant, kept for backwards compat
           is_breach: boolean | null;
           breach_type: string | null;
+          evidence_photos: string[] | null;
+          has_homeless_claim: boolean | null;
           breach_reason: string | null;
           nights_stayed_this_month: number;
           // nights_stayed is an alias for nights_stayed_this_month
@@ -1258,6 +1304,7 @@ export type Database = {
           created_at?: string;
           updated_at?: string;
         };
+        Relationships: [];
       };
       alert_queue: {
         Row: {
@@ -1317,6 +1364,7 @@ export type Database = {
           created_at?: string;
           updated_at?: string;
         };
+        Relationships: [];
       };
       alert_acknowledgements: {
         Row: {
@@ -1370,6 +1418,7 @@ export type Database = {
           device_info?: any | null;
           created_at?: string;
         };
+        Relationships: [];
       };
       bug_reports: {
         Row: {
@@ -1436,6 +1485,7 @@ export type Database = {
           resolved_by?: string | null;
           updated_at?: string;
         };
+        Relationships: [];
       };
       canonical_vehicle_sources: {
         Row: {
@@ -1464,6 +1514,7 @@ export type Database = {
           verified?: boolean;
           updated_at?: string;
         };
+        Relationships: [];
       };
       "compliance-documents": {
         Row: {
@@ -1525,6 +1576,7 @@ export type Database = {
           warrant_document_url?: string | null;
           updated_at?: string;
         };
+        Relationships: [];
       };
       dashboard_stats_live: {
         Row: {
@@ -1537,6 +1589,7 @@ export type Database = {
         };
         Insert: { scans_today?: number };
         Update: { scans_today?: number };
+        Relationships: [];
       };
       dashboard_breaches: {
         Row: {
@@ -1552,6 +1605,7 @@ export type Database = {
         };
         Insert: { alert_id: string; status: string; created_at: string; plate_number: string };
         Update: { status?: string };
+        Relationships: [];
       };
       enforcement_actions: {
         Row: {
@@ -1563,10 +1617,13 @@ export type Database = {
           assigned_to: string | null;
           assigned_at: string | null;
           status: string;
+          breach_status: string | null;
           observation_id: string | null;
           compliance_result_id: string | null;
           breach_type: string | null;
           notes: string | null;
+          location_lat: number | null;
+          location_lng: number | null;
           recorded_at: string | null;
           completed_at: string | null;
           created_at: string;
@@ -1600,6 +1657,7 @@ export type Database = {
           completed_at?: string | null;
           updated_at?: string;
         };
+        Relationships: [];
       };
       evidence: {
         Row: {
@@ -1629,6 +1687,7 @@ export type Database = {
           caption?: string | null;
           updated_at?: string;
         };
+        Relationships: [];
       };
       flagged_vehicles: {
         Row: {
@@ -1668,6 +1727,7 @@ export type Database = {
           resolved_at?: string | null;
           updated_at?: string;
         };
+        Relationships: [];
       };
       import_history: {
         Row: {
@@ -1706,6 +1766,7 @@ export type Database = {
           error_log?: any | null;
           completed_at?: string | null;
         };
+        Relationships: [];
       };
       "incident-evidence": {
         Row: {
@@ -1734,6 +1795,7 @@ export type Database = {
           id?: string;
           caption?: string | null;
         };
+        Relationships: [];
       };
       investigation_findings: {
         Row: {
@@ -1760,6 +1822,7 @@ export type Database = {
           description?: string;
           evidence_urls?: string[] | null;
         };
+        Relationships: [];
       };
       investigation_jobs: {
         Row: {
@@ -1772,6 +1835,9 @@ export type Database = {
           status: string;
           priority: string;
           notes: string | null;
+          location_address: string | null;
+          location_address: string | null;
+          assigned_at: string | null;
           started_at: string | null;
           completed_at: string | null;
           breach_type: string | null;
@@ -1805,6 +1871,7 @@ export type Database = {
           completed_at?: string | null;
           updated_at?: string;
         };
+        Relationships: [];
       };
       officer_activity_log: {
         Row: {
@@ -1836,6 +1903,7 @@ export type Database = {
           activity_type?: string;
           metadata?: any;
         };
+        Relationships: [];
       };
       officer_welfare_alerts: {
         Row: {
@@ -1876,6 +1944,7 @@ export type Database = {
           notes?: string | null;
           updated_at?: string;
         };
+        Relationships: [];
       };
       officer_welfare_settings: {
         Row: {
@@ -1920,6 +1989,7 @@ export type Database = {
           investigation_exception_enabled?: boolean;
           updated_at?: string;
         };
+        Relationships: [];
       };
       person_interactions: {
         Row: {
@@ -1947,6 +2017,7 @@ export type Database = {
         Update: {
           interaction_notes?: string | null;
         };
+        Relationships: [];
       };
       person_records: {
         Row: {
@@ -1986,6 +2057,7 @@ export type Database = {
           photo_url?: string | null;
           updated_at?: string;
         };
+        Relationships: [];
       };
       user_sessions: {
         Row: {
@@ -2015,6 +2087,7 @@ export type Database = {
           last_activity_at?: string | null;
           logout_at?: string | null;
         };
+        Relationships: [];
       };
       vehicle_monthly_stays: {
         Row: {
@@ -2057,6 +2130,7 @@ export type Database = {
           last_reset_at?: string | null;
           updated_at?: string;
         };
+        Relationships: [];
       };
       vehicle_records: {
         Row: {
@@ -2074,6 +2148,12 @@ export type Database = {
           is_self_contained: boolean | null;
           self_contained_expiry: string | null;
           officer_id: string | null;
+          gps_latitude: number | null;
+          gps_longitude: number | null;
+          homeless_claimed: boolean | null;
+          homeless_confirmed: boolean | null;
+          behavioral_flags: any | null;
+          is_compliant: boolean | null;
           created_at: string;
           updated_at: string;
         };
@@ -2108,6 +2188,7 @@ export type Database = {
           self_contained_expiry?: string | null;
           updated_at?: string;
         };
+        Relationships: [];
       };
       zone_legal_config: {
         Row: {
@@ -2179,6 +2260,7 @@ export type Database = {
           breach_template?: string;
           updated_at?: string;
         };
+        Relationships: [];
       };
     };
     Views: Record<string, never>;
