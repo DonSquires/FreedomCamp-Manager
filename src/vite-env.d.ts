@@ -34,3 +34,8 @@ declare module "*.webp" {
   const src: string;
   export default src;
 }
+
+// CDN-loaded SheetJS — typed loosely so dynamic imports succeed
+declare module "https://cdn.sheetjs.com/xlsx-0.20.1/package/xlsx.mjs" {
+  export * from "xlsx";
+}
