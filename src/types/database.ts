@@ -161,6 +161,7 @@ export type Database = {
           assigned_to: string | null;
           assigned_at: string | null;
           admin_reviewed_by: string | null;
+          admin_reviewed_at: string | null;
           resolution_notes: string | null;
           resolved_at: string | null;
           created_at: string;
