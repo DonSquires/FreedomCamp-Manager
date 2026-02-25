@@ -80,27 +80,44 @@ curl "$RAILWAY_URL/health" | jq .
 
 ---
 
-## 📝 **Configure Supabase**
+## 📝 **Configure Supabase Secrets**
+
+The system uses **three independent secrets** — set whichever you have:
 
 ```bash
-# Set inference URL in Supabase — this automatically enables Railway mode
-# in both vehicle-ingest and orc-ingest edge functions.
-# When this secret is absent, both functions fall back to OnSpace AI mode.
+# ── REQUIRED ─────────────────────────────────────────────────────────────────
+# Plate Recognizer API — primary plate recognition (paid subscription)
+# This is the most important secret; the system works without Railway.
+supabase secrets set PLATE_RECOGNIZER_TOKEN="your-plate-recognizer-token"
+
+# Optional: override the API endpoint (default shown)
+# supabase secrets set PLATE_RECOGNIZER_API_URL="https://api.platerecognizer.com/v1/plate-reader/"
+
+# ── OPTIONAL ─────────────────────────────────────────────────────────────────
+# Railway ORC/AI — adds 384-D visual embedding (vehicle fingerprinting)
+# Set this AFTER deploying the inference service to Railway.
+# When absent, the system still works fully via Plate Recognizer alone.
 supabase secrets set INFERENCE_SERVICE_URL="https://orc-ai-inference-production.up.railway.app"
 
-# Verify
+# Verify all secrets
 supabase secrets list
 ```
+
+**Priority order once secrets are set:**
+1. 🥇 **Plate Recognizer API** → plate + make/model/colour
+2. 🥈 **Railway ORC/AI** → 384-D visual embedding (runs in parallel with tier 1)
+3. 🥉 **OnSpace AI / manual** → client-side fallback if both above unavailable
 
 ---
 
 ## ✅ **Success Checklist**
 
 - [ ] Railway project created
-- [ ] Environment variables set
+- [ ] Environment variables set on Railway
 - [ ] Deployment successful
 - [ ] Health check passes
-- [ ] `INFERENCE_SERVICE_URL` set in Supabase
+- [ ] `PLATE_RECOGNIZER_TOKEN` set in Supabase ← **start here**
+- [ ] `INFERENCE_SERVICE_URL` set in Supabase ← add once Railway is deployed
 
 ---
 
