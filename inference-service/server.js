@@ -403,10 +403,13 @@ app.use((err, _req, res, _next) => {
 // Start
 // ============================================================================
 
-loadModels().then(() => {
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`🚀 ORC/AI inference service running on port ${PORT}`);
-    console.log(`🧠 Models: ${modelsLoaded ? 'loaded' : 'NOT LOADED — degraded mode'}`);
-    console.log(`🔍 OpenAI Vision: ${OPENAI_API_KEY ? 'enabled' : 'disabled (set OPENAI_API_KEY to enable plate extraction)'}`);
+// Start HTTP server immediately so Railway healthcheck passes right away,
+// then load ONNX models in the background (may take 20-60s on first run).
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`🚀 ORC/AI inference service running on port ${PORT}`);
+  console.log(`🔍 OpenAI Vision: ${OPENAI_API_KEY ? 'enabled' : 'disabled (set OPENAI_API_KEY to enable plate extraction)'}`);
+  console.log('⏳ Loading ONNX models in background...');
+  loadModels().then(() => {
+    console.log(`🧠 Models: ${modelsLoaded ? 'loaded ✅' : 'NOT LOADED — running in degraded mode (plate scan still works via Plate Recognizer API)'}`);
   });
 });

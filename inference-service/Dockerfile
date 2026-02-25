@@ -1,7 +1,9 @@
 # Multi-stage build for optimized production image
+# NOTE: We use node:18-slim (Debian) NOT node:18-alpine.
+# onnxruntime-node ships pre-built glibc binaries; they crash on Alpine (musl libc).
 
 # Stage 1: Build dependencies
-FROM node:18-alpine AS builder
+FROM node:18-slim AS builder
 
 WORKDIR /app
 
@@ -12,15 +14,9 @@ COPY package*.json ./
 RUN npm ci --only=production
 
 # Stage 2: Production image
-FROM node:18-alpine
+FROM node:18-slim
 
 WORKDIR /app
-
-# Install runtime dependencies
-RUN apk add --no-cache \
-    libc6-compat \
-    libgcc \
-    libstdc++
 
 # Copy dependencies from builder
 COPY --from=builder /app/node_modules ./node_modules
@@ -31,9 +27,9 @@ COPY server.js ./
 # (they are too large to commit to git; see scripts/download-models.js)
 RUN mkdir -p ./models
 
-# Create non-root user
-RUN addgroup -g 1001 -S nodejs && \
-    adduser -S nodejs -u 1001 && \
+# Create non-root user (Debian syntax — node:18-slim is Debian-based)
+RUN groupadd -g 1001 nodejs && \
+    useradd -u 1001 -g nodejs -s /bin/sh -m nodejs && \
     chown -R nodejs:nodejs /app
 
 USER nodejs
