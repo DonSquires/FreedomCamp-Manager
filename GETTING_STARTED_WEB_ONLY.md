@@ -52,16 +52,19 @@ The AI vehicle embedding service lives in `inference-service/` and deploys to **
 
 Once Railway is live, sync your zones to ParkPow lots:
 
-1. GitHub → **Actions** tab
-2. Click **"ParkPow Enforcement Sync"** workflow
-3. Click **"Run workflow"**
-4. Action = `sync-lots`
-5. Click **Run workflow**
+1. Go directly to: **https://github.com/DonSquires/FreedomCamp-Manager/actions/workflows/parkpow-sync.yml**  
+   *(or: GitHub → **Actions** tab → look for **"ParkPow Sync"** in the left list)*
+2. Click **"Run workflow"** (grey dropdown button, top right)
+3. Choose **Action** = `sync-lots` → click the green **"Run workflow"** button
 
-This creates matching lots in ParkPow for each of your zones. Run `sync-watchlist` next to push flagged/exempt vehicles.
+This creates matching lots in ParkPow for each of your zones.  
+Then run it again with `sync-watchlist` to push flagged/exempt vehicles.
 
-> **Requires** `PARKPOW_API_TOKEN` already in Supabase secrets ✅ and GitHub secrets:  
-> Add `SUPABASE_ACCESS_TOKEN` + `SUPABASE_PROJECT_REF` if not already done.
+> **Required GitHub secrets** (add at https://github.com/DonSquires/FreedomCamp-Manager/settings/secrets/actions):
+> - `SUPABASE_URL` — your Supabase project URL (e.g. `https://xbfnlzmpumthnjmtqufp.supabase.co`)
+> - `SUPABASE_SERVICE_ROLE_KEY` — Supabase → Settings → API → `service_role` key
+>
+> `PARKPOW_API_TOKEN` is already in Supabase secrets ✅
 
 ---
 
@@ -338,7 +341,7 @@ Click on the workflow you want to run:
 | **Extract Database Schema** | Pulls DB structure from Supabase and saves it as files |
 | **Deploy Supabase Edge Functions** | Deploys edge functions (plate scanner, orc-ingest, etc.) |
 | **Run Database Migrations** | Applies new database changes |
-| **ParkPow Sync** | Syncs zones and violations with ParkPow enforcement |
+| **[ParkPow Sync](https://github.com/DonSquires/FreedomCamp-Manager/actions/workflows/parkpow-sync.yml)** | Syncs zones and violations with ParkPow enforcement |
 
 Then:
 1. Click **"Run workflow"** (top right of the workflow page)
@@ -502,7 +505,7 @@ The following secrets should already be configured:
 | Deploy edge functions | GitHub Actions → Deploy Supabase Edge Functions |
 | Check logs | Supabase → Edge Functions → Logs |
 | Add a secret | Supabase → Settings → Secrets (or GitHub → Settings → Secrets) |
-| Sync ParkPow | GitHub Actions → ParkPow Sync |
+| Sync ParkPow | GitHub → Actions → **[ParkPow Sync](https://github.com/DonSquires/FreedomCamp-Manager/actions/workflows/parkpow-sync.yml)** → Run workflow |
 | Redeploy AI service | Railway → inference-service → Redeploy |
 
 ---
