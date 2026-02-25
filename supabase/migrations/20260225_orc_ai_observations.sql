@@ -140,9 +140,9 @@ GRANT EXECUTE ON FUNCTION public.get_zones_with_activity TO authenticated;
 COMMENT ON FUNCTION public.get_zones_with_activity IS
   'Returns zones with observation and breach counts for the admin dashboard. Used by AdminPortal.tsx KPI drilldown.';
 
--- ── 6. Fix get_admin_dashboard_stats: replace homeless_status with is_homeless ──
--- The previous migration used canonical_vehicles.homeless_status which does
--- not exist; the correct column is is_homeless.
+-- ── 6. Rebuild get_admin_dashboard_stats with correct column names ─────────
+-- canonical_vehicles uses homeless_status TEXT ('none'|'claimed'|'confirmed'),
+-- NOT a boolean is_homeless column.  Fix accordingly.
 
 CREATE OR REPLACE FUNCTION public.get_admin_dashboard_stats(
   p_start_date       timestamptz,
@@ -209,8 +209,8 @@ BEGIN
     -- Flagged vehicles  
     (SELECT COUNT(*) FROM public.canonical_vehicles WHERE is_flagged = TRUE) AS flagged_vehicles,
 
-    -- Homeless vehicles  (correct column: is_homeless)
-    (SELECT COUNT(*) FROM public.canonical_vehicles WHERE is_homeless = TRUE) AS homeless_vehicles,
+    -- Homeless vehicles  (homeless_status is TEXT: 'none'|'claimed'|'confirmed')
+    (SELECT COUNT(*) FROM public.canonical_vehicles WHERE homeless_status IN ('claimed','confirmed')) AS homeless_vehicles,
 
     -- Homeless exempt today
     (SELECT COUNT(DISTINCT plate_number) FROM public.observations
@@ -225,7 +225,7 @@ $$;
 GRANT EXECUTE ON FUNCTION public.get_admin_dashboard_stats TO authenticated;
 
 COMMENT ON FUNCTION public.get_admin_dashboard_stats IS
-  'KPI stats for admin dashboard. Fixed homeless_status → is_homeless column reference.';
+  'KPI stats for admin dashboard. Uses homeless_status IN clause (not is_homeless column).';
 
 -- ── 7. Soft-delete column (observations referenced deleted_at in old views) ─
 
@@ -250,6 +250,6 @@ BEGIN
   RAISE NOTICE '   + IVFFlat index on vehicle_embedding';
   RAISE NOTICE '   + match_vehicle() RPC';
   RAISE NOTICE '   + get_zones_with_activity() RPC';
-  RAISE NOTICE '   + get_admin_dashboard_stats() fixed (is_homeless)';
+  RAISE NOTICE '   + get_admin_dashboard_stats() fixed (homeless_status IN clause)';
 END;
 $$;

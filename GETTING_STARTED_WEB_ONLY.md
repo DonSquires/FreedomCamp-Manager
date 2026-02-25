@@ -5,6 +5,48 @@
 
 ---
 
+## 🚀 QUICK START — Run the Database Migration Right Now
+
+If you've been asked to run the database migration, here's how to do it in 4 steps — no terminal needed.
+
+### Step 1 — Enable the vector extension in Supabase
+
+1. Go to **https://supabase.com/dashboard** → your project
+2. Left sidebar → **Database** → **Extensions**
+3. Search for **`vector`**
+4. Click the toggle to **enable** it (turns green)
+
+### Step 2 — Open the SQL Editor
+
+1. Still in Supabase dashboard, left sidebar → **SQL Editor**
+2. Click **"New query"** (the `+` button at the top-left)
+
+### Step 3 — Copy and paste the migration
+
+1. Go to this file in GitHub:  
+   **[`supabase/migrations/20260225_run_in_sql_editor.sql`](https://github.com/DonSquires/FreedomCamp-Manager/blob/copilot/add-schema-extraction-tooling/supabase/migrations/20260225_run_in_sql_editor.sql)**
+2. Click the **Copy raw contents** button (clipboard icon, top-right of the file)
+3. Paste it into the Supabase SQL Editor
+
+### Step 4 — Run it
+
+1. Click **"Run"** (or press `Ctrl+Enter` / `Cmd+Enter`)
+2. Scroll to the bottom of the results panel — you should see green ✅ success notices
+3. If you see a red error message, copy it and share with the team
+
+That's it! The database is now up to date.
+
+---
+
+### After the migration — deploy the edge functions
+
+1. Go to **https://github.com/DonSquires/FreedomCamp-Manager/actions**
+2. Click **"Deploy Edge Functions"** in the left list
+3. Click **"Run workflow"** (top-right, blue button)
+4. Leave all options as default → click **"Run workflow"**
+
+---
+
 ## What you need
 
 | What | Where to get it |
