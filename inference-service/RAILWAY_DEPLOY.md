@@ -106,27 +106,23 @@ Uses your existing Railway account - no additional service!
 
 ---
 
-## 🔧 **Fix: Already connected Railway to the wrong directory?**
+## 🔧 **Fix: "Could not find root directory: inference-service"**
 
-If Railway shows this error:
-```
-⚠ Script start.sh not found
-✖ Railpack could not determine how to build the app.
-The app contents that Railpack analyzed contains:
-./
-├── .github/
-└── README.md
-```
+This error means Railway is connected to the **wrong source repository**.  
 
-This means Railway is pointing at the **repo root** instead of `inference-service/`. Fix it in 3 clicks:
+**Root cause:** Railway is pointing at `DonSquires/orc-ai-inference-service` (which is empty — only has `.github/` and `README.md`). The actual inference code lives in `DonSquires/FreedomCamp-Manager` under the `inference-service/` folder.
 
-1. In Railway, click your **service** (the one showing the error)
-2. Click the **Settings** tab
-3. Scroll to **Source** → find the **Root Directory** field
-4. Type `inference-service` and press **Enter / Save**
-5. Click **Redeploy** (or push any commit to trigger a rebuild)
+**Fix in 4 steps:**
 
-Railway will now look inside `inference-service/` and find the Dockerfile, `package.json`, and `server.js`. ✅
+1. In Railway, click your service → **Settings** tab
+2. Scroll to **Source** section → click **Disconnect** next to the current repo
+3. Click **Connect Repo** → select **`DonSquires/FreedomCamp-Manager`**
+4. In the **Root Directory** field, type `inference-service` → Save → **Redeploy**
+
+Railway will now find the correct `Dockerfile`, `package.json`, and `server.js`. ✅
+
+> **Your Railway URL is already set up:** `https://orc-ai-inference-service-production.up.railway.app`  
+> No need to generate a new domain — just reconnect the source and redeploy.
 
 ---
 

@@ -12,7 +12,7 @@
 | DB Migration (vector columns, RPCs) | ✅ **Done** | Ran in Supabase SQL Editor |
 | All 46 edge functions deployed | ✅ **Done** | Manually deployed in Supabase dashboard |
 | Supabase secrets (Plate Recognizer, ParkPow, ALPR) | ✅ **Done** | All 4 tokens configured |
-| Railway inference service | ⏳ **Next** | See Step A below |
+| Railway inference service | ⏳ **Fix source repo** | See Step A below — change source from `orc-ai-inference-service` → `FreedomCamp-Manager` |
 | ParkPow zone sync | ⏳ **After Railway** | See Step B below |
 | Full end-to-end scan test | ⏳ **After ParkPow** | See Step C below |
 
@@ -20,34 +20,29 @@
 
 ## 🔜 Next 3 Steps
 
-### Step A — Deploy the Railway Inference Service (5 minutes, web-only)
+### Step A — Deploy the Railway Inference Service (3 minutes, web-only)
 
-The AI vehicle embedding service lives in `inference-service/` and deploys to **Railway** (you already have an account there).
+The AI vehicle embedding service lives in `inference-service/` in **this repo** and deploys to your existing Railway service.
 
-> ⚠️ **Already started but got a "Railpack could not determine how to build the app" error?**  
-> That means Railway was pointed at the repo root. Fix it:  
-> 1. In Railway, click your service → **Settings** tab  
-> 2. Scroll to **Source** → **Root Directory** → type `inference-service` → press Enter  
-> 3. Click **Redeploy**  
-> Skip steps 1–5 below and go straight to step 6.
+> ⚠️ **You are getting "Could not find root directory: inference-service"?**  
+> This is because Railway is connected to the **wrong repo** (`orc-ai-inference-service` which is empty).  
+> The actual code is in **`FreedomCamp-Manager`**. Fix it:  
+> 1. Railway → your service → **Settings** tab  
+> 2. **Source** section → click **Disconnect** (next to `orc-ai-inference-service`)  
+> 3. Click **Connect Repo** → select **`DonSquires/FreedomCamp-Manager`**  
+> 4. **Root Directory** field → type `inference-service` → Save  
+> 5. Click **Redeploy**  
+>  
+> ✅ Your existing domain `orc-ai-inference-service-production.up.railway.app` will stay the same — no need to generate a new one.
 
-**Starting fresh:**
+**While it builds (~2 min), add these Variables in Railway (Variables tab):**
+- `PORT` = `3000`
+- `NODE_ENV` = `production`
+- `ALLOWED_ORIGINS` = `https://xbfnlzmpumthnjmtqufp.supabase.co`
 
-1. Go to **https://railway.app/dashboard**
-2. Click **New Project** → **Deploy from GitHub repo**
-3. Select **`DonSquires/FreedomCamp-Manager`**
-4. ⚠️ In the **Root Directory** field type: `inference-service` ← **critical step**
-5. Click **Deploy**
-6. While it builds (~2 min), click **Variables** tab and add:
-   - `PORT` = `3000`
-   - `NODE_ENV` = `production`
-   - `ALLOWED_ORIGINS` = `https://xbfnlzmpumthnjmtqufp.supabase.co`
-7. Once deployed, click **Settings** → **Networking** → **Generate Domain**
-8. Copy your Railway URL (e.g. `https://orc-ai-xxx.up.railway.app`)
-
-**Then set it in Supabase:**
+**Then set the Railway URL in Supabase (your URL is already known):**
 1. Supabase Dashboard → **Edge Functions** → **Manage secrets**
-2. Add: `INFERENCE_SERVICE_URL` = `<your Railway URL>`
+2. Add: `INFERENCE_SERVICE_URL` = `https://orc-ai-inference-service-production.up.railway.app`
 
 **Then set it as a GitHub secret** (for auto-deploy on code changes):
 1. GitHub → Settings → Secrets → `RAILWAY_TOKEN` (from https://railway.app/account/tokens)
