@@ -22,3 +22,7 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Schema / analysis extraction output (remove these lines to commit results)
+tools/schema-extract/output/
+tools/onspace-analysis/output/
