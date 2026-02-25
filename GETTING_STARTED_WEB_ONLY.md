@@ -40,10 +40,38 @@ That's it! The database is now up to date.
 
 ### After the migration — deploy the edge functions
 
+The deploy workflow needs two secrets added to GitHub **once** before it can run.
+
+#### Step A — Add GitHub Secrets (one-time setup)
+
+**Secret 1 — `SUPABASE_ACCESS_TOKEN`**
+1. Go to **https://supabase.com/dashboard/account/tokens**
+2. Click **"Generate new token"**
+3. Give it a name (e.g. *GitHub Deploy*) → click **Generate**
+4. **Copy the token immediately** — you can only see it once!
+
+**Secret 2 — `SUPABASE_PROJECT_REF`**
+1. Go to **https://supabase.com/dashboard** → your project
+2. Click **Project Settings** (bottom of left sidebar) → **General**
+3. Copy the **Reference ID** (looks like `abcdefghijklmnop` — 16 characters)
+
+**Add both secrets to GitHub:**
+1. Go to **https://github.com/DonSquires/FreedomCamp-Manager/settings/secrets/actions**
+2. Click **"New repository secret"**
+3. Name: `SUPABASE_ACCESS_TOKEN` → paste the token → **Add secret**
+4. Click **"New repository secret"** again
+5. Name: `SUPABASE_PROJECT_REF` → paste the reference ID → **Add secret**
+
+#### Step B — Run the deploy workflow
+
 1. Go to **https://github.com/DonSquires/FreedomCamp-Manager/actions**
-2. Click **"Deploy Edge Functions"** in the left list
-3. Click **"Run workflow"** (top-right, blue button)
-4. Leave all options as default → click **"Run workflow"**
+2. Click **"Deploy Supabase Edge Functions"** in the left list
+3. Click the **"Run workflow"** dropdown (right side, grey button)
+4. Leave **function name blank** (deploys ALL ~50 functions)
+5. Click the green **"Run workflow"** button
+6. Watch the progress — green ✅ = success, yellow ⚠️ = one function had a warning (others continue), red ✗ = needs attention
+
+> **Note:** Public functions (`orc-ingest`, `vehicle-ingest`, `alpr-process`, etc.) are automatically deployed without JWT verification — you don't need to change any settings.
 
 ---
 
