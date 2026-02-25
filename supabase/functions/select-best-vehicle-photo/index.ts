@@ -42,9 +42,9 @@ Deno.serve(async (req) => {
     // STEP 1: Gather ALL photos from multiple sources
     let photoUrls: string[] = providedPhotoUrls || [];
 
-    // Source 1: vehicle_observations_v2.photo
+    // Source 1: observations.photo
     const { data: obsPhotos } = await supabaseClient
-      .from('vehicle_observations_v2')
+      .from('observations')
       .select('photo')
       .eq('plate_number', plateNumber)
       .not('photo', 'is', null);

@@ -182,12 +182,12 @@ export function VehicleDetailPage({
 
     try {
       let query = supabase
-        .from('vehicle_observations_v2')
+        .from('observations')
         .select(`
           *,
           zones(name),
           organizations(name),
-          user_profiles!vehicle_observations_v2_recorded_by_fkey(first_name, last_name),
+          user_profiles!observations_user_id_fkey(first_name, last_name),
           compliance_results(is_compliant, is_exempt, exemption_reason, violation_reasons)
         `)
         .eq('plate_number', plateNumber)

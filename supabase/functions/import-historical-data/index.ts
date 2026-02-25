@@ -691,7 +691,7 @@ Return ONLY a JSON object with this structure:
           // LEGACY IMPORT: No photo available - use placeholder and set legacy flags
           // ⚠️ NO COMPLIANCE CALCULATION DURING IMPORT - run recalculation afterward
           const { data: observation, error: obsError } = await supabaseAdmin
-            .from('vehicle_observations_v2')
+            .from('observations')
             .insert({
               plate_number: record.plate,
               organization_id: targetOrganizationId,

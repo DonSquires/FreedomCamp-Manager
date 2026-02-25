@@ -167,7 +167,7 @@ export function SystemDiagnostics() {
       // Test 5: Observations Access (filtered by org)
       console.log('🧪 [DIAGNOSTIC] Test 5: Observations Access');
       let obsQuery = supabase
-        .from('vehicle_observations_v2')
+        .from('observations')
         .select('observation_id, plate_number, organization_id, recorded_at', { count: 'exact' })
         .limit(10);
 
@@ -181,7 +181,7 @@ export function SystemDiagnostics() {
         diagnosticResults.push({
           test: 'Observations Access',
           status: 'fail',
-          message: 'Cannot access vehicle_observations_v2 table',
+          message: 'Cannot access observations table',
           error: obsError.message,
         });
       } else {
@@ -232,7 +232,7 @@ export function SystemDiagnostics() {
       yesterday.setDate(yesterday.getDate() - 1);
 
       let recentObsQuery = supabase
-        .from('vehicle_observations_v2')
+        .from('observations')
         .select('observation_id', { count: 'exact' })
         .gte('recorded_at', yesterday.toISOString());
 

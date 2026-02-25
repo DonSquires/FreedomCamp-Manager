@@ -152,7 +152,7 @@ export function VehicleDetailsPopup({
 
         // Get most recent observation to check self-contained status
         const { data: recentObs } = await supabase
-          .from('vehicle_observations_v2')
+          .from('observations')
           .select('self_contained, officer_notes')
           .eq('plate_number', vehicle.plate_number)
           .order('recorded_at', { ascending: false })

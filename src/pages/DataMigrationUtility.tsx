@@ -41,9 +41,9 @@ export function DataMigrationUtility() {
 
       if (oldError) throw oldError;
 
-      // Count new vehicle_observations_v2
+      // Count new observations
       const { count: newCount, error: newError } = await supabase
-        .from('vehicle_observations_v2')
+        .from('observations')
         .select('*', { count: 'exact', head: true });
 
       if (newError) throw newError;
@@ -72,7 +72,7 @@ export function DataMigrationUtility() {
     setStats({ ...stats, inProgress: true, recordsMigrated: 0, recordsFailed: 0, progress: 0 });
 
     try {
-      toast.info('🚀 Starting migration from vehicle_records to vehicle_observations_v2...');
+      toast.info('🚀 Starting migration from vehicle_records to observations...');
 
       // Fetch all vehicle_records in batches
       const batchSize = 100;
@@ -94,7 +94,7 @@ export function DataMigrationUtility() {
           break;
         }
 
-        // Transform and insert into vehicle_observations_v2
+        // Transform and insert into observations
         const transformedRecords = oldRecords.map(record => ({
           plate_number: record.plate_number,
           vehicle_make: record.vehicle_make,
@@ -132,7 +132,7 @@ export function DataMigrationUtility() {
 
         // Batch insert (upsert to avoid duplicates)
         const { error: insertError } = await supabase
-          .from('vehicle_observations_v2')
+          .from('observations')
           .upsert(transformedRecords, { 
             onConflict: 'plate_number,zone_id,recorded_at,organization_id',
             ignoreDuplicates: true 
@@ -178,7 +178,7 @@ export function DataMigrationUtility() {
           Data Migration Utility
         </h2>
         <p className="text-muted-foreground">
-          Migrate records from old schema (vehicle_records) to new schema (vehicle_observations_v2)
+          Migrate records from old schema (vehicle_records) to new schema (observations)
         </p>
       </div>
 
@@ -186,7 +186,7 @@ export function DataMigrationUtility() {
       <Alert>
         <AlertTriangle className="h-4 w-4" />
         <AlertDescription>
-          <strong>Before migrating:</strong> This will copy all vehicle_records to vehicle_observations_v2. 
+          <strong>Before migrating:</strong> This will copy all vehicle_records to observations. 
           Existing records in the new table will not be duplicated. Admin privileges required.
         </AlertDescription>
       </Alert>
@@ -239,7 +239,7 @@ export function DataMigrationUtility() {
             {/* New Table */}
             <div className="text-center p-6 border rounded-lg bg-green-500/5 border-green-500/20">
               <p className="text-sm text-muted-foreground mb-2">New Schema</p>
-              <p className="text-xs font-mono text-muted-foreground mb-3">vehicle_observations_v2</p>
+              <p className="text-xs font-mono text-muted-foreground mb-3">observations</p>
               <p className="text-4xl font-bold text-green-500">
                 {analyzed ? stats.newRecordsCount.toLocaleString() : '--'}
               </p>
@@ -254,7 +254,7 @@ export function DataMigrationUtility() {
         <CardHeader>
           <CardTitle>Migration Process</CardTitle>
           <CardDescription>
-            Copy all vehicle_records to vehicle_observations_v2 with schema transformation
+            Copy all vehicle_records to observations with schema transformation
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -341,7 +341,7 @@ export function DataMigrationUtility() {
               </div>
               <div>
                 <Badge variant="outline" className="mb-2">New Field</Badge>
-                <p className="font-mono text-xs">vehicle_observations_v2.observation_id</p>
+                <p className="font-mono text-xs">observations.observation_id</p>
               </div>
             </div>
             <div className="grid grid-cols-2 gap-4 p-3 bg-muted/50 rounded">

@@ -54,7 +54,7 @@ Deno.serve(async (req) => {
 
     // Get unique plate/zone combinations within date range
     let observationsQuery = supabaseAdmin
-      .from('vehicle_observations_v2')
+      .from('observations')
       .select('plate_number, zone_id, organization_id, has_homeless_claim, zones!inner(name)');
 
     if (organizationId && organizationId !== 'all') {

@@ -249,7 +249,7 @@ ${fileContent}`;
 
     if (observationsToInsert.length > 0) {
       const { data, error: insertError } = await supabaseClient
-        .from('vehicle_observations_v2')
+        .from('observations')
         .insert(observationsToInsert)
         .select();
 

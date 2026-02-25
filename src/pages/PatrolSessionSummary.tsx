@@ -146,7 +146,7 @@ export function PatrolSessionSummary() {
       console.log('End:', opDayEnd.toISOString());
 
       const { data, error } = await supabase
-        .from('vehicle_observations_v2')
+        .from('observations')
         .select('*')
         .eq('recorded_by', user.id)
         .gte('recorded_at', opDayStart.toISOString())
@@ -180,7 +180,7 @@ export function PatrolSessionSummary() {
       console.log('End:', rangeEnd.toISOString());
 
       const { data, error } = await supabase
-        .from('vehicle_observations_v2')
+        .from('observations')
         .select('*')
         .eq('recorded_by', user.id)
         .gte('recorded_at', rangeStart.toISOString())

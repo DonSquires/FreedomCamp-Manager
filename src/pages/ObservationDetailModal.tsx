@@ -98,12 +98,12 @@ export function ObservationDetailModal({
     setIsLoading(true);
     try {
       const { data, error } = await supabase
-        .from('vehicle_observations_v2')
+        .from('observations')
         .select(`
           *,
           zones(name),
           organizations(name),
-          user_profiles!vehicle_observations_v2_recorded_by_fkey(
+          user_profiles!observations_user_id_fkey(
             first_name,
             last_name
           ),
