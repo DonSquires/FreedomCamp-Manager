@@ -38,7 +38,82 @@ That's it! The database is now up to date.
 
 ---
 
-### After the migration — deploy the edge functions
+### After the migration — deploy the edge functions ✅ Migration done!
+
+You have **3 functions already deployed manually** (`orc-ingest`, `vehicle-ingest`, `alpr-process`).  
+There are **43 more** — the GitHub Actions workflow deploys all of them in **one click**.
+
+#### Complete function inventory (46 total)
+
+**✅ Already deployed (3)**
+| Function | What it does |
+|----------|-------------|
+| `orc-ingest` | Main plate scan entry point (Plate Recognizer → Railway → OnSpace AI) |
+| `vehicle-ingest` | Alternative scan path, same 3-tier AI pipeline |
+| `alpr-process` | Direct ALPR/Plate Recognizer API call |
+
+**🔴 Deploy next — Core operations (run daily, used by the app)**
+| Function | What it does |
+|----------|-------------|
+| `alpr-retry` | Retries failed ALPR jobs automatically |
+| `plate-scanner-photo-first` | Plate scanner shim (photo-first flow) |
+| `recalculate-compliance` | Compliance engine — recalculates breach status |
+| `recalculate-compliance-v2` | Updated compliance engine with new rules |
+| `scan-breaches` | Scans zones for new breaches |
+| `check-almost-breaches` | Early-warning: vehicles approaching breach threshold |
+| `observations-list` | Returns filtered observations list (used by officer app) |
+| `observations-in-bounds` | Returns observations in a map bounding box |
+| `get-compliance-statistics` | Stats for admin dashboard |
+| `send-push-notification` | Sends push alerts to officer phones |
+| `parkpow-sync` | Syncs zones/watchlist/violations with ParkPow |
+
+**🟠 Deploy second — Reporting & documents**
+| Function | What it does |
+|----------|-------------|
+| `generate-dashboard-report` | Admin dashboard PDF report |
+| `generate-incident-pdf` | Individual incident report PDF |
+| `generate-leadership-pack` | Leadership/board summary report |
+| `generate-notice-to-vacate` | Formal notice to vacate document |
+| `generate-vehicle-report` | Vehicle history report |
+| `observations-export` | CSV/Excel export of observations |
+| `admin-incident-ops` | Admin incident management operations |
+| `hotspot-data` | Hotspot heatmap data for maps |
+
+**🟡 Deploy third — Vehicle enrichment & AI**
+| Function | What it does |
+|----------|-------------|
+| `analyze-vehicle-photo` | AI photo analysis (colour, make, model from photo) |
+| `select-best-vehicle-photo` | Picks best photo from a set |
+| `enrich-from-motorweb` | Enriches vehicle data from MotorWeb NZ API |
+| `check-nzscv-status` | Checks vehicle against NZSCV database |
+| `duplicate-detection` | Detects duplicate observations |
+| `onspace-ai-chat` | OnSpace AI chat interface |
+| `get-weather` | Weather data for a location |
+| `stream-webhook` | Stream.io webhook handler (real-time chat) |
+
+**🟢 Deploy last — Admin & setup (run occasionally)**
+| Function | What it does |
+|----------|-------------|
+| `create-user` | Create a new user account |
+| `update-user-password` | Reset a user's password |
+| `upload-file` | File/photo upload handler |
+| `import-data` | Bulk data import |
+| `import-historical-data` | Historical data import tool |
+| `process-credential-document` | Process credential/ID document |
+| `process-homeless-data` | Process welfare/homeless intake data |
+| `process-investigation-document` | Process investigation documents |
+| `cleanup-and-recalculate` | Full cleanup and recalc sweep |
+| `correct-zone-assignments` | Fix zone assignment errors |
+| `check-zone-corrections` | Audit zone assignment accuracy |
+| `check-data-integrity` | Database integrity check |
+| `suggest-new-zone` | AI suggestion for new zones |
+| `zone-correction` | Apply zone corrections |
+| `update-compliance-policy` | Update compliance rules for a zone |
+| `monitor-officer-welfare` | Welfare check-in monitoring |
+
+---
+
+#### 👉 Fastest way to deploy all 43 remaining functions at once
 
 The deploy workflow needs two secrets added to GitHub **once** before it can run.
 
