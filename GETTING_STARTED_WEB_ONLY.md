@@ -5,6 +5,63 @@
 
 ---
 
+## 🔀 How to Merge the Pull Requests (Do This First)
+
+You have **3 open pull requests**. Here's exactly what to do with each one — no experience needed.
+
+---
+
+### PR #1 — "Fix 403/400 on ALPR scans..." → ❌ Close Without Merging
+
+This was an older fix that is **completely included in PR #2**. Merging it would cause conflicts.
+
+**How to close it:**
+1. Go to **https://github.com/DonSquires/FreedomCamp-Manager/pull/1**
+2. Scroll to the bottom of the page
+3. Click **"Close pull request"** (grey button, below the comment box)
+4. Done — it's closed, nothing is deleted, you can always reopen it
+
+---
+
+### PR #2 — "Build FreedomCamp backend..." → ✅ Merge This One (Main Work)
+
+This is the big one — everything we've built together. Here's how to merge it:
+
+**Step 1 — Make it ready to merge (convert from Draft)**
+1. Go to **https://github.com/DonSquires/FreedomCamp-Manager/pull/2**
+2. Scroll to the bottom until you see a grey button that says **"Ready for review"**
+3. Click **"Ready for review"** — this converts it from Draft to ready
+
+**Step 2 — Merge it**
+1. A green **"Merge pull request"** button will appear
+2. Click it
+3. Click **"Confirm merge"**
+4. Done! ✅
+
+> 💡 **What happens after merging:**
+> - All new code goes to `main`
+> - Railway will automatically redeploy from `main` (since it's watching this branch)
+> - All the GitHub Actions workflows (ParkPow Sync, Deploy Functions, etc.) will now appear in the Actions tab
+> - Switch Railway branch from `copilot/add-schema-extraction-tooling` → `main` (see below)
+
+**Step 3 — Switch Railway to `main` after merging**
+1. Go to **https://railway.app** → your project → `orc-ai-inference-service`
+2. Click **Settings** tab
+3. Under **Source**, find **Branch** — click it and change from `copilot/add-schema-extraction-tooling` → **`main`**
+4. Click **Save** — Railway will deploy from `main` going forward
+
+---
+
+### PR #4 — "Add .github/copilot-instructions.md" → ✅ Merge After PR #2
+
+This small PR adds helpful instructions that make the AI coding assistant work better for this project. Merge it after PR #2.
+
+1. Go to **https://github.com/DonSquires/FreedomCamp-Manager/pull/4**
+2. Scroll down — click **"Ready for review"**
+3. Click **"Merge pull request"** → **"Confirm merge"**
+
+---
+
 ## ✅ Current Milestone — Where We Are Right Now (25 Feb 2026)
 
 | Step | Status | Notes |
