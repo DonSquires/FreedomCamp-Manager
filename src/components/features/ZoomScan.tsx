@@ -279,15 +279,33 @@ export function ZoomScan({ onExit }: ZoomScanProps) {
         weatherConditions: null,
       };
 
-      console.log('📤 Calling alpr-process...', {
+      console.log('📤 Calling vehicle-ingest...', {
         hasPhoto: !!publicUrl,
         photoHash: photoHash.substring(0, 16),
         zoneId: selectedZone.id,
       });
 
       // Use supabase.functions.invoke() - it handles headers correctly
-      const { data, error } = await supabase.functions.invoke('alpr-process', {
-        body: requestBody,
+      const { data, error } = await supabase.functions.invoke('vehicle-ingest', {
+        body: {
+          image: requestBody.image,
+          photo_url: requestBody.photo_url,
+          photo_hash: requestBody.photo_hash,
+          gpsLatitude: requestBody.gpsLatitude,
+          gpsLongitude: requestBody.gpsLongitude,
+          gpsAccuracy: requestBody.gpsAccuracy,
+          recordedAt: requestBody.recordedAt,
+          officerId: requestBody.officerId,
+          organizationId: requestBody.organizationId,
+          zoneId: requestBody.zoneId,
+          idempotencyKey: requestBody.idempotencyKey,
+          officerNotes: requestBody.officerNotes,
+          weatherConditions: requestBody.weatherConditions,
+          // Onspace AI fallback: pass through any pre-processed plate data
+          plate: null,
+          confidence: null,
+          requires_manual_entry: false,
+        },
       });
 
       // Extract detailed error if FunctionsHttpError
