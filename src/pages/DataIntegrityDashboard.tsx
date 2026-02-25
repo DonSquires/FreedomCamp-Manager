@@ -2,7 +2,7 @@
  * Data Integrity Dashboard - Verify All Tables are Properly Populated
  * 
  * Checks:
- * 1. vehicle_observations_v2 → canonical_vehicles mapping
+ * 1. observations → canonical_vehicles mapping
  * 2. vehicle_monthly_stays population
  * 3. compliance_results linking
  * 4. breach_alerts creation
@@ -73,7 +73,7 @@ export function DataIntegrityDashboard() {
     },
     {
       name: 'Duplicate Observations',
-      description: 'Check for duplicate records in vehicle_observations_v2',
+      description: 'Check for duplicate records in observations',
       status: 'pending',
     },
     {
@@ -92,7 +92,7 @@ export function DataIntegrityDashboard() {
       setChecks([...results]);
 
       const { data: obsCount } = await supabase
-        .from('vehicle_observations_v2')
+        .from('observations')
         .select('observation_id', { count: 'exact', head: true });
 
       const { data: canonicalCount } = await supabase
@@ -101,7 +101,7 @@ export function DataIntegrityDashboard() {
 
       // Get observations with missing canonical vehicles
       const { data: orphanedObs } = await supabase
-        .from('vehicle_observations_v2')
+        .from('observations')
         .select('plate_number')
         .not('plate_number', 'in', `(SELECT plate_number FROM canonical_vehicles)`)
         .limit(10);
@@ -148,7 +148,7 @@ export function DataIntegrityDashboard() {
       ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
 
       const { data: recentObs } = await supabase
-        .from('vehicle_observations_v2')
+        .from('observations')
         .select('observation_id', { count: 'exact', head: true })
         .gte('recorded_at', ninetyDaysAgo.toISOString());
 
@@ -194,12 +194,12 @@ export function DataIntegrityDashboard() {
       setChecks([...results]);
 
       const { data: orphanedZones } = await supabase
-        .from('vehicle_observations_v2')
+        .from('observations')
         .select('observation_id', { count: 'exact', head: true })
         .is('zone_id', null);
 
       const { data: orphanedOrgs } = await supabase
-        .from('vehicle_observations_v2')
+        .from('observations')
         .select('observation_id', { count: 'exact', head: true })
         .is('organization_id', null);
 
@@ -213,7 +213,7 @@ export function DataIntegrityDashboard() {
       results[4].status = results[4].result.missing === 0 ? 'passed' : 'warning';
       setChecks([...results]);
 
-      // CHECK 6: Duplicate Observations in vehicle_observations_v2
+      // CHECK 6: Duplicate Observations in observations
       results[5].status = 'checking';
       setChecks([...results]);
 

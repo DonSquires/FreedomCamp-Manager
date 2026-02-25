@@ -18,11 +18,29 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.7";
 import { corsHeaders } from "../_shared/cors.ts";
 
 // ============================================================================
-// DEPLOYMENT MODE FLAG
+// DEPLOYMENT MODE — auto-detected from environment
 // ============================================================================
-// Set to true for temporary Onspace AI fallback mode (ALPR/ORC handled by UI)
-// Set to false to re-enable Railway inference service
-const USE_ONSPACE_AI = true;
+// PLATERECOGNIZER_TOKEN (or ALPR_API_TOKEN) set → Plate Recognizer API
+// INFERENCE_SERVICE_URL set  → Railway ORC/AI used for visual embedding
+// Both absent → OnSpace AI fallback (client provides plate data)
+//
+// Secret name lookup order (all accepted, first wins):
+//   PLATERECOGNIZER_TOKEN   ← canonical name in Supabase secrets
+//   ALPR_API_TOKEN          ← alternate name in Supabase secrets
+//   PLATE_RECOGNIZER_TOKEN  ← legacy name (backward compat)
+//
+// API URL lookup order:
+//   ALPR_API_URL            ← set in Supabase secrets
+//   PLATE_RECOGNIZER_API_URL ← legacy name
+const PLATE_RECOGNIZER_TOKEN =
+  Deno.env.get("PLATERECOGNIZER_TOKEN") ??
+  Deno.env.get("ALPR_API_TOKEN") ??
+  Deno.env.get("PLATE_RECOGNIZER_TOKEN");
+const PLATE_RECOGNIZER_API_URL =
+  Deno.env.get("ALPR_API_URL") ??
+  Deno.env.get("PLATE_RECOGNIZER_API_URL") ??
+  "https://api.platerecognizer.com/v1/plate-reader/";
+const USE_ONSPACE_AI = !PLATE_RECOGNIZER_TOKEN && !Deno.env.get("INFERENCE_SERVICE_URL");
 // ============================================================================
 
 const ALLOWED_LOCALHOST_ORIGINS = new Set([
@@ -50,6 +68,64 @@ async function sha256Hash(data: Uint8Array): Promise<string> {
   const hashBuffer = await crypto.subtle.digest("SHA-256", data);
   const hashArray = Array.from(new Uint8Array(hashBuffer));
   return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+// ── Plate Recognizer API helper ───────────────────────────────────────────────
+
+interface PRResult {
+  plate: string;
+  confidence: number;
+  region: string | null;
+  make: string | null;
+  model: string | null;
+  colour: string | null;
+}
+
+async function callPlateRecognizer(
+  imageBytes: Uint8Array,
+  regions: string[] = ["nz"],
+): Promise<PRResult | null> {
+  if (!PLATE_RECOGNIZER_TOKEN) return null;
+  try {
+    const blob = new Blob([imageBytes], { type: "image/jpeg" });
+    const form = new FormData();
+    form.append("upload", blob, "scan.jpg");
+    regions.forEach(r => form.append("regions", r));
+    form.append("mmc", "true");
+    form.append("config", JSON.stringify({ region: "strict", detection_rule: "strict" }));
+
+    const resp = await fetch(PLATE_RECOGNIZER_API_URL, {
+      method: "POST",
+      headers: { Authorization: `Token ${PLATE_RECOGNIZER_TOKEN}` },
+      body: form,
+      signal: AbortSignal.timeout(15_000),
+    });
+
+    if (!resp.ok) {
+      console.warn(`⚠️  Plate Recognizer HTTP ${resp.status}`);
+      return null;
+    }
+
+    const data = await resp.json();
+    if (!data.results?.length) {
+      console.log("ℹ️  Plate Recognizer: no plate detected");
+      return null;
+    }
+
+    const r = data.results[0];
+    console.log(`✅ Plate Recognizer: plate=${r.plate} conf=${r.score}`);
+    return {
+      plate:      r.plate?.toUpperCase() ?? null,
+      confidence: r.score ?? 0,
+      region:     r.region?.code ?? null,
+      make:       r.model_make?.[0]?.make   ?? null,
+      model:      r.model_make?.[0]?.model  ?? null,
+      colour:     r.color?.[0]?.color       ?? null,
+    };
+  } catch (e: unknown) {
+    console.warn("⚠️  Plate Recognizer failed:", e instanceof Error ? e.message : e);
+    return null;
+  }
 }
 
 Deno.serve(async (req) => {
@@ -335,6 +411,7 @@ Deno.serve(async (req) => {
 
     // ========================================================================
     // INFERENCE ROUTING
+    // Priority: 1) Plate Recognizer API  2) Railway ORC/AI  3) OnSpace AI
     // ========================================================================
     let inferenceResult: {
       success: boolean;
@@ -342,44 +419,56 @@ Deno.serve(async (req) => {
       plate: string | null;
       requires_manual_entry: boolean;
       confidence: number | null;
+      vehicle_make?: string | null;
+      vehicle_model?: string | null;
+      vehicle_colour?: string | null;
       raw_candidates?: string[];
     };
 
-    if (USE_ONSPACE_AI) {
-      // Onspace AI mode - Accept pre-processed plate data from client
-      console.log('📱 Using Onspace AI fallback mode');
-      inferenceResult = {
-        success: true,
-        path: 'onspace_fallback',
-        plate: clientPlate,
-        requires_manual_entry: clientRequiresManualEntry,
-        confidence: clientConfidence,
-        raw_candidates: clientRawCandidates ?? undefined,
-      };
-      
-      // Log for debugging
-      console.log('Onspace inference result:', {
-        plate: inferenceResult.plate,
-        confidence: inferenceResult.confidence,
-        requires_manual_entry: inferenceResult.requires_manual_entry,
-      });
-    } else {
-      // Railway inference mode - Call standalone service
-      console.log('🚂 Using Railway inference service');
-      const inferenceUrl = Deno.env.get('INFERENCE_SERVICE_URL');
-      
+    // ── Tier 1: Plate Recognizer API ──────────────────────────────────────
+    if (PLATE_RECOGNIZER_TOKEN && imageBytes) {
+      console.log("🔍 Calling Plate Recognizer API (tier 1)...");
+      const prRes = await callPlateRecognizer(imageBytes, ["nz"]);
+      if (prRes) {
+        inferenceResult = {
+          success: true,
+          path: "plate_recognizer",
+          plate: prRes.plate,
+          requires_manual_entry: false,
+          confidence: prRes.confidence,
+          vehicle_make: prRes.make,
+          vehicle_model: prRes.model,
+          vehicle_colour: prRes.colour,
+        };
+        console.log("✅ Tier 1 (Plate Recognizer) succeeded:", prRes.plate);
+      } else {
+        // Plate Recognizer returned no plate — fall through to tier 2/3
+        inferenceResult = {
+          success: true,
+          path: "plate_recognizer_no_plate",
+          plate: null,
+          requires_manual_entry: true,
+          confidence: null,
+        };
+        console.log("ℹ️  Plate Recognizer returned no plate — checking fallbacks");
+      }
+    } else if (!USE_ONSPACE_AI) {
+      // ── Tier 2: Railway ORC/AI ─────────────────────────────────────────
+      console.log("🚂 Using Railway inference service (tier 2)");
+      const inferenceUrl = Deno.env.get("INFERENCE_SERVICE_URL");
+
       if (!inferenceUrl) {
-        throw new Error('INFERENCE_SERVICE_URL not configured');
+        throw new Error("INFERENCE_SERVICE_URL not configured");
       }
 
       try {
         const inferenceResponse = await fetch(`${inferenceUrl}/infer`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            image_base64: imageDataUrl?.split(',')[1] ?? btoa(String.fromCharCode(...imageBytes!)),
-            mode: 'alpr_with_orc_fallback',
+            image_base64: imageDataUrl?.split(",")[1] ?? btoa(String.fromCharCode(...imageBytes!)),
           }),
+          signal: AbortSignal.timeout(20_000),
         });
 
         if (!inferenceResponse.ok) {
@@ -389,27 +478,44 @@ Deno.serve(async (req) => {
         const inferenceData = await inferenceResponse.json();
         inferenceResult = {
           success: true,
-          path: 'railway_inference',
+          path: "railway_inference",
           plate: inferenceData.plate,
           requires_manual_entry: !inferenceData.plate,
-          confidence: inferenceData.confidence,
+          confidence: inferenceData.plate_confidence ?? inferenceData.confidence,
+          vehicle_make: inferenceData.vehicle_make,
+          vehicle_model: inferenceData.vehicle_model,
+          vehicle_colour: inferenceData.vehicle_colour,
         };
-        
-        console.log('🚂 Railway inference success:', {
-          plate: inferenceResult.plate,
-          confidence: inferenceResult.confidence,
-        });
-      } catch (error: any) {
-        console.error('❌ Railway inference failed:', error.message);
-        // Fallback to manual entry
+
+        console.log("🚂 Railway inference:", { plate: inferenceResult.plate });
+      } catch (error: unknown) {
+        const msg = error instanceof Error ? error.message : String(error);
+        console.error("❌ Railway inference failed:", msg);
         inferenceResult = {
           success: false,
-          path: 'railway_failed',
+          path: "railway_failed",
           plate: null,
           requires_manual_entry: true,
           confidence: null,
         };
       }
+    } else {
+      // ── Tier 3: OnSpace AI / client-side fallback ──────────────────────
+      console.log("📱 Using OnSpace AI fallback (tier 3)");
+      inferenceResult = {
+        success: true,
+        path: "onspace_fallback",
+        plate: clientPlate,
+        requires_manual_entry: clientRequiresManualEntry,
+        confidence: clientConfidence,
+        raw_candidates: clientRawCandidates ?? undefined,
+      };
+
+      console.log("OnSpace inference result:", {
+        plate: inferenceResult.plate,
+        confidence: inferenceResult.confidence,
+        requires_manual_entry: inferenceResult.requires_manual_entry,
+      });
     }
     // ========================================================================
 
@@ -459,15 +565,15 @@ Deno.serve(async (req) => {
       recorded_by: officerId,
       officer_notes: officerNotes ?? null,
       weather_conditions: weatherConditions ?? null,
-      // Vehicle details will be populated by frontend or later enrichment
-      vehicle_make: null,
-      vehicle_model: null,
-      vehicle_year: null,
-      vehicle_color: null,
+      // Vehicle metadata — populated by Plate Recognizer or Railway when available
+      vehicle_make:  inferenceResult.vehicle_make  ?? null,
+      vehicle_model: inferenceResult.vehicle_model ?? null,
+      vehicle_year:  null,
+      vehicle_color: inferenceResult.vehicle_colour ?? null,
       self_contained: false,
       self_contained_expiry: null,
       // Compliance will be calculated by triggers
-      is_compliant: true, // Default - will be updated by compliance calculation
+      is_compliant: true,
       breach_type: null,
       breach_reason: null,
       nights_stayed_this_month: 0,

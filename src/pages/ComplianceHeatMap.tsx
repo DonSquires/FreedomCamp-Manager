@@ -141,7 +141,7 @@ export function ComplianceHeatMap() {
 
       // Load observations with GPS coordinates
       let obsQuery = supabase
-        .from('vehicle_observations_v2')
+        .from('observations')
         .select(`
           observation_id,
           plate_number,

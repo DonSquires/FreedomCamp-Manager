@@ -69,6 +69,12 @@ const navigationSections: { title: string; items: NavigationItem[] }[] = [
     title: 'Operations',
     items: [
       {
+        label: 'Compliance',
+        path: '/admin/compliance',
+        icon: Shield,
+        description: 'Compliance dashboard with breach detail, zone stats and homeless/exempt tracking',
+      },
+      {
         label: 'Observations',
         path: '/admin/observations',
         icon: Eye,

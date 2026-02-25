@@ -1,15 +1,32 @@
 /**
- * ORC/AI Inference Service
- * Vehicle Detection + Embedding Generation
- * 
+ * ORC/AI Inference Service — Production build for Railway
+ *
  * Stack:
- * - YOLOv8n (vehicle detection)
- * - MobileNetV3 (feature embedding)
- * - ONNX Runtime (inference engine)
- * 
- * API Endpoints:
- * - POST /infer - Generate vehicle embedding from photo
- * - GET /health - Health check
+ *   YOLOv8n          vehicle detection (bounding box)
+ *   MobileNetV3      384-dimensional feature embedding
+ *   ONNX Runtime     cross-platform CPU inference
+ *   OpenAI Vision    optional plate / make / model / colour extraction
+ *                    (set OPENAI_API_KEY to enable; omit to skip)
+ *
+ * Endpoints:
+ *   POST /infer      accept multipart photo OR JSON { image_base64 }
+ *                    returns embedding + optional plate/vehicle metadata
+ *   GET  /health     liveness + readiness
+ *
+ * Fallback behaviour:
+ *   - If ONNX models not found: returns 503 so edge function falls back to
+ *     OnSpace AI mode automatically.
+ *   - If OpenAI key absent: plate/vehicle metadata fields are null; edge
+ *     function accepts client-side plate from the OnSpace AI fallback.
+ *
+ * Environment variables:
+ *   PORT                    default 3000
+ *   NODE_ENV                production|development
+ *   ALLOWED_ORIGINS         comma-separated list of allowed CORS origins
+ *   OPENAI_API_KEY          optional — enables plate + vehicle metadata
+ *   YOLO_MODEL_PATH         default ./models/yolov8n.onnx
+ *   EMBEDDING_MODEL_PATH    default ./models/mobilenet_v3.onnx
+ *   DETECTION_CONFIDENCE    default 0.5
  */
 
 const express = require('express');
@@ -17,105 +34,108 @@ const multer = require('multer');
 const sharp = require('sharp');
 const ort = require('onnxruntime-node');
 const cors = require('cors');
+const https = require('https');
+const fs = require('fs');
+const path = require('path');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const DETECTION_CONFIDENCE = parseFloat(process.env.DETECTION_CONFIDENCE || '0.5');
+const YOLO_MODEL_PATH = process.env.YOLO_MODEL_PATH || './models/yolov8n.onnx';
+const EMBEDDING_MODEL_PATH = process.env.EMBEDDING_MODEL_PATH || './models/mobilenet_v3.onnx';
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY || null;
 
-// Configure CORS (restrict to your Supabase Edge Function)
+// Configure CORS
 const corsOptions = {
   origin: process.env.ALLOWED_ORIGINS?.split(',') || ['*'],
   methods: ['POST', 'GET'],
-  maxAge: 86400 // 24 hours
+  maxAge: 86400,
 };
 
 app.use(cors(corsOptions));
-app.use(express.json({ limit: '10mb' }));
+app.use(express.json({ limit: '15mb' }));
 
-// Configure multer for image uploads
+// Configure multer for multipart uploads
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: {
-    fileSize: 10 * 1024 * 1024, // 10MB max
-    files: 1
+  limits: { fileSize: 10 * 1024 * 1024, files: 1 },
+  fileFilter: (_req, file, cb) => {
+    const allowed = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+    allowed.includes(file.mimetype) ? cb(null, true) : cb(new Error('Invalid file type'));
   },
-  fileFilter: (req, file, cb) => {
-    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
-    if (!allowedTypes.includes(file.mimetype)) {
-      return cb(new Error('Invalid file type. Only JPEG, PNG, WEBP allowed.'));
-    }
-    cb(null, true);
-  }
 });
 
-// Load ONNX models
+// ============================================================================
+// Model loading — graceful: mark unavailable rather than crash
+// ============================================================================
 let yoloSession = null;
 let embeddingSession = null;
+let modelsLoaded = false;
 
 async function loadModels() {
   console.log('Loading ONNX models...');
-  
   try {
-    // YOLOv8n for vehicle detection
-    yoloSession = await ort.InferenceSession.create('./models/yolov8n.onnx', {
+    if (!fs.existsSync(YOLO_MODEL_PATH)) {
+      console.warn(`⚠️  YOLOv8n not found at ${YOLO_MODEL_PATH} — run npm run download-models`);
+      return;
+    }
+    yoloSession = await ort.InferenceSession.create(YOLO_MODEL_PATH, {
       executionProviders: ['cpu'],
       graphOptimizationLevel: 'all'
     });
     console.log('✅ YOLOv8n loaded');
 
-    // MobileNetV3 for embeddings
-    embeddingSession = await ort.InferenceSession.create('./models/mobilenet_v3.onnx', {
+    if (!fs.existsSync(EMBEDDING_MODEL_PATH)) {
+      console.warn(`⚠️  MobileNetV3 not found at ${EMBEDDING_MODEL_PATH}`);
+      return;
+    }
+    embeddingSession = await ort.InferenceSession.create(EMBEDDING_MODEL_PATH, {
       executionProviders: ['cpu'],
-      graphOptimizationLevel: 'all'
+      graphOptimizationLevel: 'all',
     });
     console.log('✅ MobileNetV3 loaded');
-
+    modelsLoaded = true;
   } catch (error) {
-    console.error('❌ Model loading failed:', error);
-    process.exit(1);
+    console.error('❌ Model loading failed (service will run in degraded mode):', error.message);
+    // Do NOT exit — allow service to start and return 503 on /infer
   }
 }
 
-// Preprocess image for YOLO (640x640)
+// ============================================================================
+// Image helpers
+// ============================================================================
+
+// ============================================================================
+// Image preprocessing helpers
+// ============================================================================
+
 async function preprocessForYOLO(imageBuffer) {
-  const { data, info } = await sharp(imageBuffer)
+  const { data } = await sharp(imageBuffer)
     .resize(640, 640, { fit: 'fill' })
     .removeAlpha()
     .raw()
     .toBuffer({ resolveWithObject: true });
 
-  // Convert to Float32Array and normalize [0-255] -> [0-1]
-  const float32Data = new Float32Array(3 * 640 * 640);
-  for (let i = 0; i < data.length; i += 3) {
-    float32Data[i] = data[i] / 255.0;       // R
-    float32Data[i + 1] = data[i + 1] / 255.0; // G
-    float32Data[i + 2] = data[i + 2] / 255.0; // B
-  }
-
-  // Convert HWC to CHW format
+  // HWC → CHW, normalise [0-255] → [0-1]
   const chw = new Float32Array(3 * 640 * 640);
   for (let c = 0; c < 3; c++) {
     for (let h = 0; h < 640; h++) {
       for (let w = 0; w < 640; w++) {
-        chw[c * 640 * 640 + h * 640 + w] = float32Data[(h * 640 + w) * 3 + c];
+        chw[c * 640 * 640 + h * 640 + w] = data[(h * 640 + w) * 3 + c] / 255.0;
       }
     }
   }
-
   return new ort.Tensor('float32', chw, [1, 3, 640, 640]);
 }
 
-// Preprocess image for MobileNet (224x224)
 async function preprocessForEmbedding(imageBuffer, bbox = null) {
   let pipeline = sharp(imageBuffer);
-
-  // Crop to detected vehicle bbox if provided
   if (bbox) {
-    const { x, y, width, height } = bbox;
     pipeline = pipeline.extract({
-      left: Math.max(0, Math.floor(x)),
-      top: Math.max(0, Math.floor(y)),
-      width: Math.ceil(width),
-      height: Math.ceil(height)
+      left: Math.max(0, Math.floor(bbox.x)),
+      top: Math.max(0, Math.floor(bbox.y)),
+      width: Math.max(1, Math.ceil(bbox.width)),
+      height: Math.max(1, Math.ceil(bbox.height)),
     });
   }
 
@@ -125,163 +145,271 @@ async function preprocessForEmbedding(imageBuffer, bbox = null) {
     .raw()
     .toBuffer({ resolveWithObject: true });
 
-  // Normalize using ImageNet stats
+  // ImageNet normalisation
   const mean = [0.485, 0.456, 0.406];
-  const std = [0.229, 0.224, 0.225];
-  
-  const float32Data = new Float32Array(3 * 224 * 224);
+  const std  = [0.229, 0.224, 0.225];
+  const t = new Float32Array(3 * 224 * 224);
   for (let c = 0; c < 3; c++) {
     for (let h = 0; h < 224; h++) {
       for (let w = 0; w < 224; w++) {
-        const idx = (h * 224 + w) * 3 + c;
-        const pixelValue = data[idx] / 255.0;
-        float32Data[c * 224 * 224 + h * 224 + w] = (pixelValue - mean[c]) / std[c];
+        const px = data[(h * 224 + w) * 3 + c] / 255.0;
+        t[c * 224 * 224 + h * 224 + w] = (px - mean[c]) / std[c];
       }
     }
   }
-
-  return new ort.Tensor('float32', float32Data, [1, 3, 224, 224]);
+  return new ort.Tensor('float32', t, [1, 3, 224, 224]);
 }
 
-// Detect vehicles using YOLOv8
-async function detectVehicles(imageTensor) {
-  const results = await yoloSession.run({ images: imageTensor });
+// ============================================================================
+// YOLO detection helper
+// ============================================================================
+
+async function detectVehicle(imageBuffer) {
+  const tensor = await preprocessForYOLO(imageBuffer);
+  const results = await yoloSession.run({ images: tensor });
   const output = results.output0.data;
-  
-  // Parse YOLO output (format: [batch, 84, 8400])
-  // First 4 values: bbox (x, y, w, h)
-  // Next 80 values: class probabilities
-  
-  const detections = [];
-  const confidenceThreshold = 0.5;
-  const vehicleClasses = [2, 3, 5, 7]; // car, motorcycle, bus, truck (COCO)
-  
+
+  const vehicleClasses = new Set([2, 3, 5, 7]); // car, motorcycle, bus, truck (COCO)
+  let best = null;
+
   for (let i = 0; i < 8400; i++) {
-    const offset = i * 84;
-    const x = output[offset];
-    const y = output[offset + 1];
-    const w = output[offset + 2];
-    const h = output[offset + 3];
-    
-    // Check vehicle class confidences
-    for (const classId of vehicleClasses) {
-      const confidence = output[offset + 4 + classId];
-      
-      if (confidence > confidenceThreshold) {
-        detections.push({
-          bbox: { x, y, width: w, height: h },
-          confidence,
-          class: classId
-        });
+    const o = i * 84;
+    for (const cls of vehicleClasses) {
+      const conf = output[o + 4 + cls];
+      if (conf > DETECTION_CONFIDENCE && (!best || conf > best.confidence)) {
+        best = {
+          bbox: { x: output[o], y: output[o + 1], width: output[o + 2], height: output[o + 3] },
+          confidence: conf,
+          class: cls,
+        };
       }
     }
   }
-  
-  // Sort by confidence, return best detection
-  detections.sort((a, b) => b.confidence - a.confidence);
-  return detections[0] || null;
+  return best;
 }
 
-// Generate embedding using MobileNetV3
-async function generateEmbedding(imageTensor) {
-  const results = await embeddingSession.run({ input: imageTensor });
+// ============================================================================
+// Embedding helper
+// ============================================================================
+
+async function generateEmbedding(imageBuffer, bbox = null) {
+  const tensor = await preprocessForEmbedding(imageBuffer, bbox);
+  const results = await embeddingSession.run({ input: tensor });
   const embedding = Array.from(results.output.data);
-  
-  // Calculate quality (L2 norm)
-  const norm = Math.sqrt(embedding.reduce((sum, val) => sum + val * val, 0));
-  const quality = Math.min(1.0, norm / 10.0); // Normalize to [0, 1]
-  
-  return { embedding, quality, norm };
+  const norm = Math.sqrt(embedding.reduce((s, v) => s + v * v, 0));
+  return { embedding, quality: Math.min(1.0, norm / 10.0), norm };
 }
 
-// Main inference endpoint
+// ============================================================================
+// OpenAI Vision — plate + vehicle metadata (optional)
+// Sends the photo as a base64 data URL and asks for structured JSON.
+// ============================================================================
+
+async function extractVehicleMetadata(imageBuffer) {
+  if (!OPENAI_API_KEY) return null;
+
+  const base64 = imageBuffer.toString('base64');
+  const dataUrl = `data:image/jpeg;base64,${base64}`;
+
+  const requestBody = JSON.stringify({
+    model: 'gpt-4o-mini',
+    max_tokens: 150,
+    messages: [
+      {
+        role: 'user',
+        content: [
+          {
+            type: 'image_url',
+            image_url: { url: dataUrl, detail: 'low' },
+          },
+          {
+            type: 'text',
+            text: `Look at this vehicle photo and respond ONLY with a JSON object (no markdown):
+{
+  "plate": "<NZ plate string or null>",
+  "confidence": <0.0-1.0>,
+  "make": "<manufacturer or null>",
+  "model": "<model or null>",
+  "colour": "<colour or null>",
+  "year_approx": <integer or null>,
+  "self_contained": <true if clearly a motorhome/campervan/caravan, otherwise false>
+}`,
+          },
+        ],
+      },
+    ],
+  });
+
+  return new Promise((resolve) => {
+    const options = {
+      hostname: 'api.openai.com',
+      path: '/v1/chat/completions',
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${OPENAI_API_KEY}`,
+        'Content-Length': Buffer.byteLength(requestBody),
+      },
+    };
+
+    const reqHttp = https.request(options, (resp) => {
+      let raw = '';
+      resp.on('data', (chunk) => (raw += chunk));
+      resp.on('end', () => {
+        try {
+          const parsed = JSON.parse(raw);
+          const content = parsed.choices?.[0]?.message?.content ?? '';
+          // Strip any accidental markdown fences
+          const cleaned = content.replace(/```json\n?|```/g, '').trim();
+          resolve(JSON.parse(cleaned));
+        } catch {
+          resolve(null);
+        }
+      });
+    });
+
+    reqHttp.on('error', () => resolve(null));
+    reqHttp.write(requestBody);
+    reqHttp.end();
+  });
+}
+
+// ============================================================================
+// Utility: decode base64 / data URL to Buffer
+// ============================================================================
+
+function decodeBase64(str) {
+  const b64 = str.includes(',') ? str.split(',')[1] : str;
+  return Buffer.from(b64, 'base64');
+}
+
+// ============================================================================
+// POST /infer  — accepts multipart OR JSON { image_base64 }
+// ============================================================================
+
 app.post('/infer', upload.single('photo'), async (req, res) => {
   const startTime = Date.now();
-  
+
+  if (!modelsLoaded) {
+    return res.status(503).json({
+      success: false,
+      error: 'Models not loaded — run npm run download-models then restart',
+      degraded: true,
+    });
+  }
+
   try {
-    if (!req.file) {
-      return res.status(400).json({ error: 'No photo uploaded' });
+    // ── Resolve image buffer from multipart OR JSON ──────────────────────
+    let imageBuffer;
+    if (req.file) {
+      imageBuffer = req.file.buffer;
+    } else if (req.body?.image_base64) {
+      imageBuffer = decodeBase64(req.body.image_base64);
+    } else {
+      return res.status(400).json({ success: false, error: 'No image provided. Send multipart photo field or JSON image_base64.' });
     }
 
-    console.log(`Processing ${req.file.originalname} (${req.file.size} bytes)`);
+    console.log(`📸 Processing image (${imageBuffer.length} bytes)`);
 
-    // Step 1: Detect vehicle
-    const yoloInput = await preprocessForYOLO(req.file.buffer);
-    const detection = await detectVehicles(yoloInput);
-    
+    // ── 1. Detect vehicle (bounding box) ─────────────────────────────────
+    const detection = await detectVehicle(imageBuffer);
     if (!detection) {
-      return res.status(404).json({ 
-        error: 'No vehicle detected',
-        suggestion: 'Ensure photo contains a clear vehicle'
+      return res.status(404).json({
+        success: false,
+        error: 'No vehicle detected in photo',
+        suggestion: 'Ensure photo contains a clearly visible vehicle',
       });
     }
+    console.log(`✅ Vehicle detected (conf: ${detection.confidence.toFixed(3)})`);
 
-    console.log(`✅ Vehicle detected (confidence: ${detection.confidence.toFixed(2)})`);
+    // ── 2. Generate 384-D embedding ───────────────────────────────────────
+    const { embedding, quality, norm } = await generateEmbedding(imageBuffer, detection.bbox);
+    console.log(`✅ Embedding generated (quality: ${quality.toFixed(3)}, dim: ${embedding.length})`);
 
-    // Step 2: Generate embedding
-    const embeddingInput = await preprocessForEmbedding(req.file.buffer, detection.bbox);
-    const { embedding, quality, norm } = await generateEmbedding(embeddingInput);
-
-    console.log(`✅ Embedding generated (quality: ${quality.toFixed(2)})`);
-
-    // Step 3: Return results
-    const duration = Date.now() - startTime;
-    
-    res.json({
-      success: true,
-      data: {
-        embedding: embedding,
-        embedding_quality: quality,
-        embedding_model_version: 'yolov8n_mobilenetv3_v1.0',
-        detection: {
-          confidence: detection.confidence,
-          bbox: detection.bbox,
-          class: detection.class
-        },
-        metadata: {
-          norm: norm,
-          dimension: embedding.length,
-          processing_time_ms: duration
-        }
+    // ── 3. Optional: OpenAI Vision plate + metadata ───────────────────────
+    let metadata = null;
+    if (OPENAI_API_KEY) {
+      try {
+        metadata = await extractVehicleMetadata(imageBuffer);
+        if (metadata) console.log(`✅ OpenAI Vision: plate=${metadata.plate} make=${metadata.make}`);
+      } catch (e) {
+        console.warn('⚠️  OpenAI Vision failed (non-fatal):', e.message);
       }
+    }
+
+    const duration = Date.now() - startTime;
+
+    return res.json({
+      success: true,
+      // Vehicle embedding (store in observations.vehicle_embedding)
+      embedding,
+      embedding_quality: quality,
+      embedding_model_version: 'yolov8n_mobilenetv3_v1.0',
+      // Detection bounding box
+      detection: {
+        confidence: detection.confidence,
+        bbox: detection.bbox,
+        class: detection.class,
+      },
+      // Plate + vehicle metadata (null if OpenAI not configured)
+      plate: metadata?.plate ?? null,
+      plate_confidence: metadata?.confidence ?? null,
+      vehicle_make: metadata?.make ?? null,
+      vehicle_model: metadata?.model ?? null,
+      vehicle_colour: metadata?.colour ?? null,
+      vehicle_year: metadata?.year_approx ?? null,
+      self_contained: metadata?.self_contained ?? false,
+      // Processing info
+      processing_time_ms: duration,
+      openai_vision_used: !!OPENAI_API_KEY,
     });
 
   } catch (error) {
-    console.error('Inference error:', error);
-    res.status(500).json({ 
-      error: 'Inference failed',
-      message: error.message 
-    });
+    console.error('❌ Inference error:', error);
+    return res.status(500).json({ success: false, error: error.message });
   }
 });
 
-// Health check
-app.get('/health', (req, res) => {
+// ============================================================================
+// GET /health
+// ============================================================================
+
+app.get('/health', (_req, res) => {
   res.json({
-    status: 'healthy',
+    status: modelsLoaded ? 'healthy' : 'degraded',
     models: {
       yolo: yoloSession ? 'loaded' : 'not loaded',
-      embedding: embeddingSession ? 'loaded' : 'not loaded'
+      embedding: embeddingSession ? 'loaded' : 'not loaded',
     },
+    openai_vision: !!OPENAI_API_KEY,
     uptime: process.uptime(),
-    memory: process.memoryUsage()
+    memory: process.memoryUsage(),
   });
 });
 
+// ============================================================================
 // Error handler
-app.use((err, req, res, next) => {
+// ============================================================================
+
+app.use((err, _req, res, _next) => {
   if (err instanceof multer.MulterError) {
-    return res.status(400).json({ error: err.message });
+    return res.status(400).json({ success: false, error: err.message });
   }
-  
   console.error('Unhandled error:', err);
-  res.status(500).json({ error: 'Internal server error' });
+  res.status(500).json({ success: false, error: 'Internal server error' });
 });
 
-// Start server
-loadModels().then(() => {
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`🚀 Inference service running on port ${PORT}`);
-    console.log(`📡 Ready to process vehicle photos`);
+// ============================================================================
+// Start
+// ============================================================================
+
+// Start HTTP server immediately so Railway healthcheck passes right away,
+// then load ONNX models in the background (may take 20-60s on first run).
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`🚀 ORC/AI inference service running on port ${PORT}`);
+  console.log(`🔍 OpenAI Vision: ${OPENAI_API_KEY ? 'enabled' : 'disabled (set OPENAI_API_KEY to enable plate extraction)'}`);
+  console.log('⏳ Loading ONNX models in background...');
+  loadModels().then(() => {
+    console.log(`🧠 Models: ${modelsLoaded ? 'loaded ✅' : 'NOT LOADED — running in degraded mode (plate scan still works via Plate Recognizer API)'}`);
   });
 });

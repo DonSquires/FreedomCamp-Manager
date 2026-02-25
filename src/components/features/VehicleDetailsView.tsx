@@ -85,9 +85,9 @@ export function VehicleDetailsView({ scan, onClose }: VehicleDetailsViewProps) {
       if (vehicleError) throw vehicleError;
       setVehicleInfo(vehicle);
 
-      // Load observations from vehicle_observations_v2 (NEW SCHEMA)
+      // Load observations from observations (NEW SCHEMA)
       const { data: obs, error: obsError } = await supabase
-        .from('vehicle_observations_v2')
+        .from('observations')
         .select(`
           observation_id,
           recorded_at,
@@ -100,7 +100,7 @@ export function VehicleDetailsView({ scan, onClose }: VehicleDetailsViewProps) {
           officer_notes,
           has_notes,
           notes_reference_previous,
-          user_profiles!vehicle_observations_v2_recorded_by_fkey (
+          user_profiles!observations_user_id_fkey (
             first_name,
             last_name
           )

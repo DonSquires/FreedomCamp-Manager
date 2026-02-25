@@ -4,7 +4,7 @@
  * Reusable card displaying vehicle plate number with profile photo, make, model, year, and color.
  * Used across FlaggedVehicles, EnforcementActions, BreachAlerts, and other reporting pages.
  * 
- * Excludes: vehicle_observations_v2 (evidential records must not be altered)
+ * Excludes: observations (evidential records must not be altered)
  */
 
 import { VehicleProfilePhoto } from './VehicleProfilePhoto';

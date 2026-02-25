@@ -333,7 +333,7 @@ export function OrganizationDashboard() {
 
       // Load observations within date range WITH compliance_results join
       let obsQuery = supabase
-        .from('vehicle_observations_v2')
+        .from('observations')
         .select(`
           observation_id,
           plate_number,
@@ -523,7 +523,7 @@ export function OrganizationDashboard() {
     try {
       // Get observations for this zone in date range WITH compliance_results
       let obsQuery = supabase
-        .from('vehicle_observations_v2')
+        .from('observations')
         .select(`
           plate_number,
           compliance_results(is_compliant)
@@ -664,7 +664,7 @@ export function OrganizationDashboard() {
 
       // Load observations in date range
       const { data: obsData, error: obsError } = await supabase
-        .from('vehicle_observations_v2')
+        .from('observations')
         .select(`
           observation_id,
           plate_number,
@@ -677,7 +677,7 @@ export function OrganizationDashboard() {
           gps_longitude,
           recorded_at,
           zones(name),
-          user_profiles!vehicle_observations_v2_recorded_by_fkey(first_name, last_name)
+          user_profiles!observations_user_id_fkey(first_name, last_name)
         `)
         .eq('plate_number', vehicle.plate_number)
         .gte('recorded_at', `${dateFrom}T00:00:00`)

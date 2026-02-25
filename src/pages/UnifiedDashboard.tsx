@@ -245,7 +245,7 @@ export function UnifiedDashboard() {
 
       // Build observations query with date filters
       let obsQuery = supabase
-        .from('vehicle_observations_v2')
+        .from('observations')
         .select(`
           observation_id,
           plate_number,

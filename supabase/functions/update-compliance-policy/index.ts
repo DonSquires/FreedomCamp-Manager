@@ -25,7 +25,7 @@ Deno.serve(async (req) => {
 
     // Get all vehicle observations
     const { data: observations, error: observationsError } = await supabaseAdmin
-      .from('vehicle_observations_v2')
+      .from('observations')
       .select('observation_id, plate_number, zone_id, recorded_at, officer_notes')
       .order('recorded_at', { ascending: true });
 
@@ -93,7 +93,7 @@ Deno.serve(async (req) => {
             const updatedNotes = existingNotes + updateNote;
 
             const { error: updateError } = await supabaseAdmin
-              .from('vehicle_observations_v2')
+              .from('observations')
               .update({ officer_notes: updatedNotes })
               .eq('observation_id', observation.observation_id);
 

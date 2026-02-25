@@ -29,7 +29,7 @@ serve(async (req) => {
 
     // Build base query
     let query = supabaseAdmin
-      .from('vehicle_observations_v2')
+      .from('observations')
       .select('observation_id, plate_number, zone_id, organization_id, recorded_at, gps_latitude, gps_longitude, gps_accuracy', { count: 'exact' });
 
     // Apply filters
@@ -189,7 +189,7 @@ serve(async (req) => {
         console.log(`\n   🔄 Updating zone: ${currentZoneName} → ${targetZoneName}`);
         
         const { error: updateError } = await supabaseAdmin
-          .from('vehicle_observations_v2')
+          .from('observations')
           .update({ zone_id: targetZoneId })
           .eq('observation_id', obs.observation_id);
 

@@ -1,0 +1,109 @@
+name: Extract Database Schema
+
+# -----------------------------------------------------------------------
+# This workflow is OPTIONAL and only runs when manually dispatched.
+# It requires the following repository secrets to be configured:
+#   PGHOST, PGPORT, PGUSER, PGPASSWORD, PGDATABASE
+#
+# If any secret is absent the job exits gracefully without error.
+# No secrets are ever printed to the workflow log.
+# -----------------------------------------------------------------------
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'Extraction mode'
+        required: true
+        default: 'schema-only'
+        type: choice
+        options:
+          - schema-only
+          - full
+      branch_name:
+        description: 'Branch to commit results to (leave blank for auto)'
+        required: false
+        default: ''
+
+jobs:
+  extract-schema:
+    name: Extract schema
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check required secrets
+        id: check_secrets
+        run: |
+          missing=""
+          for var in PGHOST PGPORT PGUSER PGPASSWORD PGDATABASE; do
+            eval "val=\${${var}:-}"
+            if [ -z "$val" ]; then
+              missing="$missing $var"
+            fi
+          done
+          if [ -n "$missing" ]; then
+            echo "::notice::Required secrets not configured:$missing – skipping extraction."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+        env:
+          PGHOST:     ${{ secrets.PGHOST }}
+          PGPORT:     ${{ secrets.PGPORT }}
+          PGUSER:     ${{ secrets.PGUSER }}
+          PGPASSWORD: ${{ secrets.PGPASSWORD }}
+          PGDATABASE: ${{ secrets.PGDATABASE }}
+
+      - name: Checkout repository
+        if: steps.check_secrets.outputs.skip == 'false'
+        uses: actions/checkout@v4
+
+      - name: Install PostgreSQL client tools
+        if: steps.check_secrets.outputs.skip == 'false'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends postgresql-client
+
+      - name: Run schema extraction
+        if: steps.check_secrets.outputs.skip == 'false'
+        env:
+          PGHOST:     ${{ secrets.PGHOST }}
+          PGPORT:     ${{ secrets.PGPORT }}
+          PGUSER:     ${{ secrets.PGUSER }}
+          PGPASSWORD: ${{ secrets.PGPASSWORD }}
+          PGDATABASE: ${{ secrets.PGDATABASE }}
+        run: |
+          chmod +x tools/schema-extract/run_extract.sh
+          tools/schema-extract/run_extract.sh
+
+      - name: Upload output as artifact
+        if: steps.check_secrets.outputs.skip == 'false'
+        uses: actions/upload-artifact@v4
+        with:
+          name: schema-extract-${{ github.run_id }}
+          path: tools/schema-extract/output/
+          retention-days: 30
+
+      - name: Commit results to branch
+        if: steps.check_secrets.outputs.skip == 'false'
+        run: |
+          TARGET_BRANCH="${{ github.event.inputs.branch_name }}"
+          if [ -z "$TARGET_BRANCH" ]; then
+            TARGET_BRANCH="schema-extract/$(date -u +%Y%m%d)"
+          fi
+
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git checkout -B "$TARGET_BRANCH"
+
+          # Stage only the extraction output; never stage secrets or .env files.
+          git add tools/schema-extract/output/
+
+          if git diff --cached --quiet; then
+            echo "No new schema output to commit."
+          else
+            git commit -m "chore: schema extract $(date -u +%Y-%m-%dT%H:%M:%SZ) [skip ci]"
+            git push origin "$TARGET_BRANCH"
+            echo "Results committed to branch: $TARGET_BRANCH"
+          fi

@@ -1,0 +1,59 @@
+{
+  "name": "FreedomCamp Manager",
+  "image": "mcr.microsoft.com/devcontainers/typescript-node:1-20-bullseye",
+
+  // -----------------------------------------------------------------------
+  // Extra tools installed at container build time.
+  // All of these are available the moment you open the Codespace in your
+  // browser — no local installs required.
+  // -----------------------------------------------------------------------
+  "features": {
+    "ghcr.io/devcontainers/features/node:1": { "version": "20" },
+    "ghcr.io/devcontainers/features/github-cli:1": {},
+    "ghcr.io/devcontainers/features/postgres:1": { "version": "15" },
+    "ghcr.io/devcontainers-contrib/features/supabase-cli:1": {},
+    "ghcr.io/devcontainers-contrib/features/deno:1": {}
+  },
+
+  // -----------------------------------------------------------------------
+  // VS Code extensions that will be auto-installed in the Codespace.
+  // -----------------------------------------------------------------------
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode",
+        "bradlc.vscode-tailwindcss",
+        "ms-vscode.vscode-typescript-next",
+        "mtxr.sqltools",
+        "mtxr.sqltools-driver-pg",
+        "denoland.vscode-deno",
+        "github.copilot",
+        "GitHub.vscode-pull-request-github"
+      ],
+      "settings": {
+        "editor.formatOnSave": true,
+        "editor.defaultFormatter": "esbenp.prettier-vscode",
+        "typescript.tsdk": "node_modules/typescript/lib"
+      }
+    }
+  },
+
+  // -----------------------------------------------------------------------
+  // Run once after the container is created.
+  // Installs project dependencies so the app is ready immediately.
+  // -----------------------------------------------------------------------
+  "postCreateCommand": "npm install 2>/dev/null || bun install 2>/dev/null || true",
+
+  // Forward the Vite dev server port so you can preview the app in your
+  // browser tab directly from Codespaces.
+  "forwardPorts": [5173, 3000, 8080],
+
+  "portsAttributes": {
+    "5173": { "label": "Vite Dev Server", "onAutoForward": "openPreview" },
+    "3000": { "label": "Proxy Server" },
+    "8080": { "label": "Inference Service" }
+  },
+
+  "remoteUser": "node"
+}

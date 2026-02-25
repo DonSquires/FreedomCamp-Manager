@@ -155,14 +155,14 @@ export function VehicleEvidenceReport() {
 
       // Get observations
       const { data: obsData, error: obsError } = await supabase
-        .from('vehicle_observations_v2')
+        .from('observations')
         .select(`
           observation_id,
           plate_number,
           recorded_at,
           zone_id,
           zones (name),
-          user_profiles!vehicle_observations_v2_recorded_by_fkey (first_name, last_name),
+          user_profiles!observations_user_id_fkey (first_name, last_name),
           is_breach,
           is_compliant,
           breach_type,

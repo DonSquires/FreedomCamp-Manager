@@ -47,19 +47,19 @@ export function EmergencyDataRecovery() {
       
       try {
         const { count: rawCount, error: countError } = await supabase
-          .from('vehicle_observations_v2')
+          .from('observations')
           .select('*', { count: 'exact', head: true });
 
         if (countError) {
           diagnosticResults.push({
-            check_name: 'Raw Count (vehicle_observations_v2)',
+            check_name: 'Raw Count (observations)',
             status: 'error',
             message: `Failed to count: ${countError.message}`,
             details: countError,
           });
         } else {
           diagnosticResults.push({
-            check_name: 'Raw Count (vehicle_observations_v2)',
+            check_name: 'Raw Count (observations)',
             status: rawCount === 0 ? 'error' : 'success',
             message: `Found ${rawCount || 0} total records`,
             details: { count: rawCount },
@@ -79,7 +79,7 @@ export function EmergencyDataRecovery() {
       console.log('📊 CHECK 2: Sample query...');
       
       const { data: sampleData, error: sampleError } = await supabase
-        .from('vehicle_observations_v2')
+        .from('observations')
         .select('observation_id, plate_number, recorded_at')
         .limit(5);
 
@@ -168,7 +168,7 @@ export function EmergencyDataRecovery() {
       try {
         // Try to query with explicit organization filter
         const { data: rlsTest, error: rlsError } = await supabase
-          .from('vehicle_observations_v2')
+          .from('observations')
           .select('observation_id')
           .limit(1);
 
@@ -202,7 +202,7 @@ export function EmergencyDataRecovery() {
       const { data: auditData, error: auditError } = await supabase
         .from('audit_log')
         .select('action, entity_type, created_at')
-        .eq('entity_type', 'vehicle_observations_v2')
+        .eq('entity_type', 'observations')
         .order('created_at', { ascending: false })
         .limit(20);
 
@@ -218,7 +218,7 @@ export function EmergencyDataRecovery() {
         diagnosticResults.push({
           check_name: 'Audit Log Check',
           status: 'warning',
-          message: 'No audit log entries found for vehicle_observations_v2',
+          message: 'No audit log entries found for observations',
         });
       }
 
@@ -273,7 +273,7 @@ export function EmergencyDataRecovery() {
               </h3>
               <ul className="text-sm text-red-800 dark:text-red-200 space-y-1">
                 <li>• canonical_vehicles has 6,616 records (vehicles exist)</li>
-                <li>• vehicle_observations_v2 shows 0 records (all observations missing)</li>
+                <li>• observations shows 0 records (all observations missing)</li>
                 <li>• This is impossible - canonical vehicles require observations</li>
                 <li>• Data may be in wrong location, blocked by RLS, or genuinely deleted</li>
               </ul>

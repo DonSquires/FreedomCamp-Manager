@@ -326,7 +326,7 @@ async function loadBreachVehicles(params: CSVExportParams) {
     }
 
     let obsQuery = supabase
-      .from('vehicle_observations_v2')
+      .from('observations')
       .select('plate_number, zone_id')
       .gte('recorded_at', `${dateFrom}T00:00:00`)
       .lte('recorded_at', `${dateTo}T23:59:59`);
@@ -434,7 +434,7 @@ async function loadAtRiskVehicles(params: CSVExportParams) {
     }
 
     let obsQuery = supabase
-      .from('vehicle_observations_v2')
+      .from('observations')
       .select('plate_number, zone_id')
       .gte('recorded_at', `${dateFrom}T00:00:00`)
       .lte('recorded_at', `${dateTo}T23:59:59`);
