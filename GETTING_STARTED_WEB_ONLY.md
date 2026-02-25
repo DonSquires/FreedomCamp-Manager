@@ -24,10 +24,19 @@
 
 The AI vehicle embedding service lives in `inference-service/` and deploys to **Railway** (you already have an account there).
 
+> ⚠️ **Already started but got a "Railpack could not determine how to build the app" error?**  
+> That means Railway was pointed at the repo root. Fix it:  
+> 1. In Railway, click your service → **Settings** tab  
+> 2. Scroll to **Source** → **Root Directory** → type `inference-service` → press Enter  
+> 3. Click **Redeploy**  
+> Skip steps 1–5 below and go straight to step 6.
+
+**Starting fresh:**
+
 1. Go to **https://railway.app/dashboard**
 2. Click **New Project** → **Deploy from GitHub repo**
 3. Select **`DonSquires/FreedomCamp-Manager`**
-4. In the **Root Directory** field type: `inference-service`
+4. ⚠️ In the **Root Directory** field type: `inference-service` ← **critical step**
 5. Click **Deploy**
 6. While it builds (~2 min), click **Variables** tab and add:
    - `PORT` = `3000`
@@ -50,7 +59,14 @@ The AI vehicle embedding service lives in `inference-service/` and deploys to **
 
 ### Step B — Run ParkPow Zone Sync (2 minutes, web-only)
 
-Once Railway is live, sync your zones to ParkPow lots:
+> ⚠️ **Important — Merge this PR first!**  
+> GitHub only shows `workflow_dispatch` workflows (the ones you trigger manually) when they are on the **default branch (main)**.  
+> The ParkPow Sync, Deploy Functions, and Deploy Railway workflows are currently on the PR branch and **will not appear in the Actions tab until this PR is merged to main**.  
+>
+> **To merge:** Go to https://github.com/DonSquires/FreedomCamp-Manager/pulls → open this PR → click **"Merge pull request"** → **"Confirm merge"**.  
+> After merging, all the workflows will appear in the Actions tab immediately.
+
+Once the PR is merged and Railway is live, sync your zones to ParkPow lots:
 
 1. Go directly to: **https://github.com/DonSquires/FreedomCamp-Manager/actions/workflows/parkpow-sync.yml**  
    *(or: GitHub → **Actions** tab → look for **"ParkPow Sync"** in the left list)*

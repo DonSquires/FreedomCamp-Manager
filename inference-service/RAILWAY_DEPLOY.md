@@ -106,6 +106,30 @@ Uses your existing Railway account - no additional service!
 
 ---
 
+## 🔧 **Fix: Already connected Railway to the wrong directory?**
+
+If Railway shows this error:
+```
+⚠ Script start.sh not found
+✖ Railpack could not determine how to build the app.
+The app contents that Railpack analyzed contains:
+./
+├── .github/
+└── README.md
+```
+
+This means Railway is pointing at the **repo root** instead of `inference-service/`. Fix it in 3 clicks:
+
+1. In Railway, click your **service** (the one showing the error)
+2. Click the **Settings** tab
+3. Scroll to **Source** → find the **Root Directory** field
+4. Type `inference-service` and press **Enter / Save**
+5. Click **Redeploy** (or push any commit to trigger a rebuild)
+
+Railway will now look inside `inference-service/` and find the Dockerfile, `package.json`, and `server.js`. ✅
+
+---
+
 ## 🚨 **Troubleshooting**
 
 **"Build timeout"**
