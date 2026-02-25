@@ -5,6 +5,84 @@
 
 ---
 
+## ✅ Current Milestone — Where We Are Right Now (25 Feb 2026)
+
+| Step | Status | Notes |
+|------|--------|-------|
+| DB Migration (vector columns, RPCs) | ✅ **Done** | Ran in Supabase SQL Editor |
+| All 46 edge functions deployed | ✅ **Done** | Manually deployed in Supabase dashboard |
+| Supabase secrets (Plate Recognizer, ParkPow, ALPR) | ✅ **Done** | All 4 tokens configured |
+| Railway inference service | ⏳ **Next** | See Step A below |
+| ParkPow zone sync | ⏳ **After Railway** | See Step B below |
+| Full end-to-end scan test | ⏳ **After ParkPow** | See Step C below |
+
+---
+
+## 🔜 Next 3 Steps
+
+### Step A — Deploy the Railway Inference Service (5 minutes, web-only)
+
+The AI vehicle embedding service lives in `inference-service/` and deploys to **Railway** (you already have an account there).
+
+1. Go to **https://railway.app/dashboard**
+2. Click **New Project** → **Deploy from GitHub repo**
+3. Select **`DonSquires/FreedomCamp-Manager`**
+4. In the **Root Directory** field type: `inference-service`
+5. Click **Deploy**
+6. While it builds (~2 min), click **Variables** tab and add:
+   - `PORT` = `3000`
+   - `NODE_ENV` = `production`
+   - `ALLOWED_ORIGINS` = `https://xbfnlzmpumthnjmtqufp.supabase.co`
+7. Once deployed, click **Settings** → **Networking** → **Generate Domain**
+8. Copy your Railway URL (e.g. `https://orc-ai-xxx.up.railway.app`)
+
+**Then set it in Supabase:**
+1. Supabase Dashboard → **Edge Functions** → **Manage secrets**
+2. Add: `INFERENCE_SERVICE_URL` = `<your Railway URL>`
+
+**Then set it as a GitHub secret** (for auto-deploy on code changes):
+1. GitHub → Settings → Secrets → `RAILWAY_TOKEN` (from https://railway.app/account/tokens)
+2. GitHub → Settings → Secrets → `RAILWAY_SERVICE_ID` (from Railway → Service → Settings → Service ID)
+
+> After adding those 2 secrets, future changes to `inference-service/` will auto-deploy via the **"Deploy Inference Service to Railway"** GitHub Action.
+
+---
+
+### Step B — Run ParkPow Zone Sync (2 minutes, web-only)
+
+Once Railway is live, sync your zones to ParkPow lots:
+
+1. GitHub → **Actions** tab
+2. Click **"ParkPow Enforcement Sync"** workflow
+3. Click **"Run workflow"**
+4. Action = `sync-lots`
+5. Click **Run workflow**
+
+This creates matching lots in ParkPow for each of your zones. Run `sync-watchlist` next to push flagged/exempt vehicles.
+
+> **Requires** `PARKPOW_API_TOKEN` already in Supabase secrets ✅ and GitHub secrets:  
+> Add `SUPABASE_ACCESS_TOKEN` + `SUPABASE_PROJECT_REF` if not already done.
+
+---
+
+### Step C — Test the Live App End-to-End
+
+1. Open your Lovable app URL
+2. Log in as an officer
+3. Go to **Scan** → tap **Scan Plate**
+4. Take a photo of any number plate
+5. Verify the response shows:
+   - ✅ Plate number read by Plate Recognizer
+   - ✅ Vehicle make/model/colour
+   - ✅ Compliance status (breach / clear / exempt)
+   - ✅ ParkPow watchlist status
+
+If anything fails, check **Supabase → Edge Functions → Logs** for the `orc-ingest` function.
+
+---
+
+---
+
 ## 🚀 QUICK START — Run the Database Migration Right Now
 
 If you've been asked to run the database migration, here's how to do it in 4 steps — no terminal needed.

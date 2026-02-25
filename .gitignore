@@ -26,3 +26,6 @@ dist-ssr
 # Schema / analysis extraction output (remove these lines to commit results)
 tools/schema-extract/output/
 tools/onspace-analysis/output/
+
+# Root-level package-lock.json (no root package.json - project uses bun.lock)
+/package-lock.json
