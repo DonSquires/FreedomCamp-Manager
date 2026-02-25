@@ -72,7 +72,11 @@ interface TopZone {
   breach_count: number;
 }
 
-export function AdminPortal() {
+interface AdminPortalProps {
+  onLogout?: () => void;
+}
+
+export function AdminPortal({ onLogout: _onLogout }: AdminPortalProps) {
   const navigate = useNavigate();
   const { dateFrom, dateTo, organizationId, zoneId } = useGlobalFilters();
   
