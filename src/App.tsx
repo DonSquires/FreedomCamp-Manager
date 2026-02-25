@@ -30,6 +30,7 @@ import ReportsHub from '@/pages/ReportsHub';
 import ZoneManagement from '@/pages/ZoneManagement';
 import UserManagement from '@/pages/UserManagement';
 import CleanDashboard from '@/pages/CleanDashboard';
+import CompliancePage from '@/pages/CompliancePage';
 import { FancyLoader } from '@/components/features/FancyLoader';
 import { Toaster } from '@/components/ui/sonner';
 import { toast } from 'sonner';
@@ -154,6 +155,8 @@ function App() {
                 {/* Database/System Tools */}
                 <Route path="/admin/db-tools" element={<DatabaseToolsPage />} />
                 <Route path="/admin/alpr-diagnostic" element={<ALPRDiagnostic />} />
+                {/* Compliance Dashboard */}
+                <Route path="/admin/compliance" element={<CompliancePage />} />
               </>
             )}
             

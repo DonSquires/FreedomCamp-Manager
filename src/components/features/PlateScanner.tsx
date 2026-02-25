@@ -437,9 +437,9 @@ export function PlateScanner({ onExit }: PlateScannerProps) {
       
       console.log('✅ Photo uploaded:', publicUrl);
 
-      // STEP 3: Submit to vehicle-ingest (unified ingest pipeline)
-      console.log('📤 Processing with vehicle-ingest...');
-      const { data: scanResult, error: scanError } = await supabase.functions.invoke('vehicle-ingest', {
+      // STEP 3: Submit to orc-ingest (Railway ORC/AI → OnSpace AI fallback)
+      console.log('📤 Processing with orc-ingest...');
+      const { data: scanResult, error: scanError } = await supabase.functions.invoke('orc-ingest', {
         body: {
           image: imageDataUrl,
           zoneId: selectedZone.id,
@@ -450,7 +450,7 @@ export function PlateScanner({ onExit }: PlateScannerProps) {
           gpsLongitude: gpsLocation?.lng ?? null,
           gpsAccuracy: gpsLocation?.accuracy ?? null,
           idempotencyKey: `driving:${Date.now()}:${Math.random().toString(36).slice(2)}`,
-          // Onspace AI fallback — plate recognition handled client-side
+          // OnSpace AI fallback — plate recognition handled client-side if Railway unavailable
           plate: null,
           confidence: null,
           requires_manual_entry: false,

@@ -18,11 +18,13 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.7";
 import { corsHeaders } from "../_shared/cors.ts";
 
 // ============================================================================
-// DEPLOYMENT MODE FLAG
+// DEPLOYMENT MODE — auto-detected from environment
 // ============================================================================
-// Set to true for temporary Onspace AI fallback mode (ALPR/ORC handled by UI)
-// Set to false to re-enable Railway inference service
-const USE_ONSPACE_AI = true;
+// INFERENCE_SERVICE_URL set → Railway ORC/AI mode (preferred)
+// INFERENCE_SERVICE_URL absent → OnSpace AI fallback mode
+// The flag below is overridden at runtime; set it to false to force Railway
+// even without the env var (useful in testing).
+const USE_ONSPACE_AI = !Deno.env.get("INFERENCE_SERVICE_URL");
 // ============================================================================
 
 const ALLOWED_LOCALHOST_ORIGINS = new Set([

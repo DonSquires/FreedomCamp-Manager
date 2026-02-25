@@ -27,6 +27,7 @@
    - `PORT` = `3000`
    - `NODE_ENV` = `production`
    - `ALLOWED_ORIGINS` = `https://xbfnlzmpumthnjmtqufp.supabase.co`
+   - `OPENAI_API_KEY` = `sk-...` *(optional — enables plate + vehicle metadata extraction via gpt-4o-mini; omit to use OnSpace AI client-side plate data)*
 
 4. **Deploy**
    - Click Deploy button
@@ -82,7 +83,9 @@ curl "$RAILWAY_URL/health" | jq .
 ## 📝 **Configure Supabase**
 
 ```bash
-# Set inference URL in Supabase
+# Set inference URL in Supabase — this automatically enables Railway mode
+# in both vehicle-ingest and orc-ingest edge functions.
+# When this secret is absent, both functions fall back to OnSpace AI mode.
 supabase secrets set INFERENCE_SERVICE_URL="https://orc-ai-inference-production.up.railway.app"
 
 # Verify

@@ -279,14 +279,14 @@ export function ZoomScan({ onExit }: ZoomScanProps) {
         weatherConditions: null,
       };
 
-      console.log('📤 Calling vehicle-ingest...', {
+      console.log('📤 Calling orc-ingest (Railway ORC/AI → OnSpace AI fallback)...', {
         hasPhoto: !!publicUrl,
         photoHash: photoHash.substring(0, 16),
         zoneId: selectedZone.id,
       });
 
       // Use supabase.functions.invoke() - it handles headers correctly
-      const { data, error } = await supabase.functions.invoke('vehicle-ingest', {
+      const { data, error } = await supabase.functions.invoke('orc-ingest', {
         body: {
           image: requestBody.image,
           photo_url: requestBody.photo_url,
@@ -301,7 +301,7 @@ export function ZoomScan({ onExit }: ZoomScanProps) {
           idempotencyKey: requestBody.idempotencyKey,
           officerNotes: requestBody.officerNotes,
           weatherConditions: requestBody.weatherConditions,
-          // Onspace AI fallback: pass through any pre-processed plate data
+          // OnSpace AI fallback fields
           plate: null,
           confidence: null,
           requires_manual_entry: false,
