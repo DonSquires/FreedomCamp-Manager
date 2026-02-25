@@ -2,7 +2,7 @@
 // ============================================================================
 // PLATE RECOGNITION PIPELINE (in priority order):
 //
-//   1. Plate Recognizer API  (PLATE_RECOGNIZER_TOKEN is set — paid subscription)
+//   1. Plate Recognizer API  (PLATERECOGNIZER_TOKEN / ALPR_API_TOKEN — paid ✅)
 //      https://api.platerecognizer.com/v1/plate-reader/
 //      Returns: plate, confidence, region, make, model, colour, vehicle type
 //      Regions: ["nz"], mmc=true, detection_rule=strict
@@ -65,6 +65,12 @@
 // ============================================================================
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.7";
+import {
+  checkWatchlist,
+  createSession,
+  createViolation,
+  isParkPowEnabled,
+} from "../_shared/parkpow.ts";
 
 // ── CORS ─────────────────────────────────────────────────────────────────────
 
@@ -438,6 +444,70 @@ Deno.serve(async (req: Request) => {
 
     console.log(`✅ Observation ${obs.id} saved (source=${result.source})`);
 
+    // ── ParkPow post-recognition pipeline ─────────────────────────────────
+    // Runs asynchronously after the observation is saved so it never blocks
+    // the response to the officer app. Failures are logged but non-fatal.
+    let parkpow_watchlist: { is_flagged: boolean; is_permitted: boolean } | null = null;
+    let parkpow_session_id: number | null = null;
+
+    if (isParkPowEnabled() && result.plate && result.plate !== "MANUAL_REQUIRED") {
+      try {
+        // Step 4: Watchlist check — is this plate flagged or exempt?
+        parkpow_watchlist = await checkWatchlist(result.plate);
+
+        if (parkpow_watchlist.is_flagged || parkpow_watchlist.is_permitted) {
+          // Reflect ParkPow status back into canonical_vehicles
+          await db.from("canonical_vehicles").update({
+            ...(parkpow_watchlist.is_flagged   ? { is_flagged: true }  : {}),
+            ...(parkpow_watchlist.is_permitted ? { is_exempt: true }   : {}),
+          }).eq("plate_number", result.plate);
+          console.log(`🚩 ParkPow: plate=${result.plate} flagged=${parkpow_watchlist.is_flagged} permitted=${parkpow_watchlist.is_permitted}`);
+        }
+
+        // Step 5: Create ParkPow session (vehicle entered zone)
+        // Requires the zone to have a parkpow_lot_id — set via parkpow-sync?action=sync-lots
+        const { data: zone } = await db
+          .from("zones")
+          .select("parkpow_lot_id")
+          .eq("id", zoneId)
+          .maybeSingle();
+
+        if (zone?.parkpow_lot_id) {
+          const session = await createSession({
+            lot_id:     zone.parkpow_lot_id,
+            plate:      result.plate,
+            entry_time: recordedAt,
+            camera_id:  zoneId,
+          });
+          parkpow_session_id = session.id;
+
+          // Store session ID on the observation for later violation push
+          await db.from("observations")
+            .update({ parkpow_session_id: session.id })
+            .eq("id", obs.id);
+
+          console.log(`📋 ParkPow session ${session.id} created for ${result.plate} in lot ${zone.parkpow_lot_id}`);
+
+          // If the vehicle is flagged, immediately create a violation in ParkPow
+          if (parkpow_watchlist.is_flagged) {
+            const violation = await createViolation({
+              session_id: session.id,
+              reason: "Vehicle on ParkPow block list — enforcement target",
+            });
+            await db.from("observations")
+              .update({ parkpow_violation_id: violation.id })
+              .eq("id", obs.id);
+            console.log(`⚠️  ParkPow violation ${violation.id} created for flagged vehicle ${result.plate}`);
+          }
+        } else {
+          console.log(`ℹ️  Zone ${zoneId} has no parkpow_lot_id — run parkpow-sync?action=sync-lots to link zones`);
+        }
+      } catch (ppErr) {
+        // ParkPow steps are always non-fatal — officer app must not be blocked
+        console.warn("⚠️  ParkPow pipeline failed (non-fatal):", ppErr);
+      }
+    }
+
     return jsonResp(cors, 200, {
       success: true,
       observation_id:   obs.id,
@@ -452,6 +522,10 @@ Deno.serve(async (req: Request) => {
       embedding_quality: result.embedding_quality,
       requires_manual_entry: !result.plate,
       inference_source: result.source,
+      // ParkPow results (null when PARKPOW_API_TOKEN not set or no lot linked yet)
+      parkpow_flagged:   parkpow_watchlist?.is_flagged   ?? null,
+      parkpow_permitted: parkpow_watchlist?.is_permitted ?? null,
+      parkpow_session_id,
     });
 
   } catch (e: unknown) {
