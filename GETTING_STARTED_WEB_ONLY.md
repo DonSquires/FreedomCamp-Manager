@@ -12,7 +12,7 @@
 | DB Migration (vector columns, RPCs) | ✅ **Done** | Ran in Supabase SQL Editor |
 | All 46 edge functions deployed | ✅ **Done** | Manually deployed in Supabase dashboard |
 | Supabase secrets (Plate Recognizer, ParkPow, ALPR) | ✅ **Done** | All 4 tokens configured |
-| Railway inference service | ⏳ **Fix source repo** | See Step A below — change source from `orc-ai-inference-service` → `FreedomCamp-Manager` |
+| Railway inference service | ⏳ **Change branch** | See Step A below — repo is correct, change branch from `main` → `copilot/add-schema-extraction-tooling` |
 | ParkPow zone sync | ⏳ **After Railway** | See Step B below |
 | Full end-to-end scan test | ⏳ **After ParkPow** | See Step C below |
 
@@ -20,35 +20,36 @@
 
 ## 🔜 Next 3 Steps
 
-### Step A — Deploy the Railway Inference Service (3 minutes, web-only)
+### Step A — Fix Railway Branch + Deploy the Inference Service (3 minutes, web-only)
 
-The AI vehicle embedding service lives in `inference-service/` in **this repo** and deploys to your existing Railway service.
+> ⚠️ **Root cause of the `npm ci` failure: Railway is watching the `main` branch.**  
+> The `main` branch has an older version of `inference-service/` without `package-lock.json`.  
+> All the fixes (Debian base image, immediate server start, lockfile) are on **branch `copilot/add-schema-extraction-tooling`**.  
+>
+> **Fix — change Railway branch right now:**  
+> 1. Railway → your service (`orc-ai-inference-service`) → **Settings** tab  
+> 2. **Source** section → find **"Branch connected to production"** (currently shows `main`)  
+> 3. Click the **branch dropdown** → select **`copilot/add-schema-extraction-tooling`**  
+> 4. Save — Railway will auto-redeploy within seconds  
+>
+> ✅ Root directory stays `inference-service` (already correct)  
+> ✅ Domain `orc-ai-inference-service-production.up.railway.app` stays the same  
+> ✅ After this PR is merged to `main`, switch the branch back to `main`
 
-> ⚠️ **You are getting "Could not find root directory: inference-service"?**  
-> This is because Railway is connected to the **wrong repo** (`orc-ai-inference-service` which is empty).  
-> The actual code is in **`FreedomCamp-Manager`**. Fix it:  
-> 1. Railway → your service → **Settings** tab  
-> 2. **Source** section → click **Disconnect** (next to `orc-ai-inference-service`)  
-> 3. Click **Connect Repo** → select **`DonSquires/FreedomCamp-Manager`**  
-> 4. **Root Directory** field → type `inference-service` → Save  
-> 5. Click **Redeploy**  
->  
-> ✅ Your existing domain `orc-ai-inference-service-production.up.railway.app` will stay the same — no need to generate a new one.
+**Healthcheck timeout is already set to 300s** ✅ (you set this earlier — good, ONNX models take ~60s to load on first boot)
 
-**While it builds (~2 min), add these Variables in Railway (Variables tab):**
+**While it builds (~2 min), check/add these Variables in Railway (Variables tab):**
 - `PORT` = `3000`
 - `NODE_ENV` = `production`
 - `ALLOWED_ORIGINS` = `https://xbfnlzmpumthnjmtqufp.supabase.co`
 
-**Then set the Railway URL in Supabase (your URL is already known):**
+**Then set the Railway URL in Supabase:**
 1. Supabase Dashboard → **Edge Functions** → **Manage secrets**
 2. Add: `INFERENCE_SERVICE_URL` = `https://orc-ai-inference-service-production.up.railway.app`
 
-**Then set it as a GitHub secret** (for auto-deploy on code changes):
-1. GitHub → Settings → Secrets → `RAILWAY_TOKEN` (from https://railway.app/account/tokens)
-2. GitHub → Settings → Secrets → `RAILWAY_SERVICE_ID` (from Railway → Service → Settings → Service ID)
-
-> After adding those 2 secrets, future changes to `inference-service/` will auto-deploy via the **"Deploy Inference Service to Railway"** GitHub Action.
+> After the PR is merged, you can optionally add GitHub secrets for auto-deploy:
+> - `RAILWAY_TOKEN` (from https://railway.app/account/tokens)
+> - `RAILWAY_SERVICE_ID` (from Railway → Service → Settings → Service ID)
 
 ---
 

@@ -106,25 +106,23 @@ Uses your existing Railway account - no additional service!
 
 ---
 
-## 🔧 **Fix: "Could not find root directory: inference-service"**
+## 🔧 **Fix: `npm ci` failing — "package-lock.json" not found**
 
-This error means Railway is connected to the **wrong source repository**.  
+**Root cause:** Railway is watching the `main` branch, which has an older version of `inference-service/` without `package-lock.json`. All the fixes are on branch `copilot/add-schema-extraction-tooling`.
 
-**Root cause:** Railway is pointing at `DonSquires/orc-ai-inference-service` (which is empty — only has `.github/` and `README.md`). The actual inference code lives in `DonSquires/FreedomCamp-Manager` under the `inference-service/` folder.
+**Fix — change the Railway branch (30 seconds):**
 
-**Fix in 4 steps:**
+1. Railway → your service (`orc-ai-inference-service`) → **Settings** tab  
+2. **Source** section → **"Branch connected to production"** (currently `main`)  
+3. Click the branch dropdown → select **`copilot/add-schema-extraction-tooling`**  
+4. Save — Railway auto-redeploys  
 
-1. In Railway, click your service → **Settings** tab
-2. Scroll to **Source** section → click **Disconnect** next to the current repo
-3. Click **Connect Repo** → select **`DonSquires/FreedomCamp-Manager`**
-4. In the **Root Directory** field, type `inference-service` → Save → **Redeploy**
-
-Railway will now find the correct `Dockerfile`, `package.json`, and `server.js`. ✅
-
-> **Your Railway URL is already set up:** `https://orc-ai-inference-service-production.up.railway.app`  
-> No need to generate a new domain — just reconnect the source and redeploy.
+> ✅ Root directory stays `inference-service` (don't change it)  
+> ✅ After the PR is merged to `main`, switch the branch back to `main`
 
 ---
+
+
 
 ## 🚨 **Troubleshooting**
 

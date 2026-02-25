@@ -10,8 +10,9 @@ WORKDIR /app
 # Copy package files
 COPY package*.json ./
 
-# Install dependencies
-RUN npm ci --only=production
+# Install production dependencies
+# Using npm install (not npm ci) so this works even if package-lock.json is absent
+RUN npm install --omit=dev --no-audit --prefer-offline || npm install --omit=dev --no-audit
 
 # Stage 2: Production image
 FROM node:18-slim
