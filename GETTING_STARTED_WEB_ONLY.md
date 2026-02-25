@@ -1,0 +1,295 @@
+# Getting Started — Web Only (No Local Installs)
+
+> **This guide is for you if your computer is locked down by your company** and you cannot install software.  
+> Everything here works from a **web browser**. You need no special software on your computer at all.
+
+---
+
+## What you need
+
+| What | Where to get it |
+|------|----------------|
+| A web browser | You already have it (Chrome, Edge, Firefox, Safari) |
+| A GitHub account | https://github.com — free |
+| Access to the FreedomCamp-Manager GitHub repo | Ask the repo owner to add you |
+| Access to the Supabase project | https://supabase.com — free |
+
+That's it. Nothing to install.
+
+---
+
+## The three web tools you will use
+
+### 1. GitHub — version control, deployments, scripts
+
+> https://github.com/DonSquires/FreedomCamp-Manager
+
+This is where the code lives. You can:
+- Browse and edit files directly in your browser
+- Run scripts and deployments using **GitHub Actions** (no terminal needed)
+- Open a full browser-based VS Code editor with **GitHub Codespaces**
+
+---
+
+### 2. Supabase — database and edge functions
+
+> https://supabase.com
+
+This is your database and backend. You can:
+- Browse live data in the **Table Editor**
+- Run SQL queries in the **SQL Editor**
+- View and manage **Edge Functions**
+- See **logs** and **auth users**
+- Configure **secrets** for your edge functions
+
+---
+
+### 3. Railway — AI inference service
+
+> https://railway.app
+
+This hosts the AI vehicle-recognition service. You can:
+- See if the inference service is running
+- View logs
+- Set environment variables (secrets)
+- Redeploy with one click
+
+---
+
+## How to edit code in your browser (GitHub Codespaces)
+
+GitHub Codespaces gives you a full VS Code editor running in a cloud computer — accessible entirely from your browser. No installs.
+
+### Step 1 — Open Codespaces
+
+1. Go to: https://github.com/DonSquires/FreedomCamp-Manager
+2. Click the green **`< > Code`** button
+3. Click the **Codespaces** tab
+4. Click **"Create codespace on main"** (or your branch)
+
+> A browser tab opens with a VS Code editor. Wait about 60 seconds for it to finish setting up.
+
+### Step 2 — Use the terminal inside Codespaces
+
+Once the Codespace is ready, open a terminal:
+- Press `` Ctrl + ` `` (backtick)  
+- Or click **Terminal → New Terminal** in the top menu
+
+The terminal is a full Linux bash shell. You can run any script from here:
+
+```bash
+# Example: run the schema extraction script
+chmod +x tools/schema-extract/run_extract.sh
+./tools/schema-extract/run_extract.sh
+```
+
+### Step 3 — Preview the app
+
+When the Codespace is ready, Vite starts automatically. A popup will ask if you want to open the preview — click **Open in Browser**. The app runs in a browser tab.
+
+### Step 4 — Save your work
+
+Changes you make in the Codespace can be committed and pushed just like normal:
+
+1. Click the **Source Control** icon (branch icon) in the left sidebar
+2. Type a message in the box (e.g. "Fix compliance page")
+3. Click **Commit & Push**
+
+---
+
+## How to run scripts / deployments without any terminal
+
+Everything can be triggered from the **GitHub Actions** web UI.
+
+### Step 1 — Go to Actions
+
+1. Go to: https://github.com/DonSquires/FreedomCamp-Manager/actions
+2. You'll see a list of available workflows on the left
+
+### Step 2 — Run a workflow
+
+Click on the workflow you want to run:
+
+| Workflow | What it does |
+|----------|-------------|
+| **Extract Database Schema** | Pulls DB structure from Supabase and saves it as files |
+| **Deploy Supabase Edge Functions** | Deploys edge functions (plate scanner, orc-ingest, etc.) |
+| **Run Database Migrations** | Applies new database changes |
+| **ParkPow Sync** | Syncs zones and violations with ParkPow enforcement |
+
+Then:
+1. Click **"Run workflow"** (top right of the workflow page)
+2. Fill in any options shown
+3. Click the green **"Run workflow"** button
+
+The workflow runs in the cloud. Watch the progress in your browser. You'll see green ticks or red crosses for each step.
+
+---
+
+## How to run database queries (no terminal needed)
+
+1. Go to: https://supabase.com/dashboard
+2. Select your project
+3. Click **SQL Editor** in the left menu
+4. Type or paste any SQL query
+5. Click **Run** (or press Ctrl+Enter)
+
+### Useful queries to get started
+
+**See all live observations:**
+```sql
+SELECT * FROM observations ORDER BY created_at DESC LIMIT 50;
+```
+
+**Count observations per zone:**
+```sql
+SELECT z.name, COUNT(o.id) as total
+FROM observations o
+JOIN zones z ON z.id = o.zone_id
+GROUP BY z.name
+ORDER BY total DESC;
+```
+
+**See breaches in the last 7 days:**
+```sql
+SELECT plate_number, zone_id, created_at, compliance_status
+FROM observations
+WHERE compliance_status = 'breach'
+  AND created_at > NOW() - INTERVAL '7 days'
+ORDER BY created_at DESC;
+```
+
+**See canonical vehicles:**
+```sql
+SELECT plate_number, make, model, colour, is_flagged, is_exempt
+FROM canonical_vehicles
+ORDER BY updated_at DESC LIMIT 50;
+```
+
+---
+
+## How to apply a database migration (no terminal)
+
+### Option A — GitHub Actions (recommended)
+
+1. Go to: Actions → **Run Database Migrations** → Run workflow
+2. Choose `dry_run: true` first to see what it will do
+3. Then choose `dry_run: false` to apply
+
+### Option B — Supabase SQL Editor
+
+1. Go to Supabase → **SQL Editor**
+2. Open the migration file from GitHub (e.g. `supabase/migrations/20260225_orc_ai_observations.sql`)
+3. Copy the contents
+4. Paste into the SQL Editor
+5. Click **Run**
+
+---
+
+## How to deploy an edge function (no terminal)
+
+### Option A — GitHub Actions (recommended)
+
+1. Go to: Actions → **Deploy Supabase Edge Functions** → Run workflow
+2. Leave `function_name` blank to deploy all, or type a specific name (e.g. `orc-ingest`)
+3. Click **Run workflow**
+
+### Option B — Supabase Dashboard
+
+1. Go to Supabase → **Edge Functions**
+2. Click the function you want to update
+3. Click **Edit** and paste the new code
+4. Click **Save**
+
+---
+
+## How to add or update secrets
+
+### Supabase secrets (used by edge functions)
+
+1. Go to Supabase → **Settings** → **Edge Functions** → **Secrets**
+2. Click **Add secret**
+3. Name: e.g. `PLATERECOGNIZER_TOKEN`
+4. Value: your token
+5. Click **Save**
+
+The following secrets should already be configured:
+- `PLATERECOGNIZER_TOKEN` — Plate Recognizer API
+- `ALPR_API_TOKEN` — same token (legacy name)
+- `ALPR_API_URL` — Plate Recognizer endpoint URL
+- `PARKPOW_API_TOKEN` — ParkPow enforcement API
+
+### GitHub Actions secrets (used by workflows)
+
+1. Go to: https://github.com/DonSquires/FreedomCamp-Manager/settings/secrets/actions
+2. Click **New repository secret**
+3. Add:
+
+| Secret name | Where to find it |
+|-------------|-----------------|
+| `SUPABASE_ACCESS_TOKEN` | Supabase → Account → Access Tokens (top-right menu) |
+| `SUPABASE_PROJECT_REF` | Supabase → Settings → General → Reference ID |
+| `SUPABASE_DB_PASSWORD` | Supabase → Settings → Database → Password |
+| `SUPABASE_URL` | Supabase → Settings → API → Project URL |
+| `SUPABASE_SERVICE_ROLE_KEY` | Supabase → Settings → API → service_role key |
+
+### Railway secrets (used by inference service)
+
+1. Go to: https://railway.app → your project
+2. Click on the **inference-service** service
+3. Click **Variables** tab
+4. Click **New Variable** and add:
+   - `PORT` = `8080`
+   - `ALLOWED_ORIGINS` = your Supabase project URL
+
+---
+
+## How to view live logs
+
+### Supabase Edge Function logs
+
+1. Supabase → **Edge Functions**
+2. Click on a function (e.g. `orc-ingest`)
+3. Click **Logs** tab
+4. You'll see every request and any errors in real time
+
+### Railway inference service logs
+
+1. Railway → your project → inference-service
+2. Click **Deployments**
+3. Click the latest deployment → **View Logs**
+
+### GitHub Actions logs
+
+1. GitHub → **Actions** tab
+2. Click on any workflow run
+3. Click on a job to see step-by-step output
+
+---
+
+## Summary — the most common tasks
+
+| Task | How to do it |
+|------|-------------|
+| Edit code | GitHub Codespaces (browser VS Code) |
+| Run a script | GitHub Actions → Run workflow |
+| Check the database | Supabase → Table Editor |
+| Run a SQL query | Supabase → SQL Editor |
+| Apply a migration | GitHub Actions → Run Database Migrations |
+| Deploy edge functions | GitHub Actions → Deploy Supabase Edge Functions |
+| Check logs | Supabase → Edge Functions → Logs |
+| Add a secret | Supabase → Settings → Secrets (or GitHub → Settings → Secrets) |
+| Sync ParkPow | GitHub Actions → ParkPow Sync |
+| Redeploy AI service | Railway → inference-service → Redeploy |
+
+---
+
+## Need help?
+
+If something goes wrong:
+
+1. Take a **screenshot** of the error
+2. Note which page/tool you were using (Supabase, GitHub Actions, Railway)
+3. Share in the project chat or open a GitHub issue
+
+You do **not** need to install anything on your computer to fix it.

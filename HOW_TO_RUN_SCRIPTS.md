@@ -1,5 +1,11 @@
 # How to Run the Bash Scripts
 
+> ⚠️ **Computer locked down by your company? Can't install software?**  
+> Skip this guide entirely and use the **[Web-Only Guide](./GETTING_STARTED_WEB_ONLY.md)** instead.  
+> Everything can be done from a browser — no local installs at all.
+
+---
+
 > **No experience needed.** Follow this guide step-by-step. Every command is copy-paste ready.
 
 ---
