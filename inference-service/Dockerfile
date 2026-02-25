@@ -27,7 +27,9 @@ COPY --from=builder /app/node_modules ./node_modules
 
 # Copy application code
 COPY server.js ./
-COPY models ./models
+# Create models directory - ONNX model files are downloaded at first startup
+# (they are too large to commit to git; see scripts/download-models.js)
+RUN mkdir -p ./models
 
 # Create non-root user
 RUN addgroup -g 1001 -S nodejs && \
