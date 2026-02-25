@@ -12,44 +12,33 @@
 | DB Migration (vector columns, RPCs) | ✅ **Done** | Ran in Supabase SQL Editor |
 | All 46 edge functions deployed | ✅ **Done** | Manually deployed in Supabase dashboard |
 | Supabase secrets (Plate Recognizer, ParkPow, ALPR) | ✅ **Done** | All 4 tokens configured |
-| Railway inference service | ⏳ **Change branch** | See Step A below — repo is correct, change branch from `main` → `copilot/add-schema-extraction-tooling` |
-| ParkPow zone sync | ⏳ **After Railway** | See Step B below |
+| Railway inference service | ✅ **Deployed** | Running at `orc-ai-inference-service-production.up.railway.app`, branch `copilot/add-schema-extraction-tooling` |
+| Set `INFERENCE_SERVICE_URL` in Supabase | ⏳ **Next** | See Step A below — 2 minutes |
+| ParkPow zone sync | ⏳ **After Step A** | See Step B below |
 | Full end-to-end scan test | ⏳ **After ParkPow** | See Step C below |
 
 ---
 
 ## 🔜 Next 3 Steps
 
-### Step A — Fix Railway Branch + Deploy the Inference Service (3 minutes, web-only)
+### Step A — Set `INFERENCE_SERVICE_URL` in Supabase (2 minutes)
 
-> ⚠️ **Root cause of the `npm ci` failure: Railway is watching the `main` branch.**  
-> The `main` branch has an older version of `inference-service/` without `package-lock.json`.  
-> All the fixes (Debian base image, immediate server start, lockfile) are on **branch `copilot/add-schema-extraction-tooling`**.  
->
-> **Fix — change Railway branch right now:**  
-> 1. Railway → your service (`orc-ai-inference-service`) → **Settings** tab  
-> 2. **Source** section → find **"Branch connected to production"** (currently shows `main`)  
-> 3. Click the **branch dropdown** → select **`copilot/add-schema-extraction-tooling`**  
-> 4. Save — Railway will auto-redeploy within seconds  
->
-> ✅ Root directory stays `inference-service` (already correct)  
-> ✅ Domain `orc-ai-inference-service-production.up.railway.app` stays the same  
-> ✅ After this PR is merged to `main`, switch the branch back to `main`
+> ✅ **Railway is deployed and healthy** at `https://orc-ai-inference-service-production.up.railway.app`  
+> You just need to tell your Supabase edge functions where to find it.
 
-**Healthcheck timeout is already set to 300s** ✅ (you set this earlier — good, ONNX models take ~60s to load on first boot)
+1. Go to **Supabase Dashboard** → **Edge Functions** → **Manage secrets**  
+   *(or: Settings → Edge Functions → Secrets)*
+2. Click **"Add new secret"**
+3. Name: `INFERENCE_SERVICE_URL`  
+   Value: `https://orc-ai-inference-service-production.up.railway.app`
+4. Click **Save**
 
-**While it builds (~2 min), check/add these Variables in Railway (Variables tab):**
-- `PORT` = `3000`
-- `NODE_ENV` = `production`
-- `ALLOWED_ORIGINS` = `https://xbfnlzmpumthnjmtqufp.supabase.co`
+That's it — `orc-ingest` and `vehicle-ingest` will now use Railway for AI vehicle detection.
 
-**Then set the Railway URL in Supabase:**
-1. Supabase Dashboard → **Edge Functions** → **Manage secrets**
-2. Add: `INFERENCE_SERVICE_URL` = `https://orc-ai-inference-service-production.up.railway.app`
-
-> After the PR is merged, you can optionally add GitHub secrets for auto-deploy:
-> - `RAILWAY_TOKEN` (from https://railway.app/account/tokens)
-> - `RAILWAY_SERVICE_ID` (from Railway → Service → Settings → Service ID)
+> 💡 **ONNX models note:** The next Railway deployment (triggered by this commit) will bake the ONNX models  
+> (YOLOv8n 6.2 MB + MobileNetV3 21 MB) directly into the Docker image at build time.  
+> After that deployment: the startup log will show `🧠 Models: LOADED` instead of `degraded mode`.  
+> The service works correctly either way — Plate Recognizer handles all plate reading.
 
 ---
 
