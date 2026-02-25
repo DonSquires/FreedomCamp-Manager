@@ -46,6 +46,8 @@ CREATE INDEX IF NOT EXISTS idx_observations_has_embedding
   WHERE vehicle_embedding IS NOT NULL;
 
 -- ── 4. match_vehicle() — top-K cosine similarity ─────────────────────────
+-- Drop first so PostgreSQL can change the return-type safely (42P13)
+DROP FUNCTION IF EXISTS public.match_vehicle(uuid, integer, timestamp with time zone, uuid, uuid, real);
 
 CREATE OR REPLACE FUNCTION public.match_vehicle(
   p_obs_id        uuid,
@@ -103,6 +105,8 @@ COMMENT ON FUNCTION public.match_vehicle IS
 -- The old view referenced non-existent columns; this RPC queries observations
 -- directly against the current schema.
 
+DROP FUNCTION IF EXISTS public.get_zones_with_activity(uuid, timestamp with time zone, timestamp with time zone);
+
 CREATE OR REPLACE FUNCTION public.get_zones_with_activity(
   p_organization_id  uuid        DEFAULT NULL,
   p_start_date       timestamptz DEFAULT now() - interval '7 days',
@@ -143,6 +147,8 @@ COMMENT ON FUNCTION public.get_zones_with_activity IS
 -- ── 6. Rebuild get_admin_dashboard_stats with correct column names ─────────
 -- canonical_vehicles uses homeless_status TEXT ('none'|'claimed'|'confirmed'),
 -- NOT a boolean is_homeless column.  Fix accordingly.
+
+DROP FUNCTION IF EXISTS public.get_admin_dashboard_stats(timestamp with time zone, timestamp with time zone, uuid);
 
 CREATE OR REPLACE FUNCTION public.get_admin_dashboard_stats(
   p_start_date       timestamptz,

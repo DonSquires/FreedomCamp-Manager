@@ -124,6 +124,9 @@ CREATE INDEX IF NOT EXISTS idx_canonical_vehicles_is_exempt
 -- STEP 6: match_vehicle() RPC — top-K visual similarity search
 -- ============================================================================
 
+-- Drop first so we can change the return type safely
+DROP FUNCTION IF EXISTS public.match_vehicle(uuid, integer, timestamp with time zone, uuid, uuid, real);
+
 CREATE OR REPLACE FUNCTION public.match_vehicle(
   p_obs_id        uuid,
   p_k             int          DEFAULT 5,
@@ -179,6 +182,9 @@ COMMENT ON FUNCTION public.match_vehicle IS
 -- STEP 7: get_zones_with_activity() RPC — zone KPI drilldown for Admin Portal
 -- ============================================================================
 
+-- Drop first in case return type changed
+DROP FUNCTION IF EXISTS public.get_zones_with_activity(uuid, timestamp with time zone, timestamp with time zone);
+
 CREATE OR REPLACE FUNCTION public.get_zones_with_activity(
   p_organization_id  uuid        DEFAULT NULL,
   p_start_date       timestamptz DEFAULT now() - interval '7 days',
@@ -221,6 +227,9 @@ COMMENT ON FUNCTION public.get_zones_with_activity IS
 -- ============================================================================
 -- NOTE: canonical_vehicles.homeless_status is TEXT ('none'|'claimed'|'confirmed')
 --       There is NO boolean is_homeless column — the comparison below is correct.
+
+-- Drop first in case return type changed
+DROP FUNCTION IF EXISTS public.get_admin_dashboard_stats(timestamp with time zone, timestamp with time zone, uuid);
 
 CREATE OR REPLACE FUNCTION public.get_admin_dashboard_stats(
   p_start_date       timestamptz,
