@@ -29,7 +29,7 @@ import OfficerWelfareManagement from '@/pages/OfficerWelfareManagement';
 import ReportsHub from '@/pages/ReportsHub';
 import ZoneManagement from '@/pages/ZoneManagement';
 import UserManagement from '@/pages/UserManagement';
-import VehicleRegistryFiltered from '@/pages/VehicleRegistryFiltered';
+import CleanDashboard from '@/pages/CleanDashboard';
 import { FancyLoader } from '@/components/features/FancyLoader';
 import { Toaster } from '@/components/ui/sonner';
 import { toast } from 'sonner';
@@ -115,6 +115,9 @@ function App() {
         {/* Protected Routes */}
         {isAuthenticated && user ? (
           <>
+            {/* Clean Dashboard - available to all authenticated users */}
+            <Route path="/new" element={<CleanDashboard />} />
+
             {/* Portal Selection - Only for admin_officer role */}
             {user.role === 'admin_officer' && (
               <Route path="/portal-selection" element={<PortalSelection />} />
