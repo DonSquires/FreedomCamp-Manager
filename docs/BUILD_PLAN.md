@@ -89,7 +89,7 @@ enforcement in New Zealand, operated by Iron Eagle Security / OnSpace AI. It pro
 ├── src/
 │   ├── App.tsx                    # Root router with role-based guards
 │   ├── main.tsx                   # Vite entry point
-│   ├── pages/                     # ~104 page components
+│   ├── pages/                     # 104 page components
 │   ├── components/
 │   │   ├── ui/                    # shadcn/ui primitives (40+ components)
 │   │   ├── features/              # 63 app-specific feature components
@@ -1196,13 +1196,20 @@ Deploy the `dist/` folder to any static host:
 
 1. **Create Supabase project** at https://supabase.com
 2. **Enable extensions**: uuid-ossp, postgis, vector, pg_cron
-3. **Run migrations** in order (70+ SQL files under `supabase/migrations/`)
+3. **Run migrations in chronological order by date prefix** (`YYYYMMDD_*` naming,
+   70+ SQL files under `supabase/migrations/`). Use `supabase db push` to apply
+   all migrations in order, or run them manually sorted by filename.
    - Start with core tables: organizations, user_profiles, zones
    - Then: canonical_vehicles, observations, compliance_results
    - Then: breach_alerts, enforcement_actions, notices_to_vacate
    - Then: patrols, incidents, health_safety_reports
    - Then: supporting tables (audit_log, bug_reports, etc.)
    - Finally: RLS policies, triggers, helper functions
+
+   > **⚠️ CRITICAL**: The `vehicle_observations_v2` table is a mirror/backup only.
+   > All operational queries must target the `observations` table. Never use
+   > `vehicle_observations_v2` for search, queries, or inserts.
+
 4. **Create RLS helper functions** (SECURITY DEFINER):
    - `get_user_role(uid)`
    - `get_user_organization_id(uid)`
