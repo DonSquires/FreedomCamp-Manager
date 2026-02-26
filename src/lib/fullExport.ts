@@ -45,7 +45,7 @@ export async function fetchCompleteObservationData(
   }
 
   const { data: observations, error } = await supabase
-    .from('observations')
+    .from('vehicle_observations_v2')
     .select(`
       observation_id,
       plate_number,

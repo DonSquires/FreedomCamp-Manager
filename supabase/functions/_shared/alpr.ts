@@ -23,22 +23,15 @@ export async function alprWithBytes(
     timeout?: number;
   }
 ): Promise<ALPRResult> {
-  // Accept all known secret name variants (most specific first)
-  const token =
-    Deno.env.get("PLATERECOGNIZER_TOKEN") ??
-    Deno.env.get("ALPR_API_TOKEN") ??
-    Deno.env.get("PLATE_RECOGNIZER_TOKEN"); // legacy name — kept for backward compat
-  const url =
-    Deno.env.get("ALPR_API_URL") ??
-    Deno.env.get("ALPR_CLOUD_URL") ??
-    "https://api.platerecognizer.com/v1/plate-reader/";
+  const token = Deno.env.get("PLATE_RECOGNIZER_TOKEN");
+  const url = Deno.env.get("ALPR_CLOUD_URL") ?? "https://api.platerecognizer.com/v1/plate-reader/";
   const regions = options?.regions ?? Deno.env.get("ALPR_REGIONS") ?? "nz";
   const mmc = options?.mmc ?? (Deno.env.get("ALPR_MMC") === "true");
   const config = options?.config ?? Deno.env.get("ALPR_CONFIG") ?? '{"mode":"fast"}';
   const timeout = options?.timeout ?? Number(Deno.env.get("ALPR_TIMEOUT_MS") ?? 15000);
 
   if (!token) {
-    console.error("❌ No Plate Recognizer token configured (set PLATERECOGNIZER_TOKEN or ALPR_API_TOKEN in Supabase secrets)");
+    console.error("❌ PLATE_RECOGNIZER_TOKEN not configured");
     return { plate: null, confidence: null, raw: null };
   }
 

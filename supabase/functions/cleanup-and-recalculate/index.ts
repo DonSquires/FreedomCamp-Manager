@@ -31,7 +31,7 @@ serve(async (req) => {
 
     // Build base query
     let query = supabaseAdmin
-      .from('observations')
+      .from('vehicle_observations_v2')
       .select('observation_id, plate_number, zone_id, organization_id, recorded_at, gps_latitude, gps_longitude, gps_accuracy, has_incident, has_hs_incident, self_contained, self_contained_expiry', { count: 'exact' });
 
     // Apply filters
@@ -104,7 +104,7 @@ serve(async (req) => {
 
         if (correctZone && correctZone.id !== obs.zone_id) {
           const { error: updateError } = await supabaseAdmin
-            .from('observations')
+            .from('vehicle_observations_v2')
             .update({ zone_id: correctZone.id })
             .eq('observation_id', obs.observation_id);
 
@@ -164,7 +164,7 @@ serve(async (req) => {
 
     if (duplicatesToDelete.length > 0) {
       const { error: deleteError } = await supabaseAdmin
-        .from('observations')
+        .from('vehicle_observations_v2')
         .delete()
         .in('observation_id', duplicatesToDelete);
 
@@ -226,7 +226,7 @@ serve(async (req) => {
 
         // Get all observations for this plate/zone/month to recalculate monthly stays
         const { data: monthObs } = await supabaseAdmin
-          .from('observations')
+          .from('vehicle_observations_v2')
           .select('observation_id, plate_number, zone_id, organization_id, recorded_at, gps_latitude, gps_longitude, gps_accuracy')
           .eq('plate_number', obs.plate_number)
           .eq('zone_id', obs.zone_id)

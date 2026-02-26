@@ -279,33 +279,15 @@ export function ZoomScan({ onExit }: ZoomScanProps) {
         weatherConditions: null,
       };
 
-      console.log('📤 Calling orc-ingest (Railway ORC/AI → OnSpace AI fallback)...', {
+      console.log('📤 Calling alpr-process...', {
         hasPhoto: !!publicUrl,
         photoHash: photoHash.substring(0, 16),
         zoneId: selectedZone.id,
       });
 
       // Use supabase.functions.invoke() - it handles headers correctly
-      const { data, error } = await supabase.functions.invoke('orc-ingest', {
-        body: {
-          image: requestBody.image,
-          photo_url: requestBody.photo_url,
-          photo_hash: requestBody.photo_hash,
-          gpsLatitude: requestBody.gpsLatitude,
-          gpsLongitude: requestBody.gpsLongitude,
-          gpsAccuracy: requestBody.gpsAccuracy,
-          recordedAt: requestBody.recordedAt,
-          officerId: requestBody.officerId,
-          organizationId: requestBody.organizationId,
-          zoneId: requestBody.zoneId,
-          idempotencyKey: requestBody.idempotencyKey,
-          officerNotes: requestBody.officerNotes,
-          weatherConditions: requestBody.weatherConditions,
-          // OnSpace AI fallback fields
-          plate: null,
-          confidence: null,
-          requires_manual_entry: false,
-        },
+      const { data, error } = await supabase.functions.invoke('alpr-process', {
+        body: requestBody,
       });
 
       // Extract detailed error if FunctionsHttpError

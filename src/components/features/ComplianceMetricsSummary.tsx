@@ -92,7 +92,7 @@ export function ComplianceMetricsSummary({ observationId }: { observationId: str
         
         // Query observation with compliance data, zone rules, and monthly stays
         const { data: obs, error: obsError } = await supabase
-          .from('observations')
+          .from('vehicle_observations_v2')
           .select(`
             observation_id,
             plate_number,
@@ -109,7 +109,7 @@ export function ComplianceMetricsSummary({ observationId }: { observationId: str
               violation_reasons,
               matrix_snapshot
             ),
-            zone:zones!observations_zone_id_fkey(
+            zone:zones!vehicle_observations_v2_zone_id_fkey(
               id,
               name,
               matrix:zone_compliance_matrix!zone_compliance_matrix_zone_id_fkey(
@@ -119,7 +119,7 @@ export function ComplianceMetricsSummary({ observationId }: { observationId: str
                 homeless_exemption
               )
             ),
-            canonical:canonical_vehicles!observations_plate_number_fkey(
+            canonical:canonical_vehicles!vehicle_observations_v2_plate_number_fkey(
               homeless_status,
               self_contained,
               self_contained_expiry

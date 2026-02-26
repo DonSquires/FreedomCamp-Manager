@@ -138,9 +138,9 @@ Deno.serve(async (req) => {
 
     console.log('📥 Request:', { get_total, offset, batch_size });
 
-    // Build query on observations with GPS coordinates
+    // Build query on vehicle_observations_v2 with GPS coordinates
     let query = supabaseAdmin
-      .from('observations')
+      .from('vehicle_observations_v2')
       .select('observation_id, plate_number, zone_id, organization_id, recorded_at, gps_latitude, gps_longitude', { count: 'exact' })
       .not('gps_latitude', 'is', null)
       .not('gps_longitude', 'is', null);
@@ -260,7 +260,7 @@ Deno.serve(async (req) => {
           const otherZone = otherZonesByOrg.get(orgId);
           if (otherZone && otherZone.id !== currentZoneId) {
             await supabaseAdmin
-              .from('observations')
+              .from('vehicle_observations_v2')
               .update({ zone_id: otherZone.id })
               .eq('observation_id', obs.observation_id);
 
@@ -280,7 +280,7 @@ Deno.serve(async (req) => {
         // Update zone if different
         if (correctZone.id !== currentZoneId) {
           await supabaseAdmin
-            .from('observations')
+            .from('vehicle_observations_v2')
             .update({ zone_id: correctZone.id })
             .eq('observation_id', obs.observation_id);
 

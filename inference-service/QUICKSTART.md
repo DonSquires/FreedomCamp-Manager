@@ -27,7 +27,6 @@
    - `PORT` = `3000`
    - `NODE_ENV` = `production`
    - `ALLOWED_ORIGINS` = `https://xbfnlzmpumthnjmtqufp.supabase.co`
-   - `OPENAI_API_KEY` = `sk-...` *(optional — enables plate + vehicle metadata extraction via gpt-4o-mini; omit to use OnSpace AI client-side plate data)*
 
 4. **Deploy**
    - Click Deploy button
@@ -80,49 +79,25 @@ curl "$RAILWAY_URL/health" | jq .
 
 ---
 
-## 📝 **Configure Supabase Secrets**
-
-The system uses **three independent secrets** — set whichever you have:
+## 📝 **Configure Supabase**
 
 ```bash
-# ── ALREADY SET ───────────────────────────────────────────────────────────────
-# The following secrets are already configured in your Supabase project:
-#   PLATERECOGNIZER_TOKEN   ← primary token name used by orc-ingest / vehicle-ingest
-#   ALPR_API_TOKEN          ← same value, alternate name (both accepted)
-#   ALPR_API_URL            ← API endpoint URL
-#   PARKPOW_API_TOKEN       ← ParkPow enforcement integration
-
-# To verify they are present:
-supabase secrets list
-
-# To update/rotate the Plate Recognizer token:
-supabase secrets set PLATERECOGNIZER_TOKEN="new-token-here"
-
-# ── OPTIONAL ─────────────────────────────────────────────────────────────────
-# Railway ORC/AI — adds 384-D visual embedding (vehicle fingerprinting)
-# Set this AFTER deploying the inference service to Railway.
-# The system works fully with Plate Recognizer alone if Railway is not deployed.
+# Set inference URL in Supabase
 supabase secrets set INFERENCE_SERVICE_URL="https://orc-ai-inference-production.up.railway.app"
-```
 
-**Priority order once secrets are set:**
-1. 🥇 **Plate Recognizer API** (`PLATERECOGNIZER_TOKEN` / `ALPR_API_TOKEN`) → plate + make/model/colour
-2. 🥈 **Railway ORC/AI** (`INFERENCE_SERVICE_URL`) → 384-D visual embedding (runs in parallel with tier 1)
-3. 🥉 **OnSpace AI / manual** → client-side fallback if both above unavailable
+# Verify
+supabase secrets list
+```
 
 ---
 
 ## ✅ **Success Checklist**
 
-- [x] `PLATERECOGNIZER_TOKEN` set in Supabase ✅ already configured
-- [x] `ALPR_API_TOKEN` set in Supabase ✅ already configured
-- [x] `ALPR_API_URL` set in Supabase ✅ already configured
-- [x] `PARKPOW_API_TOKEN` set in Supabase ✅ already configured
-- [ ] Railway project created (optional — adds visual embeddings)
-- [ ] Environment variables set on Railway
+- [ ] Railway project created
+- [ ] Environment variables set
 - [ ] Deployment successful
 - [ ] Health check passes
-- [ ] `INFERENCE_SERVICE_URL` set in Supabase ← add once Railway is deployed
+- [ ] `INFERENCE_SERVICE_URL` set in Supabase
 
 ---
 

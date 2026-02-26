@@ -226,7 +226,7 @@ export function IncidentCreationForm({ scan, onClose, onSuccess }: IncidentCreat
 
         // Query for observations of this vehicle in the SAME SHIFT period
         const { data: observations, error: obsError } = await supabase
-          .from('observations')
+          .from('vehicle_observations_v2')
           .select('observation_id, gps_latitude, gps_longitude, gps_accuracy, recorded_at, zone_id, plate_number')
           .eq('plate_number', scan.plateNumber)
           .eq('zone_id', scan.zoneId) // Same zone

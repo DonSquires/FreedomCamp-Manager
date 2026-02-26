@@ -437,23 +437,21 @@ export function PlateScanner({ onExit }: PlateScannerProps) {
       
       console.log('✅ Photo uploaded:', publicUrl);
 
-      // STEP 3: Submit to orc-ingest (Railway ORC/AI → OnSpace AI fallback)
-      console.log('📤 Processing with orc-ingest...');
-      const { data: scanResult, error: scanError } = await supabase.functions.invoke('orc-ingest', {
+      // STEP 3: Call UNIFIED plate-scanner-photo-first function
+      console.log('📤 Processing with unified photo-first ingest...');
+      const { data: scanResult, error: scanError } = await supabase.functions.invoke('plate-scanner-photo-first', {
         body: {
           image: imageDataUrl,
           zoneId: selectedZone.id,
           organizationId: selectedZone.organization_id,
-          officerId: user.id,
+          userId: user.id,
           recordedAt: new Date().toISOString(),
-          gpsLatitude: gpsLocation?.lat ?? null,
-          gpsLongitude: gpsLocation?.lng ?? null,
-          gpsAccuracy: gpsLocation?.accuracy ?? null,
+          gpsLocation: gpsLocation ? {
+            lat: gpsLocation.lat,
+            lng: gpsLocation.lng,
+            accuracy: gpsLocation.accuracy,
+          } : null,
           idempotencyKey: `driving:${Date.now()}:${Math.random().toString(36).slice(2)}`,
-          // OnSpace AI fallback — plate recognition handled client-side if Railway unavailable
-          plate: null,
-          confidence: null,
-          requires_manual_entry: false,
         },
       });
 

@@ -1,6 +1,6 @@
 # Dependencies
 node_modules/
-# package-lock.json is committed so Railway can use `npm ci` for reproducible builds
+package-lock.json
 npm-debug.log*
 
 # Environment
@@ -37,11 +37,6 @@ Thumbs.db
 # Testing
 coverage/
 .nyc_output/
-
-# Python bytecode
-__pycache__/
-*.pyc
-*.pyo
 
 # Deployment
 .fly/
