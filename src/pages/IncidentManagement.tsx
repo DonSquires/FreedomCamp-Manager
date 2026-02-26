@@ -24,7 +24,7 @@ interface Incident {
   attachments: any[]
 }
 
-export function IncidentManagement() {
+export default function IncidentManagement() {
   const { user } = useAuthStore()
   const { dateRange, organizationId, zoneId } = useGlobalFiltersStore()
   const [searchTerm, setSearchTerm] = useState('')

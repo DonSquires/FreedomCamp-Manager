@@ -10,7 +10,7 @@ import { toast } from 'sonner'
 import { Upload, Download, Trash2, Search, RefreshCw, AlertTriangle } from 'lucide-react'
 import { formatDateTime } from '@/lib/utils'
 
-export function DataManagement() {
+export default function DataManagement() {
   const { user } = useAuthStore()
   const [searchTerm, setSearchTerm] = useState('')
   const [selectedTable, setSelectedTable] = useState<string>('observations')

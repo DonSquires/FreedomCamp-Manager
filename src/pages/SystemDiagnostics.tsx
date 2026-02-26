@@ -9,7 +9,7 @@ import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
 import { Activity, Database, Server, Shield, RefreshCw, CheckCircle, XCircle, AlertTriangle } from 'lucide-react'
 
-export function SystemDiagnostics() {
+export default function SystemDiagnostics() {
   const { user } = useAuthStore()
   const [testResults, setTestResults] = useState<any>(null)
 

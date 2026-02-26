@@ -19,7 +19,7 @@ interface Organization {
   contact_phone: string
 }
 
-export function OrganizationManagement() {
+export default function OrganizationManagement() {
   const { user } = useAuthStore()
 
   // Check user role
