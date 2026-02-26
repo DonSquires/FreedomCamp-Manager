@@ -1,53 +1,212 @@
-import { Routes, Route, Navigate } from 'react-router-dom'
-import { useEffect } from 'react'
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { Toaster } from 'sonner'
 import { useAuthStore } from '@/stores/authStore'
-import Login from '@/pages/Login'
-import FieldOfficerPortal from '@/pages/FieldOfficerPortal'
-import AdminPortal from '@/pages/AdminPortal'
+import { Login } from '@/pages/Login'
+import { AdminPortal } from '@/pages/AdminPortal'
+import { FieldOfficerPortal } from '@/pages/FieldOfficerPortal'
+import { VehicleManagement } from '@/pages/VehicleManagement'
+import { ZoneManagement } from '@/pages/ZoneManagement'
+import { ComplianceDashboard } from '@/pages/ComplianceDashboard'
+import { BreachAlerts } from '@/pages/BreachAlerts'
+import { DataManagement } from '@/pages/DataManagement'
+import { UserManagement } from '@/pages/UserManagement'
+import { OrganizationManagement } from '@/pages/OrganizationManagement'
+import { IncidentManagement } from '@/pages/IncidentManagement'
+import { Reports } from '@/pages/Reports'
+import { SystemDiagnostics } from '@/pages/SystemDiagnostics'
+import { NetworkStatusBar } from '@/components/features/NetworkStatusBar'
+import { PWAInstallPrompt } from '@/components/features/PWAInstallPrompt'
 
-function App() {
-  const { checkSession, isAuthenticated, user } = useAuthStore()
+// Create a client
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 1000 * 60 * 5, // 5 minutes
+      refetchOnWindowFocus: false,
+    },
+  },
+})
 
-  useEffect(() => {
-    checkSession()
-  }, [])
+// Protected Route wrapper
+function ProtectedRoute({ children }: { children: React.ReactNode }) {
+  const { user, loading } = useAuthStore()
 
-  if (!isAuthenticated) {
+  if (loading) {
     return (
-      <Routes>
-        <Route path="/login" element={<Login />} />
-        <Route path="*" element={<Navigate to="/login" replace />} />
-      </Routes>
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="text-lg font-semibold">Loading...</div>
+        </div>
+      </div>
     )
   }
 
-  return (
-    <Routes>
-      <Route path="/login" element={<Navigate to="/" replace />} />
-      
-      {/* Field Officer Portal */}
-      {(user?.role === 'officer' || user?.role === 'admin_officer') && (
-        <Route path="/field-officer" element={<FieldOfficerPortal />} />
-      )}
+  if (!user) {
+    return <Navigate to="/login" replace />
+  }
 
-      {/* Admin Portal */}
-      {(user?.role === 'admin' || user?.role === 'admin_officer' || user?.role === 'master') && (
-        <Route path="/admin" element={<AdminPortal />} />
-      )}
-
-      {/* Default redirect based on role */}
-      <Route 
-        path="/" 
-        element={
-          user?.role === 'officer' 
-            ? <Navigate to="/field-officer" replace />
-            : <Navigate to="/admin" replace />
-        } 
-      />
-      
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
-  )
+  return <>{children}</>
 }
 
-export default App
+// Role-based route wrapper
+function RoleRoute({ 
+  children, 
+  allowedRoles 
+}: { 
+  children: React.ReactNode
+  allowedRoles: string[]
+}) {
+  const { user } = useAuthStore()
+
+  if (!user || !allowedRoles.includes(user.role)) {
+    return <Navigate to="/" replace />
+  }
+
+  return <>{children}</>
+}
+
+export default function App() {
+  const { user } = useAuthStore()
+
+  return (
+    <QueryClientProvider client={queryClient}>
+      <BrowserRouter>
+        <NetworkStatusBar />
+        <PWAInstallPrompt />
+        <Routes>
+          {/* Public routes */}
+          <Route path="/login" element={<Login />} />
+
+          {/* Protected routes */}
+          <Route
+            path="/"
+            element={
+              <ProtectedRoute>
+                {user?.role === 'officer' ? <FieldOfficerPortal /> : <AdminPortal />}
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Admin/Master routes */}
+          <Route
+            path="/admin"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <AdminPortal />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/vehicles"
+            element={
+              <ProtectedRoute>
+                <VehicleManagement />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/zones"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <ZoneManagement />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/compliance"
+            element={
+              <ProtectedRoute>
+                <ComplianceDashboard />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/breaches"
+            element={
+              <ProtectedRoute>
+                <BreachAlerts />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/data"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'master']}>
+                  <DataManagement />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/users"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'master']}>
+                  <UserManagement />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/organizations"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['master']}>
+                  <OrganizationManagement />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/incidents"
+            element={
+              <ProtectedRoute>
+                <IncidentManagement />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/reports"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <Reports />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/diagnostics"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['master']}>
+                  <SystemDiagnostics />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Catch all */}
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+        <Toaster position="top-right" />
+      </BrowserRouter>
+    </QueryClientProvider>
+  )
+}
