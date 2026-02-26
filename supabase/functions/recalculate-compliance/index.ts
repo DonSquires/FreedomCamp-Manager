@@ -136,12 +136,12 @@ serve(async (req) => {
           id,
           observation_id,
           zone_id,
-          observations!inner(zone_id)
+          vehicle_observations_v2!inner(zone_id)
         `);
       
       if (!orphanedError && orphanedResults) {
         const orphanedIds = orphanedResults
-          .filter(cr => cr.zone_id !== (cr.observations as any).zone_id)
+          .filter(cr => cr.zone_id !== (cr.vehicle_observations_v2 as any).zone_id)
           .map(cr => cr.id);
         
         if (orphanedIds.length > 0) {
@@ -181,7 +181,7 @@ serve(async (req) => {
 
         // Get observations for this zone
         let query = supabaseAdmin
-          .from('observations')
+          .from('vehicle_observations_v2')
           .select('observation_id, plate_number, organization_id, zone_id, recorded_at')
           .eq('zone_id', zoneId);
 

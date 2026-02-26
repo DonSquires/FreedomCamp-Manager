@@ -29,7 +29,7 @@ serve(async (req) => {
 
     // Build base query
     let query = supabaseAdmin
-      .from('observations')
+      .from('vehicle_observations_v2')
       .select('observation_id, plate_number, zone_id, recorded_at, has_incident, has_hs_incident', { count: 'exact' });
 
     // Apply filters
@@ -128,7 +128,7 @@ serve(async (req) => {
       console.log(`🗑️ Deleting ${duplicatesToDelete.length} duplicates...`);
       
       const { error: deleteError } = await supabaseAdmin
-        .from('observations')
+        .from('vehicle_observations_v2')
         .delete()
         .in('observation_id', duplicatesToDelete);
 

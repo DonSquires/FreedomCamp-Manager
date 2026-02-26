@@ -130,7 +130,7 @@ Deno.serve(async (req) => {
       if (willBreachConsecutive || willBreachMonthly || approachingConsecutive || approachingMonthly) {
         // Get latest observation photo and GPS
         const { data: latestObs } = await supabaseAdmin
-          .from('observations')
+          .from('vehicle_observations_v2')
           .select('photo, gps_latitude, gps_longitude, gps_accuracy')
           .eq('plate_number', stay.plate_number)
           .eq('zone_id', stay.zone_id)

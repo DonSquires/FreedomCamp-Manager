@@ -106,24 +106,6 @@ Uses your existing Railway account - no additional service!
 
 ---
 
-## 🔧 **Fix: `npm ci` failing — "package-lock.json" not found**
-
-**Root cause:** Railway is watching the `main` branch, which has an older version of `inference-service/` without `package-lock.json`. All the fixes are on branch `copilot/add-schema-extraction-tooling`.
-
-**Fix — change the Railway branch (30 seconds):**
-
-1. Railway → your service (`orc-ai-inference-service`) → **Settings** tab  
-2. **Source** section → **"Branch connected to production"** (currently `main`)  
-3. Click the branch dropdown → select **`copilot/add-schema-extraction-tooling`**  
-4. Save — Railway auto-redeploys  
-
-> ✅ Root directory stays `inference-service` (don't change it)  
-> ✅ After the PR is merged to `main`, switch the branch back to `main`
-
----
-
-
-
 ## 🚨 **Troubleshooting**
 
 **"Build timeout"**

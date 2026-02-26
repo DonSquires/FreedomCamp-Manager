@@ -83,7 +83,7 @@ Deno.serve(async (req) => {
     cutoffTime.setHours(cutoffTime.getHours() - 24);
 
     const { data: observations, error: obsError } = await supabaseAdmin
-      .from('observations')
+      .from('vehicle_observations_v2')
       .select('observation_id, plate_number, zone_id, organization_id, gps_latitude, gps_longitude, recorded_at')
       .not('gps_latitude', 'is', null)
       .not('gps_longitude', 'is', null)
@@ -142,7 +142,7 @@ Deno.serve(async (req) => {
       // If correct zone found and different from current
       if (correctZone && correctZone.id !== currentZoneId) {
         const { error: updateError } = await supabaseAdmin
-          .from('observations')
+          .from('vehicle_observations_v2')
           .update({ zone_id: correctZone.id })
           .eq('observation_id', obs.observation_id);
 
