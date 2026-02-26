@@ -131,11 +131,15 @@ export function AdminPortal({ onLogout: _onLogout }: AdminPortalProps) {
       }
 
       // Load timeseries data (observations per day)
-      const { data: timeseriesData, error: timeseriesError } = await supabase
+      let timeseriesQuery = supabase
         .from('observations')
         .select('recorded_at')
         .gte('recorded_at', startOfDay.toISOString())
-        .lte('recorded_at', endOfDay.toISOString())
+        .lte('recorded_at', endOfDay.toISOString());
+      if (organizationId) {
+        timeseriesQuery = timeseriesQuery.eq('organization_id', organizationId);
+      }
+      const { data: timeseriesData, error: timeseriesError } = await timeseriesQuery
         .then(({ data, error }) => {
           if (error) throw error;
           
@@ -159,13 +163,17 @@ export function AdminPortal({ onLogout: _onLogout }: AdminPortalProps) {
       }
 
       // Load breaches by type
-      const { data: breachesData, error: breachesError } = await supabase
+      let breachesQuery = supabase
         .from('observations')
         .select('breach_type')
         .eq('is_compliant', false)
         .not('breach_type', 'is', null)
         .gte('recorded_at', startOfDay.toISOString())
-        .lte('recorded_at', endOfDay.toISOString())
+        .lte('recorded_at', endOfDay.toISOString());
+      if (organizationId) {
+        breachesQuery = breachesQuery.eq('organization_id', organizationId);
+      }
+      const { data: breachesData, error: breachesError } = await breachesQuery
         .then(({ data, error }) => {
           if (error) throw error;
 
