@@ -378,6 +378,7 @@ export type Database = {
           phone: string | null;
           is_active: boolean;
           permissions: ('super_delete' | 'admin' | 'master' | 'officer')[];
+          authorized_work_locations: string[] | null;
           created_at: string;
           updated_at: string;
         };
@@ -391,6 +392,7 @@ export type Database = {
           phone?: string | null;
           is_active?: boolean;
           permissions?: ('super_delete' | 'admin' | 'master' | 'officer')[];
+          authorized_work_locations?: string[] | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -404,6 +406,7 @@ export type Database = {
           phone: string | null;
           is_active: boolean;
           permissions: ('super_delete' | 'admin' | 'master' | 'officer')[];
+          authorized_work_locations: string[] | null;
           created_at: string;
           updated_at: string;
         }>;
