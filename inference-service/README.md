@@ -44,18 +44,21 @@ npm install
 
 ### **2. Download Pretrained Models**
 
+The ONNX models cannot be downloaded directly (no pre-built release assets exist).
+Generate them with Python instead:
+
 ```bash
-# Create models directory
-mkdir -p models
+# Install Python dependencies (CPU-only torch is fine)
+pip install "torch>=2.0" torchvision "ultralytics>=8.0" onnx \
+  --extra-index-url https://download.pytorch.org/whl/cpu
 
-# Download YOLOv8n (vehicle detection)
-curl -L https://github.com/ultralytics/assets/releases/download/v0.0.0/yolov8n.onnx \
-  -o models/yolov8n.onnx
-
-# Download MobileNetV3 (embeddings)
-curl -L https://github.com/onnx/models/raw/main/vision/classification/mobilenet/model/mobilenetv3-large-1.0.onnx \
-  -o models/mobilenet_v3.onnx
+# Export models to models/ directory (~27 MB total)
+python scripts/export-models.py
 ```
+
+> **Docker / Railway**: The `Dockerfile` runs this automatically in a dedicated
+> Python build stage.  You only need the manual step above for local development
+> outside Docker.
 
 ### **3. Configure Environment**
 
