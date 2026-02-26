@@ -59,7 +59,7 @@ function getCorsHeaders(req: Request) {
     ...(isAllowed ? { "Access-Control-Allow-Origin": origin } : {}),
     "Vary": "Origin",
     "Access-Control-Allow-Methods": "POST, OPTIONS",
-    "Access-Control-Allow-Headers": "authorization, apikey, x-client-info, content-type",
+    "Access-Control-Allow-Headers": "authorization, apikey, x-client-info, content-type, x-client-timezone",
     "Access-Control-Max-Age": "3600",
   };
 }
