@@ -158,8 +158,11 @@ Uses your **existing Railway account** - no new services!
 - Ensure Dockerfile is in `inference-service/` directory
 
 **"Models not loading"**
-- Wait for first build to complete (downloads 27 MB)
-- Models are cached after first deployment
+- Wait for first build to complete — it now downloads `yolov8n.pt` and exports both ONNX
+  models using Python/PyTorch in the builder stage (~5-8 min on first build)
+- The builder stage installs PyTorch CPU-only and ultralytics (discarded after build)
+- ONNX files are baked into the production image
+- Subsequent builds are fast (Docker layer cache)
 
 ---
 

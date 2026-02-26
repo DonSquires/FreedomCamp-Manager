@@ -169,16 +169,25 @@ async function detectVehicle(imageBuffer) {
   const results = await yoloSession.run({ images: tensor });
   const output = results.output0.data;
 
+  // ultralytics ONNX export produces output0 with shape [1, 84, 8400]:
+  //   axis 0 (84): 4 bbox coords (cx,cy,w,h) + 80 COCO class scores
+  //   axis 1 (8400): detection anchors
+  // Access pattern: output[feature_idx * NUM_ANCHORS + anchor_idx]
+  const NUM_ANCHORS = 8400;
   const vehicleClasses = new Set([2, 3, 5, 7]); // car, motorcycle, bus, truck (COCO)
   let best = null;
 
-  for (let i = 0; i < 8400; i++) {
-    const o = i * 84;
+  for (let i = 0; i < NUM_ANCHORS; i++) {
     for (const cls of vehicleClasses) {
-      const conf = output[o + 4 + cls];
+      const conf = output[(4 + cls) * NUM_ANCHORS + i];
       if (conf > DETECTION_CONFIDENCE && (!best || conf > best.confidence)) {
         best = {
-          bbox: { x: output[o], y: output[o + 1], width: output[o + 2], height: output[o + 3] },
+          bbox: {
+            x: output[0 * NUM_ANCHORS + i],
+            y: output[1 * NUM_ANCHORS + i],
+            width:  output[2 * NUM_ANCHORS + i],
+            height: output[3 * NUM_ANCHORS + i],
+          },
           confidence: conf,
           class: cls,
         };
