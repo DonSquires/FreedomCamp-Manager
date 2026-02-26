@@ -29,3 +29,6 @@ tools/onspace-analysis/output/
 
 # Root-level package-lock.json (no root package.json - project uses bun.lock)
 /package-lock.json
+
+# Root package.json (project uses bun.lock, not npm)
+/package.json
