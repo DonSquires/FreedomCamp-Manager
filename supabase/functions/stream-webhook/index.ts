@@ -101,7 +101,7 @@ Deno.serve(async (req) => {
         const thirtySecondsAgo = new Date(Date.now() - 30 * 1000).toISOString();
         
         const { data: recentDuplicate } = await supabaseAdmin
-          .from('observations')
+          .from('vehicle_observations_v2')
           .select('observation_id, recorded_at')
           .eq('plate_number', plateNumber)
           .eq('zone_id', zoneId)
@@ -201,7 +201,7 @@ Deno.serve(async (req) => {
 
         // Create vehicle observation (new schema)
         const { data: newRecord, error: insertError } = await supabaseAdmin
-          .from('observations')
+          .from('vehicle_observations_v2')
           .insert({
             organization_id: organizationId || null,
             zone_id: zoneId,
@@ -247,7 +247,7 @@ Deno.serve(async (req) => {
 
           // Update observation compliance
           await supabaseAdmin
-            .from('observations')
+            .from('vehicle_observations_v2')
             .update({ is_compliant: isCompliant })
             .eq('observation_id', newRecord.observation_id);
 
