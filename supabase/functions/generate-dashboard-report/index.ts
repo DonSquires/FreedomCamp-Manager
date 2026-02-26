@@ -41,7 +41,7 @@ serve(async (req) => {
 
     // Load observations for the date range
     let obsQuery = supabase
-      .from('observations')
+      .from('vehicle_observations_v2')
       .select(`
         observation_id,
         plate_number,
