@@ -1,20 +1,21 @@
+import { useEffect } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Toaster } from 'sonner'
 import { useAuthStore } from '@/stores/authStore'
-import { Login } from '@/pages/Login'
-import { AdminPortal } from '@/pages/AdminPortal'
-import { FieldOfficerPortal } from '@/pages/FieldOfficerPortal'
-import { VehicleManagement } from '@/pages/VehicleManagement'
-import { ZoneManagement } from '@/pages/ZoneManagement'
-import { ComplianceDashboard } from '@/pages/ComplianceDashboard'
-import { BreachAlerts } from '@/pages/BreachAlerts'
-import { DataManagement } from '@/pages/DataManagement'
-import { UserManagement } from '@/pages/UserManagement'
-import { OrganizationManagement } from '@/pages/OrganizationManagement'
-import { IncidentManagement } from '@/pages/IncidentManagement'
-import { Reports } from '@/pages/Reports'
-import { SystemDiagnostics } from '@/pages/SystemDiagnostics'
+import Login from '@/pages/Login'
+import AdminPortal from '@/pages/AdminPortal'
+import FieldOfficerPortal from '@/pages/FieldOfficerPortal'
+import VehicleManagement from '@/pages/VehicleManagement'
+import ZoneManagement from '@/pages/ZoneManagement'
+import ComplianceDashboard from '@/pages/ComplianceDashboard'
+import BreachAlerts from '@/pages/BreachAlerts'
+import DataManagement from '@/pages/DataManagement'
+import UserManagement from '@/pages/UserManagement'
+import OrganizationManagement from '@/pages/OrganizationManagement'
+import IncidentManagement from '@/pages/IncidentManagement'
+import Reports from '@/pages/Reports'
+import SystemDiagnostics from '@/pages/SystemDiagnostics'
 import { NetworkStatusBar } from '@/components/features/NetworkStatusBar'
 import { PWAInstallPrompt } from '@/components/features/PWAInstallPrompt'
 
@@ -67,7 +68,24 @@ function RoleRoute({
 }
 
 export default function App() {
-  const { user } = useAuthStore()
+  const { user, loading, checkSession } = useAuthStore()
+
+  // Check session on app load
+  useEffect(() => {
+    checkSession()
+  }, [])
+
+  // Show loading state while checking session
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading...</p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <QueryClientProvider client={queryClient}>

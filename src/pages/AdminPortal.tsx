@@ -1,3 +1,4 @@
+import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@/stores/authStore'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -9,11 +10,14 @@ import {
   Users, 
   FileText,
   Shield,
-  Settings
+  Settings,
+  Database,
+  Building2
 } from 'lucide-react'
 
 export default function AdminPortal() {
   const { user, logout } = useAuthStore()
+  const navigate = useNavigate()
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
@@ -48,7 +52,7 @@ export default function AdminPortal() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <Button className="w-full" variant="outline">
+              <Button className="w-full" variant="outline" onClick={() => navigate('/compliance')}>
                 View Dashboard
               </Button>
             </CardContent>
@@ -65,7 +69,7 @@ export default function AdminPortal() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <Button className="w-full" variant="outline">
+              <Button className="w-full" variant="outline" onClick={() => navigate('/breaches')}>
                 View Breaches
               </Button>
             </CardContent>
@@ -82,7 +86,7 @@ export default function AdminPortal() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <Button className="w-full" variant="outline">
+              <Button className="w-full" variant="outline" onClick={() => navigate('/vehicles')}>
                 Manage Vehicles
               </Button>
             </CardContent>
@@ -99,7 +103,7 @@ export default function AdminPortal() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <Button className="w-full" variant="outline">
+              <Button className="w-full" variant="outline" onClick={() => navigate('/zones')}>
                 Manage Zones
               </Button>
             </CardContent>
@@ -116,7 +120,7 @@ export default function AdminPortal() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <Button className="w-full" variant="outline">
+              <Button className="w-full" variant="outline" onClick={() => navigate('/users')}>
                 Manage Users
               </Button>
             </CardContent>
@@ -133,7 +137,7 @@ export default function AdminPortal() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <Button className="w-full" variant="outline">
+              <Button className="w-full" variant="outline" onClick={() => navigate('/reports')}>
                 View Reports
               </Button>
             </CardContent>
@@ -150,7 +154,7 @@ export default function AdminPortal() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <Button className="w-full" variant="outline">
+              <Button className="w-full" variant="outline" onClick={() => navigate('/incidents')}>
                 View Enforcement
               </Button>
             </CardContent>
@@ -159,19 +163,57 @@ export default function AdminPortal() {
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <Settings className="h-5 w-5" />
-                Settings
+                <Database className="h-5 w-5" />
+                Data Management
               </CardTitle>
               <CardDescription>
-                System configuration
+                Import/Export and data tools
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <Button className="w-full" variant="outline">
-                Open Settings
+              <Button className="w-full" variant="outline" onClick={() => navigate('/data')}>
+                Manage Data
               </Button>
             </CardContent>
           </Card>
+
+          {user?.role === 'master' && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Building2 className="h-5 w-5" />
+                  Organizations
+                </CardTitle>
+                <CardDescription>
+                  Manage organization hierarchy
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Button className="w-full" variant="outline" onClick={() => navigate('/organizations')}>
+                  Manage Orgs
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+
+          {user?.role === 'master' && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Settings className="h-5 w-5" />
+                  System Diagnostics
+                </CardTitle>
+                <CardDescription>
+                  System health and monitoring
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Button className="w-full" variant="outline" onClick={() => navigate('/diagnostics')}>
+                  View Diagnostics
+                </Button>
+              </CardContent>
+            </Card>
+          )}
         </div>
       </main>
     </div>
