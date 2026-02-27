@@ -16,6 +16,7 @@ import OrganizationManagement from '@/pages/OrganizationManagement'
 import IncidentManagement from '@/pages/IncidentManagement'
 import Reports from '@/pages/Reports'
 import SystemDiagnostics from '@/pages/SystemDiagnostics'
+import TestDashboard from '@/pages/TestDashboard'
 import { NetworkStatusBar } from '@/components/features/NetworkStatusBar'
 import { PWAInstallPrompt } from '@/components/features/PWAInstallPrompt'
 
@@ -215,6 +216,17 @@ export default function App() {
               <ProtectedRoute>
                 <RoleRoute allowedRoles={['master']}>
                   <SystemDiagnostics />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/test-dashboard"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['master']}>
+                  <TestDashboard />
                 </RoleRoute>
               </ProtectedRoute>
             }
