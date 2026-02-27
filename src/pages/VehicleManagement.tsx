@@ -7,8 +7,11 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { AppLayout } from '@/components/features/AppLayout'
-import { Search, Filter, Car, AlertTriangle, CheckCircle, Download } from 'lucide-react'
+import { GlobalFilterRibbon } from '@/components/features/GlobalFilterRibbon'
+import { Search, Car, AlertTriangle, CheckCircle, Calendar } from 'lucide-react'
+import { formatDateTime } from '@/lib/utils'
 
 interface Vehicle {
   id: string
@@ -17,22 +20,24 @@ interface Vehicle {
   model: string | null
   year: number | null
   colour: string | null
-  is_self_contained: boolean
+  self_contained: boolean
   self_contained_expiry: string | null
-  is_homeless: boolean
-  fc_act_exempt: boolean
+  homeless_status: string | null
+  is_exempt: boolean
   enforcement_count: number
   last_enforcement_at: string | null
-  profile_photo_url: string | null
+  profile_photo: string | null
   total_observations: number
   total_breaches: number
 }
 
 export default function VehicleManagement() {
   const { user } = useAuthStore()
-  const { organizationId, zoneName } = useGlobalFiltersStore()
+  const { organizationId } = useGlobalFiltersStore()
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<'all' | 'compliant' | 'breaches'>('all')
+  const [showDetailsDialog, setShowDetailsDialog] = useState(false)
+  const [selectedVehicle, setSelectedVehicle] = useState<Vehicle | null>(null)
 
   // Fetch vehicles
   const { data: vehicles, isLoading } = useQuery({
@@ -42,10 +47,6 @@ export default function VehicleManagement() {
         .from('canonical_vehicles')
         .select('*')
         .order('plate_number', { ascending: true })
-
-      if (organizationId && user?.role !== 'master') {
-        query = query.eq('organization_id', organizationId)
-      }
 
       if (searchQuery) {
         query = query.or(`plate_number.ilike.%${searchQuery}%,make.ilike.%${searchQuery}%,model.ilike.%${searchQuery}%`)
@@ -64,18 +65,25 @@ export default function VehicleManagement() {
     },
   })
 
+  const openDetails = (vehicle: Vehicle) => {
+    setSelectedVehicle(vehicle)
+    setShowDetailsDialog(true)
+  }
+
   // Calculate stats
   const stats = vehicles ? {
     total: vehicles.length,
     compliant: vehicles.filter(v => v.total_breaches === 0).length,
     breaches: vehicles.filter(v => v.total_breaches > 0).length,
-    selfContained: vehicles.filter(v => v.is_self_contained).length,
-    homeless: vehicles.filter(v => v.is_homeless).length,
-    exempt: vehicles.filter(v => v.fc_act_exempt).length,
+    selfContained: vehicles.filter(v => v.self_contained).length,
+    homeless: vehicles.filter(v => v.homeless_status === 'confirmed' || v.homeless_status === 'likely').length,
+    exempt: vehicles.filter(v => v.is_exempt).length,
   } : null
 
   return (
     <AppLayout title="Vehicle Management" description="Search and manage vehicles" showBackButton>
+      <GlobalFilterRibbon />
+
       {/* Stats Grid */}
       {stats && (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-6 mb-8">
@@ -196,7 +204,7 @@ export default function VehicleManagement() {
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {vehicles?.map((vehicle) => (
-            <Card key={vehicle.id} className="hover:shadow-lg transition-shadow cursor-pointer">
+            <Card key={vehicle.id} className="hover:shadow-lg transition-shadow">
               <CardHeader>
                 <div className="flex items-start justify-between">
                   <div>
@@ -207,9 +215,9 @@ export default function VehicleManagement() {
                       {vehicle.make} {vehicle.model} {vehicle.year && `(${vehicle.year})`}
                     </CardDescription>
                   </div>
-                  {vehicle.profile_photo_url && (
+                  {vehicle.profile_photo && (
                     <img 
-                      src={vehicle.profile_photo_url} 
+                      src={vehicle.profile_photo} 
                       alt={vehicle.plate_number}
                       className="w-16 h-16 object-cover rounded"
                     />
@@ -231,20 +239,20 @@ export default function VehicleManagement() {
                   </div>
 
                   <div className="flex flex-wrap gap-1 mt-3">
-                    {vehicle.is_self_contained && (
+                    {vehicle.self_contained && (
                       <Badge variant="outline" className="text-xs">
                         <CheckCircle className="h-3 w-3 mr-1" />
                         Self-Contained
                       </Badge>
                     )}
-                    {vehicle.is_homeless && (
+                    {vehicle.homeless_status && vehicle.homeless_status !== 'none' && (
                       <Badge variant="outline" className="text-xs bg-orange-50">
                         Homeless
                       </Badge>
                     )}
-                    {vehicle.fc_act_exempt && (
+                    {vehicle.is_exempt && (
                       <Badge variant="outline" className="text-xs bg-purple-50">
-                        FCA Exempt
+                        Exempt
                       </Badge>
                     )}
                     {vehicle.total_breaches > 0 && (
@@ -256,7 +264,12 @@ export default function VehicleManagement() {
                   </div>
 
                   <div className="pt-3 mt-3 border-t">
-                    <Button variant="outline" size="sm" className="w-full">
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      className="w-full"
+                      onClick={() => openDetails(vehicle)}
+                    >
                       View Details
                     </Button>
                   </div>
@@ -266,6 +279,115 @@ export default function VehicleManagement() {
           ))}
         </div>
       )}
+
+      {/* Vehicle Details Dialog */}
+      <Dialog open={showDetailsDialog} onOpenChange={setShowDetailsDialog}>
+        <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-2xl font-bold">
+              {selectedVehicle?.plate_number}
+            </DialogTitle>
+            <DialogDescription>
+              {selectedVehicle?.make} {selectedVehicle?.model} {selectedVehicle?.year && `(${selectedVehicle.year})`}
+            </DialogDescription>
+          </DialogHeader>
+
+          {selectedVehicle && (
+            <div className="space-y-6">
+              {/* Profile Photo */}
+              {selectedVehicle.profile_photo && (
+                <div className="rounded-lg overflow-hidden">
+                  <img 
+                    src={selectedVehicle.profile_photo} 
+                    alt={selectedVehicle.plate_number}
+                    className="w-full h-auto object-cover"
+                  />
+                </div>
+              )}
+
+              {/* Vehicle Details */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <div className="text-sm text-gray-600">Colour</div>
+                  <div className="font-medium">{selectedVehicle.colour || 'Unknown'}</div>
+                </div>
+                
+                <div>
+                  <div className="text-sm text-gray-600">Total Observations</div>
+                  <div className="font-medium">{selectedVehicle.total_observations}</div>
+                </div>
+                
+                <div>
+                  <div className="text-sm text-gray-600">Total Breaches</div>
+                  <div className={`font-medium ${selectedVehicle.total_breaches > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                    {selectedVehicle.total_breaches}
+                  </div>
+                </div>
+                
+                <div>
+                  <div className="text-sm text-gray-600">Enforcement Actions</div>
+                  <div className="font-medium">{selectedVehicle.enforcement_count}</div>
+                </div>
+              </div>
+
+              {/* Status Badges */}
+              <div className="flex flex-wrap gap-2">
+                {selectedVehicle.self_contained && (
+                  <Badge variant="outline" className="bg-blue-50">
+                    <CheckCircle className="h-3 w-3 mr-1" />
+                    Self-Contained
+                  </Badge>
+                )}
+                {selectedVehicle.self_contained_expiry && (
+                  <Badge variant="outline">
+                    <Calendar className="h-3 w-3 mr-1" />
+                    Expires: {new Date(selectedVehicle.self_contained_expiry).toLocaleDateString()}
+                  </Badge>
+                )}
+                {selectedVehicle.homeless_status && selectedVehicle.homeless_status !== 'none' && (
+                  <Badge variant="outline" className="bg-orange-50">
+                    Homeless ({selectedVehicle.homeless_status})
+                  </Badge>
+                )}
+                {selectedVehicle.is_exempt && (
+                  <Badge variant="outline" className="bg-purple-50">
+                    Exempt
+                  </Badge>
+                )}
+                {selectedVehicle.total_breaches > 0 && (
+                  <Badge variant="destructive">
+                    <AlertTriangle className="h-3 w-3 mr-1" />
+                    Active Breach
+                  </Badge>
+                )}
+              </div>
+
+              {/* Last Enforcement */}
+              {selectedVehicle.last_enforcement_at && (
+                <div className="p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                  <div className="text-sm font-semibold mb-2">Last Enforcement</div>
+                  <div className="text-sm text-gray-600">
+                    {formatDateTime(selectedVehicle.last_enforcement_at)}
+                  </div>
+                </div>
+              )}
+
+              {/* Action Buttons */}
+              <div className="flex gap-2 pt-4 border-t">
+                <Button variant="outline" className="flex-1" disabled>
+                  View History
+                </Button>
+                <Button variant="outline" className="flex-1" disabled>
+                  Create Notice
+                </Button>
+                <Button variant="outline" className="flex-1" onClick={() => setShowDetailsDialog(false)}>
+                  Close
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </AppLayout>
   )
 }
