@@ -1,11 +1,18 @@
 import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Building2, Users, MapPin, Settings } from 'lucide-react'
+import { toast } from 'sonner'
+import { AppLayout } from '@/components/features/AppLayout'
+import { GlobalFilterRibbon } from '@/components/features/GlobalFilterRibbon'
 
 interface Organization {
   id: string
@@ -21,6 +28,15 @@ interface Organization {
 
 export default function OrganizationManagement() {
   const { user } = useAuthStore()
+  const queryClient = useQueryClient()
+  const [showSettingsDialog, setShowSettingsDialog] = useState(false)
+  const [selectedOrg, setSelectedOrg] = useState<Organization | null>(null)
+  
+  // Edit form state
+  const [editName, setEditName] = useState('')
+  const [editWorkflow, setEditWorkflow] = useState('admin_first')
+  const [editEmail, setEditEmail] = useState('')
+  const [editPhone, setEditPhone] = useState('')
 
   // Check user role
   const isMaster = user?.role === 'master'
@@ -66,9 +82,49 @@ export default function OrganizationManagement() {
     enabled: !!organizations,
   })
 
+  // Update organization mutation
+  const updateOrgMutation = useMutation({
+    mutationFn: async (updates: Partial<Organization>) => {
+      if (!selectedOrg) throw new Error('No organization selected')
+      
+      const { error } = await supabase
+        .from('organizations')
+        .update(updates)
+        .eq('id', selectedOrg.id)
+
+      if (error) throw error
+    },
+    onSuccess: () => {
+      toast.success('Organization updated successfully')
+      queryClient.invalidateQueries({ queryKey: ['organizations'] })
+      setShowSettingsDialog(false)
+      setSelectedOrg(null)
+      resetForm()
+    },
+    onError: (error: any) => {
+      toast.error(error.message || 'Failed to update organization')
+    },
+  })
+
+  const resetForm = () => {
+    setEditName('')
+    setEditWorkflow('admin_first')
+    setEditEmail('')
+    setEditPhone('')
+  }
+
+  const openSettingsDialog = (org: Organization) => {
+    setSelectedOrg(org)
+    setEditName(org.name)
+    setEditWorkflow(org.enforcement_workflow)
+    setEditEmail(org.contact_email || '')
+    setEditPhone(org.contact_phone || '')
+    setShowSettingsDialog(true)
+  }
+
   if (!isMaster) {
     return (
-      <div className="container mx-auto p-6">
+      <AppLayout title="Organization Management" description="Manage organizational hierarchy and settings" showBackButton>
         <Card>
           <CardHeader>
             <CardTitle>Access Denied</CardTitle>
@@ -77,20 +133,15 @@ export default function OrganizationManagement() {
             </CardDescription>
           </CardHeader>
         </Card>
-      </div>
+      </AppLayout>
     )
   }
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Organization Management</h1>
-          <p className="text-gray-600 mt-1">
-            Manage organizational hierarchy and settings
-          </p>
-        </div>
+    <AppLayout title="Organization Management" description="Manage organizational hierarchy and settings" showBackButton>
+      <GlobalFilterRibbon showDateFilter={false} />
+
+      <div className="flex justify-end mb-6">
         <Button disabled>
           <Building2 className="h-4 w-4 mr-2" />
           New Organization
@@ -108,7 +159,6 @@ export default function OrganizationManagement() {
         ) : organizations && organizations.length > 0 ? (
           organizations.map((org) => {
             const stats = orgStats?.[org.id] || { users: 0, zones: 0 }
-            const isParent = org.organization_level === 1
             const isChild = org.organization_level > 1
 
             return (
@@ -131,7 +181,11 @@ export default function OrganizationManagement() {
                         {org.parent_organization_id && ' (Child organization)'}
                       </CardDescription>
                     </div>
-                    <Button variant="outline" size="sm" disabled>
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => openSettingsDialog(org)}
+                    >
                       <Settings className="h-4 w-4 mr-2" />
                       Settings
                     </Button>
@@ -202,6 +256,79 @@ export default function OrganizationManagement() {
           </Card>
         )}
       </div>
-    </div>
+
+      {/* Settings Dialog */}
+      <Dialog open={showSettingsDialog} onOpenChange={setShowSettingsDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Organization Settings</DialogTitle>
+            <DialogDescription>
+              Update organization details and workflow
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="editName">Organization Name</Label>
+              <Input
+                id="editName"
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+              />
+            </div>
+            
+            <div>
+              <Label htmlFor="editWorkflow">Enforcement Workflow</Label>
+              <Select value={editWorkflow} onValueChange={setEditWorkflow}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="admin_first">Admin First (default)</SelectItem>
+                  <SelectItem value="officer_direct">Officer Direct</SelectItem>
+                  <SelectItem value="hybrid">Hybrid</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <div>
+              <Label htmlFor="editEmail">Contact Email</Label>
+              <Input
+                id="editEmail"
+                type="email"
+                value={editEmail}
+                onChange={(e) => setEditEmail(e.target.value)}
+                placeholder="contact@example.com"
+              />
+            </div>
+            
+            <div>
+              <Label htmlFor="editPhone">Contact Phone</Label>
+              <Input
+                id="editPhone"
+                value={editPhone}
+                onChange={(e) => setEditPhone(e.target.value)}
+                placeholder="+64 21 123 4567"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowSettingsDialog(false)}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={() => updateOrgMutation.mutate({
+                name: editName,
+                enforcement_workflow: editWorkflow,
+                contact_email: editEmail || null,
+                contact_phone: editPhone || null
+              })}
+              disabled={updateOrgMutation.isPending}
+            >
+              {updateOrgMutation.isPending ? 'Saving...' : 'Save Changes'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </AppLayout>
   )
 }
