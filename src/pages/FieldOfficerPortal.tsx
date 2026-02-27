@@ -7,10 +7,8 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { AppLayout } from '@/components/features/AppLayout'
 import { CameraCapture } from '@/components/features/CameraCapture'
-import { Camera, Map, FileText, History, AlertTriangle, MapPin, X } from 'lucide-react'
+import { Camera, Map, FileText, History, AlertTriangle, MapPin } from 'lucide-react'
 import { toast } from 'sonner'
-import { edgeFunctions } from '@/lib/edgeFunctions'
-import { railwayServices } from '@/lib/railwayServices'
 import { supabase } from '@/lib/supabase'
 
 export default function FieldOfficerPortal() {
@@ -20,24 +18,12 @@ export default function FieldOfficerPortal() {
   const [showScanner, setShowScanner] = useState(false)
   const [isProcessing, setIsProcessing] = useState(false)
   const [currentPatrolZone, setCurrentPatrolZone] = useState<string | null>(zoneId)
-  
+
   // Auto-monitor geofence and manage patrol
   useEffect(() => {
     if (!user?.id || !user?.organization_id) return
-    
-    // Initial check
-    monitorGeofenceAndPatrol(
-      user.id,
-      user.organization_id,
-      currentPatrolZone,
-      (newZoneId, newZoneName) => {
-        setCurrentPatrolZone(newZoneId)
-        setZone(newZoneId, newZoneName)
-      }
-    )
-    
-    // Check every 30 seconds
-    const interval = setInterval(() => {
+
+    const checkGeofence = () => {
       monitorGeofenceAndPatrol(
         user.id,
         user.organization_id!,
@@ -47,42 +33,28 @@ export default function FieldOfficerPortal() {
           setZone(newZoneId, newZoneName)
         }
       )
-    }, 30000) // 30 seconds
-    
+    }
+
+    checkGeofence()
+    const interval = setInterval(checkGeofence, 30000)
     return () => clearInterval(interval)
   }, [user, currentPatrolZone])
 
-  const handleCapture = async (file: File, metadata: any) => {
+  /**
+   * UNIFIED SCAN LOGIC
+   * 1. Uploads photo to /scans/{user_id}/
+   * 2. Calls alpr-process (Master 3-Stage AI)
+   * 3. Handles DB Save automatically
+   */
+  const handleCapture = async (file: File) => {
     setIsProcessing(true)
-    
     try {
-      // ========================================================================
-      // CRITICAL: Validate session data BEFORE proceeding
-      // ========================================================================
-      if (!user?.id) {
-        toast.error('Session expired. Please log out and log back in.')
-        setShowScanner(false)
-        setIsProcessing(false)
-        return
+      // 1. SESSION VALIDATION
+      if (!user?.id || !user?.organization_id) {
+        throw new Error('Session expired. Please log out and log back in.')
       }
 
-      if (!user?.organization_id) {
-        toast.error('No organization assigned. Please contact administrator.')
-        setShowScanner(false)
-        setIsProcessing(false)
-        return
-      }
-
-      // Zone should be auto-detected, but fallback to "Other Location" if null
-      const effectiveZoneId = zoneId || 'other-location' // Create "Other Location" zone in database
-
-      console.log('✅ Session validation passed:', {
-        user_id: user.id,
-        organization_id: user.organization_id,
-        zone_id: zoneId,
-      })
-
-      // Get GPS location
+      // 2. GET GPS LOCATION
       toast.info('Getting GPS location...')
       const position = await new Promise<GeolocationPosition>((resolve, reject) => {
         navigator.geolocation.getCurrentPosition(resolve, reject, {
@@ -91,93 +63,50 @@ export default function FieldOfficerPortal() {
         })
       })
 
-      // Upload photo to Supabase Storage
+      // 3. UPLOAD PHOTO (Fixed folder path to /scans/)
       toast.info('Uploading photo...')
-      const fileName = `scan-${Date.now()}.jpg`
-      const { data: uploadData, error: uploadError } = await supabase.storage
+      const photoHash = Math.random().toString(36).substring(7)
+      const filePath = `scans/${user.id}/${Date.now()}-${photoHash}.jpg`
+      
+      const { error: uploadError } = await supabase.storage
         .from('evidence')
-        .upload(`temp/${fileName}`, file)
+        .upload(filePath, file)
 
-      if (uploadError) throw uploadError
+      if (uploadError) throw new Error(`Upload failed: ${uploadError.message}`)
 
-      // Get public URL
-      const { data: urlData } = supabase.storage
-        .from('evidence')
-        .getPublicUrl(`temp/${fileName}`)
-
+      const { data: urlData } = supabase.storage.from('evidence').getPublicUrl(filePath)
       const photoUrl = urlData.publicUrl
-      let plateNumber: string | null = null
 
-      // Try ALPR first
-      toast.info('Detecting plate number...')
-      const { data: alprData, error: alprError } = await edgeFunctions.processALPR({
-        photo_url: photoUrl,
-        latitude: position.coords.latitude,
-        longitude: position.coords.longitude,
+      // 4. UNIFIED AI PIPELINE (ALPR -> Railway -> OnSpace)
+      // We use supabase.functions.invoke to automatically handle apikey and auth headers
+      toast.info('Analyzing vehicle (3-Stage AI)...')
+      const { data, error: ingestError } = await supabase.functions.invoke('alpr-process', {
+        body: {
+          photo_url: photoUrl,
+          officerId: user.id,
+          zoneId: zoneId || 'other-location',
+          organizationId: user.organization_id,
+          gpsLatitude: position.coords.latitude,
+          gpsLongitude: position.coords.longitude,
+          gpsAccuracy: position.coords.accuracy,
+          recordedAt: new Date().toISOString()
+        }
       })
 
-      if (!alprError && alprData?.plate_number) {
-        plateNumber = alprData.plate_number
-        toast.success(`Plate detected: ${plateNumber}`)
+      if (ingestError) throw new Error(`Server Error: ${ingestError.message || 'Check logs'}`)
+      if (!data?.success) throw new Error('AI Analysis failed to return a valid result.')
+
+      // 5. SUCCESS HANDLING
+      const plate = data.observation?.plate_number
+      if (!plate || plate === 'MANUAL_REQUIRED') {
+        toast.warning('Plate not clearly detected. Please verify details manually.', { duration: 6000 })
       } else {
-        // Fallback to Railway OCR
-        toast.info('ALPR failed, trying OCR...')
-        const { data: ocrData, error: ocrError } = await railwayServices.performOCR(photoUrl)
-        
-        if (!ocrError && ocrData?.plate_number) {
-          plateNumber = ocrData.plate_number
-          toast.success(`OCR detected: ${plateNumber}`)
-        } else {
-          toast.error('No plate detected. Use manual entry.')
-          setShowScanner(false)
-          setIsProcessing(false)
-          return
-        }
-      }
-
-      // ========================================================================
-      // CRITICAL: Build complete payload with ALL required fields
-      // ========================================================================
-      const payload = {
-        // Required for RLS policy validation
-        recorded_by: user.id,                      // ✅ User ID from session
-        organization_id: user.organization_id,     // ✅ Organization from profile
-        zone_id: effectiveZoneId,                  // ✅ Zone from geofence or "Other Location"
-        
-        // Vehicle data
-        plate_number: plateNumber,
-        photo_url: photoUrl,
-        
-        // GPS data
-        latitude: position.coords.latitude,
-        longitude: position.coords.longitude,
-        gps_accuracy: position.coords.accuracy,
-        
-        // Metadata
-        recorded_at: new Date().toISOString(),
-        idempotency_key: `${user.id}-${Date.now()}`, // Offline sync support
-      }
-
-      console.log('📦 Payload being sent to vehicle-ingest:', payload)
-
-      // Create observation
-      toast.info('Creating observation...')
-      const { data: ingestData, error: ingestError } = await edgeFunctions.ingestVehicleObservation(payload)
-
-      if (ingestError) throw new Error(ingestError)
-
-      console.log('✅ Observation created successfully:', ingestData)
-
-      // Success!
-      if (ingestData?.breach_detected) {
-        toast.warning(`⚠️ Breach Detected: ${ingestData.breach_type}`, { duration: 10000 })
-      } else {
-        toast.success('✅ Vehicle scanned successfully')
+        toast.success(`✅ Sighted: ${plate}`, { duration: 5000 })
       }
 
       setShowScanner(false)
     } catch (error: any) {
-      console.error('❌ Scan failed:', error)
+      console.error('❌ Scan flow failed:', error)
       toast.error(error.message || 'Scan failed')
     } finally {
       setIsProcessing(false)
@@ -185,51 +114,30 @@ export default function FieldOfficerPortal() {
   }
 
   const handleStartScanner = () => {
-    // ========================================================================
-    // Pre-flight validation: Check required session data BEFORE opening camera
-    // ========================================================================
-    if (!user?.id) {
-      toast.error('Session expired. Please refresh the page.')
+    if (!user?.id || !user?.organization_id) {
+      toast.error('Session expired. Please re-login.')
       return
     }
-
-    if (!user?.organization_id) {
-      toast.error('No organization assigned. Contact your administrator.')
-      return
-    }
-
-    // Zone is now auto-selected via geofence monitoring
-    // If no zone detected, it will be set to "Other Location" automatically
-
-    // Check camera availability
     if (!navigator.mediaDevices?.getUserMedia) {
       toast.error('Camera not available on this device')
       return
     }
-    
-    console.log('✅ Starting scanner with:', {
-      user_id: user.id,
-      organization_id: user.organization_id,
-      zone_id: zoneId,
-    })
-    
     setShowScanner(true)
   }
 
   return (
-    <AppLayout title="Field Officer Portal" description={`Welcome, ${user?.first_name || 'Officer'}`}>
-      {/* Camera Scanner - Opens immediately */}
+    <AppLayout title="Field Officer Portal" description={`Welcome, ${user?.full_name || 'Officer'}`}>
       {showScanner ? (
-        <CameraCapture
-          onCapture={handleCapture}
-          onCancel={() => setShowScanner(false)}
-          facing="environment"
-          showControls={true}
+        <CameraCapture 
+          onCapture={handleCapture} 
+          onCancel={() => setShowScanner(false)} 
+          facing="environment" 
+          showControls={true} 
         />
       ) : (
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {/* Quick Action Cards */}
-          <Card className="hover:shadow-lg transition-shadow">
+          {/* Main Action: Scan */}
+          <Card className="hover:shadow-lg transition-shadow border-blue-200 dark:border-blue-900 border-2">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <div className="p-2 bg-blue-100 dark:bg-blue-900 rounded-lg">
@@ -237,21 +145,16 @@ export default function FieldOfficerPortal() {
                 </div>
                 Scan Vehicle
               </CardTitle>
-              <CardDescription>
-                Capture vehicle plate and location
-              </CardDescription>
+              <CardDescription>Capture plate and GPS location</CardDescription>
             </CardHeader>
             <CardContent>
-              <Button 
-                className="w-full" 
-                onClick={handleStartScanner}
-                disabled={isProcessing}
-              >
+              <Button className="w-full h-12 text-lg" onClick={handleStartScanner} disabled={isProcessing}>
                 {isProcessing ? 'Processing...' : 'Open Scanner'}
               </Button>
             </CardContent>
           </Card>
 
+          {/* Secondary Actions */}
           <Card className="hover:shadow-lg transition-shadow">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -260,17 +163,11 @@ export default function FieldOfficerPortal() {
                 </div>
                 Active Patrol
               </CardTitle>
-              <CardDescription>
-                Start or end your patrol session
-              </CardDescription>
+              <CardDescription>Manage your patrol session</CardDescription>
             </CardHeader>
             <CardContent>
-              <Button 
-                className="w-full" 
-                variant="outline"
-                onClick={() => toast.info('Patrol management coming soon')}
-              >
-                Start Patrol
+              <Button className="w-full" variant="outline" onClick={() => toast.info('Patrol tracking active via geofence')}>
+                Patrol Status
               </Button>
             </CardContent>
           </Card>
@@ -283,16 +180,10 @@ export default function FieldOfficerPortal() {
                 </div>
                 Create Report
               </CardTitle>
-              <CardDescription>
-                Submit incident or H&S report
-              </CardDescription>
+              <CardDescription>Submit incident or H&S</CardDescription>
             </CardHeader>
             <CardContent>
-              <Button 
-                className="w-full" 
-                variant="outline"
-                onClick={() => navigate('/incidents')}
-              >
+              <Button className="w-full" variant="outline" onClick={() => navigate('/incidents')}>
                 New Report
               </Button>
             </CardContent>
@@ -306,16 +197,10 @@ export default function FieldOfficerPortal() {
                 </div>
                 My Scans
               </CardTitle>
-              <CardDescription>
-                View recent observations
-              </CardDescription>
+              <CardDescription>Recent observations</CardDescription>
             </CardHeader>
             <CardContent>
-              <Button 
-                className="w-full" 
-                variant="outline"
-                onClick={() => navigate('/compliance')}
-              >
+              <Button className="w-full" variant="outline" onClick={() => navigate('/compliance')}>
                 View History
               </Button>
             </CardContent>
@@ -329,16 +214,10 @@ export default function FieldOfficerPortal() {
                 </div>
                 Breach Alerts
               </CardTitle>
-              <CardDescription>
-                View active breach notifications
-              </CardDescription>
+              <CardDescription>Active notifications</CardDescription>
             </CardHeader>
             <CardContent>
-              <Button 
-                className="w-full" 
-                variant="outline"
-                onClick={() => navigate('/breaches')}
-              >
+              <Button className="w-full" variant="outline" onClick={() => navigate('/breaches')}>
                 View Alerts
               </Button>
             </CardContent>
@@ -352,16 +231,10 @@ export default function FieldOfficerPortal() {
                 </div>
                 Zones
               </CardTitle>
-              <CardDescription>
-                View enforcement zones
-              </CardDescription>
+              <CardDescription>Enforcement zones</CardDescription>
             </CardHeader>
             <CardContent>
-              <Button 
-                className="w-full" 
-                variant="outline"
-                onClick={() => navigate('/zones')}
-              >
+              <Button className="w-full" variant="outline" onClick={() => navigate('/zones')}>
                 View Zones
               </Button>
             </CardContent>
@@ -369,20 +242,28 @@ export default function FieldOfficerPortal() {
         </div>
       )}
 
-      {/* Officer Tips */}
-      <Card className="mt-6">
+      {/* Info Card */}
+      <Card className="mt-6 bg-slate-50 dark:bg-slate-900/50">
         <CardHeader>
-          <CardTitle>Quick Tips</CardTitle>
+          <CardTitle className="text-sm">Officer Status</CardTitle>
         </CardHeader>
         <CardContent>
-          <ul className="space-y-2 text-sm text-gray-600 dark:text-gray-400">
-            <li>• Always ensure GPS is enabled for accurate location tracking</li>
-            <li>• Capture clear photos of vehicle plates and self-contained stickers</li>
-            <li>• The PlateScanner uses AI-powered plate recognition for quick scanning</li>
-            <li>• Report any safety concerns immediately</li>
-            <li>• Check breach alerts before starting your patrol</li>
-          </ul>
+          <div className="flex flex-col gap-2 text-xs text-gray-500">
+            <div className="flex justify-between">
+              <span>Current Zone:</span>
+              <span className="font-semibold text-blue-600">{zoneId || 'Scanning Geofence...'}</span>
+            </div>
+            <div className="flex justify-between">
+              <span>Organization:</span>
+              <span>{user?.organization_id?.substring(0, 8)}...</span>
+            </div>
+          </div>
         </CardContent>
+      </Card>
+    </AppLayout>
+  )
+}
+
       </Card>
     </AppLayout>
   )
