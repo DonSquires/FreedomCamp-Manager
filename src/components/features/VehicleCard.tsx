@@ -46,10 +46,10 @@ export function VehicleCard({ vehicle, onViewDetails, showActions = true }: Vehi
       <CardContent>
         <div className="space-y-3">
           {/* Profile Photo */}
-          {vehicle.profile_photo_url && (
+          {vehicle.profile_photo && (
             <div className="relative w-full h-32 bg-gray-100 rounded-lg overflow-hidden">
               <img 
-                src={vehicle.profile_photo_url} 
+                src={vehicle.profile_photo} 
                 alt={`Vehicle ${vehicle.plate_number}`}
                 className="w-full h-full object-cover"
               />
@@ -64,7 +64,7 @@ export function VehicleCard({ vehicle, onViewDetails, showActions = true }: Vehi
                 Self-Contained:
               </span>
               <span className="font-medium">
-                {vehicle.is_self_contained 
+                {vehicle.self_contained 
                   ? (vehicle.self_contained_expiry 
                       ? `Yes (expires ${new Date(vehicle.self_contained_expiry).toLocaleDateString()})` 
                       : 'Yes'
@@ -74,18 +74,18 @@ export function VehicleCard({ vehicle, onViewDetails, showActions = true }: Vehi
               </span>
             </div>
 
-            {vehicle.is_homeless && (
+            {vehicle.homeless_status && vehicle.homeless_status !== 'none' && (
               <div className="flex items-center justify-between text-sm">
                 <span className="text-gray-600">Homeless Status:</span>
                 <Badge variant="outline" className="text-xs bg-orange-50">
-                  Homeless
+                  {vehicle.homeless_status}
                 </Badge>
               </div>
             )}
 
-            {vehicle.fc_act_exempt && (
+            {vehicle.is_exempt && (
               <div className="flex items-center justify-between text-sm">
-                <span className="text-gray-600">FC Act Exempt:</span>
+                <span className="text-gray-600">Exempt:</span>
                 <Badge variant="outline" className="text-xs bg-blue-50">
                   Exempt
                 </Badge>
