@@ -1,6 +1,8 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@/stores/authStore'
+import { useGlobalFiltersStore } from '@/stores/globalFiltersStore'
+import { monitorGeofenceAndPatrol } from '@/lib/geofence'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { AppLayout } from '@/components/features/AppLayout'
@@ -13,14 +15,73 @@ import { supabase } from '@/lib/supabase'
 
 export default function FieldOfficerPortal() {
   const { user } = useAuthStore()
+  const { zoneId, setZone } = useGlobalFiltersStore()
   const navigate = useNavigate()
   const [showScanner, setShowScanner] = useState(false)
   const [isProcessing, setIsProcessing] = useState(false)
+  const [currentPatrolZone, setCurrentPatrolZone] = useState<string | null>(zoneId)
+  
+  // Auto-monitor geofence and manage patrol
+  useEffect(() => {
+    if (!user?.id || !user?.organization_id) return
+    
+    // Initial check
+    monitorGeofenceAndPatrol(
+      user.id,
+      user.organization_id,
+      currentPatrolZone,
+      (newZoneId, newZoneName) => {
+        setCurrentPatrolZone(newZoneId)
+        setZone(newZoneId, newZoneName)
+      }
+    )
+    
+    // Check every 30 seconds
+    const interval = setInterval(() => {
+      monitorGeofenceAndPatrol(
+        user.id,
+        user.organization_id!,
+        currentPatrolZone,
+        (newZoneId, newZoneName) => {
+          setCurrentPatrolZone(newZoneId)
+          setZone(newZoneId, newZoneName)
+        }
+      )
+    }, 30000) // 30 seconds
+    
+    return () => clearInterval(interval)
+  }, [user, currentPatrolZone])
 
   const handleCapture = async (file: File, metadata: any) => {
     setIsProcessing(true)
     
     try {
+      // ========================================================================
+      // CRITICAL: Validate session data BEFORE proceeding
+      // ========================================================================
+      if (!user?.id) {
+        toast.error('Session expired. Please log out and log back in.')
+        setShowScanner(false)
+        setIsProcessing(false)
+        return
+      }
+
+      if (!user?.organization_id) {
+        toast.error('No organization assigned. Please contact administrator.')
+        setShowScanner(false)
+        setIsProcessing(false)
+        return
+      }
+
+      // Zone should be auto-detected, but fallback to "Other Location" if null
+      const effectiveZoneId = zoneId || 'other-location' // Create "Other Location" zone in database
+
+      console.log('✅ Session validation passed:', {
+        user_id: user.id,
+        organization_id: user.organization_id,
+        zone_id: zoneId,
+      })
+
       // Get GPS location
       toast.info('Getting GPS location...')
       const position = await new Promise<GeolocationPosition>((resolve, reject) => {
@@ -74,16 +135,38 @@ export default function FieldOfficerPortal() {
         }
       }
 
-      // Create observation
-      toast.info('Creating observation...')
-      const { data: ingestData, error: ingestError } = await edgeFunctions.ingestVehicleObservation({
+      // ========================================================================
+      // CRITICAL: Build complete payload with ALL required fields
+      // ========================================================================
+      const payload = {
+        // Required for RLS policy validation
+        recorded_by: user.id,                      // ✅ User ID from session
+        organization_id: user.organization_id,     // ✅ Organization from profile
+        zone_id: effectiveZoneId,                  // ✅ Zone from geofence or "Other Location"
+        
+        // Vehicle data
         plate_number: plateNumber,
         photo_url: photoUrl,
+        
+        // GPS data
         latitude: position.coords.latitude,
         longitude: position.coords.longitude,
-      })
+        gps_accuracy: position.coords.accuracy,
+        
+        // Metadata
+        recorded_at: new Date().toISOString(),
+        idempotency_key: `${user.id}-${Date.now()}`, // Offline sync support
+      }
+
+      console.log('📦 Payload being sent to vehicle-ingest:', payload)
+
+      // Create observation
+      toast.info('Creating observation...')
+      const { data: ingestData, error: ingestError } = await edgeFunctions.ingestVehicleObservation(payload)
 
       if (ingestError) throw new Error(ingestError)
+
+      console.log('✅ Observation created successfully:', ingestData)
 
       // Success!
       if (ingestData?.breach_detected) {
@@ -94,6 +177,7 @@ export default function FieldOfficerPortal() {
 
       setShowScanner(false)
     } catch (error: any) {
+      console.error('❌ Scan failed:', error)
       toast.error(error.message || 'Scan failed')
     } finally {
       setIsProcessing(false)
@@ -101,11 +185,33 @@ export default function FieldOfficerPortal() {
   }
 
   const handleStartScanner = () => {
+    // ========================================================================
+    // Pre-flight validation: Check required session data BEFORE opening camera
+    // ========================================================================
+    if (!user?.id) {
+      toast.error('Session expired. Please refresh the page.')
+      return
+    }
+
+    if (!user?.organization_id) {
+      toast.error('No organization assigned. Contact your administrator.')
+      return
+    }
+
+    // Zone is now auto-selected via geofence monitoring
+    // If no zone detected, it will be set to "Other Location" automatically
+
     // Check camera availability
     if (!navigator.mediaDevices?.getUserMedia) {
       toast.error('Camera not available on this device')
       return
     }
+    
+    console.log('✅ Starting scanner with:', {
+      user_id: user.id,
+      organization_id: user.organization_id,
+      zone_id: zoneId,
+    })
     
     setShowScanner(true)
   }

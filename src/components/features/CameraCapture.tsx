@@ -1,23 +1,27 @@
 /**
  * CameraCapture Component
- * Enhanced camera controls for evidence photo capture
+ * Enhanced camera controls for evidence photo capture with metadata overlay
  */
 
 import { useState, useRef, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { 
   Camera, 
   FlipHorizontal, 
   Zap, 
   ZapOff, 
-  Focus, 
-  Maximize2,
+  Focus,
   X,
-  Check,
+  MapPin,
+  Calendar,
+  Clock,
+  CloudRain,
 } from 'lucide-react'
 import { toast } from 'sonner'
+import { useAuthStore } from '@/stores/authStore'
+import { useGlobalFiltersStore } from '@/stores/globalFiltersStore'
+import { useZones } from '@/hooks/useZones'
 
 interface CameraCaptureProps {
   onCapture: (file: File, metadata: CameraMetadata) => void
@@ -52,6 +56,15 @@ export function CameraCapture({
   const [zoom, setZoom] = useState(1)
   const [hasFlash, setHasFlash] = useState(false)
   const [hasZoom, setHasZoom] = useState(false)
+
+  // Context data for overlay
+  const { user } = useAuthStore()
+  const { zoneId, zoneName } = useGlobalFiltersStore()
+  const { data: zones } = useZones()
+  const [currentTime, setCurrentTime] = useState(new Date())
+  const [weather, setWeather] = useState('Clear')
+  const [gpsLocation, setGpsLocation] = useState<{ lat: number; lng: number } | null>(null)
+  const [autoDetectedZone, setAutoDetectedZone] = useState<string | null>(null)
 
   // Start camera stream
   const startCamera = async () => {
@@ -192,11 +205,59 @@ export function CameraCapture({
     }, 'image/jpeg', 0.95)
   }
 
-  // Start camera on mount
+  // Initialize camera and metadata
   useEffect(() => {
     startCamera()
-    return () => stopCamera()
-  }, [])
+    
+    // Update time every second
+    const timeInterval = setInterval(() => {
+      setCurrentTime(new Date())
+    }, 1000)
+    
+    // Get GPS location
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          setGpsLocation({
+            lat: position.coords.latitude,
+            lng: position.coords.longitude,
+          })
+          
+          // Auto-detect zone based on GPS
+          if (zones) {
+            const nearbyZone = zones.find((zone: any) => {
+              // Simple distance check (can be improved with proper geofence)
+              if (!zone.location_lat || !zone.location_lng) return false
+              const distance = Math.sqrt(
+                Math.pow(zone.location_lat - position.coords.latitude, 2) +
+                Math.pow(zone.location_lng - position.coords.longitude, 2)
+              )
+              return distance < 0.01 // ~1km radius
+            })
+            
+            if (nearbyZone) {
+              setAutoDetectedZone(nearbyZone.name)
+            } else {
+              setAutoDetectedZone('Other Location')
+            }
+          }
+        },
+        (error) => {
+          console.error('GPS error:', error)
+          setAutoDetectedZone('GPS Unavailable')
+        },
+        { enableHighAccuracy: true }
+      )
+    }
+    
+    // Fetch weather (placeholder)
+    setWeather('Clear') // TODO: Integrate real weather API
+    
+    return () => {
+      clearInterval(timeInterval)
+      stopCamera()
+    }
+  }, [zones])
 
   return (
     <div className="fixed inset-0 z-50 bg-black">
@@ -219,10 +280,53 @@ export function CameraCapture({
         </div>
       )}
 
+      {/* Metadata Overlay - 50% opacity */}
+      <div className="absolute top-4 left-4 right-4 bg-black bg-opacity-50 text-white p-3 rounded-lg space-y-1 text-sm z-20">
+        {/* Officer & Organization */}
+        <div className="flex items-center gap-2">
+          <span className="font-semibold">{user?.full_name || 'Unknown Officer'}</span>
+          <span className="text-gray-300">•</span>
+          <span className="text-gray-300">{user?.organization_id ? 'Org Set' : 'No Org'}</span>
+        </div>
+        
+        {/* Zone - PROMINENT */}
+        <div className="flex items-center gap-2 bg-blue-600 bg-opacity-70 px-2 py-1 rounded">
+          <MapPin className="h-4 w-4" />
+          <span className="font-bold text-base">
+            {autoDetectedZone || zoneName || 'No Zone Selected'}
+          </span>
+        </div>
+        
+        {/* Date & Time */}
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-1">
+            <Calendar className="h-3 w-3" />
+            <span>{currentTime.toLocaleDateString('en-NZ')}</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <Clock className="h-3 w-3" />
+            <span>{currentTime.toLocaleTimeString('en-NZ', { hour: '2-digit', minute: '2-digit' })}</span>
+          </div>
+        </div>
+        
+        {/* Weather & GPS */}
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-1">
+            <CloudRain className="h-3 w-3" />
+            <span>{weather}</span>
+          </div>
+          {gpsLocation && (
+            <span className="text-xs text-gray-300">
+              GPS: {gpsLocation.lat.toFixed(4)}, {gpsLocation.lng.toFixed(4)}
+            </span>
+          )}
+        </div>
+      </div>
+
       {/* Top controls */}
       {showControls && (
         <div className="absolute top-0 left-0 right-0 p-4 bg-gradient-to-b from-black/50 to-transparent z-10">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-end gap-2">
             {/* Flash toggle */}
             {hasFlash && (
               <Button
@@ -230,6 +334,7 @@ export function CameraCapture({
                 size="icon"
                 onClick={toggleFlash}
                 className="text-white"
+                style={{ zIndex: 10 }}
               >
                 {flashEnabled ? (
                   <Zap className="h-6 w-6 fill-yellow-400 text-yellow-400" />
@@ -240,10 +345,8 @@ export function CameraCapture({
             )}
 
             {/* Status badges */}
-            <div className="flex gap-2">
-              {flashEnabled && <Badge variant="secondary">Flash On</Badge>}
-              {zoom > 1 && <Badge variant="secondary">{zoom}x</Badge>}
-            </div>
+            {flashEnabled && <Badge variant="secondary">Flash On</Badge>}
+            {zoom > 1 && <Badge variant="secondary">{zoom}x</Badge>}
 
             {/* Cancel */}
             <Button
@@ -251,6 +354,7 @@ export function CameraCapture({
               size="icon"
               onClick={onCancel}
               className="text-white"
+              style={{ zIndex: 10 }}
             >
               <X className="h-6 w-6" />
             </Button>
@@ -268,6 +372,7 @@ export function CameraCapture({
               size="icon"
               onClick={toggleFacing}
               className="text-white"
+              style={{ zIndex: 10 }}
             >
               <FlipHorizontal className="h-6 w-6" />
             </Button>
@@ -278,6 +383,7 @@ export function CameraCapture({
               onClick={capturePhoto}
               className="w-20 h-20 rounded-full bg-white hover:bg-gray-200"
               disabled={!isStreaming}
+              style={{ zIndex: 10 }}
             >
               <Camera className="h-8 w-8 text-black" />
             </Button>
@@ -288,6 +394,7 @@ export function CameraCapture({
               size="icon"
               onClick={triggerFocus}
               className="text-white"
+              style={{ zIndex: 10 }}
             >
               <Focus className="h-6 w-6" />
             </Button>
@@ -295,7 +402,7 @@ export function CameraCapture({
 
           {/* Zoom controls */}
           {hasZoom && (
-            <div className="mt-4 flex items-center justify-center gap-4">
+            <div className="mt-4 flex items-center justify-center gap-4" style={{ zIndex: 10 }}>
               <span className="text-white text-sm">1x</span>
               <input
                 type="range"

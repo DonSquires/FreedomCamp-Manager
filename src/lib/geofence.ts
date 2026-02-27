@@ -1,32 +1,36 @@
 /**
- * Geofencing Utilities
- * Point-in-polygon and distance calculations
+ * Geofence Utilities
+ * 
+ * Functions for automatic zone detection and patrol management based on GPS location
  */
 
-export interface Coordinate {
-  latitude: number
-  longitude: number
-}
+import { supabase } from './supabase'
+import { toast } from 'sonner'
 
-export interface GeoCircle {
-  center: Coordinate
-  radius: number // in meters
-}
-
-export interface GeoPolygon {
-  coordinates: Coordinate[]
+export interface GeofenceZone {
+  id: string
+  name: string
+  location_lat: number
+  location_lng: number
+  radius_meters?: number
+  geometry?: any
 }
 
 /**
- * Calculate distance between two GPS coordinates using Haversine formula
- * Returns distance in meters
+ * Calculate distance between two GPS coordinates (in meters)
+ * Uses Haversine formula
  */
-export function calculateDistance(point1: Coordinate, point2: Coordinate): number {
-  const R = 6371e3 // Earth radius in meters
-  const φ1 = (point1.latitude * Math.PI) / 180
-  const φ2 = (point2.latitude * Math.PI) / 180
-  const Δφ = ((point2.latitude - point1.latitude) * Math.PI) / 180
-  const Δλ = ((point2.longitude - point1.longitude) * Math.PI) / 180
+export function calculateDistance(
+  lat1: number,
+  lng1: number,
+  lat2: number,
+  lng2: number
+): number {
+  const R = 6371e3 // Earth's radius in meters
+  const φ1 = (lat1 * Math.PI) / 180
+  const φ2 = (lat2 * Math.PI) / 180
+  const Δφ = ((lat2 - lat1) * Math.PI) / 180
+  const Δλ = ((lng2 - lng1) * Math.PI) / 180
 
   const a =
     Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
@@ -38,162 +42,210 @@ export function calculateDistance(point1: Coordinate, point2: Coordinate): numbe
 }
 
 /**
- * Check if point is within a circular geofence
+ * Check if a point is inside a geofence zone
  */
-export function isPointInCircle(point: Coordinate, circle: GeoCircle): boolean {
-  const distance = calculateDistance(point, circle.center)
-  return distance <= circle.radius
+export function isInsideGeofence(
+  userLat: number,
+  userLng: number,
+  zone: GeofenceZone
+): boolean {
+  const distance = calculateDistance(
+    userLat,
+    userLng,
+    zone.location_lat,
+    zone.location_lng
+  )
+  
+  const radius = zone.radius_meters || 500 // Default 500m radius
+  return distance <= radius
 }
 
 /**
- * Check if point is within a polygon using ray-casting algorithm
+ * Find all zones the user is currently inside
  */
-export function isPointInPolygon(point: Coordinate, polygon: GeoPolygon): boolean {
-  const { latitude, longitude } = point
-  const vertices = polygon.coordinates
-  let inside = false
-
-  for (let i = 0, j = vertices.length - 1; i < vertices.length; j = i++) {
-    const xi = vertices[i].longitude
-    const yi = vertices[i].latitude
-    const xj = vertices[j].longitude
-    const yj = vertices[j].latitude
-
-    const intersect =
-      yi > latitude !== yj > latitude &&
-      longitude < ((xj - xi) * (latitude - yi)) / (yj - yi) + xi
-
-    if (intersect) inside = !inside
-  }
-
-  return inside
-}
-
-/**
- * Find nearest zone to a given point
- */
-export function findNearestZone(
-  point: Coordinate,
-  zones: Array<{
-    id: string
-    name: string
-    center: Coordinate
-    geofence_type: 'circle' | 'polygon'
-    geofence_radius?: number
-    geofence?: GeoPolygon
-  }>
-): { zoneId: string; zoneName: string; distance: number } | null {
-  let nearest: { zoneId: string; zoneName: string; distance: number } | null = null
-
-  for (const zone of zones) {
-    const distance = calculateDistance(point, zone.center)
+export async function detectCurrentZones(
+  userLat: number,
+  userLng: number,
+  organizationId?: string
+): Promise<GeofenceZone[]> {
+  try {
+    // Fetch all active zones
+    let query = supabase
+      .from('zones')
+      .select('id, name, location_lat, location_lng, geometry')
+      .eq('is_active', true)
     
-    if (!nearest || distance < nearest.distance) {
-      nearest = {
-        zoneId: zone.id,
-        zoneName: zone.name,
-        distance
+    if (organizationId) {
+      query = query.eq('organization_id', organizationId)
+    }
+    
+    const { data: zones, error } = await query
+    
+    if (error) throw error
+    if (!zones) return []
+    
+    // Filter zones by distance
+    const nearbyZones = zones.filter((zone) => {
+      if (!zone.location_lat || !zone.location_lng) return false
+      return isInsideGeofence(userLat, userLng, zone as GeofenceZone)
+    })
+    
+    return nearbyZones as GeofenceZone[]
+  } catch (error: any) {
+    console.error('Geofence detection error:', error)
+    return []
+  }
+}
+
+/**
+ * Start a patrol automatically when entering a geofence
+ */
+export async function autoStartPatrol(
+  userId: string,
+  zoneId: string,
+  organizationId: string,
+  gpsLat: number,
+  gpsLng: number
+): Promise<{ success: boolean; patrolId?: string }> {
+  try {
+    // Check if patrol already active
+    const { data: existingPatrol } = await supabase
+      .from('patrols')
+      .select('id')
+      .eq('assigned_to', userId)
+      .eq('zone_id', zoneId)
+      .eq('patrol_date', new Date().toISOString().split('T')[0])
+      .eq('status', 'active')
+      .maybeSingle()
+    
+    if (existingPatrol) {
+      console.log('Patrol already active:', existingPatrol.id)
+      return { success: true, patrolId: existingPatrol.id }
+    }
+    
+    // Create new patrol
+    const { data: patrol, error } = await supabase
+      .from('patrols')
+      .insert({
+        organization_id: organizationId,
+        zone_id: zoneId,
+        patrol_date: new Date().toISOString().split('T')[0],
+        shift: 'day', // TODO: Detect shift based on time
+        assigned_to: userId,
+        checked_in_at: new Date().toISOString(),
+        check_in_location_lat: gpsLat,
+        check_in_location_lng: gpsLng,
+        status: 'active',
+        notes: 'Auto-started via geofence entry',
+      })
+      .select()
+      .single()
+    
+    if (error) throw error
+    
+    toast.success(`Patrol started in ${zoneId}`)
+    return { success: true, patrolId: patrol.id }
+  } catch (error: any) {
+    console.error('Auto-start patrol error:', error)
+    toast.error('Failed to start patrol automatically')
+    return { success: false }
+  }
+}
+
+/**
+ * Stop a patrol automatically when exiting a geofence
+ */
+export async function autoStopPatrol(
+  userId: string,
+  zoneId: string
+): Promise<{ success: boolean }> {
+  try {
+    // Find active patrol
+    const { data: patrol, error: findError } = await supabase
+      .from('patrols')
+      .select('id')
+      .eq('assigned_to', userId)
+      .eq('zone_id', zoneId)
+      .eq('patrol_date', new Date().toISOString().split('T')[0])
+      .eq('status', 'active')
+      .maybeSingle()
+    
+    if (findError) throw findError
+    if (!patrol) {
+      console.log('No active patrol to stop')
+      return { success: true }
+    }
+    
+    // Update patrol to completed
+    const { error: updateError } = await supabase
+      .from('patrols')
+      .update({
+        completed_at: new Date().toISOString(),
+        status: 'completed',
+      })
+      .eq('id', patrol.id)
+    
+    if (updateError) throw updateError
+    
+    toast.info('Patrol completed (left geofence)')
+    return { success: true }
+  } catch (error: any) {
+    console.error('Auto-stop patrol error:', error)
+    toast.error('Failed to stop patrol automatically')
+    return { success: false }
+  }
+}
+
+/**
+ * Monitor GPS location and manage patrol status
+ * Call this function every 30 seconds while app is active
+ */
+export async function monitorGeofenceAndPatrol(
+  userId: string,
+  organizationId: string,
+  currentZoneId: string | null,
+  onZoneChange: (zoneId: string | null, zoneName: string | null) => void
+): Promise<void> {
+  try {
+    // Get current GPS location
+    const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+      navigator.geolocation.getCurrentPosition(resolve, reject, {
+        enableHighAccuracy: true,
+        timeout: 10000,
+      })
+    })
+    
+    const userLat = position.coords.latitude
+    const userLng = position.coords.longitude
+    
+    // Detect current zones
+    const zones = await detectCurrentZones(userLat, userLng, organizationId)
+    
+    if (zones.length > 0) {
+      // Inside a geofence
+      const primaryZone = zones[0] // Use first detected zone
+      
+      if (primaryZone.id !== currentZoneId) {
+        // Zone changed - stop old patrol, start new patrol
+        if (currentZoneId) {
+          await autoStopPatrol(userId, currentZoneId)
+        }
+        
+        await autoStartPatrol(userId, primaryZone.id, organizationId, userLat, userLng)
+        onZoneChange(primaryZone.id, primaryZone.name)
+      }
+    } else {
+      // Outside all geofences
+      if (currentZoneId) {
+        // Left the zone - stop patrol
+        await autoStopPatrol(userId, currentZoneId)
+        onZoneChange(null, 'Other Location')
+      } else {
+        // Still outside - set to "Other Location"
+        onZoneChange(null, 'Other Location')
       }
     }
+  } catch (error: any) {
+    console.error('Geofence monitoring error:', error)
   }
-
-  return nearest
-}
-
-/**
- * Check if point is within any zone and return matching zones
- */
-export function findMatchingZones(
-  point: Coordinate,
-  zones: Array<{
-    id: string
-    name: string
-    center: Coordinate
-    geofence_type: 'circle' | 'polygon'
-    geofence_radius?: number
-    geofence?: GeoPolygon
-  }>
-): Array<{ zoneId: string; zoneName: string }> {
-  const matches: Array<{ zoneId: string; zoneName: string }> = []
-
-  for (const zone of zones) {
-    let isInside = false
-
-    if (zone.geofence_type === 'circle' && zone.geofence_radius) {
-      isInside = isPointInCircle(point, {
-        center: zone.center,
-        radius: zone.geofence_radius
-      })
-    } else if (zone.geofence_type === 'polygon' && zone.geofence) {
-      isInside = isPointInPolygon(point, zone.geofence)
-    }
-
-    if (isInside) {
-      matches.push({
-        zoneId: zone.id,
-        zoneName: zone.name
-      })
-    }
-  }
-
-  return matches
-}
-
-/**
- * Calculate center point of polygon
- */
-export function calculatePolygonCenter(polygon: GeoPolygon): Coordinate {
-  const coords = polygon.coordinates
-  const sumLat = coords.reduce((sum, coord) => sum + coord.latitude, 0)
-  const sumLng = coords.reduce((sum, coord) => sum + coord.longitude, 0)
-  
-  return {
-    latitude: sumLat / coords.length,
-    longitude: sumLng / coords.length
-  }
-}
-
-/**
- * Calculate bounding box of polygon
- */
-export function calculateBounds(polygon: GeoPolygon): {
-  minLat: number
-  maxLat: number
-  minLng: number
-  maxLng: number
-} {
-  const coords = polygon.coordinates
-  
-  return {
-    minLat: Math.min(...coords.map(c => c.latitude)),
-    maxLat: Math.max(...coords.map(c => c.latitude)),
-    minLng: Math.min(...coords.map(c => c.longitude)),
-    maxLng: Math.max(...coords.map(c => c.longitude))
-  }
-}
-
-/**
- * Format distance for display
- */
-export function formatDistance(meters: number): string {
-  if (meters < 1000) {
-    return `${Math.round(meters)}m`
-  }
-  return `${(meters / 1000).toFixed(1)}km`
-}
-
-/**
- * Validate GPS coordinates
- */
-export function validateCoordinates(lat: number, lng: number): boolean {
-  return lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180
-}
-
-/**
- * Get location confidence based on GPS accuracy
- */
-export function getLocationConfidence(accuracyMeters: number): 'high' | 'medium' | 'low' {
-  if (accuracyMeters <= 15) return 'high'
-  if (accuracyMeters <= 50) return 'medium'
-  return 'low'
 }
