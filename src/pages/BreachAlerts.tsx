@@ -20,6 +20,7 @@ import {
 import { toast } from 'sonner'
 import { formatDateTime } from '@/lib/utils'
 import type { BreachAlert, BreachStatus, BreachType, Severity } from '@/types'
+import { AppLayout } from '@/components/features/AppLayout'
 
 interface BreachAlertExtended extends BreachAlert {
   zone: {
@@ -174,25 +175,7 @@ export default function BreachAlerts() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      {/* Header */}
-      <header className="bg-white dark:bg-gray-800 shadow">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-                Breach Alerts
-              </h1>
-              <p className="text-sm text-gray-600 dark:text-gray-400">
-                Manage compliance breaches and enforcement actions
-              </p>
-            </div>
-          </div>
-        </div>
-      </header>
-
-      {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <AppLayout title="Breach Alerts" description="Manage compliance breaches and enforcement actions" showBackButton>
         {/* Stats Grid */}
         {stats && (
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-6 mb-8">
@@ -401,7 +384,6 @@ export default function BreachAlerts() {
             ))}
           </div>
         )}
-      </main>
-    </div>
+    </AppLayout>
   )
 }

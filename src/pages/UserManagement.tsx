@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
 import { UserPlus, Search, Edit, Trash2, Mail, Shield } from 'lucide-react'
 import { formatDateTime } from '@/lib/utils'
+import { AppLayout } from '@/components/features/AppLayout'
 
 interface UserProfile {
   id: string
@@ -101,15 +102,8 @@ export default function UserManagement() {
   }
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">User Management</h1>
-          <p className="text-gray-600 mt-1">
-            Manage user accounts and permissions
-          </p>
-        </div>
+    <AppLayout title="User Management" description="Manage user accounts and permissions" showBackButton>
+      <div className="flex justify-end mb-6">
         <Button onClick={() => {
           const email = prompt('Enter user email:')
           if (email) createUserMutation.mutate(email)
@@ -199,6 +193,6 @@ export default function UserManagement() {
           )}
         </CardContent>
       </Card>
-    </div>
+    </AppLayout>
   )
 }

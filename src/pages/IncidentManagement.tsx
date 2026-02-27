@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { AlertCircle, Search, FileText, Image, MapPin, Calendar } from 'lucide-react'
 import { formatDateTime } from '@/lib/utils'
+import { AppLayout } from '@/components/features/AppLayout'
 
 interface Incident {
   id: string
@@ -85,15 +86,8 @@ export default function IncidentManagement() {
   }
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Incident Management</h1>
-          <p className="text-gray-600 mt-1">
-            View and manage incident reports
-          </p>
-        </div>
+    <AppLayout title="Incident Management" description="View and manage incident reports" showBackButton>
+      <div className="flex justify-end mb-6">
         <Button disabled>
           <FileText className="h-4 w-4 mr-2" />
           New Incident
@@ -210,6 +204,6 @@ export default function IncidentManagement() {
           </Card>
         )}
       </div>
-    </div>
+    </AppLayout>
   )
 }

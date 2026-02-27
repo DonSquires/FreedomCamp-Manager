@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge'
 import { Switch } from '@/components/ui/switch'
 import { MapPin, Plus, Edit, Trash2, CheckCircle, XCircle } from 'lucide-react'
 import { toast } from 'sonner'
+import { AppLayout } from '@/components/features/AppLayout'
 
 interface Zone {
   id: string
@@ -95,29 +96,13 @@ export default function ZoneManagement() {
   } : null
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      {/* Header */}
-      <header className="bg-white dark:bg-gray-800 shadow">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-                Zone Management
-              </h1>
-              <p className="text-sm text-gray-600 dark:text-gray-400">
-                Configure compliance zones and geofencing
-              </p>
-            </div>
-            <Button>
-              <Plus className="h-4 w-4 mr-2" />
-              Add Zone
-            </Button>
-          </div>
-        </div>
-      </header>
-
-      {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <AppLayout title="Zone Management" description="Configure compliance zones and geofencing" showBackButton>
+      <div className="flex justify-end mb-6">
+        <Button>
+          <Plus className="h-4 w-4 mr-2" />
+          Add Zone
+        </Button>
+      </div>
         {/* Stats Grid */}
         {stats && (
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5 mb-8">
@@ -305,7 +290,6 @@ export default function ZoneManagement() {
             ))}
           </div>
         )}
-      </main>
-    </div>
+    </AppLayout>
   )
 }
