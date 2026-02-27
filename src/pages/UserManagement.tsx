@@ -527,7 +527,7 @@ export default function UserManagement() {
             </div>
 
             <div className="flex gap-2 flex-wrap">
-              <Select value={filterRole} onValueChange={setFilterRole}>
+              <Select value={filterRole || 'all'} onValueChange={setFilterRole}>
                 <SelectTrigger className="w-40">
                   <SelectValue placeholder="Filter by role" />
                 </SelectTrigger>
@@ -540,7 +540,7 @@ export default function UserManagement() {
                 </SelectContent>
               </Select>
 
-              <Select value={filterCredentials} onValueChange={setFilterCredentials}>
+              <Select value={filterCredentials || 'all'} onValueChange={setFilterCredentials}>
                 <SelectTrigger className="w-44">
                   <SelectValue placeholder="Filter credentials" />
                 </SelectTrigger>
