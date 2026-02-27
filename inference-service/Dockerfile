@@ -1,20 +1,17 @@
-# Multi-stage build for optimized production image
-# NOTE: We use node:18-slim (Debian) NOT node:18-alpine.
-# onnxruntime-node ships pre-built glibc binaries; they crash on Alpine (musl libc).
-
-# Stage 0: Export ONNX models using Python (ultralytics + torchvision)
-# Pre-built ONNX download URLs no longer exist; we must export locally.
+# Stage 0: Export ONNX models using Python
+# We use python:3.11-slim to ensure compatibility with Ultralytics
 FROM python:3.11-slim AS model-exporter
 
 WORKDIR /export
 
-# [FIX] Install required system libraries for OpenCV/Ultralytics
-# libgl1 is required for cv2 (graphics), libglib2.0-0 for core python extensions
+# [CRITICAL FIX] Install system libraries required by OpenCV/Ultralytics
+# Without libgl1, 'import cv2' fails, crashing the export script
 RUN apt-get update && apt-get install -y \
     libgl1 \
     libglib2.0-0 \
     && rm -rf /var/lib/apt/lists/*
 
+# Install dependencies for export
 RUN pip install --no-cache-dir \
     "ultralytics>=8.0,<9.0" \
     "torch>=2.0,<3.0" \
@@ -22,53 +19,46 @@ RUN pip install --no-cache-dir \
     "onnx>=1.14,<2.0" \
     --extra-index-url https://download.pytorch.org/whl/cpu
 
+# Run the export script (Ensure scripts/export-models.py exists in your repo)
 COPY scripts/export-models.py scripts/export-models.py
 RUN python scripts/export-models.py
 
-# Stage 1: Build Node.js dependencies
+# Stage 1: Build Node.js Application
 FROM node:18-slim AS builder
 
 WORKDIR /app
 
-# Copy package files and install ALL dependencies (including devDeps for scripts)
 COPY package*.json ./
-RUN npm install --no-audit --prefer-offline || npm install --no-audit
+RUN npm install --no-audit --prefer-offline
 
-# Re-install production-only deps
+# Re-install only production dependencies to keep image small
 RUN npm prune --omit=dev
 
-# Stage 2: Production image
+# Stage 2: Final Production Image
 FROM node:18-slim
 
 WORKDIR /app
 
-# Copy dependencies from builder
+# Copy node_modules and app source
 COPY --from=builder /app/node_modules ./node_modules
-
-# Copy application code
 COPY server.js ./
 
-# Copy baked-in ONNX models from Python exporter (~27 MB total)
+# [CRITICAL] Copy the VALID models generated in Stage 0
+# This ensures the file is a real binary, not a corrupt download
 COPY --from=model-exporter /export/models ./models
 
-# Create non-root user (Debian syntax — node:18-slim is Debian-based)
+# Security: Run as non-root
 RUN groupadd -g 1001 nodejs && \
     useradd -u 1001 -g nodejs -s /bin/sh -m nodejs && \
     chown -R nodejs:nodejs /app
 
 USER nodejs
 
-# Expose port
 EXPOSE 3000
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+# Healthcheck
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
   CMD node -e "require('http').get('http://localhost:3000/health', (res) => { process.exit(res.statusCode === 200 ? 0 : 1); });"
 
-# Start server
 CMD ["node", "server.js"]
 
-  CMD node -e "require('http').get('http://localhost:3000/health', (res) => { process.exit(res.statusCode === 200 ? 0 : 1); });"
-
-# Start server
-CMD ["node", "server.js"]
