@@ -4,52 +4,126 @@ import { useAuthStore } from '@/stores/authStore'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { AppLayout } from '@/components/features/AppLayout'
-import { PlateScanner } from '@/components/features/PlateScanner'
-import { Camera, Map, FileText, History, AlertTriangle, MapPin } from 'lucide-react'
+import { CameraCapture } from '@/components/features/CameraCapture'
+import { Camera, Map, FileText, History, AlertTriangle, MapPin, X } from 'lucide-react'
 import { toast } from 'sonner'
+import { edgeFunctions } from '@/lib/edgeFunctions'
+import { railwayServices } from '@/lib/railwayServices'
+import { supabase } from '@/lib/supabase'
 
 export default function FieldOfficerPortal() {
   const { user } = useAuthStore()
   const navigate = useNavigate()
   const [showScanner, setShowScanner] = useState(false)
+  const [isProcessing, setIsProcessing] = useState(false)
 
-  const handleScannerComplete = (plateNumber: string) => {
-    setShowScanner(false)
-    toast.success(`Vehicle ${plateNumber} scanned successfully`)
+  const handleCapture = async (file: File, metadata: any) => {
+    setIsProcessing(true)
+    
+    try {
+      // Get GPS location
+      toast.info('Getting GPS location...')
+      const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, {
+          enableHighAccuracy: true,
+          timeout: 10000,
+        })
+      })
+
+      // Upload photo to Supabase Storage
+      toast.info('Uploading photo...')
+      const fileName = `scan-${Date.now()}.jpg`
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('evidence')
+        .upload(`temp/${fileName}`, file)
+
+      if (uploadError) throw uploadError
+
+      // Get public URL
+      const { data: urlData } = supabase.storage
+        .from('evidence')
+        .getPublicUrl(`temp/${fileName}`)
+
+      const photoUrl = urlData.publicUrl
+      let plateNumber: string | null = null
+
+      // Try ALPR first
+      toast.info('Detecting plate number...')
+      const { data: alprData, error: alprError } = await edgeFunctions.processALPR({
+        photo_url: photoUrl,
+        latitude: position.coords.latitude,
+        longitude: position.coords.longitude,
+      })
+
+      if (!alprError && alprData?.plate_number) {
+        plateNumber = alprData.plate_number
+        toast.success(`Plate detected: ${plateNumber}`)
+      } else {
+        // Fallback to Railway OCR
+        toast.info('ALPR failed, trying OCR...')
+        const { data: ocrData, error: ocrError } = await railwayServices.performOCR(photoUrl)
+        
+        if (!ocrError && ocrData?.plate_number) {
+          plateNumber = ocrData.plate_number
+          toast.success(`OCR detected: ${plateNumber}`)
+        } else {
+          toast.error('No plate detected. Use manual entry.')
+          setShowScanner(false)
+          setIsProcessing(false)
+          return
+        }
+      }
+
+      // Create observation
+      toast.info('Creating observation...')
+      const { data: ingestData, error: ingestError } = await edgeFunctions.ingestVehicleObservation({
+        plate_number: plateNumber,
+        photo_url: photoUrl,
+        latitude: position.coords.latitude,
+        longitude: position.coords.longitude,
+      })
+
+      if (ingestError) throw new Error(ingestError)
+
+      // Success!
+      if (ingestData?.breach_detected) {
+        toast.warning(`⚠️ Breach Detected: ${ingestData.breach_type}`, { duration: 10000 })
+      } else {
+        toast.success('✅ Vehicle scanned successfully')
+      }
+
+      setShowScanner(false)
+    } catch (error: any) {
+      toast.error(error.message || 'Scan failed')
+    } finally {
+      setIsProcessing(false)
+    }
+  }
+
+  const handleStartScanner = () => {
+    // Check camera availability
+    if (!navigator.mediaDevices?.getUserMedia) {
+      toast.error('Camera not available on this device')
+      return
+    }
+    
+    setShowScanner(true)
   }
 
   return (
     <AppLayout title="Field Officer Portal" description={`Welcome, ${user?.first_name || 'Officer'}`}>
-      {/* Railway Integration: PlateScanner */}
+      {/* Camera Scanner - Opens immediately */}
       {showScanner ? (
-        <div className="mb-6">
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle>Vehicle Scanner</CardTitle>
-                <Button 
-                  variant="outline" 
-                  onClick={() => setShowScanner(false)}
-                >
-                  Close Scanner
-                </Button>
-              </div>
-              <CardDescription>
-                Scan vehicle plate using camera or manual entry
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <PlateScanner 
-                onComplete={handleScannerComplete}
-                onCancel={() => setShowScanner(false)}
-              />
-            </CardContent>
-          </Card>
-        </div>
+        <CameraCapture
+          onCapture={handleCapture}
+          onCancel={() => setShowScanner(false)}
+          facing="environment"
+          showControls={true}
+        />
       ) : (
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           {/* Quick Action Cards */}
-          <Card className="hover:shadow-lg transition-shadow cursor-pointer" onClick={() => setShowScanner(true)}>
+          <Card className="hover:shadow-lg transition-shadow cursor-pointer" onClick={handleStartScanner}>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <div className="p-2 bg-blue-100 dark:bg-blue-900 rounded-lg">
@@ -62,8 +136,8 @@ export default function FieldOfficerPortal() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <Button className="w-full">
-                Open Scanner
+              <Button className="w-full" disabled={isProcessing}>
+                {isProcessing ? 'Processing...' : 'Open Scanner'}
               </Button>
             </CardContent>
           </Card>
