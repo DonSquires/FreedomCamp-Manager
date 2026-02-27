@@ -21,7 +21,7 @@ interface UserProfile {
   created_at: string
 }
 
-export function UserManagement() {
+export default function UserManagement() {
   const { user } = useAuthStore()
   const queryClient = useQueryClient()
   const [searchTerm, setSearchTerm] = useState('')

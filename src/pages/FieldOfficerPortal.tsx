@@ -1,3 +1,4 @@
+import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@/stores/authStore'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -5,6 +6,7 @@ import { Camera, Map, FileText, History } from 'lucide-react'
 
 export default function FieldOfficerPortal() {
   const { user, logout } = useAuthStore()
+  const navigate = useNavigate()
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
@@ -39,7 +41,9 @@ export default function FieldOfficerPortal() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <Button className="w-full">Open Scanner</Button>
+              <Button className="w-full" onClick={() => navigate('/vehicles')}>
+                Open Scanner
+              </Button>
             </CardContent>
           </Card>
 
@@ -88,7 +92,7 @@ export default function FieldOfficerPortal() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <Button className="w-full" variant="outline">
+              <Button className="w-full" variant="outline" onClick={() => navigate('/compliance')}>
                 View History
               </Button>
             </CardContent>
