@@ -77,8 +77,8 @@ export function exportObservationsCSV(
     recorded_at: string
     recorded_by_name?: string
     is_compliant: boolean
-    latitude: number
-    longitude: number
+    gps_latitude: number
+    gps_longitude: number
   }>,
   fileName = 'observations.csv'
 ): void {
@@ -96,8 +96,8 @@ export function exportObservationsCSV(
       label: 'Compliant',
       format: (val) => val ? 'Yes' : 'No'
     },
-    { key: 'latitude', label: 'Latitude' },
-    { key: 'longitude', label: 'Longitude' },
+    { key: 'gps_latitude', label: 'Latitude' },
+    { key: 'gps_longitude', label: 'Longitude' },
   ]
 
   const csv = arrayToCSV(observations, columns)
@@ -114,7 +114,7 @@ export function exportVehiclesCSV(
     model?: string
     year?: number
     colour?: string
-    is_self_contained: boolean
+    self_contained: boolean
     total_observations: number
     total_breaches: number
   }>,
@@ -127,7 +127,7 @@ export function exportVehiclesCSV(
     { key: 'year', label: 'Year' },
     { key: 'colour', label: 'Colour' },
     { 
-      key: 'is_self_contained', 
+      key: 'self_contained', 
       label: 'Self-Contained',
       format: (val) => val ? 'Yes' : 'No'
     },
