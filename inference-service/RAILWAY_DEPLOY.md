@@ -31,13 +31,13 @@ In Railway dashboard:
 
 ---
 
-### **Step 3: Deploy** (2 min)
+### **Step 3: Deploy** (5 min)
 
 1. Click **Deploy** button
-2. Wait 2-3 minutes for build
+2. Wait 5-8 minutes for first build (Python model export takes time)
 3. Railway will automatically:
-   - Build Docker image
-   - Download ONNX models (27 MB)
+   - Export ONNX models via Python (ultralytics + torchvision)
+   - Build Docker image with baked-in models
    - Start server on port 3000
    - Run health checks
 
@@ -109,14 +109,20 @@ Uses your existing Railway account - no additional service!
 ## 🚨 **Troubleshooting**
 
 **"Build timeout"**
-- Railway has 15-min build limit
-- Model downloads are cached after first build
-- Wait and retry if timeout occurs
+- First build takes ~5-8 min (Python exports ONNX models)
+- Subsequent builds are faster (Docker layer caching)
+- Railway has 15-min build limit — usually sufficient
+- If timeout, retry — cached layers will speed it up
+
+**"Protobuf parsing failed" or "degraded mode"**
+- Models weren't exported correctly during build
+- Clear Railway build cache: **Settings** → **Build** → **Clear Build Cache**
+- Redeploy to force a clean rebuild
 
 **"Health check failing"**
 - Check logs in Railway dashboard
 - Ensure PORT=3000 is set
-- Verify ONNX models downloaded
+- Service starts in degraded mode if models fail — health check still passes
 
 **"Can't connect from Supabase"**
 - Add ALLOWED_ORIGINS environment variable

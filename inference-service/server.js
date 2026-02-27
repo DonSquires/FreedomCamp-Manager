@@ -70,8 +70,9 @@ async function loadModels() {
     console.log('✅ MobileNetV3 loaded');
 
   } catch (error) {
-    console.error('❌ Model loading failed:', error);
-    process.exit(1);
+    console.error('❌ Model loading failed (service will run in degraded mode):', error.message);
+    if (error.stack) console.error(error.stack);
+    console.warn('🧠 Models: NOT LOADED — running in degraded mode (plate scan still works via Plate Recognizer API)');
   }
 }
 
@@ -199,6 +200,10 @@ app.post('/infer', upload.single('photo'), async (req, res) => {
   const startTime = Date.now();
   
   try {
+    if (!yoloSession || !embeddingSession) {
+      return res.status(503).json({ error: 'Models not loaded — service is running in degraded mode' });
+    }
+
     if (!req.file) {
       return res.status(400).json({ error: 'No photo uploaded' });
     }
@@ -281,7 +286,11 @@ app.use((err, req, res, next) => {
 // Start server
 loadModels().then(() => {
   app.listen(PORT, '0.0.0.0', () => {
-    console.log(`🚀 Inference service running on port ${PORT}`);
-    console.log(`📡 Ready to process vehicle photos`);
+    console.log(`🚀 ORC/AI inference service running on port ${PORT}`);
+    if (yoloSession && embeddingSession) {
+      console.log(`📡 Ready to process vehicle photos`);
+    } else {
+      console.log(`⚠️  Running in degraded mode — /infer endpoint will return 503 (plate scan still works via Plate Recognizer API)`);
+    }
   });
 });
