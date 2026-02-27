@@ -89,7 +89,7 @@ export function useVehicleStats(organizationId?: string | null) {
     queryFn: async () => {
       let query = supabase
         .from('canonical_vehicles')
-        .select('is_self_contained, total_breaches, is_homeless, fc_act_exempt', { count: 'exact' })
+        .select('self_contained, total_breaches, homeless_status, is_exempt', { count: 'exact' })
 
       if (organizationId) {
         query = query.eq('organization_id', organizationId)
@@ -103,9 +103,9 @@ export function useVehicleStats(organizationId?: string | null) {
         total: count || 0,
         compliant: data?.filter(v => v.total_breaches === 0).length || 0,
         breaches: data?.filter(v => v.total_breaches > 0).length || 0,
-        selfContained: data?.filter(v => v.is_self_contained).length || 0,
-        homeless: data?.filter(v => v.is_homeless).length || 0,
-        exempt: data?.filter(v => v.fc_act_exempt).length || 0,
+        selfContained: data?.filter(v => v.self_contained).length || 0,
+        homeless: data?.filter(v => v.homeless_status !== 'none').length || 0,
+        exempt: data?.filter(v => v.is_exempt).length || 0,
       }
 
       return stats

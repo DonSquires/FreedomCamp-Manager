@@ -21,13 +21,13 @@ export interface Zone {
   id: string
   name: string
   organization_id: string
-  latitude: number | null
-  longitude: number | null
+  location_lat: number | null
+  location_lng: number | null
   is_active: boolean
-  is_day_visit_only: boolean
-  max_nights_per_month: number
+  day_visit_only: boolean
+  nights_per_month: number
   max_consecutive_nights: number
-  requires_self_contained: boolean
+  self_contained_required: boolean
   created_at: string
   _count?: {
     observations: number
@@ -42,13 +42,13 @@ export interface Vehicle {
   model: string | null
   year: number | null
   colour: string | null
-  is_self_contained: boolean
+  self_contained: boolean
   self_contained_expiry: string | null
-  is_homeless: boolean
-  fc_act_exempt: boolean
+  homeless_status: string | null
+  is_exempt: boolean
   enforcement_count: number
   last_enforcement_at: string | null
-  profile_photo_url: string | null
+  profile_photo: string | null
   total_observations: number
   total_breaches: number
   organization_id: string | null
@@ -62,8 +62,8 @@ export interface Observation {
   organization_id: string
   recorded_at: string
   recorded_by: string
-  latitude: number
-  longitude: number
+  gps_latitude: number
+  gps_longitude: number
   photo_url: string
   is_compliant: boolean
   created_at: string
