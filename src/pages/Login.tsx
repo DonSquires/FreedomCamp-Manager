@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@/stores/authStore'
 import { Button } from '@/components/ui/button'
@@ -11,8 +11,15 @@ export default function Login() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
-  const { login } = useAuthStore()
+  const { login, user, isAuthenticated } = useAuthStore()
   const navigate = useNavigate()
+
+  // Redirect if already authenticated
+  useEffect(() => {
+    if (isAuthenticated && user) {
+      navigate('/', { replace: true })
+    }
+  }, [isAuthenticated, user, navigate])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -21,10 +28,9 @@ export default function Login() {
     try {
       await login(email, password)
       toast.success('Login successful')
-      navigate('/')
+      // Don't navigate here - let the useEffect handle it after state updates
     } catch (error: any) {
       toast.error(error.message || 'Login failed')
-    } finally {
       setLoading(false)
     }
   }

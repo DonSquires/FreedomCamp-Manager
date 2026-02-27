@@ -15,6 +15,7 @@ import {
   Activity
 } from 'lucide-react'
 import { formatDate, formatDateTime } from '@/lib/utils'
+import { AppLayout } from '@/components/features/AppLayout'
 
 interface DashboardStats {
   total_observations: number
@@ -133,21 +134,7 @@ export default function ComplianceDashboard() {
   })
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      {/* Header */}
-      <header className="bg-white dark:bg-gray-800 shadow">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-            Compliance Dashboard
-          </h1>
-          <p className="text-sm text-gray-600 dark:text-gray-400">
-            Real-time compliance monitoring and analytics
-          </p>
-        </div>
-      </header>
-
-      {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <AppLayout title="Compliance Dashboard" description="Real-time compliance monitoring and analytics" showBackButton>
         {statsLoading ? (
           <div className="text-center py-12">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
@@ -309,7 +296,6 @@ export default function ComplianceDashboard() {
             </Card>
           </>
         )}
-      </main>
-    </div>
+    </AppLayout>
   )
 }

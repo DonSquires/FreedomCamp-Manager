@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { StatCard } from '@/components/features/StatCard'
 import { FileText, Download, TrendingUp, Users, MapPin, AlertCircle } from 'lucide-react'
+import { AppLayout } from '@/components/features/AppLayout'
 
 export default function Reports() {
   const { user } = useAuthStore()
@@ -76,14 +77,7 @@ export default function Reports() {
   }
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold">Reports</h1>
-        <p className="text-gray-600 mt-1">
-          Generate compliance and enforcement reports
-        </p>
-      </div>
+    <AppLayout title="Reports" description="Generate compliance and enforcement reports" showBackButton>
 
       {/* Quick Stats */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -238,6 +232,6 @@ export default function Reports() {
           </div>
         </CardContent>
       </Card>
-    </div>
+    </AppLayout>
   )
 }

@@ -75,21 +75,23 @@ export async function selectBestVehiclePhoto(photoUrls: string[]) {
 
 /**
  * Health check for Railway services
- * Note: Only callable from Edge Functions (not frontend)
+ * Note: Calls Edge Function which has access to service URLs
  */
 export async function checkRailwayServicesHealth() {
   try {
-    const checks = await Promise.allSettled([
-      fetch(PROXY_SERVER_URL + '/health').then(r => r.json()),
-      fetch(INFERENCE_SERVICE_URL + '/health').then(r => r.json()),
-    ])
+    const { data, error } = await supabase.functions.invoke('check-railway-health')
+    
+    if (error) {
+      console.error('Railway health check failed:', error)
+      return { proxy: false, inference: false }
+    }
 
     return {
-      proxy: checks[0].status === 'fulfilled' ? checks[0].value : null,
-      inference: checks[1].status === 'fulfilled' ? checks[1].value : null,
+      proxy: data?.proxy?.status === 'ok',
+      inference: data?.inference?.status === 'ok',
     }
   } catch (error) {
-    console.error('Railway health check failed:', error)
-    return { proxy: null, inference: null }
+    console.error('Railway health check error:', error)
+    return { proxy: false, inference: false }
   }
 }
