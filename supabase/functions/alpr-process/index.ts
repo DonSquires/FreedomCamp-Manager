@@ -1,9 +1,15 @@
 /**
- * ALPR Process - ZERO-FAILURE 3-STAGE PIPELINE
+ * ALPR Process - SIMPLIFIED 2-STAGE PIPELINE
  * 
- * Stage 1: Plate Recognizer API (Premium ALPR service)
- * Stage 2: Railway Inference Service (YOLOv8n + MobileNetV3 OCR)
- * Stage 3: OnSpace AI (GPT-4 Vision fallback)
+ * Flow:
+ * 1. Frontend uploads photo to /scans/{user_id}/ and gets public URL
+ * 2. Frontend sends photo_url + metadata to this function
+ * 3. Function downloads photo from URL
+ * 4. Function sends to ALPR service (Plate Recognizer → Railway Inference)
+ * 5. Function creates observation in database
+ * 
+ * Stage 1: Plate Recognizer API (Premium, high accuracy)
+ * Stage 2: Railway Inference Service (Free, decent accuracy)
  * 
  * Guarantees observation creation even if all AI stages fail (MANUAL_REQUIRED)
  * Uses SERVICE_ROLE_KEY to bypass RLS for system operations
@@ -16,13 +22,10 @@ import { corsHeaders } from '../_shared/cors.ts';
 const ALPR_API_TOKEN = Deno.env.get('ALPR_API_TOKEN');
 const ALPR_API_URL = 'https://api.platerecognizer.com/v1/plate-reader/';
 const RAILWAY_INFERENCE_URL = Deno.env.get('INFERENCE_SERVICE_URL');
-const ONSPACE_AI_KEY = Deno.env.get('ONSPACE_AI_API_KEY');
-const ONSPACE_AI_URL = Deno.env.get('ONSPACE_AI_BASE_URL');
 
 interface ALPRRequest {
-  // CRITICAL: Image data
-  image: string; // base64 data URL
-  photo_url: string; // Already uploaded photo URL
+  // CRITICAL: Photo evidence (already uploaded)
+  photo_url: string; // Public URL from Supabase Storage
   photo_hash?: string; // SHA-256 hash (will generate if missing)
   
   // CRITICAL: Identity fields
@@ -44,6 +47,13 @@ interface ALPRRequest {
   mmc?: boolean; // Make, Model, Color
   officerNotes?: string;
   weatherConditions?: string;
+}
+
+interface VehicleDetails {
+  make?: string;
+  model?: string;
+  color?: string;
+  type?: string;
 }
 
 interface ALPRResponse {
@@ -89,8 +99,7 @@ Deno.serve(async (req) => {
     const body: ALPRRequest = await req.json();
 
     console.log('📍 ALPR Request:', {
-      has_image: !!body.image,
-      has_photo_url: !!body.photo_url,
+      photo_url: body.photo_url,
       officerId: body.officerId?.substring(0, 8) + '...',
       organizationId: body.organizationId?.substring(0, 8) + '...',
       zoneId: body.zoneId?.substring(0, 8) + '...',
@@ -99,9 +108,9 @@ Deno.serve(async (req) => {
     });
 
     // Validate required fields
-    if (!body.image || !body.photo_url) {
+    if (!body.photo_url) {
       return new Response(
-        JSON.stringify({ success: false, error: 'Missing image or photo_url' }),
+        JSON.stringify({ success: false, error: 'photo_url is required' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -151,11 +160,20 @@ Deno.serve(async (req) => {
     }
 
     // ==========================================================================
-    // STEP 5: PREPARE IMAGE BLOB
+    // STEP 5: DOWNLOAD PHOTO FROM STORAGE
     // ==========================================================================
-    const base64Data = body.image.split(',')[1] || body.image;
-    const binaryData = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0));
-    const blob = new Blob([binaryData], { type: 'image/jpeg' });
+    console.log('📥 Downloading photo from:', body.photo_url);
+    
+    const photoResponse = await fetch(body.photo_url);
+    if (!photoResponse.ok) {
+      throw new Error(`Failed to download photo: ${photoResponse.status}`);
+    }
+    
+    const photoBlob = await photoResponse.blob();
+    console.log('✅ Photo downloaded:', {
+      size_bytes: photoBlob.size,
+      type: photoBlob.type
+    });
 
     let plateNumber: string | null = null;
     let plateConfidence = 0;
@@ -163,16 +181,16 @@ Deno.serve(async (req) => {
     let stage: ALPRResponse['stage'] = 'manual';
 
     // ==========================================================================
-    // STAGE 1: PLATE RECOGNIZER API (Primary)
+    // STAGE 1: PLATE RECOGNIZER API (Primary - Premium Service)
     // ==========================================================================
     if (ALPR_API_TOKEN) {
       try {
-        console.log('🔍 Stage 1: Calling Plate Recognizer API...');
+        console.log('🔍 Stage 1: Plate Recognizer API...');
         
         const formData = new FormData();
-        formData.append('upload', blob, 'scan.jpg');
+        formData.append('upload', photoBlob, 'scan.jpg');
         (body.regions || ['nz']).forEach(region => formData.append('regions', region));
-        if (body.mmc) formData.append('mmc', 'true');
+        if (body.mmc !== false) formData.append('mmc', 'true'); // Default: enabled
         
         const alprResponse = await fetch(ALPR_API_URL, {
           method: 'POST',
@@ -218,16 +236,21 @@ Deno.serve(async (req) => {
     }
 
     // ==========================================================================
-    // STAGE 2: RAILWAY INFERENCE SERVICE (Fallback #1)
+    // STAGE 2: RAILWAY INFERENCE SERVICE (Fallback - Self-Hosted)
     // ==========================================================================
     if (!plateNumber && RAILWAY_INFERENCE_URL) {
       try {
-        console.log('🚂 Stage 2: Calling Railway Inference Service...');
+        console.log('🚂 Stage 2: Railway Inference Service...');
+        
+        // Convert blob to base64 for Railway
+        const arrayBuffer = await photoBlob.arrayBuffer();
+        const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
+        const imageDataUrl = `data:image/jpeg;base64,${base64}`;
         
         const railwayResponse = await fetch(`${RAILWAY_INFERENCE_URL}/detect`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ image: body.image }),
+          body: JSON.stringify({ image: imageDataUrl }),
         });
 
         if (railwayResponse.ok) {
@@ -262,69 +285,16 @@ Deno.serve(async (req) => {
       }
     }
 
-    // ==========================================================================
-    // STAGE 3: ONSPACE AI (Fallback #2)
-    // ==========================================================================
-    if (!plateNumber && ONSPACE_AI_KEY && ONSPACE_AI_URL) {
-      try {
-        console.log('🤖 Stage 3: Calling OnSpace AI...');
-        
-        const onspaceResponse = await fetch(`${ONSPACE_AI_URL}/v1/chat/completions`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${ONSPACE_AI_KEY}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            model: 'gpt-4-vision-preview',
-            messages: [{
-              role: 'user',
-              content: [
-                {
-                  type: 'text',
-                  text: 'Extract the license plate number from this image. Return only the plate number in uppercase, or "UNKNOWN" if not visible.'
-                },
-                {
-                  type: 'image_url',
-                  image_url: { url: body.image }
-                }
-              ]
-            }],
-            max_tokens: 100,
-          }),
-        });
 
-        if (onspaceResponse.ok) {
-          const onspaceData = await onspaceResponse.json();
-          const extractedPlate = onspaceData.choices?.[0]?.message?.content?.trim().toUpperCase();
-          
-          if (extractedPlate && extractedPlate !== 'UNKNOWN' && extractedPlate.length >= 3) {
-            plateNumber = extractedPlate;
-            plateConfidence = 0.7; // Reasonable confidence for GPT-4 Vision
-            stage = 'onspace_ai';
-            console.log('✅ Stage 3 Success:', { plate: plateNumber });
-          } else {
-            console.log('⚠️ Stage 3: No plate detected');
-            warnings.push('OnSpace AI found no plate');
-          }
-        } else {
-          console.error('❌ Stage 3 Error:', onspaceResponse.status);
-          warnings.push(`OnSpace AI error: ${onspaceResponse.status}`);
-        }
-      } catch (error: any) {
-        console.error('❌ Stage 3 Exception:', error.message);
-        warnings.push(`OnSpace AI exception: ${error.message}`);
-      }
-    }
 
     // ==========================================================================
     // STEP 6: FALLBACK TO MANUAL ENTRY (Zero-Failure Guarantee)
     // ==========================================================================
     if (!plateNumber) {
-      console.log('⚠️ All AI stages failed - creating MANUAL_REQUIRED observation');
+      console.log('⚠️ Both ALPR stages failed - creating MANUAL_REQUIRED observation');
       plateNumber = 'MANUAL_REQUIRED';
       stage = 'manual';
-      warnings.push('All AI stages failed - manual entry required');
+      warnings.push('ALPR failed - manual plate entry required');
     }
 
     // ==========================================================================

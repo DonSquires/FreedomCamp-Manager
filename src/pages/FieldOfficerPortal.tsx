@@ -41,10 +41,10 @@ export default function FieldOfficerPortal() {
   }, [user, currentPatrolZone])
 
   /**
-   * UNIFIED SCAN LOGIC - ZERO-FAILURE PIPELINE
-   * 1. Convert photo to base64 + generate hash
-   * 2. Upload photo to /scans/{user_id}/
-   * 3. Call alpr-process with complete payload (3-Stage AI)
+   * OPTIMIZED SCAN LOGIC - PHOTO FIRST, THEN ANALYZE
+   * 1. Upload photo to /scans/{user_id}/ and get public URL
+   * 2. Call alpr-process with photo URL + metadata
+   * 3. Edge Function downloads photo and sends to ALPR service
    * 4. Handle success/failure gracefully
    */
   const handleCapture = async (file: File) => {
@@ -82,28 +82,15 @@ export default function FieldOfficerPortal() {
       })
 
       // ============================================================================
-      // STEP 3: CONVERT PHOTO TO BASE64 (Required for ALPR API)
+      // STEP 3: GENERATE METADATA
       // ============================================================================
-      toast.info('Processing photo...')
-      const base64Data = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader()
-        reader.onload = () => {
-          const result = reader.result as string
-          resolve(result) // data:image/jpeg;base64,/9j/4AAQ...
-        }
-        reader.onerror = reject
-        reader.readAsDataURL(file)
-      })
-
-      // Generate photo hash (simple timestamp-based for idempotency)
       const timestamp = Date.now()
       const photoHash = `sha256-${timestamp}-${Math.random().toString(36).substring(7)}`
       const idempotencyKey = `scan-${user.id}-${timestamp}`
 
-      console.log('📸 Photo Prepared:', {
+      console.log('📸 Photo Metadata:', {
         size_bytes: file.size,
         type: file.type,
-        base64_length: base64Data.length,
         photo_hash: photoHash,
         idempotency_key: idempotencyKey
       })
@@ -129,15 +116,12 @@ export default function FieldOfficerPortal() {
       console.log('☁️ Photo Uploaded:', { photo_url: photoUrl })
 
       // ============================================================================
-      // STEP 5: CALL 3-STAGE AI PIPELINE (Plate Recognizer → Railway → OnSpace)
+      // STEP 5: CALL ALPR PIPELINE (Plate Recognizer → Railway Inference)
       // ============================================================================
-      toast.info('Analyzing vehicle (3-Stage AI)...')
+      toast.info('Analyzing vehicle...')
       
       const payload = {
-        // CRITICAL: Base64 image data for ALPR processing
-        image: base64Data,
-        
-        // CRITICAL: Photo evidence
+        // CRITICAL: Photo evidence (already uploaded)
         photo_url: photoUrl,
         photo_hash: photoHash,
         
@@ -161,13 +145,11 @@ export default function FieldOfficerPortal() {
       }
 
       console.log('📦 Payload Validation:', {
-        has_image: !!payload.image,
         has_photo_url: !!payload.photo_url,
         has_photo_hash: !!payload.photo_hash,
         has_idempotency: !!payload.idempotencyKey,
         has_gps: !!(payload.gpsLatitude && payload.gpsLongitude),
         has_identity: !!(payload.officerId && payload.organizationId && payload.zoneId),
-        payload_size_kb: Math.round(JSON.stringify(payload).length / 1024)
       })
 
       // Call Edge Function (automatically includes Authorization header)
