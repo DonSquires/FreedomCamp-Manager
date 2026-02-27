@@ -1,9 +1,11 @@
 import { useState, useRef } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
-import { Camera, X, Loader2 } from 'lucide-react'
+import { Camera, X, Loader2, CheckCircle } from 'lucide-react'
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
+import { edgeFunctions } from '@/lib/edgeFunctions'
+import { railwayServices } from '@/lib/railwayServices'
 
 interface PlateScannerProps {
   onScanComplete: (result: {
@@ -70,6 +72,7 @@ export function PlateScanner({ onScanComplete, onCancel }: PlateScannerProps) {
 
     try {
       // Get current GPS location
+      toast.info('Getting GPS location...')
       const position = await new Promise<GeolocationPosition>((resolve, reject) => {
         navigator.geolocation.getCurrentPosition(resolve, reject, {
           enableHighAccuracy: true,
@@ -81,6 +84,7 @@ export function PlateScanner({ onScanComplete, onCancel }: PlateScannerProps) {
       const blob = await fetch(capturedImage).then(r => r.blob())
       
       // Upload to Supabase Storage
+      toast.info('Uploading photo...')
       const fileName = `scan-${Date.now()}.jpg`
       const { data: uploadData, error: uploadError } = await supabase.storage
         .from('evidence')
@@ -93,30 +97,94 @@ export function PlateScanner({ onScanComplete, onCancel }: PlateScannerProps) {
         .from('evidence')
         .getPublicUrl(`temp/${fileName}`)
 
-      // Call ALPR edge function
-      const { data: alprData, error: alprError } = await supabase.functions.invoke('alpr-process', {
-        body: {
-          photoUrl: urlData.publicUrl,
-          latitude: position.coords.latitude,
-          longitude: position.coords.longitude,
-        }
+      const photoUrl = urlData.publicUrl
+      let plateNumber: string | null = null
+
+      // Step 1: Try ALPR first
+      toast.info('Detecting plate number...')
+      const { data: alprData, error: alprError } = await edgeFunctions.processALPR({
+        photo_url: photoUrl,
+        latitude: position.coords.latitude,
+        longitude: position.coords.longitude,
       })
 
-      if (alprError) throw alprError
+      if (!alprError && alprData?.plate_number) {
+        plateNumber = alprData.plate_number
+        toast.success(`Plate detected: ${plateNumber}`)
+      } else {
+        // Step 2: Fallback to Railway inference OCR
+        toast.info('ALPR failed, trying OCR fallback...')
+        const { data: ocrData, error: ocrError } = await railwayServices.performOCR(photoUrl)
+        
+        if (!ocrError && ocrData?.plate_number) {
+          plateNumber = ocrData.plate_number
+          toast.success(`OCR detected: ${plateNumber}`)
+        } else {
+          toast.error('No plate number detected. Please try manual entry.')
+          setIsScanning(false)
+          return
+        }
+      }
 
-      if (alprData?.plate_number) {
+      // Step 3: Create full observation via vehicle-ingest
+      toast.info('Creating observation...')
+      const { data: ingestData, error: ingestError } = await edgeFunctions.ingestVehicleObservation({
+        plate_number: plateNumber,
+        photo_url: photoUrl,
+        latitude: position.coords.latitude,
+        longitude: position.coords.longitude,
+      })
+
+      if (ingestError) {
+        toast.error(`Observation creation failed: ${ingestError}`)
+        // Still return scan result for manual processing
         onScanComplete({
-          plateNumber: alprData.plate_number,
-          photoUrl: urlData.publicUrl,
+          plateNumber,
+          photoUrl,
           latitude: position.coords.latitude,
           longitude: position.coords.longitude,
         })
         stopCamera()
-      } else {
-        toast.error('No plate number detected. Please try again.')
+        return
       }
+
+      // Step 4: Check NZSCV status (don't block on failure)
+      railwayServices.checkNZSCVCertification(plateNumber).then(({ data: nzscvData, error: nzscvError }) => {
+        if (!nzscvError && nzscvData?.is_certified) {
+          toast.success(`Self-contained verified: ${nzscvData.warrant_type}`, {
+            duration: 5000,
+            icon: <CheckCircle className="h-4 w-4" />,
+          })
+        }
+      })
+
+      // Step 5: Enrich from MotorWeb (don't block on failure)
+      railwayServices.enrichVehicleFromMotorWeb(plateNumber).then(({ data: motorwebData, error: motorwebError }) => {
+        if (!motorwebError && motorwebData) {
+          toast.info(`Vehicle enriched: ${motorwebData.make} ${motorwebData.model}`, {
+            duration: 3000,
+          })
+        }
+      })
+
+      // Success!
+      if (ingestData.breach_detected) {
+        toast.warning(`⚠️ Breach Detected: ${ingestData.breach_type}`, {
+          duration: 10000,
+        })
+      } else if (ingestData.is_compliant) {
+        toast.success('✅ Vehicle is compliant')
+      }
+
+      onScanComplete({
+        plateNumber,
+        photoUrl,
+        latitude: position.coords.latitude,
+        longitude: position.coords.longitude,
+      })
+      stopCamera()
     } catch (error: any) {
-      toast.error('Scan failed: ' + error.message)
+      toast.error('Scan failed: ' + (error.message || 'Unknown error'))
     } finally {
       setIsScanning(false)
     }
