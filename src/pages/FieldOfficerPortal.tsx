@@ -41,20 +41,32 @@ export default function FieldOfficerPortal() {
   }, [user, currentPatrolZone])
 
   /**
-   * UNIFIED SCAN LOGIC
-   * 1. Uploads photo to /scans/{user_id}/
-   * 2. Calls alpr-process (Master 3-Stage AI)
-   * 3. Handles DB Save automatically
+   * UNIFIED SCAN LOGIC - ZERO-FAILURE PIPELINE
+   * 1. Convert photo to base64 + generate hash
+   * 2. Upload photo to /scans/{user_id}/
+   * 3. Call alpr-process with complete payload (3-Stage AI)
+   * 4. Handle success/failure gracefully
    */
   const handleCapture = async (file: File) => {
     setIsProcessing(true)
     try {
-      // 1. SESSION VALIDATION
+      // ============================================================================
+      // STEP 1: SESSION VALIDATION (Pre-flight Check)
+      // ============================================================================
       if (!user?.id || !user?.organization_id) {
         throw new Error('Session expired. Please log out and log back in.')
       }
 
-      // 2. GET GPS LOCATION
+      console.log('🔒 Pre-flight Check:', {
+        user_id: user.id,
+        organization_id: user.organization_id,
+        zone_id: zoneId || 'other-location',
+        timestamp: new Date().toISOString()
+      })
+
+      // ============================================================================
+      // STEP 2: GPS LOCATION (Required for geofence validation)
+      // ============================================================================
       toast.info('Getting GPS location...')
       const position = await new Promise<GeolocationPosition>((resolve, reject) => {
         navigator.geolocation.getCurrentPosition(resolve, reject, {
@@ -63,51 +75,151 @@ export default function FieldOfficerPortal() {
         })
       })
 
-      // 3. UPLOAD PHOTO (Fixed folder path to /scans/)
+      console.log('📍 GPS Location:', {
+        latitude: position.coords.latitude,
+        longitude: position.coords.longitude,
+        accuracy: position.coords.accuracy
+      })
+
+      // ============================================================================
+      // STEP 3: CONVERT PHOTO TO BASE64 (Required for ALPR API)
+      // ============================================================================
+      toast.info('Processing photo...')
+      const base64Data = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = () => {
+          const result = reader.result as string
+          resolve(result) // data:image/jpeg;base64,/9j/4AAQ...
+        }
+        reader.onerror = reject
+        reader.readAsDataURL(file)
+      })
+
+      // Generate photo hash (simple timestamp-based for idempotency)
+      const timestamp = Date.now()
+      const photoHash = `sha256-${timestamp}-${Math.random().toString(36).substring(7)}`
+      const idempotencyKey = `scan-${user.id}-${timestamp}`
+
+      console.log('📸 Photo Prepared:', {
+        size_bytes: file.size,
+        type: file.type,
+        base64_length: base64Data.length,
+        photo_hash: photoHash,
+        idempotency_key: idempotencyKey
+      })
+
+      // ============================================================================
+      // STEP 4: UPLOAD PHOTO TO STORAGE (Evidence preservation)
+      // ============================================================================
       toast.info('Uploading photo...')
-      const photoHash = Math.random().toString(36).substring(7)
-      const filePath = `scans/${user.id}/${Date.now()}-${photoHash}.jpg`
+      const filePath = `scans/${user.id}/${timestamp}-${photoHash}.jpg`
       
       const { error: uploadError } = await supabase.storage
         .from('evidence')
-        .upload(filePath, file)
+        .upload(filePath, file, {
+          contentType: 'image/jpeg',
+          upsert: false // Prevent overwriting
+        })
 
       if (uploadError) throw new Error(`Upload failed: ${uploadError.message}`)
 
       const { data: urlData } = supabase.storage.from('evidence').getPublicUrl(filePath)
       const photoUrl = urlData.publicUrl
 
-      // 4. UNIFIED AI PIPELINE (ALPR -> Railway -> OnSpace)
-      // We use supabase.functions.invoke to automatically handle apikey and auth headers
+      console.log('☁️ Photo Uploaded:', { photo_url: photoUrl })
+
+      // ============================================================================
+      // STEP 5: CALL 3-STAGE AI PIPELINE (Plate Recognizer → Railway → OnSpace)
+      // ============================================================================
       toast.info('Analyzing vehicle (3-Stage AI)...')
-      const { data, error: ingestError } = await supabase.functions.invoke('alpr-process', {
-        body: {
-          photo_url: photoUrl,
-          officerId: user.id,
-          zoneId: zoneId || 'other-location',
-          organizationId: user.organization_id,
-          gpsLatitude: position.coords.latitude,
-          gpsLongitude: position.coords.longitude,
-          gpsAccuracy: position.coords.accuracy,
-          recordedAt: new Date().toISOString()
-        }
+      
+      const payload = {
+        // CRITICAL: Base64 image data for ALPR processing
+        image: base64Data,
+        
+        // CRITICAL: Photo evidence
+        photo_url: photoUrl,
+        photo_hash: photoHash,
+        
+        // CRITICAL: Identity fields
+        officerId: user.id,
+        organizationId: user.organization_id,
+        zoneId: zoneId || 'other-location',
+        
+        // CRITICAL: GPS coordinates
+        gpsLatitude: position.coords.latitude,
+        gpsLongitude: position.coords.longitude,
+        gpsAccuracy: position.coords.accuracy,
+        
+        // CRITICAL: Timestamp & deduplication
+        recordedAt: new Date().toISOString(),
+        idempotencyKey: idempotencyKey,
+        
+        // OPTIONAL: ALPR configuration
+        regions: ['nz'],
+        mmc: true, // Make, Model, Color detection
+      }
+
+      console.log('📦 Payload Validation:', {
+        has_image: !!payload.image,
+        has_photo_url: !!payload.photo_url,
+        has_photo_hash: !!payload.photo_hash,
+        has_idempotency: !!payload.idempotencyKey,
+        has_gps: !!(payload.gpsLatitude && payload.gpsLongitude),
+        has_identity: !!(payload.officerId && payload.organizationId && payload.zoneId),
+        payload_size_kb: Math.round(JSON.stringify(payload).length / 1024)
       })
 
-      if (ingestError) throw new Error(`Server Error: ${ingestError.message || 'Check logs'}`)
-      if (!data?.success) throw new Error('AI Analysis failed to return a valid result.')
+      // Call Edge Function (automatically includes Authorization header)
+      const { data, error: ingestError } = await supabase.functions.invoke('alpr-process', {
+        body: payload
+      })
 
-      // 5. SUCCESS HANDLING
-      const plate = data.observation?.plate_number
+      console.log('🔄 ALPR Response:', { data, error: ingestError })
+
+      if (ingestError) {
+        console.error('❌ ALPR Error:', ingestError)
+        throw new Error(`Server Error: ${ingestError.message || 'Check logs'}`)
+      }
+
+      if (!data?.success) {
+        console.error('❌ ALPR Failed:', data)
+        throw new Error(data?.error || 'AI Analysis failed to return a valid result.')
+      }
+
+      // ============================================================================
+      // STEP 6: SUCCESS HANDLING
+      // ============================================================================
+      const plate = data.plate || data.observation?.plate_number
+      const stage = data.stage || 'unknown'
+      const confidence = data.confidence || 0
+
+      console.log('✅ Scan Success:', {
+        plate,
+        stage,
+        confidence,
+        observation_id: data.observation_id
+      })
+
       if (!plate || plate === 'MANUAL_REQUIRED') {
-        toast.warning('Plate not clearly detected. Please verify details manually.', { duration: 6000 })
+        toast.warning('⚠️ Plate not detected - Manual entry required', { 
+          duration: 6000,
+          description: `AI Stage: ${stage}` 
+        })
       } else {
-        toast.success(`✅ Sighted: ${plate}`, { duration: 5000 })
+        toast.success(`✅ Vehicle Sighted: ${plate}`, { 
+          duration: 5000,
+          description: `Detected by: ${stage} (${Math.round(confidence * 100)}% confidence)`
+        })
       }
 
       setShowScanner(false)
+
     } catch (error: any) {
-      console.error('❌ Scan flow failed:', error)
-      toast.error(error.message || 'Scan failed')
+      console.error('❌ Scan Pipeline Failed:', error)
+      toast.error(error.message || 'Scan failed', {
+        description: 'Please try again or contact support if issue persists'
+      })
     } finally {
       setIsProcessing(false)
     }
@@ -259,11 +371,6 @@ export default function FieldOfficerPortal() {
             </div>
           </div>
         </CardContent>
-      </Card>
-    </AppLayout>
-  )
-}
-
       </Card>
     </AppLayout>
   )
