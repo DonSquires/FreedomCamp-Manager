@@ -6,10 +6,21 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { Label } from '@/components/ui/label'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { toast } from 'sonner'
-import { UserPlus, Search, Edit, Trash2, Mail, Shield } from 'lucide-react'
+import { UserPlus, Search, Edit, Mail, Shield, CheckCircle, XCircle } from 'lucide-react'
 import { formatDateTime } from '@/lib/utils'
 import { AppLayout } from '@/components/features/AppLayout'
+import { GlobalFilterRibbon } from '@/components/features/GlobalFilterRibbon'
 
 interface UserProfile {
   id: string
@@ -20,12 +31,23 @@ interface UserProfile {
   organization_id: string
   is_active: boolean
   created_at: string
+  phone: string | null
 }
 
 export default function UserManagement() {
   const { user } = useAuthStore()
   const queryClient = useQueryClient()
   const [searchTerm, setSearchTerm] = useState('')
+  const [showCreateDialog, setShowCreateDialog] = useState(false)
+  const [showEditDialog, setShowEditDialog] = useState(false)
+  const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null)
+  
+  // Form state
+  const [email, setEmail] = useState('')
+  const [firstName, setFirstName] = useState('')
+  const [lastName, setLastName] = useState('')
+  const [role, setRole] = useState('officer')
+  const [phone, setPhone] = useState('')
 
   // Check user role
   const isAdmin = user?.role === 'admin' || user?.role === 'master'
@@ -51,9 +73,15 @@ export default function UserManagement() {
 
   // Create user mutation
   const createUserMutation = useMutation({
-    mutationFn: async (email: string) => {
+    mutationFn: async () => {
       const { data, error } = await supabase.functions.invoke('create-user', {
-        body: { email, role: 'officer' }
+        body: { 
+          email, 
+          role,
+          first_name: firstName,
+          last_name: lastName,
+          phone
+        }
       })
       if (error) throw error
       return data
@@ -61,9 +89,35 @@ export default function UserManagement() {
     onSuccess: () => {
       toast.success('User invitation sent')
       queryClient.invalidateQueries({ queryKey: ['users'] })
+      setShowCreateDialog(false)
+      resetForm()
     },
     onError: (error: any) => {
       toast.error(error.message || 'Failed to create user')
+    },
+  })
+
+  // Update user mutation
+  const updateUserMutation = useMutation({
+    mutationFn: async (updates: Partial<UserProfile>) => {
+      if (!selectedUser) throw new Error('No user selected')
+      
+      const { error } = await supabase
+        .from('user_profiles')
+        .update(updates)
+        .eq('id', selectedUser.id)
+
+      if (error) throw error
+    },
+    onSuccess: () => {
+      toast.success('User updated successfully')
+      queryClient.invalidateQueries({ queryKey: ['users'] })
+      setShowEditDialog(false)
+      setSelectedUser(null)
+      resetForm()
+    },
+    onError: (error: any) => {
+      toast.error(error.message || 'Failed to update user')
     },
   })
 
@@ -86,9 +140,27 @@ export default function UserManagement() {
     },
   })
 
+  const resetForm = () => {
+    setEmail('')
+    setFirstName('')
+    setLastName('')
+    setRole('officer')
+    setPhone('')
+  }
+
+  const openEditDialog = (userProfile: UserProfile) => {
+    setSelectedUser(userProfile)
+    setFirstName(userProfile.first_name)
+    setLastName(userProfile.last_name)
+    setEmail(userProfile.email)
+    setRole(userProfile.role)
+    setPhone(userProfile.phone || '')
+    setShowEditDialog(true)
+  }
+
   if (!isAdmin) {
     return (
-      <div className="container mx-auto p-6">
+      <AppLayout title="User Management" description="Manage user accounts and permissions" showBackButton>
         <Card>
           <CardHeader>
             <CardTitle>Access Denied</CardTitle>
@@ -97,24 +169,23 @@ export default function UserManagement() {
             </CardDescription>
           </CardHeader>
         </Card>
-      </div>
+      </AppLayout>
     )
   }
 
   return (
     <AppLayout title="User Management" description="Manage user accounts and permissions" showBackButton>
+      <GlobalFilterRibbon showDateFilter={false} />
+
       <div className="flex justify-end mb-6">
-        <Button onClick={() => {
-          const email = prompt('Enter user email:')
-          if (email) createUserMutation.mutate(email)
-        }}>
+        <Button onClick={() => setShowCreateDialog(true)}>
           <UserPlus className="h-4 w-4 mr-2" />
           Invite User
         </Button>
       </div>
 
       {/* Search */}
-      <Card>
+      <Card className="mb-6">
         <CardContent className="pt-6">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
@@ -152,9 +223,14 @@ export default function UserManagement() {
                         {userProfile.first_name} {userProfile.last_name}
                       </div>
                       <Badge variant={userProfile.is_active ? 'default' : 'secondary'}>
-                        {userProfile.is_active ? 'Active' : 'Inactive'}
+                        {userProfile.is_active ? (
+                          <><CheckCircle className="h-3 w-3 mr-1" />Active</>
+                        ) : (
+                          <><XCircle className="h-3 w-3 mr-1" />Inactive</>
+                        )}
                       </Badge>
                       <Badge variant="outline">
+                        <Shield className="h-3 w-3 mr-1" />
                         {userProfile.role}
                       </Badge>
                     </div>
@@ -179,7 +255,11 @@ export default function UserManagement() {
                     >
                       {userProfile.is_active ? 'Deactivate' : 'Activate'}
                     </Button>
-                    <Button variant="outline" size="sm" disabled>
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => openEditDialog(userProfile)}
+                    >
                       <Edit className="h-4 w-4" />
                     </Button>
                   </div>
@@ -193,6 +273,156 @@ export default function UserManagement() {
           )}
         </CardContent>
       </Card>
+
+      {/* Create User Dialog */}
+      <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Invite New User</DialogTitle>
+            <DialogDescription>
+              Send an invitation to create a new user account
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="email">Email *</Label>
+              <Input
+                id="email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="user@example.com"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="firstName">First Name *</Label>
+                <Input
+                  id="firstName"
+                  value={firstName}
+                  onChange={(e) => setFirstName(e.target.value)}
+                />
+              </div>
+              <div>
+                <Label htmlFor="lastName">Last Name *</Label>
+                <Input
+                  id="lastName"
+                  value={lastName}
+                  onChange={(e) => setLastName(e.target.value)}
+                />
+              </div>
+            </div>
+            <div>
+              <Label htmlFor="role">Role *</Label>
+              <Select value={role} onValueChange={setRole}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="officer">Officer</SelectItem>
+                  <SelectItem value="admin_officer">Admin Officer</SelectItem>
+                  <SelectItem value="admin">Admin</SelectItem>
+                  {user?.role === 'master' && (
+                    <SelectItem value="master">Master</SelectItem>
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label htmlFor="phone">Phone</Label>
+              <Input
+                id="phone"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder="+64 21 123 4567"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowCreateDialog(false)}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={() => createUserMutation.mutate()}
+              disabled={!email || !firstName || !lastName || createUserMutation.isPending}
+            >
+              {createUserMutation.isPending ? 'Sending...' : 'Send Invitation'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit User Dialog */}
+      <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit User</DialogTitle>
+            <DialogDescription>
+              Update user information and permissions
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="editFirstName">First Name</Label>
+                <Input
+                  id="editFirstName"
+                  value={firstName}
+                  onChange={(e) => setFirstName(e.target.value)}
+                />
+              </div>
+              <div>
+                <Label htmlFor="editLastName">Last Name</Label>
+                <Input
+                  id="editLastName"
+                  value={lastName}
+                  onChange={(e) => setLastName(e.target.value)}
+                />
+              </div>
+            </div>
+            <div>
+              <Label htmlFor="editRole">Role</Label>
+              <Select value={role} onValueChange={setRole}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="officer">Officer</SelectItem>
+                  <SelectItem value="admin_officer">Admin Officer</SelectItem>
+                  <SelectItem value="admin">Admin</SelectItem>
+                  {user?.role === 'master' && (
+                    <SelectItem value="master">Master</SelectItem>
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label htmlFor="editPhone">Phone</Label>
+              <Input
+                id="editPhone"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowEditDialog(false)}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={() => updateUserMutation.mutate({
+                first_name: firstName,
+                last_name: lastName,
+                role,
+                phone: phone || null
+              })}
+              disabled={updateUserMutation.isPending}
+            >
+              {updateUserMutation.isPending ? 'Saving...' : 'Save Changes'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </AppLayout>
   )
 }

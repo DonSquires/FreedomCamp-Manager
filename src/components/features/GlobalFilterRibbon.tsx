@@ -1,6 +1,9 @@
+import { useQuery } from '@tanstack/react-query'
+import { supabase } from '@/lib/supabase'
+import { useAuthStore } from '@/stores/authStore'
 import { useGlobalFiltersStore } from '@/stores/globalFiltersStore'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Calendar, Building2, MapPin, X, ChevronLeft, ChevronRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -17,13 +20,18 @@ export function GlobalFilterRibbon({
   showZoneFilter = true,
   className,
 }: GlobalFilterRibbonProps) {
+  const { user } = useAuthStore()
   const {
     dateFrom,
     dateTo,
     datePreset,
+    organizationId,
     organizationName,
+    zoneId,
     zoneName,
     setDateRange,
+    setOrganization,
+    setZone,
     setToday,
     setYesterday,
     setPrevDay,
@@ -31,7 +39,44 @@ export function GlobalFilterRibbon({
     clearFilters,
   } = useGlobalFiltersStore()
 
-  const hasActiveFilters = dateFrom || dateTo || organizationName || zoneName
+  // Fetch organizations
+  const { data: organizations } = useQuery({
+    queryKey: ['organizations-filter'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('organizations')
+        .select('id, name')
+        .eq('is_active', true)
+        .order('name')
+
+      if (error) throw error
+      return data
+    },
+    enabled: showOrgFilter && user?.role === 'master',
+  })
+
+  // Fetch zones
+  const { data: zones } = useQuery({
+    queryKey: ['zones-filter', organizationId],
+    queryFn: async () => {
+      let query = supabase
+        .from('zones')
+        .select('id, name')
+        .eq('is_active', true)
+        .order('name')
+
+      if (organizationId) {
+        query = query.eq('organization_id', organizationId)
+      }
+
+      const { data, error } = await query
+      if (error) throw error
+      return data
+    },
+    enabled: showZoneFilter,
+  })
+
+  const hasActiveFilters = dateFrom || dateTo || organizationId || zoneId
 
   return (
     <div className={cn('bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700', className)}>
@@ -39,7 +84,7 @@ export function GlobalFilterRibbon({
         <div className="flex flex-wrap items-center gap-3">
           {/* Date Filter */}
           {showDateFilter && (
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <Calendar className="h-4 w-4 text-gray-500" />
               <div className="flex items-center gap-1">
                 <Button
@@ -66,8 +111,9 @@ export function GlobalFilterRibbon({
                     >
                       <ChevronLeft className="h-4 w-4" />
                     </Button>
-                    <span className="text-sm font-medium px-2">
+                    <span className="text-sm font-medium px-2 whitespace-nowrap">
                       {new Date(dateFrom).toLocaleDateString()}
+                      {dateTo && dateTo !== dateFrom && ` - ${new Date(dateTo).toLocaleDateString()}`}
                     </span>
                     <Button
                       variant="ghost"
@@ -83,22 +129,54 @@ export function GlobalFilterRibbon({
           )}
 
           {/* Organization Filter */}
-          {showOrgFilter && organizationName && (
-            <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 dark:bg-blue-900/20 rounded-md">
-              <Building2 className="h-4 w-4 text-blue-600" />
-              <span className="text-sm font-medium text-blue-900 dark:text-blue-100">
-                {organizationName}
-              </span>
+          {showOrgFilter && user?.role === 'master' && (
+            <div className="flex items-center gap-2">
+              <Building2 className="h-4 w-4 text-gray-500" />
+              <Select
+                value={organizationId || ''}
+                onValueChange={(value) => {
+                  const org = organizations?.find(o => o.id === value)
+                  setOrganization(value || null, org?.name || null)
+                }}
+              >
+                <SelectTrigger className="w-[200px] h-9">
+                  <SelectValue placeholder="All Organizations" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">All Organizations</SelectItem>
+                  {organizations?.map((org) => (
+                    <SelectItem key={org.id} value={org.id}>
+                      {org.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           )}
 
           {/* Zone Filter */}
-          {showZoneFilter && zoneName && (
-            <div className="flex items-center gap-2 px-3 py-1.5 bg-green-50 dark:bg-green-900/20 rounded-md">
-              <MapPin className="h-4 w-4 text-green-600" />
-              <span className="text-sm font-medium text-green-900 dark:text-green-100">
-                {zoneName}
-              </span>
+          {showZoneFilter && (
+            <div className="flex items-center gap-2">
+              <MapPin className="h-4 w-4 text-gray-500" />
+              <Select
+                value={zoneId || ''}
+                onValueChange={(value) => {
+                  const zone = zones?.find(z => z.id === value)
+                  setZone(value || null, zone?.name || null)
+                }}
+              >
+                <SelectTrigger className="w-[200px] h-9">
+                  <SelectValue placeholder="All Zones" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">All Zones</SelectItem>
+                  {zones?.map((zone) => (
+                    <SelectItem key={zone.id} value={zone.id}>
+                      {zone.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           )}
 
