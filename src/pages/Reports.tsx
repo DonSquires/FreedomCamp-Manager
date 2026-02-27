@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { StatCard } from '@/components/features/StatCard'
 import { FileText, Download, TrendingUp, Users, MapPin, AlertCircle } from 'lucide-react'
 
-export function Reports() {
+export default function Reports() {
   const { user } = useAuthStore()
   const { dateRange, organizationId, zoneId } = useGlobalFiltersStore()
 
