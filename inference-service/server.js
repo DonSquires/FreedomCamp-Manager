@@ -71,6 +71,7 @@ async function loadModels() {
 
   } catch (error) {
     console.error('❌ Model loading failed (service will run in degraded mode):', error.message);
+    if (error.stack) console.error(error.stack);
     console.warn('🧠 Models: NOT LOADED — running in degraded mode (plate scan still works via Plate Recognizer API)');
   }
 }
@@ -289,7 +290,7 @@ loadModels().then(() => {
     if (yoloSession && embeddingSession) {
       console.log(`📡 Ready to process vehicle photos`);
     } else {
-      console.log(`⚠️  Running in degraded mode — /infer endpoint will return 503`);
+      console.log(`⚠️  Running in degraded mode — /infer endpoint will return 503 (plate scan still works via Plate Recognizer API)`);
     }
   });
 });

@@ -9,10 +9,10 @@ FROM python:3.11-slim AS model-exporter
 WORKDIR /export
 
 RUN pip install --no-cache-dir \
-    "ultralytics>=8.0" \
-    "torch>=2.0" \
-    "torchvision>=0.15" \
-    "onnx>=1.14" \
+    "ultralytics>=8.0,<9.0" \
+    "torch>=2.0,<3.0" \
+    "torchvision>=0.15,<1.0" \
+    "onnx>=1.14,<2.0" \
     --extra-index-url https://download.pytorch.org/whl/cpu
 
 COPY scripts/export-models.py scripts/export-models.py
