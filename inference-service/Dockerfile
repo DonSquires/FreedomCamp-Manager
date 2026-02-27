@@ -8,6 +8,13 @@ FROM python:3.11-slim AS model-exporter
 
 WORKDIR /export
 
+# [FIX] Install required system libraries for OpenCV/Ultralytics
+# libgl1 is required for cv2 (graphics), libglib2.0-0 for core python extensions
+RUN apt-get update && apt-get install -y \
+    libgl1 \
+    libglib2.0-0 \
+    && rm -rf /var/lib/apt/lists/*
+
 RUN pip install --no-cache-dir \
     "ultralytics>=8.0,<9.0" \
     "torch>=2.0,<3.0" \
@@ -56,6 +63,11 @@ EXPOSE 3000
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+  CMD node -e "require('http').get('http://localhost:3000/health', (res) => { process.exit(res.statusCode === 200 ? 0 : 1); });"
+
+# Start server
+CMD ["node", "server.js"]
+
   CMD node -e "require('http').get('http://localhost:3000/health', (res) => { process.exit(res.statusCode === 200 ? 0 : 1); });"
 
 # Start server
