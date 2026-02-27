@@ -133,17 +133,21 @@ export function GlobalFilterRibbon({
             <div className="flex items-center gap-2">
               <Building2 className="h-4 w-4 text-gray-500" />
               <Select
-                value={organizationId || ''}
+                value={organizationId || '__all__'}
                 onValueChange={(value) => {
+                  if (value === '__all__') {
+                    setOrganization(null, null)
+                    return
+                  }
                   const org = organizations?.find(o => o.id === value)
-                  setOrganization(value || null, org?.name || null)
+                  setOrganization(value, org?.name || null)
                 }}
               >
                 <SelectTrigger className="w-[200px] h-9">
                   <SelectValue placeholder="All Organizations" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All Organizations</SelectItem>
+                  <SelectItem value="__all__">All Organizations</SelectItem>
                   {organizations?.map((org) => (
                     <SelectItem key={org.id} value={org.id}>
                       {org.name}
@@ -159,17 +163,21 @@ export function GlobalFilterRibbon({
             <div className="flex items-center gap-2">
               <MapPin className="h-4 w-4 text-gray-500" />
               <Select
-                value={zoneId || ''}
+                value={zoneId || '__all__'}
                 onValueChange={(value) => {
+                  if (value === '__all__') {
+                    setZone(null, null)
+                    return
+                  }
                   const zone = zones?.find(z => z.id === value)
-                  setZone(value || null, zone?.name || null)
+                  setZone(value, zone?.name || null)
                 }}
               >
                 <SelectTrigger className="w-[200px] h-9">
                   <SelectValue placeholder="All Zones" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">All Zones</SelectItem>
+                  <SelectItem value="__all__">All Zones</SelectItem>
                   {zones?.map((zone) => (
                     <SelectItem key={zone.id} value={zone.id}>
                       {zone.name}

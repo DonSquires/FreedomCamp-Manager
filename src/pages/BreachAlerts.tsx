@@ -52,8 +52,8 @@ export default function BreachAlerts() {
         .from('breach_alerts')
         .select(`
           *,
-          zone:zones(name),
-          organization:organizations(name)
+          zones!zone_id(name),
+          organizations!organization_id(name)
         `)
         .order('detected_at', { ascending: false })
 
@@ -336,7 +336,7 @@ export default function BreachAlerts() {
                       </Badge>
                     </div>
                     <CardDescription>
-                      {breach.zone.name} • {breach.organization.name}
+                      {(breach.zones as any)?.name || 'Unknown Zone'} • {(breach.organizations as any)?.name || 'Unknown Org'}
                     </CardDescription>
                   </div>
                 </div>
