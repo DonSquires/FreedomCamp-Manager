@@ -1,22 +1,25 @@
+import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { useGlobalFiltersStore } from '@/stores/globalFiltersStore'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { 
   CheckCircle, 
   AlertTriangle, 
   Car, 
-  MapPin, 
   Users, 
-  TrendingUp,
-  TrendingDown,
-  Activity
+  Activity,
+  Brain,
+  RefreshCw
 } from 'lucide-react'
 import { formatDate, formatDateTime } from '@/lib/utils'
 import { AppLayout } from '@/components/features/AppLayout'
 import { GlobalFilterRibbon } from '@/components/features/GlobalFilterRibbon'
+import { analyzeVehiclePhoto } from '@/lib/railwayServices'
+import { toast } from 'sonner'
 
 interface DashboardStats {
   total_observations: number
@@ -31,6 +34,8 @@ interface DashboardStats {
 export default function ComplianceDashboard() {
   const { user } = useAuthStore()
   const { organizationId, dateFrom, dateTo } = useGlobalFiltersStore()
+  const [analyzingPhotos, setAnalyzingPhotos] = useState(false)
+  const [analysisResults, setAnalysisResults] = useState<any>(null)
 
   // Fetch dashboard stats
   const { data: stats, isLoading } = useQuery({
@@ -120,6 +125,56 @@ export default function ComplianceDashboard() {
       }))
     },
   })
+
+  // Railway Integration: Analyze recent vehicle photos with AI
+  const handleAnalyzeRecentPhotos = async () => {
+    setAnalyzingPhotos(true)
+    try {
+      // Get recent observations with photos
+      let query = supabase
+        .from('observations')
+        .select('id, photo_url, plate_number')
+        .not('photo_url', 'is', null)
+        .order('recorded_at', { ascending: false })
+        .limit(5)
+
+      if (user?.role !== 'master' && user?.organization_id) {
+        query = query.eq('organization_id', user.organization_id)
+      } else if (organizationId) {
+        query = query.eq('organization_id', organizationId)
+      }
+
+      const { data: observations, error } = await query
+
+      if (error) throw error
+
+      if (!observations || observations.length === 0) {
+        toast.error('No recent photos to analyze')
+        return
+      }
+
+      // Analyze first photo as demo
+      const firstPhoto = observations[0]
+      const { data, error: analysisError } = await analyzeVehiclePhoto(firstPhoto.photo_url)
+
+      if (analysisError) {
+        toast.error(analysisError)
+        return
+      }
+
+      setAnalysisResults({
+        plate_number: firstPhoto.plate_number,
+        detection: data?.detection,
+        embedding: data?.embedding,
+      })
+
+      toast.success('AI analysis complete')
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to analyze photos')
+    } finally {
+      setAnalyzingPhotos(false)
+    }
+  }
 
   return (
     <AppLayout title="Compliance Dashboard" description="Real-time compliance monitoring and analytics" showBackButton>
@@ -241,6 +296,65 @@ export default function ComplianceDashboard() {
               </CardContent>
             </Card>
           </div>
+
+          {/* Railway Integration: AI Photo Analysis */}
+          <Card className="mb-8">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <Brain className="h-5 w-5" />
+                    AI Photo Analysis
+                  </CardTitle>
+                  <CardDescription>
+                    Analyze vehicle photos using Railway inference service
+                  </CardDescription>
+                </div>
+                <Button
+                  onClick={handleAnalyzeRecentPhotos}
+                  disabled={analyzingPhotos}
+                  size="sm"
+                >
+                  {analyzingPhotos ? (
+                    <>
+                      <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                      Analyzing...
+                    </>
+                  ) : (
+                    <>
+                      <Brain className="h-4 w-4 mr-2" />
+                      Analyze Photos
+                    </>
+                  )}
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {analysisResults ? (
+                <div className="space-y-3 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                  <div>
+                    <span className="font-medium">Plate:</span> {analysisResults.plate_number}
+                  </div>
+                  {analysisResults.detection && (
+                    <div>
+                      <span className="font-medium">Vehicles Detected:</span>{' '}
+                      {analysisResults.detection.vehicle_count}
+                    </div>
+                  )}
+                  {analysisResults.embedding && (
+                    <div>
+                      <span className="font-medium">Embedding Quality:</span>{' '}
+                      {(analysisResults.embedding.embedding_quality * 100).toFixed(1)}%
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="text-center py-8 text-gray-600">
+                  Click "Analyze Photos" to run AI analysis on recent observations
+                </div>
+              )}
+            </CardContent>
+          </Card>
 
           {/* Recent Activity */}
           <Card>

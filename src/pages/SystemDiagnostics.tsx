@@ -2,13 +2,13 @@ import { useState } from 'react'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
-import { checkRailwayServicesHealth } from '@/lib/railway'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
 import { Activity, Database, Server, Shield, RefreshCw, CheckCircle, XCircle, AlertTriangle } from 'lucide-react'
 import { AppLayout } from '@/components/features/AppLayout'
+import { checkProxyHealth, checkInferenceHealth } from '@/lib/railwayServices'
 
 export default function SystemDiagnostics() {
   const { user } = useAuthStore()
@@ -17,12 +17,24 @@ export default function SystemDiagnostics() {
   // Check user role
   const isMaster = user?.role === 'master'
 
-  // Fetch Railway services health
-  const { data: railwayHealth, isLoading: railwayLoading, refetch: refetchRailway } = useQuery({
-    queryKey: ['railway-health'],
-    queryFn: () => checkRailwayServicesHealth(),
+  // Railway Integration: Check Proxy Server Health
+  const { data: proxyHealth, isLoading: proxyLoading, refetch: refetchProxy } = useQuery({
+    queryKey: ['proxy-health'],
+    queryFn: () => checkProxyHealth(),
     refetchInterval: 30000, // Refresh every 30 seconds
   })
+
+  // Railway Integration: Check Inference Service Health
+  const { data: inferenceHealth, isLoading: inferenceLoading, refetch: refetchInference } = useQuery({
+    queryKey: ['inference-health'],
+    queryFn: () => checkInferenceHealth(),
+    refetchInterval: 30000, // Refresh every 30 seconds
+  })
+
+  const refetchRailway = () => {
+    refetchProxy()
+    refetchInference()
+  }
 
   // Check database stats
   const { data: dbStats, isLoading: dbLoading } = useQuery({
@@ -118,18 +130,42 @@ export default function SystemDiagnostics() {
             <CardTitle className="text-lg">Proxy Server</CardTitle>
           </CardHeader>
           <CardContent>
-            {railwayLoading ? (
+            {proxyLoading ? (
               <Badge variant="secondary">Checking...</Badge>
-            ) : railwayHealth?.proxy ? (
-              <Badge variant="default">
-                <CheckCircle className="h-3 w-3 mr-1" />
-                Online
-              </Badge>
+            ) : proxyHealth?.status === 'online' ? (
+              <>
+                <Badge variant="default">
+                  <CheckCircle className="h-3 w-3 mr-1" />
+                  Online
+                </Badge>
+                {proxyHealth.latency_ms && (
+                  <div className="text-xs text-gray-600 mt-1">
+                    Latency: {proxyHealth.latency_ms}ms
+                  </div>
+                )}
+              </>
+            ) : proxyHealth?.status === 'degraded' ? (
+              <>
+                <Badge variant="secondary">
+                  <AlertTriangle className="h-3 w-3 mr-1" />
+                  Degraded
+                </Badge>
+                <div className="text-xs text-red-600 mt-1">
+                  {proxyHealth.error}
+                </div>
+              </>
             ) : (
-              <Badge variant="destructive">
-                <XCircle className="h-3 w-3 mr-1" />
-                Offline
-              </Badge>
+              <>
+                <Badge variant="destructive">
+                  <XCircle className="h-3 w-3 mr-1" />
+                  Offline
+                </Badge>
+                {proxyHealth?.error && (
+                  <div className="text-xs text-red-600 mt-1">
+                    {proxyHealth.error}
+                  </div>
+                )}
+              </>
             )}
             <div className="text-xs text-gray-600 mt-2">
               NZSCV / MotorWeb Gateway
@@ -144,21 +180,45 @@ export default function SystemDiagnostics() {
             <CardTitle className="text-lg">Inference Service</CardTitle>
           </CardHeader>
           <CardContent>
-            {railwayLoading ? (
+            {inferenceLoading ? (
               <Badge variant="secondary">Checking...</Badge>
-            ) : railwayHealth?.inference ? (
-              <Badge variant="default">
-                <CheckCircle className="h-3 w-3 mr-1" />
-                Online
-              </Badge>
+            ) : inferenceHealth?.status === 'online' ? (
+              <>
+                <Badge variant="default">
+                  <CheckCircle className="h-3 w-3 mr-1" />
+                  Online
+                </Badge>
+                {inferenceHealth.latency_ms && (
+                  <div className="text-xs text-gray-600 mt-1">
+                    Latency: {inferenceHealth.latency_ms}ms
+                  </div>
+                )}
+              </>
+            ) : inferenceHealth?.status === 'degraded' ? (
+              <>
+                <Badge variant="secondary">
+                  <AlertTriangle className="h-3 w-3 mr-1" />
+                  Degraded
+                </Badge>
+                <div className="text-xs text-red-600 mt-1">
+                  {inferenceHealth.error}
+                </div>
+              </>
             ) : (
-              <Badge variant="destructive">
-                <XCircle className="h-3 w-3 mr-1" />
-                Offline
-              </Badge>
+              <>
+                <Badge variant="destructive">
+                  <XCircle className="h-3 w-3 mr-1" />
+                  Offline
+                </Badge>
+                {inferenceHealth?.error && (
+                  <div className="text-xs text-red-600 mt-1">
+                    {inferenceHealth.error}
+                  </div>
+                )}
+              </>
             )}
             <div className="text-xs text-gray-600 mt-2">
-              Vehicle Photo Analysis
+              YOLOv8 Vehicle Detection
             </div>
           </CardContent>
         </Card>

@@ -14,12 +14,15 @@ import {
   XCircle, 
   Search,
   Bell,
-  FileText
+  FileText,
+  Database,
+  RefreshCw
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatDateTime } from '@/lib/utils'
 import { AppLayout } from '@/components/features/AppLayout'
 import { GlobalFilterRibbon } from '@/components/features/GlobalFilterRibbon'
+import { enrichVehicleFromMotorWeb } from '@/lib/railwayServices'
 
 interface BreachAlert {
   id: string
@@ -38,6 +41,7 @@ export default function BreachAlerts() {
   const { organizationId, zoneId, dateFrom, dateTo } = useGlobalFiltersStore()
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('all')
+  const [enrichingVehicle, setEnrichingVehicle] = useState<string | null>(null)
   const queryClient = useQueryClient()
 
   // Fetch breach alerts
@@ -163,6 +167,48 @@ export default function BreachAlerts() {
       nights_exceeded: 'Nights Exceeded',
     }
     return labels[type] || type
+  }
+
+  // Railway Integration: Enrich vehicle from MotorWeb
+  const handleEnrichVehicle = async (plateNumber: string) => {
+    setEnrichingVehicle(plateNumber)
+    try {
+      const { data, error } = await enrichVehicleFromMotorWeb(plateNumber)
+      
+      if (error) {
+        toast.error(error)
+        return
+      }
+
+      if (data) {
+        // Update vehicle in database
+        const { error: updateError } = await supabase
+          .from('canonical_vehicles')
+          .update({
+            make: data.make,
+            model: data.model,
+            year: data.year,
+            colour: data.colour,
+            body_style: data.body_style,
+            owner_first_name: data.owner_name?.split(' ')[0],
+            owner_last_name: data.owner_name?.split(' ').slice(1).join(' '),
+            owner_address: data.owner_address,
+          })
+          .eq('plate_number', plateNumber)
+
+        if (updateError) {
+          toast.error('Failed to update vehicle data')
+          return
+        }
+
+        toast.success('Vehicle data enriched from MotorWeb')
+        queryClient.invalidateQueries({ queryKey: ['breach-alerts'] })
+      }
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to enrich from MotorWeb')
+    } finally {
+      setEnrichingVehicle(null)
+    }
   }
 
   return (
@@ -308,6 +354,32 @@ export default function BreachAlerts() {
                           Detected: {formatDateTime(breach.detected_at)}
                         </p>
                       </div>
+                    </div>
+                  </div>
+
+                  {/* Railway Integration: MotorWeb Enrichment Button */}
+                  <div className="mb-3 p-3 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleEnrichVehicle(breach.plate_number)}
+                      disabled={enrichingVehicle === breach.plate_number}
+                      className="w-full"
+                    >
+                      {enrichingVehicle === breach.plate_number ? (
+                        <>
+                          <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                          Enriching from MotorWeb...
+                        </>
+                      ) : (
+                        <>
+                          <Database className="h-4 w-4 mr-2" />
+                          Enrich Vehicle Data (MotorWeb)
+                        </>
+                      )}
+                    </Button>
+                    <div className="text-xs text-gray-600 mt-1 text-center">
+                      Pull owner details and vehicle specs
                     </div>
                   </div>
 
