@@ -10,8 +10,11 @@ import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { AppLayout } from '@/components/features/AppLayout'
 import { GlobalFilterRibbon } from '@/components/features/GlobalFilterRibbon'
-import { Search, Car, AlertTriangle, CheckCircle, Calendar } from 'lucide-react'
+import { LoadingSpinner } from '@/components/features/LoadingSpinner'
+import { Search, Car, AlertTriangle, CheckCircle, Calendar, RefreshCw, Database } from 'lucide-react'
 import { formatDateTime } from '@/lib/utils'
+import { checkNZSCVCertification, enrichVehicleFromMotorWeb } from '@/lib/railwayServices'
+import { toast } from 'sonner'
 
 interface Vehicle {
   id: string
@@ -38,6 +41,9 @@ export default function VehicleManagement() {
   const [statusFilter, setStatusFilter] = useState<'all' | 'compliant' | 'breaches'>('all')
   const [showDetailsDialog, setShowDetailsDialog] = useState(false)
   const [selectedVehicle, setSelectedVehicle] = useState<Vehicle | null>(null)
+  const [checkingNZSCV, setCheckingNZSCV] = useState(false)
+  const [enrichingMotorWeb, setEnrichingMotorWeb] = useState(false)
+  const [nzscvResult, setNzscvResult] = useState<any>(null)
 
   // Fetch vehicles
   const { data: vehicles, isLoading } = useQuery({
@@ -68,6 +74,76 @@ export default function VehicleManagement() {
   const openDetails = (vehicle: Vehicle) => {
     setSelectedVehicle(vehicle)
     setShowDetailsDialog(true)
+    setNzscvResult(null) // Reset NZSCV result when opening new vehicle
+  }
+
+  // Check NZSCV certification
+  const handleCheckNZSCV = async (plateNumber: string) => {
+    setCheckingNZSCV(true)
+    try {
+      const { data, error } = await checkNZSCVCertification(plateNumber)
+      
+      if (error) {
+        toast.error(error)
+        return
+      }
+
+      if (data) {
+        setNzscvResult(data)
+        toast.success(
+          data.is_certified 
+            ? `✓ Self-Contained Certification Found (${data.warrant_type})` 
+            : 'No certification found'
+        )
+      }
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to check NZSCV status')
+    } finally {
+      setCheckingNZSCV(false)
+    }
+  }
+
+  // Enrich from MotorWeb
+  const handleEnrichMotorWeb = async (plateNumber: string) => {
+    setEnrichingMotorWeb(true)
+    try {
+      const { data, error } = await enrichVehicleFromMotorWeb(plateNumber)
+      
+      if (error) {
+        toast.error(error)
+        return
+      }
+
+      if (data) {
+        // Update vehicle in database with enriched data
+        const { error: updateError } = await supabase
+          .from('canonical_vehicles')
+          .update({
+            make: data.make,
+            model: data.model,
+            year: data.year,
+            colour: data.colour,
+            body_style: data.body_style,
+            owner_first_name: data.owner_name?.split(' ')[0],
+            owner_last_name: data.owner_name?.split(' ').slice(1).join(' '),
+            owner_address: data.owner_address,
+          })
+          .eq('plate_number', plateNumber)
+
+        if (updateError) {
+          toast.error('Failed to update vehicle data')
+          return
+        }
+
+        toast.success('Vehicle data enriched from MotorWeb')
+        // Refresh the vehicles list
+        // You may want to invalidate the query here
+      }
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to enrich from MotorWeb')
+    } finally {
+      setEnrichingMotorWeb(false)
+    }
   }
 
   // Calculate stats
@@ -371,6 +447,88 @@ export default function VehicleManagement() {
                   </div>
                 </div>
               )}
+
+              {/* Railway Integration: NZSCV Check */}
+              <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="text-sm font-semibold">NZSCV Certification Check</div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleCheckNZSCV(selectedVehicle.plate_number)}
+                    disabled={checkingNZSCV}
+                  >
+                    {checkingNZSCV ? (
+                      <>
+                        <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                        Checking...
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle className="h-4 w-4 mr-2" />
+                        Check Warrant
+                      </>
+                    )}
+                  </Button>
+                </div>
+
+                {nzscvResult && (
+                  <div className="text-sm space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-gray-600">Status:</span>
+                      <Badge variant={nzscvResult.is_certified ? "default" : "secondary"}>
+                        {nzscvResult.is_certified ? 'Certified' : 'Not Certified'}
+                      </Badge>
+                    </div>
+                    {nzscvResult.warrant_type && (
+                      <div className="flex items-center gap-2">
+                        <span className="text-gray-600">Warrant Type:</span>
+                        <Badge variant="outline">
+                          {nzscvResult.warrant_type === 'green' ? '🟢 Green' : '🔵 Blue'}
+                        </Badge>
+                      </div>
+                    )}
+                    {nzscvResult.warrant_number && (
+                      <div className="text-gray-600">
+                        Warrant #: {nzscvResult.warrant_number}
+                      </div>
+                    )}
+                    {nzscvResult.expires_on && (
+                      <div className="text-gray-600">
+                        Expires: {new Date(nzscvResult.expires_on).toLocaleDateString()}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Railway Integration: MotorWeb Enrichment */}
+              <div className="p-4 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
+                <div className="flex items-center justify-between">
+                  <div className="text-sm font-semibold">MotorWeb Data Enrichment</div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleEnrichMotorWeb(selectedVehicle.plate_number)}
+                    disabled={enrichingMotorWeb}
+                  >
+                    {enrichingMotorWeb ? (
+                      <>
+                        <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                        Enriching...
+                      </>
+                    ) : (
+                      <>
+                        <Database className="h-4 w-4 mr-2" />
+                        Enrich Data
+                      </>
+                    )}
+                  </Button>
+                </div>
+                <div className="text-xs text-gray-600 mt-2">
+                  Pull vehicle details, owner info, and more from MotorWeb database
+                </div>
+              </div>
 
               {/* Action Buttons */}
               <div className="flex gap-2 pt-4 border-t">
