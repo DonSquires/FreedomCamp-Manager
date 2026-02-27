@@ -20,6 +20,10 @@ import TestDashboard from '@/pages/TestDashboard'
 import { NetworkStatusBar } from '@/components/features/NetworkStatusBar'
 import { PWAInstallPrompt } from '@/components/features/PWAInstallPrompt'
 
+// Add your two new pages
+import ComplianceRecalculation from '@/pages/ComplianceRecalculation'
+import LiveOfficerTracking from '@/pages/LiveOfficerTracking'
+
 // Create a client
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -227,6 +231,30 @@ export default function App() {
               <ProtectedRoute>
                 <RoleRoute allowedRoles={['master']}>
                   <TestDashboard />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          {/* --- NEW ROUTES ADDED BELOW --- */}
+
+          <Route
+            path="/compliance-recalculation"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'master']}>
+                  <ComplianceRecalculation />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/live-tracking"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'master']}>
+                  <LiveOfficerTracking />
                 </RoleRoute>
               </ProtectedRoute>
             }
