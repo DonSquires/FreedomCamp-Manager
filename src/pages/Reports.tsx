@@ -1,83 +1,140 @@
-import { useQuery } from '@tanstack/react-query'
+import { useState } from 'react'
+import { useQuery, useMutation } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { useGlobalFiltersStore } from '@/stores/globalFiltersStore'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { StatCard } from '@/components/features/StatCard'
-import { FileText, Download, TrendingUp, Users, MapPin, AlertCircle } from 'lucide-react'
+import { FileText, Download, TrendingUp, Users, MapPin, AlertCircle, Clock, CheckCircle } from 'lucide-react'
 import { AppLayout } from '@/components/features/AppLayout'
+import { GlobalFilterRibbon } from '@/components/features/GlobalFilterRibbon'
+import { toast } from 'sonner'
+import { formatDateTime } from '@/lib/utils'
 
 export default function Reports() {
   const { user } = useAuthStore()
-  const { dateRange, organizationId, zoneId } = useGlobalFiltersStore()
+  const { organizationId, zoneId, dateFrom, dateTo } = useGlobalFiltersStore()
+  const [generatingReport, setGeneratingReport] = useState<string | null>(null)
 
   // Fetch report statistics
   const { data: stats, isLoading } = useQuery({
-    queryKey: ['report-stats', dateRange, organizationId, zoneId],
+    queryKey: ['report-stats', organizationId, zoneId, dateFrom, dateTo],
     queryFn: async () => {
-      // Get compliance statistics
-      const { data: complianceData } = await supabase.rpc('get_compliance_statistics', {
-        start_date: dateRange.from?.toISOString(),
-        end_date: dateRange.to?.toISOString(),
-        org_id: organizationId,
-        zone_id: zoneId,
-      })
-
       // Get observation count
       let obsQuery = supabase
         .from('observations')
-        .select('id', { count: 'exact', head: true })
+        .select('id, is_compliant', { count: 'exact' })
         .is('deleted_at', null)
 
-      if (dateRange.from) {
-        obsQuery = obsQuery.gte('recorded_at', dateRange.from.toISOString())
-      }
-      if (dateRange.to) {
-        obsQuery = obsQuery.lte('recorded_at', dateRange.to.toISOString())
-      }
-      if (organizationId) {
+      if (user?.role !== 'master' && user?.organization_id) {
+        obsQuery = obsQuery.eq('organization_id', user.organization_id)
+      } else if (organizationId) {
         obsQuery = obsQuery.eq('organization_id', organizationId)
+      }
+
+      if (dateFrom) {
+        obsQuery = obsQuery.gte('recorded_at', dateFrom)
+      }
+      if (dateTo) {
+        obsQuery = obsQuery.lte('recorded_at', dateTo)
       }
       if (zoneId) {
         obsQuery = obsQuery.eq('zone_id', zoneId)
       }
 
-      const { count: observationCount } = await obsQuery
+      const { data: observations, count: observationCount } = await obsQuery
+
+      const compliantCount = observations?.filter(o => o.is_compliant).length || 0
+      const complianceRate = observationCount && observationCount > 0 
+        ? (compliantCount / observationCount) * 100 
+        : 0
 
       // Get enforcement count
       let enforcementQuery = supabase
         .from('enforcement_actions')
         .select('id', { count: 'exact', head: true })
 
-      if (dateRange.from) {
-        enforcementQuery = enforcementQuery.gte('recorded_at', dateRange.from.toISOString())
-      }
-      if (dateRange.to) {
-        enforcementQuery = enforcementQuery.lte('recorded_at', dateRange.to.toISOString())
-      }
-      if (organizationId) {
+      if (user?.role !== 'master' && user?.organization_id) {
+        enforcementQuery = enforcementQuery.eq('organization_id', user.organization_id)
+      } else if (organizationId) {
         enforcementQuery = enforcementQuery.eq('organization_id', organizationId)
+      }
+
+      if (dateFrom) {
+        enforcementQuery = enforcementQuery.gte('created_at', dateFrom)
+      }
+      if (dateTo) {
+        enforcementQuery = enforcementQuery.lte('created_at', dateTo)
       }
 
       const { count: enforcementCount } = await enforcementQuery
 
+      // Get zone count
+      let zoneQuery = supabase
+        .from('zones')
+        .select('id', { count: 'exact', head: true })
+        .eq('is_active', true)
+
+      if (user?.role !== 'master' && user?.organization_id) {
+        zoneQuery = zoneQuery.eq('organization_id', user.organization_id)
+      } else if (organizationId) {
+        zoneQuery = zoneQuery.eq('organization_id', organizationId)
+      }
+
+      const { count: zoneCount } = await zoneQuery
+
       return {
         observations: observationCount || 0,
         enforcement: enforcementCount || 0,
-        compliance: complianceData || {},
+        compliance_rate: complianceRate,
+        zones: zoneCount || 0,
       }
     },
   })
 
-  // Generate report mutation (placeholder)
+  // Generate report mutation
+  const generateReportMutation = useMutation({
+    mutationFn: async (reportType: string) => {
+      setGeneratingReport(reportType)
+      
+      // Call edge function to generate PDF
+      const { data, error } = await supabase.functions.invoke('generate-dashboard-report', {
+        body: {
+          report_type: reportType,
+          organization_id: organizationId || user?.organization_id,
+          zone_id: zoneId,
+          start_date: dateFrom,
+          end_date: dateTo,
+        },
+      })
+
+      if (error) throw error
+      return data
+    },
+    onSuccess: (data, reportType) => {
+      toast.success(`${reportType} report generated successfully`)
+      
+      // Download the PDF if URL is returned
+      if (data?.url) {
+        window.open(data.url, '_blank')
+      }
+      
+      setGeneratingReport(null)
+    },
+    onError: (error: any, reportType) => {
+      toast.error(`Failed to generate ${reportType} report: ${error.message}`)
+      setGeneratingReport(null)
+    },
+  })
+
   const handleGenerateReport = (reportType: string) => {
-    console.log('Generating report:', reportType)
-    // This would call an edge function to generate the report
+    generateReportMutation.mutate(reportType)
   }
 
   return (
     <AppLayout title="Reports" description="Generate compliance and enforcement reports" showBackButton>
+      <GlobalFilterRibbon />
 
       {/* Quick Stats */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -95,13 +152,13 @@ export default function Reports() {
         />
         <StatCard
           title="Compliance Rate"
-          value={stats?.compliance?.rate ? `${stats.compliance.rate}%` : '0%'}
-          icon={Users}
-          variant={stats?.compliance?.rate > 80 ? 'success' : 'warning'}
+          value={`${stats?.compliance_rate?.toFixed(1) || 0}%`}
+          icon={CheckCircle}
+          variant={stats?.compliance_rate && stats.compliance_rate > 80 ? 'success' : 'warning'}
         />
         <StatCard
           title="Active Zones"
-          value={stats?.compliance?.zones || 0}
+          value={stats?.zones || 0}
           icon={MapPin}
           description="monitored zones"
         />
@@ -128,10 +185,19 @@ export default function Reports() {
             <Button
               onClick={() => handleGenerateReport('compliance')}
               className="w-full"
-              disabled
+              disabled={generatingReport === 'compliance'}
             >
-              <Download className="h-4 w-4 mr-2" />
-              Generate Report
+              {generatingReport === 'compliance' ? (
+                <>
+                  <Clock className="h-4 w-4 mr-2 animate-spin" />
+                  Generating...
+                </>
+              ) : (
+                <>
+                  <Download className="h-4 w-4 mr-2" />
+                  Generate PDF
+                </>
+              )}
             </Button>
           </CardContent>
         </Card>
@@ -155,10 +221,19 @@ export default function Reports() {
             <Button
               onClick={() => handleGenerateReport('enforcement')}
               className="w-full"
-              disabled
+              disabled={generatingReport === 'enforcement'}
             >
-              <Download className="h-4 w-4 mr-2" />
-              Generate Report
+              {generatingReport === 'enforcement' ? (
+                <>
+                  <Clock className="h-4 w-4 mr-2 animate-spin" />
+                  Generating...
+                </>
+              ) : (
+                <>
+                  <Download className="h-4 w-4 mr-2" />
+                  Generate PDF
+                </>
+              )}
             </Button>
           </CardContent>
         </Card>
@@ -182,10 +257,19 @@ export default function Reports() {
             <Button
               onClick={() => handleGenerateReport('vehicle-activity')}
               className="w-full"
-              disabled
+              disabled={generatingReport === 'vehicle-activity'}
             >
-              <Download className="h-4 w-4 mr-2" />
-              Generate Report
+              {generatingReport === 'vehicle-activity' ? (
+                <>
+                  <Clock className="h-4 w-4 mr-2 animate-spin" />
+                  Generating...
+                </>
+              ) : (
+                <>
+                  <Download className="h-4 w-4 mr-2" />
+                  Generate PDF
+                </>
+              )}
             </Button>
           </CardContent>
         </Card>
@@ -209,10 +293,19 @@ export default function Reports() {
             <Button
               onClick={() => handleGenerateReport('zone-stats')}
               className="w-full"
-              disabled
+              disabled={generatingReport === 'zone-stats'}
             >
-              <Download className="h-4 w-4 mr-2" />
-              Generate Report
+              {generatingReport === 'zone-stats' ? (
+                <>
+                  <Clock className="h-4 w-4 mr-2 animate-spin" />
+                  Generating...
+                </>
+              ) : (
+                <>
+                  <Download className="h-4 w-4 mr-2" />
+                  Generate PDF
+                </>
+              )}
             </Button>
           </CardContent>
         </Card>

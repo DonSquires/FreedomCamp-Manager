@@ -35,7 +35,7 @@ import {
 import { formatDateTime, formatDate } from '@/lib/utils'
 import { AppLayout } from '@/components/features/AppLayout'
 import { GlobalFilterRibbon } from '@/components/features/GlobalFilterRibbon'
-import { uploadToSupabase } from '@/lib/fileUpload'
+import { uploadFile } from '@/lib/fileUpload'
 
 interface UserProfile {
   id: string
@@ -241,11 +241,17 @@ export default function UserManagement() {
     try {
       setUploadingCOA(true)
       const path = `credentials/${selectedUser.id}/coa_${Date.now()}.pdf`
-      const publicUrl = await uploadToSupabase(file, 'evidence', path)
+      const result = await uploadFile({
+        bucket: 'evidence',
+        path,
+        file
+      })
+
+      if (result.error) throw new Error(result.error)
 
       const { error } = await supabase
         .from('user_profiles')
-        .update({ coa_document_url: publicUrl })
+        .update({ coa_document_url: result.url })
         .eq('id', selectedUser.id)
 
       if (error) throw error
@@ -266,11 +272,17 @@ export default function UserManagement() {
     try {
       setUploadingWarrant(true)
       const path = `credentials/${selectedUser.id}/warrant_${Date.now()}.pdf`
-      const publicUrl = await uploadToSupabase(file, 'evidence', path)
+      const result = await uploadFile({
+        bucket: 'evidence',
+        path,
+        file
+      })
+
+      if (result.error) throw new Error(result.error)
 
       const { error } = await supabase
         .from('user_profiles')
-        .update({ warrant_document_url: publicUrl })
+        .update({ warrant_document_url: result.url })
         .eq('id', selectedUser.id)
 
       if (error) throw error
