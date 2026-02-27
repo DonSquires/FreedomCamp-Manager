@@ -221,7 +221,7 @@ export function CameraCapture({
 
       {/* Top controls */}
       {showControls && (
-        <div className="absolute top-0 left-0 right-0 p-4 bg-gradient-to-b from-black/50 to-transparent">
+        <div className="absolute top-0 left-0 right-0 p-4 bg-gradient-to-b from-black/50 to-transparent z-10">
           <div className="flex items-center justify-between">
             {/* Flash toggle */}
             {hasFlash && (
@@ -260,7 +260,7 @@ export function CameraCapture({
 
       {/* Bottom controls */}
       {showControls && (
-        <div className="absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-black/50 to-transparent">
+        <div className="absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-black/50 to-transparent z-10">
           <div className="flex items-center justify-center gap-6">
             {/* Flip camera */}
             <Button
@@ -312,11 +312,14 @@ export function CameraCapture({
         </div>
       )}
 
-      {/* Tap to focus overlay */}
+      {/* Tap to focus overlay - only covers center area, not buttons */}
       <div
         className="absolute inset-0"
         onClick={triggerFocus}
-        style={{ WebkitTapHighlightColor: 'transparent' }}
+        style={{ 
+          WebkitTapHighlightColor: 'transparent',
+          pointerEvents: 'none' // Don't block button clicks
+        }}
       />
     </div>
   )
