@@ -147,10 +147,6 @@ async function downloadModels() {
       console.log(`✅ ${model.name} validated (${(downloadedSize / 1024 / 1024).toFixed(1)} MB)`);
     } catch (error) {
       console.error(`❌ Failed to download ${model.name}:`, error.message);
-      console.error(`\n💡 Pre-built ONNX download URLs may no longer be available.`);
-      console.error(`   Use the Python export script instead:`);
-      console.error(`   pip install ultralytics torch torchvision onnx --extra-index-url https://download.pytorch.org/whl/cpu`);
-      console.error(`   python scripts/export-models.py\n`);
       process.exit(1);
     }
   }
