@@ -229,7 +229,7 @@ export default function FieldOfficerPortal() {
       ) : (
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           {/* Quick Action Cards */}
-          <Card className="hover:shadow-lg transition-shadow cursor-pointer" onClick={handleStartScanner}>
+          <Card className="hover:shadow-lg transition-shadow">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <div className="p-2 bg-blue-100 dark:bg-blue-900 rounded-lg">
@@ -242,7 +242,11 @@ export default function FieldOfficerPortal() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <Button className="w-full" disabled={isProcessing}>
+              <Button 
+                className="w-full" 
+                onClick={handleStartScanner}
+                disabled={isProcessing}
+              >
                 {isProcessing ? 'Processing...' : 'Open Scanner'}
               </Button>
             </CardContent>
@@ -261,7 +265,11 @@ export default function FieldOfficerPortal() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <Button className="w-full" variant="outline">
+              <Button 
+                className="w-full" 
+                variant="outline"
+                onClick={() => toast.info('Patrol management coming soon')}
+              >
                 Start Patrol
               </Button>
             </CardContent>
@@ -280,13 +288,17 @@ export default function FieldOfficerPortal() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <Button className="w-full" variant="outline">
+              <Button 
+                className="w-full" 
+                variant="outline"
+                onClick={() => navigate('/incidents')}
+              >
                 New Report
               </Button>
             </CardContent>
           </Card>
 
-          <Card className="hover:shadow-lg transition-shadow cursor-pointer" onClick={() => navigate('/compliance')}>
+          <Card className="hover:shadow-lg transition-shadow">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <div className="p-2 bg-orange-100 dark:bg-orange-900 rounded-lg">
@@ -299,13 +311,17 @@ export default function FieldOfficerPortal() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <Button className="w-full" variant="outline">
+              <Button 
+                className="w-full" 
+                variant="outline"
+                onClick={() => navigate('/compliance')}
+              >
                 View History
               </Button>
             </CardContent>
           </Card>
 
-          <Card className="hover:shadow-lg transition-shadow cursor-pointer" onClick={() => navigate('/breaches')}>
+          <Card className="hover:shadow-lg transition-shadow">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <div className="p-2 bg-red-100 dark:bg-red-900 rounded-lg">
@@ -318,13 +334,17 @@ export default function FieldOfficerPortal() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <Button className="w-full" variant="outline">
+              <Button 
+                className="w-full" 
+                variant="outline"
+                onClick={() => navigate('/breaches')}
+              >
                 View Alerts
               </Button>
             </CardContent>
           </Card>
 
-          <Card className="hover:shadow-lg transition-shadow cursor-pointer" onClick={() => navigate('/zones')}>
+          <Card className="hover:shadow-lg transition-shadow">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <div className="p-2 bg-teal-100 dark:bg-teal-900 rounded-lg">
@@ -337,7 +357,11 @@ export default function FieldOfficerPortal() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <Button className="w-full" variant="outline">
+              <Button 
+                className="w-full" 
+                variant="outline"
+                onClick={() => navigate('/zones')}
+              >
                 View Zones
               </Button>
             </CardContent>
