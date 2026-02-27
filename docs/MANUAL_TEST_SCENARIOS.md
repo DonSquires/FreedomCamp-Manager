@@ -1,471 +1,665 @@
-# Manual Testing Scenarios
+# Manual Test Scenarios
 
-This document provides detailed step-by-step test scenarios for manually verifying critical workflows in the FreedomCamp Manager application.
+**FreedomCamp Manager - User Acceptance Testing**
 
----
-
-## 🎯 Testing Principles
-
-- **Test with real production data** (Supabase backup already restored)
-- **Use multiple user roles** (admin, officer, master)
-- **Test on multiple devices** (desktop, mobile, tablet)
-- **Test offline scenarios** (airplane mode, poor connectivity)
-- **Verify data integrity** (no lost observations, correct compliance calculations)
+Step-by-step test scenarios for manual validation of all features.
 
 ---
 
-## 📱 Scenario 1: Field Officer - Complete Scanning Workflow
+## Test User Setup
 
-**Goal:** Verify end-to-end scanning from camera to database
+Create 4 test users with different roles:
 
-**User Role:** Officer  
-**Prerequisites:** 
-- Logged in as officer
-- GPS enabled on device
-- Camera permissions granted
-
-### Steps:
-
-1. **Navigate to Field Officer Portal**
-   - [ ] Login page loads
-   - [ ] Enter officer credentials
-   - [ ] Click "Login"
-   - [ ] Redirected to Field Officer Portal
-
-2. **Start Scan**
-   - [ ] Click "Scan Plate" button
-   - [ ] Camera permission prompt appears (if first time)
-   - [ ] Grant camera permission
-   - [ ] Camera feed displays in PlateScanner component
-
-3. **Capture Photo**
-   - [ ] Point camera at vehicle registration plate
-   - [ ] Click "Capture Photo" button
-   - [ ] Photo captured and displayed
-   - [ ] "Process Scan" and "Retake" buttons appear
-
-4. **Process Scan**
-   - [ ] Click "Process Scan"
-   - [ ] Loading indicator shows "Processing..."
-   - [ ] GPS location acquired
-   - [ ] Photo uploaded to evidence bucket
-   - [ ] ALPR processing completes (plate number detected)
-   - [ ] Success message shows detected plate number
-
-5. **Verify Data Created**
-   - [ ] Check observations table in Supabase
-   - [ ] New observation created with correct:
-     - plate_number
-     - photo_url
-     - gps_latitude / gps_longitude
-     - recorded_by (officer user ID)
-     - zone_id (auto-detected from GPS)
-   - [ ] Canonical vehicle created/updated
-   - [ ] Compliance result created
-   - [ ] Monthly stays updated
-
-6. **Check Breach Detection**
-   - [ ] If breach detected, verify breach_alerts table
-   - [ ] Breach alert shows correct breach_type
-   - [ ] Notification sent (if configured)
-
-**Expected Result:** Complete observation record with photo evidence, GPS coordinates, and compliance evaluation
+| Email | Role | Organization | Purpose |
+|-------|------|--------------|---------|
+| master@test.com | Master | - | Full system access |
+| admin@org1.com | Admin | Organization 1 | Org 1 administration |
+| officer@org1.com | Officer | Organization 1 | Field operations |
+| admin@org2.com | Admin | Organization 2 | Org isolation testing |
 
 ---
 
-## 🚨 Scenario 2: Admin - Breach Alert Management
+## Scenario 1: Officer Daily Workflow
 
-**Goal:** Verify admin can view, assign, and resolve breach alerts
+**Actor:** Officer (officer@org1.com)
 
-**User Role:** Admin  
-**Prerequisites:** 
-- Logged in as admin
-- At least one pending breach alert exists
+### Morning Login
+1. Open app: `https://your-app.onspace.app`
+2. Login with email and password
+3. Verify dashboard loads
+4. Check notification bell (should be empty)
 
-### Steps:
+**Expected:**
+- ✅ Login successful
+- ✅ Dashboard shows today's date
+- ✅ Navigation menu accessible
+- ✅ No error messages
 
-1. **Navigate to Breach Alerts**
-   - [ ] Click "Breach Alerts" in navigation
-   - [ ] Breach Alerts page loads
-   - [ ] List of breach alerts displays
+### Start Patrol
+1. Click "Field Officer Portal" from navigation
+2. Click "Active Patrol" card
+3. Click "Start Patrol"
+4. Allow location permissions
 
-2. **Filter Breach Alerts**
-   - [ ] Filter by status: "Pending"
-   - [ ] Only pending alerts shown
-   - [ ] Filter by breach type: "No CSC"
-   - [ ] Only "No CSC" breaches shown
+**Expected:**
+- ✅ GPS coordinates captured
+- ✅ Patrol status shows "In Progress"
+- ✅ Current location shown on map
+- ✅ Patrol timer starts
 
-3. **View Breach Details**
-   - [ ] Click on a breach alert card
-   - [ ] Modal/drawer opens with full details
-   - [ ] Vehicle information displayed
-   - [ ] Zone information displayed
-   - [ ] Evidence photo displayed
-   - [ ] Compliance history shown
+### Scan First Vehicle
+1. Click "Scan Vehicle" card
+2. PlateScanner opens
+3. Click "Manual Entry"
+4. Enter plate: `ABC123`
+5. Select zone: "Beach Reserve"
+6. Take photo (optional)
+7. Click "Submit"
 
-4. **Assign Breach to Officer**
-   - [ ] Click "Assign" button
-   - [ ] Officer selection dropdown appears
-   - [ ] Select an officer from list
-   - [ ] Click "Confirm Assignment"
-   - [ ] Success message shows
-   - [ ] Breach status updates to "Assigned"
-   - [ ] Officer receives notification (if configured)
+**Expected:**
+- ✅ Plate validated (uppercase)
+- ✅ Zone required before submit
+- ✅ GPS auto-captured
+- ✅ Photo uploaded if taken
+- ✅ Toast: "Vehicle scanned successfully"
+- ✅ Scanner closes
 
-5. **Resolve Breach**
-   - [ ] Click "Resolve" button
-   - [ ] Resolution modal appears
-   - [ ] Enter resolution notes
-   - [ ] Select resolution outcome (complied, warning issued, etc.)
-   - [ ] Click "Confirm Resolution"
-   - [ ] Breach status updates to "Resolved"
-   - [ ] Resolution timestamp recorded
+### Scan Second Vehicle (with camera)
+1. Click "Scan Vehicle" again
+2. Click "Camera Capture"
+3. Allow camera permission
+4. Take photo of vehicle plate
+5. Wait for OCR processing (2-3 seconds)
+6. Verify detected plate appears: `DEF456`
+7. Correct if needed
+8. Select zone
+9. Submit
 
-6. **Verify Audit Trail**
-   - [ ] Check audit_log table in Supabase
-   - [ ] Assignment action logged
-   - [ ] Resolution action logged
-   - [ ] User ID and timestamp correct
+**Expected:**
+- ✅ Camera opens
+- ✅ Photo captured
+- ✅ OCR detects plate automatically
+- ✅ Railway inference service called
+- ✅ Confidence score shown
+- ✅ Observation created with photo
 
-**Expected Result:** Breach alert successfully assigned and resolved with complete audit trail
+### Check Scan History
+1. Click "My Scans" card
+2. View today's scans
+3. Verify 2 vehicles listed
 
----
+**Expected:**
+- ✅ Shows both ABC123 and DEF456
+- ✅ Timestamps correct (NZ timezone)
+- ✅ Zones correct
+- ✅ Compliance status shown
 
-## 📊 Scenario 3: Admin - Compliance Dashboard
+### Scan Non-Compliant Vehicle
+1. Scan vehicle: `BREACH1`
+2. Zone: "Restricted Zone"
+3. System detects overstay
+4. Submit
 
-**Goal:** Verify dashboard displays accurate statistics and responds to filters
+**Expected:**
+- ✅ Observation created
+- ✅ Compliance check runs
+- ✅ Breach detected
+- ✅ Toast: "Non-compliant vehicle detected"
+- ✅ Breach alert created for admin
 
-**User Role:** Admin  
-**Prerequisites:** 
-- Logged in as admin
-- Multiple observations exist across different zones
+### Report Incident
+1. Click "Create Report" card
+2. Select incident type: "Health & Safety"
+3. Enter description: "Broken glass in parking area"
+4. Take photo of hazard
+5. Mark location on map
+6. Submit
 
-### Steps:
+**Expected:**
+- ✅ Report created
+- ✅ Photo uploaded
+- ✅ GPS coordinates saved
+- ✅ Admin notified
+- ✅ Toast confirmation
 
-1. **Navigate to Compliance Dashboard**
-   - [ ] Click "Compliance Dashboard" in navigation
-   - [ ] Dashboard page loads
-   - [ ] KPI tiles display with numbers
+### End Patrol
+1. Click "Active Patrol"
+2. Click "End Patrol"
+3. Confirm
 
-2. **Verify KPI Tiles**
-   - [ ] Total Vehicles tile shows correct count
-   - [ ] Total Observations tile shows correct count
-   - [ ] Active Breaches tile shows pending breaches count
-   - [ ] Compliance Rate tile shows percentage (0-100%)
+**Expected:**
+- ✅ Patrol status changes to "Completed"
+- ✅ End time recorded
+- ✅ Total observations counted
+- ✅ GPS tracking stopped
 
-3. **Apply Date Range Filter**
-   - [ ] Click date range picker in GlobalFilterRibbon
-   - [ ] Select "Last 7 Days"
-   - [ ] KPI tiles update
-   - [ ] Data refreshes to show only last 7 days
+### Afternoon Logout
+1. Click profile menu
+2. Click "Logout"
 
-4. **Apply Zone Filter**
-   - [ ] Select a specific zone from zone dropdown
-   - [ ] KPI tiles update
-   - [ ] Data shows only selected zone
-
-5. **View Charts/Graphs** (if implemented)
-   - [ ] Compliance trend chart displays
-   - [ ] Breach type breakdown chart displays
-   - [ ] Data matches selected filters
-
-6. **Verify Data Accuracy**
-   - [ ] Manually query Supabase for same filters
-   - [ ] Compare counts with dashboard
-   - [ ] Confirm accuracy
-
-**Expected Result:** Dashboard displays real-time, accurate statistics that update correctly when filters applied
-
----
-
-## 🚗 Scenario 4: Admin - Vehicle Management
-
-**Goal:** Verify vehicle search, view, and update functionality
-
-**User Role:** Admin  
-**Prerequisites:** 
-- Logged in as admin
-- Multiple vehicles in database
-
-### Steps:
-
-1. **Navigate to Vehicle Management**
-   - [ ] Click "Vehicle Management" in navigation
-   - [ ] Vehicle list loads
-   - [ ] VehicleCard components display
-
-2. **Search for Vehicle**
-   - [ ] Type plate number in search box (e.g., "ABC123")
-   - [ ] List filters to matching vehicles
-   - [ ] Matching vehicle(s) displayed
-
-3. **View Vehicle Details**
-   - [ ] Click "View Details" on a vehicle card
-   - [ ] Vehicle details modal/page opens
-   - [ ] All fields populated:
-     - Plate number
-     - Make, model, year, color
-     - Self-contained status
-     - Homeless status
-     - Total observations
-     - Total breaches
-   - [ ] Profile photo displays (if exists)
-
-4. **View Observation History**
-   - [ ] Observation history list displays
-   - [ ] Sorted by most recent first
-   - [ ] Each observation shows:
-     - Date/time
-     - Zone
-     - Compliance status
-     - Photo thumbnail
-
-5. **Update Vehicle Information**
-   - [ ] Click "Edit" button
-   - [ ] Edit form appears
-   - [ ] Update self-contained status
-   - [ ] Update self-contained expiry date
-   - [ ] Click "Save"
-   - [ ] Success message shows
-   - [ ] Data updates in canonical_vehicles table
-
-6. **Flag Vehicle**
-   - [ ] Click "Flag Vehicle" button
-   - [ ] Flag modal appears
-   - [ ] Select priority (low/medium/high)
-   - [ ] Enter flag reason
-   - [ ] Click "Confirm"
-   - [ ] Vehicle flagged
-   - [ ] Flag badge appears on vehicle card
-
-**Expected Result:** Complete vehicle information accessible and editable by admins
+**Expected:**
+- ✅ Session cleared
+- ✅ Redirected to login
+- ✅ Offline queue preserved (if any)
 
 ---
 
-## 🗺️ Scenario 5: Admin - Zone Management
+## Scenario 2: Admin Breach Management
 
-**Goal:** Verify zone creation and compliance rule configuration
+**Actor:** Admin (admin@org1.com)
 
-**User Role:** Admin  
-**Prerequisites:** 
-- Logged in as admin
-- Have organization selected
+### Login & Dashboard
+1. Login as admin
+2. View dashboard
+3. Check breach alert count
 
-### Steps:
+**Expected:**
+- ✅ Dashboard shows organization stats
+- ✅ Breach alert count: 1 (from BREACH1)
+- ✅ Red badge on navigation
 
-1. **Navigate to Zone Management**
-   - [ ] Click "Zone Management" in navigation
-   - [ ] Zone list loads
-   - [ ] Zones displayed
+### Review Breach Alert
+1. Navigate to "Breach Alerts"
+2. Click on BREACH1 breach
+3. Review details
 
-2. **Create New Zone**
-   - [ ] Click "Create Zone" button
-   - [ ] Zone creation form appears
-   - [ ] Fill in required fields:
-     - Zone name
-     - Description
-     - Organization
-   - [ ] Set GPS coordinates (center point)
-   - [ ] Click "Create"
-   - [ ] Success message shows
-   - [ ] New zone appears in list
+**Expected:**
+- ✅ Breach type: Overstay
+- ✅ Zone: Restricted Zone
+- ✅ Detected timestamp shown
+- ✅ Vehicle details visible
+- ✅ Status: Pending
 
-3. **Configure Compliance Rules**
-   - [ ] Click on newly created zone
-   - [ ] Click "Edit Compliance Rules"
-   - [ ] Compliance matrix form appears
-   - [ ] Configure rules:
-     - [x] Requires CSC
-     - Nights per month: 28
-     - Max consecutive nights: 3
-     - Homeless exemption: Yes
-   - [ ] Click "Save Rules"
-   - [ ] Rules saved to zone_compliance_matrix
+### Check NZSCV Certification
+1. From breach alert, click "View Vehicle"
+2. Opens VehicleManagement modal
+3. Click "Check Warrant" button
+4. Wait for NZSCV lookup
 
-4. **Verify Auto-Sync**
-   - [ ] Check zones table in Supabase
-   - [ ] Verify zone created
-   - [ ] Check zone_compliance_matrix table
-   - [ ] Verify compliance rules created (version 1)
+**Expected:**
+- ✅ Railway proxy server called
+- ✅ NZSCV result displayed
+- ✅ Certification status: Not Certified
+- ✅ Result cached for 7 days
+- ✅ canonical_vehicles updated
 
-5. **Update Compliance Rules**
-   - [ ] Edit zone again
-   - [ ] Change max consecutive nights to 2
-   - [ ] Click "Save Rules"
-   - [ ] New matrix version created (version 2)
-   - [ ] Previous version marked as effective_to = now
+### Enrich Vehicle Data
+1. Still in vehicle modal
+2. Click "Enrich Data (MotorWeb)"
+3. Wait for enrichment
 
-6. **Verify Drift Detection** (if applicable)
-   - [ ] Check drift_events table
-   - [ ] If observations exist, drift event created
-   - [ ] Drift event shows criteria_changed
+**Expected:**
+- ✅ Railway proxy called
+- ✅ MotorWeb API queried
+- ✅ Vehicle make/model updated
+- ✅ Owner name populated
+- ✅ Owner address populated
+- ✅ Toast: "Vehicle data enriched"
 
-**Expected Result:** Zone created with compliance rules, historical versioning working
+### Issue Notice to Vacate
+1. Back to breach alert
+2. Click "Send Notice"
+3. Review pre-filled owner details
+4. Edit notice text if needed
+5. Select delivery method: Email
+6. Click "Generate & Send"
 
----
+**Expected:**
+- ✅ PDF generated via Edge Function
+- ✅ Notice includes owner name/address
+- ✅ Email sent to owner
+- ✅ Breach status → "Notified"
+- ✅ notified_at timestamp set
+- ✅ Audit log entry created
 
-## 📵 Scenario 6: Offline Mode Testing
+### Assign Enforcement Action
+1. Click "Create Enforcement Action"
+2. Select action type: "Tow Request"
+3. Select tow company from dropdown
+4. Add notes: "Remove by 5pm"
+5. Submit
 
-**Goal:** Verify PWA works offline and syncs when back online
+**Expected:**
+- ✅ Enforcement action created
+- ✅ Tow company notified
+- ✅ Status: Assigned
+- ✅ Due date set
+- ✅ Linked to breach alert
 
-**User Role:** Officer  
-**Prerequisites:** 
-- PWA installed on device
-- Previously loaded pages cached
+### Monitor Officer Safety
+1. Navigate to "Live Officer Tracking"
+2. View active officers on map
+3. Check last update timestamp
 
-### Steps:
+**Expected:**
+- ✅ Map shows officer locations
+- ✅ Accuracy circles displayed
+- ✅ Last update: <2 minutes ago
+- ✅ Officer names shown
+- ✅ Auto-refresh every 30 seconds
 
-1. **Load App While Online**
-   - [ ] Open PWA
-   - [ ] Login
-   - [ ] Navigate to Vehicle Management
-   - [ ] Navigate to Compliance Dashboard
-   - [ ] View a few vehicles
+### Generate Daily Report
+1. Navigate to "Reports Hub"
+2. Click "Leadership Pack"
+3. Select date range: Today
+4. Click "Generate PDF"
 
-2. **Go Offline**
-   - [ ] Enable airplane mode (or disconnect WiFi)
-   - [ ] NetworkStatusBar shows "No internet connection - working offline"
-
-3. **Test Cached Pages**
-   - [ ] Navigate to Vehicle Management
-   - [ ] Previously viewed vehicles load from cache
-   - [ ] Photos display from cache
-
-4. **Test Scan Attempt** (expected to fail gracefully)
-   - [ ] Try to scan a plate
-   - [ ] Camera works
-   - [ ] Capture photo works
-   - [ ] Process scan fails with error message
-   - [ ] Error message explains need for internet
-
-5. **Go Back Online**
-   - [ ] Disable airplane mode
-   - [ ] NetworkStatusBar shows "Back online - syncing data..."
-   - [ ] Banner auto-hides after 3 seconds
-
-6. **Verify Sync** (if queue implemented)
-   - [ ] Queued actions process
-   - [ ] Data refreshes from server
-
-**Expected Result:** App remains functional offline for viewing cached data, gracefully handles sync failures
-
----
-
-## 🔒 Scenario 7: Role-Based Access Control
-
-**Goal:** Verify officers cannot access admin functions
-
-**User Role:** Officer  
-**Prerequisites:** 
-- Logged in as officer
-- Admin features exist in app
-
-### Steps:
-
-1. **Test Direct URL Access**
-   - [ ] Manually navigate to `/admin`
-   - [ ] Access denied (redirected or error shown)
-
-2. **Test Navigation Menu**
-   - [ ] Check navigation menu
-   - [ ] Admin-only items hidden (Zone Management, User Management, etc.)
-
-3. **Test RLS Policies**
-   - [ ] Try to query users table directly (via browser console)
-     ```javascript
-     const { data } = await supabase.from('user_profiles').select('*')
-     ```
-   - [ ] Should return only current user's profile, not all users
-
-4. **Test Mutation Permissions**
-   - [ ] Try to delete a breach alert via API
-     ```javascript
-     const { error } = await supabase.from('breach_alerts').delete().eq('id', 'some-id')
-     ```
-   - [ ] Should fail with permission error
-
-5. **Login as Admin**
-   - [ ] Logout
-   - [ ] Login as admin
-   - [ ] Admin menu items visible
-   - [ ] Can access /admin routes
-   - [ ] Can perform admin actions
-
-**Expected Result:** Officers have read access to own data, no write/delete permissions; admins have full access
+**Expected:**
+- ✅ PDF generation starts
+- ✅ Progress indicator shown
+- ✅ PDF downloads (~5-10 seconds)
+- ✅ Includes org branding
+- ✅ Compliance stats correct
+- ✅ Breach summary included
+- ✅ Charts render properly
 
 ---
 
-## 🚂 Scenario 8: Railway Services Integration
+## Scenario 3: Multi-Organization Isolation
 
-**Goal:** Verify NZSCV check and photo analysis work via Railway
+**Actors:** admin@org1.com and admin@org2.com
 
-**User Role:** Admin  
-**Prerequisites:** 
-- Railway services deployed
-- Edge functions configured with Railway URLs
+### Setup Test Data
+1. Login as admin@org1.com
+2. Scan vehicle: `ORG1TEST`
+3. Zone: Organization 1 zone
+4. Logout
 
-### Steps:
+5. Login as admin@org2.com
+6. Scan vehicle: `ORG2TEST`
+7. Zone: Organization 2 zone
+8. Logout
 
-1. **Test NZSCV Status Check**
-   - [ ] Open browser console
-   - [ ] Run:
-     ```javascript
-     const result = await smokeTests.testRailwayServices()
-     console.log(result)
-     ```
-   - [ ] Proxy service responds (may take 10-30s on cold start)
-   - [ ] Returns health status
+### Test Org 1 Isolation
+1. Login as admin@org1.com
+2. Navigate to VehicleManagement
+3. Search for `ORG1TEST`
+4. Search for `ORG2TEST`
 
-2. **Test via Edge Function**
-   - [ ] Navigate to Vehicle Management
-   - [ ] Click on a vehicle with known CSC warrant
-   - [ ] Click "Check NZSCV Status"
-   - [ ] Loading indicator shows
-   - [ ] Warrant details returned:
-     - Warrant type (green/blue)
-     - Warrant number
-     - Expiry date
+**Expected:**
+- ✅ ORG1TEST found
+- ✅ ORG2TEST **NOT found** (isolated)
+- ✅ RLS enforced at database level
 
-3. **Test Photo Analysis** (if implemented)
-   - [ ] Upload a vehicle photo
-   - [ ] Click "Analyze Photo"
-   - [ ] Inference service processes photo
-   - [ ] Returns vehicle detection results
-   - [ ] Returns 384-D embedding
+### Test Org 2 Isolation
+1. Login as admin@org2.com
+2. Navigate to VehicleManagement
+3. Search for `ORG1TEST`
+4. Search for `ORG2TEST`
 
-4. **Test Error Handling**
-   - [ ] Check NZSCV for invalid plate (e.g., "ZZZZZ999")
-   - [ ] Should return "No warrant found" gracefully
-   - [ ] No crash or unhandled errors
+**Expected:**
+- ✅ ORG2TEST found
+- ✅ ORG1TEST **NOT found** (isolated)
 
-**Expected Result:** Railway services integrate correctly via Edge Functions, handle errors gracefully
+### Test Master Access
+1. Login as master@test.com
+2. Navigate to VehicleManagement
+3. Search for `ORG1TEST` and `ORG2TEST`
 
----
+**Expected:**
+- ✅ Both vehicles found
+- ✅ Master sees all organizations
+- ✅ Can filter by organization
 
-## ✅ Testing Sign-Off
+### Test Global Filters
+1. As master, open global filter ribbon
+2. Select Organization: Organization 1
+3. View VehicleManagement
 
-After completing all scenarios:
-
-- [ ] All critical workflows tested
-- [ ] No blocking bugs found
-- [ ] Performance acceptable
-- [ ] Security verified
-- [ ] Documentation updated
-
-**Tester Name:** _______________  
-**Date:** _______________  
-**Environment:** Production / Staging  
-**Device:** Desktop / Mobile / Tablet  
-**Browser:** Chrome / Safari / Firefox  
-
-**Overall Status:** ✅ PASS / ⚠️ PASS WITH ISSUES / ❌ FAIL
-
-**Notes:**
-_______________________________________________________
-_______________________________________________________
-_______________________________________________________
+**Expected:**
+- ✅ Only Org 1 vehicles shown
+- ✅ Filter persists across pages
+- ✅ Can clear filter to see all
 
 ---
 
-**Last Updated:** Phase 8  
-**Version:** 2.0 (Rebuild)
+## Scenario 4: Offline Mode
+
+**Actor:** Officer (officer@org1.com) on mobile device
+
+### Enable Offline Mode
+1. Open app on mobile (Chrome/Safari)
+2. Enable airplane mode
+3. Verify network disconnected
+
+**Expected:**
+- ✅ Network status bar: "Offline"
+- ✅ App still functional
+- ✅ Cached pages load
+
+### Create Offline Observations
+1. Navigate to Field Officer Portal
+2. Scan vehicle: `OFFLINE1` (manual entry)
+3. Take photo
+4. Submit
+
+**Expected:**
+- ✅ Observation saved to IndexedDB
+- ✅ Toast: "Saved offline (1 pending sync)"
+- ✅ Badge shows queue count
+
+2. Scan vehicle: `OFFLINE2`
+3. Submit
+
+**Expected:**
+- ✅ Queue count: 2 pending
+- ✅ Both observations in IndexedDB
+
+### Go Back Online
+1. Disable airplane mode
+2. Wait for network reconnect
+3. Observe auto-sync
+
+**Expected:**
+- ✅ Network detected automatically
+- ✅ Auto-sync triggered
+- ✅ Progress indicator shown
+- ✅ Both observations uploaded
+- ✅ Photos uploaded to Supabase Storage
+- ✅ Queue cleared
+- ✅ Toast: "2 observations synced"
+
+### Verify Database
+1. Open VehicleManagement (desktop)
+2. Search for OFFLINE1 and OFFLINE2
+
+**Expected:**
+- ✅ Both observations in database
+- ✅ Photos accessible
+- ✅ Compliance evaluated
+- ✅ Timestamps correct
+
+---
+
+## Scenario 5: PWA Installation
+
+**Actor:** Any user on mobile
+
+### Install PWA
+1. Open app in Chrome (Android) or Safari (iOS)
+2. Wait for install prompt
+3. Click "Install"
+4. Confirm installation
+
+**Expected:**
+- ✅ Install banner appears
+- ✅ App installs to home screen
+- ✅ Icon matches manifest
+- ✅ Name: "FreedomCamp Manager"
+
+### Launch from Home Screen
+1. Close browser
+2. Tap app icon on home screen
+3. App launches
+
+**Expected:**
+- ✅ Opens in standalone mode
+- ✅ No browser UI (fullscreen)
+- ✅ Splash screen shows (if configured)
+- ✅ Loads cached assets
+
+### Test Offline Functionality
+1. Enable airplane mode
+2. Navigate app
+3. Try to scan vehicle
+
+**Expected:**
+- ✅ UI loads from cache
+- ✅ Can navigate pages
+- ✅ Can scan (saves to queue)
+- ✅ Syncs when back online
+
+---
+
+## Scenario 6: Real-time Notifications
+
+**Setup:** Two devices/browsers
+
+### Admin Monitoring
+1. Device A: Login as admin
+2. Open "Breach Alerts" page
+3. Leave page open
+
+### Officer Action
+1. Device B: Login as officer
+2. Scan non-compliant vehicle
+3. Observation triggers breach
+
+### Verify Real-time Update
+**Expected on Device A:**
+- ✅ New breach card appears (no refresh)
+- ✅ Badge count increments
+- ✅ Toast notification: "New breach alert"
+- ✅ Latency: <2 seconds
+
+---
+
+## Scenario 7: Compliance Matrix Update
+
+**Actor:** Admin (admin@org1.com)
+
+### Update Zone Rules
+1. Navigate to Zone Management
+2. Select "Beach Reserve" zone
+3. Click "Edit Compliance Rules"
+4. Change max_consecutive_nights: 3 → 2
+5. Save
+
+**Expected:**
+- ✅ New matrix version created
+- ✅ zone_compliance_matrix.version incremented
+- ✅ effective_from = now
+- ✅ Previous version effective_to set
+
+### Trigger Recalculation
+1. Click "Recalculate Compliance"
+2. Confirm action
+3. Wait for completion
+
+**Expected:**
+- ✅ Edge Function: recalculate-compliance-v2 called
+- ✅ All observations re-evaluated
+- ✅ New breaches detected
+- ✅ drift_events entry created
+- ✅ Toast: "Compliance recalculated"
+
+### Verify New Breaches
+1. Navigate to Breach Alerts
+2. Check for new alerts
+
+**Expected:**
+- ✅ New breach alerts created
+- ✅ breach_type: consecutive_days
+- ✅ Vehicles that stayed 3 consecutive nights now breached
+- ✅ Notification sent to admins
+
+---
+
+## Scenario 8: Data Export
+
+**Actor:** Admin (admin@org1.com)
+
+### Export Observations CSV
+1. Navigate to Compliance Dashboard
+2. Apply filters:
+   - Date range: Last 7 days
+   - Zone: Beach Reserve
+3. Click "Export CSV"
+
+**Expected:**
+- ✅ CSV downloads instantly
+- ✅ Filename: `observations-2026-02-27.csv`
+- ✅ Includes all filtered records
+- ✅ Columns: plate_number, zone, date, time, status
+- ✅ Dates in NZ timezone
+- ✅ UTF-8 encoding (opens in Excel)
+
+### Export Full Data Package
+1. Navigate to Data Management Hub
+2. Click "Full Export"
+3. Select tables:
+   - observations
+   - canonical_vehicles
+   - breach_alerts
+   - enforcement_actions
+4. Click "Export"
+
+**Expected:**
+- ✅ ZIP file created
+- ✅ Contains 4 CSV files
+- ✅ Each file has correct data
+- ✅ Relationships preserved (via IDs)
+- ✅ File size reasonable (<50MB for test data)
+
+---
+
+## Scenario 9: User Management
+
+**Actor:** Admin (admin@org1.com)
+
+### Create New User
+1. Navigate to User Management
+2. Click "Add User"
+3. Fill form:
+   - Email: newofficer@org1.com
+   - First Name: Test
+   - Last Name: Officer
+   - Role: Officer
+   - Organization: Organization 1
+4. Submit
+
+**Expected:**
+- ✅ User created in auth.users
+- ✅ Profile created in user_profiles
+- ✅ Email invitation sent
+- ✅ Role: officer
+- ✅ Organization: Organization 1
+
+### New User First Login
+1. Open invitation email
+2. Click setup password link
+3. Set password
+4. Login
+
+**Expected:**
+- ✅ Password set successfully
+- ✅ Login successful
+- ✅ Dashboard loads
+- ✅ Role permissions applied
+- ✅ Can only see Organization 1 data
+
+### Update User Role
+1. As admin, open User Management
+2. Select newofficer@org1.com
+3. Change role: Officer → Admin Officer
+4. Save
+
+**Expected:**
+- ✅ Role updated immediately
+- ✅ User gets elevated permissions
+- ✅ Can now manage users (but not edit self)
+- ✅ Audit log entry created
+
+### Deactivate User
+1. Select newofficer@org1.com
+2. Click "Deactivate"
+3. Confirm
+
+**Expected:**
+- ✅ User status: inactive
+- ✅ Cannot login
+- ✅ Appears in user list (grayed out)
+- ✅ Can be reactivated later
+
+---
+
+## Scenario 10: System Diagnostics
+
+**Actor:** Master (master@test.com)
+
+### Check System Health
+1. Navigate to System Diagnostics
+2. Review service status cards
+
+**Expected:**
+- ✅ Database: ✓ Online
+- ✅ Proxy Server: ✓ Online (latency ~200ms)
+- ✅ Inference Service: ✓ Online (latency ~300ms)
+- ✅ Authentication: ✓ Active
+
+### Run Integrity Check
+1. Click "Run Integrity Check"
+2. Wait for completion
+
+**Expected:**
+- ✅ Check runs (~10-30 seconds)
+- ✅ Results displayed:
+  - ✅ No orphaned observations
+  - ✅ No missing photos
+  - ✅ No RLS violations
+  - ✅ No data inconsistencies
+- ✅ Green checkmark on all tests
+
+### View Recent Errors
+1. Scroll to "Recent Errors" section
+
+**Expected:**
+- ✅ No critical errors (ideally empty)
+- ✅ If errors exist, details shown
+- ✅ Timestamp and stack trace available
+
+---
+
+## Test Completion Checklist
+
+Mark each scenario as complete:
+
+- [ ] Scenario 1: Officer Daily Workflow
+- [ ] Scenario 2: Admin Breach Management
+- [ ] Scenario 3: Multi-Organization Isolation
+- [ ] Scenario 4: Offline Mode
+- [ ] Scenario 5: PWA Installation
+- [ ] Scenario 6: Real-time Notifications
+- [ ] Scenario 7: Compliance Matrix Update
+- [ ] Scenario 8: Data Export
+- [ ] Scenario 9: User Management
+- [ ] Scenario 10: System Diagnostics
+
+---
+
+## Bug Reporting Template
+
+If issues found during testing, use this template:
+
+```markdown
+**Bug ID:** [Unique ID]
+**Scenario:** [Which scenario?]
+**Severity:** Critical / High / Medium / Low
+**User Role:** [Officer / Admin / Master]
+
+**Steps to Reproduce:**
+1. 
+2. 
+3. 
+
+**Expected Result:**
+[What should happen]
+
+**Actual Result:**
+[What actually happened]
+
+**Screenshots:**
+[Attach if applicable]
+
+**Console Errors:**
+[Paste any console errors]
+
+**Environment:**
+- Browser: [Chrome/Safari/Firefox]
+- Device: [Desktop/Mobile/Tablet]
+- OS: [Windows/Mac/iOS/Android]
+```
+
+---
+
+**All scenarios pass? System ready for production! ✅**
