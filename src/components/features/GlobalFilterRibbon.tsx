@@ -135,7 +135,7 @@ export function GlobalFilterRibbon({
               <Select
                 value={organizationId || '__all__'}
                 onValueChange={(value) => {
-                  if (value === '__all__') {
+                  if (value === '__all__' || !value) {
                     setOrganization(null, null)
                     return
                   }
@@ -165,7 +165,7 @@ export function GlobalFilterRibbon({
               <Select
                 value={zoneId || '__all__'}
                 onValueChange={(value) => {
-                  if (value === '__all__') {
+                  if (value === '__all__' || !value) {
                     setZone(null, null)
                     return
                   }
