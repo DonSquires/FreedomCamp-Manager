@@ -1,17 +1,16 @@
 /**
- * ALPR Process - SIMPLIFIED 2-STAGE PIPELINE
+ * ALPR Process - RAILWAY INFERENCE ONLY
  * 
  * Flow:
  * 1. Frontend uploads photo to /scans/{user_id}/ and gets public URL
  * 2. Frontend sends photo_url + metadata to this function
  * 3. Function downloads photo from URL
- * 4. Function sends to ALPR service (Plate Recognizer → Railway Inference)
+ * 4. Function sends to Railway Inference Service (YOLOv8n + MobileNetV3 OCR)
  * 5. Function creates observation in database
  * 
- * Stage 1: Plate Recognizer API (Premium, high accuracy)
- * Stage 2: Railway Inference Service (Free, decent accuracy)
+ * Stage 1: Railway Inference Service (Free, self-hosted, decent accuracy)
+ * Stage 2: MANUAL_REQUIRED (Zero-failure guarantee)
  * 
- * Guarantees observation creation even if all AI stages fail (MANUAL_REQUIRED)
  * Uses SERVICE_ROLE_KEY to bypass RLS for system operations
  */
 
@@ -19,8 +18,6 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3';
 import { corsHeaders } from '../_shared/cors.ts';
 
 // API Configuration
-const ALPR_API_TOKEN = Deno.env.get('ALPR_API_TOKEN');
-const ALPR_API_URL = 'https://api.platerecognizer.com/v1/plate-reader/';
 const RAILWAY_INFERENCE_URL = Deno.env.get('INFERENCE_SERVICE_URL');
 
 interface ALPRRequest {
@@ -61,7 +58,7 @@ interface ALPRResponse {
   observation_id?: string;
   plate?: string;
   confidence?: number;
-  stage?: 'plate_recognizer' | 'railway' | 'onspace_ai' | 'manual';
+  stage?: 'railway' | 'manual';
   vehicle?: {
     make?: string;
     model?: string;
@@ -181,66 +178,11 @@ Deno.serve(async (req) => {
     let stage: ALPRResponse['stage'] = 'manual';
 
     // ==========================================================================
-    // STAGE 1: PLATE RECOGNIZER API (Primary - Premium Service)
+    // STAGE 1: RAILWAY INFERENCE SERVICE (Primary - Self-Hosted)
     // ==========================================================================
-    if (ALPR_API_TOKEN) {
+    if (RAILWAY_INFERENCE_URL) {
       try {
-        console.log('🔍 Stage 1: Plate Recognizer API...');
-        
-        const formData = new FormData();
-        formData.append('upload', photoBlob, 'scan.jpg');
-        (body.regions || ['nz']).forEach(region => formData.append('regions', region));
-        if (body.mmc !== false) formData.append('mmc', 'true'); // Default: enabled
-        
-        const alprResponse = await fetch(ALPR_API_URL, {
-          method: 'POST',
-          headers: { 'Authorization': `Token ${ALPR_API_TOKEN}` },
-          body: formData,
-        });
-
-        if (alprResponse.ok) {
-          const alprData = await alprResponse.json();
-          
-          if (alprData.results && alprData.results.length > 0) {
-            const result = alprData.results[0];
-            plateNumber = result.plate?.toUpperCase();
-            plateConfidence = result.score || 0;
-            stage = 'plate_recognizer';
-
-            // Extract vehicle details
-            if (result.vehicle?.type) vehicle.type = result.vehicle.type;
-            if (result.model_make && result.model_make.length > 0) {
-              vehicle.make = result.model_make[0].make;
-              vehicle.model = result.model_make[0].model;
-            }
-            if (result.color && result.color.length > 0) {
-              vehicle.color = result.color[0].color;
-            }
-
-            console.log('✅ Stage 1 Success:', { plate: plateNumber, confidence: plateConfidence });
-          } else {
-            console.log('⚠️ Stage 1: No plates detected');
-            warnings.push('Plate Recognizer found no plates');
-          }
-        } else {
-          const errorText = await alprResponse.text();
-          console.error('❌ Stage 1 Error:', alprResponse.status, errorText);
-          warnings.push(`Plate Recognizer API error: ${alprResponse.status}`);
-        }
-      } catch (error: any) {
-        console.error('❌ Stage 1 Exception:', error.message);
-        warnings.push(`Plate Recognizer exception: ${error.message}`);
-      }
-    } else {
-      warnings.push('ALPR_API_TOKEN not configured');
-    }
-
-    // ==========================================================================
-    // STAGE 2: RAILWAY INFERENCE SERVICE (Fallback - Self-Hosted)
-    // ==========================================================================
-    if (!plateNumber && RAILWAY_INFERENCE_URL) {
-      try {
-        console.log('🚂 Stage 2: Railway Inference Service...');
+        console.log('🚂 Stage 1: Railway Inference Service...');
         
         // Convert blob to base64 for Railway
         const arrayBuffer = await photoBlob.arrayBuffer();
@@ -270,31 +212,31 @@ Deno.serve(async (req) => {
               };
             }
 
-            console.log('✅ Stage 2 Success:', { plate: plateNumber, confidence: plateConfidence });
+            console.log('✅ Stage 1 Success:', { plate: plateNumber, confidence: plateConfidence });
           } else {
-            console.log('⚠️ Stage 2: No plate detected');
+            console.log('⚠️ Stage 1: No plate detected');
             warnings.push('Railway Inference found no plate');
           }
         } else {
-          console.error('❌ Stage 2 Error:', railwayResponse.status);
+          console.error('❌ Stage 1 Error:', railwayResponse.status);
           warnings.push(`Railway Inference error: ${railwayResponse.status}`);
         }
       } catch (error: any) {
-        console.error('❌ Stage 2 Exception:', error.message);
+        console.error('❌ Stage 1 Exception:', error.message);
         warnings.push(`Railway Inference exception: ${error.message}`);
       }
+    } else {
+      warnings.push('INFERENCE_SERVICE_URL not configured');
     }
 
-
-
     // ==========================================================================
-    // STEP 6: FALLBACK TO MANUAL ENTRY (Zero-Failure Guarantee)
+    // STAGE 2: FALLBACK TO MANUAL ENTRY (Zero-Failure Guarantee)
     // ==========================================================================
     if (!plateNumber) {
-      console.log('⚠️ Both ALPR stages failed - creating MANUAL_REQUIRED observation');
+      console.log('⚠️ Railway Inference failed - creating MANUAL_REQUIRED observation');
       plateNumber = 'MANUAL_REQUIRED';
       stage = 'manual';
-      warnings.push('ALPR failed - manual plate entry required');
+      warnings.push('AI detection failed - manual plate entry required');
     }
 
     // ==========================================================================
