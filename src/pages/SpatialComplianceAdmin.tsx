@@ -4,6 +4,8 @@ import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { AppLayout } from '@/components/features/AppLayout'
 import { GeoJsonUploader } from '@/components/features/GeoJsonUploader'
+import { OrganizationBoundaryEditor } from '@/components/features/OrganizationBoundaryEditor'
+import { ZoneHierarchyManager } from '@/components/features/ZoneHierarchyManager'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
@@ -14,6 +16,22 @@ import { toast } from 'sonner'
 export default function SpatialComplianceAdmin() {
   const { user } = useAuthStore()
   const [syncing, setSyncing] = useState(false)
+
+  // Fetch organization boundary
+  const { data: orgBoundary, refetch: refetchBoundary } = useQuery({
+    queryKey: ['org-boundary', user?.organization_id],
+    queryFn: async () => {
+      if (!user?.organization_id) return null
+      const { data, error } = await supabase
+        .from('organizations')
+        .select('geom')
+        .eq('id', user.organization_id)
+        .single()
+      if (error) throw error
+      return data
+    },
+    enabled: !!user?.organization_id,
+  })
 
   // Fetch jurisdictions
   const { data: jurisdictions, refetch: refetchJurisdictions } = useQuery({
@@ -113,14 +131,35 @@ export default function SpatialComplianceAdmin() {
       </div>
 
       {/* Tabs */}
-      <Tabs defaultValue="upload" className="space-y-4">
+      <Tabs defaultValue="boundary" className="space-y-4">
         <TabsList>
+          <TabsTrigger value="boundary">Organization Boundary</TabsTrigger>
+          <TabsTrigger value="zones">Zone Hierarchy</TabsTrigger>
           <TabsTrigger value="upload">Upload GeoJSON</TabsTrigger>
           <TabsTrigger value="jurisdictions">Jurisdictions</TabsTrigger>
           <TabsTrigger value="restrictions">Restrictions</TabsTrigger>
         </TabsList>
 
-        {/* Upload Tab */}
+        {/* Organization Boundary Tab */}
+        <TabsContent value="boundary">
+          <OrganizationBoundaryEditor
+            organizationId={user?.organization_id || ''}
+            organizationName={user?.email?.split('@')[0] || 'Organization'}
+            currentBoundary={orgBoundary?.geom}
+            onBoundaryUpdated={refetchBoundary}
+          />
+        </TabsContent>
+
+        {/* Zone Hierarchy Tab */}
+        <TabsContent value="zones">
+          <ZoneHierarchyManager
+            organizationId={user?.organization_id || ''}
+            onCreateChildZone={() => toast.info('Zone creation coming soon')}
+            onEditZone={(zoneId) => toast.info('Edit zone: ' + zoneId)}
+          />
+        </TabsContent>
+
+        {/* Upload Tab (Legacy - for restrictions) */}
         <TabsContent value="upload">
           <GeoJsonUploader organizationId={user?.organization_id || ''} />
         </TabsContent>

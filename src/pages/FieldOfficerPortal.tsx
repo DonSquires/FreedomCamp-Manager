@@ -7,9 +7,16 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { AppLayout } from '@/components/features/AppLayout'
 import { CameraCapture } from '@/components/features/CameraCapture'
+import { LocationAuthorizationStatus } from '@/components/features/LocationAuthorizationStatus'
 import { Camera, Map, FileText, History, AlertTriangle, MapPin } from 'lucide-react'
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
+
+// ============================================================================
+// FALLBACK ZONE: Use NULL for scans outside geofences
+// Database will handle missing zones via default constraints
+// ============================================================================
+const OTHER_LOCATION_ZONE_ID = null;
 
 export default function FieldOfficerPortal() {
   const { user } = useAuthStore()
@@ -18,6 +25,7 @@ export default function FieldOfficerPortal() {
   const [showScanner, setShowScanner] = useState(false)
   const [isProcessing, setIsProcessing] = useState(false)
   const [currentPatrolZone, setCurrentPatrolZone] = useState<string | null>(zoneId)
+  const [currentLocation, setCurrentLocation] = useState<{ latitude: number; longitude: number } | null>(null)
 
   // Auto-monitor geofence and manage patrol
   useEffect(() => {
@@ -81,8 +89,38 @@ export default function FieldOfficerPortal() {
         accuracy: position.coords.accuracy
       })
 
+      // Update current location for status display
+      setCurrentLocation({
+        latitude: position.coords.latitude,
+        longitude: position.coords.longitude,
+      })
+
       // ============================================================================
-      // STEP 3: GENERATE METADATA
+      // STEP 3: FETCH WEATHER CONDITIONS (Non-blocking)
+      // ============================================================================
+      toast.info('Getting weather conditions...')
+      let weatherConditions = 'Unknown';
+      
+      try {
+        const { data: weatherData, error: weatherError } = await supabase.functions.invoke('get-weather', {
+          body: {
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+          }
+        });
+
+        if (!weatherError && weatherData?.conditions) {
+          weatherConditions = weatherData.conditions;
+          console.log('🌤️ Weather:', weatherConditions);
+        } else {
+          console.warn('⚠️ Weather fetch failed, using fallback');
+        }
+      } catch (err) {
+        console.warn('⚠️ Weather API error (non-critical):', err);
+      }
+
+      // ============================================================================
+      // STEP 4: GENERATE METADATA
       // ============================================================================
       const timestamp = Date.now()
       const photoHash = `sha256-${timestamp}-${Math.random().toString(36).substring(7)}`
@@ -92,11 +130,12 @@ export default function FieldOfficerPortal() {
         size_bytes: file.size,
         type: file.type,
         photo_hash: photoHash,
-        idempotency_key: idempotencyKey
+        idempotency_key: idempotencyKey,
+        weather: weatherConditions
       })
 
       // ============================================================================
-      // STEP 4: UPLOAD PHOTO TO STORAGE (Evidence preservation)
+      // STEP 5: UPLOAD PHOTO TO STORAGE (Evidence preservation) - FAST PATH
       // ============================================================================
       toast.info('Uploading photo...')
       const filePath = `scans/${user.id}/${timestamp}-${photoHash}.jpg`
@@ -105,7 +144,7 @@ export default function FieldOfficerPortal() {
         .from('evidence')
         .upload(filePath, file, {
           contentType: 'image/jpeg',
-          upsert: false // Prevent overwriting
+          upsert: false
         })
 
       if (uploadError) throw new Error(`Upload failed: ${uploadError.message}`)
@@ -116,84 +155,125 @@ export default function FieldOfficerPortal() {
       console.log('☁️ Photo Uploaded:', { photo_url: photoUrl })
 
       // ============================================================================
-      // STEP 5: CALL ALPR PIPELINE (Plate Recognizer → Railway Inference)
+      // STEP 6: GET OR CREATE "OTHER LOCATION" ZONE (If outside geofence)
       // ============================================================================
-      toast.info('Analyzing vehicle...')
+      let finalZoneId = zoneId;
+
+      if (!finalZoneId) {
+        // Scan is outside geofences - get/create "Other Location" zone
+        const { data: otherZone } = await supabase
+          .from('zones')
+          .select('id')
+          .eq('organization_id', user.organization_id)
+          .eq('name', 'Other Location')
+          .maybeSingle();
+
+        if (otherZone) {
+          finalZoneId = otherZone.id;
+        } else {
+          // Create "Other Location" zone on-the-fly (parent zone for jurisdiction)
+          const { data: newZone, error: zoneError } = await supabase
+            .from('zones')
+            .insert({
+              organization_id: user.organization_id,
+              name: 'Other Location',
+              description: 'Council jurisdiction area - default zone for observations outside specific enforcement zones',
+              zone_type: 'general',  // ✅ Parent zone
+              parent_zone_id: null,  // ✅ Top-level parent
+              is_active: true,
+              self_contained_required: true,
+              nights_per_month: 28,
+              max_consecutive_nights: 3,
+              day_visit_only: false,
+            })
+            .select('id')
+            .single();
+
+          if (zoneError) {
+            console.error('❌ Failed to create Other Location zone:', zoneError);
+            throw new Error('Zone setup failed - contact support');
+          }
+
+          finalZoneId = newZone.id;
+          console.log('✅ Created Other Location zone:', finalZoneId);
+        }
+      }
+
+      // ============================================================================
+      // STEP 7: CREATE OBSERVATION (FAST SAVE - No AI, Status='pending')
+      // ============================================================================
+      toast.info('Saving observation...')
       
-      const payload = {
-        // CRITICAL: Photo evidence (already uploaded)
-        photo_url: photoUrl,
-        photo_hash: photoHash,
-        
-        // CRITICAL: Identity fields
-        officerId: user.id,
-        organizationId: user.organization_id,
-        zoneId: zoneId || 'other-location',
-        
-        // CRITICAL: GPS coordinates
-        gpsLatitude: position.coords.latitude,
-        gpsLongitude: position.coords.longitude,
-        gpsAccuracy: position.coords.accuracy,
-        
-        // CRITICAL: Timestamp & deduplication
-        recordedAt: new Date().toISOString(),
-        idempotencyKey: idempotencyKey,
-        
-        // OPTIONAL: ALPR configuration
-        regions: ['nz'],
-        mmc: true, // Make, Model, Color detection
+      const { data: observation, error: obsError } = await supabase
+        .from('observations')
+        .insert({
+          // CRITICAL: Identity
+          idempotency_key: idempotencyKey,
+          recorded_by: user.id,
+          organization_id: user.organization_id,
+          zone_id: finalZoneId,
+          
+          // CRITICAL: Photo evidence
+          photo_url: photoUrl,
+          photo_hash: photoHash,
+          
+          // CRITICAL: GPS
+          gps_latitude: position.coords.latitude,
+          gps_longitude: position.coords.longitude,
+          gps_accuracy: position.coords.accuracy,
+          
+          // CRITICAL: Timestamp
+          recorded_at: new Date().toISOString(),
+          
+          // PROCESSING: Will be populated by background job
+          plate_number: 'PROCESSING...',
+          processing_status: 'pending',
+          
+          // Optional metadata
+          is_compliant: true,
+          weather_conditions: weatherConditions,
+        })
+        .select('id, plate_number, processing_status')
+        .single()
+
+      if (obsError) {
+        console.error('❌ Database error:', obsError)
+        throw new Error(`Save failed: ${obsError.message}`)
       }
 
-      console.log('📦 Payload Validation:', {
-        has_photo_url: !!payload.photo_url,
-        has_photo_hash: !!payload.photo_hash,
-        has_idempotency: !!payload.idempotencyKey,
-        has_gps: !!(payload.gpsLatitude && payload.gpsLongitude),
-        has_identity: !!(payload.officerId && payload.organizationId && payload.zoneId),
+      console.log('✅ Observation saved (pending AI):', {
+        observation_id: observation.id,
+        zone_id: finalZoneId,
+        status: observation.processing_status,
+        weather: weatherConditions
       })
-
-      // Call Edge Function (automatically includes Authorization header)
-      const { data, error: ingestError } = await supabase.functions.invoke('alpr-process', {
-        body: payload
-      })
-
-      console.log('🔄 ALPR Response:', { data, error: ingestError })
-
-      if (ingestError) {
-        console.error('❌ ALPR Error:', ingestError)
-        throw new Error(`Server Error: ${ingestError.message || 'Check logs'}`)
-      }
-
-      if (!data?.success) {
-        console.error('❌ ALPR Failed:', data)
-        throw new Error(data?.error || 'AI Analysis failed to return a valid result.')
-      }
 
       // ============================================================================
-      // STEP 6: SUCCESS HANDLING
+      // STEP 8: FIRE-AND-FORGET BACKGROUND AI PROCESSING
       // ============================================================================
-      const plate = data.plate || data.observation?.plate_number
-      const stage = data.stage || 'unknown'
-      const confidence = data.confidence || 0
-
-      console.log('✅ Scan Success:', {
-        plate,
-        stage,
-        confidence,
-        observation_id: data.observation_id
+      // Call Edge Function asynchronously (don't wait for it)
+      supabase.functions.invoke('alpr-process', {
+        body: {
+          observation_id: observation.id,
+          photo_url: photoUrl,
+          regions: ['nz'],
+          mmc: true,
+        }
+      }).then(({ data, error }) => {
+        if (error) {
+          console.error('❌ Background AI failed:', error)
+        } else {
+          console.log('✅ Background AI completed:', data)
+        }
       })
 
-      if (!plate || plate === 'MANUAL_REQUIRED') {
-        toast.warning('⚠️ Plate not detected - Manual entry required', { 
-          duration: 6000,
-          description: `AI Stage: ${stage}` 
-        })
-      } else {
-        toast.success(`✅ Vehicle Sighted: ${plate}`, { 
-          duration: 5000,
-          description: `Detected by: ${stage} (${Math.round(confidence * 100)}% confidence)`
-        })
-      }
+      // ============================================================================
+      // STEP 9: IMMEDIATE SUCCESS (User can scan next vehicle)
+      // ============================================================================
+      toast.success('✅ Evidence Secured', { 
+        duration: 5000,
+        description: 'AI is analyzing plate number...'
+      })
 
       setShowScanner(false)
 
@@ -333,6 +413,18 @@ export default function FieldOfficerPortal() {
               </Button>
             </CardContent>
           </Card>
+        </div>
+      )}
+
+      {/* Location Authorization Status */}
+      {!showScanner && currentLocation && user?.organization_id && (
+        <div className="mt-6">
+          <LocationAuthorizationStatus
+            organizationId={user.organization_id}
+            latitude={currentLocation.latitude}
+            longitude={currentLocation.longitude}
+            refreshInterval={10000}
+          />
         </div>
       )}
 
