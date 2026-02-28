@@ -21,27 +21,26 @@ import { corsHeaders } from '../_shared/cors.ts';
 const RAILWAY_INFERENCE_URL = Deno.env.get('INFERENCE_SERVICE_URL');
 
 interface ALPRRequest {
-  // CRITICAL: Photo evidence (already uploaded)
-  photo_url: string; // Public URL from Supabase Storage
-  photo_hash?: string; // SHA-256 hash (will generate if missing)
+  // MODE 1: Update existing observation (Background Processing)
+  observation_id?: string; // If provided, update existing observation
   
-  // CRITICAL: Identity fields
-  officerId: string;
-  organizationId: string;
-  zoneId: string;
-  idempotencyKey: string;
-  
-  // CRITICAL: GPS location
-  gpsLatitude: number;
-  gpsLongitude: number;
+  // MODE 2: Create new observation (Legacy mode)
+  officerId?: string;
+  organizationId?: string;
+  zoneId?: string;
+  idempotencyKey?: string;
+  gpsLatitude?: number;
+  gpsLongitude?: number;
   gpsAccuracy?: number;
+  recordedAt?: string;
   
-  // CRITICAL: Timestamp
-  recordedAt: string;
+  // SHARED: Photo evidence
+  photo_url: string;
+  photo_hash?: string;
   
   // OPTIONAL: Configuration
   regions?: string[];
-  mmc?: boolean; // Make, Model, Color
+  mmc?: boolean;
   officerNotes?: string;
   weatherConditions?: string;
 }
@@ -95,13 +94,12 @@ Deno.serve(async (req) => {
     // ==========================================================================
     const body: ALPRRequest = await req.json();
 
+    const isUpdateMode = !!body.observation_id;
+
     console.log('📍 ALPR Request:', {
+      mode: isUpdateMode ? 'UPDATE' : 'CREATE',
+      observation_id: body.observation_id,
       photo_url: body.photo_url,
-      officerId: body.officerId?.substring(0, 8) + '...',
-      organizationId: body.organizationId?.substring(0, 8) + '...',
-      zoneId: body.zoneId?.substring(0, 8) + '...',
-      idempotencyKey: body.idempotencyKey,
-      gps: { lat: body.gpsLatitude, lng: body.gpsLongitude },
     });
 
     // Validate required fields
@@ -112,49 +110,80 @@ Deno.serve(async (req) => {
       );
     }
 
-    if (!body.officerId || !body.organizationId || !body.zoneId || !body.idempotencyKey) {
-      return new Response(
-        JSON.stringify({ 
-          success: false, 
-          error: 'Missing required identity fields',
-          required: ['officerId', 'organizationId', 'zoneId', 'idempotencyKey']
-        }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+    if (!isUpdateMode) {
+      // CREATE mode validation
+      if (!body.officerId || !body.organizationId || !body.zoneId || !body.idempotencyKey) {
+        return new Response(
+          JSON.stringify({ 
+            success: false, 
+            error: 'Missing required identity fields (CREATE mode)',
+            required: ['officerId', 'organizationId', 'zoneId', 'idempotencyKey']
+          }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      if (body.gpsLatitude === undefined || body.gpsLongitude === undefined) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'GPS coordinates required' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // Check for duplicate
+      const { data: existingObs } = await supabase
+        .from('observations')
+        .select('id, plate_number, is_compliant')
+        .eq('idempotency_key', body.idempotencyKey)
+        .maybeSingle();
+
+      if (existingObs) {
+        console.log('⚠️ Duplicate observation detected:', body.idempotencyKey);
+        return new Response(
+          JSON.stringify({
+            success: true,
+            duplicate: true,
+            observation_id: existingObs.id,
+            plate: existingObs.plate_number,
+            is_compliant: existingObs.is_compliant,
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    } else {
+      // UPDATE mode validation
+      const { data: existingObs, error: obsError } = await supabase
+        .from('observations')
+        .select('id, processing_status')
+        .eq('id', body.observation_id)
+        .single();
+
+      if (obsError || !existingObs) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Observation not found' }),
+          { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      if (existingObs.processing_status === 'completed') {
+        console.log('⚠️ Observation already processed:', body.observation_id);
+        return new Response(
+          JSON.stringify({ success: true, already_processed: true }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // Mark as processing
+      await supabase
+        .from('observations')
+        .update({ 
+          processing_status: 'processing',
+          processing_started_at: new Date().toISOString()
+        })
+        .eq('id', body.observation_id);
     }
 
-    if (body.gpsLatitude === undefined || body.gpsLongitude === undefined) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'GPS coordinates required' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    // Generate photo hash if not provided
     const photoHash = body.photo_hash || `sha256-${Date.now()}-${Math.random().toString(36).substring(7)}`;
-    
-    // ==========================================================================
-    // STEP 4: CHECK FOR DUPLICATE (Idempotency)
-    // ==========================================================================
-    const { data: existingObs } = await supabase
-      .from('observations')
-      .select('id, plate_number, is_compliant')
-      .eq('idempotency_key', body.idempotencyKey)
-      .maybeSingle();
-
-    if (existingObs) {
-      console.log('⚠️ Duplicate observation detected:', body.idempotencyKey);
-      return new Response(
-        JSON.stringify({
-          success: true,
-          duplicate: true,
-          observation_id: existingObs.id,
-          plate: existingObs.plate_number,
-          is_compliant: existingObs.is_compliant,
-        }),
-        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
 
     // ==========================================================================
     // STEP 5: DOWNLOAD PHOTO FROM STORAGE
@@ -240,78 +269,106 @@ Deno.serve(async (req) => {
     }
 
     // ==========================================================================
-    // STEP 7: CREATE OBSERVATION (WITH ALL REQUIRED FIELDS)
+    // STEP 7: CREATE OR UPDATE OBSERVATION
     // ==========================================================================
-    const observationData = {
-      // CRITICAL: Identity & RLS validation
-      idempotency_key: body.idempotencyKey,
-      recorded_by: body.officerId,
-      organization_id: body.organizationId,
-      zone_id: body.zoneId,
-      
-      // CRITICAL: Photo evidence
-      photo_url: body.photo_url,
-      photo_hash: photoHash,
-      
-      // CRITICAL: Vehicle identification
-      plate_number: plateNumber,
-      
-      // CRITICAL: GPS location
-      gps_latitude: body.gpsLatitude,
-      gps_longitude: body.gpsLongitude,
-      gps_accuracy: body.gpsAccuracy || null,
-      
-      // CRITICAL: Timestamp
-      recorded_at: body.recordedAt || new Date().toISOString(),
-      
-      // OPTIONAL: Metadata
-      officer_notes: body.officerNotes || null,
-      weather_conditions: body.weatherConditions || null,
-      vehicle_make: vehicle.make || null,
-      vehicle_model: vehicle.model || null,
-      vehicle_color: vehicle.color || null, // CORRECT: vehicle_color (not colour)
-      
-      // COMPLIANCE: Calculated by triggers
-      is_compliant: true,
-      breach_type: null,
-      breach_reason: null,
-    };
+    let observation: any;
 
-    console.log('💾 Creating observation:', {
-      plate: observationData.plate_number,
-      stage,
-      has_all_required_fields: !!(
-        observationData.idempotency_key &&
-        observationData.plate_number &&
-        observationData.photo_url &&
-        observationData.photo_hash &&
-        observationData.recorded_at &&
-        observationData.zone_id &&
-        observationData.organization_id &&
-        observationData.gps_latitude !== undefined &&
-        observationData.gps_longitude !== undefined &&
-        observationData.recorded_by
-      ),
-    });
+    if (isUpdateMode) {
+      // UPDATE MODE: Update existing observation with AI results
+      const updateData = {
+        plate_number: plateNumber,
+        vehicle_make: vehicle.make || null,
+        vehicle_model: vehicle.model || null,
+        vehicle_color: vehicle.color || null,
+        processing_status: 'completed',
+        processing_completed_at: new Date().toISOString(),
+        processing_error: warnings.length > 0 ? warnings.join('; ') : null,
+      };
 
-    const { data: observation, error: obsError } = await supabase
-      .from('observations')
-      .insert(observationData)
-      .select('id, plate_number, is_compliant, breach_type')
-      .single();
+      console.log('💾 Updating observation:', {
+        observation_id: body.observation_id,
+        plate: updateData.plate_number,
+        stage,
+      });
 
-    if (obsError) {
-      console.error('❌ Database INSERT failed:', obsError);
-      return new Response(
-        JSON.stringify({
-          success: false,
-          error: 'Database error: ' + obsError.message,
-          code: obsError.code,
-          hint: obsError.hint,
-          details: obsError.details,
-        }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      const { data: updatedObs, error: updateError } = await supabase
+        .from('observations')
+        .update(updateData)
+        .eq('id', body.observation_id)
+        .select('id, plate_number, is_compliant, breach_type')
+        .single();
+
+      if (updateError) {
+        console.error('❌ Database UPDATE failed:', updateError);
+        
+        // Mark as failed
+        await supabase
+          .from('observations')
+          .update({ 
+            processing_status: 'failed',
+            processing_error: updateError.message,
+            processing_completed_at: new Date().toISOString()
+          })
+          .eq('id', body.observation_id);
+
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: 'Database error: ' + updateError.message,
+          }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      observation = updatedObs;
+
+    } else {
+      // CREATE MODE: Insert new observation
+      const observationData = {
+        idempotency_key: body.idempotencyKey,
+        recorded_by: body.officerId,
+        organization_id: body.organizationId,
+        zone_id: body.zoneId,
+        photo_url: body.photo_url,
+        photo_hash: photoHash,
+        plate_number: plateNumber,
+        gps_latitude: body.gpsLatitude,
+        gps_longitude: body.gpsLongitude,
+        gps_accuracy: body.gpsAccuracy || null,
+        recorded_at: body.recordedAt || new Date().toISOString(),
+        officer_notes: body.officerNotes || null,
+        weather_conditions: body.weatherConditions || null,
+        vehicle_make: vehicle.make || null,
+        vehicle_model: vehicle.model || null,
+        vehicle_color: vehicle.color || null,
+        processing_status: 'completed',
+        processing_completed_at: new Date().toISOString(),
+        is_compliant: true,
+      };
+
+      console.log('💾 Creating observation:', {
+        plate: observationData.plate_number,
+        stage,
+      });
+
+      const { data: newObs, error: obsError } = await supabase
+        .from('observations')
+        .insert(observationData)
+        .select('id, plate_number, is_compliant, breach_type')
+        .single();
+
+      if (obsError) {
+        console.error('❌ Database INSERT failed:', obsError);
+        return new Response(
+          JSON.stringify({
+            success: false,
+            error: 'Database error: ' + obsError.message,
+          }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      observation = newObs;
     }
 
     // ==========================================================================
