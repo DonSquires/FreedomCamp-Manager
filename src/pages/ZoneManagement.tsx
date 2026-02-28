@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
+import { useGlobalFiltersStore } from '@/stores/globalFiltersStore'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -9,7 +10,8 @@ import { Badge } from '@/components/ui/badge'
 import { Switch } from '@/components/ui/switch'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
-import { MapPin, Plus, Edit, CheckCircle, XCircle } from 'lucide-react'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { MapPin, Plus, Edit, CheckCircle, XCircle, Building2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { AppLayout } from '@/components/features/AppLayout'
 import { GlobalFilterRibbon } from '@/components/features/GlobalFilterRibbon'
@@ -18,6 +20,8 @@ interface Zone {
   id: string
   name: string
   organization_id: string
+  parent_zone_id: string | null
+  zone_type: string
   location_lat: number | null
   location_lng: number | null
   is_active: boolean
@@ -26,10 +30,24 @@ interface Zone {
   max_consecutive_nights: number
   self_contained_required: boolean
   created_at: string
+  organization?: {
+    id: string
+    name: string
+  }
+  parent_zone?: {
+    id: string
+    name: string
+  }
+}
+
+interface Organization {
+  id: string
+  name: string
 }
 
 export default function ZoneManagement() {
   const { user } = useAuthStore()
+  const { organizationId } = useGlobalFiltersStore()
   const queryClient = useQueryClient()
   const [searchQuery, setSearchQuery] = useState('')
   const [showInactive, setShowInactive] = useState(false)
@@ -38,21 +56,56 @@ export default function ZoneManagement() {
   
   // Edit form state
   const [editName, setEditName] = useState('')
+  const [editOrganizationId, setEditOrganizationId] = useState('')
   const [editNightsPerMonth, setEditNightsPerMonth] = useState(28)
   const [editMaxConsecutive, setEditMaxConsecutive] = useState(3)
   const [editDayVisitOnly, setEditDayVisitOnly] = useState(false)
   const [editSelfContained, setEditSelfContained] = useState(true)
+  const [editParentZoneId, setEditParentZoneId] = useState<string | null>(null)
+  const [editZoneType, setEditZoneType] = useState('specific')
+
+  // Fetch all organizations (for Masters only)
+  const { data: organizations } = useQuery({
+    queryKey: ['organizations'],
+    queryFn: async () => {
+      if (user?.role !== 'master') return []
+      
+      const { data, error } = await supabase
+        .from('organizations')
+        .select('id, name')
+        .eq('is_active', true)
+        .order('name', { ascending: true })
+      
+      if (error) throw error
+      return data as Organization[]
+    },
+    enabled: user?.role === 'master',
+  })
 
   // Fetch zones with counts
   const { data: zones, isLoading } = useQuery({
-    queryKey: ['zones', user?.organization_id, showInactive, searchQuery],
+    queryKey: ['zones', organizationId, showInactive, searchQuery],
     queryFn: async () => {
       let query = supabase
         .from('zones')
-        .select('*')
+        .select(`
+          *,
+          organization:organizations(
+            id,
+            name
+          ),
+          parent_zone:zones!parent_zone_id(
+            id,
+            name
+          )
+        `)
+        .order('zone_type', { ascending: false })  // General zones first
         .order('name', { ascending: true })
 
-      if (user?.role !== 'master' && user?.organization_id) {
+      // ✅ Filter by GlobalFilterRibbon organization selector
+      if (organizationId) {
+        query = query.eq('organization_id', organizationId)
+      } else if (user?.role !== 'master' && user?.organization_id) {
         query = query.eq('organization_id', user.organization_id)
       }
 
@@ -132,19 +185,25 @@ export default function ZoneManagement() {
 
   const resetForm = () => {
     setEditName('')
+    setEditOrganizationId('')
     setEditNightsPerMonth(28)
     setEditMaxConsecutive(3)
     setEditDayVisitOnly(false)
     setEditSelfContained(true)
+    setEditParentZoneId(null)
+    setEditZoneType('specific')
   }
 
   const openEditDialog = (zone: any) => {
     setSelectedZone(zone)
     setEditName(zone.name)
+    setEditOrganizationId(zone.organization_id)
     setEditNightsPerMonth(zone.nights_per_month)
     setEditMaxConsecutive(zone.max_consecutive_nights)
     setEditDayVisitOnly(zone.day_visit_only || false)
     setEditSelfContained(zone.self_contained_required)
+    setEditParentZoneId(zone.parent_zone_id)
+    setEditZoneType(zone.zone_type || 'specific')
     setShowEditDialog(true)
   }
 
@@ -268,11 +327,33 @@ export default function ZoneManagement() {
                       <MapPin className="h-5 w-5" />
                       {zone.name}
                     </CardTitle>
-                    <CardDescription className="mt-1">
-                      {zone.location_lat && zone.location_lng 
-                        ? `${zone.location_lat.toFixed(4)}, ${zone.location_lng.toFixed(4)}`
-                        : 'No GPS coordinates'
-                      }
+                    <CardDescription className="mt-1 space-y-1">
+                      {/* ✅ Organization Display */}
+                      {zone.organization && (
+                        <div className="flex items-center gap-1.5 text-xs text-gray-600">
+                          <Building2 className="h-3 w-3" />
+                          <span className="font-medium">{zone.organization.name}</span>
+                        </div>
+                      )}
+                      {/* ✅ Parent Zone Display */}
+                      {zone.parent_zone && (
+                        <div className="flex items-center gap-1.5 text-xs text-blue-600">
+                          <MapPin className="h-3 w-3" />
+                          <span>Parent: {zone.parent_zone.name}</span>
+                        </div>
+                      )}
+                      {/* Zone Type Badge */}
+                      {zone.zone_type === 'general' && (
+                        <Badge variant="outline" className="bg-purple-50 text-xs">
+                          Jurisdiction Zone
+                        </Badge>
+                      )}
+                      <div>
+                        {zone.location_lat && zone.location_lng 
+                          ? `${zone.location_lat.toFixed(4)}, ${zone.location_lng.toFixed(4)}`
+                          : 'No GPS coordinates'
+                        }
+                      </div>
                     </CardDescription>
                   </div>
                   {zone.is_active ? (
@@ -379,6 +460,81 @@ export default function ZoneManagement() {
                 onChange={(e) => setEditName(e.target.value)}
               />
             </div>
+
+            {/* ✅ Organization Selector (Masters Only) */}
+            {user?.role === 'master' && (
+              <div>
+                <Label htmlFor="editOrganization">Organization</Label>
+                <Select
+                  value={editOrganizationId}
+                  onValueChange={setEditOrganizationId}
+                >
+                  <SelectTrigger id="editOrganization">
+                    <SelectValue placeholder="Select organization" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {organizations?.map((org) => (
+                      <SelectItem key={org.id} value={org.id}>
+                        {org.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {/* ✅ Organization Display (Non-Masters) */}
+            {user?.role !== 'master' && selectedZone?.organization && (
+              <div>
+                <Label>Organization</Label>
+                <div className="flex items-center gap-2 p-2 bg-gray-50 dark:bg-gray-800 rounded-md">
+                  <Building2 className="h-4 w-4 text-gray-500" />
+                  <span className="text-sm font-medium">{selectedZone.organization.name}</span>
+                </div>
+              </div>
+            )}
+
+            {/* ✅ Zone Type (Masters Only) */}
+            {user?.role === 'master' && (
+              <div>
+                <Label htmlFor="editZoneType">Zone Type</Label>
+                <Select
+                  value={editZoneType}
+                  onValueChange={setEditZoneType}
+                >
+                  <SelectTrigger id="editZoneType">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="general">🗺️ General (Jurisdiction Area)</SelectItem>
+                    <SelectItem value="specific">📍 Specific (Enforcement Zone)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {/* ✅ Parent Zone Selector (For Specific Zones) */}
+            {editZoneType === 'specific' && (
+              <div>
+                <Label htmlFor="editParentZone">Parent Zone (Jurisdiction)</Label>
+                <Select
+                  value={editParentZoneId || 'none'}
+                  onValueChange={(val) => setEditParentZoneId(val === 'none' ? null : val)}
+                >
+                  <SelectTrigger id="editParentZone">
+                    <SelectValue placeholder="None" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">None (Top-level zone)</SelectItem>
+                    {zones?.filter((z: any) => z.zone_type === 'general' && z.id !== selectedZone?.id).map((parentZone: any) => (
+                      <SelectItem key={parentZone.id} value={parentZone.id}>
+                        🗺️ {parentZone.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             
             <div className="grid grid-cols-2 gap-4">
               <div>
@@ -427,13 +583,26 @@ export default function ZoneManagement() {
               Cancel
             </Button>
             <Button 
-              onClick={() => updateZoneMutation.mutate({
-                name: editName,
-                nights_per_month: editNightsPerMonth,
-                max_consecutive_nights: editMaxConsecutive,
-                day_visit_only: editDayVisitOnly,
-                self_contained_required: editSelfContained
-              })}
+              onClick={() => {
+                const updates: Partial<Zone> = {
+                  name: editName,
+                  nights_per_month: editNightsPerMonth,
+                  max_consecutive_nights: editMaxConsecutive,
+                  day_visit_only: editDayVisitOnly,
+                  self_contained_required: editSelfContained
+                }
+                
+                // ✅ Masters can change organization, zone type, and parent
+                if (user?.role === 'master') {
+                  if (editOrganizationId) {
+                    updates.organization_id = editOrganizationId
+                  }
+                  updates.zone_type = editZoneType
+                  updates.parent_zone_id = editZoneType === 'general' ? null : editParentZoneId
+                }
+                
+                updateZoneMutation.mutate(updates)
+              }}
               disabled={updateZoneMutation.isPending}
             >
               {updateZoneMutation.isPending ? 'Saving...' : 'Save Changes'}
