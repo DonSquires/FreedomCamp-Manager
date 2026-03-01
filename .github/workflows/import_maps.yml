@@ -48,7 +48,7 @@ jobs:
           ORGANIZATION_ID: ${{ inputs.organization_id }}
           IMPORT_BBOX: ${{ inputs.import_bbox }}
         run: |
-          if [ "$IMPORT_MODE" = "campsites" ]; then
+          if [ "${{ inputs.import_mode }}" = "campsites" ]; then
             npx ts-node scripts/import_campsites.ts
           else
             npx ts-node scripts/import_boundaries.ts

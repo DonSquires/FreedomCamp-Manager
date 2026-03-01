@@ -249,4 +249,7 @@ async function main() {
   await importDocCampsites(orgZones);
 }
 
-main();
+main().catch((err) => {
+  console.error("\n💥 FATAL ERROR:", err.message || err);
+  process.exit(1);
+});
