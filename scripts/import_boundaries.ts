@@ -63,7 +63,7 @@ async function importBoundaries() {
             geometry: feature.geometry // Sync both columns if they exist
           })
           .eq('organization_id', org.id)
-          .eq('type', 'parent') // Only update the top-level jurisdiction
+          .eq('zone_type', 'general') // Only update the top-level jurisdiction zone
           .select('id');
 
         if (zoneErr) console.error(`   ❌ Zone Update Failed: ${zoneErr.message}`);
