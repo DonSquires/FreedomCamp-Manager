@@ -13,7 +13,7 @@ export interface Database {
         Row: {
           id: string
           name: string
-          organization_type: 'client' | 'security_company'
+          organization_type: 'owner' | 'service_provider' | 'client'
           organization_level: number
           parent_organization_id: string | null
           contact_email: string | null
@@ -26,7 +26,7 @@ export interface Database {
         Insert: {
           id?: string
           name: string
-          organization_type?: 'client' | 'security_company'
+          organization_type?: 'owner' | 'service_provider' | 'client'
           organization_level?: number
           parent_organization_id?: string | null
           contact_email?: string | null
@@ -39,7 +39,7 @@ export interface Database {
         Update: {
           id?: string
           name?: string
-          organization_type?: 'client' | 'security_company'
+          organization_type?: 'owner' | 'service_provider' | 'client'
           organization_level?: number
           parent_organization_id?: string | null
           contact_email?: string | null

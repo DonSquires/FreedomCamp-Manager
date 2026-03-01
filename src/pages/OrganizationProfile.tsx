@@ -203,7 +203,9 @@ export default function OrganizationProfile() {
                   <div>
                     <CardTitle className="text-xl">{organization.name}</CardTitle>
                     <CardDescription className="mt-1">
-                      <Badge variant="outline" className="mr-2">{organization.organization_type}</Badge>
+                      <Badge variant="outline" className="mr-2">
+                        {organization.organization_type === 'owner' ? 'Owner' : organization.organization_type === 'service_provider' ? 'Service Provider' : 'Client'}
+                      </Badge>
                       <Badge variant={organization.is_active ? 'default' : 'secondary'}>
                         {organization.is_active ? 'Active' : 'Inactive'}
                       </Badge>

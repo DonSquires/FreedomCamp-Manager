@@ -177,8 +177,8 @@ export default function OrganizationManagement() {
                         </Badge>
                       </div>
                       <CardDescription className="mt-2">
-                        Level {org.organization_level} organization
-                        {org.parent_organization_id && ' (Child organization)'}
+                        Level {org.organization_level} {org.organization_type === 'owner' ? '(Owner)' : org.organization_type === 'service_provider' ? '(Service Provider)' : '(Client)'}
+                        {org.parent_organization_id && ' — Child organization'}
                       </CardDescription>
                     </div>
                     <Button 
