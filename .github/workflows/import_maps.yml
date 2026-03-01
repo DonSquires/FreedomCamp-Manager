@@ -24,4 +24,7 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           # CRITICAL: Using SUPABASE_SERVICE_ROLE_KEY to match existing secret name
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          # Stats NZ Geographic Data Service API key
+          # Register at https://datafinder.stats.govt.nz/ to obtain a key
+          STATSNZ_API_KEY: ${{ secrets.STATSNZ_API_KEY }}
         run: npx ts-node scripts/import_boundaries.ts

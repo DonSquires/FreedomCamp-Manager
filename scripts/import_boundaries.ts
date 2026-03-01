@@ -5,8 +5,13 @@ import * as dotenv from 'dotenv';
 dotenv.config();
 
 // CONFIGURATION
-// Official Stats NZ Territorial Authorities (Simplified for Web Performance)
-const GEOJSON_URL = "https://raw.githubusercontent.com/Udata-io/nz-geojson/refs/heads/main/territorial-authorities-2023.geojson";
+// Stats NZ Geographic Data Service – Territorial Authority 2025 (Generalised)
+// https://datafinder.stats.govt.nz/layer/120963-territorial-authority-2025/
+const STATSNZ_LAYER_ID = "120963";
+const STATSNZ_API_KEY = process.env.STATSNZ_API_KEY;
+const GEOJSON_URL = STATSNZ_API_KEY
+  ? `https://datafinder.stats.govt.nz/services;key=${STATSNZ_API_KEY}/wfs?service=WFS&version=2.0.0&request=GetFeature&typeNames=layer-${STATSNZ_LAYER_ID}&outputFormat=application/json`
+  : null;
 
 const supabase = createClient(
   process.env.SUPABASE_URL!,
@@ -14,10 +19,17 @@ const supabase = createClient(
 );
 
 async function importBoundaries() {
-  console.log("📡 Connecting to Government Data Source...");
+  if (!GEOJSON_URL) {
+    throw new Error("STATSNZ_API_KEY environment variable is required. Register at https://datafinder.stats.govt.nz/ to obtain a key.");
+  }
+
+  console.log("📡 Fetching boundaries from Stats NZ Geographic Data Service...");
   
   const response = await fetch(GEOJSON_URL);
-  if (!response.ok) throw new Error(`Failed to download from ${GEOJSON_URL}: ${response.status} ${response.statusText}`);
+  if (!response.ok) {
+    // Avoid logging the full URL as it contains the API key
+    throw new Error(`Stats NZ API request failed: ${response.status} ${response.statusText}`);
+  }
   
   const geojson = await response.json();
   console.log(`🗺️  Downloaded ${geojson.features.length} Boundary Definitions.`);
@@ -27,9 +39,11 @@ async function importBoundaries() {
 
   // Loop through every region in the NZ Government dataset
   for (const feature of geojson.features) {
-    // Clean the name: "Tasman District" -> "Tasman" to improve matching chances
-    // The DB has "Tasman District Council", GeoJSON has "Tasman District"
-    const rawName = feature.properties.TA2023_V1_00_NAME || feature.properties.NAME;
+    // Stats NZ 2025 properties use TA2025_V1_00_NAME_ASCII / TA2025_V1_00_NAME
+    // Fall back to generic NAME for compatibility
+    const rawName = feature.properties.TA2025_V1_00_NAME_ASCII
+      || feature.properties.TA2025_V1_00_NAME
+      || feature.properties.NAME;
     if (!rawName) continue;
 
     // 1. Find the Matching Organization in Your Database
