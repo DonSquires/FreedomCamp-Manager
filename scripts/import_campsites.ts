@@ -37,6 +37,12 @@ const LINZ_CROWN_PROPERTY_URL =
 //    Waikato:       https://data-waikatolass.opendata.arcgis.com/datasets/freedom-camping
 //    Nelson:        https://data-nelsoncity.opendata.arcgis.com/ (NelsonCamping FeatureServer)
 //    Christchurch:  https://opendata-christchurchcity.hub.arcgis.com/datasets/freedom-camping-management-zone-opendata
+//
+//    Councils without public freedom camping FeatureServer (covered by DOC data):
+//    - Tasman:        https://geohub.tasman.govt.nz/ (GeoHub portal, no camping layer)
+//    - Queenstown:    https://data-lakes.opendata.arcgis.com/ (no camping layer found)
+//    - Marlborough:   https://smartmaps.marlborough.govt.nz/ (web viewer only)
+//    - Wellington:    https://data-wcc.opendata.arcgis.com/ (no camping layer found)
 const COUNCIL_FREEDOM_CAMPING_URLS: { council: string; url: string }[] = [
   {
     council: "Waikato",
@@ -451,7 +457,7 @@ async function importDocFreedomCamping(orgZones: OrgZone[]) {
 // ---------------------------------------------------------------------------
 async function importLinzCrownProperty(orgZones: OrgZone[]) {
   console.log("\n📡 Fetching LINZ Managed Crown Property from ArcGIS...");
-  console.log("   ⚠️  This is a large dataset (~106MB). Using resultRecordCount=5000.");
+  console.log("   ⚠️  Large dataset (~106MB). Fetching first 5000 records; run multiple times with pagination for full import.");
 
   const response = await fetch(LINZ_CROWN_PROPERTY_URL);
   if (!response.ok) {
@@ -570,6 +576,7 @@ async function importCouncilFreedomCamping(orgZones: OrgZone[]) {
         name: zoneName, description,
         orgId: org.org_id, parentZoneId: org.zone_id,
         lat: centroid[1], lng: centroid[0],
+      // includes('Polygon') matches both 'Polygon' and 'MultiPolygon' types
         geometry: feature.geometry?.type?.includes('Polygon') ? feature.geometry : undefined,
         boundarySource: 'council_freedom_camping',
       }, existingZones, counters);
