@@ -13,6 +13,7 @@ import { Building2, Users, MapPin, Settings } from 'lucide-react'
 import { toast } from 'sonner'
 import { AppLayout } from '@/components/features/AppLayout'
 import { GlobalFilterRibbon } from '@/components/features/GlobalFilterRibbon'
+import { getOrgTypeLabel } from '@/lib/utils'
 
 interface Organization {
   id: string
@@ -177,7 +178,7 @@ export default function OrganizationManagement() {
                         </Badge>
                       </div>
                       <CardDescription className="mt-2">
-                        Level {org.organization_level} {org.organization_type === 'owner' ? '(Owner)' : org.organization_type === 'service_provider' ? '(Service Provider)' : '(Client)'}
+                        Level {org.organization_level} ({getOrgTypeLabel(org.organization_type)})
                         {org.parent_organization_id && ' — Child organization'}
                       </CardDescription>
                     </div>

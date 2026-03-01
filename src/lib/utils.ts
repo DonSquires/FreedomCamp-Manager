@@ -73,3 +73,12 @@ export function debounce<T extends (...args: any[]) => any>(
     timeout = setTimeout(later, wait)
   }
 }
+
+export function getOrgTypeLabel(type: string): string {
+  switch (type) {
+    case 'owner': return 'Owner'
+    case 'service_provider': return 'Service Provider'
+    case 'client': return 'Client'
+    default: return type
+  }
+}
