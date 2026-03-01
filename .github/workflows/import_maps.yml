@@ -3,7 +3,7 @@ on:
   workflow_dispatch:
     inputs:
       import_mode:
-        description: 'Import mode: "territorial" for TA boundaries, "meshblock" for enforcement zones, "campsites" for DOC campsite zones'
+        description: 'Import mode: "territorial" for TA boundaries, "meshblock" for enforcement zones, "campsites" for zone data from DOC/LINZ/councils'
         required: false
         default: 'territorial'
         type: choice
@@ -11,6 +11,11 @@ on:
           - territorial
           - meshblock
           - campsites
+      import_sources:
+        description: 'Campsite sources (comma-separated): all, doc_campsites, doc_huts, doc_freedom_camping, linz_crown, council'
+        required: false
+        default: 'all'
+        type: string
       organization_id:
         description: 'Organization UUID (required for meshblock mode)'
         required: false
@@ -45,6 +50,7 @@ jobs:
           # Falls back to NZTA public data if not set. Register at https://datafinder.stats.govt.nz/
           STATSNZ_API_KEY: ${{ secrets.STATSNZ_API_KEY }}
           IMPORT_MODE: ${{ inputs.import_mode }}
+          IMPORT_SOURCES: ${{ inputs.import_sources }}
           ORGANIZATION_ID: ${{ inputs.organization_id }}
           IMPORT_BBOX: ${{ inputs.import_bbox }}
         run: |

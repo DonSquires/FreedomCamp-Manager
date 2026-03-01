@@ -17,6 +17,9 @@ dotenv.config();
 //
 // LINZ Data Service (requires LINZ_API_KEY — for land district boundaries)
 //   Land Districts: https://data.linz.govt.nz/layer/52070-landonline-land-district/
+//
+// LINZ Managed Crown Property (public, no API key — imported via import_campsites.ts)
+//   Crown Land: https://services.arcgis.com/xdsHIIxuCWByZiCB/arcgis/rest/services/LINZ_Managed_Crown_Property/FeatureServer
 const LAYER_IDS = {
   territorial: "120962", // Clipped to coastline – more accurate for geofencing
   meshblock: "120980",
