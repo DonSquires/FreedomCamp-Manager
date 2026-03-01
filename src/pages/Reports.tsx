@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
+import { FunctionsHttpError } from '@supabase/supabase-js'
 import { useAuthStore } from '@/stores/authStore'
 import { useGlobalFiltersStore } from '@/stores/globalFiltersStore'
 import { Button } from '@/components/ui/button'
@@ -109,7 +110,20 @@ export default function Reports() {
         },
       })
 
-      if (error) throw error
+      // Better error handling with detailed messages
+      if (error) {
+        let errorMessage = error.message
+        if (error instanceof FunctionsHttpError) {
+          try {
+            const statusCode = error.context?.status ?? 500
+            const textContent = await error.context?.text()
+            errorMessage = `[${statusCode}] ${textContent || error.message || 'Unknown error'}`
+          } catch {
+            errorMessage = error.message || 'Failed to read response'
+          }
+        }
+        throw new Error(errorMessage)
+      }
       return data
     },
     onSuccess: (data, reportType) => {

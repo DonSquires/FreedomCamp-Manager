@@ -10,6 +10,74 @@ import { Activity, Database, Server, Shield, RefreshCw, CheckCircle, XCircle, Al
 import { AppLayout } from '@/components/features/AppLayout'
 import { checkProxyHealth, checkInferenceHealth } from '@/lib/railwayServices'
 
+interface IntegrityResults {
+  processed: number
+  duplicates_deleted: number
+  invalid_plates_marked: number
+  issues: Array<{
+    table: string
+    issue_type: string
+    severity: string
+    record_id: string
+    plate_number?: string
+    description: string
+    action_taken?: string
+  }>
+}
+
+function IntegrityResultsDisplay({ results }: { results: IntegrityResults }) {
+  return (
+    <div className="space-y-4">
+      {/* Summary Stats */}
+      <div className="grid grid-cols-3 gap-4">
+        <div className="bg-blue-50 dark:bg-blue-950 p-4 rounded-lg">
+          <div className="text-2xl font-bold text-blue-600">{results.processed}</div>
+          <div className="text-sm text-gray-600">Records Processed</div>
+        </div>
+        
+        <div className="bg-green-50 dark:bg-green-950 p-4 rounded-lg">
+          <div className="text-2xl font-bold text-green-600">{results.duplicates_deleted}</div>
+          <div className="text-sm text-gray-600">Duplicates Removed</div>
+        </div>
+        
+        <div className="bg-orange-50 dark:bg-orange-950 p-4 rounded-lg">
+          <div className="text-2xl font-bold text-orange-600">{results.invalid_plates_marked}</div>
+          <div className="text-sm text-gray-600">Invalid Plates</div>
+        </div>
+      </div>
+
+      {/* Issues Table */}
+      {results.issues && results.issues.length > 0 && (
+        <div className="border rounded-lg overflow-hidden">
+          <div className="bg-gray-50 dark:bg-gray-800 px-4 py-2 font-semibold">
+            Issues Found ({results.issues.length})
+          </div>
+          <div className="divide-y max-h-64 overflow-y-auto">
+            {results.issues.map((issue, idx) => (
+              <div key={idx} className="p-3 hover:bg-gray-50 dark:hover:bg-gray-800">
+                <div className="flex items-center gap-2 mb-1">
+                  <Badge variant={issue.severity === 'critical' ? 'destructive' : 'secondary'}>
+                    {issue.severity}
+                  </Badge>
+                  <span className="text-sm font-medium">{issue.table}</span>
+                  <span className="text-xs text-gray-500">• {issue.issue_type}</span>
+                </div>
+                {issue.plate_number && (
+                  <div className="text-sm font-mono text-blue-600">{issue.plate_number}</div>
+                )}
+                <div className="text-sm text-gray-600">{issue.description}</div>
+                {issue.action_taken && (
+                  <div className="text-xs text-green-600 mt-1">✓ {issue.action_taken}</div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function SystemDiagnostics() {
   const { user } = useAuthStore()
   const [testResults, setTestResults] = useState<any>(null)
@@ -262,17 +330,7 @@ export default function SystemDiagnostics() {
         </CardHeader>
         <CardContent>
           {testResults ? (
-            <div className="space-y-3">
-              <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
-                <div className="flex items-center gap-2">
-                  <CheckCircle className="h-5 w-5 text-green-600" />
-                  <span className="font-medium text-green-900">Integrity Check Complete</span>
-                </div>
-                <pre className="mt-2 text-xs text-green-800 overflow-auto">
-                  {JSON.stringify(testResults, null, 2)}
-                </pre>
-              </div>
-            </div>
+            <IntegrityResultsDisplay results={testResults} />
           ) : (
             <div className="text-center py-8 text-gray-600">
               Click "Run Check" to verify data integrity
