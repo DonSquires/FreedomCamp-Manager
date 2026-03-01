@@ -5,53 +5,68 @@ import * as dotenv from 'dotenv';
 dotenv.config();
 
 // CONFIGURATION
-// Stats NZ Geographic Data Service – Territorial Authority 2025 (Generalised)
-// https://datafinder.stats.govt.nz/layer/120963-territorial-authority-2025/
-const STATSNZ_LAYER_ID = "120963";
+// Stats NZ Geographic Data Service
+// Territorial Authority 2025: https://datafinder.stats.govt.nz/layer/120963-territorial-authority-2025/
+// Meshblock 2025:             https://datafinder.stats.govt.nz/layer/120980-meshblock-2025/
+const LAYER_IDS = {
+  territorial: "120963",
+  meshblock: "120980",
+};
+
 const STATSNZ_API_KEY = process.env.STATSNZ_API_KEY;
-const GEOJSON_URL = STATSNZ_API_KEY
-  ? `https://datafinder.stats.govt.nz/services;key=${STATSNZ_API_KEY}/wfs?service=WFS&version=2.0.0&request=GetFeature&typeNames=layer-${STATSNZ_LAYER_ID}&outputFormat=application/json`
-  : null;
+const IMPORT_MODE = (process.env.IMPORT_MODE || "territorial") as keyof typeof LAYER_IDS;
+const ORGANIZATION_ID = process.env.ORGANIZATION_ID; // Required for meshblock mode
+const IMPORT_BBOX = process.env.IMPORT_BBOX; // Optional: "minLng,minLat,maxLng,maxLat"
 
 const supabase = createClient(
   process.env.SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!  // <-- MUST use this name to match existing secret
 );
 
-async function importBoundaries() {
-  if (!GEOJSON_URL) {
+function buildWfsUrl(layerId: string, bbox?: string): string | null {
+  if (!STATSNZ_API_KEY) return null;
+  let url = `https://datafinder.stats.govt.nz/services;key=${STATSNZ_API_KEY}/wfs`
+    + `?service=WFS&version=2.0.0&request=GetFeature`
+    + `&typeNames=layer-${layerId}`
+    + `&outputFormat=application/json`;
+  if (bbox) {
+    url += `&BBOX=${bbox}`;
+  }
+  return url;
+}
+
+// ---------------------------------------------------------------------------
+// Mode 1: Import Territorial Authority boundaries → match to organizations
+// ---------------------------------------------------------------------------
+async function importTerritorialAuthorities() {
+  const url = buildWfsUrl(LAYER_IDS.territorial);
+  if (!url) {
     throw new Error("STATSNZ_API_KEY environment variable is required. Register at https://datafinder.stats.govt.nz/ to obtain a key.");
   }
 
-  console.log("📡 Fetching boundaries from Stats NZ Geographic Data Service...");
-  
-  const response = await fetch(GEOJSON_URL);
+  console.log("📡 Fetching Territorial Authority boundaries from Stats NZ...");
+
+  const response = await fetch(url);
   if (!response.ok) {
-    // Avoid logging the full URL as it contains the API key
     throw new Error(`Stats NZ API request failed: ${response.status} ${response.statusText}`);
   }
-  
+
   const geojson = await response.json();
-  console.log(`🗺️  Downloaded ${geojson.features.length} Boundary Definitions.`);
+  console.log(`🗺️  Downloaded ${geojson.features.length} Territorial Authority boundaries.`);
 
   let successCount = 0;
   let skipCount = 0;
 
-  // Loop through every region in the NZ Government dataset
   for (const feature of geojson.features) {
-    // Stats NZ 2025 properties use TA2025_V1_00_NAME_ASCII / TA2025_V1_00_NAME
-    // Fall back to generic NAME for compatibility
     const rawName = feature.properties.TA2025_V1_00_NAME_ASCII
       || feature.properties.TA2025_V1_00_NAME
       || feature.properties.NAME;
     if (!rawName) continue;
 
-    // 1. Find the Matching Organization in Your Database
-    // We use ILIKE with wildcards to handle "Council" vs "District" suffix differences
     const { data: orgs } = await supabase
       .from('organizations')
       .select('id, name')
-      .ilike('name', `%${rawName}%`) 
+      .ilike('name', `%${rawName}%`)
       .limit(1);
 
     const org = orgs?.[0];
@@ -59,7 +74,6 @@ async function importBoundaries() {
     if (org) {
       console.log(`✅ MATCH: Gov '${rawName}' -> DB '${org.name}'`);
 
-      // 2. Update the Organization (The Entity)
       const { error: orgErr } = await supabase
         .from('organizations')
         .update({ geom: feature.geometry })
@@ -68,16 +82,14 @@ async function importBoundaries() {
       if (orgErr) {
         console.error(`   ❌ Org Update Failed: ${orgErr.message}`);
       } else {
-        // 3. Update the Jurisdiction Zone (The Geofence)
-        // This is the critical part for the "Out of Bounds" check
         const { data: updatedZones, error: zoneErr } = await supabase
           .from('zones')
-          .update({ 
+          .update({
             geom: feature.geometry,
-            geometry: feature.geometry // Sync both columns if they exist
+            geometry: feature.geometry,
           })
           .eq('organization_id', org.id)
-          .eq('zone_type', 'general') // Only update the top-level jurisdiction zone
+          .eq('zone_type', 'general')
           .select('id');
 
         if (zoneErr) console.error(`   ❌ Zone Update Failed: ${zoneErr.message}`);
@@ -87,15 +99,175 @@ async function importBoundaries() {
         } else successCount++;
       }
     } else {
-      // Expected for "Iron Eagle Security" or regions you haven't onboarded
       console.log(`   ⚠️  Skipping '${rawName}' - Not in DB.`);
       skipCount++;
     }
   }
 
-  console.log(`\n🎉 OPERATION COMPLETE`);
+  console.log(`\n🎉 TERRITORIAL AUTHORITY IMPORT COMPLETE`);
   console.log(`✅ Hydrated: ${successCount} Regions`);
   console.log(`⏭️  Skipped:  ${skipCount} Regions`);
 }
 
-importBoundaries();
+// ---------------------------------------------------------------------------
+// Mode 2: Import Meshblock boundaries → create enforcement zones for an org
+// ---------------------------------------------------------------------------
+async function importMeshblocks() {
+  if (!ORGANIZATION_ID) {
+    throw new Error(
+      "ORGANIZATION_ID environment variable is required for meshblock import.\n"
+      + "Set it to the UUID of the organization you want to import meshblocks for."
+    );
+  }
+
+  // Look up the organization and its parent zone
+  const { data: org, error: orgErr } = await supabase
+    .from('organizations')
+    .select('id, name')
+    .eq('id', ORGANIZATION_ID)
+    .single();
+
+  if (orgErr || !org) {
+    throw new Error(`Organization '${ORGANIZATION_ID}' not found: ${orgErr?.message}`);
+  }
+
+  const { data: parentZone } = await supabase
+    .from('zones')
+    .select('id')
+    .eq('organization_id', org.id)
+    .eq('zone_type', 'general')
+    .limit(1)
+    .single();
+
+  console.log(`🏢 Importing meshblocks for: ${org.name}`);
+  if (parentZone) {
+    console.log(`   Parent zone ID: ${parentZone.id}`);
+  } else {
+    console.warn(`   ⚠️  No parent zone found – meshblocks will not have a parent_zone_id.`);
+  }
+
+  const url = buildWfsUrl(LAYER_IDS.meshblock, IMPORT_BBOX);
+  if (!url) {
+    throw new Error("STATSNZ_API_KEY environment variable is required. Register at https://datafinder.stats.govt.nz/ to obtain a key.");
+  }
+
+  console.log("📡 Fetching Meshblock boundaries from Stats NZ...");
+  if (IMPORT_BBOX) {
+    console.log(`   BBOX filter: ${IMPORT_BBOX}`);
+  } else {
+    console.warn("   ⚠️  No IMPORT_BBOX set – this will download ALL ~57,000 meshblocks. Consider setting IMPORT_BBOX=minLng,minLat,maxLng,maxLat");
+  }
+
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`Stats NZ API request failed: ${response.status} ${response.statusText}`);
+  }
+
+  const geojson = await response.json();
+  console.log(`🗺️  Downloaded ${geojson.features.length} Meshblock boundaries.`);
+
+  // Pre-fetch existing meshblock zones for this org to avoid N+1 queries
+  const existingZones = new Map<string, string>();
+  const { data: existingData } = await supabase
+    .from('zones')
+    .select('id, name')
+    .eq('organization_id', org.id)
+    .like('name', 'Meshblock %');
+
+  if (existingData) {
+    for (const z of existingData) {
+      existingZones.set(z.name, z.id);
+    }
+  }
+  console.log(`   Found ${existingZones.size} existing meshblock zones for this org.`);
+
+  let createdCount = 0;
+  let updatedCount = 0;
+  let skipCount = 0;
+
+  for (const feature of geojson.features) {
+    const meshblockCode = feature.properties.MB2025_V1_00
+      || feature.properties.MB2025
+      || feature.properties.CODE;
+    if (!meshblockCode) {
+      skipCount++;
+      continue;
+    }
+
+    // Skip water-only meshblocks (only import land areas)
+    const landwater = feature.properties.LANDWATER_NAME || feature.properties.LANDWATER || "";
+    if (typeof landwater === "string" && /oceanic|inland water/i.test(landwater)) {
+      skipCount++;
+      continue;
+    }
+
+    const zoneName = `Meshblock ${meshblockCode}`;
+    const existingId = existingZones.get(zoneName);
+
+    if (existingId) {
+      // Update existing zone geometry
+      const { error: updateErr } = await supabase
+        .from('zones')
+        .update({
+          geom: feature.geometry,
+          geometry: feature.geometry,
+          boundary_source: 'stats_nz_meshblock_2025',
+        })
+        .eq('id', existing[0].id);
+
+      if (updateErr) {
+        console.error(`   ❌ Update failed for ${zoneName}: ${updateErr.message}`);
+      } else {
+        updatedCount++;
+      }
+    } else {
+      // Create new enforcement zone
+      const { error: insertErr } = await supabase
+        .from('zones')
+        .insert({
+          name: zoneName,
+          organization_id: org.id,
+          zone_type: 'specific',
+          parent_zone_id: parentZone?.id || null,
+          geom: feature.geometry,
+          geometry: feature.geometry,
+          boundary_source: 'stats_nz_meshblock_2025',
+          is_active: true,
+        });
+
+      if (insertErr) {
+        console.error(`   ❌ Insert failed for ${zoneName}: ${insertErr.message}`);
+      } else {
+        createdCount++;
+      }
+    }
+  }
+
+  console.log(`\n🎉 MESHBLOCK IMPORT COMPLETE`);
+  console.log(`✅ Created:  ${createdCount} zones`);
+  console.log(`🔄 Updated:  ${updatedCount} zones`);
+  console.log(`⏭️  Skipped:  ${skipCount} (water-only or missing code)`);
+}
+
+// ---------------------------------------------------------------------------
+// Main
+// ---------------------------------------------------------------------------
+async function main() {
+  if (!STATSNZ_API_KEY) {
+    throw new Error("STATSNZ_API_KEY environment variable is required. Register at https://datafinder.stats.govt.nz/ to obtain a key.");
+  }
+
+  if (!(IMPORT_MODE in LAYER_IDS)) {
+    throw new Error(`Invalid IMPORT_MODE '${IMPORT_MODE}'. Use 'territorial' or 'meshblock'.`);
+  }
+
+  console.log(`🚀 Import mode: ${IMPORT_MODE}`);
+
+  if (IMPORT_MODE === "meshblock") {
+    await importMeshblocks();
+  } else {
+    await importTerritorialAuthorities();
+  }
+}
+
+main();
