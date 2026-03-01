@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { useGlobalFiltersStore } from '@/stores/globalFiltersStore'
@@ -11,18 +11,17 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { AppLayout } from '@/components/features/AppLayout'
 import { GlobalFilterRibbon } from '@/components/features/GlobalFilterRibbon'
 import { LoadingSpinner } from '@/components/features/LoadingSpinner'
-import { Search, Car, AlertTriangle, CheckCircle, Calendar, RefreshCw, Database } from 'lucide-react'
+import { Search, Car, AlertTriangle, CheckCircle, Calendar, RefreshCw, Database, Globe } from 'lucide-react'
 import { formatDateTime } from '@/lib/utils'
 import { checkNZSCVCertification, enrichVehicleFromMotorWeb } from '@/lib/railwayServices'
 import { toast } from 'sonner'
 
 interface Vehicle {
-  id: string
   plate_number: string
-  make: string | null
-  model: string | null
-  year: number | null
-  colour: string | null
+  vehicle_make: string | null
+  vehicle_model: string | null
+  vehicle_year: number | null
+  vehicle_color: string | null
   self_contained: boolean
   self_contained_expiry: string | null
   homeless_status: string | null
@@ -37,12 +36,14 @@ interface Vehicle {
 export default function VehicleManagement() {
   const { user } = useAuthStore()
   const { organizationId } = useGlobalFiltersStore()
+  const queryClient = useQueryClient()
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<'all' | 'compliant' | 'breaches'>('all')
   const [showDetailsDialog, setShowDetailsDialog] = useState(false)
   const [selectedVehicle, setSelectedVehicle] = useState<Vehicle | null>(null)
   const [checkingNZSCV, setCheckingNZSCV] = useState(false)
   const [enrichingMotorWeb, setEnrichingMotorWeb] = useState(false)
+  const [scrapingSales, setScrapingSales] = useState(false)
   const [nzscvResult, setNzscvResult] = useState<any>(null)
 
   // Fetch vehicles
@@ -115,15 +116,14 @@ export default function VehicleManagement() {
       }
 
       if (data) {
-        // Update vehicle in database with enriched data
+        // Update vehicle in database with enriched data using correct column names
         const { error: updateError } = await supabase
           .from('canonical_vehicles')
           .update({
-            make: data.make,
-            model: data.model,
-            year: data.year,
-            colour: data.colour,
-            body_style: data.body_style,
+            vehicle_make: data.make,
+            vehicle_model: data.model,
+            vehicle_year: data.year,
+            vehicle_color: data.colour,
             owner_first_name: data.owner_name?.split(' ')[0],
             owner_last_name: data.owner_name?.split(' ').slice(1).join(' '),
             owner_address: data.owner_address,
@@ -136,13 +136,51 @@ export default function VehicleManagement() {
         }
 
         toast.success('Vehicle data enriched from MotorWeb')
-        // Refresh the vehicles list
-        // You may want to invalidate the query here
       }
     } catch (error: any) {
       toast.error(error.message || 'Failed to enrich from MotorWeb')
     } finally {
       setEnrichingMotorWeb(false)
+    }
+  }
+
+  // Scrape vehicle photos from NZ sales sites (Trade Me, cars.co.nz)
+  const handleScrapeVehicle = async (plateNumber: string, forceUpdate = false) => {
+    setScrapingSales(true)
+    try {
+      const { data, error } = await supabase.functions.invoke('scrape-vehicle-photos', {
+        body: { plate_number: plateNumber, force_update: forceUpdate },
+      })
+
+      if (error) {
+        toast.error(`Scrape failed: ${error.message}`)
+        return
+      }
+
+      if (data?.skipped) {
+        toast.info('Vehicle already has a profile photo. Use "Force Update" to replace it.')
+        return
+      }
+
+      if (!data?.found) {
+        toast.warning(`No listing found for ${plateNumber} on Trade Me or cars.co.nz`)
+        return
+      }
+
+      toast.success(
+        `Photo found on ${data.source === 'trademe' ? 'Trade Me' : 'cars.co.nz'} and saved to vehicle record`
+      )
+
+      // Refresh the query to show the updated profile photo
+      queryClient.invalidateQueries({ queryKey: ['vehicles'] })
+      // Update the selected vehicle in state so the dialog reflects the new photo
+      if (selectedVehicle?.plate_number === plateNumber && data.canonical_record) {
+        setSelectedVehicle((prev) => ({ ...prev!, profile_photo: data.canonical_record.profile_photo }))
+      }
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to scrape vehicle sales sites')
+    } finally {
+      setScrapingSales(false)
     }
   }
 
@@ -288,7 +326,7 @@ export default function VehicleManagement() {
                       {vehicle.plate_number}
                     </CardTitle>
                     <CardDescription>
-                      {vehicle.make} {vehicle.model} {vehicle.year && `(${vehicle.year})`}
+                      {vehicle.vehicle_make} {vehicle.vehicle_model} {vehicle.vehicle_year && `(${vehicle.vehicle_year})`}
                     </CardDescription>
                   </div>
                   {vehicle.profile_photo && (
@@ -364,7 +402,7 @@ export default function VehicleManagement() {
               {selectedVehicle?.plate_number}
             </DialogTitle>
             <DialogDescription>
-              {selectedVehicle?.make} {selectedVehicle?.model} {selectedVehicle?.year && `(${selectedVehicle.year})`}
+              {selectedVehicle?.vehicle_make} {selectedVehicle?.vehicle_model} {selectedVehicle?.vehicle_year && `(${selectedVehicle.vehicle_year})`}
             </DialogDescription>
           </DialogHeader>
 
@@ -385,7 +423,7 @@ export default function VehicleManagement() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <div className="text-sm text-gray-600">Colour</div>
-                  <div className="font-medium">{selectedVehicle.colour || 'Unknown'}</div>
+                  <div className="font-medium">{selectedVehicle.vehicle_color || 'Unknown'}</div>
                 </div>
                 
                 <div>
@@ -527,6 +565,48 @@ export default function VehicleManagement() {
                 </div>
                 <div className="text-xs text-gray-600 mt-2">
                   Pull vehicle details, owner info, and more from MotorWeb database
+                </div>
+              </div>
+
+              {/* Scrape Vehicle Sales Sites */}
+              <div className="p-4 bg-green-50 dark:bg-green-900/20 rounded-lg space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="text-sm font-semibold">Scrape Sales Sites</div>
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleScrapeVehicle(selectedVehicle.plate_number, false)}
+                      disabled={scrapingSales}
+                    >
+                      {scrapingSales ? (
+                        <>
+                          <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                          Searching...
+                        </>
+                      ) : (
+                        <>
+                          <Globe className="h-4 w-4 mr-2" />
+                          Find Photo
+                        </>
+                      )}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => handleScrapeVehicle(selectedVehicle.plate_number, true)}
+                      disabled={scrapingSales}
+                      title="Force update even if a photo already exists"
+                    >
+                      Force Update
+                    </Button>
+                  </div>
+                </div>
+                <div className="text-xs text-gray-600">
+                  Search Trade Me Motors and cars.co.nz for listings matching this plate.
+                  Downloads the best available photo, stores it as the profile photo, and
+                  enriches vehicle details from the listing. Also runs the photo through
+                  the AI inference service if available.
                 </div>
               </div>
 
