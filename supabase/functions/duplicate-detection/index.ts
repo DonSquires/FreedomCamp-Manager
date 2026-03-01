@@ -94,8 +94,7 @@ serve(async (req) => {
       for (let i = 1; i < plateObs.length; i++) {
         const current = plateObs[i];
         
-        // Skip if has incident/hs report
-        // (has_incident/has_hs_incident not present in observations table)
+        
 
         // Check against previous observations (earlier ones)
         for (let j = 0; j < i; j++) {
