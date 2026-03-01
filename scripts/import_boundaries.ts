@@ -118,7 +118,7 @@ async function importTerritorialAuthorities() {
             geometry: feature.geometry,
           })
           .eq('organization_id', org.id)
-          .eq('zone_type', 'general')
+          .eq('zone_type', 'general') // Only update the top-level jurisdiction
           .select('id');
 
         if (zoneErr) console.error(`   ❌ Zone Update Failed: ${zoneErr.message}`);
