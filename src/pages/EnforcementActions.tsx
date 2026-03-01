@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { useGlobalFiltersStore } from '@/stores/globalFiltersStore'
@@ -24,7 +25,8 @@ import {
   MapPin,
   Calendar,
   XCircle,
-  ArrowRight
+  ArrowRight,
+  MonitorPlay,
 } from 'lucide-react'
 import { formatDateTime } from '@/lib/utils'
 import { toast } from 'sonner'
@@ -76,6 +78,7 @@ export default function EnforcementActions() {
   const [newActionType, setNewActionType] = useState<string>('warning')
   const [actionNotes, setActionNotes] = useState('')
   const queryClient = useQueryClient()
+  const navigate = useNavigate()
 
   // Fetch enforcement actions
   const { data: actions, isLoading: actionsLoading } = useQuery({
@@ -323,6 +326,14 @@ export default function EnforcementActions() {
       showBackButton
     >
       <GlobalFilterRibbon />
+
+      {/* Quick Navigation */}
+      <div className="flex justify-end mb-4">
+        <Button variant="outline" onClick={() => navigate('/enforcement-command-center')}>
+          <MonitorPlay className="h-4 w-4 mr-2" />
+          Command Center
+        </Button>
+      </div>
 
       {/* Stats Grid */}
       {stats && (
@@ -645,9 +656,19 @@ export default function EnforcementActions() {
                           disabled={completeMutation.isPending}
                         >
                           <ArrowRight className="h-4 w-4 mr-1" />
-                          Escalate
+                          Escalate to Notice
                         </Button>
                       </>
+                    )}
+                    {action.breach_alert_id && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => navigate(`/breaches?breach_id=${action.breach_alert_id}`)}
+                      >
+                        <Bell className="h-4 w-4 mr-1" />
+                        View Breach
+                      </Button>
                     )}
                   </div>
                 </div>

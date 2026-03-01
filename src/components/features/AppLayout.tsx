@@ -20,6 +20,8 @@ import {
   ChevronLeft,
   Search,
   Activity,
+  Gavel,
+  MonitorPlay,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -35,10 +37,12 @@ const navigationItems = [
   { path: '/search', icon: Search, label: 'Universal Search', roles: ['admin', 'admin_officer', 'master', 'officer'] },
   { path: '/compliance', icon: BarChart3, label: 'Compliance Dashboard', roles: ['admin', 'admin_officer', 'master', 'officer'] },
   { path: '/breaches', icon: AlertTriangle, label: 'Breach & Safety Alerts', roles: ['admin', 'admin_officer', 'master', 'officer'] },
+  { path: '/enforcement-actions', icon: Gavel, label: 'Enforcement Actions', roles: ['admin', 'admin_officer', 'master', 'officer'] },
+  { path: '/enforcement-command-center', icon: MonitorPlay, label: 'Command Center', roles: ['admin', 'admin_officer', 'master'] },
   { path: '/vehicles', icon: Car, label: 'Vehicle Management', roles: ['admin', 'admin_officer', 'master', 'officer'] },
   { path: '/zones', icon: MapPin, label: 'Zone Management', roles: ['admin', 'admin_officer', 'master'] },
   { path: '/users', icon: Users, label: 'User Management', roles: ['admin', 'master'] },
-  { path: '/incidents', icon: Shield, label: 'Enforcement', roles: ['admin', 'admin_officer', 'master', 'officer'] },
+  { path: '/incidents', icon: Shield, label: 'Incidents & Evidence', roles: ['admin', 'admin_officer', 'master', 'officer'] },
   { path: '/reports', icon: FileText, label: 'Reports', roles: ['admin', 'admin_officer', 'master'] },
   { path: '/audit-log', icon: Activity, label: 'Audit Log', roles: ['admin', 'admin_officer', 'master'] },
   { path: '/data', icon: Database, label: 'Data Management', roles: ['admin', 'master'] },

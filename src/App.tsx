@@ -27,6 +27,8 @@ import LiveOfficerTracking from '@/pages/LiveOfficerTracking'
 import OrganizationProfile from '@/pages/OrganizationProfile'
 import UniversalSearch from '@/pages/UniversalSearch'
 import AuditLog from '@/pages/AuditLog'
+import EnforcementActions from '@/pages/EnforcementActions'
+import EnforcementCommandCenter from '@/pages/EnforcementCommandCenter'
 
 // Create a client
 const queryClient = new QueryClient({
@@ -293,6 +295,28 @@ export default function App() {
               <ProtectedRoute>
                 <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
                   <AuditLog />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/enforcement-actions"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master', 'officer']}>
+                  <EnforcementActions />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/enforcement-command-center"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <EnforcementCommandCenter />
                 </RoleRoute>
               </ProtectedRoute>
             }
