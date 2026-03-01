@@ -17,7 +17,9 @@ import {
   Database,
   Building2,
   LogOut,
-  ChevronLeft
+  ChevronLeft,
+  Search,
+  Activity,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -30,13 +32,15 @@ interface AppLayoutProps {
 
 const navigationItems = [
   { path: '/', icon: Home, label: 'Home', roles: ['admin', 'admin_officer', 'master', 'officer'] },
+  { path: '/search', icon: Search, label: 'Universal Search', roles: ['admin', 'admin_officer', 'master', 'officer'] },
   { path: '/compliance', icon: BarChart3, label: 'Compliance Dashboard', roles: ['admin', 'admin_officer', 'master', 'officer'] },
-  { path: '/breaches', icon: AlertTriangle, label: 'Breach Alerts', roles: ['admin', 'admin_officer', 'master', 'officer'] },
+  { path: '/breaches', icon: AlertTriangle, label: 'Breach & Safety Alerts', roles: ['admin', 'admin_officer', 'master', 'officer'] },
   { path: '/vehicles', icon: Car, label: 'Vehicle Management', roles: ['admin', 'admin_officer', 'master', 'officer'] },
   { path: '/zones', icon: MapPin, label: 'Zone Management', roles: ['admin', 'admin_officer', 'master'] },
   { path: '/users', icon: Users, label: 'User Management', roles: ['admin', 'master'] },
   { path: '/incidents', icon: Shield, label: 'Enforcement', roles: ['admin', 'admin_officer', 'master', 'officer'] },
   { path: '/reports', icon: FileText, label: 'Reports', roles: ['admin', 'admin_officer', 'master'] },
+  { path: '/audit-log', icon: Activity, label: 'Audit Log', roles: ['admin', 'admin_officer', 'master'] },
   { path: '/data', icon: Database, label: 'Data Management', roles: ['admin', 'master'] },
   { path: '/organization-profile', icon: Building2, label: 'Organization Profile', roles: ['admin', 'admin_officer', 'master'] },
   { path: '/organizations', icon: Building2, label: 'Organizations', roles: ['master'] },

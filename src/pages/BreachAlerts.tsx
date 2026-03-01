@@ -16,7 +16,10 @@ import {
   Bell,
   FileText,
   Database,
-  RefreshCw
+  RefreshCw,
+  ShieldAlert,
+  UserX,
+  Zap,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatDateTime } from '@/lib/utils'
@@ -43,6 +46,53 @@ export default function BreachAlerts() {
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [enrichingVehicle, setEnrichingVehicle] = useState<string | null>(null)
   const queryClient = useQueryClient()
+
+  // ── Intelligence Alerts: flagged vehicles in restricted zones ──────────────
+  const { data: intelligenceAlerts } = useQuery({
+    queryKey: ['intelligence-alerts', organizationId, zoneId],
+    queryFn: async () => {
+      let q = supabase
+        .from('breach_alerts')
+        .select('id, plate_number, breach_type, detected_at, status, zones!zone_id(name)')
+        .eq('breach_type', 'unauthorized_zone')
+        .eq('status', 'pending')
+        .order('detected_at', { ascending: false })
+        .limit(10)
+
+      if (user?.role !== 'master' && user?.organization_id) {
+        q = q.eq('organization_id', user.organization_id)
+      } else if (organizationId) {
+        q = q.eq('organization_id', organizationId)
+      }
+      if (zoneId) q = q.eq('zone_id', zoneId)
+
+      const { data } = await q
+      return data || []
+    },
+  })
+
+  // ── Safety Alerts: officer unexpected departures (welfare inactivity) ──────
+  const { data: safetyAlerts } = useQuery({
+    queryKey: ['safety-alerts', organizationId],
+    queryFn: async () => {
+      let q = supabase
+        .from('officer_welfare_alerts')
+        .select('id, officer_name, alert_type, status, created_at, gps_latitude, gps_longitude')
+        .in('alert_type', ['inactivity', 'gps_lost'])
+        .eq('status', 'pending')
+        .order('created_at', { ascending: false })
+        .limit(10)
+
+      if (user?.role !== 'master' && user?.organization_id) {
+        q = q.eq('organization_id', user.organization_id)
+      } else if (organizationId) {
+        q = q.eq('organization_id', organizationId)
+      }
+
+      const { data } = await q
+      return data || []
+    },
+  })
 
   // Fetch breach alerts
   const { data: breaches, isLoading } = useQuery({
@@ -214,6 +264,66 @@ export default function BreachAlerts() {
   return (
     <AppLayout title="Breach Alerts" description="Manage compliance breaches and enforcement actions" showBackButton>
       <GlobalFilterRibbon />
+
+      {/* ── Intelligence & Safety Alert Banners ──────────────────────────── */}
+      {intelligenceAlerts && intelligenceAlerts.length > 0 && (
+        <Card className="border-red-400 bg-red-50 dark:bg-red-950/30 mb-4">
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-2 text-red-700 dark:text-red-400 text-base">
+              <Zap className="h-5 w-5" />
+              Intelligence Alert – Flagged Vehicle in Restricted Zone ({intelligenceAlerts.length})
+            </CardTitle>
+            <CardDescription className="text-red-600 dark:text-red-400">
+              The following vehicles were detected entering a restricted zone and require immediate attention.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {intelligenceAlerts.map((a: any) => (
+                <div key={a.id} className="flex items-center justify-between bg-white dark:bg-gray-900 rounded p-2 text-sm">
+                  <div className="flex items-center gap-2">
+                    <ShieldAlert className="h-4 w-4 text-red-600" />
+                    <span className="font-bold">{a.plate_number}</span>
+                    <span className="text-gray-600">in</span>
+                    <span className="font-medium">{a.zones?.name || 'Unknown Zone'}</span>
+                  </div>
+                  <span className="text-gray-400 text-xs">{formatDateTime(a.detected_at)}</span>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {safetyAlerts && safetyAlerts.length > 0 && (
+        <Card className="border-orange-400 bg-orange-50 dark:bg-orange-950/30 mb-4">
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-2 text-orange-700 dark:text-orange-400 text-base">
+              <UserX className="h-5 w-5" />
+              Safety Alert – Officer Unexpected Departure / Inactivity ({safetyAlerts.length})
+            </CardTitle>
+            <CardDescription className="text-orange-600 dark:text-orange-400">
+              The following officers have triggered a welfare alert due to inactivity or GPS loss (HSWA 2015 – Primary Duty of Care).
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {safetyAlerts.map((a: any) => (
+                <div key={a.id} className="flex items-center justify-between bg-white dark:bg-gray-900 rounded p-2 text-sm">
+                  <div className="flex items-center gap-2">
+                    <AlertTriangle className="h-4 w-4 text-orange-600" />
+                    <span className="font-bold">{a.officer_name}</span>
+                    <Badge variant="outline" className="capitalize text-xs">
+                      {a.alert_type?.replace(/_/g, ' ')}
+                    </Badge>
+                  </div>
+                  <span className="text-gray-400 text-xs">{formatDateTime(a.created_at)}</span>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Stats Grid */}
       {stats && (
