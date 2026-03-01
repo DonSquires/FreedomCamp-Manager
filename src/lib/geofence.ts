@@ -10,6 +10,7 @@ import { toast } from 'sonner'
 export interface GeofenceZone {
   id: string
   name: string
+  zone_type: string
   location_lat: number
   location_lng: number
   radius_meters?: number
@@ -72,7 +73,7 @@ export async function detectCurrentZones(
     // Fetch all active zones
     let query = supabase
       .from('zones')
-      .select('id, name, location_lat, location_lng, geometry')
+      .select('id, name, zone_type, location_lat, location_lng, geometry')
       .eq('is_active', true)
     
     if (organizationId) {
@@ -88,6 +89,13 @@ export async function detectCurrentZones(
     const nearbyZones = zones.filter((zone) => {
       if (!zone.location_lat || !zone.location_lng) return false
       return isInsideGeofence(userLat, userLng, zone as GeofenceZone)
+    })
+    
+    // Sort to favor child (specific) zones over parent (general) zones
+    nearbyZones.sort((a, b) => {
+      if (a.zone_type === 'specific' && b.zone_type !== 'specific') return -1
+      if (a.zone_type !== 'specific' && b.zone_type === 'specific') return 1
+      return 0
     })
     
     return nearbyZones as GeofenceZone[]
