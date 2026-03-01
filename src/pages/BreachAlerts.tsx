@@ -707,6 +707,18 @@ export default function BreachAlerts() {
                 <div>
                   <Label className="text-sm font-semibold mb-1 block">Vehicle Record</Label>
                   <div className="bg-blue-50 dark:bg-blue-950 rounded p-3 text-sm space-y-1">
+                    {/* Vehicle Photo */}
+                    {detailVehicle.profile_photo ? (
+                      <img
+                        src={detailVehicle.profile_photo}
+                        alt={detailVehicle.plate_number}
+                        className="w-full h-40 object-cover rounded mb-2"
+                      />
+                    ) : (
+                      <div className="w-full h-24 bg-blue-100 dark:bg-blue-900/40 rounded flex items-center justify-center mb-2">
+                        <Car className="h-10 w-10 text-blue-300 dark:text-blue-600" />
+                      </div>
+                    )}
                     <div className="font-bold text-lg">{detailVehicle.plate_number}</div>
                     <div>
                       {[detailVehicle.year, detailVehicle.make, detailVehicle.model, detailVehicle.colour].filter(Boolean).join(' ')}

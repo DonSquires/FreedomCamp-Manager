@@ -46,6 +46,7 @@ interface Observation {
   breach_reason: string | null;
   vehicle_make: string | null;
   vehicle_model: string | null;
+  vehicle_year: number | null;
   vehicle_color: string | null;
   self_contained: boolean;
   nights_stayed_this_month: number;
@@ -61,17 +62,17 @@ interface Observation {
 }
 
 interface CanonicalVehicle {
-  vehicle_id: string;
+  id: string;
   plate_number: string;
-  vehicle_make: string | null;
-  vehicle_model: string | null;
-  vehicle_color: string | null;
+  make: string | null;
+  model: string | null;
+  colour: string | null;
   total_observations: number;
-  is_homeless: boolean;
-  homeless_confirmed: boolean;
+  homeless_status: string;
   is_flagged: boolean;
   flagged_priority: string | null;
   flagged_reason: string | null;
+  profile_photo: string | null;
   first_seen_at: string;
   last_seen_at: string;
 }
@@ -201,9 +202,9 @@ function OverviewTab() {
     queryKey: ['overview-breaches'],
     queryFn: async () => {
       const { count } = await supabase
-        .from('observations')
+        .from('breach_alerts')
         .select('*', { count: 'exact', head: true })
-        .eq('is_compliant', false);
+        .eq('status', 'pending');
       return count ?? 0;
     },
   });
@@ -511,13 +512,13 @@ function VehiclesTab() {
     queryFn: async () => {
       let q = supabase
         .from('canonical_vehicles')
-        .select('vehicle_id, plate_number, vehicle_make, vehicle_model, vehicle_color, total_observations, is_homeless, homeless_confirmed, is_flagged, flagged_priority, flagged_reason, first_seen_at, last_seen_at', { count: 'exact' })
+        .select('id, plate_number, make, model, colour, total_observations, homeless_status, is_flagged, flagged_priority, flagged_reason, profile_photo, first_seen_at, last_seen_at', { count: 'exact' })
         .order('total_observations', { ascending: false })
         .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
 
       if (search.trim()) q = q.ilike('plate_number', `%${search.trim()}%`);
       if (flagFilter === 'flagged') q = q.eq('is_flagged', true);
-      if (flagFilter === 'homeless') q = q.eq('is_homeless', true);
+      if (flagFilter === 'homeless') q = q.not('homeless_status', 'eq', 'none');
 
       const { data, count, error } = await q;
       if (error) throw error;
@@ -575,6 +576,7 @@ function VehiclesTab() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-gray-50 dark:bg-gray-800/50 text-left">
+                  <th className="px-4 py-3 font-semibold text-gray-600 dark:text-gray-400">Photo</th>
                   <th className="px-4 py-3 font-semibold text-gray-600 dark:text-gray-400">Plate</th>
                   <th className="px-4 py-3 font-semibold text-gray-600 dark:text-gray-400 hidden md:table-cell">Vehicle</th>
                   <th className="px-4 py-3 font-semibold text-gray-600 dark:text-gray-400 text-center">Observations</th>
@@ -585,12 +587,21 @@ function VehiclesTab() {
               </thead>
               <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
                 {data.rows.map((v) => (
-                  <tr key={v.vehicle_id} className="hover:bg-gray-50 dark:hover:bg-gray-800/30 transition-colors">
+                  <tr key={v.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/30 transition-colors">
+                    <td className="px-4 py-3">
+                      {v.profile_photo ? (
+                        <img src={v.profile_photo} alt={v.plate_number} className="w-12 h-10 object-cover rounded" />
+                      ) : (
+                        <div className="w-12 h-10 bg-gray-100 dark:bg-gray-800 rounded flex items-center justify-center">
+                          <Car className="w-5 h-5 text-gray-300" />
+                        </div>
+                      )}
+                    </td>
                     <td className="px-4 py-3 font-mono font-bold text-gray-900 dark:text-white">
                       {v.plate_number}
                     </td>
                     <td className="px-4 py-3 text-gray-600 dark:text-gray-400 hidden md:table-cell">
-                      {[v.vehicle_make, v.vehicle_model, v.vehicle_color].filter(Boolean).join(' ') || '—'}
+                      {[v.make, v.model, v.colour].filter(Boolean).join(' ') || '—'}
                     </td>
                     <td className="px-4 py-3 text-center">
                       <span className="inline-block px-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-xs font-bold">
@@ -604,12 +615,12 @@ function VehiclesTab() {
                             <AlertTriangle className="w-3 h-3" /> {v.flagged_priority ?? 'Flagged'}
                           </span>
                         )}
-                        {v.is_homeless && (
+                        {v.homeless_status && v.homeless_status !== 'none' && (
                           <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-xs font-medium bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300">
-                            🏠 {v.homeless_confirmed ? 'Confirmed' : 'Claimed'}
+                            🏠 {v.homeless_status === 'confirmed' ? 'Confirmed' : 'Claimed'}
                           </span>
                         )}
-                        {!v.is_flagged && !v.is_homeless && (
+                        {!v.is_flagged && (!v.homeless_status || v.homeless_status === 'none') && (
                           <span className="text-xs text-gray-400">—</span>
                         )}
                       </div>

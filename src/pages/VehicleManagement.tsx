@@ -17,11 +17,12 @@ import { checkNZSCVCertification, enrichVehicleFromMotorWeb } from '@/lib/railwa
 import { toast } from 'sonner'
 
 interface Vehicle {
+  id: string
   plate_number: string
-  vehicle_make: string | null
-  vehicle_model: string | null
-  vehicle_year: number | null
-  vehicle_color: string | null
+  make: string | null
+  model: string | null
+  year: number | null
+  colour: string | null
   self_contained: boolean
   self_contained_expiry: string | null
   homeless_status: string | null
@@ -64,8 +65,6 @@ export default function VehicleManagement() {
       } else if (statusFilter === 'breaches') {
         query = query.gt('total_breaches', 0)
       }
-
-      const { data, error } = await query.limit(100)
       
       if (error) throw error
       return data as Vehicle[]
@@ -120,10 +119,10 @@ export default function VehicleManagement() {
         const { error: updateError } = await supabase
           .from('canonical_vehicles')
           .update({
-            vehicle_make: data.make,
-            vehicle_model: data.model,
-            vehicle_year: data.year,
-            vehicle_color: data.colour,
+            make: data.make,
+            model: data.model,
+            year: data.year,
+            colour: data.colour,
             owner_first_name: data.owner_name?.split(' ')[0],
             owner_last_name: data.owner_name?.split(' ').slice(1).join(' '),
             owner_address: data.owner_address,
@@ -190,7 +189,7 @@ export default function VehicleManagement() {
     compliant: vehicles.filter(v => v.total_breaches === 0).length,
     breaches: vehicles.filter(v => v.total_breaches > 0).length,
     selfContained: vehicles.filter(v => v.self_contained).length,
-    homeless: vehicles.filter(v => v.homeless_status === 'confirmed' || v.homeless_status === 'likely').length,
+    homeless: vehicles.filter(v => v.homeless_status === 'confirmed' || v.homeless_status === 'claimed').length,
     exempt: vehicles.filter(v => v.is_exempt).length,
   } : null
 
@@ -318,23 +317,33 @@ export default function VehicleManagement() {
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {vehicles?.map((vehicle) => (
-            <Card key={vehicle.id} className="hover:shadow-lg transition-shadow">
-              <CardHeader>
+            <Card key={vehicle.id} className="hover:shadow-lg transition-shadow overflow-hidden">
+              {/* Vehicle Photo */}
+              {vehicle.profile_photo ? (
+                <div className="w-full h-40 bg-gray-100 dark:bg-gray-800 overflow-hidden">
+                  <img
+                    src={vehicle.profile_photo}
+                    alt={vehicle.plate_number}
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+              ) : (
+                <div className="w-full h-40 bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
+                  <Car className="h-16 w-16 text-gray-300 dark:text-gray-600" />
+                </div>
+              )}
+              <CardHeader className="pb-2">
                 <div className="flex items-start justify-between">
                   <div>
                     <CardTitle className="text-lg font-bold">
                       {vehicle.plate_number}
                     </CardTitle>
                     <CardDescription>
-                      {vehicle.vehicle_make} {vehicle.vehicle_model} {vehicle.vehicle_year && `(${vehicle.vehicle_year})`}
+                      {[vehicle.make, vehicle.model, vehicle.year && `(${vehicle.year})`].filter(Boolean).join(' ') || 'Details unknown'}
                     </CardDescription>
                   </div>
-                  {vehicle.profile_photo && (
-                    <img 
-                      src={vehicle.profile_photo} 
-                      alt={vehicle.plate_number}
-                      className="w-16 h-16 object-cover rounded"
-                    />
+                  {vehicle.colour && (
+                    <Badge variant="outline" className="text-xs shrink-0">{vehicle.colour}</Badge>
                   )}
                 </div>
               </CardHeader>
@@ -402,20 +411,25 @@ export default function VehicleManagement() {
               {selectedVehicle?.plate_number}
             </DialogTitle>
             <DialogDescription>
-              {selectedVehicle?.vehicle_make} {selectedVehicle?.vehicle_model} {selectedVehicle?.vehicle_year && `(${selectedVehicle.vehicle_year})`}
+              {[selectedVehicle?.make, selectedVehicle?.model, selectedVehicle?.year && `(${selectedVehicle.year})`].filter(Boolean).join(' ') || 'Vehicle details unknown'}
             </DialogDescription>
           </DialogHeader>
 
           {selectedVehicle && (
             <div className="space-y-6">
               {/* Profile Photo */}
-              {selectedVehicle.profile_photo && (
+              {selectedVehicle.profile_photo ? (
                 <div className="rounded-lg overflow-hidden">
                   <img 
                     src={selectedVehicle.profile_photo} 
                     alt={selectedVehicle.plate_number}
-                    className="w-full h-auto object-cover"
+                    className="w-full h-56 object-cover"
                   />
+                </div>
+              ) : (
+                <div className="rounded-lg bg-gray-100 dark:bg-gray-800 h-32 flex items-center justify-center">
+                  <Car className="h-16 w-16 text-gray-300 dark:text-gray-600" />
+                  <span className="ml-3 text-sm text-gray-400">No photo available</span>
                 </div>
               )}
 
@@ -423,7 +437,7 @@ export default function VehicleManagement() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <div className="text-sm text-gray-600">Colour</div>
-                  <div className="font-medium">{selectedVehicle.vehicle_color || 'Unknown'}</div>
+                  <div className="font-medium">{selectedVehicle.colour || 'Unknown'}</div>
                 </div>
                 
                 <div>

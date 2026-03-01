@@ -46,13 +46,17 @@ export function VehicleCard({ vehicle, onViewDetails, showActions = true }: Vehi
       <CardContent>
         <div className="space-y-3">
           {/* Profile Photo */}
-          {vehicle.profile_photo && (
-            <div className="relative w-full h-32 bg-gray-100 rounded-lg overflow-hidden">
+          {vehicle.profile_photo ? (
+            <div className="relative w-full h-40 bg-gray-100 rounded-lg overflow-hidden">
               <img 
                 src={vehicle.profile_photo} 
                 alt={`Vehicle ${vehicle.plate_number}`}
                 className="w-full h-full object-cover"
               />
+            </div>
+          ) : (
+            <div className="w-full h-40 bg-gray-100 dark:bg-gray-800 rounded-lg flex items-center justify-center">
+              <Car className="h-16 w-16 text-gray-300 dark:text-gray-600" />
             </div>
           )}
 
