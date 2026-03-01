@@ -383,7 +383,7 @@ erDiagram
 
 ### Additional Tables (via Migrations)
 
-The 87 SQL migrations define additional tables not in the TypeScript type definitions, including:
+The 82 SQL migrations define additional tables not in the TypeScript type definitions, including:
 
 | Table | Purpose |
 |-------|---------|
@@ -529,7 +529,7 @@ flowchart TD
 
 ## 6. Edge Functions
 
-The system has **47 Supabase Edge Functions** organised into these categories:
+The system has **47 Supabase Edge Functions** organized into these categories:
 
 ```mermaid
 mindmap
