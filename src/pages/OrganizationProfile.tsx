@@ -15,6 +15,7 @@ import { Building2, MapPin, Users, Settings, Mail, Phone, Layers, Plus, Edit, Ch
 import { toast } from 'sonner'
 import { AppLayout } from '@/components/features/AppLayout'
 import { ZoneGeofenceEditor } from '@/components/features/ZoneGeofenceEditor'
+import { getOrgTypeLabel } from '@/lib/utils'
 
 interface Organization {
   id: string
@@ -203,7 +204,9 @@ export default function OrganizationProfile() {
                   <div>
                     <CardTitle className="text-xl">{organization.name}</CardTitle>
                     <CardDescription className="mt-1">
-                      <Badge variant="outline" className="mr-2">{organization.organization_type}</Badge>
+                      <Badge variant="outline" className="mr-2">
+                        {getOrgTypeLabel(organization.organization_type)}
+                      </Badge>
                       <Badge variant={organization.is_active ? 'default' : 'secondary'}>
                         {organization.is_active ? 'Active' : 'Inactive'}
                       </Badge>
