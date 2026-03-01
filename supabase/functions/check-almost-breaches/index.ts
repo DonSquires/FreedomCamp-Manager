@@ -130,8 +130,8 @@ Deno.serve(async (req) => {
       if (willBreachConsecutive || willBreachMonthly || approachingConsecutive || approachingMonthly) {
         // Get latest observation photo and GPS
         const { data: latestObs } = await supabaseAdmin
-          .from('vehicle_observations_v2')
-          .select('photo, gps_latitude, gps_longitude, gps_accuracy')
+          .from('observations')
+          .select('photo_url, gps_latitude, gps_longitude, gps_accuracy')
           .eq('plate_number', stay.plate_number)
           .eq('zone_id', stay.zone_id)
           .order('recorded_at', { ascending: false })
@@ -156,7 +156,7 @@ Deno.serve(async (req) => {
           will_breach_if_stays_tonight: willBreachConsecutive || willBreachMonthly,
           breach_severity: willBreachConsecutive || willBreachMonthly ? 'critical' : 'warning',
           last_observation_date: stay.last_observation_date,
-          photo_url: latestObs?.photo,
+          photo_url: latestObs?.photo_url,
           gps_lat: latestObs?.gps_latitude,
           gps_lng: latestObs?.gps_longitude,
           gps_accuracy: latestObs?.gps_accuracy,

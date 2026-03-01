@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { useGlobalFiltersStore } from '@/stores/globalFiltersStore'
@@ -21,7 +22,8 @@ import {
   Activity,
   FileText,
   Eye,
-  MoreHorizontal
+  MoreHorizontal,
+  Gavel,
 } from 'lucide-react'
 import { formatDateTime, formatDate } from '@/lib/utils'
 import { toast } from 'sonner'
@@ -75,6 +77,7 @@ export default function EnforcementCommandCenter() {
   const { user } = useAuthStore()
   const { organizationId, zoneId, dateFrom, dateTo } = useGlobalFiltersStore()
   const [selectedView, setSelectedView] = useState<'all' | 'urgent' | 'pending'>('all')
+  const navigate = useNavigate()
 
   // Fetch enforcement stats
   const { data: stats } = useQuery({
@@ -113,19 +116,42 @@ export default function EnforcementCommandCenter() {
         .eq('action_type', 'notice_to_vacate')
         .gte('created_at', today)
 
-      const [breachResult, patrolResult, noticeResult] = await Promise.all([
+      // Pending enforcement actions
+      let pendingActionsQuery = supabase
+        .from('enforcement_actions')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'pending')
+
+      // Resolved today (breach_alerts resolved today)
+      let resolvedQuery = supabase
+        .from('breach_alerts')
+        .select('*', { count: 'exact', head: true })
+        .in('status', ['resolved', 'dismissed'])
+        .gte('updated_at', today)
+
+      if (user?.role !== 'master' && user?.organization_id) {
+        pendingActionsQuery = pendingActionsQuery.eq('organization_id', user.organization_id)
+        resolvedQuery = resolvedQuery.eq('organization_id', user.organization_id)
+      } else if (organizationId) {
+        pendingActionsQuery = pendingActionsQuery.eq('organization_id', organizationId)
+        resolvedQuery = resolvedQuery.eq('organization_id', organizationId)
+      }
+
+      const [breachResult, patrolResult, noticeResult, pendingResult, resolvedResult] = await Promise.all([
         breachQuery,
         patrolQuery,
         noticeQuery,
+        pendingActionsQuery,
+        resolvedQuery,
       ])
 
       return {
         active_breaches: breachResult.count || 0,
-        pending_actions: breachResult.count || 0, // Simplified
+        pending_actions: pendingResult.count || 0,
         active_patrols: patrolResult.count || 0,
         officers_on_duty: patrolResult.count || 0, // Simplified
         notices_issued_today: noticeResult.count || 0,
-        resolutions_today: 0, // TODO: Calculate from breach_alerts.resolved_at
+        resolutions_today: resolvedResult.count || 0,
       } as EnforcementStats
     },
     refetchInterval: 30000, // Refresh every 30s
@@ -283,6 +309,14 @@ export default function EnforcementCommandCenter() {
       showBackButton
     >
       <GlobalFilterRibbon />
+
+      {/* Quick Actions */}
+      <div className="flex justify-end mb-4">
+        <Button onClick={() => navigate('/enforcement-actions')}>
+          <Gavel className="h-4 w-4 mr-2" />
+          Manage Enforcement Actions
+        </Button>
+      </div>
 
       {/* Stats Grid */}
       <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-6 mb-6">

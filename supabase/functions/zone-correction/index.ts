@@ -29,8 +29,8 @@ serve(async (req) => {
 
     // Build base query
     let query = supabaseAdmin
-      .from('vehicle_observations_v2')
-      .select('observation_id, plate_number, zone_id, organization_id, recorded_at, gps_latitude, gps_longitude, gps_accuracy', { count: 'exact' });
+      .from('observations')
+      .select('id, plate_number, zone_id, organization_id, recorded_at, gps_latitude, gps_longitude, gps_accuracy', { count: 'exact' });
 
     // Apply filters
     if (zoneIds && zoneIds.length > 0) {
@@ -101,11 +101,11 @@ serve(async (req) => {
     for (const obs of observations) {
       // Validate GPS data before processing
       if (!obs.gps_latitude || !obs.gps_longitude || typeof obs.gps_latitude !== 'number' || typeof obs.gps_longitude !== 'number') {
-        console.warn(`⚠️ Skipping observation ${obs.observation_id}: Invalid GPS data`);
+        console.warn(`⚠️ Skipping observation ${obs.id}: Invalid GPS data`);
         continue;
       }
 
-      console.log(`\n📋 Processing observation ${obs.observation_id}:`);
+      console.log(`\n📋 Processing observation ${obs.id}:`);
       console.log(`   Plate: ${obs.plate_number}`);
       console.log(`   Current Zone: ${zoneNameMap.get(obs.zone_id) || 'Unknown'} (${obs.zone_id})`);
       console.log(`   GPS: (${obs.gps_latitude.toFixed(6)}, ${obs.gps_longitude.toFixed(6)}) ±${obs.gps_accuracy || 0}m`);
@@ -189,16 +189,16 @@ serve(async (req) => {
         console.log(`\n   🔄 Updating zone: ${currentZoneName} → ${targetZoneName}`);
         
         const { error: updateError } = await supabaseAdmin
-          .from('vehicle_observations_v2')
+          .from('observations')
           .update({ zone_id: targetZoneId })
-          .eq('observation_id', obs.observation_id);
+          .eq('id', obs.id);
 
         if (updateError) {
           console.error(`   ❌ Update failed:`, updateError.message);
         } else {
           corrected++;
           corrections.push({
-            observation_id: obs.observation_id,
+            observation_id: obs.id,
             plate_number: obs.plate_number,
             old_zone_name: currentZoneName,
             new_zone_name: targetZoneName,

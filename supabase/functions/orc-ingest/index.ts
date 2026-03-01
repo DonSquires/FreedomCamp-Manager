@@ -7,7 +7,7 @@
  * 1. Receive vehicle photo from frontend
  * 2. Upload to Supabase Storage
  * 3. Call inference service to generate embedding
- * 4. Store observation with embedding in vehicle_observations_v2
+ * 4. Store observation with embedding in observations
  * 5. Trigger compliance evaluation
  * 
  * @param {File} photo - Vehicle photo (JPEG/PNG/WEBP)
@@ -111,10 +111,10 @@ serve(async (req) => {
 
     // Step 4: Store observation with embedding
     const { data: observation, error: insertError } = await supabase
-      .from('vehicle_observations_v2')
+      .from('observations')
       .insert({
         plate_number: metadata.plate_number || 'UNKNOWN',
-        photo: publicUrl,
+        photo_url: publicUrl,
         photo_hash: metadata.photo_hash,
         gps_latitude: metadata.gps_latitude,
         gps_longitude: metadata.gps_longitude,
@@ -131,7 +131,7 @@ serve(async (req) => {
         self_contained: metadata.self_contained,
         self_contained_expiry: metadata.self_contained_expiry
       })
-      .select('observation_id, plate_number, recorded_at')
+      .select('id, plate_number, recorded_at')
       .single();
 
     if (insertError) {
@@ -139,12 +139,12 @@ serve(async (req) => {
       throw new Error(`Failed to store observation: ${insertError.message}`);
     }
 
-    console.log('✅ Observation created:', observation.observation_id);
+    console.log('✅ Observation created:', observation.id);
 
     // Step 5: Find matching vehicles
     const { data: matches, error: matchError } = await supabase
       .rpc('match_vehicle', {
-        p_obs_id: observation.observation_id,
+        p_obs_id: observation.id,
         p_k: 5,
         p_since: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString(), // 90 days
         p_org: metadata.organization_id,
@@ -164,7 +164,7 @@ serve(async (req) => {
       JSON.stringify({
         success: true,
         data: {
-          observation_id: observation.observation_id,
+          observation_id: observation.id,
           plate_number: observation.plate_number,
           recorded_at: observation.recorded_at,
           photo_url: publicUrl,

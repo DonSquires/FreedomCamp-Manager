@@ -691,7 +691,7 @@ Return ONLY a JSON object with this structure:
           // LEGACY IMPORT: No photo available - use placeholder and set legacy flags
           // ⚠️ NO COMPLIANCE CALCULATION DURING IMPORT - run recalculation afterward
           const { data: observation, error: obsError } = await supabaseAdmin
-            .from('vehicle_observations_v2')
+            .from('observations')
             .insert({
               plate_number: record.plate,
               organization_id: targetOrganizationId,
@@ -722,7 +722,6 @@ Return ONLY a JSON object with this structure:
               
               // Skip compliance fields - will be calculated during recalculation
               is_compliant: null, // Will be set during recalculation
-              is_breach: null, // Will be set during recalculation
               
               // ============================================================
               // LEGACY IMPORT FLAGS - Evidence Act 2006 Compliance
@@ -731,11 +730,11 @@ Return ONLY a JSON object with this structure:
               evidence_state: 'legacy_no_photo', // No original photo available
               legacy_source_tag: 'excel_import', // Source of import
               legacy_note: `Imported from Excel file: ${file_path.split('/').pop()} on ${new Date().toISOString().split('T')[0]}`,
-              photo: `legacy/placeholder_${record.plate}_${record.date}.jpg`, // Placeholder for NOT NULL constraint
+              photo_url: `legacy/placeholder_${record.plate}_${record.date}.jpg`, // Placeholder
               photo_hash: 'LEGACY_IMPORT_NO_PHOTO', // Placeholder hash
               review_blocked: true, // Block from enforcement until recalculation completes
             })
-            .select('observation_id')
+            .select('id')
             .single();
 
           if (obsError || !observation) {

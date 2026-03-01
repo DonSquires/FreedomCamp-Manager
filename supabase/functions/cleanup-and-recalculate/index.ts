@@ -31,8 +31,8 @@ serve(async (req) => {
 
     // Build base query
     let query = supabaseAdmin
-      .from('vehicle_observations_v2')
-      .select('observation_id, plate_number, zone_id, organization_id, recorded_at, gps_latitude, gps_longitude, gps_accuracy, has_incident, has_hs_incident, self_contained, self_contained_expiry', { count: 'exact' });
+      .from('observations')
+      .select('id, plate_number, zone_id, organization_id, recorded_at, gps_latitude, gps_longitude, gps_accuracy, self_contained, self_contained_expiry', { count: 'exact' });
 
     // Apply filters
     if (zoneIds && zoneIds.length > 0) {
@@ -104,9 +104,9 @@ serve(async (req) => {
 
         if (correctZone && correctZone.id !== obs.zone_id) {
           const { error: updateError } = await supabaseAdmin
-            .from('vehicle_observations_v2')
+            .from('observations')
             .update({ zone_id: correctZone.id })
-            .eq('observation_id', obs.observation_id);
+            .eq('id', obs.id);
 
           if (!updateError) {
             zonesCorrected++;
@@ -140,8 +140,6 @@ serve(async (req) => {
       for (let i = 1; i < plateObs.length; i++) {
         const current = plateObs[i];
         
-        if (current.has_incident || current.has_hs_incident) continue;
-
         for (let j = 0; j < i; j++) {
           const previous = plateObs[j];
           
@@ -152,8 +150,8 @@ serve(async (req) => {
           ) / (1000 * 60 * 60);
 
           if (hoursDiff <= 8) {
-            if (!duplicatesToDelete.includes(current.observation_id)) {
-              duplicatesToDelete.push(current.observation_id);
+            if (!duplicatesToDelete.includes(current.id)) {
+              duplicatesToDelete.push(current.id);
               console.log(`🗑️ Duplicate: ${plateNumber} (${hoursDiff.toFixed(1)}h apart)`);
             }
             break;
@@ -164,9 +162,9 @@ serve(async (req) => {
 
     if (duplicatesToDelete.length > 0) {
       const { error: deleteError } = await supabaseAdmin
-        .from('vehicle_observations_v2')
+        .from('observations')
         .delete()
-        .in('observation_id', duplicatesToDelete);
+        .in('id', duplicatesToDelete);
 
       if (!deleteError) {
         duplicatesRemoved = duplicatesToDelete.length;
@@ -182,7 +180,7 @@ serve(async (req) => {
 
     // Filter out deleted observations
     const activeObservations = observations.filter(
-      obs => !duplicatesToDelete.includes(obs.observation_id)
+      obs => !duplicatesToDelete.includes(obs.id)
     );
 
     console.log(`⚖️ Starting compliance recalculation for ${activeObservations.length} observations...`);
@@ -193,7 +191,7 @@ serve(async (req) => {
         const { data: currentCompliance } = await supabaseAdmin
           .from('compliance_results')
           .select('is_compliant')
-          .eq('observation_id', obs.observation_id)
+          .eq('observation_id', obs.id)
           .single();
 
         const wasCompliant = currentCompliance?.is_compliant;
@@ -203,12 +201,12 @@ serve(async (req) => {
         await supabaseAdmin
           .from('compliance_results')
           .delete()
-          .eq('observation_id', obs.observation_id);
+          .eq('observation_id', obs.id);
 
         await supabaseAdmin
           .from('breach_alerts')
           .delete()
-          .eq('observation_id', obs.observation_id);
+          .eq('observation_id', obs.id);
 
         // STEP 3: Delete and re-insert monthly_stays to recalculate
         const currentMonth = new Date(obs.recorded_at);
@@ -226,8 +224,8 @@ serve(async (req) => {
 
         // Get all observations for this plate/zone/month to recalculate monthly stays
         const { data: monthObs } = await supabaseAdmin
-          .from('vehicle_observations_v2')
-          .select('observation_id, plate_number, zone_id, organization_id, recorded_at, gps_latitude, gps_longitude, gps_accuracy')
+          .from('observations')
+          .select('id, plate_number, zone_id, organization_id, recorded_at, gps_latitude, gps_longitude, gps_accuracy')
           .eq('plate_number', obs.plate_number)
           .eq('zone_id', obs.zone_id)
           .eq('organization_id', obs.organization_id)
@@ -261,7 +259,7 @@ serve(async (req) => {
               nights_stayed: nightsStayed,
               consecutive_nights: consecutiveNights,
               last_observation_date: obs.recorded_at.split('T')[0],
-              observation_ids: monthObs.map(o => o.observation_id),
+              observation_ids: monthObs.map(o => o.id),
             });
         }
 
@@ -276,7 +274,7 @@ serve(async (req) => {
 
         if (!matrix) {
           skippedNoMatrix++;
-          console.log(`⚠️ No matrix for zone ${obs.zone_id}, skipping ${obs.observation_id}`);
+          console.log(`⚠️ No matrix for zone ${obs.zone_id}, skipping ${obs.id}`);
           continue;
         }
 
@@ -331,7 +329,7 @@ serve(async (req) => {
         await supabaseAdmin
           .from('compliance_results')
           .insert({
-            observation_id: obs.observation_id,
+            observation_id: obs.id,
             zone_id: obs.zone_id,
             organization_id: obs.organization_id,
             matrix_id: matrix.id,
@@ -359,7 +357,7 @@ serve(async (req) => {
         }
 
       } catch (err: any) {
-        console.error(`❌ Error processing ${obs.observation_id}:`, err.message);
+        console.error(`❌ Error processing ${obs.id}:`, err.message);
       }
     }
 
