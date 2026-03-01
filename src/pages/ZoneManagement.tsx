@@ -615,7 +615,7 @@ export default function ZoneManagement() {
                     if (!selectedZone) return
                     const { error } = await supabase
                       .from('zones')
-                      .update({ geometry, geom: geometry })
+                      .update({ geometry, geom: geometry }) // Sync both columns per import_boundaries.ts convention
                       .eq('id', selectedZone.id)
                     if (error) throw error
                     queryClient.invalidateQueries({ queryKey: ['zones'] })
