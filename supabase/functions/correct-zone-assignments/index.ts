@@ -138,10 +138,10 @@ Deno.serve(async (req) => {
 
     console.log('📥 Request:', { get_total, offset, batch_size });
 
-    // Build query on vehicle_observations_v2 with GPS coordinates
+    // Build query on observations with GPS coordinates
     let query = supabaseAdmin
-      .from('vehicle_observations_v2')
-      .select('observation_id, plate_number, zone_id, organization_id, recorded_at, gps_latitude, gps_longitude', { count: 'exact' })
+      .from('observations')
+      .select('id, plate_number, zone_id, organization_id, recorded_at, gps_latitude, gps_longitude', { count: 'exact' })
       .not('gps_latitude', 'is', null)
       .not('gps_longitude', 'is', null);
 
@@ -260,13 +260,13 @@ Deno.serve(async (req) => {
           const otherZone = otherZonesByOrg.get(orgId);
           if (otherZone && otherZone.id !== currentZoneId) {
             await supabaseAdmin
-              .from('vehicle_observations_v2')
+              .from('observations')
               .update({ zone_id: otherZone.id })
-              .eq('observation_id', obs.observation_id);
+              .eq('id', obs.id);
 
             movedToOther++;
             corrections.push({
-              observation_id: obs.observation_id,
+              observation_id: obs.id,
               plate_number: obs.plate_number,
               old_zone_name: currentZone?.name || 'Unknown',
               new_zone_name: otherZone.name,
@@ -280,13 +280,13 @@ Deno.serve(async (req) => {
         // Update zone if different
         if (correctZone.id !== currentZoneId) {
           await supabaseAdmin
-            .from('vehicle_observations_v2')
+            .from('observations')
             .update({ zone_id: correctZone.id })
-            .eq('observation_id', obs.observation_id);
+            .eq('id', obs.id);
 
           corrected++;
           corrections.push({
-            observation_id: obs.observation_id,
+            observation_id: obs.id,
             plate_number: obs.plate_number,
             old_zone_name: currentZone?.name || 'Unknown',
             new_zone_name: correctZone.name,
@@ -297,7 +297,7 @@ Deno.serve(async (req) => {
         processed++;
 
       } catch (error: any) {
-        console.error(`Error processing ${obs.observation_id}:`, error.message);
+        console.error(`Error processing ${obs.id}:`, error.message);
         processed++;
       }
     }

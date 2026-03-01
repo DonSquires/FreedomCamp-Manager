@@ -240,7 +240,7 @@ Extract and include the EXACT text describing the behavior in "safety_descriptio
 
           // Get the most recent observation for this vehicle to determine org/zone
           const { data: recentObs } = await supabaseAdmin
-            .from('vehicle_observations_v2')
+            .from('observations')
             .select('organization_id, zone_id')
             .eq('plate_number', plateNumber)
             .order('recorded_at', { ascending: false })

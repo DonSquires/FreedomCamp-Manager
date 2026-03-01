@@ -101,8 +101,8 @@ Deno.serve(async (req) => {
         const thirtySecondsAgo = new Date(Date.now() - 30 * 1000).toISOString();
         
         const { data: recentDuplicate } = await supabaseAdmin
-          .from('vehicle_observations_v2')
-          .select('observation_id, recorded_at')
+          .from('observations')
+          .select('id, recorded_at')
           .eq('plate_number', plateNumber)
           .eq('zone_id', zoneId)
           .gte('recorded_at', thirtySecondsAgo)
@@ -201,7 +201,7 @@ Deno.serve(async (req) => {
 
         // Create vehicle observation (new schema)
         const { data: newRecord, error: insertError } = await supabaseAdmin
-          .from('vehicle_observations_v2')
+          .from('observations')
           .insert({
             organization_id: organizationId || null,
             zone_id: zoneId,
@@ -211,7 +211,7 @@ Deno.serve(async (req) => {
             vehicle_color: finalColor,
             vehicle_year: finalYear || null,
             self_contained: false, // Stream doesn't detect stickers
-            photo: vehiclePhotoUrl || null,
+            photo_url: vehiclePhotoUrl || null,
             photo_hash: null,
             gps_latitude: null, // Stream doesn't provide GPS
             gps_longitude: null,
@@ -222,7 +222,7 @@ Deno.serve(async (req) => {
             has_notes: false,
             is_compliant: true, // Will be updated by compliance check
           })
-          .select('observation_id')
+          .select('id')
           .single();
 
         if (insertError) {
@@ -247,9 +247,9 @@ Deno.serve(async (req) => {
 
           // Update observation compliance
           await supabaseAdmin
-            .from('vehicle_observations_v2')
+            .from('observations')
             .update({ is_compliant: isCompliant })
-            .eq('observation_id', newRecord.observation_id);
+            .eq('id', newRecord.id);
 
           // Create breach alert if non-compliant
           if (!isCompliant) {
@@ -267,7 +267,7 @@ Deno.serve(async (req) => {
                   severity: compliance.violation_severity,
                   consecutiveNights: compliance.consecutive_nights,
                   monthNights: compliance.month_nights,
-                  observation_id: newRecord.observation_id,
+                  observation_id: newRecord.id,
                   plate_number: plateNumber,
                 },
                 status: 'pending',

@@ -29,8 +29,8 @@ serve(async (req) => {
 
     // Build base query
     let query = supabaseAdmin
-      .from('vehicle_observations_v2')
-      .select('observation_id, plate_number, zone_id, recorded_at, has_incident, has_hs_incident', { count: 'exact' });
+      .from('observations')
+      .select('id, plate_number, zone_id, recorded_at', { count: 'exact' });
 
     // Apply filters
     if (zoneIds && zoneIds.length > 0) {
@@ -95,10 +95,7 @@ serve(async (req) => {
         const current = plateObs[i];
         
         // Skip if has incident/hs report
-        if (current.has_incident || current.has_hs_incident) {
-          console.log(`⏭️ Preserving observation with incident: ${current.observation_id}`);
-          continue;
-        }
+        // (has_incident/has_hs_incident not present in observations table)
 
         // Check against previous observations (earlier ones)
         for (let j = 0; j < i; j++) {
@@ -113,8 +110,8 @@ serve(async (req) => {
           const hoursDiff = Math.abs(previousTime - currentTime) / (1000 * 60 * 60);
 
           if (hoursDiff <= 8) {
-            if (!duplicatesToDelete.includes(current.observation_id)) {
-              duplicatesToDelete.push(current.observation_id);
+            if (!duplicatesToDelete.includes(current.id)) {
+              duplicatesToDelete.push(current.id);
               console.log(`🗑️ Duplicate: ${plateNumber} (${hoursDiff.toFixed(1)}h apart)`);
             }
             break;
@@ -128,9 +125,9 @@ serve(async (req) => {
       console.log(`🗑️ Deleting ${duplicatesToDelete.length} duplicates...`);
       
       const { error: deleteError } = await supabaseAdmin
-        .from('vehicle_observations_v2')
+        .from('observations')
         .delete()
-        .in('observation_id', duplicatesToDelete);
+        .in('id', duplicatesToDelete);
 
       if (deleteError) {
         console.error('❌ Delete failed:', deleteError.message);

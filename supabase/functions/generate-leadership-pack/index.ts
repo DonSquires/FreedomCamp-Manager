@@ -68,7 +68,7 @@ serve(async (req) => {
     let zonePerformance = [];
     if (include_zone_performance) {
       let zoneQuery = supabase
-        .from('vehicle_observations_v2')
+        .from('observations')
         .select(`
           zone_id,
           zone:zones(name, organization:organizations(name)),
