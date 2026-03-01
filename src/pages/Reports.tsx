@@ -7,11 +7,46 @@ import { useGlobalFiltersStore } from '@/stores/globalFiltersStore'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { StatCard } from '@/components/features/StatCard'
-import { FileText, Download, TrendingUp, Users, MapPin, AlertCircle, Clock, CheckCircle } from 'lucide-react'
+import { FileText, Download, TrendingUp, Users, MapPin, AlertCircle, Clock, CheckCircle, HeartPulse, Scale, Mail } from 'lucide-react'
 import { AppLayout } from '@/components/features/AppLayout'
 import { GlobalFilterRibbon } from '@/components/features/GlobalFilterRibbon'
 import { toast } from 'sonner'
 import { formatDateTime } from '@/lib/utils'
+
+// ── CSV helpers ───────────────────────────────────────────────────────────────
+function toCSV(rows: Record<string, any>[]): string {
+  if (!rows.length) return ''
+  const headers = Object.keys(rows[0])
+  const escape = (v: any) => {
+    const s = v == null ? '' : String(v)
+    return s.includes(',') || s.includes('"') || s.includes('\n')
+      ? `"${s.replace(/"/g, '""')}"`
+      : s
+  }
+  return [headers.join(','), ...rows.map((r) => headers.map((h) => escape(r[h])).join(','))].join(
+    '\n'
+  )
+}
+
+function downloadCSV(csv: string, filename: string) {
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
+function downloadJSON(data: any, filename: string) {
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  a.click()
+  URL.revokeObjectURL(url)
+}
 
 export default function Reports() {
   const { user } = useAuthStore()
@@ -144,6 +179,132 @@ export default function Reports() {
 
   const handleGenerateReport = (reportType: string) => {
     generateReportMutation.mutate(reportType)
+  }
+
+  // ── H&S Register CSV export ────────────────────────────────────────────────
+  const [exportingHS, setExportingHS] = useState(false)
+  const handleExportHS = async () => {
+    setExportingHS(true)
+    try {
+      let q = supabase
+        .from('health_safety_reports')
+        .select('id, severity, status, details, resolution_notes, created_at, updated_at, zone:zones(name), reporter:user_profiles!health_safety_reports_reported_by_fkey(first_name,last_name)')
+        .order('created_at', { ascending: false })
+
+      if (user?.role !== 'master' && user?.organization_id) {
+        q = q.eq('organization_id', user.organization_id)
+      } else if (organizationId) {
+        q = q.eq('organization_id', organizationId)
+      }
+      if (dateFrom) q = q.gte('created_at', dateFrom)
+      if (dateTo) q = q.lte('created_at', dateTo)
+
+      const { data, error } = await q
+      if (error) throw error
+
+      const rows = (data || []).map((r: any) => ({
+        id: r.id,
+        severity: r.severity,
+        status: r.status,
+        details: r.details,
+        zone: r.zone?.name || '',
+        reported_by: r.reporter ? `${r.reporter.first_name} ${r.reporter.last_name}` : '',
+        resolution_notes: r.resolution_notes || '',
+        created_at: r.created_at,
+        updated_at: r.updated_at,
+      }))
+
+      downloadCSV(toCSV(rows), `hs-register-${new Date().toISOString().slice(0, 10)}.csv`)
+      toast.success('H&S Register exported')
+    } catch (err: any) {
+      toast.error(`Export failed: ${err.message}`)
+    } finally {
+      setExportingHS(false)
+    }
+  }
+
+  // ── Infringement Bureau Export ─────────────────────────────────────────────
+  const [exportingInfringement, setExportingInfringement] = useState(false)
+  const handleExportInfringement = async () => {
+    setExportingInfringement(true)
+    try {
+      let q = supabase
+        .from('enforcement_actions')
+        .select('id, action_type, plate_number, notes, outcome, created_at, zone:zones(name), officer:user_profiles!enforcement_actions_officer_id_fkey(first_name,last_name)')
+        .order('created_at', { ascending: false })
+
+      if (user?.role !== 'master' && user?.organization_id) {
+        q = q.eq('organization_id', user.organization_id)
+      } else if (organizationId) {
+        q = q.eq('organization_id', organizationId)
+      }
+      if (zoneId) q = q.eq('zone_id', zoneId)
+      if (dateFrom) q = q.gte('created_at', dateFrom)
+      if (dateTo) q = q.lte('created_at', dateTo)
+
+      const { data, error } = await q
+      if (error) throw error
+
+      const exportData = (data || []).map((ea: any) => ({
+        infringement_id: ea.id,
+        plate_number: ea.plate_number || '',
+        action_type: ea.action_type || '',
+        zone: ea.zone?.name || '',
+        officer: ea.officer ? `${ea.officer.first_name} ${ea.officer.last_name}` : '',
+        notes: ea.notes || '',
+        outcome: ea.outcome || '',
+        date: ea.created_at,
+      }))
+
+      // Export as both JSON and CSV
+      downloadJSON(exportData, `infringement-bureau-${new Date().toISOString().slice(0, 10)}.json`)
+      toast.success('Infringement Bureau export downloaded (JSON)')
+    } catch (err: any) {
+      toast.error(`Export failed: ${err.message}`)
+    } finally {
+      setExportingInfringement(false)
+    }
+  }
+
+  // ── Client Patrol Report CSV ───────────────────────────────────────────────
+  const [exportingPatrol, setExportingPatrol] = useState(false)
+  const handleExportPatrolReport = async () => {
+    setExportingPatrol(true)
+    try {
+      let q = supabase
+        .from('patrols')
+        .select('id, started_at, ended_at, status, notes, zone:zones(name), officer:user_profiles!patrols_officer_id_fkey(first_name,last_name)')
+        .order('started_at', { ascending: false })
+
+      if (user?.role !== 'master' && user?.organization_id) {
+        q = q.eq('organization_id', user.organization_id)
+      } else if (organizationId) {
+        q = q.eq('organization_id', organizationId)
+      }
+      if (zoneId) q = q.eq('zone_id', zoneId)
+      if (dateFrom) q = q.gte('started_at', dateFrom)
+      if (dateTo) q = q.lte('started_at', dateTo)
+
+      const { data: patrols, error } = await q
+      if (error) throw error
+
+      const rows = (patrols || []).map((p: any) => ({
+        patrol_id: p.id,
+        officer: p.officer ? `${p.officer.first_name} ${p.officer.last_name}` : '',
+        zone: p.zone?.name || '',
+        started_at: p.started_at,
+        ended_at: p.ended_at || '',
+        status: p.status,
+        notes: p.notes || '',
+      }))
+
+      downloadCSV(toCSV(rows), `client-patrol-report-${new Date().toISOString().slice(0, 10)}.csv`)
+      toast.success('Client Patrol Report exported')
+    } catch (err: any) {
+      toast.error(`Export failed: ${err.message}`)
+    } finally {
+      setExportingPatrol(false)
+    }
   }
 
   return (
@@ -318,6 +479,121 @@ export default function Reports() {
                 <>
                   <Download className="h-4 w-4 mr-2" />
                   Generate PDF
+                </>
+              )}
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Legal & Compliance Exports */}
+      <h2 className="text-lg font-semibold mt-2">Legal &amp; Compliance Exports</h2>
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        {/* Client Patrol Report */}
+        <Card className="hover:shadow-md transition-shadow">
+          <CardHeader>
+            <Mail className="h-8 w-8 text-blue-600 mb-2" />
+            <CardTitle>Client Patrol Report</CardTitle>
+            <CardDescription>
+              Patrol times, checkpoints, incidents &amp; photos for client delivery
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ul className="space-y-2 text-sm text-gray-600 mb-4">
+              <li>• Patrol start &amp; end times</li>
+              <li>• Zone coverage</li>
+              <li>• Officer assigned</li>
+              <li>• Incident summary</li>
+            </ul>
+            <Button
+              onClick={handleExportPatrolReport}
+              className="w-full"
+              disabled={exportingPatrol}
+              variant="outline"
+            >
+              {exportingPatrol ? (
+                <>
+                  <Clock className="h-4 w-4 mr-2 animate-spin" />
+                  Exporting…
+                </>
+              ) : (
+                <>
+                  <Download className="h-4 w-4 mr-2" />
+                  Export CSV
+                </>
+              )}
+            </Button>
+          </CardContent>
+        </Card>
+
+        {/* H&S Register */}
+        <Card className="hover:shadow-md transition-shadow">
+          <CardHeader>
+            <HeartPulse className="h-8 w-8 text-red-600 mb-2" />
+            <CardTitle>H&amp;S Register</CardTitle>
+            <CardDescription>
+              Health &amp; Safety register for internal audits (HSWA 2015)
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ul className="space-y-2 text-sm text-gray-600 mb-4">
+              <li>• Near misses &amp; hazards</li>
+              <li>• Severity classification</li>
+              <li>• Resolution status</li>
+              <li>• Auditable CSV format</li>
+            </ul>
+            <Button
+              onClick={handleExportHS}
+              className="w-full"
+              disabled={exportingHS}
+              variant="outline"
+            >
+              {exportingHS ? (
+                <>
+                  <Clock className="h-4 w-4 mr-2 animate-spin" />
+                  Exporting…
+                </>
+              ) : (
+                <>
+                  <Download className="h-4 w-4 mr-2" />
+                  Export CSV
+                </>
+              )}
+            </Button>
+          </CardContent>
+        </Card>
+
+        {/* Infringement Bureau Export */}
+        <Card className="hover:shadow-md transition-shadow">
+          <CardHeader>
+            <Scale className="h-8 w-8 text-orange-600 mb-2" />
+            <CardTitle>Infringement Bureau Export</CardTitle>
+            <CardDescription>
+              JSON/CSV formatted for NZ Courts &amp; Fines processing (Datacom/Pathfinder)
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <ul className="space-y-2 text-sm text-gray-600 mb-4">
+              <li>• Infringement ID &amp; plate</li>
+              <li>• Action type &amp; outcome</li>
+              <li>• Officer &amp; zone</li>
+              <li>• Court-admissible format</li>
+            </ul>
+            <Button
+              onClick={handleExportInfringement}
+              className="w-full"
+              disabled={exportingInfringement}
+              variant="outline"
+            >
+              {exportingInfringement ? (
+                <>
+                  <Clock className="h-4 w-4 mr-2 animate-spin" />
+                  Exporting…
+                </>
+              ) : (
+                <>
+                  <Download className="h-4 w-4 mr-2" />
+                  Export JSON
                 </>
               )}
             </Button>

@@ -16,7 +16,6 @@ import { toast } from 'sonner'
 import { AppLayout } from '@/components/features/AppLayout'
 import { ZoneGeofenceEditor } from '@/components/features/ZoneGeofenceEditor'
 import { getOrgTypeLabel } from '@/lib/utils'
-
 interface Organization {
   id: string
   name: string
@@ -53,6 +52,8 @@ export default function OrganizationProfile() {
   const [showAddChildDialog, setShowAddChildDialog] = useState(false)
   const [showGeofenceEditor, setShowGeofenceEditor] = useState(false)
   const [editingZoneId, setEditingZoneId] = useState<string | null>(null)
+  const [showEditZoneDialog, setShowEditZoneDialog] = useState(false)
+  const [editingZone, setEditingZone] = useState<Zone | null>(null)
 
   // Add child zone form state
   const [childName, setChildName] = useState('')
@@ -60,6 +61,13 @@ export default function OrganizationProfile() {
   const [childMaxConsecutive, setChildMaxConsecutive] = useState(3)
   const [childDayVisitOnly, setChildDayVisitOnly] = useState(false)
   const [childSelfContained, setChildSelfContained] = useState(true)
+
+  // Edit zone form state
+  const [editZoneName, setEditZoneName] = useState('')
+  const [editZoneNights, setEditZoneNights] = useState(28)
+  const [editZoneConsecutive, setEditZoneConsecutive] = useState(3)
+  const [editZoneDayVisit, setEditZoneDayVisit] = useState(false)
+  const [editZoneSelfContained, setEditZoneSelfContained] = useState(true)
 
   const organizationId = user?.organization_id
 
@@ -168,6 +176,37 @@ export default function OrganizationProfile() {
     setChildMaxConsecutive(3)
     setChildDayVisitOnly(false)
     setChildSelfContained(true)
+  }
+
+  // Update zone mutation (for inline edit of child zones)
+  const updateZoneMutation = useMutation({
+    mutationFn: async (updates: { id: string } & Partial<Zone>) => {
+      const { id, ...fields } = updates
+      const { error } = await supabase
+        .from('zones')
+        .update(fields)
+        .eq('id', id)
+      if (error) throw error
+    },
+    onSuccess: () => {
+      toast.success('Zone updated successfully')
+      queryClient.invalidateQueries({ queryKey: ['organization-zones'] })
+      setShowEditZoneDialog(false)
+      setEditingZone(null)
+    },
+    onError: (error: any) => {
+      toast.error(error.message || 'Failed to update zone')
+    },
+  })
+
+  const openEditZone = (zone: Zone) => {
+    setEditingZone(zone)
+    setEditZoneName(zone.name)
+    setEditZoneNights(zone.nights_per_month)
+    setEditZoneConsecutive(zone.max_consecutive_nights)
+    setEditZoneDayVisit(zone.day_visit_only)
+    setEditZoneSelfContained(zone.self_contained_required)
+    setShowEditZoneDialog(true)
   }
 
   if (!organizationId) {
@@ -439,7 +478,7 @@ export default function OrganizationProfile() {
                           <Button
                             size="sm"
                             variant="outline"
-                            onClick={() => navigate('/zones')}
+                            onClick={() => openEditZone(zone)}
                           >
                             <Edit className="h-3 w-3" />
                           </Button>
@@ -561,20 +600,91 @@ export default function OrganizationProfile() {
             initialGeometry={editingZoneId ? zones?.find(z => z.id === editingZoneId)?.geometry : undefined}
             onSave={async (geometry) => {
               if (!editingZoneId) return
+              // Only update geometry (JSONB). geom is PostGIS and cannot be set from JSON directly.
               const { error } = await supabase
                 .from('zones')
-                .update({ geometry, geom: geometry }) // Sync both columns per import_boundaries.ts convention
+                .update({ geometry })
                 .eq('id', editingZoneId)
               if (error) throw error
               queryClient.invalidateQueries({ queryKey: ['organization-zones'] })
               setShowGeofenceEditor(false)
               setEditingZoneId(null)
+              toast.success('Zone boundary saved')
             }}
             onCancel={() => {
               setShowGeofenceEditor(false)
               setEditingZoneId(null)
             }}
           />
+        </DialogContent>
+      </Dialog>
+
+      {/* Inline Edit Child Zone Dialog */}
+      <Dialog open={showEditZoneDialog} onOpenChange={setShowEditZoneDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Zone – {editingZone?.name}</DialogTitle>
+            <DialogDescription>Update compliance rules for this enforcement zone</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="editZoneName">Zone Name</Label>
+              <Input
+                id="editZoneName"
+                value={editZoneName}
+                onChange={(e) => setEditZoneName(e.target.value)}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="editZoneNights">Max Nights/Month</Label>
+                <Input
+                  id="editZoneNights"
+                  type="number"
+                  value={editZoneNights}
+                  onChange={(e) => setEditZoneNights(parseInt(e.target.value))}
+                />
+              </div>
+              <div>
+                <Label htmlFor="editZoneConsecutive">Max Consecutive</Label>
+                <Input
+                  id="editZoneConsecutive"
+                  type="number"
+                  value={editZoneConsecutive}
+                  onChange={(e) => setEditZoneConsecutive(parseInt(e.target.value))}
+                />
+              </div>
+            </div>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="editZoneDayVisit">Day Visit Only</Label>
+                <Switch id="editZoneDayVisit" checked={editZoneDayVisit} onCheckedChange={setEditZoneDayVisit} />
+              </div>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="editZoneSC">Requires Self-Contained</Label>
+                <Switch id="editZoneSC" checked={editZoneSelfContained} onCheckedChange={setEditZoneSelfContained} />
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowEditZoneDialog(false)}>Cancel</Button>
+            <Button
+              onClick={() => {
+                if (!editingZone) return
+                updateZoneMutation.mutate({
+                  id: editingZone.id,
+                  name: editZoneName,
+                  nights_per_month: editZoneNights,
+                  max_consecutive_nights: editZoneConsecutive,
+                  day_visit_only: editZoneDayVisit,
+                  self_contained_required: editZoneSelfContained,
+                })
+              }}
+              disabled={updateZoneMutation.isPending || !editZoneName.trim()}
+            >
+              {updateZoneMutation.isPending ? 'Saving...' : 'Save Changes'}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </AppLayout>

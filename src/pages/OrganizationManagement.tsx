@@ -7,9 +7,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Switch } from '@/components/ui/switch'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Building2, Users, MapPin, Settings } from 'lucide-react'
+import { Building2, Users, MapPin, Settings, Plus } from 'lucide-react'
 import { toast } from 'sonner'
 import { AppLayout } from '@/components/features/AppLayout'
 import { GlobalFilterRibbon } from '@/components/features/GlobalFilterRibbon'
@@ -23,14 +24,15 @@ interface Organization {
   parent_organization_id: string | null
   is_active: boolean
   enforcement_workflow: string
-  contact_email: string
-  contact_phone: string
+  contact_email: string | null
+  contact_phone: string | null
 }
 
 export default function OrganizationManagement() {
   const { user } = useAuthStore()
   const queryClient = useQueryClient()
   const [showSettingsDialog, setShowSettingsDialog] = useState(false)
+  const [showCreateDialog, setShowCreateDialog] = useState(false)
   const [selectedOrg, setSelectedOrg] = useState<Organization | null>(null)
   
   // Edit form state
@@ -38,6 +40,17 @@ export default function OrganizationManagement() {
   const [editWorkflow, setEditWorkflow] = useState('admin_first')
   const [editEmail, setEditEmail] = useState('')
   const [editPhone, setEditPhone] = useState('')
+  const [editIsActive, setEditIsActive] = useState(true)
+  const [editOrgType, setEditOrgType] = useState<'owner' | 'service_provider' | 'client'>('client')
+  const [editParentOrgId, setEditParentOrgId] = useState<string | null>(null)
+
+  // Create form state
+  const [createName, setCreateName] = useState('')
+  const [createWorkflow, setCreateWorkflow] = useState('admin_first')
+  const [createEmail, setCreateEmail] = useState('')
+  const [createPhone, setCreatePhone] = useState('')
+  const [createOrgType, setCreateOrgType] = useState<'owner' | 'service_provider' | 'client'>('client')
+  const [createParentOrgId, setCreateParentOrgId] = useState<string | null>(null)
 
   // Check user role
   const isMaster = user?.role === 'master'
@@ -107,11 +120,58 @@ export default function OrganizationManagement() {
     },
   })
 
+  // Create organization mutation
+  const createOrgMutation = useMutation({
+    mutationFn: async () => {
+      if (!createName.trim()) throw new Error('Organization name is required')
+
+      // Derive level from type
+      const levelMap: Record<string, number> = { owner: 1, service_provider: 2, client: 3 }
+      const level = levelMap[createOrgType] || 3
+
+      const { error } = await supabase
+        .from('organizations')
+        .insert({
+          name: createName.trim(),
+          organization_type: createOrgType,
+          organization_level: level,
+          parent_organization_id: createParentOrgId,
+          enforcement_workflow: createWorkflow,
+          contact_email: createEmail || null,
+          contact_phone: createPhone || null,
+          is_active: true,
+        })
+
+      if (error) throw error
+    },
+    onSuccess: () => {
+      toast.success('Organization created successfully')
+      queryClient.invalidateQueries({ queryKey: ['organizations'] })
+      setShowCreateDialog(false)
+      resetCreateForm()
+    },
+    onError: (error: any) => {
+      toast.error(error.message || 'Failed to create organization')
+    },
+  })
+
   const resetForm = () => {
     setEditName('')
     setEditWorkflow('admin_first')
     setEditEmail('')
     setEditPhone('')
+    setEditIsActive(true)
+    setEditOrgType('client')
+    setEditParentOrgId(null)
+  }
+
+  const resetCreateForm = () => {
+    setCreateName('')
+    setCreateWorkflow('admin_first')
+    setCreateEmail('')
+    setCreatePhone('')
+    setCreateOrgType('client')
+    setCreateParentOrgId(null)
   }
 
   const openSettingsDialog = (org: Organization) => {
@@ -120,6 +180,9 @@ export default function OrganizationManagement() {
     setEditWorkflow(org.enforcement_workflow)
     setEditEmail(org.contact_email || '')
     setEditPhone(org.contact_phone || '')
+    setEditIsActive(org.is_active)
+    setEditOrgType(org.organization_type as any)
+    setEditParentOrgId(org.parent_organization_id)
     setShowSettingsDialog(true)
   }
 
@@ -143,8 +206,8 @@ export default function OrganizationManagement() {
       <GlobalFilterRibbon showDateFilter={false} />
 
       <div className="flex justify-end mb-6">
-        <Button disabled>
-          <Building2 className="h-4 w-4 mr-2" />
+        <Button onClick={() => setShowCreateDialog(true)}>
+          <Plus className="h-4 w-4 mr-2" />
           New Organization
         </Button>
       </div>
@@ -260,11 +323,11 @@ export default function OrganizationManagement() {
 
       {/* Settings Dialog */}
       <Dialog open={showSettingsDialog} onOpenChange={setShowSettingsDialog}>
-        <DialogContent>
+        <DialogContent className="max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Organization Settings</DialogTitle>
             <DialogDescription>
-              Update organization details and workflow
+              Update organization details, type, and workflow
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
@@ -276,11 +339,45 @@ export default function OrganizationManagement() {
                 onChange={(e) => setEditName(e.target.value)}
               />
             </div>
+
+            <div>
+              <Label htmlFor="editOrgType">Organization Type</Label>
+              <Select value={editOrgType} onValueChange={(v: any) => setEditOrgType(v)}>
+                <SelectTrigger id="editOrgType">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="owner">Owner (Level 1 – Iron Eagle / Platform Owner)</SelectItem>
+                  <SelectItem value="service_provider">Service Provider (Level 2 – Security Company)</SelectItem>
+                  <SelectItem value="client">Client (Level 3 – Council / Territory)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label htmlFor="editParentOrg">Parent Organization</Label>
+              <Select
+                value={editParentOrgId || 'none'}
+                onValueChange={(v) => setEditParentOrgId(v === 'none' ? null : v)}
+              >
+                <SelectTrigger id="editParentOrg">
+                  <SelectValue placeholder="None (top-level)" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">None (top-level)</SelectItem>
+                  {organizations?.filter((o) => o.id !== selectedOrg?.id).map((org) => (
+                    <SelectItem key={org.id} value={org.id}>
+                      {org.name} ({getOrgTypeLabel(org.organization_type)})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
             
             <div>
               <Label htmlFor="editWorkflow">Enforcement Workflow</Label>
               <Select value={editWorkflow} onValueChange={setEditWorkflow}>
-                <SelectTrigger>
+                <SelectTrigger id="editWorkflow">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -311,21 +408,140 @@ export default function OrganizationManagement() {
                 placeholder="+64 21 123 4567"
               />
             </div>
+
+            <div className="flex items-center justify-between pt-2 border-t">
+              <Label htmlFor="editIsActive">Active Status</Label>
+              <Switch
+                id="editIsActive"
+                checked={editIsActive}
+                onCheckedChange={setEditIsActive}
+              />
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowSettingsDialog(false)}>
               Cancel
             </Button>
             <Button 
-              onClick={() => updateOrgMutation.mutate({
-                name: editName,
-                enforcement_workflow: editWorkflow,
-                contact_email: editEmail || null,
-                contact_phone: editPhone || null
-              })}
-              disabled={updateOrgMutation.isPending}
+              onClick={() => {
+                const levelMap: Record<string, number> = { owner: 1, service_provider: 2, client: 3 }
+                updateOrgMutation.mutate({
+                  name: editName,
+                  organization_type: editOrgType,
+                  organization_level: levelMap[editOrgType] || 3,
+                  parent_organization_id: editParentOrgId,
+                  enforcement_workflow: editWorkflow,
+                  contact_email: editEmail || null,
+                  contact_phone: editPhone || null,
+                  is_active: editIsActive,
+                })
+              }}
+              disabled={updateOrgMutation.isPending || !editName.trim()}
             >
               {updateOrgMutation.isPending ? 'Saving...' : 'Save Changes'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Create Organization Dialog */}
+      <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
+        <DialogContent className="max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>New Organization</DialogTitle>
+            <DialogDescription>
+              Create a new organization in the hierarchy
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="createName">Organization Name *</Label>
+              <Input
+                id="createName"
+                value={createName}
+                onChange={(e) => setCreateName(e.target.value)}
+                placeholder="e.g., Tauranga City Council"
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="createOrgType">Organization Type</Label>
+              <Select value={createOrgType} onValueChange={(v: any) => setCreateOrgType(v)}>
+                <SelectTrigger id="createOrgType">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="owner">Owner (Level 1)</SelectItem>
+                  <SelectItem value="service_provider">Service Provider (Level 2)</SelectItem>
+                  <SelectItem value="client">Client (Level 3)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label htmlFor="createParentOrg">Parent Organization</Label>
+              <Select
+                value={createParentOrgId || 'none'}
+                onValueChange={(v) => setCreateParentOrgId(v === 'none' ? null : v)}
+              >
+                <SelectTrigger id="createParentOrg">
+                  <SelectValue placeholder="None (top-level)" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">None (top-level)</SelectItem>
+                  {organizations?.map((org) => (
+                    <SelectItem key={org.id} value={org.id}>
+                      {org.name} ({getOrgTypeLabel(org.organization_type)})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label htmlFor="createWorkflow">Enforcement Workflow</Label>
+              <Select value={createWorkflow} onValueChange={setCreateWorkflow}>
+                <SelectTrigger id="createWorkflow">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="admin_first">Admin First (default)</SelectItem>
+                  <SelectItem value="officer_direct">Officer Direct</SelectItem>
+                  <SelectItem value="hybrid">Hybrid</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label htmlFor="createEmail">Contact Email</Label>
+              <Input
+                id="createEmail"
+                type="email"
+                value={createEmail}
+                onChange={(e) => setCreateEmail(e.target.value)}
+                placeholder="contact@example.com"
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="createPhone">Contact Phone</Label>
+              <Input
+                id="createPhone"
+                value={createPhone}
+                onChange={(e) => setCreatePhone(e.target.value)}
+                placeholder="+64 21 123 4567"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setShowCreateDialog(false); resetCreateForm() }}>
+              Cancel
+            </Button>
+            <Button
+              onClick={() => createOrgMutation.mutate()}
+              disabled={createOrgMutation.isPending || !createName.trim()}
+            >
+              {createOrgMutation.isPending ? 'Creating...' : 'Create Organization'}
             </Button>
           </DialogFooter>
         </DialogContent>

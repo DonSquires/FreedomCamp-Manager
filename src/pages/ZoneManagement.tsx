@@ -55,10 +55,12 @@ export default function ZoneManagement() {
   const [searchQuery, setSearchQuery] = useState('')
   const [showInactive, setShowInactive] = useState(false)
   const [showEditDialog, setShowEditDialog] = useState(false)
+  const [showCreateDialog, setShowCreateDialog] = useState(false)
   const [selectedZone, setSelectedZone] = useState<Zone | null>(null)
   
   // Edit form state
   const [editName, setEditName] = useState('')
+  const [editDescription, setEditDescription] = useState('')
   const [editOrganizationId, setEditOrganizationId] = useState('')
   const [editNightsPerMonth, setEditNightsPerMonth] = useState(28)
   const [editMaxConsecutive, setEditMaxConsecutive] = useState(3)
@@ -66,7 +68,22 @@ export default function ZoneManagement() {
   const [editSelfContained, setEditSelfContained] = useState(true)
   const [editParentZoneId, setEditParentZoneId] = useState<string | null>(null)
   const [editZoneType, setEditZoneType] = useState('specific')
+  const [editLandManager, setEditLandManager] = useState('')
+  const [editEnforcementAuthority, setEditEnforcementAuthority] = useState('')
+  const [editBylawClause, setEditBylawClause] = useState('')
+  const [editBylawUrl, setEditBylawUrl] = useState('')
   const [showGeofenceEditor, setShowGeofenceEditor] = useState(false)
+
+  // Create form state
+  const [createName, setCreateName] = useState('')
+  const [createDescription, setCreateDescription] = useState('')
+  const [createOrganizationId, setCreateOrganizationId] = useState('')
+  const [createNightsPerMonth, setCreateNightsPerMonth] = useState(28)
+  const [createMaxConsecutive, setCreateMaxConsecutive] = useState(3)
+  const [createDayVisitOnly, setCreateDayVisitOnly] = useState(false)
+  const [createSelfContained, setCreateSelfContained] = useState(true)
+  const [createZoneType, setCreateZoneType] = useState('specific')
+  const [createParentZoneId, setCreateParentZoneId] = useState<string | null>(null)
 
   // Fetch all organizations (for Masters only)
   const { data: organizations } = useQuery({
@@ -187,8 +204,44 @@ export default function ZoneManagement() {
     },
   })
 
+  // Create zone mutation
+  const createZoneMutation = useMutation({
+    mutationFn: async () => {
+      if (!createName.trim()) throw new Error('Zone name is required')
+      const orgId = user?.role === 'master' ? createOrganizationId : user?.organization_id
+      if (!orgId) throw new Error('Organization is required')
+
+      const { error } = await supabase
+        .from('zones')
+        .insert({
+          name: createName.trim(),
+          description: createDescription || null,
+          organization_id: orgId,
+          zone_type: createZoneType,
+          parent_zone_id: createZoneType === 'general' ? null : createParentZoneId,
+          nights_per_month: createNightsPerMonth,
+          max_consecutive_nights: createMaxConsecutive,
+          day_visit_only: createDayVisitOnly,
+          self_contained_required: createSelfContained,
+          is_active: true,
+        })
+
+      if (error) throw error
+    },
+    onSuccess: () => {
+      toast.success('Zone created successfully')
+      queryClient.invalidateQueries({ queryKey: ['zones'] })
+      setShowCreateDialog(false)
+      resetCreateForm()
+    },
+    onError: (error: any) => {
+      toast.error(error.message || 'Failed to create zone')
+    },
+  })
+
   const resetForm = () => {
     setEditName('')
+    setEditDescription('')
     setEditOrganizationId('')
     setEditNightsPerMonth(28)
     setEditMaxConsecutive(3)
@@ -196,12 +249,29 @@ export default function ZoneManagement() {
     setEditSelfContained(true)
     setEditParentZoneId(null)
     setEditZoneType('specific')
+    setEditLandManager('')
+    setEditEnforcementAuthority('')
+    setEditBylawClause('')
+    setEditBylawUrl('')
     setShowGeofenceEditor(false)
+  }
+
+  const resetCreateForm = () => {
+    setCreateName('')
+    setCreateDescription('')
+    setCreateOrganizationId('')
+    setCreateNightsPerMonth(28)
+    setCreateMaxConsecutive(3)
+    setCreateDayVisitOnly(false)
+    setCreateSelfContained(true)
+    setCreateZoneType('specific')
+    setCreateParentZoneId(null)
   }
 
   const openEditDialog = (zone: any) => {
     setSelectedZone(zone)
     setEditName(zone.name)
+    setEditDescription(zone.description || '')
     setEditOrganizationId(zone.organization_id)
     setEditNightsPerMonth(zone.nights_per_month)
     setEditMaxConsecutive(zone.max_consecutive_nights)
@@ -209,6 +279,10 @@ export default function ZoneManagement() {
     setEditSelfContained(zone.self_contained_required)
     setEditParentZoneId(zone.parent_zone_id)
     setEditZoneType(zone.zone_type || 'specific')
+    setEditLandManager(zone.land_manager || '')
+    setEditEnforcementAuthority(zone.enforcement_authority || '')
+    setEditBylawClause(zone.bylaw_clause || '')
+    setEditBylawUrl(zone.bylaw_source_url || '')
     setShowGeofenceEditor(false)
     setShowEditDialog(true)
   }
@@ -227,7 +301,7 @@ export default function ZoneManagement() {
       <GlobalFilterRibbon showDateFilter={false} />
 
       <div className="flex justify-end mb-6">
-        <Button disabled>
+        <Button onClick={() => setShowCreateDialog(true)}>
           <Plus className="h-4 w-4 mr-2" />
           Add Zone
         </Button>
@@ -460,7 +534,7 @@ export default function ZoneManagement() {
           <DialogHeader>
             <DialogTitle>Edit Zone</DialogTitle>
             <DialogDescription>
-              Update zone compliance rules and boundary
+              Update zone compliance rules, legal info, and boundary
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
@@ -470,6 +544,16 @@ export default function ZoneManagement() {
                 id="editName"
                 value={editName}
                 onChange={(e) => setEditName(e.target.value)}
+              />
+            </div>
+
+            <div>
+              <Label htmlFor="editDescription">Description</Label>
+              <Input
+                id="editDescription"
+                value={editDescription}
+                onChange={(e) => setEditDescription(e.target.value)}
+                placeholder="Brief description of this zone"
               />
             </div>
 
@@ -590,6 +674,47 @@ export default function ZoneManagement() {
               </div>
             </div>
 
+            {/* Legal / Governance Fields */}
+            <div className="border-t pt-4 space-y-3">
+              <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Legal & Governance</h4>
+              <div>
+                <Label htmlFor="editLandManager">Land Manager</Label>
+                <Input
+                  id="editLandManager"
+                  value={editLandManager}
+                  onChange={(e) => setEditLandManager(e.target.value)}
+                  placeholder="e.g., DOC, LINZ, Council"
+                />
+              </div>
+              <div>
+                <Label htmlFor="editEnforcementAuthority">Enforcement Authority</Label>
+                <Input
+                  id="editEnforcementAuthority"
+                  value={editEnforcementAuthority}
+                  onChange={(e) => setEditEnforcementAuthority(e.target.value)}
+                  placeholder="e.g., Tauranga City Council"
+                />
+              </div>
+              <div>
+                <Label htmlFor="editBylawClause">Bylaw Clause</Label>
+                <Input
+                  id="editBylawClause"
+                  value={editBylawClause}
+                  onChange={(e) => setEditBylawClause(e.target.value)}
+                  placeholder="e.g., Freedom Camping Bylaw 2021, Clause 7"
+                />
+              </div>
+              <div>
+                <Label htmlFor="editBylawUrl">Bylaw Source URL</Label>
+                <Input
+                  id="editBylawUrl"
+                  value={editBylawUrl}
+                  onChange={(e) => setEditBylawUrl(e.target.value)}
+                  placeholder="https://..."
+                />
+              </div>
+            </div>
+
             {/* Zone Boundary Section */}
             <div className="border-t pt-4">
               <div className="flex items-center justify-between mb-2">
@@ -613,13 +738,15 @@ export default function ZoneManagement() {
                   initialGeometry={selectedZone?.geometry}
                   onSave={async (geometry) => {
                     if (!selectedZone) return
+                    // Only update geometry (JSONB). geom is PostGIS and cannot be set from JSON directly.
                     const { error } = await supabase
                       .from('zones')
-                      .update({ geometry, geom: geometry }) // Sync both columns per import_boundaries.ts convention
+                      .update({ geometry })
                       .eq('id', selectedZone.id)
                     if (error) throw error
                     queryClient.invalidateQueries({ queryKey: ['zones'] })
                     setShowGeofenceEditor(false)
+                    toast.success('Zone boundary saved')
                   }}
                   onCancel={() => setShowGeofenceEditor(false)}
                 />
@@ -634,26 +761,149 @@ export default function ZoneManagement() {
               onClick={() => {
                 const updates: Partial<Zone> = {
                   name: editName,
+                  description: editDescription || null,
                   nights_per_month: editNightsPerMonth,
                   max_consecutive_nights: editMaxConsecutive,
                   day_visit_only: editDayVisitOnly,
-                  self_contained_required: editSelfContained
+                  self_contained_required: editSelfContained,
+                  land_manager: editLandManager || null,
+                  enforcement_authority: editEnforcementAuthority || null,
+                  bylaw_clause: editBylawClause || null,
+                  bylaw_source_url: editBylawUrl || null,
                 }
                 
-                // ✅ Masters can change organization, zone type, and parent
+                // Masters can change organization, zone type, and parent
                 if (user?.role === 'master') {
-                  if (editOrganizationId) {
-                    updates.organization_id = editOrganizationId
-                  }
+                  if (editOrganizationId) updates.organization_id = editOrganizationId
                   updates.zone_type = editZoneType
                   updates.parent_zone_id = editZoneType === 'general' ? null : editParentZoneId
                 }
                 
                 updateZoneMutation.mutate(updates)
               }}
-              disabled={updateZoneMutation.isPending}
+              disabled={updateZoneMutation.isPending || !editName.trim()}
             >
               {updateZoneMutation.isPending ? 'Saving...' : 'Save Changes'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Create Zone Dialog */}
+      <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Add Zone</DialogTitle>
+            <DialogDescription>Create a new enforcement or jurisdiction zone</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="createName">Zone Name *</Label>
+              <Input
+                id="createName"
+                value={createName}
+                onChange={(e) => setCreateName(e.target.value)}
+                placeholder="e.g., Marine Parade Freedom Camping"
+              />
+            </div>
+            <div>
+              <Label htmlFor="createDescription">Description</Label>
+              <Input
+                id="createDescription"
+                value={createDescription}
+                onChange={(e) => setCreateDescription(e.target.value)}
+                placeholder="Brief description"
+              />
+            </div>
+
+            {user?.role === 'master' && (
+              <div>
+                <Label htmlFor="createOrganization">Organization *</Label>
+                <Select value={createOrganizationId} onValueChange={setCreateOrganizationId}>
+                  <SelectTrigger id="createOrganization">
+                    <SelectValue placeholder="Select organization" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {organizations?.map((org) => (
+                      <SelectItem key={org.id} value={org.id}>{org.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            <div>
+              <Label htmlFor="createZoneType">Zone Type</Label>
+              <Select value={createZoneType} onValueChange={setCreateZoneType}>
+                <SelectTrigger id="createZoneType">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="general">🗺️ General (Jurisdiction Area)</SelectItem>
+                  <SelectItem value="specific">📍 Specific (Enforcement Zone)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {createZoneType === 'specific' && (
+              <div>
+                <Label htmlFor="createParentZone">Parent Zone (Jurisdiction)</Label>
+                <Select
+                  value={createParentZoneId || 'none'}
+                  onValueChange={(v) => setCreateParentZoneId(v === 'none' ? null : v)}
+                >
+                  <SelectTrigger id="createParentZone"><SelectValue placeholder="None" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">None</SelectItem>
+                    {zones?.filter((z: any) => z.zone_type === 'general').map((z: any) => (
+                      <SelectItem key={z.id} value={z.id}>🗺️ {z.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="createNights">Max Nights/Month</Label>
+                <Input
+                  id="createNights"
+                  type="number"
+                  value={createNightsPerMonth}
+                  onChange={(e) => setCreateNightsPerMonth(parseInt(e.target.value))}
+                />
+              </div>
+              <div>
+                <Label htmlFor="createConsecutive">Max Consecutive</Label>
+                <Input
+                  id="createConsecutive"
+                  type="number"
+                  value={createMaxConsecutive}
+                  onChange={(e) => setCreateMaxConsecutive(parseInt(e.target.value))}
+                />
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <Label htmlFor="createDayVisit">Day Visit Only</Label>
+                <Switch id="createDayVisit" checked={createDayVisitOnly} onCheckedChange={setCreateDayVisitOnly} />
+              </div>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="createSelfContained">Requires Self-Contained</Label>
+                <Switch id="createSelfContained" checked={createSelfContained} onCheckedChange={setCreateSelfContained} />
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setShowCreateDialog(false); resetCreateForm() }}>
+              Cancel
+            </Button>
+            <Button
+              onClick={() => createZoneMutation.mutate()}
+              disabled={createZoneMutation.isPending || !createName.trim() || (user?.role === 'master' && !createOrganizationId)}
+            >
+              {createZoneMutation.isPending ? 'Creating...' : 'Create Zone'}
             </Button>
           </DialogFooter>
         </DialogContent>
