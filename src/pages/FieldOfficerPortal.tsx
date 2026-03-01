@@ -20,12 +20,15 @@ const OTHER_LOCATION_ZONE_ID = null;
 
 export default function FieldOfficerPortal() {
   const { user } = useAuthStore()
-  const { zoneId, setZone } = useGlobalFiltersStore()
+  const { zoneId, zoneName, setZone } = useGlobalFiltersStore()
   const navigate = useNavigate()
   const [showScanner, setShowScanner] = useState(false)
   const [isProcessing, setIsProcessing] = useState(false)
   const [currentPatrolZone, setCurrentPatrolZone] = useState<string | null>(zoneId)
   const [currentLocation, setCurrentLocation] = useState<{ latitude: number; longitude: number } | null>(null)
+
+  // Display-friendly zone label for the officer status card
+  const displayZone = zoneName || (zoneId ? `${zoneId.substring(0, 8)}...` : 'Scanning Geofence...')
 
   // Auto-monitor geofence and manage patrol
   useEffect(() => {
@@ -437,7 +440,7 @@ export default function FieldOfficerPortal() {
           <div className="flex flex-col gap-2 text-xs text-gray-500">
             <div className="flex justify-between">
               <span>Current Zone:</span>
-              <span className="font-semibold text-blue-600">{zoneId || 'Scanning Geofence...'}</span>
+              <span className="font-semibold text-blue-600">{displayZone}</span>
             </div>
             <div className="flex justify-between">
               <span>Organization:</span>

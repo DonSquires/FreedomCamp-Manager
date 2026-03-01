@@ -23,6 +23,7 @@ import { PWAInstallPrompt } from '@/components/features/PWAInstallPrompt'
 // Add your two new pages
 import ComplianceRecalculation from '@/pages/ComplianceRecalculation'
 import LiveOfficerTracking from '@/pages/LiveOfficerTracking'
+import OrganizationProfile from '@/pages/OrganizationProfile'
 
 // Create a client
 const queryClient = new QueryClient({
@@ -255,6 +256,17 @@ export default function App() {
               <ProtectedRoute>
                 <RoleRoute allowedRoles={['admin', 'master']}>
                   <LiveOfficerTracking />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/organization-profile"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <OrganizationProfile />
                 </RoleRoute>
               </ProtectedRoute>
             }

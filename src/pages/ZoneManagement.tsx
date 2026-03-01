@@ -11,10 +11,11 @@ import { Switch } from '@/components/ui/switch'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { MapPin, Plus, Edit, CheckCircle, XCircle, Building2 } from 'lucide-react'
+import { MapPin, Plus, Edit, CheckCircle, XCircle, Building2, AlertTriangle } from 'lucide-react'
 import { toast } from 'sonner'
 import { AppLayout } from '@/components/features/AppLayout'
 import { GlobalFilterRibbon } from '@/components/features/GlobalFilterRibbon'
+import { ZoneGeofenceEditor } from '@/components/features/ZoneGeofenceEditor'
 
 interface Zone {
   id: string
@@ -24,6 +25,8 @@ interface Zone {
   zone_type: string
   location_lat: number | null
   location_lng: number | null
+  geometry: any
+  geom: any
   is_active: boolean
   day_visit_only: boolean
   nights_per_month: number
@@ -63,6 +66,7 @@ export default function ZoneManagement() {
   const [editSelfContained, setEditSelfContained] = useState(true)
   const [editParentZoneId, setEditParentZoneId] = useState<string | null>(null)
   const [editZoneType, setEditZoneType] = useState('specific')
+  const [showGeofenceEditor, setShowGeofenceEditor] = useState(false)
 
   // Fetch all organizations (for Masters only)
   const { data: organizations } = useQuery({
@@ -192,6 +196,7 @@ export default function ZoneManagement() {
     setEditSelfContained(true)
     setEditParentZoneId(null)
     setEditZoneType('specific')
+    setShowGeofenceEditor(false)
   }
 
   const openEditDialog = (zone: any) => {
@@ -204,6 +209,7 @@ export default function ZoneManagement() {
     setEditSelfContained(zone.self_contained_required)
     setEditParentZoneId(zone.parent_zone_id)
     setEditZoneType(zone.zone_type || 'specific')
+    setShowGeofenceEditor(false)
     setShowEditDialog(true)
   }
 
@@ -348,6 +354,12 @@ export default function ZoneManagement() {
                           Jurisdiction Zone
                         </Badge>
                       )}
+                      {!zone.geometry && !zone.geom && (
+                        <Badge variant="outline" className="bg-amber-50 text-amber-700 text-xs">
+                          <AlertTriangle className="h-3 w-3 mr-1" />
+                          No Boundary
+                        </Badge>
+                      )}
                       <div>
                         {zone.location_lat && zone.location_lng 
                           ? `${zone.location_lat.toFixed(4)}, ${zone.location_lng.toFixed(4)}`
@@ -444,11 +456,11 @@ export default function ZoneManagement() {
 
       {/* Edit Zone Dialog */}
       <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
-        <DialogContent>
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Edit Zone</DialogTitle>
             <DialogDescription>
-              Update zone compliance rules
+              Update zone compliance rules and boundary
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
@@ -576,6 +588,42 @@ export default function ZoneManagement() {
                   onCheckedChange={setEditSelfContained}
                 />
               </div>
+            </div>
+
+            {/* Zone Boundary Section */}
+            <div className="border-t pt-4">
+              <div className="flex items-center justify-between mb-2">
+                <Label>Zone Boundary</Label>
+                <Badge variant="outline" className={selectedZone?.geometry || selectedZone?.geom ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'}>
+                  {selectedZone?.geometry || selectedZone?.geom ? '✅ Boundary Set' : '⚠️ No Boundary'}
+                </Badge>
+              </div>
+              {!showGeofenceEditor ? (
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => setShowGeofenceEditor(true)}
+                >
+                  <MapPin className="h-4 w-4 mr-2" />
+                  {selectedZone?.geometry || selectedZone?.geom ? 'Edit Boundary' : 'Set Boundary'}
+                </Button>
+              ) : (
+                <ZoneGeofenceEditor
+                  zoneId={selectedZone?.id}
+                  initialGeometry={selectedZone?.geometry}
+                  onSave={async (geometry) => {
+                    if (!selectedZone) return
+                    const { error } = await supabase
+                      .from('zones')
+                      .update({ geometry, geom: geometry }) // Sync both columns per import_boundaries.ts convention
+                      .eq('id', selectedZone.id)
+                    if (error) throw error
+                    queryClient.invalidateQueries({ queryKey: ['zones'] })
+                    setShowGeofenceEditor(false)
+                  }}
+                  onCancel={() => setShowGeofenceEditor(false)}
+                />
+              )}
             </div>
           </div>
           <DialogFooter>
