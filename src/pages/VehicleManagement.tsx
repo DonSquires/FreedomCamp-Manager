@@ -65,7 +65,9 @@ export default function VehicleManagement() {
       } else if (statusFilter === 'breaches') {
         query = query.gt('total_breaches', 0)
       }
-      
+
+      const { data, error } = await query.limit(100)
+
       if (error) throw error
       return data as Vehicle[]
     },
