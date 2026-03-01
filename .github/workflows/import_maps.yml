@@ -1,0 +1,27 @@
+name: Hydrate NZ Maps
+on: 
+  workflow_dispatch: # Allows you to click a "Run" button
+
+jobs:
+  import-geo:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Setup Node
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+          
+      - name: Install Dependencies
+        # We install packages on the fly so you don't need a package.json
+        run: npm install @supabase/supabase-js@2 dotenv@16 typescript@5 ts-node@10 @types/node@18
+        
+      - name: Run Import Script
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          # CRITICAL: Using SUPABASE_SERVICE_ROLE_KEY to match existing secret name
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: npx ts-node scripts/import_boundaries.ts
