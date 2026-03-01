@@ -4,14 +4,28 @@ import * as dotenv from 'dotenv';
 // Load environment variables
 dotenv.config();
 
-// CONFIGURATION
-// Stats NZ Geographic Data Service
-// Territorial Authority 2025: https://datafinder.stats.govt.nz/layer/120963-territorial-authority-2025/
-// Meshblock 2025:             https://datafinder.stats.govt.nz/layer/120980-meshblock-2025/
+// ---------------------------------------------------------------------------
+// Data Sources
+// ---------------------------------------------------------------------------
+// Stats NZ Geographic Data Service (requires STATSNZ_API_KEY)
+//   TA 2025 (Clipped to coastline): https://datafinder.stats.govt.nz/layer/120962-territorial-authority-2025-clipped/
+//   TA 2025 (Generalised):          https://datafinder.stats.govt.nz/layer/120963-territorial-authority-2025/
+//   Meshblock 2025:                 https://datafinder.stats.govt.nz/layer/120980-meshblock-2025/
+//
+// NZTA / Waka Kotahi Open Data (public, no API key needed — used as fallback)
+//   TA Boundaries: https://opendata-nzta.opendata.arcgis.com/
+//
+// LINZ Data Service (requires LINZ_API_KEY — for land district boundaries)
+//   Land Districts: https://data.linz.govt.nz/layer/52070-landonline-land-district/
 const LAYER_IDS = {
-  territorial: "120963",
+  territorial: "120962", // Clipped to coastline – more accurate for geofencing
   meshblock: "120980",
 };
+
+// NZTA public fallback endpoint (no API key required)
+const NZTA_TA_URL =
+  "https://spatial.nzta.govt.nz/portal/rest/services/Hosted/Territorial_Authority_Boundaries/FeatureServer/0/query"
+  + "?where=1%3D1&outFields=*&f=geojson";
 
 const STATSNZ_API_KEY = process.env.STATSNZ_API_KEY;
 const IMPORT_MODE = (process.env.IMPORT_MODE || "territorial") as keyof typeof LAYER_IDS;
@@ -20,7 +34,7 @@ const IMPORT_BBOX = process.env.IMPORT_BBOX; // Optional: "minLng,minLat,maxLng,
 
 const supabase = createClient(
   process.env.SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!  // <-- MUST use this name to match existing secret
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
 function buildWfsUrl(layerId: string, bbox?: string): string | null {
@@ -37,18 +51,27 @@ function buildWfsUrl(layerId: string, bbox?: string): string | null {
 
 // ---------------------------------------------------------------------------
 // Mode 1: Import Territorial Authority boundaries → match to organizations
+// Uses Stats NZ (clipped coastline) as primary, NZTA as public fallback
 // ---------------------------------------------------------------------------
 async function importTerritorialAuthorities() {
-  const url = buildWfsUrl(LAYER_IDS.territorial);
+  let url = buildWfsUrl(LAYER_IDS.territorial);
+  let source = "Stats NZ (layer 120962 – clipped to coastline)";
+  let useNztaFallback = false;
+
   if (!url) {
-    throw new Error("STATSNZ_API_KEY environment variable is required. Register at https://datafinder.stats.govt.nz/ to obtain a key.");
+    // Fallback to NZTA public endpoint (no API key required)
+    console.log("ℹ️  STATSNZ_API_KEY not set – using NZTA public data as fallback.");
+    console.log("   For best results, register at https://datafinder.stats.govt.nz/ and set STATSNZ_API_KEY.\n");
+    url = NZTA_TA_URL;
+    source = "NZTA / Waka Kotahi (public ArcGIS)";
+    useNztaFallback = true;
   }
 
-  console.log("📡 Fetching Territorial Authority boundaries from Stats NZ...");
+  console.log(`📡 Fetching Territorial Authority boundaries from ${source}...`);
 
   const response = await fetch(url);
   if (!response.ok) {
-    throw new Error(`Stats NZ API request failed: ${response.status} ${response.statusText}`);
+    throw new Error(`API request failed: ${response.status} ${response.statusText}`);
   }
 
   const geojson = await response.json();
@@ -58,8 +81,11 @@ async function importTerritorialAuthorities() {
   let skipCount = 0;
 
   for (const feature of geojson.features) {
+    // Stats NZ properties: TA2025_V1_00_NAME_ASCII, TA2025_V1_00_NAME
+    // NZTA properties: TA_NAME, TA2023_V_1
     const rawName = feature.properties.TA2025_V1_00_NAME_ASCII
       || feature.properties.TA2025_V1_00_NAME
+      || feature.properties.TA_NAME
       || feature.properties.NAME;
     if (!rawName) continue;
 
@@ -213,7 +239,7 @@ async function importMeshblocks() {
           geometry: feature.geometry,
           boundary_source: 'stats_nz_meshblock_2025',
         })
-        .eq('id', existing[0].id);
+        .eq('id', existingId);
 
       if (updateErr) {
         console.error(`   ❌ Update failed for ${zoneName}: ${updateErr.message}`);
@@ -253,12 +279,14 @@ async function importMeshblocks() {
 // Main
 // ---------------------------------------------------------------------------
 async function main() {
-  if (!STATSNZ_API_KEY) {
-    throw new Error("STATSNZ_API_KEY environment variable is required. Register at https://datafinder.stats.govt.nz/ to obtain a key.");
-  }
-
   if (!(IMPORT_MODE in LAYER_IDS)) {
     throw new Error(`Invalid IMPORT_MODE '${IMPORT_MODE}'. Use 'territorial' or 'meshblock'.`);
+  }
+
+  // Stats NZ API key is required for meshblock mode but optional for territorial
+  // (territorial falls back to NZTA public endpoint)
+  if (IMPORT_MODE === "meshblock" && !STATSNZ_API_KEY) {
+    throw new Error("STATSNZ_API_KEY is required for meshblock import. Register at https://datafinder.stats.govt.nz/ to obtain a key.");
   }
 
   console.log(`🚀 Import mode: ${IMPORT_MODE}`);

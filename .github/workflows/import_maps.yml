@@ -3,13 +3,14 @@ on:
   workflow_dispatch:
     inputs:
       import_mode:
-        description: 'Import mode: "territorial" for TA boundaries, "meshblock" for enforcement zones'
+        description: 'Import mode: "territorial" for TA boundaries, "meshblock" for enforcement zones, "campsites" for DOC campsite zones'
         required: false
         default: 'territorial'
         type: choice
         options:
           - territorial
           - meshblock
+          - campsites
       organization_id:
         description: 'Organization UUID (required for meshblock mode)'
         required: false
@@ -40,10 +41,15 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          # Stats NZ Geographic Data Service API key
-          # Register at https://datafinder.stats.govt.nz/ to obtain a key
+          # Stats NZ Geographic Data Service API key (optional for territorial mode, required for meshblock)
+          # Falls back to NZTA public data if not set. Register at https://datafinder.stats.govt.nz/
           STATSNZ_API_KEY: ${{ secrets.STATSNZ_API_KEY }}
           IMPORT_MODE: ${{ inputs.import_mode }}
           ORGANIZATION_ID: ${{ inputs.organization_id }}
           IMPORT_BBOX: ${{ inputs.import_bbox }}
-        run: npx ts-node scripts/import_boundaries.ts
+        run: |
+          if [ "$IMPORT_MODE" = "campsites" ]; then
+            npx ts-node scripts/import_campsites.ts
+          else
+            npx ts-node scripts/import_boundaries.ts
+          fi
