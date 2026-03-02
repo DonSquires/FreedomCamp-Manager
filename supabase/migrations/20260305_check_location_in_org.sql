@@ -154,6 +154,7 @@ $$;
 ALTER FUNCTION public.check_location_in_org(uuid, float8, float8) OWNER TO postgres;
 
 GRANT EXECUTE ON FUNCTION public.check_location_in_org(uuid, float8, float8) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.check_location_in_org(uuid, float8, float8) TO anon;
 
 COMMENT ON FUNCTION public.check_location_in_org IS
   'Checks whether a GPS coordinate (lat, lon) is inside any active zone '

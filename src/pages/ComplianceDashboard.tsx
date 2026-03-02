@@ -47,44 +47,38 @@ export default function ComplianceDashboard() {
 
   // Stats calculation
   const calculateStatsManually = async () => {
-    let obsQuery = supabase.from('observations').select('*', { count: 'exact', head: true })
-    let compliantQuery = supabase.from('observations').select('*', { count: 'exact', head: true }).eq('is_compliant', true)
+    let obsQuery = supabase.from('observations').select('is_compliant', { count: 'exact' })
     let breachQuery = supabase.from('breach_alerts').select('*', { count: 'exact' }).eq('status', 'pending')
     let vehicleQuery = supabase.from('canonical_vehicles').select('*', { count: 'exact' })
     let patrolQuery = supabase.from('patrols').select('*', { count: 'exact' }).eq('status', 'in_progress')
 
     if (user?.role !== 'master' && user?.organization_id) {
       obsQuery = obsQuery.eq('organization_id', user.organization_id)
-      compliantQuery = compliantQuery.eq('organization_id', user.organization_id)
       breachQuery = breachQuery.eq('organization_id', user.organization_id)
       vehicleQuery = vehicleQuery
       patrolQuery = patrolQuery.eq('organization_id', user.organization_id)
     } else if (organizationId) {
       obsQuery = obsQuery.eq('organization_id', organizationId)
-      compliantQuery = compliantQuery.eq('organization_id', organizationId)
       breachQuery = breachQuery.eq('organization_id', organizationId)
       patrolQuery = patrolQuery.eq('organization_id', organizationId)
     }
 
     if (dateFrom) {
       obsQuery = obsQuery.gte('recorded_at', dateFrom)
-      compliantQuery = compliantQuery.gte('recorded_at', dateFrom)
     }
     if (dateTo) {
       obsQuery = obsQuery.lte('recorded_at', dateTo)
-      compliantQuery = compliantQuery.lte('recorded_at', dateTo)
     }
 
-    const [obsResult, compliantResult, breachResult, vehicleResult, patrolResult] = await Promise.all([
+    const [obsResult, breachResult, vehicleResult, patrolResult] = await Promise.all([
       obsQuery,
-      compliantQuery,
       breachQuery,
       vehicleQuery,
       patrolQuery,
     ])
 
     const totalObs = obsResult.count || 0
-    const compliantObs = compliantResult.count || 0
+    const compliantObs = obsResult.data?.filter(o => o.is_compliant).length || 0
     const complianceRate = totalObs > 0 ? (compliantObs / totalObs) * 100 : 0
 
     return {
