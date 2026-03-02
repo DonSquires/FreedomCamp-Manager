@@ -38,6 +38,7 @@ import HotspotsMap from '@/pages/HotspotsMap'
 import SpatialComplianceAdmin from '@/pages/SpatialComplianceAdmin'
 import ComplianceAnalytics from '@/pages/ComplianceAnalytics'
 import IncidentReports from '@/pages/IncidentReports'
+import ObservationsView from '@/pages/ObservationsView'
 
 // Create a client
 const queryClient = new QueryClient({
@@ -432,6 +433,15 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <IncidentReports />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/observations"
+            element={
+              <ProtectedRoute>
+                <ObservationsView />
               </ProtectedRoute>
             }
           />

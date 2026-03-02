@@ -13,7 +13,8 @@ import {
   Shield,
   Settings,
   Database,
-  Building2
+  Building2,
+  Layers,
 } from 'lucide-react'
 
 export default function AdminPortal() {
@@ -124,6 +125,23 @@ export default function AdminPortal() {
             <CardContent>
               <Button className="w-full" variant="outline" onClick={() => navigate('/reports')}>
                 View Reports
+              </Button>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Layers className="h-5 w-5" />
+                Observations
+              </CardTitle>
+              <CardDescription>
+                Map, photos and list of field scans
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button className="w-full" variant="outline" onClick={() => navigate('/observations')}>
+                View Observations
               </Button>
             </CardContent>
           </Card>

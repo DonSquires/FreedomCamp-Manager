@@ -43,7 +43,7 @@ interface Observation {
 }
 
 // Compute a simple opacity-based "heat" colour from 0–1 intensity
-function heatColour(intensity: number): string {
+function heatColor(intensity: number): string {
   // blue → yellow → red
   const r = Math.round(Math.min(255, intensity * 510))
   const g = Math.round(Math.max(0, 255 - Math.abs(intensity - 0.5) * 510))
@@ -308,7 +308,7 @@ export default function ObservationsView() {
                           center={[cell.lat, cell.lng]}
                           radius={14 + cell.intensity * 20}
                           pathOptions={{
-                            fillColor: heatColour(cell.intensity),
+                            fillColor: heatColor(cell.intensity),
                             fillOpacity: 0.55,
                             stroke: false,
                           }}
