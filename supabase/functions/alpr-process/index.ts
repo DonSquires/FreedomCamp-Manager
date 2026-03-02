@@ -107,14 +107,16 @@ Deno.serve(async (req) => {
   const requestStartTime = Date.now();
   const warnings: string[] = [];
 
+  // Declared outside the try block so the catch can clean up a stuck observation.
+  const supabase = createClient(
+    Deno.env.get('SUPABASE_URL') ?? '',
+    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+  );
+  // Tracks an observation_id that has been marked 'processing' so the catch
+  // block can flip it to 'failed' if an unhandled exception aborts the pipeline.
+  let processingObservationId: string | null = null;
+
   try {
-    // ==========================================================================
-    // STEP 2: INITIALIZE SUPABASE CLIENT (SERVICE_ROLE for RLS bypass)
-    // ==========================================================================
-    const supabase = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    );
 
     // ==========================================================================
     // STEP 3: VALIDATE REQUEST PAYLOAD
@@ -208,6 +210,9 @@ Deno.serve(async (req) => {
           processing_started_at: new Date().toISOString()
         })
         .eq('id', body.observation_id);
+
+      // Track so the outer catch can mark it 'failed' on unexpected errors.
+      processingObservationId = body.observation_id!;
     }
 
     const photoHash = body.photo_hash || `sha256-${Date.now()}-${Math.random().toString(36).substring(7)}`;
@@ -288,6 +293,7 @@ Deno.serve(async (req) => {
         const railwayResponse = await fetch(`${RAILWAY_INFERENCE_URL}/infer`, {
           method: 'POST',
           body: inferForm,
+          signal: AbortSignal.timeout(8000), // 8-second cap — prevent edge fn timeout
         });
 
         if (railwayResponse.ok) {
@@ -560,7 +566,24 @@ Deno.serve(async (req) => {
 
   } catch (error: any) {
     console.error('❌ ALPR Pipeline Failed:', error);
-    
+
+    // If we already marked this observation as 'processing', flip it to 'failed'
+    // so it doesn't stay stuck indefinitely.
+    if (processingObservationId) {
+      try {
+        await supabase
+          .from('observations')
+          .update({
+            processing_status: 'failed',
+            processing_error: error.message || 'Pipeline failed unexpectedly',
+            processing_completed_at: new Date().toISOString(),
+          })
+          .eq('id', processingObservationId);
+      } catch (cleanupErr: any) {
+        console.error('❌ Failed to mark observation as failed:', cleanupErr.message);
+      }
+    }
+
     return new Response(
       JSON.stringify({
         success: false,
