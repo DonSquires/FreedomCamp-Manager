@@ -85,7 +85,9 @@ export default function ImportHistoricalData() {
     const f = e.target.files?.[0]
     if (!f) return
     setFile(f)
-    setBatchName(batchName || f.name.replace(/\.[^.]+$/, ''))
+    if (!batchName.trim()) {
+      setBatchName(f.name.replace(/\.[^.]+$/, ''))
+    }
   }
 
   const handleUpload = async () => {

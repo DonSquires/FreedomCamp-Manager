@@ -94,8 +94,10 @@ export default function ObservationsReport() {
       })
       if (error) throw new Error(error.message)
 
-      // Download the CSV
-      const blob = new Blob([data?.csv || data], { type: 'text/csv' })
+      // Download the CSV - handle both string and {csv: string} response shapes
+      const csvContent = typeof data === 'string' ? data : (data?.csv || data?.data || '')
+      if (!csvContent) throw new Error('No CSV data in response')
+      const blob = new Blob([csvContent], { type: 'text/csv' })
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url

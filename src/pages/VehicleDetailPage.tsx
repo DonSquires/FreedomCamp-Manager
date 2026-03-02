@@ -242,7 +242,7 @@ export default function VehicleDetailPage() {
   }
 
   const complianceRate = observations.length > 0
-    ? Math.round((observations.filter(o => o.is_compliant).length / observations.length) * 100)
+    ? Math.round((observations.filter(o => o.is_compliant === true).length / observations.length) * 100)
     : null
 
   const activeBreaches = breaches.filter(b =>

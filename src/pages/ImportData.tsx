@@ -83,7 +83,9 @@ export default function ImportData() {
     const f = e.target.files?.[0]
     if (!f) return
     setFile(f)
-    setBatchName(batchName || f.name.replace(/\.[^.]+$/, ''))
+    if (!batchName.trim()) {
+      setBatchName(f.name.replace(/\.[^.]+$/, ''))
+    }
 
     // Read file as base64 or text
     const reader = new FileReader()

@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@/stores/authStore'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -8,15 +9,14 @@ export default function PortalSelection() {
   const { user } = useAuthStore()
   const navigate = useNavigate()
 
-  // If user only has one portal, redirect immediately
-  if (user?.role === 'admin' || user?.role === 'master') {
-    navigate('/admin', { replace: true })
-    return null
-  }
-  if (user?.role === 'officer') {
-    navigate('/field-officer', { replace: true })
-    return null
-  }
+  useEffect(() => {
+    if (!user) return
+    if (user.role === 'admin' || user.role === 'master') {
+      navigate('/admin', { replace: true })
+    } else if (user.role === 'officer') {
+      navigate('/field-officer', { replace: true })
+    }
+  }, [user, navigate])
 
   // admin_officer — show the chooser
   return (
