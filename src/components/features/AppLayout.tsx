@@ -22,6 +22,7 @@ import {
   Activity,
   Gavel,
   MonitorPlay,
+  EyeOff,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -45,6 +46,7 @@ const navigationItems = [
   { path: '/incidents', icon: Shield, label: 'Incidents & Evidence', roles: ['admin', 'admin_officer', 'master', 'officer'] },
   { path: '/reports', icon: FileText, label: 'Reports', roles: ['admin', 'admin_officer', 'master'] },
   { path: '/audit-log', icon: Activity, label: 'Audit Log', roles: ['admin', 'admin_officer', 'master'] },
+  { path: '/privacy-curtain', icon: EyeOff, label: 'Privacy Curtain', roles: ['admin', 'master'] },
   { path: '/data', icon: Database, label: 'Data Management', roles: ['admin', 'master'] },
   { path: '/organization-profile', icon: Building2, label: 'Organization Profile', roles: ['admin', 'admin_officer', 'master'] },
   { path: '/organizations', icon: Building2, label: 'Organizations', roles: ['master'] },

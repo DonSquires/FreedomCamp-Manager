@@ -29,6 +29,7 @@ import UniversalSearch from '@/pages/UniversalSearch'
 import AuditLog from '@/pages/AuditLog'
 import EnforcementActions from '@/pages/EnforcementActions'
 import EnforcementCommandCenter from '@/pages/EnforcementCommandCenter'
+import PrivacyCurtain from '@/pages/PrivacyCurtain'
 
 // Create a client
 const queryClient = new QueryClient({
@@ -317,6 +318,17 @@ export default function App() {
               <ProtectedRoute>
                 <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
                   <EnforcementCommandCenter />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/privacy-curtain"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'master']}>
+                  <PrivacyCurtain />
                 </RoleRoute>
               </ProtectedRoute>
             }

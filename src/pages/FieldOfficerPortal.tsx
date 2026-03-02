@@ -8,7 +8,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { AppLayout } from '@/components/features/AppLayout'
 import { CameraCapture } from '@/components/features/CameraCapture'
 import { LocationAuthorizationStatus } from '@/components/features/LocationAuthorizationStatus'
-import { Camera, Map, FileText, History, AlertTriangle, MapPin } from 'lucide-react'
+import { QRCheckpointScanner } from '@/components/features/QRCheckpointScanner'
+import { useManDownDetection } from '@/hooks/useManDownDetection'
+import { Camera, Map, FileText, History, AlertTriangle, MapPin, QrCode, ShieldAlert } from 'lucide-react'
+import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
 
@@ -23,9 +26,13 @@ export default function FieldOfficerPortal() {
   const { zoneId, zoneName, setZone } = useGlobalFiltersStore()
   const navigate = useNavigate()
   const [showScanner, setShowScanner] = useState(false)
+  const [showCheckpoint, setShowCheckpoint] = useState(false)
   const [isProcessing, setIsProcessing] = useState(false)
   const [currentPatrolZone, setCurrentPatrolZone] = useState<string | null>(zoneId)
   const [currentLocation, setCurrentLocation] = useState<{ latitude: number; longitude: number } | null>(null)
+
+  // Man-Down Detection — records GPS updates and fires alert if stationary too long
+  const { recordGPSUpdate, isManDownActive } = useManDownDetection()
 
   // Display-friendly zone label for the officer status card
   const displayZone = zoneName || (zoneId ? `${zoneId.substring(0, 8)}...` : 'Scanning Geofence...')
@@ -97,6 +104,9 @@ export default function FieldOfficerPortal() {
         latitude: position.coords.latitude,
         longitude: position.coords.longitude,
       })
+
+      // Feed location into Man-Down detection (resets stationary timer when officer moves)
+      recordGPSUpdate(position.coords.latitude, position.coords.longitude)
 
       // ============================================================================
       // STEP 3: FETCH WEATHER CONDITIONS (Non-blocking)
@@ -304,6 +314,17 @@ export default function FieldOfficerPortal() {
 
   return (
     <AppLayout title="Field Officer Portal" description={`Welcome, ${user?.full_name || 'Officer'}`}>
+      {/* Man-Down active warning banner */}
+      {isManDownActive && (
+        <div className="mb-4 flex items-center gap-3 rounded-lg border border-red-400 bg-red-50 dark:bg-red-950 p-4">
+          <ShieldAlert className="h-6 w-6 text-red-600 shrink-0 animate-pulse" />
+          <div>
+            <p className="font-semibold text-red-700 dark:text-red-300">🚨 Man-Down Alert Active</p>
+            <p className="text-sm text-red-600 dark:text-red-400">Emergency alert sent to admin. Move or acknowledge to clear.</p>
+          </div>
+        </div>
+      )}
+
       {showScanner ? (
         <CameraCapture 
           onCapture={handleCapture} 
@@ -311,6 +332,25 @@ export default function FieldOfficerPortal() {
           facing="environment" 
           showControls={true} 
         />
+      ) : showCheckpoint ? (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <QrCode className="h-5 w-5 text-indigo-600" />
+              Checkpoint Check-In
+            </CardTitle>
+            <CardDescription>Scan QR code or enter code at patrol checkpoint</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <QRCheckpointScanner
+              patrolId={currentPatrolZone}
+              onVisitRecorded={() => setShowCheckpoint(false)}
+            />
+            <Button variant="ghost" className="w-full mt-4" onClick={() => setShowCheckpoint(false)}>
+              Back to Portal
+            </Button>
+          </CardContent>
+        </Card>
       ) : (
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           {/* Main Action: Scan */}
@@ -327,6 +367,25 @@ export default function FieldOfficerPortal() {
             <CardContent>
               <Button className="w-full h-12 text-lg" onClick={handleStartScanner} disabled={isProcessing}>
                 {isProcessing ? 'Processing...' : 'Open Scanner'}
+              </Button>
+            </CardContent>
+          </Card>
+
+          {/* QR Checkpoint Check-In */}
+          <Card className="hover:shadow-lg transition-shadow border-indigo-200 dark:border-indigo-900 border-2">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <div className="p-2 bg-indigo-100 dark:bg-indigo-900 rounded-lg">
+                  <QrCode className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
+                </div>
+                Checkpoint
+                <Badge variant="outline" className="ml-auto text-xs">Lone Worker</Badge>
+              </CardTitle>
+              <CardDescription>Scan QR/NFC at patrol checkpoint</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button className="w-full" onClick={() => setShowCheckpoint(true)}>
+                Check In at Checkpoint
               </Button>
             </CardContent>
           </Card>
