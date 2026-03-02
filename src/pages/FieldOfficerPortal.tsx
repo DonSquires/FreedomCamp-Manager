@@ -87,7 +87,16 @@ export default function FieldOfficerPortal() {
       // ============================================================================
       toast.info('Getting GPS location...')
       const position = await new Promise<GeolocationPosition>((resolve, reject) => {
-        navigator.geolocation.getCurrentPosition(resolve, reject, {
+        navigator.geolocation.getCurrentPosition(resolve, (err) => {
+          // Provide a clear, actionable message for each GPS error code
+          if (err.code === err.PERMISSION_DENIED) {
+            reject(new Error('GPS permission denied. Enable location access for this site and try again.'))
+          } else if (err.code === err.POSITION_UNAVAILABLE) {
+            reject(new Error('GPS location unavailable. Move to an area with better signal and try again.'))
+          } else {
+            reject(new Error('GPS timed out. Move to an area with better signal and try again.'))
+          }
+        }, {
           enableHighAccuracy: true,
           timeout: 10000,
         })
@@ -109,18 +118,22 @@ export default function FieldOfficerPortal() {
       recordGPSUpdate(position.coords.latitude, position.coords.longitude)
 
       // ============================================================================
-      // STEP 3: FETCH WEATHER CONDITIONS (Non-blocking)
+      // STEP 3: FETCH WEATHER CONDITIONS (Non-blocking, 5 s timeout)
       // ============================================================================
       toast.info('Getting weather conditions...')
       let weatherConditions = 'Unknown';
       
       try {
-        const { data: weatherData, error: weatherError } = await supabase.functions.invoke('get-weather', {
+        const weatherTimeout = new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('weather timeout')), 5000)
+        );
+        const weatherFetch = supabase.functions.invoke('get-weather', {
           body: {
             latitude: position.coords.latitude,
             longitude: position.coords.longitude,
           }
         });
+        const { data: weatherData, error: weatherError } = await Promise.race([weatherFetch, weatherTimeout]);
 
         if (!weatherError && weatherData?.weather) {
           weatherConditions = weatherData.weather;

@@ -419,8 +419,10 @@ Deno.serve(async (req) => {
       if (body.previous_observation_id) updateData.previous_observation_id = body.previous_observation_id;
 
       // Store vehicle embedding when inference service provided one
+      // Pass as native array so PostgREST serialises it correctly for the
+      // vector(384) column — JSON.stringify would double-encode to a text string.
       if (vehicleEmbedding) {
-        updateData.vehicle_embedding = JSON.stringify(vehicleEmbedding);
+        updateData.vehicle_embedding = vehicleEmbedding;
         updateData.embedding_quality = embeddingQuality;
         updateData.embedding_model_version = 'yolov8n_mobilenetv3_v1.0';
         updateData.embedding_created_at = new Date().toISOString();
