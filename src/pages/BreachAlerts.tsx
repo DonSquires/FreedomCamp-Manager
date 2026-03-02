@@ -1,15 +1,17 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { useGlobalFiltersStore } from '@/stores/globalFiltersStore'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { 
   AlertTriangle, 
   CheckCircle, 
@@ -17,7 +19,6 @@ import {
   XCircle, 
   Search,
   Bell,
-  FileText,
   Database,
   RefreshCw,
   ShieldAlert,
@@ -27,6 +28,12 @@ import {
   MapPin,
   Car,
   Calendar,
+  ChevronRight,
+  Shield,
+  Image as ImageIcon,
+  History,
+  Keyboard,
+  Info,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatDateTime } from '@/lib/utils'
@@ -60,15 +67,29 @@ interface BreachAlert {
   admin_review_notes: string | null
 }
 
+const CANNED_REJECTION_REASONS = [
+  'Evidence Inconclusive',
+  'Officer Error',
+  'Vehicle Exempt',
+  'Within Permitted Limits',
+  'Duplicate Submission',
+  'Vehicle No Longer Present',
+]
+
 export default function BreachAlerts() {
   const { user } = useAuthStore()
   const { organizationId, zoneId, dateFrom, dateTo } = useGlobalFiltersStore()
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [enrichingVehicle, setEnrichingVehicle] = useState<string | null>(null)
-  const [selectedBreach, setSelectedBreach] = useState<any | null>(null)
-  const [showDetailsDialog, setShowDetailsDialog] = useState(false)
   const [resolveNotes, setResolveNotes] = useState('')
+  const [rejectionReason, setRejectionReason] = useState('')
+  const [activeTab, setActiveTab] = useState<'evidence' | 'rapsheet'>('evidence')
+
+  // 3-Zone state
+  const [activeBreachId, setActiveBreachId] = useState<string | null>(null)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+
   const queryClient = useQueryClient()
 
   // ── Intelligence Alerts: flagged vehicles after hours / day-visit violations
@@ -149,19 +170,56 @@ export default function BreachAlerts() {
     },
   })
 
-  // Fetch enriched vehicle data when viewing details
+  // Derived: active breach from the list
+  const activeBreach = breaches?.find((b: any) => b.id === activeBreachId) || null
+
+  // Fetch enriched vehicle data for the active breach
   const { data: detailVehicle } = useQuery({
-    queryKey: ['breach-vehicle', selectedBreach?.plate_number],
+    queryKey: ['breach-vehicle', activeBreach?.plate_number],
     queryFn: async () => {
-      if (!selectedBreach?.plate_number) return null
+      if (!activeBreach?.plate_number) return null
       const { data } = await supabase
         .from('canonical_vehicles')
         .select('*')
-        .eq('plate_number', selectedBreach.plate_number)
+        .eq('plate_number', activeBreach.plate_number)
         .single()
       return data
     },
-    enabled: showDetailsDialog && !!selectedBreach?.plate_number,
+    enabled: !!activeBreach?.plate_number,
+  })
+
+  // Fetch evidence photos from observations for the active breach
+  const { data: evidencePhotos } = useQuery({
+    queryKey: ['breach-evidence-photos', activeBreach?.plate_number],
+    queryFn: async () => {
+      if (!activeBreach?.plate_number) return []
+      const { data } = await supabase
+        .from('observations')
+        .select('id, photo_url, recorded_at, gps_latitude, gps_longitude, zones!observations_zone_id_fkey(name)')
+        .eq('plate_number', activeBreach.plate_number)
+        .not('photo_url', 'is', null)
+        .order('recorded_at', { ascending: false })
+        .limit(12)
+      return data || []
+    },
+    enabled: !!activeBreach?.plate_number,
+  })
+
+  // Fetch vehicle breach history (rap sheet) – all previous breaches for this plate
+  const { data: vehicleHistory } = useQuery({
+    queryKey: ['breach-history', activeBreach?.plate_number],
+    queryFn: async () => {
+      if (!activeBreach?.plate_number) return []
+      const { data } = await supabase
+        .from('breach_alerts')
+        .select('id, breach_type, status, created_at, resolved_at, zones!zone_id(name)')
+        .eq('plate_number', activeBreach.plate_number)
+        .neq('id', activeBreach.id)
+        .order('created_at', { ascending: false })
+        .limit(20)
+      return data || []
+    },
+    enabled: !!activeBreach?.plate_number,
   })
 
   // Acknowledge (was "notify") – correct status value per schema
@@ -217,7 +275,6 @@ export default function BreachAlerts() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['breach-alerts'] })
       queryClient.invalidateQueries({ queryKey: ['intelligence-alerts'] })
-      setShowDetailsDialog(false)
       setResolveNotes('')
       toast.success('Breach marked as resolved')
     },
@@ -226,10 +283,13 @@ export default function BreachAlerts() {
 
   // Dismiss breach
   const dismissMutation = useMutation({
-    mutationFn: async (breachId: string) => {
+    mutationFn: async ({ breachId, reason }: { breachId: string; reason?: string }) => {
       const { error } = await supabase
         .from('breach_alerts')
-        .update({ status: 'dismissed' })
+        .update({ 
+          status: 'dismissed',
+          resolution_notes: reason || null,
+        })
         .eq('id', breachId)
       if (error) throw error
     },
@@ -295,7 +355,145 @@ export default function BreachAlerts() {
     }
   }
 
-  // Calculate stats
+  // ── Decision Dock actions ─────────────────────────────────────────────────
+
+  const handleIssueEnforcement = () => {
+    if (!activeBreach) return
+    if (!['pending', 'acknowledged'].includes(activeBreach.status)) {
+      toast.warning('Cannot issue enforcement for this status')
+      return
+    }
+    enforcementMutation.mutate(activeBreach.id)
+  }
+
+  const handleIssueWarning = () => {
+    if (!activeBreach) return
+    if (activeBreach.status !== 'pending') {
+      toast.warning('Warning can only be issued for pending breaches')
+      return
+    }
+    acknowledgeMutation.mutate(activeBreach.id)
+  }
+
+  const handleReject = () => {
+    if (!activeBreach) return
+    if (['resolved', 'dismissed'].includes(activeBreach.status)) {
+      toast.warning('Breach is already closed')
+      return
+    }
+    dismissMutation.mutate({ breachId: activeBreach.id, reason: rejectionReason || undefined })
+    setRejectionReason('')
+  }
+
+  const handleResolve = () => {
+    if (!activeBreach) return
+    resolveMutation.mutate({ breachId: activeBreach.id, notes: resolveNotes })
+  }
+
+  // ── Queue navigation ──────────────────────────────────────────────────────
+
+  const navigateQueue = (direction: number) => {
+    if (!breaches || breaches.length === 0) return
+    if (!activeBreachId) {
+      setActiveBreachId(breaches[0].id)
+      return
+    }
+    const currentIndex = breaches.findIndex((b: any) => b.id === activeBreachId)
+    const nextIndex = currentIndex + direction
+    if (nextIndex >= 0 && nextIndex < breaches.length) {
+      setActiveBreachId(breaches[nextIndex].id)
+    }
+  }
+
+  // ── Keyboard shortcuts ────────────────────────────────────────────────────
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      // Navigation: arrow keys always work if queue is loaded
+      if (e.key === 'ArrowDown' && !e.ctrlKey && !e.metaKey) {
+        const tag = (e.target as HTMLElement).tagName
+        if (tag !== 'INPUT' && tag !== 'TEXTAREA') {
+          e.preventDefault()
+          navigateQueue(1)
+        }
+        return
+      }
+      if (e.key === 'ArrowUp' && !e.ctrlKey && !e.metaKey) {
+        const tag = (e.target as HTMLElement).tagName
+        if (tag !== 'INPUT' && tag !== 'TEXTAREA') {
+          e.preventDefault()
+          navigateQueue(-1)
+        }
+        return
+      }
+      if (e.key === 'Escape') {
+        setActiveBreachId(null)
+        return
+      }
+      if (!activeBreach) return
+      if (e.ctrlKey || e.metaKey) {
+        if (e.key === 'Enter') { e.preventDefault(); handleIssueEnforcement(); return }
+        if (e.key === 'w') { e.preventDefault(); handleIssueWarning(); return }
+        if (e.key === 'r') { e.preventDefault(); handleReject(); return }
+      }
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [activeBreach, breaches, rejectionReason])
+
+  const handleSelectBreach = (breachId: string) => {
+    setActiveBreachId(breachId)
+    setResolveNotes('')
+    setRejectionReason('')
+    setActiveTab('evidence')
+  }
+
+  // ── Multi-select helpers ──────────────────────────────────────────────────
+
+  const toggleSelect = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation()
+    setSelectedIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  const toggleSelectAll = (checked: boolean) => {
+    if (checked && breaches) {
+      setSelectedIds(new Set(breaches.map((b: any) => b.id)))
+    } else {
+      setSelectedIds(new Set())
+    }
+  }
+
+  const handleBulkAcknowledge = async () => {
+    const ids = Array.from(selectedIds)
+    const pendingIds = ids.filter(id => {
+      const b = breaches?.find((b: any) => b.id === id)
+      return b?.status === 'pending'
+    })
+    if (pendingIds.length === 0) { toast.warning('No pending breaches selected'); return }
+    await Promise.all(pendingIds.map(id => acknowledgeMutation.mutateAsync(id)))
+    setSelectedIds(new Set())
+    toast.success(`${pendingIds.length} breach(es) acknowledged`)
+  }
+
+  const handleBulkDismiss = async () => {
+    const ids = Array.from(selectedIds)
+    const dismissableIds = ids.filter(id => {
+      const b = breaches?.find((b: any) => b.id === id)
+      return b && !['resolved', 'dismissed'].includes(b.status)
+    })
+    if (dismissableIds.length === 0) { toast.warning('No dismissable breaches selected'); return }
+    await Promise.all(dismissableIds.map(id => dismissMutation.mutateAsync({ breachId: id })))
+    setSelectedIds(new Set())
+    toast.success(`${dismissableIds.length} breach(es) dismissed`)
+  }
+
+  // ── Stats ─────────────────────────────────────────────────────────────────
+
   const stats = breaches ? {
     total: breaches.length,
     pending: breaches.filter((b: any) => b.status === 'pending').length,
@@ -304,24 +502,26 @@ export default function BreachAlerts() {
     resolved: breaches.filter((b: any) => b.status === 'resolved').length,
   } : null
 
+  // ── Style helpers ─────────────────────────────────────────────────────────
+
   const getStatusIcon = (status: string) => {
     switch (status) {
-      case 'pending': return <Clock className="h-4 w-4" />
-      case 'acknowledged': return <Bell className="h-4 w-4" />
-      case 'enforcement_started': return <ShieldAlert className="h-4 w-4" />
-      case 'resolved': return <CheckCircle className="h-4 w-4" />
-      case 'dismissed': return <XCircle className="h-4 w-4" />
-      default: return <XCircle className="h-4 w-4" />
+      case 'pending': return <Clock className="h-3 w-3" />
+      case 'acknowledged': return <Bell className="h-3 w-3" />
+      case 'enforcement_started': return <ShieldAlert className="h-3 w-3" />
+      case 'resolved': return <CheckCircle className="h-3 w-3" />
+      case 'dismissed': return <XCircle className="h-3 w-3" />
+      default: return <XCircle className="h-3 w-3" />
     }
   }
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'pending': return 'bg-orange-100 text-orange-800'
-      case 'acknowledged': return 'bg-blue-100 text-blue-800'
-      case 'enforcement_started': return 'bg-purple-100 text-purple-800'
-      case 'resolved': return 'bg-green-100 text-green-800'
-      case 'dismissed': return 'bg-gray-100 text-gray-600'
+      case 'pending': return 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300'
+      case 'acknowledged': return 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300'
+      case 'enforcement_started': return 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300'
+      case 'resolved': return 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300'
+      case 'dismissed': return 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400'
       default: return 'bg-gray-100 text-gray-600'
     }
   }
@@ -344,29 +544,20 @@ export default function BreachAlerts() {
     return labels[type] || type.replace(/_/g, ' ')
   }
 
-  const openDetails = (breach: any) => {
-    setSelectedBreach(breach)
-    setResolveNotes('')
-    setShowDetailsDialog(true)
-  }
+  const allSelected = breaches && breaches.length > 0 && selectedIds.size === breaches.length
 
   return (
-    <AppLayout title="Breach & Safety Alerts" description="Manage compliance breaches and enforcement actions" showBackButton>
+    <AppLayout title="Breach & Safety Alerts" description="3-Zone Adjudication Centre" showBackButton>
       <GlobalFilterRibbon />
 
       {/* ── Intelligence & Safety Alert Banners ──────────────────────────── */}
       {intelligenceAlerts && intelligenceAlerts.length > 0 && (
-        <Card className="border-red-400 bg-red-50 dark:bg-red-950/30 mb-4">
-          <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2 text-red-700 dark:text-red-400 text-base">
-              <Zap className="h-5 w-5" />
+        <Card className="border-red-400 bg-red-50 dark:bg-red-950/30 mb-3">
+          <div className="p-4">
+            <div className="flex items-center gap-2 text-red-700 dark:text-red-400 font-semibold mb-2">
+              <Zap className="h-4 w-4" />
               Intelligence Alert – Restricted Zone / After-Hours Violations ({intelligenceAlerts.length})
-            </CardTitle>
-            <CardDescription className="text-red-600 dark:text-red-400">
-              Pending violations require immediate attention.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
+            </div>
             <div className="space-y-2">
               {intelligenceAlerts.map((a: any) => (
                 <div key={a.id} className="flex items-center justify-between bg-white dark:bg-gray-900 rounded p-2 text-sm">
@@ -392,22 +583,17 @@ export default function BreachAlerts() {
                 </div>
               ))}
             </div>
-          </CardContent>
+          </div>
         </Card>
       )}
 
       {safetyAlerts && safetyAlerts.length > 0 && (
-        <Card className="border-orange-400 bg-orange-50 dark:bg-orange-950/30 mb-4">
-          <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-2 text-orange-700 dark:text-orange-400 text-base">
-              <UserX className="h-5 w-5" />
+        <Card className="border-orange-400 bg-orange-50 dark:bg-orange-950/30 mb-3">
+          <div className="p-4">
+            <div className="flex items-center gap-2 text-orange-700 dark:text-orange-400 font-semibold mb-2">
+              <UserX className="h-4 w-4" />
               Safety Alert – Officer Inactivity / GPS Loss ({safetyAlerts.length})
-            </CardTitle>
-            <CardDescription className="text-orange-600 dark:text-orange-400">
-              HSWA 2015 – Primary Duty of Care. Officers need welfare check.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
+            </div>
             <div className="space-y-2">
               {safetyAlerts.map((a: any) => (
                 <div key={a.id} className="flex items-center justify-between bg-white dark:bg-gray-900 rounded p-2 text-sm">
@@ -429,368 +615,626 @@ export default function BreachAlerts() {
                 </div>
               ))}
             </div>
-          </CardContent>
+          </div>
         </Card>
       )}
 
-      {/* Stats Grid */}
+      {/* Stats Bar */}
       {stats && (
-        <div className="grid gap-4 md:grid-cols-5 mb-8">
-          <Card>
-            <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-gray-600">Total</CardTitle></CardHeader>
-            <CardContent><div className="text-2xl font-bold">{stats.total}</div></CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-orange-600">Pending</CardTitle></CardHeader>
-            <CardContent><div className="text-2xl font-bold text-orange-600">{stats.pending}</div></CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-blue-600">Acknowledged</CardTitle></CardHeader>
-            <CardContent><div className="text-2xl font-bold text-blue-600">{stats.acknowledged}</div></CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-purple-600">Enforcement</CardTitle></CardHeader>
-            <CardContent><div className="text-2xl font-bold text-purple-600">{stats.enforcement}</div></CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-green-600">Resolved</CardTitle></CardHeader>
-            <CardContent><div className="text-2xl font-bold text-green-600">{stats.resolved}</div></CardContent>
-          </Card>
+        <div className="flex gap-3 mb-4 flex-wrap">
+          <div className="text-sm text-gray-600 dark:text-gray-400 flex items-center gap-1">
+            <Info className="h-4 w-4" />
+            <span className="font-semibold">{stats.total}</span> total
+          </div>
+          <div className="text-sm text-orange-600 flex items-center gap-1">
+            <span className="font-semibold">{stats.pending}</span> pending
+          </div>
+          <div className="text-sm text-blue-600 flex items-center gap-1">
+            <span className="font-semibold">{stats.acknowledged}</span> acknowledged
+          </div>
+          <div className="text-sm text-purple-600 flex items-center gap-1">
+            <span className="font-semibold">{stats.enforcement}</span> enforcement
+          </div>
+          <div className="text-sm text-green-600 flex items-center gap-1">
+            <span className="font-semibold">{stats.resolved}</span> resolved
+          </div>
         </div>
       )}
 
-      {/* Search and Filters */}
-      <Card className="mb-6">
-        <CardContent className="pt-6">
-          <div className="flex flex-col md:flex-row gap-4">
-            <div className="flex-1">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                <Input
-                  placeholder="Search by plate number..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10"
-                />
-              </div>
+      {/* ── 3-Zone Adjudication Workspace ────────────────────────────────── */}
+      <div className="grid lg:grid-cols-[320px_1fr_288px] gap-4">
+
+        {/* ── Zone 1: Queue (Left Rail) ─────────────────────────────────── */}
+        <div className="flex flex-col border rounded-lg bg-white dark:bg-gray-800 overflow-hidden" style={{ maxHeight: 'calc(100vh - 260px)' }}>
+          {/* Search + Quick Filters */}
+          <div className="p-3 border-b dark:border-gray-700 flex-shrink-0">
+            <div className="relative mb-2">
+              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-gray-400" />
+              <Input
+                placeholder="Search plate number..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="pl-9 h-9 text-sm"
+              />
             </div>
-            <div className="flex gap-2 flex-wrap">
-              {['all', 'pending', 'acknowledged', 'enforcement_started', 'resolved', 'dismissed'].map((s) => (
-                <Button
-                  key={s}
-                  variant={statusFilter === s ? 'default' : 'outline'}
-                  onClick={() => setStatusFilter(s)}
-                  size="sm"
+            <div className="flex gap-1 flex-wrap">
+              {[
+                { key: 'all', label: 'All' },
+                { key: 'pending', label: 'Pending' },
+                { key: 'acknowledged', label: 'Ack' },
+                { key: 'enforcement_started', label: 'Enforcing' },
+                { key: 'resolved', label: 'Resolved' },
+                { key: 'dismissed', label: 'Dismissed' },
+              ].map(({ key, label }) => (
+                <button
+                  key={key}
+                  onClick={() => setStatusFilter(key)}
+                  className={`text-xs px-2 py-1 rounded-full transition-colors ${
+                    statusFilter === key
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                  }`}
                 >
-                  {s === 'all' ? 'All' : s === 'enforcement_started' ? 'Enforcement' : s.charAt(0).toUpperCase() + s.slice(1)}
-                </Button>
+                  {label}
+                </button>
               ))}
             </div>
           </div>
-        </CardContent>
-      </Card>
 
-      {/* Breach Alerts List */}
-      {isLoading ? (
-        <div className="text-center py-12">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto" />
-          <p className="mt-4 text-gray-600">Loading breaches...</p>
-        </div>
-      ) : breaches && breaches.length === 0 ? (
-        <Card>
-          <CardContent className="text-center py-12">
-            <CheckCircle className="h-12 w-12 text-green-400 mx-auto mb-4" />
-            <p className="text-gray-600">No breach alerts found</p>
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="space-y-4">
-          {breaches?.map((breach: any) => (
-            <Card key={breach.id} className="hover:shadow-lg transition-shadow">
-              <CardHeader>
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-3 mb-2 flex-wrap">
-                      <CardTitle className="text-xl font-bold flex items-center gap-1">
-                        <Car className="h-5 w-5 text-gray-500" />
-                        {breach.plate_number || 'Unknown Plate'}
-                      </CardTitle>
-                      <Badge className={getStatusColor(breach.status)}>
+          {/* Select All + Bulk Actions */}
+          {breaches && breaches.length > 0 && (
+            <div className="px-3 py-2 border-b dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50 flex items-center gap-2 flex-shrink-0">
+              <Checkbox
+                id="select-all"
+                checked={allSelected || false}
+                onCheckedChange={(checked) => toggleSelectAll(!!checked)}
+              />
+              <label htmlFor="select-all" className="text-xs text-gray-500 cursor-pointer select-none">
+                {selectedIds.size > 0 ? `${selectedIds.size} selected` : 'Select all'}
+              </label>
+              {selectedIds.size > 0 && (
+                <>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-6 text-xs ml-auto"
+                    onClick={handleBulkAcknowledge}
+                    disabled={acknowledgeMutation.isPending}
+                  >
+                    Ack All
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-6 text-xs text-red-600 border-red-200 hover:bg-red-50"
+                    onClick={handleBulkDismiss}
+                    disabled={dismissMutation.isPending}
+                  >
+                    Dismiss All
+                  </Button>
+                </>
+              )}
+            </div>
+          )}
+
+          {/* Breach Queue */}
+          <div className="overflow-y-auto flex-1">
+            {isLoading ? (
+              <div className="p-6 text-center text-gray-500 text-sm">Loading breaches...</div>
+            ) : breaches && breaches.length === 0 ? (
+              <div className="p-6 text-center text-gray-500">
+                <CheckCircle className="h-10 w-10 text-green-400 mx-auto mb-2" />
+                <p className="text-sm">No breach alerts found</p>
+              </div>
+            ) : (
+              breaches?.map((breach: any) => (
+                <div
+                  key={breach.id}
+                  onClick={() => handleSelectBreach(breach.id)}
+                  className={`flex items-start gap-2 p-3 border-b dark:border-gray-700 cursor-pointer transition-colors hover:bg-gray-50 dark:hover:bg-gray-700 ${
+                    activeBreachId === breach.id
+                      ? 'bg-blue-50 dark:bg-blue-900/20 border-l-4 border-l-blue-500'
+                      : ''
+                  }`}
+                >
+                  <div
+                    className="mt-0.5 flex-shrink-0"
+                    onClick={(e) => toggleSelect(breach.id, e)}
+                  >
+                    <Checkbox checked={selectedIds.has(breach.id)} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">
+                      <span className="font-mono font-bold text-sm">{breach.plate_number || 'Unknown'}</span>
+                      <Badge className={`${getStatusColor(breach.status)} text-xs px-1.5 py-0 flex items-center gap-1`}>
                         {getStatusIcon(breach.status)}
-                        <span className="ml-1 capitalize">{breach.status?.replace(/_/g, ' ')}</span>
+                        <span className="capitalize">{breach.status?.replace(/_/g, ' ')}</span>
                       </Badge>
                     </div>
-                    <CardDescription className="flex items-center gap-3 flex-wrap">
-                      <span className="flex items-center gap-1">
-                        <MapPin className="h-3 w-3" />
-                        {(breach.zones as any)?.name || 'Unknown Zone'}
-                      </span>
-                      <span>{(breach.organizations as any)?.name || ''}</span>
-                    </CardDescription>
+                    <p className="text-xs text-gray-500 truncate">
+                      {(breach.zones as any)?.name || 'Unknown Zone'}
+                    </p>
+                    <p className="text-xs text-gray-400 truncate">{getBreachTypeLabel(breach.breach_type)}</p>
+                    <p className="text-xs text-gray-400 mt-0.5">{formatDateTime(breach.created_at)}</p>
                   </div>
+                  <ChevronRight className="h-4 w-4 text-gray-400 mt-1 flex-shrink-0" />
                 </div>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4">
-                    <div className="flex items-start gap-2">
-                      <AlertTriangle className="h-5 w-5 text-orange-500 flex-shrink-0 mt-0.5" />
-                      <div className="flex-1">
-                        <p className="font-semibold text-gray-900 dark:text-white">
-                          {getBreachTypeLabel(breach.breach_type)}
-                        </p>
-                        <p className="text-sm text-gray-600 dark:text-gray-400 mt-1 flex items-center gap-1">
-                          <Calendar className="h-3 w-3" />
-                          Detected: {formatDateTime(breach.created_at)}
-                        </p>
-                        {breach.due_date && (
-                          <p className="text-sm text-red-600 mt-1">Due: {formatDateTime(breach.due_date)}</p>
-                        )}
-                        {/* Show key breach_details fields */}
-                        {breach.breach_details && Object.keys(breach.breach_details).length > 0 && (
-                          <div className="mt-2 flex flex-wrap gap-2">
-                            {breach.breach_details.nights_count && (
-                              <Badge variant="outline" className="text-xs">
-                                {breach.breach_details.nights_count} nights
-                              </Badge>
-                            )}
-                            {breach.breach_details.consecutive_nights && (
-                              <Badge variant="outline" className="text-xs">
-                                {breach.breach_details.consecutive_nights} consecutive
-                              </Badge>
-                            )}
-                            {breach.breach_details.max_allowed && (
-                              <Badge variant="outline" className="text-xs text-orange-600">
-                                Max allowed: {breach.breach_details.max_allowed}
-                              </Badge>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
+              ))
+            )}
+          </div>
+        </div>
 
-                  {/* MotorWeb Enrichment */}
-                  {breach.plate_number && (
-                    <div className="p-3 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleEnrichVehicle(breach.plate_number)}
-                        disabled={enrichingVehicle === breach.plate_number}
-                        className="w-full"
-                      >
-                        {enrichingVehicle === breach.plate_number ? (
-                          <><RefreshCw className="h-4 w-4 mr-2 animate-spin" />Enriching from MotorWeb...</>
-                        ) : (
-                          <><Database className="h-4 w-4 mr-2" />Enrich Vehicle Data (MotorWeb)</>
+        {/* ── Zone 2: Evidence Stage (Center) ──────────────────────────── */}
+        <div
+          className="hidden lg:flex flex-col border rounded-lg bg-white dark:bg-gray-800 overflow-hidden"
+          style={{ maxHeight: 'calc(100vh - 260px)' }}
+        >
+          {activeBreach ? (
+            <>
+              {/* Header */}
+              <div className="p-4 border-b dark:border-gray-700 flex-shrink-0">
+                <div className="flex items-center gap-2">
+                  <Car className="h-5 w-5 text-gray-500" />
+                  <span className="font-mono font-bold text-xl">{activeBreach.plate_number || 'Unknown'}</span>
+                  <Badge className={getStatusColor(activeBreach.status)}>
+                    {getStatusIcon(activeBreach.status)}
+                    <span className="ml-1 capitalize">{activeBreach.status?.replace(/_/g, ' ')}</span>
+                  </Badge>
+                </div>
+                <div className="flex gap-3 mt-1 text-sm text-gray-500 flex-wrap">
+                  <span className="flex items-center gap-1">
+                    <MapPin className="h-3 w-3" />
+                    {(activeBreach.zones as any)?.name || 'Unknown Zone'}
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <Calendar className="h-3 w-3" />
+                    {formatDateTime(activeBreach.created_at)}
+                  </span>
+                  {activeBreach.due_date && (
+                    <span className="flex items-center gap-1 text-red-600">
+                      <Clock className="h-3 w-3" />
+                      Due: {formatDateTime(activeBreach.due_date)}
+                    </span>
+                  )}
+                </div>
+                <p className="text-sm font-medium text-orange-700 dark:text-orange-400 mt-1">
+                  {getBreachTypeLabel(activeBreach.breach_type)}
+                </p>
+              </div>
+
+              {/* Tabs */}
+              <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'evidence' | 'rapsheet')} className="flex flex-col flex-1 overflow-hidden">
+                <TabsList className="mx-4 mt-3 flex-shrink-0 w-auto self-start">
+                  <TabsTrigger value="evidence" className="flex items-center gap-1.5">
+                    <ImageIcon className="h-4 w-4" />
+                    Evidence
+                  </TabsTrigger>
+                  <TabsTrigger value="rapsheet" className="flex items-center gap-1.5">
+                    <History className="h-4 w-4" />
+                    Rap Sheet
+                    {vehicleHistory && vehicleHistory.length > 0 && (
+                      <Badge className="ml-1 bg-red-100 text-red-700 text-xs px-1 py-0">{vehicleHistory.length}</Badge>
+                    )}
+                  </TabsTrigger>
+                </TabsList>
+
+                {/* Evidence Tab */}
+                <TabsContent value="evidence" className="flex-1 overflow-y-auto p-4 mt-0 space-y-4">
+                  {/* Breach details */}
+                  {activeBreach.breach_details && Object.keys(activeBreach.breach_details).length > 0 && (
+                    <div className="bg-gray-50 dark:bg-gray-700/50 rounded-lg p-3">
+                      <p className="text-xs font-semibold text-gray-500 uppercase mb-2">Breach Details</p>
+                      <div className="flex flex-wrap gap-2">
+                        {activeBreach.breach_details.nights_count && (
+                          <Badge variant="outline" className="text-xs">{activeBreach.breach_details.nights_count} nights</Badge>
                         )}
-                      </Button>
-                      <div className="text-xs text-gray-600 mt-1 text-center">
-                        Pull owner details and vehicle specs
+                        {activeBreach.breach_details.consecutive_nights && (
+                          <Badge variant="outline" className="text-xs">{activeBreach.breach_details.consecutive_nights} consecutive</Badge>
+                        )}
+                        {activeBreach.breach_details.max_allowed && (
+                          <Badge variant="outline" className="text-xs text-orange-600">Max allowed: {activeBreach.breach_details.max_allowed}</Badge>
+                        )}
+                        {Object.entries(activeBreach.breach_details).map(([k, v]) => (
+                          !['nights_count', 'consecutive_nights', 'max_allowed'].includes(k) && (
+                            <Badge key={k} variant="outline" className="text-xs capitalize">
+                              {k.replace(/_/g, ' ')}: {String(v)}
+                            </Badge>
+                          )
+                        ))}
                       </div>
                     </div>
                   )}
 
-                  {/* Action Buttons – all wired */}
-                  <div className="flex gap-2 flex-wrap">
-                    {breach.status === 'pending' && (
-                      <>
-                        <Button variant="outline" size="sm"
-                          onClick={() => acknowledgeMutation.mutate(breach.id)}
-                          disabled={acknowledgeMutation.isPending}>
-                          <Bell className="h-4 w-4 mr-1" />Acknowledge
-                        </Button>
-                        <Button variant="outline" size="sm"
-                          onClick={() => dismissMutation.mutate(breach.id)}
-                          disabled={dismissMutation.isPending}>
-                          <XCircle className="h-4 w-4 mr-1" />Dismiss
-                        </Button>
-                      </>
-                    )}
-                    {breach.status === 'acknowledged' && (
-                      <>
-                        <Button variant="default" size="sm"
-                          onClick={() => enforcementMutation.mutate(breach.id)}
-                          disabled={enforcementMutation.isPending}>
-                          <ShieldAlert className="h-4 w-4 mr-1" />Start Enforcement
-                        </Button>
-                        <Button variant="outline" size="sm"
-                          onClick={() => resolveMutation.mutate({ breachId: breach.id, notes: '' })}
-                          disabled={resolveMutation.isPending}>
-                          <CheckCircle className="h-4 w-4 mr-1" />Resolve
-                        </Button>
-                      </>
-                    )}
-                    {breach.status === 'enforcement_started' && (
-                      <Button variant="default" size="sm"
-                        onClick={() => openDetails(breach)}
-                        disabled={resolveMutation.isPending}>
-                        <CheckCircle className="h-4 w-4 mr-1" />Resolve with Notes
-                      </Button>
-                    )}
-                    <Button variant="outline" size="sm" onClick={() => openDetails(breach)}>
-                      <Eye className="h-4 w-4 mr-1" />View Details
-                    </Button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      )}
-
-      {/* ── Breach Details Dialog ─────────────────────────────────────────── */}
-      <Dialog open={showDetailsDialog} onOpenChange={setShowDetailsDialog}>
-        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Car className="h-5 w-5" />
-              Breach Detail – {selectedBreach?.plate_number || 'Unknown'}
-            </DialogTitle>
-            <DialogDescription>
-              Full breach information, vehicle data, and resolution
-            </DialogDescription>
-          </DialogHeader>
-          {selectedBreach && (
-            <div className="space-y-4">
-              {/* Status & Type */}
-              <div className="flex gap-2 flex-wrap">
-                <Badge className={getStatusColor(selectedBreach.status)}>
-                  {selectedBreach.status?.replace(/_/g, ' ')}
-                </Badge>
-                <Badge variant="outline">
-                  {getBreachTypeLabel(selectedBreach.breach_type)}
-                </Badge>
-                {selectedBreach.due_date && (
-                  <Badge variant="outline" className="text-red-600">
-                    Due: {formatDateTime(selectedBreach.due_date)}
-                  </Badge>
-                )}
-              </div>
-
-              {/* Zone & Org */}
-              <div className="text-sm text-gray-600 space-y-1">
-                <div className="flex items-center gap-1">
-                  <MapPin className="h-3 w-3" />
-                  <strong>Zone:</strong> {(selectedBreach.zones as any)?.name || 'Unknown'}
-                </div>
-                <div className="flex items-center gap-1">
-                  <Calendar className="h-3 w-3" />
-                  <strong>Detected:</strong> {formatDateTime(selectedBreach.created_at)}
-                </div>
-                {selectedBreach.resolved_at && (
-                  <div className="flex items-center gap-1">
-                    <CheckCircle className="h-3 w-3 text-green-600" />
-                    <strong>Resolved:</strong> {formatDateTime(selectedBreach.resolved_at)}
-                  </div>
-                )}
-              </div>
-
-              {/* Breach Details JSONB */}
-              {selectedBreach.breach_details && Object.keys(selectedBreach.breach_details).length > 0 && (
-                <div>
-                  <Label className="text-sm font-semibold mb-1 block">Breach Details</Label>
-                  <div className="bg-gray-50 dark:bg-gray-800 rounded p-3 text-xs font-mono space-y-1">
-                    {Object.entries(selectedBreach.breach_details).map(([k, v]) => (
-                      <div key={k} className="flex gap-2">
-                        <span className="text-gray-500 capitalize">{k.replace(/_/g, ' ')}:</span>
-                        <span className="font-medium">{String(v)}</span>
+                  {/* Evidence Photos */}
+                  <div>
+                    <p className="text-xs font-semibold text-gray-500 uppercase mb-2">
+                      Photo Evidence ({evidencePhotos?.length || 0})
+                    </p>
+                    {evidencePhotos && evidencePhotos.length > 0 ? (
+                      <div className="grid grid-cols-2 gap-2">
+                        {evidencePhotos.map((photo: any) => (
+                          <div
+                            key={photo.id}
+                            className="relative rounded-lg overflow-hidden aspect-video cursor-pointer group border dark:border-gray-700"
+                            onClick={() => window.open(photo.photo_url, '_blank')}
+                          >
+                            <img
+                              src={photo.photo_url}
+                              alt={`Evidence ${formatDateTime(photo.recorded_at)}`}
+                              className="w-full h-full object-cover transition-transform group-hover:scale-105"
+                            />
+                            <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-xs p-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <span className="flex items-center gap-1">
+                                <Calendar className="h-3 w-3" />
+                                {formatDateTime(photo.recorded_at)}
+                              </span>
+                              {(photo.zones as any)?.name && (
+                                <span className="flex items-center gap-1 mt-0.5">
+                                  <MapPin className="h-3 w-3" />
+                                  {(photo.zones as any).name}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        ))}
                       </div>
-                    ))}
+                    ) : (
+                      <div className="text-center py-6 text-gray-400 border rounded-lg dark:border-gray-700">
+                        <ImageIcon className="h-8 w-8 mx-auto mb-2 opacity-20" />
+                        <p className="text-sm">No photos on file for this plate</p>
+                      </div>
+                    )}
                   </div>
-                </div>
-              )}
 
-              {/* Enriched Vehicle Data */}
-              {detailVehicle && (
-                <div>
-                  <Label className="text-sm font-semibold mb-1 block">Vehicle Record</Label>
-                  <div className="bg-blue-50 dark:bg-blue-950 rounded p-3 text-sm space-y-1">
-                    <div className="font-bold text-lg">{detailVehicle.plate_number}</div>
+                  {/* Vehicle Record */}
+                  {detailVehicle ? (
                     <div>
-                      {[detailVehicle.year, detailVehicle.make, detailVehicle.model, detailVehicle.colour].filter(Boolean).join(' ')}
-                      {detailVehicle.body_style && ` (${detailVehicle.body_style})`}
-                    </div>
-                    {(detailVehicle.owner_first_name || detailVehicle.owner_last_name) && (
-                      <div className="text-gray-600">
-                        Owner: {[detailVehicle.owner_first_name, detailVehicle.owner_last_name].filter(Boolean).join(' ')}
+                      <p className="text-xs font-semibold text-gray-500 uppercase mb-2">Vehicle Record</p>
+                      <div className="bg-blue-50 dark:bg-blue-950/50 rounded-lg p-3 text-sm space-y-1">
+                        <p className="font-bold text-lg">{detailVehicle.plate_number}</p>
+                        <p>{[detailVehicle.year, detailVehicle.make, detailVehicle.model, detailVehicle.colour].filter(Boolean).join(' ')}</p>
+                        {(detailVehicle.owner_first_name || detailVehicle.owner_last_name) && (
+                          <p className="text-gray-600 dark:text-gray-400">
+                            Owner: {[detailVehicle.owner_first_name, detailVehicle.owner_last_name].filter(Boolean).join(' ')}
+                          </p>
+                        )}
+                        {detailVehicle.owner_address && (
+                          <p className="text-gray-600 dark:text-gray-400 text-xs">
+                            Address: {detailVehicle.owner_address}
+                          </p>
+                        )}
+                        <div className="flex gap-2 pt-1 flex-wrap">
+                          {detailVehicle.self_contained && (
+                            <Badge variant="outline" className="text-xs bg-green-50 dark:bg-green-950">Self-Contained</Badge>
+                          )}
+                          {detailVehicle.is_flagged && (
+                            <Badge variant="outline" className="text-xs bg-red-50 dark:bg-red-950 text-red-700">Flagged</Badge>
+                          )}
+                          {detailVehicle.is_exempt && (
+                            <Badge variant="outline" className="text-xs bg-blue-50 dark:bg-blue-950">Exempt</Badge>
+                          )}
+                        </div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="mt-2 w-full text-xs"
+                          onClick={() => handleEnrichVehicle(activeBreach.plate_number!)}
+                          disabled={!activeBreach.plate_number || enrichingVehicle === activeBreach.plate_number}
+                        >
+                          {enrichingVehicle === activeBreach.plate_number
+                            ? <><RefreshCw className="h-3 w-3 mr-1 animate-spin" />Enriching...</>
+                            : <><Database className="h-3 w-3 mr-1" />Re-fetch from MotorWeb</>
+                          }
+                        </Button>
                       </div>
-                    )}
-                    {detailVehicle.owner_address && (
-                      <div className="text-gray-600">Address: {detailVehicle.owner_address}</div>
-                    )}
-                    <div className="flex gap-2 mt-2 flex-wrap">
-                      {detailVehicle.self_contained && <Badge variant="outline" className="text-xs bg-green-50">Self-Contained</Badge>}
-                      {detailVehicle.is_flagged && <Badge variant="outline" className="text-xs bg-red-50 text-red-700">Flagged</Badge>}
-                      {detailVehicle.is_exempt && <Badge variant="outline" className="text-xs bg-blue-50">Exempt</Badge>}
                     </div>
-                    {/* Enrich button inside details */}
+                  ) : activeBreach.plate_number && (
                     <Button
                       variant="outline"
                       size="sm"
-                      className="mt-2 w-full"
-                      onClick={() => handleEnrichVehicle(selectedBreach.plate_number)}
-                      disabled={!selectedBreach?.plate_number || enrichingVehicle === selectedBreach.plate_number}
+                      className="w-full text-xs"
+                      onClick={() => handleEnrichVehicle(activeBreach.plate_number!)}
+                      disabled={enrichingVehicle === activeBreach.plate_number}
                     >
-                      {enrichingVehicle === selectedBreach.plate_number
-                        ? <><RefreshCw className="h-3 w-3 mr-1 animate-spin" />Enriching...</>
-                        : <><Database className="h-3 w-3 mr-1" />Re-fetch from MotorWeb</>
+                      {enrichingVehicle === activeBreach.plate_number
+                        ? <><RefreshCw className="h-4 w-4 mr-2 animate-spin" />Enriching from MotorWeb...</>
+                        : <><Database className="h-4 w-4 mr-2" />Fetch Vehicle Data (MotorWeb)</>
                       }
                     </Button>
-                  </div>
-                </div>
-              )}
+                  )}
 
-              {/* Admin Review Notes */}
-              {selectedBreach.admin_review_notes && (
-                <div>
-                  <Label className="text-sm font-semibold mb-1 block">Admin Notes</Label>
-                  <p className="text-sm text-gray-600 bg-yellow-50 rounded p-2">{selectedBreach.admin_review_notes}</p>
-                </div>
-              )}
+                  {/* Admin notes */}
+                  {activeBreach.admin_review_notes && (
+                    <div>
+                      <p className="text-xs font-semibold text-gray-500 uppercase mb-1">Admin Notes</p>
+                      <p className="text-sm text-gray-600 bg-yellow-50 dark:bg-yellow-950/30 rounded p-2">
+                        {activeBreach.admin_review_notes}
+                      </p>
+                    </div>
+                  )}
+                </TabsContent>
 
-              {/* Resolution notes field */}
-              {['pending', 'acknowledged', 'enforcement_started'].includes(selectedBreach.status) && (
-                <div>
-                  <Label htmlFor="resolveNotes">Resolution Notes</Label>
-                  <Textarea
-                    id="resolveNotes"
-                    value={resolveNotes}
-                    onChange={(e) => setResolveNotes(e.target.value)}
-                    placeholder="Describe how the breach was resolved..."
-                    rows={3}
-                  />
+                {/* Rap Sheet Tab */}
+                <TabsContent value="rapsheet" className="flex-1 overflow-y-auto p-4 mt-0">
+                  {vehicleHistory && vehicleHistory.length > 0 ? (
+                    <div className="space-y-2">
+                      <p className="text-xs font-semibold text-gray-500 uppercase mb-3">
+                        Previous Breaches for {activeBreach.plate_number} ({vehicleHistory.length})
+                      </p>
+                      {vehicleHistory.map((b: any) => (
+                        <div key={b.id} className="border dark:border-gray-700 rounded-lg p-3 text-sm">
+                          <div className="flex items-center gap-2 mb-1">
+                            <Badge className={`${getStatusColor(b.status)} flex items-center gap-1 text-xs`}>
+                              {getStatusIcon(b.status)}
+                              <span className="capitalize">{b.status?.replace(/_/g, ' ')}</span>
+                            </Badge>
+                            <span className="text-gray-700 dark:text-gray-300 text-xs">
+                              {getBreachTypeLabel(b.breach_type)}
+                            </span>
+                          </div>
+                          <div className="flex gap-3 text-xs text-gray-500">
+                            <span className="flex items-center gap-1">
+                              <MapPin className="h-3 w-3" />
+                              {(b.zones as any)?.name || 'Unknown Zone'}
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <Calendar className="h-3 w-3" />
+                              {formatDateTime(b.created_at)}
+                            </span>
+                          </div>
+                          {b.resolved_at && (
+                            <p className="text-xs text-green-600 mt-1 flex items-center gap-1">
+                              <CheckCircle className="h-3 w-3" />
+                              Resolved: {formatDateTime(b.resolved_at)}
+                            </p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-8 text-gray-400">
+                      <History className="h-10 w-10 mx-auto mb-2 opacity-20" />
+                      <p className="text-sm">No prior breach history</p>
+                      <p className="text-xs mt-1">First recorded breach for this vehicle</p>
+                    </div>
+                  )}
+                </TabsContent>
+              </Tabs>
+            </>
+          ) : (
+            <div className="flex-1 flex items-center justify-center text-gray-400">
+              <div className="text-center p-6">
+                <Eye className="h-14 w-14 mx-auto mb-4 opacity-20" />
+                <p className="font-medium text-gray-500">Select a breach to review evidence</p>
+                <p className="text-sm mt-2">Click any item in the queue to load its evidence here</p>
+                <div className="mt-4 text-xs text-gray-400 space-y-1">
+                  <p>↑↓ Navigate the queue</p>
+                  <p>Esc  Deselect</p>
                 </div>
-              )}
-              {selectedBreach.resolution_notes && (
-                <div>
-                  <Label className="text-sm font-semibold mb-1 block">Resolution Notes</Label>
-                  <p className="text-sm text-gray-600 bg-green-50 rounded p-2">{selectedBreach.resolution_notes}</p>
-                </div>
-              )}
+              </div>
             </div>
           )}
-          <DialogFooter className="flex-wrap gap-2">
-            <Button variant="outline" onClick={() => setShowDetailsDialog(false)}>Close</Button>
-            {selectedBreach && selectedBreach.status === 'pending' && (
-              <Button onClick={() => acknowledgeMutation.mutate(selectedBreach.id)} disabled={acknowledgeMutation.isPending}>
-                <Bell className="h-4 w-4 mr-1" />Acknowledge
+        </div>
+
+        {/* ── Zone 3: Decision Dock (Right) ─────────────────────────────── */}
+        <div
+          className="hidden lg:flex flex-col border rounded-lg bg-white dark:bg-gray-800 overflow-hidden"
+          style={{ maxHeight: 'calc(100vh - 260px)' }}
+        >
+          {activeBreach ? (
+            <div className="flex flex-col h-full">
+              <div className="p-4 border-b dark:border-gray-700 flex-shrink-0">
+                <h3 className="font-semibold">Decision Dock</h3>
+                <p className="text-xs text-gray-500">What is the verdict?</p>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                {/* Primary Decision Buttons */}
+                <Button
+                  className="w-full bg-green-600 hover:bg-green-700 text-white justify-between"
+                  onClick={handleIssueEnforcement}
+                  disabled={!['pending', 'acknowledged'].includes(activeBreach.status) || enforcementMutation.isPending}
+                >
+                  <span className="flex items-center gap-2">
+                    <Shield className="h-4 w-4" />
+                    ISSUE
+                  </span>
+                  <span className="text-xs opacity-75">⌃↵</span>
+                </Button>
+
+                <Button
+                  className="w-full bg-yellow-500 hover:bg-yellow-600 text-white justify-between"
+                  onClick={handleIssueWarning}
+                  disabled={activeBreach.status !== 'pending' || acknowledgeMutation.isPending}
+                >
+                  <span className="flex items-center gap-2">
+                    <Bell className="h-4 w-4" />
+                    WARNING
+                  </span>
+                  <span className="text-xs opacity-75">⌃W</span>
+                </Button>
+
+                <Button
+                  className="w-full bg-red-600 hover:bg-red-700 text-white justify-between"
+                  onClick={handleReject}
+                  disabled={['resolved', 'dismissed'].includes(activeBreach.status) || dismissMutation.isPending}
+                >
+                  <span className="flex items-center gap-2">
+                    <XCircle className="h-4 w-4" />
+                    REJECT
+                  </span>
+                  <span className="text-xs opacity-75">⌃R</span>
+                </Button>
+
+                <div className="border-t dark:border-gray-700 pt-3">
+                  <Label className="text-xs text-gray-500">Rejection Reason</Label>
+                  <Select value={rejectionReason} onValueChange={setRejectionReason}>
+                    <SelectTrigger className="h-9 mt-1 text-sm">
+                      <SelectValue placeholder="Select canned reason..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {CANNED_REJECTION_REASONS.map((r) => (
+                        <SelectItem key={r} value={r}>{r}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div>
+                  <Label className="text-xs text-gray-500">Resolution Notes</Label>
+                  <Textarea
+                    value={resolveNotes}
+                    onChange={(e) => setResolveNotes(e.target.value)}
+                    placeholder="Add resolution notes..."
+                    rows={3}
+                    className="mt-1 text-sm resize-none"
+                  />
+                </div>
+
+                {['pending', 'acknowledged', 'enforcement_started'].includes(activeBreach.status) && (
+                  <Button
+                    variant="outline"
+                    className="w-full"
+                    onClick={handleResolve}
+                    disabled={resolveMutation.isPending}
+                  >
+                    <CheckCircle className="h-4 w-4 mr-2" />
+                    {resolveMutation.isPending ? 'Resolving...' : 'Mark Resolved'}
+                  </Button>
+                )}
+
+                {activeBreach.resolution_notes && (
+                  <div className="p-2 bg-green-50 dark:bg-green-950/30 rounded text-xs text-gray-600 dark:text-gray-400">
+                    <p className="font-semibold text-green-700 dark:text-green-400 mb-1">Resolution Notes</p>
+                    {activeBreach.resolution_notes}
+                  </div>
+                )}
+              </div>
+
+              {/* Keyboard Shortcuts Footer */}
+              <div className="p-3 border-t dark:border-gray-700 bg-gray-50 dark:bg-gray-700/50 flex-shrink-0">
+                <div className="flex items-center gap-1.5 mb-1.5 text-xs font-medium text-gray-500">
+                  <Keyboard className="h-3.5 w-3.5" />
+                  Keyboard Shortcuts
+                </div>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-xs text-gray-400">
+                  <span>⌃↵ Issue</span>
+                  <span>⌃W Warning</span>
+                  <span>⌃R Reject</span>
+                  <span>↑↓ Navigate</span>
+                  <span>Esc Deselect</span>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="flex-1 flex items-center justify-center text-gray-400">
+              <div className="text-center p-6">
+                <Shield className="h-14 w-14 mx-auto mb-4 opacity-20" />
+                <p className="font-medium text-gray-500">Decision Dock</p>
+                <p className="text-sm mt-2">Select a breach from the queue to make a decision</p>
+                <div className="mt-5 space-y-2 text-left border dark:border-gray-700 rounded p-3 bg-gray-50 dark:bg-gray-700/50">
+                  <p className="text-xs font-semibold text-gray-500 flex items-center gap-1.5">
+                    <Keyboard className="h-3.5 w-3.5" /> Keyboard Shortcuts
+                  </p>
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-xs text-gray-400">
+                    <span>⌃↵ Issue</span>
+                    <span>⌃W Warning</span>
+                    <span>⌃R Reject</span>
+                    <span>↑↓ Navigate</span>
+                    <span>Esc Deselect</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ── Mobile: Detail view below queue when selected ─────────────── */}
+      {activeBreach && (
+        <div className="lg:hidden mt-4 border rounded-lg bg-white dark:bg-gray-800 overflow-hidden">
+          <div className="p-4 border-b dark:border-gray-700">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Car className="h-5 w-5 text-gray-500" />
+                <span className="font-mono font-bold text-xl">{activeBreach.plate_number}</span>
+                <Badge className={getStatusColor(activeBreach.status)}>
+                  {activeBreach.status?.replace(/_/g, ' ')}
+                </Badge>
+              </div>
+              <Button variant="ghost" size="sm" onClick={() => setActiveBreachId(null)}>
+                <XCircle className="h-4 w-4" />
               </Button>
+            </div>
+            <p className="text-sm text-gray-500 mt-1">
+              {(activeBreach.zones as any)?.name} • {getBreachTypeLabel(activeBreach.breach_type)}
+            </p>
+          </div>
+
+          <div className="p-4 space-y-3">
+            {/* Evidence photos */}
+            {evidencePhotos && evidencePhotos.length > 0 && (
+              <div className="grid grid-cols-2 gap-2">
+                {evidencePhotos.slice(0, 4).map((photo: any) => (
+                  <div
+                    key={photo.id}
+                    className="aspect-video rounded overflow-hidden cursor-pointer border dark:border-gray-700"
+                    onClick={() => window.open(photo.photo_url, '_blank')}
+                  >
+                    <img src={photo.photo_url} className="w-full h-full object-cover" alt="Evidence" />
+                  </div>
+                ))}
+              </div>
             )}
-            {selectedBreach && ['pending', 'acknowledged', 'enforcement_started'].includes(selectedBreach.status) && (
+
+            {/* Mobile Decision Buttons */}
+            <div className="grid grid-cols-3 gap-2 pt-2">
               <Button
-                variant="default"
-                onClick={() => resolveMutation.mutate({ breachId: selectedBreach.id, notes: resolveNotes })}
+                className="bg-green-600 hover:bg-green-700 text-white text-xs h-12"
+                onClick={handleIssueEnforcement}
+                disabled={!['pending', 'acknowledged'].includes(activeBreach.status)}
+              >
+                <div className="text-center">
+                  <Shield className="h-4 w-4 mx-auto" />
+                  ISSUE
+                </div>
+              </Button>
+              <Button
+                className="bg-yellow-500 hover:bg-yellow-600 text-white text-xs h-12"
+                onClick={handleIssueWarning}
+                disabled={activeBreach.status !== 'pending'}
+              >
+                <div className="text-center">
+                  <Bell className="h-4 w-4 mx-auto" />
+                  WARNING
+                </div>
+              </Button>
+              <Button
+                className="bg-red-600 hover:bg-red-700 text-white text-xs h-12"
+                onClick={handleReject}
+                disabled={['resolved', 'dismissed'].includes(activeBreach.status)}
+              >
+                <div className="text-center">
+                  <XCircle className="h-4 w-4 mx-auto" />
+                  REJECT
+                </div>
+              </Button>
+            </div>
+
+            {['pending', 'acknowledged', 'enforcement_started'].includes(activeBreach.status) && (
+              <Button
+                variant="outline"
+                className="w-full"
+                onClick={handleResolve}
                 disabled={resolveMutation.isPending}
               >
-                <CheckCircle className="h-4 w-4 mr-1" />
+                <CheckCircle className="h-4 w-4 mr-2" />
                 {resolveMutation.isPending ? 'Resolving...' : 'Mark Resolved'}
               </Button>
             )}
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          </div>
+        </div>
+      )}
     </AppLayout>
   )
 }

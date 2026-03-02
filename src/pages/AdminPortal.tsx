@@ -2,6 +2,7 @@ import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@/stores/authStore'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { AppLayout } from '@/components/features/AppLayout'
 import { 
   BarChart3, 
   AlertTriangle, 
@@ -16,31 +17,15 @@ import {
 } from 'lucide-react'
 
 export default function AdminPortal() {
-  const { user, logout } = useAuthStore()
+  const { user } = useAuthStore()
   const navigate = useNavigate()
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      {/* Header */}
-      <header className="bg-white dark:bg-gray-800 shadow">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-              Admin Portal
-            </h1>
-            <p className="text-sm text-gray-600 dark:text-gray-400">
-              {user?.role === 'master' ? 'System Administrator' : 'Organisation Administrator'}
-            </p>
-          </div>
-          <Button variant="outline" onClick={logout}>
-            Logout
-          </Button>
-        </div>
-      </header>
-
-      {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+    <AppLayout
+      title="Admin Portal"
+      description={user?.role === 'master' ? 'System Administrator' : 'Organisation Administrator'}
+    >
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -215,7 +200,6 @@ export default function AdminPortal() {
             </Card>
           )}
         </div>
-      </main>
-    </div>
+    </AppLayout>
   )
 }
