@@ -275,10 +275,12 @@ BEGIN
   FROM pg_class
   WHERE relname = 'observation_jobs' AND relnamespace = 'public'::regnamespace;
 
-  IF v_rls_enabled IS NOT NULL AND NOT v_rls_enabled THEN
+  IF v_rls_enabled IS NULL THEN
+    RAISE NOTICE '⚠️  observation_jobs table not found in pg_class';
+  ELSIF v_rls_enabled = FALSE THEN
     RAISE NOTICE '✅ observation_jobs RLS is DISABLED (correct)';
   ELSE
-    RAISE NOTICE '⚠️  observation_jobs RLS state: %', v_rls_enabled;
+    RAISE NOTICE '⚠️  observation_jobs RLS is still ENABLED: %', v_rls_enabled;
   END IF;
 
   -- Check trigger exists
