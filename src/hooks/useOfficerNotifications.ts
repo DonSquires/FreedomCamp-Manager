@@ -7,6 +7,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { toast } from 'sonner'
+import type { Database } from '@/types/database'
 
 interface NotificationPreferences {
   breach_alerts: boolean
@@ -27,6 +28,31 @@ interface OfficerAlert {
   latitude?: number
   longitude?: number
   acknowledged: boolean
+  created_at: string
+}
+
+// Type aliases for query results
+type BreachAlertRow = Database['public']['Tables']['breach_alerts']['Row']
+
+interface BreachAlertWithZone extends BreachAlertRow {
+  zone?: { name: string } | null
+}
+
+interface FlaggedVehicleResult {
+  id: string
+  plate_number: string
+  priority: string
+  notes: string | null
+  last_known_site: string | null
+  created_at: string
+}
+
+interface InvestigationJobResult {
+  id: string
+  reference_number: string | null
+  job_type: string
+  location_address: string | null
+  priority: string
   created_at: string
 }
 
@@ -51,7 +77,8 @@ export function useOfficerNotifications() {
         return null
       }
 
-      return data.notification_preferences as NotificationPreferences
+      const result = data as { notification_preferences: NotificationPreferences | null } | null
+      return result?.notification_preferences ?? null
     },
     enabled: !!user?.id,
   })
@@ -61,14 +88,16 @@ export function useOfficerNotifications() {
     mutationFn: async (preferences: Partial<NotificationPreferences>) => {
       if (!user?.id) throw new Error('User not authenticated')
 
+      const updatePayload = {
+        notification_preferences: {
+          ...preferencesQuery.data,
+          ...preferences,
+        },
+      }
+
       const { error } = await supabase
         .from('user_profiles')
-        .update({
-          notification_preferences: {
-            ...preferencesQuery.data,
-            ...preferences,
-          },
-        })
+        .update(updatePayload as unknown as never)
         .eq('id', user.id)
 
       if (error) {
@@ -105,14 +134,15 @@ export function useOfficerNotifications() {
         .limit(10)
 
       if (breachAlerts) {
-        alerts.push(...breachAlerts.map(b => ({
+        const typedBreachAlerts = breachAlerts as unknown as BreachAlertWithZone[]
+        alerts.push(...typedBreachAlerts.map(b => ({
           id: b.id,
           type: 'breach' as const,
           priority: 'high' as const,
           title: 'Breach Alert',
           message: `${b.breach_type} detected for ${b.plate_number}`,
           zone_name: b.zone?.name,
-          plate_number: b.plate_number,
+          plate_number: b.plate_number ?? undefined,
           acknowledged: false,
           created_at: b.created_at,
         })))
@@ -133,7 +163,8 @@ export function useOfficerNotifications() {
         .limit(10)
 
       if (flaggedVehicles) {
-        alerts.push(...flaggedVehicles.map(v => ({
+        const typedFlaggedVehicles = flaggedVehicles as unknown as FlaggedVehicleResult[]
+        alerts.push(...typedFlaggedVehicles.map(v => ({
           id: v.id,
           type: 'flagged_vehicle' as const,
           priority: v.priority as 'low' | 'normal' | 'high' | 'urgent',
@@ -161,7 +192,8 @@ export function useOfficerNotifications() {
         .limit(10)
 
       if (investigations) {
-        alerts.push(...investigations.map(i => ({
+        const typedInvestigations = investigations as unknown as InvestigationJobResult[]
+        alerts.push(...typedInvestigations.map(i => ({
           id: i.id,
           type: 'investigation' as const,
           priority: i.priority as 'low' | 'normal' | 'high' | 'urgent',
