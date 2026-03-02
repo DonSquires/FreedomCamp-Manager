@@ -3,10 +3,21 @@
  * AI-selected profile photo management for vehicles
  */
 
-import { useQuery, useMutation, useQueryClient } from '@tantml:react-query'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { toast } from 'sonner'
+import type { Database } from '@/types/database'
+
+// Type aliases for query results
+type CanonicalVehicleRow = Database['public']['Tables']['canonical_vehicles']['Row']
+type ObservationRow = Database['public']['Tables']['observations']['Row']
+
+type VehicleProfileQueryResult = Pick<CanonicalVehicleRow, 
+  'plate_number' | 'profile_photo' | 'profile_photo_selected_at' | 'profile_photo_metadata'>
+
+type ObservationPhotoQueryResult = Pick<ObservationRow,
+  'photo_url' | 'recorded_at' | 'embedding_quality' | 'gps_accuracy'>
 
 interface ProfilePhoto {
   plate_number: string
@@ -46,6 +57,8 @@ export function useVehicleProfilePhoto(plateNumber?: string) {
         return null
       }
 
+      const vehicle = data as VehicleProfileQueryResult
+
       // Get total photo count
       const { count } = await supabase
         .from('observations')
@@ -55,12 +68,12 @@ export function useVehicleProfilePhoto(plateNumber?: string) {
         .is('deleted_at', null)
 
       return {
-        plate_number: data.plate_number,
-        profile_photo: data.profile_photo,
-        profile_photo_selected_at: data.profile_photo_selected_at,
-        profile_photo_metadata: data.profile_photo_metadata,
+        plate_number: vehicle.plate_number,
+        profile_photo: vehicle.profile_photo,
+        profile_photo_selected_at: vehicle.profile_photo_selected_at,
+        profile_photo_metadata: vehicle.profile_photo_metadata,
         total_photos: count || 0,
-        best_quality_score: data.profile_photo_metadata?.quality_score || null,
+        best_quality_score: vehicle.profile_photo_metadata?.quality_score || null,
       } as ProfilePhoto
     },
     enabled: !!plateNumber,
@@ -99,7 +112,7 @@ export function useVehicleProfilePhoto(plateNumber?: string) {
             source: 'manual',
             selected_by: user?.id,
           },
-        })
+        } as unknown as never)
         .eq('plate_number', plate)
 
       if (error) {
@@ -130,7 +143,9 @@ export function useVehicleProfilePhoto(plateNumber?: string) {
 
       if (error) throw error
 
-      return data.map(obs => ({
+      const observations = data as ObservationPhotoQueryResult[]
+
+      return observations.map(obs => ({
         url: obs.photo_url,
         recorded_at: obs.recorded_at,
         quality: obs.embedding_quality,
