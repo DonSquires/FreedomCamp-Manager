@@ -2,6 +2,8 @@ import * as React from "react"
 import type { ToastActionElement, ToastProps } from "@/components/ui/toast"
 
 const TOAST_LIMIT = 1
+// TOAST_REMOVE_DELAY is intentionally long (1000 s). Toasts are dismissed
+// imperatively via onOpenChange; this delay is only the fallback cleanup timer.
 const TOAST_REMOVE_DELAY = 1000000
 
 type ToasterToast = ToastProps & {

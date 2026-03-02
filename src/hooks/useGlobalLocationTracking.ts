@@ -20,10 +20,11 @@ interface LocationState {
 
 export function useGlobalLocationTracking(options?: {
   highAccuracy?: boolean
-  intervalMs?: number
+  /** How stale a cached GPS position can be before the browser must acquire a fresh one (ms). */
+  positionCacheMs?: number
   autoStart?: boolean
 }) {
-  const { highAccuracy = true, intervalMs = 30_000, autoStart = false } = options ?? {}
+  const { highAccuracy = true, positionCacheMs = 15_000, autoStart = false } = options ?? {}
 
   const [state, setState] = useState<LocationState>({
     coords: null,
@@ -75,8 +76,7 @@ export function useGlobalLocationTracking(options?: {
       (err) => {
         setState(prev => ({ ...prev, error: err.message, permissionGranted: false }))
       },
-      { enableHighAccuracy: highAccuracy, timeout: 15_000, maximumAge: 0 }
-    )
+      { enableHighAccuracy: highAccuracy, timeout: 15_000, maximumAge: 0 }    )
 
     const id = navigator.geolocation.watchPosition(
       (position) => {
@@ -98,10 +98,10 @@ export function useGlobalLocationTracking(options?: {
       (err) => {
         setState(prev => ({ ...prev, error: err.message }))
       },
-      { enableHighAccuracy: highAccuracy, timeout: 15_000, maximumAge: intervalMs / 2 }
+      { enableHighAccuracy: highAccuracy, timeout: 15_000, maximumAge: positionCacheMs }
     )
     watchIdRef.current = id
-  }, [highAccuracy, intervalMs])
+  }, [highAccuracy, positionCacheMs])
 
   useEffect(() => {
     if (autoStart) startTracking()

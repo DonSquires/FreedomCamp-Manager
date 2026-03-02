@@ -18,6 +18,9 @@ export function useIncidentRealtime(queryKeys: string[] = ['incidents']) {
   useEffect(() => {
     if (!user?.organization_id) return
 
+    // Use a stable dependency by joining the keys — only changes when the array content changes
+    const keysSnapshot = queryKeys.slice()
+
     const channel = supabase
       .channel(`incidents-realtime-${user.organization_id}`)
       .on(
@@ -29,7 +32,7 @@ export function useIncidentRealtime(queryKeys: string[] = ['incidents']) {
           filter: `organization_id=eq.${user.organization_id}`,
         },
         () => {
-          queryKeys.forEach(key => {
+          keysSnapshot.forEach(key => {
             queryClient.invalidateQueries({ queryKey: [key] })
           })
         }
@@ -44,5 +47,6 @@ export function useIncidentRealtime(queryKeys: string[] = ['incidents']) {
         channelRef.current = null
       }
     }
-  }, [user?.organization_id, queryClient, queryKeys.join(',')])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.organization_id, queryClient, queryKeys.length])
 }

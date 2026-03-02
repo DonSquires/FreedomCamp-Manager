@@ -1,16 +1,17 @@
 import { useState, useEffect } from 'react'
 
-const STORAGE_KEY = 'fcm-dark-mode'
+import { THEME_STORAGE_KEY } from '@/lib/theme'
 
 /**
  * useDarkMode — persists the user's dark/light theme preference in localStorage
- * and syncs it with the `dark` class on `document.documentElement`.
+ * (uses the same key as theme.ts so both APIs share a single entry) and syncs
+ * with the `dark` class on `document.documentElement`.
  */
 export function useDarkMode() {
   const [isDark, setIsDark] = useState<boolean>(() => {
     if (typeof window === 'undefined') return false
-    const stored = localStorage.getItem(STORAGE_KEY)
-    if (stored !== null) return stored === 'true'
+    const stored = localStorage.getItem(THEME_STORAGE_KEY)
+    if (stored !== null) return stored === 'dark'
     return window.matchMedia('(prefers-color-scheme: dark)').matches
   })
 
@@ -21,7 +22,7 @@ export function useDarkMode() {
     } else {
       root.classList.remove('dark')
     }
-    localStorage.setItem(STORAGE_KEY, String(isDark))
+    localStorage.setItem(THEME_STORAGE_KEY, isDark ? 'dark' : 'light')
   }, [isDark])
 
   const toggle = () => setIsDark(prev => !prev)

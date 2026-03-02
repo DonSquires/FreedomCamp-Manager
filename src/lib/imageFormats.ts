@@ -75,22 +75,25 @@ export async function convertToJpeg(
   quality = 0.85
 ): Promise<Blob> {
   const canvas = document.createElement('canvas')
+
+  const drawToCanvas = (ctx: CanvasRenderingContext2D) => {
+    ctx.drawImage(input as CanvasImageSource, 0, 0)
+  }
+
   if (input instanceof HTMLImageElement) {
     canvas.width = input.naturalWidth
     canvas.height = input.naturalHeight
-    const ctx = canvas.getContext('2d')!
-    ctx.drawImage(input, 0, 0)
   } else if (input instanceof ImageBitmap) {
     canvas.width = input.width
     canvas.height = input.height
-    const ctx = canvas.getContext('2d')!
-    ctx.drawImage(input, 0, 0)
   } else {
     canvas.width = input.width
     canvas.height = input.height
-    const ctx = canvas.getContext('2d')!
-    ctx.drawImage(input, 0, 0)
   }
+
+  const ctx = canvas.getContext('2d')
+  if (!ctx) throw new Error('Could not get 2D canvas context')
+  drawToCanvas(ctx)
 
   return new Promise<Blob>((resolve, reject) => {
     canvas.toBlob(
