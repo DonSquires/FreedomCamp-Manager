@@ -72,6 +72,12 @@ export const edgeFunctions = {
     officer_id?: string
     organization_id?: string
     zone_id?: string
+    /** UUID of an existing observation being updated (background processing mode) */
+    observation_id?: string
+    /** Optional incident/case to link this observation to */
+    incident_id?: string
+    /** Previous observation in the same incident for movement comparison */
+    previous_observation_id?: string
   }) => {
     return callEdgeFunction('alpr-process', params)
   },
