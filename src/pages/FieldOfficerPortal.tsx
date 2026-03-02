@@ -122,8 +122,8 @@ export default function FieldOfficerPortal() {
           }
         });
 
-        if (!weatherError && weatherData?.conditions) {
-          weatherConditions = weatherData.conditions;
+        if (!weatherError && weatherData?.weather) {
+          weatherConditions = weatherData.weather;
           console.log('🌤️ Weather:', weatherConditions);
         } else {
           console.warn('⚠️ Weather fetch failed, using fallback');

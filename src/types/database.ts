@@ -860,6 +860,17 @@ export interface Database {
         Args: { p_organization_id: string }
         Returns: string
       }
+      check_location_in_org: {
+        Args: { org_id: string; lat: number; lon: number }
+        Returns: {
+          inside: boolean
+          distance_m: number | null
+          nearest_point: {
+            type: string
+            coordinates: [number, number]
+          } | null
+        }
+      }
       get_admin_dashboard_stats: {
         Args: {
           p_organization_id?: string | null
