@@ -43,7 +43,22 @@ In Railway dashboard:
 
 ---
 
-### **Step 4: Get Your URL** (30 sec)
+### **Step 4: Create a CI/CD Token** (1 min)
+
+> ⚠️ **Important**: Use a **project token**, NOT your personal account token.  
+> Personal tokens (`Account → Tokens`) are rejected by Railway CLI in CI/CD.
+
+1. Inside your Railway project, click **Settings** → **Tokens**
+2. Click **New Token**, name it `GitHub Actions`
+3. Copy the generated token
+4. Go to your repo → **Settings** → **Secrets and variables** → **Actions**
+5. Add a secret named `RAILWAY_TOKEN` with the copied value
+6. Also copy the **Service ID** from **Settings** → Service ID
+7. Add a secret named `RAILWAY_SERVICE_ID` with the Service ID
+
+---
+
+### **Step 5: Get Your URL** (30 sec)
 
 1. Go to **Settings** → **Networking**
 2. Click **Generate Domain**
@@ -54,7 +69,7 @@ In Railway dashboard:
 
 ---
 
-### **Step 5: Test Deployment** (1 min)
+### **Step 6: Test Deployment** (1 min)
 
 ```bash
 # Replace with YOUR Railway URL
@@ -107,6 +122,11 @@ Uses your existing Railway account - no additional service!
 ---
 
 ## 🚨 **Troubleshooting**
+
+**"Invalid RAILWAY_TOKEN" in GitHub Actions**
+- You likely set a personal account token (`Account → Tokens`) instead of a project token
+- Fix: Go to Railway → your project → **Settings → Tokens → New Token**
+- Update the `RAILWAY_TOKEN` GitHub secret with the new project token
 
 **"Build timeout"**
 - Railway has 15-min build limit
