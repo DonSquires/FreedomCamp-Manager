@@ -122,8 +122,8 @@ export default function FieldOfficerPortal() {
           }
         });
 
-        if (!weatherError && weatherData?.conditions) {
-          weatherConditions = weatherData.conditions;
+        if (!weatherError && weatherData?.weather) {
+          weatherConditions = weatherData.weather;
           console.log('🌤️ Weather:', weatherConditions);
         } else {
           console.warn('⚠️ Weather fetch failed, using fallback');
@@ -151,10 +151,10 @@ export default function FieldOfficerPortal() {
       // STEP 5: UPLOAD PHOTO TO STORAGE (Evidence preservation) - FAST PATH
       // ============================================================================
       toast.info('Uploading photo...')
-      const filePath = `scans/${user.id}/${timestamp}-${photoHash}.jpg`
+      const filePath = `${user.id}/${timestamp}-${photoHash}.jpg`
       
       const { error: uploadError } = await supabase.storage
-        .from('evidence')
+        .from('scans')
         .upload(filePath, file, {
           contentType: 'image/jpeg',
           upsert: false
@@ -162,7 +162,7 @@ export default function FieldOfficerPortal() {
 
       if (uploadError) throw new Error(`Upload failed: ${uploadError.message}`)
 
-      const { data: urlData } = supabase.storage.from('evidence').getPublicUrl(filePath)
+      const { data: urlData } = supabase.storage.from('scans').getPublicUrl(filePath)
       const photoUrl = urlData.publicUrl
 
       console.log('☁️ Photo Uploaded:', { photo_url: photoUrl })
