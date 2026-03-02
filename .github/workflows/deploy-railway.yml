@@ -26,13 +26,18 @@ jobs:
           if [ -z "${{ secrets.RAILWAY_TOKEN }}" ]; then
             echo "❌ RAILWAY_TOKEN secret is not set."
             echo ""
-            echo "To fix this:"
-            echo "  1. Go to https://railway.app/account/tokens"
-            echo "  2. Click 'New Token', name it 'GitHub Actions'"
-            echo "  3. Copy the token"
-            echo "  4. Go to https://github.com/${{ github.repository }}/settings/secrets/actions"
-            echo "  5. Click 'New repository secret'"
-            echo "  6. Name: RAILWAY_TOKEN, Value: <paste token>"
+            echo "To fix this, create a PROJECT TOKEN (not a personal token):"
+            echo "  1. Go to your Railway project dashboard"
+            echo "  2. Click Settings → Tokens → New Token"
+            echo "  3. Name it 'GitHub Actions', click Generate"
+            echo "  4. Copy the token (starts with a long alphanumeric string)"
+            echo "  5. Go to https://github.com/${{ github.repository }}/settings/secrets/actions"
+            echo "  6. Click 'New repository secret'"
+            echo "  7. Name: RAILWAY_TOKEN, Value: <paste token>"
+            echo ""
+            echo "⚠️  IMPORTANT: Use a PROJECT token (Project → Settings → Tokens),"
+            echo "   NOT a personal account token (Account → Tokens)."
+            echo "   Personal tokens are rejected by Railway CLI in CI/CD environments."
             echo ""
             echo "⚠️  If you haven't created the Railway project yet:"
             echo "  Follow: inference-service/RAILWAY_DEPLOY.md (Steps 1-4 only)"
@@ -60,6 +65,32 @@ jobs:
         run: |
           curl -fsSL https://railway.app/install.sh | sh
           echo "$HOME/.railway/bin" >> $GITHUB_PATH
+
+      - name: Validate Railway token
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+        run: |
+          echo "🔑 Validating Railway token..."
+          if ! railway whoami > /dev/null 2>&1; then
+            echo ""
+            echo "❌ RAILWAY_TOKEN is set but invalid."
+            echo ""
+            echo "Common causes:"
+            echo "  1. You used a personal account token instead of a project token."
+            echo "     → Go to your Railway PROJECT → Settings → Tokens → New Token"
+            echo "     → Do NOT use Account → Tokens (those are personal tokens)"
+            echo ""
+            echo "  2. The token was revoked or expired."
+            echo "     → Regenerate a new project token in Railway"
+            echo ""
+            echo "  3. The token doesn't have access to this service."
+            echo "     → Make sure the token is created inside the correct Railway project"
+            echo ""
+            echo "Fix: Update the RAILWAY_TOKEN secret at:"
+            echo "  https://github.com/${{ github.repository }}/settings/secrets/actions"
+            exit 1
+          fi
+          echo "✅ Railway token is valid"
 
       - name: Deploy to Railway
         env:
