@@ -55,7 +55,12 @@ jobs:
       - name: Push auth config to Supabase project
         run: |
           echo "Pushing supabase/config.toml [auth] settings to project $SUPABASE_PROJECT_REF …"
-          supabase config push --project-ref "$SUPABASE_PROJECT_REF" --include-all
+          # Do NOT use --include-all: that flag would also push [api] / [db] / [storage]
+          # sections which contain local-only dev settings (port numbers, etc.) and can
+          # reset the hosted project's PostgREST / storage configuration, breaking RPC
+          # calls (e.g. ensure_other_location_zone) and other API functionality.
+          # Without --include-all, only the [auth] section is synced.
+          supabase config push --project-ref "$SUPABASE_PROJECT_REF"
           echo ""
           echo "✅ Auth config pushed successfully."
           echo "   site_url and additional_redirect_urls are now live in the project."
