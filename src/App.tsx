@@ -25,7 +25,6 @@ import { PWAInstallPrompt } from '@/components/features/PWAInstallPrompt'
 import ComplianceRecalculation from '@/pages/ComplianceRecalculation'
 import LiveOfficerTracking from '@/pages/LiveOfficerTracking'
 import OrganizationProfile from '@/pages/OrganizationProfile'
-import UniversalSearch from '@/pages/UniversalSearch'
 import AuditLog from '@/pages/AuditLog'
 import EnforcementActions from '@/pages/EnforcementActions'
 import EnforcementCommandCenter from '@/pages/EnforcementCommandCenter'
@@ -277,15 +276,6 @@ export default function App() {
                 <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
                   <OrganizationProfile />
                 </RoleRoute>
-              </ProtectedRoute>
-            }
-          />
-
-          <Route
-            path="/search"
-            element={
-              <ProtectedRoute>
-                <UniversalSearch />
               </ProtectedRoute>
             }
           />

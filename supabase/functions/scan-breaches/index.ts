@@ -50,10 +50,8 @@ Deno.serve(async (req) => {
 
     // Get unique plate numbers per zone from observations
     let observationsQuery = supabaseAdmin
-      .from('observations')
-      .select('plate_number, zone_id, id, organization_id')
-      .not('plate_number', 'is', null)
-      .not('plate_number', 'eq', 'PROCESSING...')
+      .from('vehicle_observations_v2')
+      .select('plate_number, zone_id, observation_id, organization_id')
       .order('recorded_at', { ascending: false });
     
     if (organizationId) {
@@ -78,7 +76,7 @@ Deno.serve(async (req) => {
       if (!observationsByPlateZone.has(key)) {
         observationsByPlateZone.set(key, []);
       }
-      observationsByPlateZone.get(key)!.push(obs.id);
+      observationsByPlateZone.get(key)!.push(obs.observation_id);
     }
 
     console.log(`Scanning ${observations?.length || 0} vehicle observations across ${zones?.length || 0} zones`);

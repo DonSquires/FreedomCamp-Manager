@@ -62,8 +62,6 @@ export function OrganizationSelector({
 
   const getOrgTypeIcon = (type: string) => {
     switch (type) {
-      case 'owner':
-        return '👑'
       case 'service_provider':
         return '🏢'
       case 'client':
@@ -76,11 +74,11 @@ export function OrganizationSelector({
   const getOrgLevel = (level: number) => {
     switch (level) {
       case 1:
-        return 'Level 1 - Owner'
+        return 'Level 1'
       case 2:
-        return 'Level 2 - Service Provider'
+        return 'Level 2'
       case 3:
-        return 'Level 3 - Client'
+        return 'Level 3'
       default:
         return `Level ${level}`
     }
