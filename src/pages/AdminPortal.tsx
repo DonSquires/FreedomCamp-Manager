@@ -1,3 +1,4 @@
+import React from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@/stores/authStore'
 import { Button } from '@/components/ui/button'
@@ -16,226 +17,115 @@ import {
   Building2,
   Gavel,
   Layers,
+  Map,
+  Activity,
+  Search,
+  ClipboardList,
+  Heart,
+  Radio,
+  TrendingUp,
+  Lock,
+  CheckSquare,
+  LayoutGrid,
+  ScrollText,
+  Navigation,
+  Inbox,
 } from 'lucide-react'
 
 export default function AdminPortal() {
   const { user } = useAuthStore()
   const navigate = useNavigate()
 
+  const tile = (
+    icon: React.ReactNode,
+    title: string,
+    description: string,
+    path: string,
+    label = 'Open',
+  ) => (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="flex items-center gap-2 text-base">
+          {icon}
+          {title}
+        </CardTitle>
+        <CardDescription className="text-xs">{description}</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <Button className="w-full" variant="outline" size="sm" onClick={() => navigate(path)}>
+          {label}
+        </Button>
+      </CardContent>
+    </Card>
+  )
+
   return (
     <AppLayout
       title="Admin Portal"
       description={user?.role === 'master' ? 'System Administrator' : 'Organisation Administrator'}
     >
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <BarChart3 className="h-5 w-5" />
-                Compliance Dashboard
-              </CardTitle>
-              <CardDescription>
-                View compliance metrics and trends
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button className="w-full" variant="outline" onClick={() => navigate('/compliance')}>
-                View Dashboard
-              </Button>
-            </CardContent>
-          </Card>
+      {/* ── Compliance ─────────────────────────────────────────────────── */}
+      <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Compliance</h2>
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 mb-8">
+        {tile(<BarChart3 className="h-4 w-4" />, 'Compliance Dashboard', 'Overview metrics and trends', '/compliance', 'View Dashboard')}
+        {tile(<TrendingUp className="h-4 w-4" />, 'Compliance Analytics', 'Historical trends and zone breakdown', '/compliance-analytics', 'View Analytics')}
+        {tile(<CheckSquare className="h-4 w-4" />, 'Compliance Recalculation', 'Recalculate compliance for selected date ranges', '/compliance-recalculation', 'Recalculate')}
+        {tile(<LayoutGrid className="h-4 w-4" />, 'Spatial Compliance', 'Zone matrix configuration', '/spatial-compliance', 'Configure')}
+      </div>
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <AlertTriangle className="h-5 w-5" />
-                Breach Alerts
-              </CardTitle>
-              <CardDescription>
-                Manage active breaches
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button className="w-full" variant="outline" onClick={() => navigate('/breaches')}>
-                View Breaches
-              </Button>
-            </CardContent>
-          </Card>
+      {/* ── Breach & Enforcement ───────────────────────────────────────── */}
+      <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Breach &amp; Enforcement</h2>
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 mb-8">
+        {tile(<AlertTriangle className="h-4 w-4" />, 'Breach Alerts', 'Manage active breaches', '/breaches', 'View Breaches')}
+        {tile(<Shield className="h-4 w-4" />, 'Enforcement Command', 'Warnings, notices and enforcement workflow', '/enforcement-command-center', 'View Command')}
+        {tile(<ScrollText className="h-4 w-4" />, 'Enforcement Review', 'Review and approve pending enforcement actions', '/enforcement-review', 'Review')}
+        {tile(<FileText className="h-4 w-4" />, 'Notice to Vacate', 'Issue and track legal notices', '/notice-to-vacate', 'View Notices')}
+        {tile(<Gavel className="h-4 w-4" />, 'Infringement Notices', 'Issue FCA fines — ADR/TicketOr2 workflow', '/infringements', 'Manage Fines')}
+        {tile(<ClipboardList className="h-4 w-4" />, 'Investigation Jobs', 'Assign and track investigation jobs', '/investigations', 'View Jobs')}
+      </div>
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Car className="h-5 w-5" />
-                Vehicle Management
-              </CardTitle>
-              <CardDescription>
-                Search and manage vehicles
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button className="w-full" variant="outline" onClick={() => navigate('/vehicles')}>
-                Manage Vehicles
-              </Button>
-            </CardContent>
-          </Card>
+      {/* ── Operations ─────────────────────────────────────────────────── */}
+      <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Operations</h2>
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 mb-8">
+        {tile(<Layers className="h-4 w-4" />, 'Observations', 'Map, photos and list of field scans', '/observations', 'View Observations')}
+        {tile(<Radio className="h-4 w-4" />, 'Live Patrol', 'Real-time patrol progress and checkpoints', '/live-patrol', 'View Patrols')}
+        {tile(<Navigation className="h-4 w-4" />, 'Live Officer Tracking', 'GPS tracking and welfare monitoring', '/live-tracking', 'View Officers')}
+        {tile(<Map className="h-4 w-4" />, 'Hotspots Map', 'Breach density by zone', '/hotspots', 'View Map')}
+        {tile(<Heart className="h-4 w-4" />, 'Officer Welfare', 'Welfare settings and active alerts', '/officer-welfare', 'View Welfare')}
+        {tile(<CheckSquare className="h-4 w-4" />, 'Patrol Checkpoints', 'Manage patrol checkpoint routes', '/patrol-checkpoints', 'Manage')}
+      </div>
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <MapPin className="h-5 w-5" />
-                Zone Management
-              </CardTitle>
-              <CardDescription>
-                Configure compliance zones
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button className="w-full" variant="outline" onClick={() => navigate('/zones')}>
-                Manage Zones
-              </Button>
-            </CardContent>
-          </Card>
+      {/* ── Management ─────────────────────────────────────────────────── */}
+      <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Management</h2>
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 mb-8">
+        {tile(<Car className="h-4 w-4" />, 'Vehicles', 'Search and manage vehicles', '/vehicles', 'Manage Vehicles')}
+        {tile(<MapPin className="h-4 w-4" />, 'Zones', 'Configure compliance zones', '/zones', 'Manage Zones')}
+        {tile(<Users className="h-4 w-4" />, 'Users', 'Manage officers and admins', '/users', 'Manage Users')}
+        {tile(<Activity className="h-4 w-4" />, 'Incidents', 'Incident management and reporting', '/incidents', 'View Incidents')}
+        {tile(<Inbox className="h-4 w-4" />, 'Incident Reports', 'View and export incident reports', '/incident-reports', 'View Reports')}
+        {tile(<Search className="h-4 w-4" />, 'Universal Search', 'Search across all records', '/search', 'Search')}
+      </div>
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Users className="h-5 w-5" />
-                User Management
-              </CardTitle>
-              <CardDescription>
-                Manage officers and admins
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button className="w-full" variant="outline" onClick={() => navigate('/users')}>
-                Manage Users
-              </Button>
-            </CardContent>
-          </Card>
+      {/* ── Reporting ──────────────────────────────────────────────────── */}
+      <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Reporting</h2>
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 mb-8">
+        {tile(<FileText className="h-4 w-4" />, 'Reports', 'Generate compliance reports', '/reports', 'View Reports')}
+        {tile(<LayoutGrid className="h-4 w-4" />, 'Reports Hub', 'Leadership packs and dashboard reports', '/reports-hub', 'Open Hub')}
+        {tile(<ScrollText className="h-4 w-4" />, 'Audit Log', 'System audit trail', '/audit-log', 'View Log')}
+        {tile(<Lock className="h-4 w-4" />, 'Privacy Curtain', 'PII access control and log', '/privacy-curtain', 'View')}
+      </div>
 
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <FileText className="h-5 w-5" />
-                Reports
-              </CardTitle>
-              <CardDescription>
-                Generate compliance reports
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button className="w-full" variant="outline" onClick={() => navigate('/reports')}>
-                View Reports
-              </Button>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Layers className="h-5 w-5" />
-                Observations
-              </CardTitle>
-              <CardDescription>
-                Map, photos and list of field scans
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button className="w-full" variant="outline" onClick={() => navigate('/observations')}>
-                View Observations
-              </Button>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Shield className="h-5 w-5" />
-                Enforcement Actions
-              </CardTitle>
-              <CardDescription>
-                Warnings, notices, and enforcement workflow
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button className="w-full" variant="outline" onClick={() => navigate('/enforcement')}>
-                View Enforcement
-              </Button>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Gavel className="h-5 w-5" />
-                Infringement Notices
-              </CardTitle>
-              <CardDescription>
-                Issue and track FCA fines — ADR/TicketOr2 style workflow
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button className="w-full" variant="outline" onClick={() => navigate('/infringements')}>
-                Manage Infringements
-              </Button>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Database className="h-5 w-5" />
-                Data Management
-              </CardTitle>
-              <CardDescription>
-                Import/Export and data tools
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button className="w-full" variant="outline" onClick={() => navigate('/data')}>
-                Manage Data
-              </Button>
-            </CardContent>
-          </Card>
-
-          {user?.role === 'master' && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Building2 className="h-5 w-5" />
-                  Organizations
-                </CardTitle>
-                <CardDescription>
-                  Manage organization hierarchy
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Button className="w-full" variant="outline" onClick={() => navigate('/organizations')}>
-                  Manage Orgs
-                </Button>
-              </CardContent>
-            </Card>
-          )}
-
-          {user?.role === 'master' && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Settings className="h-5 w-5" />
-                  System Diagnostics
-                </CardTitle>
-                <CardDescription>
-                  System health and monitoring
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <Button className="w-full" variant="outline" onClick={() => navigate('/diagnostics')}>
-                  View Diagnostics
-                </Button>
-              </CardContent>
-            </Card>
-          )}
-        </div>
+      {/* ── Data & System ──────────────────────────────────────────────── */}
+      <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Data &amp; System</h2>
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 mb-8">
+        {tile(<Database className="h-4 w-4" />, 'Data Management', 'Import, export and data tools', '/data', 'Manage Data')}
+        {tile(<Database className="h-4 w-4" />, 'Data Hub', 'Advanced data management', '/admin/data-hub', 'Open Hub')}
+        {tile(<Database className="h-4 w-4" />, 'Data Cleanup', 'Remove stale data', '/admin/data-cleanup', 'Cleanup')}
+        {tile(<Activity className="h-4 w-4" />, 'Data Integrity', 'Validate and repair data', '/admin/data-integrity', 'Check Integrity')}
+        {user?.role === 'master' && tile(<Building2 className="h-4 w-4" />, 'Organizations', 'Manage organization hierarchy', '/organizations', 'Manage Orgs')}
+        {user?.role === 'master' && tile(<Settings className="h-4 w-4" />, 'System Diagnostics', 'System health and monitoring', '/diagnostics', 'View Diagnostics')}
+        {user?.role === 'master' && tile(<Settings className="h-4 w-4" />, 'Organization Profile', 'Edit your organization settings', '/organization-profile', 'Edit Profile')}
+      </div>
     </AppLayout>
   )
 }

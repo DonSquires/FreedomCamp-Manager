@@ -40,6 +40,11 @@ import SpatialComplianceAdmin from '@/pages/SpatialComplianceAdmin'
 import ComplianceAnalytics from '@/pages/ComplianceAnalytics'
 import IncidentReports from '@/pages/IncidentReports'
 import ObservationsView from '@/pages/ObservationsView'
+import UniversalSearch from '@/pages/UniversalSearch'
+import NoticeToVacate from '@/pages/NoticeToVacate'
+import OfficerWelfareSettings from '@/pages/OfficerWelfareSettings'
+import EnforcementReview from '@/pages/EnforcementReview'
+import InvestigationJobsPage from '@/pages/InvestigationJobsPage'
 
 // Create a client
 const queryClient = new QueryClient({
@@ -454,6 +459,59 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <ObservationsView />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/search"
+            element={
+              <ProtectedRoute>
+                <UniversalSearch />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/notice-to-vacate"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <NoticeToVacate />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/officer-welfare"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <OfficerWelfareSettings />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/enforcement-review"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <EnforcementReview />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/investigations"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <InvestigationJobsPage />
+                </RoleRoute>
               </ProtectedRoute>
             }
           />
