@@ -520,59 +520,8 @@ export interface Database {
           updated_at?: string
         }
       }
-      observation_jobs: {
-        Row: {
-          id: string
-          observation_id: string
-          job_type: string
-          status: 'pending' | 'processing' | 'completed' | 'failed'
-          recorded_by: string
-          organization_id: string
-          input_data: any
-          output_data: any
-          error_message: string | null
-          attempts: number
-          max_attempts: number
-          created_at: string
-          updated_at: string
-          started_at: string | null
-          completed_at: string | null
-        }
-        Insert: {
-          id?: string
-          observation_id: string
-          job_type?: string
-          status?: 'pending' | 'processing' | 'completed' | 'failed'
-          recorded_by: string
-          organization_id: string
-          input_data?: any
-          output_data?: any
-          error_message?: string | null
-          attempts?: number
-          max_attempts?: number
-          created_at?: string
-          updated_at?: string
-          started_at?: string | null
-          completed_at?: string | null
-        }
-        Update: {
-          id?: string
-          observation_id?: string
-          job_type?: string
-          status?: 'pending' | 'processing' | 'completed' | 'failed'
-          recorded_by?: string
-          organization_id?: string
-          input_data?: any
-          output_data?: any
-          error_message?: string | null
-          attempts?: number
-          max_attempts?: number
-          created_at?: string
-          updated_at?: string
-          started_at?: string | null
-          completed_at?: string | null
-        }
-      }
+      // NOTE: observation_jobs table has been removed (see 20260304_remove_observation_jobs_final.sql)
+      // The ALPR pipeline uses observations.processing_status + alpr-process edge function directly
       breach_alerts: {
         Row: {
           id: string
@@ -906,6 +855,10 @@ export interface Database {
       get_user_organization_ids: {
         Args: { uid: string }
         Returns: string[]
+      }
+      ensure_other_location_zone: {
+        Args: { p_organization_id: string }
+        Returns: string
       }
       get_admin_dashboard_stats: {
         Args: {
