@@ -712,6 +712,186 @@ export interface Database {
           updated_at?: string
         }
       }
+      patrol_checkpoints: {
+        Row: {
+          id: string
+          organization_id: string
+          zone_id: string | null
+          name: string
+          description: string | null
+          location_lat: number | null
+          location_lng: number | null
+          qr_code: string
+          nfc_tag_id: string | null
+          is_active: boolean
+          required_on_patrol: boolean
+          check_in_radius_metres: number
+          created_by: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          organization_id: string
+          zone_id?: string | null
+          name: string
+          description?: string | null
+          location_lat?: number | null
+          location_lng?: number | null
+          qr_code: string
+          nfc_tag_id?: string | null
+          is_active?: boolean
+          required_on_patrol?: boolean
+          check_in_radius_metres?: number
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          organization_id?: string
+          zone_id?: string | null
+          name?: string
+          description?: string | null
+          location_lat?: number | null
+          location_lng?: number | null
+          qr_code?: string
+          nfc_tag_id?: string | null
+          is_active?: boolean
+          required_on_patrol?: boolean
+          check_in_radius_metres?: number
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      checkpoint_visits: {
+        Row: {
+          id: string
+          checkpoint_id: string
+          officer_id: string
+          patrol_id: string | null
+          organization_id: string
+          scan_method: 'qr_camera' | 'nfc' | 'manual_code' | 'url_deep_link'
+          gps_latitude: number | null
+          gps_longitude: number | null
+          gps_accuracy: number | null
+          gps_distance_from_checkpoint: number | null
+          within_radius: boolean | null
+          visited_at: string
+          notes: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          checkpoint_id: string
+          officer_id: string
+          patrol_id?: string | null
+          organization_id: string
+          scan_method: 'qr_camera' | 'nfc' | 'manual_code' | 'url_deep_link'
+          gps_latitude?: number | null
+          gps_longitude?: number | null
+          gps_accuracy?: number | null
+          gps_distance_from_checkpoint?: number | null
+          visited_at?: string
+          notes?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          checkpoint_id?: string
+          officer_id?: string
+          patrol_id?: string | null
+          organization_id?: string
+          scan_method?: 'qr_camera' | 'nfc' | 'manual_code' | 'url_deep_link'
+          gps_latitude?: number | null
+          gps_longitude?: number | null
+          gps_accuracy?: number | null
+          gps_distance_from_checkpoint?: number | null
+          visited_at?: string
+          notes?: string | null
+          created_at?: string
+        }
+      }
+      privacy_curtain_settings: {
+        Row: {
+          id: string
+          organization_id: string
+          auto_redact_enabled: boolean
+          redact_owner_name: boolean
+          redact_owner_address: boolean
+          redact_phone_number: boolean
+          redact_plate_in_exports: boolean
+          require_reason_for_unredact: boolean
+          unredact_roles: string[]
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          organization_id: string
+          auto_redact_enabled?: boolean
+          redact_owner_name?: boolean
+          redact_owner_address?: boolean
+          redact_phone_number?: boolean
+          redact_plate_in_exports?: boolean
+          require_reason_for_unredact?: boolean
+          unredact_roles?: string[]
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          organization_id?: string
+          auto_redact_enabled?: boolean
+          redact_owner_name?: boolean
+          redact_owner_address?: boolean
+          redact_phone_number?: boolean
+          redact_plate_in_exports?: boolean
+          require_reason_for_unredact?: boolean
+          unredact_roles?: string[]
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      privacy_access_log: {
+        Row: {
+          id: string
+          organization_id: string
+          actor: string
+          target_table: string
+          target_record_id: string
+          field_accessed: string
+          access_reason: string | null
+          ip_address: string | null
+          user_agent: string | null
+          accessed_at: string
+        }
+        Insert: {
+          id?: string
+          organization_id: string
+          actor: string
+          target_table: string
+          target_record_id: string
+          field_accessed: string
+          access_reason?: string | null
+          ip_address?: string | null
+          user_agent?: string | null
+          accessed_at?: string
+        }
+        Update: {
+          id?: string
+          organization_id?: string
+          actor?: string
+          target_table?: string
+          target_record_id?: string
+          field_accessed?: string
+          access_reason?: string | null
+          ip_address?: string | null
+          user_agent?: string | null
+          accessed_at?: string
+        }
+      }
       // Add other tables as needed
     }
     Functions: {

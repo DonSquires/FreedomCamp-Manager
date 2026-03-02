@@ -346,6 +346,52 @@ Deno.serve(async (req) => {
       }
     }
 
+    // STEP 5: Escalate unacknowledged man-down alerts
+    // Man-down alerts are created by the client hook; here we handle server-side escalation.
+    const { data: manDownAlerts } = await supabaseAdmin
+      .from('officer_welfare_alerts')
+      .select('id, officer_id, officer_name, alert_sent_at, escalation_level')
+      .eq('alert_type', 'man_down')
+      .eq('status', 'pending');
+
+    let manDownEscalations = 0;
+    if (manDownAlerts && manDownAlerts.length > 0) {
+      // Batch-fetch all officer settings for affected officers to avoid N+1 queries
+      const officerIds = [...new Set(manDownAlerts.map((a: any) => a.officer_id))];
+      const { data: allMdSettings } = await supabaseAdmin
+        .from('officer_welfare_settings')
+        .select('user_id, man_down_escalation_minutes')
+        .in('user_id', officerIds);
+
+      const settingsByOfficer = new Map(
+        (allMdSettings ?? []).map((s: any) => [s.user_id, s])
+      );
+
+      for (const alert of manDownAlerts) {
+        const alertAgeMin = (now.getTime() - new Date((alert as any).alert_sent_at).getTime()) / 60_000;
+        const mdSettings = settingsByOfficer.get((alert as any).officer_id);
+        const escalationThresholdMin = mdSettings?.man_down_escalation_minutes ?? 5;
+
+        if ((alert as any).escalation_level < 2 && alertAgeMin >= escalationThresholdMin) {
+          console.log(`🚨 MAN-DOWN escalation level 2 for ${(alert as any).officer_name} — ${Math.round(alertAgeMin)} min unacknowledged`);
+          await supabaseAdmin
+            .from('officer_welfare_alerts')
+            .update({ escalation_level: 2, escalated_at: now.toISOString() })
+            .eq('id', (alert as any).id);
+          manDownEscalations++;
+        }
+
+        if ((alert as any).escalation_level < 3 && alertAgeMin >= (escalationThresholdMin * 3)) {
+          console.log(`🚨 MAN-DOWN CRITICAL for ${(alert as any).officer_name} — ${Math.round(alertAgeMin)} min, no response`);
+          await supabaseAdmin
+            .from('officer_welfare_alerts')
+            .update({ escalation_level: 3, escalated_at: now.toISOString() })
+            .eq('id', (alert as any).id);
+          manDownEscalations++;
+        }
+      }
+    }
+
     console.log('✅ Officer welfare monitoring complete');
 
     return new Response(
@@ -355,6 +401,7 @@ Deno.serve(async (req) => {
         warnings_checked: officersForWarning?.length || 0,
         welfare_checks: officersForWelfareCheck?.length || 0,
         escalations: pendingAlerts?.length || 0,
+        man_down_escalations: manDownEscalations,
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
