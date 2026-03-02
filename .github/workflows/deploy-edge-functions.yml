@@ -137,3 +137,20 @@ jobs:
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_PROJECT_REF:  ${{ secrets.SUPABASE_PROJECT_REF }}
+
+      # Push auth config (site_url + additional_redirect_urls) to the hosted
+      # Supabase project so CORS allowed origins are always in sync.
+      # This prevents the "wrong Access-Control-Allow-Origin" error that occurs
+      # when a new Onspace preview URL is deployed but the old preview URL is
+      # still stored as the project's site_url.
+      - name: Push Supabase auth config (CORS origins)
+        run: |
+          if supabase config push --project-ref "$SUPABASE_PROJECT_REF" --include-all; then
+            echo "✅ Supabase auth config pushed (site_url + redirect URLs updated)"
+          else
+            echo "::warning::⚠️  Supabase config push failed – CORS allowed origins may be stale."
+            echo "::warning::   Run the 'Push Supabase Auth Config' workflow manually to retry."
+          fi
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_REF:  ${{ secrets.SUPABASE_PROJECT_REF }}
