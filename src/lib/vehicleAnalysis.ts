@@ -4,6 +4,18 @@
  */
 
 import { supabase } from './supabase'
+import type { Database } from '@/types/database'
+
+// Type aliases for query results
+type Observation = Database['public']['Tables']['observations']['Row']
+type Zone = Database['public']['Tables']['zones']['Row']
+
+// Partial types for specific query selections
+type ObservationCompliance = Pick<Observation, 'is_compliant' | 'breach_type' | 'zone_id' | 'recorded_at'>
+type ObservationMovement = Pick<Observation, 'zone_id' | 'recorded_at'> & { zones: Pick<Zone, 'name'> | null }
+type ObservationBreach = Pick<Observation, 'plate_number' | 'is_compliant' | 'breach_type' | 'recorded_at'>
+type ObservationNight = Pick<Observation, 'plate_number' | 'recorded_at' | 'weather_conditions'>
+type ObservationZone = Pick<Observation, 'plate_number' | 'zone_id' | 'recorded_at'>
 
 interface VehiclePattern {
   plate_number: string
@@ -62,10 +74,12 @@ export async function analyzeVehicleCompliance(
     return null
   }
 
+  const typedData = data as ObservationCompliance[]
+
   // Calculate compliance metrics
-  const total = data.length
-  const compliant = data.filter(obs => obs.is_compliant).length
-  const breaches = data.filter(obs => !obs.is_compliant)
+  const total = typedData.length
+  const compliant = typedData.filter(obs => obs.is_compliant).length
+  const breaches = typedData.filter(obs => !obs.is_compliant)
 
   // Count breach types
   const breachTypes: Record<string, number> = {}
@@ -76,7 +90,7 @@ export async function analyzeVehicleCompliance(
   })
 
   // Get unique zones
-  const zonesVisited = [...new Set(data.map(obs => obs.zone_id).filter(Boolean))]
+  const zonesVisited = [...new Set(typedData.map(obs => obs.zone_id).filter(Boolean))]
 
   return {
     plate_number: plateNumber,
@@ -86,8 +100,8 @@ export async function analyzeVehicleCompliance(
     compliance_rate: (compliant / total) * 100,
     breach_types: breachTypes,
     zones_visited: zonesVisited,
-    first_seen: data[0].recorded_at,
-    last_seen: data[data.length - 1].recorded_at,
+    first_seen: typedData[0].recorded_at,
+    last_seen: typedData[typedData.length - 1].recorded_at,
   }
 }
 
@@ -119,17 +133,19 @@ export async function analyzeMovementPattern(
     return null
   }
 
+  const typedData = data as ObservationMovement[]
+
   // Group by zone
   const zoneVisits: Record<string, { count: number; lastVisit: string; name: string }> = {}
   
-  data.forEach(obs => {
+  typedData.forEach(obs => {
     if (!obs.zone_id) return
     
     if (!zoneVisits[obs.zone_id]) {
       zoneVisits[obs.zone_id] = {
         count: 0,
         lastVisit: obs.recorded_at,
-        name: (obs.zones as any)?.name || 'Unknown',
+        name: obs.zones?.name || 'Unknown',
       }
     }
     
@@ -138,7 +154,7 @@ export async function analyzeMovementPattern(
   })
 
   // Calculate average days between moves
-  const dates = data.map(obs => new Date(obs.recorded_at).getTime())
+  const dates = typedData.map(obs => new Date(obs.recorded_at).getTime())
   const daysBetweenMoves = []
   
   for (let i = 1; i < dates.length; i++) {
@@ -201,10 +217,12 @@ export async function detectRepeatOffenders(
     return []
   }
 
+  const typedData = data as ObservationBreach[]
+
   // Group by plate number
   const breachCounts: Record<string, { count: number; types: string[]; dates: string[] }> = {}
   
-  data.forEach(obs => {
+  typedData.forEach(obs => {
     if (!breachCounts[obs.plate_number]) {
       breachCounts[obs.plate_number] = { count: 0, types: [], dates: [] }
     }
@@ -253,10 +271,12 @@ export async function detectHomelessCandidates(
     return []
   }
 
+  const typedData = data as ObservationNight[]
+
   // Group by plate number and count overnight observations
   const nightCounts: Record<string, { count: number; dates: string[] }> = {}
   
-  data.forEach(obs => {
+  typedData.forEach(obs => {
     const hour = new Date(obs.recorded_at).getHours()
     
     // Count observations between 10pm and 6am as overnight
@@ -308,10 +328,12 @@ export async function detectZoneHoppers(
     return []
   }
 
+  const typedData = data as ObservationZone[]
+
   // Group by plate number
   const zoneVisits: Record<string, { zones: Set<string>; dates: string[] }> = {}
   
-  data.forEach(obs => {
+  typedData.forEach(obs => {
     if (!zoneVisits[obs.plate_number]) {
       zoneVisits[obs.plate_number] = { zones: new Set(), dates: [] }
     }
