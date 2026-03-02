@@ -21,10 +21,36 @@ const cors = require('cors');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Configure CORS (restrict to your Supabase Edge Function)
+// Configure CORS
+// Allows:
+//   • Exact production domains listed in ALLOWED_ORIGINS env var (comma-separated)
+//   • All *.onspace.build subdomains (covers ephemeral Onspace preview builds)
+//   • localhost for local development
+// Falls back to wildcard '*' only when ALLOWED_ORIGINS is not set.
+const EXACT_ORIGINS = new Set(
+  (process.env.ALLOWED_ORIGINS || '')
+    .split(',')
+    .map(s => s.trim())
+    .filter(Boolean)
+);
+
 const corsOptions = {
-  origin: process.env.ALLOWED_ORIGINS?.split(',') || ['*'],
-  methods: ['POST', 'GET'],
+  origin: EXACT_ORIGINS.size > 0
+    ? (origin, callback) => {
+        if (!origin) return callback(null, true); // server-to-server (no Origin header)
+        if (EXACT_ORIGINS.has(origin)) return callback(null, true);
+        // Allow any *.onspace.build subdomain (preview deployments)
+        try {
+          const host = new URL(origin).host;
+          if (host.endsWith('.onspace.build')) return callback(null, true);
+        } catch (_) {}
+        // Allow localhost for dev
+        if (origin.startsWith('http://localhost:')) return callback(null, true);
+        callback(new Error('CORS: origin not allowed: ' + origin));
+      }
+    : '*',
+  methods: ['POST', 'GET', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
   maxAge: 86400 // 24 hours
 };
 

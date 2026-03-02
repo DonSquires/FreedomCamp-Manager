@@ -208,43 +208,57 @@ Deno.serve(async (req) => {
 
     // ==========================================================================
     // STAGE 1: RAILWAY INFERENCE SERVICE (Primary - Self-Hosted)
+    // Endpoint: POST /infer  (multipart/form-data with "photo" field)
+    // Returns:  { success, data: { embedding[], embedding_quality, detection: { confidence } } }
     // ==========================================================================
+    let vehicleEmbedding: number[] | null = null;
+    let embeddingQuality: number | null = null;
+
     if (RAILWAY_INFERENCE_URL) {
       try {
-        console.log('🚂 Stage 1: Railway Inference Service...');
-        
-        // Convert blob to base64 for Railway
-        const arrayBuffer = await photoBlob.arrayBuffer();
-        const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
-        const imageDataUrl = `data:image/jpeg;base64,${base64}`;
-        
-        const railwayResponse = await fetch(`${RAILWAY_INFERENCE_URL}/detect`, {
+        console.log('🚂 Stage 1: Railway Inference Service /infer ...');
+
+        // Send photo as multipart form (matches the /infer endpoint contract)
+        const inferForm = new FormData();
+        inferForm.append('photo', new Blob([await photoBlob.arrayBuffer()], { type: 'image/jpeg' }), 'photo.jpg');
+
+        const railwayResponse = await fetch(`${RAILWAY_INFERENCE_URL}/infer`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ image: imageDataUrl }),
+          body: inferForm,
         });
 
         if (railwayResponse.ok) {
           const railwayData = await railwayResponse.json();
-          
-          if (railwayData.plate && railwayData.plate !== 'UNKNOWN') {
-            plateNumber = railwayData.plate.toUpperCase();
-            plateConfidence = railwayData.confidence || 0.5;
-            stage = 'railway';
 
-            if (railwayData.vehicle) {
-              vehicle = {
-                make: railwayData.vehicle.make,
-                model: railwayData.vehicle.model,
-                color: railwayData.vehicle.color,
-                type: railwayData.vehicle.type,
-              };
+          if (railwayData.success && railwayData.data) {
+            const inferData = railwayData.data;
+
+            // Store vehicle embedding for visual matching
+            if (inferData.embedding && Array.isArray(inferData.embedding)) {
+              vehicleEmbedding = inferData.embedding;
+              embeddingQuality = inferData.embedding_quality ?? null;
+              plateConfidence = inferData.detection?.confidence ?? 0.5;
+              stage = 'railway';
+              console.log('✅ Stage 1 Success: embedding generated, detection confidence:', plateConfidence);
+            } else {
+              console.log('⚠️ Stage 1: No embedding in response');
+              warnings.push('Railway Inference returned no embedding');
             }
 
-            console.log('✅ Stage 1 Success:', { plate: plateNumber, confidence: plateConfidence });
+            // Extract plate/vehicle if inference service provided them (requires OPENAI_API_KEY on Railway)
+            if (inferData.plate_number && inferData.plate_number !== 'UNKNOWN') {
+              plateNumber = inferData.plate_number.toUpperCase();
+            }
+            if (inferData.vehicle_make || inferData.vehicle_model) {
+              vehicle = {
+                make: inferData.vehicle_make,
+                model: inferData.vehicle_model,
+                color: inferData.vehicle_colour,
+              };
+            }
           } else {
-            console.log('⚠️ Stage 1: No plate detected');
-            warnings.push('Railway Inference found no plate');
+            console.log('⚠️ Stage 1: No vehicle detected in photo');
+            warnings.push('Railway Inference: no vehicle detected');
           }
         } else {
           console.error('❌ Stage 1 Error:', railwayResponse.status);
@@ -275,7 +289,7 @@ Deno.serve(async (req) => {
 
     if (isUpdateMode) {
       // UPDATE MODE: Update existing observation with AI results
-      const updateData = {
+      const updateData: Record<string, any> = {
         plate_number: plateNumber,
         vehicle_make: vehicle.make || null,
         vehicle_model: vehicle.model || null,
@@ -284,6 +298,14 @@ Deno.serve(async (req) => {
         processing_completed_at: new Date().toISOString(),
         processing_error: warnings.length > 0 ? warnings.join('; ') : null,
       };
+
+      // Store vehicle embedding when inference service provided one
+      if (vehicleEmbedding) {
+        updateData.vehicle_embedding = JSON.stringify(vehicleEmbedding);
+        updateData.embedding_quality = embeddingQuality;
+        updateData.embedding_model_version = 'yolov8n_mobilenetv3_v1.0';
+        updateData.embedding_created_at = new Date().toISOString();
+      }
 
       console.log('💾 Updating observation:', {
         observation_id: body.observation_id,
