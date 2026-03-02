@@ -105,7 +105,7 @@ BEGIN
           (v_zone_rec.geometry->'coordinates'->>1)::FLOAT8
         ), 4326
       );
-      v_radius := COALESCE((v_zone_rec.geometry->>'radius')::FLOAT8, 100);
+      v_radius := COALESCE((v_zone_rec.geometry->>'radius')::FLOAT8, 100); -- default 100 m when radius not specified
       v_dist   := ST_Distance(v_center::geography, v_point::geography);
 
       -- Inside check

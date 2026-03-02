@@ -204,13 +204,13 @@ export const smokeTests = {
     
     try {
       const { data, error } = await supabase.storage
-        .from('evidence')
+        .from('scans')
         .list('', { limit: 5 })
       
       if (error) throw error
       
       console.log('✅ Storage access successful')
-      console.log(`   Found ${data?.length || 0} files in evidence bucket`)
+      console.log(`   Found ${data?.length || 0} files in scans bucket`)
       return { success: true, count: data?.length || 0 }
     } catch (error: any) {
       console.error('❌ Storage access failed:', error.message)

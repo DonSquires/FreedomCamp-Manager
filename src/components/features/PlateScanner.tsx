@@ -88,15 +88,15 @@ export function PlateScanner({ onScanComplete, onCancel }: PlateScannerProps) {
       const fileName = `scan-${Date.now()}.jpg`
       const userId = (await supabase.auth.getUser()).data.user?.id || 'unknown'
       const { data: uploadData, error: uploadError } = await supabase.storage
-        .from('evidence')
-        .upload(`scans/${userId}/${fileName}`, blob)
+        .from('scans')
+        .upload(`${userId}/${fileName}`, blob)
 
       if (uploadError) throw uploadError
 
       // Get public URL
       const { data: urlData } = supabase.storage
-        .from('evidence')
-        .getPublicUrl(`scans/${userId}/${fileName}`)
+        .from('scans')
+        .getPublicUrl(`${userId}/${fileName}`)
 
       const photoUrl = urlData.publicUrl
       let plateNumber: string | null = null
