@@ -25,6 +25,7 @@ import {
   EyeOff,
   ScanLine,
   Receipt,
+  User,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -55,6 +56,8 @@ const navigationItems = [
   { path: '/organization-profile', icon: Building2, label: 'Organization Profile', roles: ['admin', 'admin_officer', 'master'] },
   { path: '/organizations', icon: Building2, label: 'Organizations', roles: ['master'] },
   { path: '/diagnostics', icon: Settings, label: 'System Diagnostics', roles: ['master'] },
+  { path: '/profile', icon: User, label: 'My Profile', roles: ['admin', 'admin_officer', 'master', 'officer'] },
+  { path: '/settings', icon: Settings, label: 'Settings', roles: ['admin', 'admin_officer', 'master', 'officer'] },
 ]
 
 function NavigationLinks({ onClick }: { onClick?: () => void }) {

@@ -45,6 +45,15 @@ import NoticeToVacate from '@/pages/NoticeToVacate'
 import OfficerWelfareSettings from '@/pages/OfficerWelfareSettings'
 import EnforcementReview from '@/pages/EnforcementReview'
 import InvestigationJobsPage from '@/pages/InvestigationJobsPage'
+import VehicleDetailPage from '@/pages/VehicleDetailPage'
+import PersonRecords from '@/pages/PersonRecords'
+import ImportData from '@/pages/ImportData'
+import ImportHistoricalData from '@/pages/ImportHistoricalData'
+import BreachNotices from '@/pages/BreachNotices'
+import ObservationsReport from '@/pages/ObservationsReport'
+import PortalSelection from '@/pages/PortalSelection'
+import Settings from '@/pages/Settings'
+import Profile from '@/pages/Profile'
 
 // Create a client
 const queryClient = new QueryClient({
@@ -122,7 +131,19 @@ export default function App() {
         <Routes>
           {/* Public routes */}
           <Route path="/login" element={<Login />} />
+          <Route path="/portal-selection" element={<PortalSelection />} />
 
+          {/* Field Officer Portal */}
+          <Route
+            path="/field-officer"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['officer', 'admin_officer']}>
+                  <FieldOfficerPortal />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
           {/* Protected routes */}
           <Route
             path="/"
@@ -512,6 +533,84 @@ export default function App() {
                 <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
                   <InvestigationJobsPage />
                 </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/vehicles/:id"
+            element={
+              <ProtectedRoute>
+                <VehicleDetailPage />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/person-records"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <PersonRecords />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/import-data"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <ImportData />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/import-historical"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <ImportHistoricalData />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/breach-notices"
+            element={
+              <ProtectedRoute>
+                <BreachNotices />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/observations-report"
+            element={
+              <ProtectedRoute>
+                <ObservationsReport />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/settings"
+            element={
+              <ProtectedRoute>
+                <Settings />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/profile"
+            element={
+              <ProtectedRoute>
+                <Profile />
               </ProtectedRoute>
             }
           />

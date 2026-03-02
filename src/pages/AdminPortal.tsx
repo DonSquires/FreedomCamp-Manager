@@ -30,6 +30,9 @@ import {
   ScrollText,
   Navigation,
   Inbox,
+  Upload,
+  FileSpreadsheet,
+  Bell,
 } from 'lucide-react'
 
 export default function AdminPortal() {
@@ -101,6 +104,7 @@ export default function AdminPortal() {
         {tile(<Car className="h-4 w-4" />, 'Vehicles', 'Search and manage vehicles', '/vehicles', 'Manage Vehicles')}
         {tile(<MapPin className="h-4 w-4" />, 'Zones', 'Configure compliance zones', '/zones', 'Manage Zones')}
         {tile(<Users className="h-4 w-4" />, 'Users', 'Manage officers and admins', '/users', 'Manage Users')}
+        {tile(<Users className="h-4 w-4" />, 'Person Records', 'Canonical person records and observations', '/person-records', 'View Persons')}
         {tile(<Activity className="h-4 w-4" />, 'Incidents', 'Incident management and reporting', '/incidents', 'View Incidents')}
         {tile(<Inbox className="h-4 w-4" />, 'Incident Reports', 'View and export incident reports', '/incident-reports', 'View Reports')}
         {tile(<Search className="h-4 w-4" />, 'Universal Search', 'Search across all records', '/search', 'Search')}
@@ -111,6 +115,8 @@ export default function AdminPortal() {
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 mb-8">
         {tile(<FileText className="h-4 w-4" />, 'Reports', 'Generate compliance reports', '/reports', 'View Reports')}
         {tile(<LayoutGrid className="h-4 w-4" />, 'Reports Hub', 'Leadership packs and dashboard reports', '/reports-hub', 'Open Hub')}
+        {tile(<FileText className="h-4 w-4" />, 'Observations Report', 'Filter and export observation records', '/observations-report', 'View Report')}
+        {tile(<Bell className="h-4 w-4" />, 'Breach Notices', 'All breach alerts with enforcement tracking', '/breach-notices', 'View Notices')}
         {tile(<ScrollText className="h-4 w-4" />, 'Audit Log', 'System audit trail', '/audit-log', 'View Log')}
         {tile(<Lock className="h-4 w-4" />, 'Privacy Curtain', 'PII access control and log', '/privacy-curtain', 'View')}
       </div>
@@ -119,6 +125,8 @@ export default function AdminPortal() {
       <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Data &amp; System</h2>
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 mb-8">
         {tile(<Database className="h-4 w-4" />, 'Data Management', 'Import, export and data tools', '/data', 'Manage Data')}
+        {tile(<Upload className="h-4 w-4" />, 'Import Data', 'AI-powered file import (CSV/image/text)', '/import-data', 'Import')}
+        {tile(<FileSpreadsheet className="h-4 w-4" />, 'Import Historical', 'Bulk Excel import with progress tracking', '/import-historical', 'Import Excel')}
         {tile(<Database className="h-4 w-4" />, 'Data Hub', 'Advanced data management', '/admin/data-hub', 'Open Hub')}
         {tile(<Database className="h-4 w-4" />, 'Data Cleanup', 'Remove stale data', '/admin/data-cleanup', 'Cleanup')}
         {tile(<Activity className="h-4 w-4" />, 'Data Integrity', 'Validate and repair data', '/admin/data-integrity', 'Check Integrity')}
