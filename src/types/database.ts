@@ -745,6 +745,10 @@ export interface Database {
           trend_percentage: number
         }
       }
+      ensure_other_location_zone: {
+        Args: { p_organization_id: string }
+        Returns: string
+      }
     }
   }
 }
