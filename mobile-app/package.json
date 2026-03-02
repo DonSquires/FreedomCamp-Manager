@@ -1,7 +1,7 @@
 {
   "name": "freedomcamp-officer",
   "version": "1.0.0",
-  "main": "expo-router/entry",
+  "main": "./App.tsx",
   "scripts": {
     "start": "expo start",
     "android": "expo start --android",
@@ -22,7 +22,6 @@
     "expo-image-picker": "~15.0.7",
     "expo-location": "~17.0.1",
     "expo-notifications": "~0.28.18",
-    "expo-router": "~3.5.23",
     "expo-secure-store": "~13.0.2",
     "expo-status-bar": "~1.12.1",
     "react": "18.2.0",

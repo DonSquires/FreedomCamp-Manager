@@ -253,8 +253,8 @@ VITE_SUPABASE_ANON_KEY=eyJhbGci...YOUR_ANON_KEY
 ### 4.2 Test locally
 
 ```bash
-npm install
-npm run dev
+bun install
+bun run dev
 ```
 
 Open http://localhost:5173 → login with the master user credentials from Part 1.
@@ -268,7 +268,7 @@ vercel
 ```
 
 When prompted:
-- Build command: `npm run build` (note: TS errors are pre-existing, only Vite build matters)
+- Build command: `bun run build` (note: TS errors are pre-existing, only Vite build matters)
 - Output directory: `dist`
 - Override build command: `node_modules/.bin/vite build`
 
@@ -342,6 +342,9 @@ npx expo start
 Scan the QR code with the **Expo Go** app (free, available on App Store and Google Play).
 
 The app will load immediately — no build required for development testing.
+
+> **Note:** The `mobile-app/` sub-project uses its own `package.json` and is independent of the
+> root Bun workspace. Use `npm install` inside `mobile-app/` as shown above.
 
 ### 5.5 Build for distribution
 

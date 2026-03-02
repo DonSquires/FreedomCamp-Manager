@@ -164,7 +164,7 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   cardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  plate: { fontFamily: 'Courier', fontSize: 18, fontWeight: '800', color: '#0f172a' },
+  plate: { fontFamily: 'Courier New', fontSize: 18, fontWeight: '800', color: '#0f172a' },
   statusBadge: { borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 },
   statusText: { fontSize: 11, fontWeight: '700' },
   breachType: { fontSize: 14, fontWeight: '600', color: '#dc2626' },

@@ -156,7 +156,7 @@ const styles = StyleSheet.create({
   },
   cardInfo: { flex: 1 },
   actionLabel: { fontSize: 13, fontWeight: '700', color: '#374151' },
-  plate: { fontFamily: 'Courier', fontSize: 15, fontWeight: '700', color: '#0f172a' },
+  plate: { fontFamily: 'Courier New', fontSize: 15, fontWeight: '700', color: '#0f172a' },
   meta: { fontSize: 11, color: '#94a3b8', marginTop: 2 },
   statusDot: { width: 10, height: 10, borderRadius: 5 },
   completeBtn: {

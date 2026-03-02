@@ -16,6 +16,7 @@ import ScanScreen from './src/screens/ScanScreen'
 import RecentScansScreen from './src/screens/RecentScansScreen'
 import BreachAlertsScreen from './src/screens/BreachAlertsScreen'
 import EnforcementActionsScreen from './src/screens/EnforcementActionsScreen'
+import InfringementNoticesScreen from './src/screens/InfringementNoticesScreen'
 
 const Stack = createNativeStackNavigator()
 const Tab = createBottomTabNavigator()
@@ -34,11 +35,12 @@ function OfficerTabs() {
         tabBarLabelStyle: { fontSize: 11 },
         tabBarIcon: ({ focused, color, size }) => {
           const icons: Record<string, string> = {
-            Home:       focused ? 'home'             : 'home-outline',
-            Scan:       focused ? 'camera'           : 'camera-outline',
-            Scans:      focused ? 'list'             : 'list-outline',
-            Breaches:   focused ? 'warning'          : 'warning-outline',
-            Enforce:    focused ? 'shield-checkmark' : 'shield-checkmark-outline',
+            Home:     focused ? 'home'             : 'home-outline',
+            Scan:     focused ? 'camera'           : 'camera-outline',
+            Scans:    focused ? 'list'             : 'list-outline',
+            Breaches: focused ? 'warning'          : 'warning-outline',
+            Enforce:  focused ? 'shield-checkmark' : 'shield-checkmark-outline',
+            Fines:    focused ? 'document-text'    : 'document-text-outline',
           }
           return <Ionicons name={icons[route.name] as any} size={size} color={color} />
         },
@@ -49,6 +51,7 @@ function OfficerTabs() {
       <Tab.Screen name="Scans"    component={RecentScansScreen} options={{ tabBarLabel: 'My Scans' }} />
       <Tab.Screen name="Breaches" component={BreachAlertsScreen} options={{ tabBarLabel: 'Breaches' }} />
       <Tab.Screen name="Enforce"  component={EnforcementActionsScreen} options={{ tabBarLabel: 'Actions' }} />
+      <Tab.Screen name="Fines"    component={InfringementNoticesScreen} options={{ tabBarLabel: 'Fines' }} />
     </Tab.Navigator>
   )
 }

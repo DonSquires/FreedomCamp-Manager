@@ -120,7 +120,7 @@ const styles = StyleSheet.create({
   },
   cardBody: { flex: 1, padding: 10, justifyContent: 'center' },
   cardRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 4 },
-  plate: { fontFamily: 'Courier', fontSize: 16, fontWeight: '700', color: '#0f172a' },
+  plate: { fontFamily: 'Courier New', fontSize: 16, fontWeight: '700', color: '#0f172a' },
   badge: { borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
   badgeOk: { backgroundColor: '#dcfce7' },
   badgeBreach: { backgroundColor: '#fee2e2' },

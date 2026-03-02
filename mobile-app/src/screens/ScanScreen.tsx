@@ -1,6 +1,6 @@
 import React, { useState, useRef } from 'react'
 import {
-  View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Alert,
+  View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, Platform,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { CameraView, CameraType, useCameraPermissions } from 'expo-camera'
@@ -9,6 +9,13 @@ import { Ionicons } from '@expo/vector-icons'
 import { toast } from 'sonner-native'
 import { useAuthStore } from '../stores/authStore'
 import { supabase } from '../lib/supabase'
+
+/** React Native multipart file descriptor accepted by fetch/FormData on iOS + Android */
+interface RNFileInfo {
+  uri: string
+  name: string
+  type: string
+}
 
 export default function ScanScreen() {
   const { user } = useAuthStore()
@@ -75,7 +82,8 @@ export default function ScanScreen() {
       const filePath = `${user?.id}/${timestamp}-${photoHash}.jpg`
 
       const formData = new FormData()
-      formData.append('file', { uri: photo.uri, name: 'scan.jpg', type: 'image/jpeg' } as any)
+      const fileInfo: RNFileInfo = { uri: photo.uri, name: 'scan.jpg', type: 'image/jpeg' }
+      formData.append('file', fileInfo as unknown as Blob)
 
       const { error: uploadError } = await supabase.storage
         .from('scans')
