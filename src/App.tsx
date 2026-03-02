@@ -29,6 +29,16 @@ import EnforcementActions from '@/pages/EnforcementActions'
 import EnforcementCommandCenter from '@/pages/EnforcementCommandCenter'
 import PrivacyCurtain from '@/pages/PrivacyCurtain'
 import PatrolCheckpointManagement from '@/pages/PatrolCheckpointManagement'
+import UniversalSearch from '@/pages/UniversalSearch'
+import DataManagementHub from '@/pages/DataManagementHub'
+import DataCleanupUtility from '@/pages/DataCleanupUtility'
+import DataIntegrityDashboard from '@/pages/DataIntegrityDashboard'
+import LivePatrolMonitor from '@/pages/LivePatrolMonitor'
+import ReportsHub from '@/pages/ReportsHub'
+import HotspotsMap from '@/pages/HotspotsMap'
+import SpatialComplianceAdmin from '@/pages/SpatialComplianceAdmin'
+import ComplianceAnalytics from '@/pages/ComplianceAnalytics'
+import IncidentReports from '@/pages/IncidentReports'
 
 // Create a client
 const queryClient = new QueryClient({
@@ -328,6 +338,110 @@ export default function App() {
                 <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
                   <PatrolCheckpointManagement />
                 </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/search"
+            element={
+              <ProtectedRoute>
+                <UniversalSearch />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/admin/data-hub"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'master']}>
+                  <DataManagementHub />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/admin/data-cleanup"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'master']}>
+                  <DataCleanupUtility />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/admin/data-integrity"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'master']}>
+                  <DataIntegrityDashboard />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/live-patrol"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <LivePatrolMonitor />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/reports-hub"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <ReportsHub />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/hotspots"
+            element={
+              <ProtectedRoute>
+                <HotspotsMap />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/spatial-compliance"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'master']}>
+                  <SpatialComplianceAdmin />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/compliance-analytics"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <ComplianceAnalytics />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/incident-reports"
+            element={
+              <ProtectedRoute>
+                <IncidentReports />
               </ProtectedRoute>
             }
           />
