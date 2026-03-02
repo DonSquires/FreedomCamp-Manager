@@ -3,7 +3,6 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Toaster } from 'sonner'
 import { useAuthStore } from '@/stores/authStore'
-import { useInactivityLogout } from '@/hooks/useInactivityLogout'
 import Login from '@/pages/Login'
 import AdminPortal from '@/pages/AdminPortal'
 import FieldOfficerPortal from '@/pages/FieldOfficerPortal'
@@ -85,9 +84,6 @@ export default function App() {
   useEffect(() => {
     checkSession()
   }, [])
-
-  // Auto-logout after 10 minutes of inactivity (Privacy Act 2020 compliance)
-  useInactivityLogout()
 
   // Show loading state while checking session
   if (loading) {

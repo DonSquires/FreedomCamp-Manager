@@ -173,19 +173,43 @@ export default function FieldOfficerPortal() {
       let finalZoneId = zoneId;
 
       if (!finalZoneId) {
-        // Use SECURITY DEFINER RPC to ensure zone exists (bypasses zones RLS)
-        const { data: zoneResult, error: zoneError } = await supabase
-          .rpc('ensure_other_location_zone', {
-            p_organization_id: user.organization_id
-          });
+        // Scan is outside geofences - get/create "Other Location" zone
+        const { data: otherZone } = await supabase
+          .from('zones')
+          .select('id')
+          .eq('organization_id', user.organization_id)
+          .eq('name', 'Other Location')
+          .maybeSingle();
 
-        if (zoneError || !zoneResult) {
-          console.error('❌ Failed to ensure Other Location zone:', zoneError);
-          throw new Error('Zone setup failed - contact support');
+        if (otherZone) {
+          finalZoneId = otherZone.id;
+        } else {
+          // Create "Other Location" zone on-the-fly (parent zone for jurisdiction)
+          const { data: newZone, error: zoneError } = await supabase
+            .from('zones')
+            .insert({
+              organization_id: user.organization_id,
+              name: 'Other Location',
+              description: 'Council jurisdiction area - default zone for observations outside specific enforcement zones',
+              zone_type: 'general',  // ✅ Parent zone
+              parent_zone_id: null,  // ✅ Top-level parent
+              is_active: true,
+              self_contained_required: true,
+              nights_per_month: 28,
+              max_consecutive_nights: 3,
+              day_visit_only: false,
+            })
+            .select('id')
+            .single();
+
+          if (zoneError) {
+            console.error('❌ Failed to create Other Location zone:', zoneError);
+            throw new Error('Zone setup failed - contact support');
+          }
+
+          finalZoneId = newZone.id;
+          console.log('✅ Created Other Location zone:', finalZoneId);
         }
-
-        finalZoneId = zoneResult;
-        console.log('✅ Other Location zone ready:', finalZoneId);
       }
 
       // ============================================================================

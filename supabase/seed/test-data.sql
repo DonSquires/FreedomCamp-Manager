@@ -9,9 +9,9 @@
 -- ============================================================================
 
 INSERT INTO organizations (id, name, organization_type, organization_level, is_active) VALUES
-('11111111-1111-1111-1111-111111111111', 'Test Organization 1', 'client', 3, true),
-('22222222-2222-2222-2222-222222222222', 'Test Organization 2', 'client', 3, true),
-('33333333-3333-3333-3333-333333333333', 'Test Master Org', 'owner', 1, true)
+('11111111-1111-1111-1111-111111111111', 'Test Organization 1', 'client', 1, true),
+('22222222-2222-2222-2222-222222222222', 'Test Organization 2', 'client', 1, true),
+('33333333-3333-3333-3333-333333333333', 'Test Master Org', 'security_company', 0, true)
 ON CONFLICT (id) DO NOTHING;
 
 -- ============================================================================

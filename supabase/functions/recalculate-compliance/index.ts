@@ -10,13 +10,7 @@ import { corsHeaders } from '../_shared/cors.ts';
  */
 
 interface RecalculationRequest {
-  // New-style params (from frontend)
-  organization_id?: string;
-  zone_id?: string;
-  date_from?: string;
-  date_to?: string;
-  // Legacy params (scope-based)
-  scope_type?: 'ZONE' | 'ORG' | 'BUILD';
+  scope_type: 'ZONE' | 'ORG' | 'BUILD';
   zone_ids?: string[];
   organization_ids?: string[];
   date_range_start?: string;
@@ -79,22 +73,12 @@ serve(async (req) => {
 
     const request = await req.json() as RecalculationRequest;
 
-    // Normalize: support both new-style params and legacy scope_type params
-    const dateStart = request.date_range_start || request.date_from;
-    const dateEnd = request.date_range_end || request.date_to;
-
-    // Determine scope_type from new-style params if not provided
-    let effectiveScopeType = request.scope_type;
-    if (!effectiveScopeType) {
-      if (request.zone_id) {
-        effectiveScopeType = 'ZONE';
-        request.zone_ids = [request.zone_id];
-      } else if (request.organization_id) {
-        effectiveScopeType = 'ORG';
-        request.organization_ids = [request.organization_id];
-      } else {
-        effectiveScopeType = 'BUILD';
-      }
+    // Validate request
+    if (!request.scope_type) {
+      return new Response(
+        JSON.stringify({ error: 'scope_type is required' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
     }
 
     const startTime = Date.now();
@@ -103,11 +87,11 @@ serve(async (req) => {
     const { data: action, error: actionError } = await supabaseAdmin
       .from('admin_recalculation_actions')
       .insert({
-        scope_type: effectiveScopeType,
+        scope_type: request.scope_type,
         target_zone_ids: request.zone_ids || [],
         target_org_ids: request.organization_ids || [],
-        date_range_start: dateStart,
-        date_range_end: dateEnd,
+        date_range_start: request.date_range_start,
+        date_range_end: request.date_range_end,
         performed_by: user.id,
         status: 'running',
       })
@@ -120,16 +104,16 @@ serve(async (req) => {
       // Determine zones to recalculate
       let zoneIds: string[] = [];
 
-      if (effectiveScopeType === 'ZONE') {
+      if (request.scope_type === 'ZONE') {
         zoneIds = request.zone_ids || [];
-      } else if (effectiveScopeType === 'ORG') {
+      } else if (request.scope_type === 'ORG') {
         const { data: zones } = await supabaseAdmin
           .from('zones')
           .select('id')
           .in('organization_id', request.organization_ids || []);
         
         zoneIds = zones?.map(z => z.id) || [];
-      } else if (effectiveScopeType === 'BUILD') {
+      } else if (request.scope_type === 'BUILD') {
         const { data: zones } = await supabaseAdmin
           .from('zones')
           .select('id');
@@ -152,12 +136,12 @@ serve(async (req) => {
           id,
           observation_id,
           zone_id,
-          observations!inner(zone_id)
+          vehicle_observations_v2!inner(zone_id)
         `);
       
       if (!orphanedError && orphanedResults) {
         const orphanedIds = orphanedResults
-          .filter(cr => cr.zone_id !== (cr.observations as any).zone_id)
+          .filter(cr => cr.zone_id !== (cr.vehicle_observations_v2 as any).zone_id)
           .map(cr => cr.id);
         
         if (orphanedIds.length > 0) {
@@ -195,20 +179,17 @@ serve(async (req) => {
           continue;
         }
 
-        // Get observations for this zone (use new observations table)
+        // Get observations for this zone
         let query = supabaseAdmin
-          .from('observations')
-          .select('id, plate_number, organization_id, zone_id, recorded_at')
-          .eq('zone_id', zoneId)
-          .not('plate_number', 'is', null)
-          .not('plate_number', 'eq', 'PROCESSING...')
-          .eq('processing_status', 'completed');
+          .from('vehicle_observations_v2')
+          .select('observation_id, plate_number, organization_id, zone_id, recorded_at')
+          .eq('zone_id', zoneId);
 
-        if (dateStart) {
-          query = query.gte('recorded_at', dateStart);
+        if (request.date_range_start) {
+          query = query.gte('recorded_at', request.date_range_start);
         }
-        if (dateEnd) {
-          query = query.lte('recorded_at', dateEnd);
+        if (request.date_range_end) {
+          query = query.lte('recorded_at', request.date_range_end);
         }
 
         const { data: observations } = await query;
@@ -222,8 +203,6 @@ serve(async (req) => {
 
         // Recalculate compliance for each observation
         for (const obs of observations) {
-          // observations.id is the primary key (replaces observation_id)
-          const observationId = obs.id;
           try {
             // Get matrix active at observation time
             const { data: matrixAtTime } = await supabaseAdmin
@@ -233,48 +212,44 @@ serve(async (req) => {
               });
 
             if (!matrixAtTime) {
-              console.log(`No matrix for observation ${observationId} at ${obs.recorded_at}`);
+              console.log(`No matrix for observation ${obs.observation_id} at ${obs.recorded_at}`);
               continue;
             }
 
-            // Calculate compliance using current centralized function
-            const checkDate = obs.recorded_at.split('T')[0];
+            // Calculate compliance using matrix
             const { data: complianceResult } = await supabaseAdmin
-              .rpc('calculate_vehicle_compliance', {
+              .rpc('check_vehicle_compliance_v3', {
                 p_plate_number: obs.plate_number,
                 p_zone_id: obs.zone_id,
-                p_check_date: checkDate
+                p_observation_time: obs.recorded_at
               });
-
-            const compliance = complianceResult?.[0];
 
             // Get old compliance result if exists
             const { data: oldResult } = await supabaseAdmin
               .from('compliance_results')
               .select('is_compliant')
-              .eq('observation_id', observationId)
-              .maybeSingle();
+              .eq('observation_id', obs.observation_id)
+              .single();
 
             // Create/update compliance result with matrix reference
             const { error: upsertError } = await supabaseAdmin
               .from('compliance_results')
               .upsert({
-                observation_id: observationId,
+                observation_id: obs.observation_id,
                 vehicle_id: obs.plate_number,
                 zone_id: obs.zone_id,
                 organization_id: obs.organization_id,
                 matrix_id: matrixAtTime.id,
                 matrix_version: matrixAtTime.version,
-                is_compliant: compliance?.is_compliant ?? true,
-                violation_reasons: compliance?.violation_type ? [compliance.violation_type] : [],
-                metrics_json: compliance || {},
+                is_compliant: complianceResult?.is_compliant ?? true,
+                violation_reasons: complianceResult?.violations || [],
+                metrics_json: complianceResult || {},
                 matrix_snapshot: {
                   matrix_id: matrixAtTime.id,
                   version: matrixAtTime.version,
                   effective_from: matrixAtTime.effective_from,
                   effective_to: matrixAtTime.effective_to,
                   self_contained_required: matrixAtTime.self_contained_required,
-                  requires_csc: matrixAtTime.requires_csc,
                   nights_per_month: matrixAtTime.nights_per_month,
                   max_consecutive_nights: matrixAtTime.max_consecutive_nights,
                   day_visit_only: matrixAtTime.day_visit_only,
@@ -287,52 +262,86 @@ serve(async (req) => {
               });
 
             if (upsertError) {
-              console.error(`Failed to upsert compliance for ${observationId}:`, upsertError);
+              console.error(`Failed to upsert compliance for ${obs.observation_id}:`, upsertError);
               continue;
             }
 
             observationsProcessed++;
 
             // Detect drift
-            if (oldResult && oldResult.is_compliant !== (compliance?.is_compliant ?? true)) {
+            if (oldResult && oldResult.is_compliant !== complianceResult?.is_compliant) {
               complianceChanged++;
             }
             
-            // AUTO-CREATE BREACH ALERT IF NON-COMPLIANT
-            const isCompliant = compliance?.is_compliant ?? true;
-            const violationType = compliance?.violation_type;
+            // AUTO-CREATE BREACH AND ENFORCEMENT ACTION IF NON-COMPLIANT
+            const isCompliant = complianceResult?.is_compliant ?? true;
+            const violations = complianceResult?.violations || [];
             
-            if (!isCompliant && violationType) {
+            if (!isCompliant && violations.length > 0) {
               // Check if vehicle is homeless
               const { data: canonicalVehicle } = await supabaseAdmin
                 .from('canonical_vehicles')
                 .select('plate_number, homeless_status')
                 .eq('plate_number', obs.plate_number)
-                .maybeSingle();
+                .single();
               
               const isHomeless = canonicalVehicle?.homeless_status === 'confirmed';
               
-              // Check if breach alert already exists for this observation
-              const { data: existingBreach } = await supabaseAdmin
-                .from('breach_alerts')
-                .select('id')
-                .eq('observation_id', observationId)
-                .maybeSingle();
+              // Get vehicle_record_id from this observation
+              const { data: vehicleRecord } = await supabaseAdmin
+                .from('vehicle_records')
+                .select('id, requires_followup, followup_reason')
+                .eq('organization_id', obs.organization_id)
+                .eq('zone_id', obs.zone_id)
+                .eq('plate_number', canonicalVehicle?.plate_number)
+                .order('recorded_at', { ascending: false })
+                .limit(1)
+                .single();
               
-              if (!existingBreach) {
-                console.log(`Creating breach alert for observation ${observationId}...`);
+              // Remove auto-added followup flags (keep manual ones)
+              if (vehicleRecord?.requires_followup && 
+                  vehicleRecord?.followup_reason && 
+                  vehicleRecord.followup_reason.includes('Auto-created')) {
+                await supabaseAdmin
+                  .from('vehicle_records')
+                  .update({
+                    requires_followup: false,
+                    followup_reason: null,
+                    followup_priority: null,
+                  })
+                  .eq('id', vehicleRecord.id);
+                
+                console.log(`Removed auto-added followup flag from vehicle record ${vehicleRecord.id}`);
+              }
+              
+              // Check if breach alert already exists for THIS SPECIFIC OBSERVATION
+              // Each observation should have its own breach alert if non-compliant
+              const { data: existingBreaches } = await supabaseAdmin
+                .from('breach_alerts')
+                .select('id, breach_details')
+                .eq('organization_id', obs.organization_id)
+                .eq('zone_id', obs.zone_id)
+                .eq('vehicle_record_id', vehicleRecord?.id);
+              
+              // Check if any existing breach matches this observation_id in breach_details
+              const existingBreach = existingBreaches?.find(breach => 
+                breach.breach_details?.observation_id === obs.observation_id
+              );
+              
+              // Create breach alert if doesn't exist for THIS OBSERVATION
+              // This ensures each non-compliant observation gets its own breach record
+              if (!existingBreach && vehicleRecord?.id) {
+                console.log(`Creating breach alert for observation ${obs.observation_id}...`);
                 const { data: newBreach, error: breachError } = await supabaseAdmin
                   .from('breach_alerts')
                   .insert({
                     organization_id: obs.organization_id,
                     zone_id: obs.zone_id,
-                    plate_number: obs.plate_number,
-                    observation_id: observationId,
-                    breach_type: violationType,
+                    vehicle_record_id: vehicleRecord.id,
+                    breach_type: violations[0] || 'compliance_violation',
                     breach_details: {
-                      violation_message: compliance?.violation_message,
-                      consecutive_nights: compliance?.consecutive_nights,
-                      month_nights: compliance?.month_nights,
+                      violations: violations,
+                      observation_id: obs.observation_id,
                       detected_at: obs.recorded_at,
                       is_homeless: isHomeless,
                       auto_created_by_recalculation: true,
@@ -355,9 +364,8 @@ serve(async (req) => {
                     .insert({
                       organization_id: obs.organization_id,
                       user_id: user.id,
+                      vehicle_record_id: vehicleRecord.id,
                       zone_id: obs.zone_id,
-                      plate_number: obs.plate_number,
-                      breach_alert_id: newBreach.id,
                       action_type: 'no_action',
                       delivery_method: 'none',
                       notes: enforcementReason,
@@ -365,13 +373,13 @@ serve(async (req) => {
                       recorded_at: new Date().toISOString(),
                     });
                   
-                  console.log(`Created breach alert and enforcement action (${enforcementReason}) for observation ${observationId}`);
+                  console.log(`Created breach alert and enforcement action (${enforcementReason}) for observation ${obs.observation_id}`);
                 }
               }
             }
 
           } catch (obsError: any) {
-            console.error(`Error processing observation ${observationId}:`, obsError);
+            console.error(`Error processing observation ${obs.observation_id}:`, obsError);
           }
         }
 
