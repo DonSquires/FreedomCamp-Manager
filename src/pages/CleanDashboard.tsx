@@ -685,7 +685,7 @@ function ZonesTab() {
         .select('zone_id');
       if (error) throw error;
       const counts: Record<string, number> = {};
-      for (const row of data ?? []) {
+      for (const row of (data ?? []) as { zone_id: string }[]) {
         counts[row.zone_id] = (counts[row.zone_id] ?? 0) + 1;
       }
       return counts;
@@ -702,7 +702,7 @@ function ZonesTab() {
         .eq('is_compliant', false);
       if (error) throw error;
       const counts: Record<string, number> = {};
-      for (const row of data ?? []) {
+      for (const row of (data ?? []) as { zone_id: string }[]) {
         counts[row.zone_id] = (counts[row.zone_id] ?? 0) + 1;
       }
       return counts;
@@ -826,7 +826,7 @@ function UsersTab() {
         .select('recorded_by');
       if (error) throw error;
       const counts: Record<string, number> = {};
-      for (const row of data ?? []) {
+      for (const row of (data ?? []) as { recorded_by: string }[]) {
         counts[row.recorded_by] = (counts[row.recorded_by] ?? 0) + 1;
       }
       return counts;
@@ -915,7 +915,7 @@ function OrganisationsTab() {
       const { data, error } = await supabase.from('observations').select('organization_id');
       if (error) throw error;
       const counts: Record<string, number> = {};
-      for (const row of data ?? []) {
+      for (const row of (data ?? []) as { organization_id: string }[]) {
         counts[row.organization_id] = (counts[row.organization_id] ?? 0) + 1;
       }
       return counts;
@@ -931,7 +931,7 @@ function OrganisationsTab() {
         .eq('is_compliant', false);
       if (error) throw error;
       const counts: Record<string, number> = {};
-      for (const row of data ?? []) {
+      for (const row of (data ?? []) as { organization_id: string }[]) {
         counts[row.organization_id] = (counts[row.organization_id] ?? 0) + 1;
       }
       return counts;
@@ -1033,7 +1033,7 @@ export default function CleanDashboard() {
           <div className="flex items-center gap-3">
             <div className="hidden sm:flex flex-col items-end">
               <span className="text-xs font-medium text-gray-700 dark:text-gray-300">
-                {user.first_name} {user.last_name}
+                {user.full_name ?? user.email}
               </span>
               <span className="text-xs text-gray-400 capitalize">{user.role}</span>
             </div>
