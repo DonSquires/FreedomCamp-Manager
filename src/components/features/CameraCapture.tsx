@@ -170,49 +170,56 @@ export function CameraCapture({
     const video = videoRef.current
     const canvas = canvasRef.current
 
-    // Set canvas dimensions to video dimensions
-    canvas.width = video.videoWidth
-    canvas.height = video.videoHeight
+    // Pre-read layout properties before any DOM writes to avoid forced reflow
+    const width = video.videoWidth
+    const height = video.videoHeight
 
-    // Draw video frame to canvas
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return
+    // Defer heavy canvas work out of the click handler to keep it responsive
+    requestAnimationFrame(() => {
+      // Set canvas dimensions to video dimensions
+      canvas.width = width
+      canvas.height = height
 
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height)
+      // Draw video frame to canvas
+      const ctx = canvas.getContext('2d')
+      if (!ctx) return
 
-    // Convert to blob
-    canvas.toBlob((blob) => {
-      if (!blob) {
-        toast.error('Failed to capture photo')
-        return
-      }
+      ctx.drawImage(video, 0, 0, width, height)
 
-      const file = new File([blob], `capture_${Date.now()}.jpg`, {
-        type: 'image/jpeg',
-      })
+      // Convert to blob
+      canvas.toBlob((blob) => {
+        if (!blob) {
+          toast.error('Failed to capture photo')
+          return
+        }
 
-      const metadata: CameraMetadata = {
-        timestamp: new Date(),
-        deviceInfo: navigator.userAgent,
-        facing: facingMode,
-        flash: flashEnabled,
-        width: canvas.width,
-        height: canvas.height,
-      }
+        const file = new File([blob], `capture_${Date.now()}.jpg`, {
+          type: 'image/jpeg',
+        })
 
-      onCapture(file, metadata)
-      stopCamera()
-    }, 'image/jpeg', 0.95)
+        const metadata: CameraMetadata = {
+          timestamp: new Date(),
+          deviceInfo: navigator.userAgent,
+          facing: facingMode,
+          flash: flashEnabled,
+          width,
+          height,
+        }
+
+        onCapture(file, metadata)
+        stopCamera()
+      }, 'image/jpeg', 0.95)
+    })
   }
 
   // Initialize camera and metadata
   useEffect(() => {
     startCamera()
     
-    // Update time every second
+    // Update time every minute (display is HH:MM only, second-level updates cause unnecessary re-renders)
     const timeInterval = setInterval(() => {
       setCurrentTime(new Date())
-    }, 1000)
+    }, 60000)
     
     // Get GPS location
     if (navigator.geolocation) {
