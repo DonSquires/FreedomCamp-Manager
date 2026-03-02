@@ -27,6 +27,7 @@ import OrganizationProfile from '@/pages/OrganizationProfile'
 import AuditLog from '@/pages/AuditLog'
 import EnforcementActions from '@/pages/EnforcementActions'
 import EnforcementCommandCenter from '@/pages/EnforcementCommandCenter'
+import InfringementNotices from '@/pages/InfringementNotices'
 import PrivacyCurtain from '@/pages/PrivacyCurtain'
 import PatrolCheckpointManagement from '@/pages/PatrolCheckpointManagement'
 import DataManagementHub from '@/pages/DataManagementHub'
@@ -315,6 +316,17 @@ export default function App() {
               <ProtectedRoute>
                 <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
                   <EnforcementCommandCenter />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/infringements"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master', 'officer']}>
+                  <InfringementNotices />
                 </RoleRoute>
               </ProtectedRoute>
             }

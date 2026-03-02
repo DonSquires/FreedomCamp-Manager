@@ -14,6 +14,7 @@ import {
   Settings,
   Database,
   Building2,
+  Gavel,
   Layers,
 } from 'lucide-react'
 
@@ -159,6 +160,23 @@ export default function AdminPortal() {
             <CardContent>
               <Button className="w-full" variant="outline" onClick={() => navigate('/enforcement')}>
                 View Enforcement
+              </Button>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Gavel className="h-5 w-5" />
+                Infringement Notices
+              </CardTitle>
+              <CardDescription>
+                Issue and track FCA fines — ADR/TicketOr2 style workflow
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button className="w-full" variant="outline" onClick={() => navigate('/infringements')}>
+                Manage Infringements
               </Button>
             </CardContent>
           </Card>

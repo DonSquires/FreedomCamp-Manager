@@ -530,6 +530,23 @@ export default function FieldOfficerPortal() {
               </Button>
             </CardContent>
           </Card>
+
+          <Card className="hover:shadow-lg transition-shadow border-red-200 dark:border-red-900">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <div className="p-2 bg-red-100 dark:bg-red-900 rounded-lg">
+                  <Shield className="h-5 w-5 text-red-600 dark:text-red-400" />
+                </div>
+                Infringement Notices
+              </CardTitle>
+              <CardDescription>Issue fines on-site</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button className="w-full" variant="outline" onClick={() => navigate('/infringements')}>
+                Issue / View Notices
+              </Button>
+            </CardContent>
+          </Card>
         </div>
       )}
 
