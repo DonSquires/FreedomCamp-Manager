@@ -22,6 +22,9 @@ interface LocationStatus {
   checked_at: string
 }
 
+// PostgREST error code for "function not found in schema cache" (HTTP 404)
+const PGRST_FUNCTION_NOT_FOUND = 'PGRST202'
+
 export function LocationAuthorizationStatus({
   organizationId,
   latitude,
@@ -32,9 +35,11 @@ export function LocationAuthorizationStatus({
   const [status, setStatus] = useState<LocationStatus | null>(null)
   const [checking, setChecking] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // When the RPC doesn't exist yet in the DB, hide the component silently
+  const [unavailable, setUnavailable] = useState(false)
 
   const checkLocation = async () => {
-    if (!latitude || !longitude || !organizationId) return
+    if (!latitude || !longitude || !organizationId || unavailable) return
 
     setChecking(true)
     setError(null)
@@ -46,7 +51,14 @@ export function LocationAuthorizationStatus({
         lat: latitude,
       })
 
-      if (rpcError) throw rpcError
+      if (rpcError) {
+        // Function not yet deployed to this database — hide quietly, stop polling
+        if (rpcError.code === PGRST_FUNCTION_NOT_FOUND) {
+          setUnavailable(true)
+          return
+        }
+        throw rpcError
+      }
 
       const newStatus: LocationStatus = {
         inside: data?.inside || false,
@@ -73,13 +85,16 @@ export function LocationAuthorizationStatus({
     checkLocation()
   }, [latitude, longitude, organizationId])
 
-  // Auto-refresh
+  // Auto-refresh — stops automatically once unavailable is set
   useEffect(() => {
-    if (!refreshInterval) return
+    if (!refreshInterval || unavailable) return
 
     const interval = setInterval(checkLocation, refreshInterval)
     return () => clearInterval(interval)
-  }, [refreshInterval, latitude, longitude, organizationId])
+  }, [refreshInterval, latitude, longitude, organizationId, unavailable])
+
+  // RPC not deployed yet — hide the component silently, no error shown
+  if (unavailable) return null
 
   if (error) {
     return (
