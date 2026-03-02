@@ -23,7 +23,11 @@ export async function alprWithBytes(
     timeout?: number;
   }
 ): Promise<ALPRResult> {
-  const token = Deno.env.get("PLATE_RECOGNIZER_TOKEN");
+  // Accept either name: PLATERECOGNIZER_TOKEN (canonical per build plan) or
+  // PLATE_RECOGNIZER_TOKEN (legacy name used before standardisation).
+  const token =
+    Deno.env.get("PLATERECOGNIZER_TOKEN") ??
+    Deno.env.get("PLATE_RECOGNIZER_TOKEN");
   const url = Deno.env.get("ALPR_CLOUD_URL") ?? "https://api.platerecognizer.com/v1/plate-reader/";
   const regions = options?.regions ?? Deno.env.get("ALPR_REGIONS") ?? "nz";
   const mmc = options?.mmc ?? (Deno.env.get("ALPR_MMC") === "true");
@@ -31,7 +35,7 @@ export async function alprWithBytes(
   const timeout = options?.timeout ?? Number(Deno.env.get("ALPR_TIMEOUT_MS") ?? 15000);
 
   if (!token) {
-    console.error("❌ PLATE_RECOGNIZER_TOKEN not configured");
+    console.error("❌ PLATERECOGNIZER_TOKEN (or PLATE_RECOGNIZER_TOKEN) not configured");
     return { plate: null, confidence: null, raw: null };
   }
 

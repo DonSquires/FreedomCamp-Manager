@@ -21,6 +21,7 @@
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
 import { withCors, jsonResponse, errorResponse } from '../_shared/withCors.ts';
+import { alprWithBytes } from '../_shared/alpr.ts';
 
 // Verify admin authorization
 function verifyAdmin(jwt: string): { userId: string; role: string } | null {
@@ -68,64 +69,39 @@ async function getLatestEvidencePath(
   return `${incidentId}/${data[0].name}`;
 }
 
-// Call ALPR provider (example: PlateRecognizer)
+// Run Plate Recognizer ALPR on an image URL
+// Downloads the image first, then sends bytes to the shared alpr helper using
+// multipart upload — consistent with alpr-process and compatible across all
+// Plate Recognizer plan tiers (including those that do not support upload_url JSON).
 async function runAlprDetection(imageUrl: string): Promise<{
   plate?: string;
   confidence?: number;
   provider: string;
   rawResponse: any;
 }> {
-  const apiToken = Deno.env.get('ALPR_API_TOKEN');
-  const apiUrl = Deno.env.get('ALPR_API_URL') || 'https://api.platerecognizer.com/v1/plate-reader/';
-
-  if (!apiToken) {
-    throw new Error('ALPR_API_TOKEN not configured');
-  }
-
   console.log(`🔍 Running ALPR on: ${imageUrl.substring(0, 100)}...`);
 
-  try {
-    const response = await fetch(apiUrl, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Token ${apiToken}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        upload_url: imageUrl,
-        regions: ['nz'], // New Zealand plates
-      }),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`ALPR API error (${response.status}): ${errorText}`);
-    }
-
-    const result = await response.json();
-    
-    // PlateRecognizer response format:
-    // { results: [{ plate: "ABC123", score: 0.95, ... }], ... }
-    const results = result.results || [];
-    const topResult = results[0];
-
-    if (!topResult) {
-      return {
-        provider: 'platerecognizer',
-        rawResponse: result,
-      };
-    }
-
-    return {
-      plate: topResult.plate,
-      confidence: topResult.score,
-      provider: 'platerecognizer',
-      rawResponse: result,
-    };
-  } catch (err) {
-    console.error('ALPR detection error:', err);
-    throw err;
+  // Download image bytes
+  const imgResponse = await fetch(imageUrl);
+  if (!imgResponse.ok) {
+    throw new Error(`Failed to download evidence image: ${imgResponse.status}`);
   }
+  const bytes = new Uint8Array(await imgResponse.arrayBuffer());
+
+  const result = await alprWithBytes(bytes, { regions: 'nz', mmc: true });
+
+  if (result.plate) {
+    console.log(`✅ ALPR success: ${result.plate} (confidence: ${result.confidence})`);
+  } else {
+    console.log('⚠️ ALPR: No plate detected');
+  }
+
+  return {
+    plate:       result.plate       ?? undefined,
+    confidence:  result.confidence  ?? undefined,
+    provider:    'platerecognizer',
+    rawResponse: result.raw,
+  };
 }
 
 serve(withCors(async (req) => {

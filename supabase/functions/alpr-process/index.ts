@@ -1,21 +1,24 @@
 /**
- * ALPR Process - RAILWAY INFERENCE ONLY
- * 
- * Flow:
- * 1. Frontend uploads photo to /scans/{user_id}/ and gets public URL
- * 2. Frontend sends photo_url + metadata to this function
- * 3. Function downloads photo from URL
- * 4. Function sends to Railway Inference Service (YOLOv8n + MobileNetV3 OCR)
- * 5. Function creates observation in database
- * 
- * Stage 1: Railway Inference Service (Free, self-hosted, decent accuracy)
- * Stage 2: MANUAL_REQUIRED (Zero-failure guarantee)
- * 
- * Uses SERVICE_ROLE_KEY to bypass RLS for system operations
+ * ALPR Process — 3-Stage Plate Recognition Pipeline
+ *
+ * Stage 1: Plate Recognizer  (PLATERECOGNIZER_TOKEN — primary, highest accuracy)
+ * Stage 2: Railway /infer    (INFERENCE_SERVICE_URL — vehicle embedding + plate fallback)
+ * Stage 3: MANUAL_REQUIRED  (zero-failure guarantee)
+ *
+ * Flow (UPDATE mode — triggered by FieldOfficerPortal after fast observation save):
+ *   1. Frontend uploads photo → scans bucket, saves observation (status=pending)
+ *   2. Frontend fire-and-forgets POST /alpr-process { observation_id, photo_url }
+ *   3. This function downloads photo, runs 3-stage pipeline, writes plate + embedding back
+ *
+ * Flow (CREATE mode — legacy, direct insert):
+ *   Validates fields, deduplicates, runs pipeline, inserts observation.
+ *
+ * Uses SERVICE_ROLE_KEY to bypass RLS for system operations.
  */
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3';
 import { corsHeaders } from '../_shared/cors.ts';
+import { alprWithBytes } from '../_shared/alpr.ts';
 
 // API Configuration
 const RAILWAY_INFERENCE_URL = Deno.env.get('INFERENCE_SERVICE_URL');
@@ -57,7 +60,7 @@ interface ALPRResponse {
   observation_id?: string;
   plate?: string;
   confidence?: number;
-  stage?: 'railway' | 'manual';
+  stage?: 'platerecognizer' | 'railway' | 'manual';
   vehicle?: {
     make?: string;
     model?: string;
@@ -206,52 +209,105 @@ Deno.serve(async (req) => {
     let vehicle: ALPRResponse['vehicle'] = {};
     let stage: ALPRResponse['stage'] = 'manual';
 
+    // Convert blob to bytes once — shared by Stage 1 (bytes) and Stage 2 (Blob)
+    const photoBytes = new Uint8Array(await photoBlob.arrayBuffer());
+
     // ==========================================================================
-    // STAGE 1: RAILWAY INFERENCE SERVICE (Primary - Self-Hosted)
+    // STAGE 1: PLATE RECOGNIZER (Primary — cloud ALPR, highest accuracy)
+    // Env var: PLATERECOGNIZER_TOKEN  (or PLATE_RECOGNIZER_TOKEN as fallback)
     // ==========================================================================
+    try {
+      console.log('🔍 Stage 1: Plate Recognizer...');
+      const alprResult = await alprWithBytes(photoBytes, {
+        regions: Array.isArray(body.regions) ? body.regions.join(',') : 'nz',
+        mmc: body.mmc ?? true,
+      });
+
+      if (alprResult.plate) {
+        plateNumber = alprResult.plate; // already uppercased by helper
+        plateConfidence = alprResult.confidence ?? 0;
+        stage = 'platerecognizer';
+        console.log('✅ Stage 1 Success:', { plate: plateNumber, confidence: plateConfidence });
+      } else {
+        console.log('⚠️ Stage 1: No plate detected by Plate Recognizer');
+        if (alprResult.raw?.error) {
+          warnings.push(`Plate Recognizer: ${alprResult.raw.error}`);
+        } else {
+          warnings.push('Plate Recognizer: no plate detected');
+        }
+      }
+    } catch (error: any) {
+      console.error('❌ Stage 1 Exception:', error.message);
+      warnings.push(`Plate Recognizer exception: ${error.message}`);
+    }
+
+    // ==========================================================================
+    // STAGE 2: RAILWAY INFERENCE SERVICE (vehicle embedding + plate fallback)
+    // Endpoint: POST /infer  (multipart/form-data with "photo" field)
+    // Returns:  { success, data: { embedding[], embedding_quality, detection: { confidence } } }
+    // Plate extraction only available when OPENAI_API_KEY is set on Railway.
+    // ==========================================================================
+    let vehicleEmbedding: number[] | null = null;
+    let embeddingQuality: number | null = null;
+
     if (RAILWAY_INFERENCE_URL) {
       try {
-        console.log('🚂 Stage 1: Railway Inference Service...');
-        
-        // Convert blob to base64 for Railway
-        const arrayBuffer = await photoBlob.arrayBuffer();
-        const base64 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
-        const imageDataUrl = `data:image/jpeg;base64,${base64}`;
-        
-        const railwayResponse = await fetch(`${RAILWAY_INFERENCE_URL}/detect`, {
+        console.log('🚂 Stage 2: Railway Inference Service /infer ...');
+
+        const inferForm = new FormData();
+        inferForm.append('photo', new Blob([photoBytes], { type: 'image/jpeg' }), 'photo.jpg');
+
+        const railwayResponse = await fetch(`${RAILWAY_INFERENCE_URL}/infer`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ image: imageDataUrl }),
+          body: inferForm,
         });
 
         if (railwayResponse.ok) {
           const railwayData = await railwayResponse.json();
-          
-          if (railwayData.plate && railwayData.plate !== 'UNKNOWN') {
-            plateNumber = railwayData.plate.toUpperCase();
-            plateConfidence = railwayData.confidence || 0.5;
-            stage = 'railway';
 
-            if (railwayData.vehicle) {
-              vehicle = {
-                make: railwayData.vehicle.make,
-                model: railwayData.vehicle.model,
-                color: railwayData.vehicle.color,
-                type: railwayData.vehicle.type,
-              };
+          if (railwayData.success && railwayData.data) {
+            const inferData = railwayData.data;
+
+            // Always store embedding for visual vehicle matching
+            if (inferData.embedding && Array.isArray(inferData.embedding)) {
+              vehicleEmbedding = inferData.embedding;
+              embeddingQuality = inferData.embedding_quality ?? null;
+              if (stage !== 'platerecognizer') {
+                // Only use Railway confidence when Plate Recognizer didn't fire
+                plateConfidence = inferData.detection?.confidence ?? 0.5;
+                stage = 'railway';
+              }
+              console.log('✅ Stage 2: embedding stored, detection confidence:', inferData.detection?.confidence);
+            } else {
+              warnings.push('Railway Inference returned no embedding');
             }
 
-            console.log('✅ Stage 1 Success:', { plate: plateNumber, confidence: plateConfidence });
+            // Use Railway plate only if Stage 1 didn't find one
+            if (!plateNumber && inferData.plate_number && inferData.plate_number !== 'UNKNOWN') {
+              plateNumber = inferData.plate_number.toUpperCase();
+              plateConfidence = inferData.detection?.confidence ?? 0.5;
+              stage = 'railway';
+              console.log('✅ Stage 2: plate from Railway:', plateNumber);
+            }
+
+            // Vehicle make/model/colour (Railway provides if OPENAI_API_KEY set)
+            if (inferData.vehicle_make || inferData.vehicle_model) {
+              vehicle = {
+                make: inferData.vehicle_make,
+                model: inferData.vehicle_model,
+                color: inferData.vehicle_colour,
+              };
+            }
           } else {
-            console.log('⚠️ Stage 1: No plate detected');
-            warnings.push('Railway Inference found no plate');
+            console.log('⚠️ Stage 2: No vehicle detected in photo');
+            warnings.push('Railway Inference: no vehicle detected');
           }
         } else {
-          console.error('❌ Stage 1 Error:', railwayResponse.status);
+          console.error('❌ Stage 2 Error:', railwayResponse.status);
           warnings.push(`Railway Inference error: ${railwayResponse.status}`);
         }
       } catch (error: any) {
-        console.error('❌ Stage 1 Exception:', error.message);
+        console.error('❌ Stage 2 Exception:', error.message);
         warnings.push(`Railway Inference exception: ${error.message}`);
       }
     } else {
@@ -259,10 +315,10 @@ Deno.serve(async (req) => {
     }
 
     // ==========================================================================
-    // STAGE 2: FALLBACK TO MANUAL ENTRY (Zero-Failure Guarantee)
+    // STAGE 3: MANUAL ENTRY FALLBACK (Zero-Failure Guarantee)
     // ==========================================================================
     if (!plateNumber) {
-      console.log('⚠️ Railway Inference failed - creating MANUAL_REQUIRED observation');
+      console.log('⚠️ Stages 1+2 found no plate — flagging for manual entry');
       plateNumber = 'MANUAL_REQUIRED';
       stage = 'manual';
       warnings.push('AI detection failed - manual plate entry required');
@@ -275,7 +331,7 @@ Deno.serve(async (req) => {
 
     if (isUpdateMode) {
       // UPDATE MODE: Update existing observation with AI results
-      const updateData = {
+      const updateData: Record<string, any> = {
         plate_number: plateNumber,
         vehicle_make: vehicle.make || null,
         vehicle_model: vehicle.model || null,
@@ -284,6 +340,14 @@ Deno.serve(async (req) => {
         processing_completed_at: new Date().toISOString(),
         processing_error: warnings.length > 0 ? warnings.join('; ') : null,
       };
+
+      // Store vehicle embedding when inference service provided one
+      if (vehicleEmbedding) {
+        updateData.vehicle_embedding = JSON.stringify(vehicleEmbedding);
+        updateData.embedding_quality = embeddingQuality;
+        updateData.embedding_model_version = 'yolov8n_mobilenetv3_v1.0';
+        updateData.embedding_created_at = new Date().toISOString();
+      }
 
       console.log('💾 Updating observation:', {
         observation_id: body.observation_id,

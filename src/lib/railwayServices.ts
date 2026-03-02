@@ -157,159 +157,182 @@ export async function enrichVehicleFromMotorWeb(
 
 // ============================================================================
 // INFERENCE SERVICE (ORC/AI)
+// The inference service exposes a single POST /infer endpoint that accepts a
+// multipart photo and returns vehicle detection + 384-D embedding.
+// Plate extraction is available only when OPENAI_API_KEY is set on Railway.
 // ============================================================================
 
-export interface VehicleDetectionResult {
-  detected: boolean
-  objects: Array<{
-    class: string
+export interface InferResult {
+  /** 384-D MobileNetV3 embedding vector */
+  embedding: number[]
+  embedding_quality: number
+  embedding_model_version: string
+  detection: {
     confidence: number
     bbox: [number, number, number, number]
-  }>
+    class: string
+  }
+  /** Only present when OPENAI_API_KEY is set on the Railway service */
+  plate_number?: string
+  vehicle_make?: string
+  vehicle_model?: string
+  vehicle_colour?: string
+}
+
+// Legacy type aliases kept for backwards-compatibility
+export type VehicleDetectionResult = {
+  detected: boolean
+  objects: Array<{ class: string; confidence: number; bbox: [number, number, number, number] }>
   vehicle_count: number
 }
 
-export interface VehicleEmbeddingResult {
+export type VehicleEmbeddingResult = {
   embedding: number[]
   embedding_quality: number
   model_version: string
 }
 
-export interface OCRResult {
+export type OCRResult = {
   plate_number: string
   confidence: number
   bounding_box: [number, number, number, number]
 }
 
 /**
- * Detect vehicles in photo using YOLO model
+ * Core inference call – sends a photo URL to the /infer endpoint.
+ * Downloads the photo, then uploads it as multipart/form-data to Railway.
+ */
+export async function inferVehicle(
+  photoUrl: string
+): Promise<{ data: InferResult | null; error: string | null }> {
+  const { inferenceUrl, error: urlError } = await getRailwayServiceURLs()
+
+  if (urlError || !inferenceUrl) {
+    return {
+      data: null,
+      error: urlError || 'Inference service URL not configured',
+    }
+  }
+
+  try {
+    // Download the photo from storage so we can send it as a file
+    const photoResponse = await fetch(photoUrl)
+    if (!photoResponse.ok) {
+      return { data: null, error: `Failed to download photo: ${photoResponse.status}` }
+    }
+    const photoBlob = await photoResponse.blob()
+
+    const form = new FormData()
+    form.append('photo', photoBlob, 'photo.jpg')
+
+    const response = await fetch(`${inferenceUrl}/infer`, {
+      method: 'POST',
+      body: form,
+    })
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      return {
+        data: null,
+        error: `Inference failed: ${response.status} - ${errorText}`,
+      }
+    }
+
+    const json = await response.json()
+    if (!json.success || !json.data) {
+      return { data: null, error: 'No vehicle detected in photo' }
+    }
+
+    const d = json.data
+    return {
+      data: {
+        embedding:               d.embedding,
+        embedding_quality:       d.embedding_quality,
+        embedding_model_version: d.embedding_model_version ?? 'yolov8n_mobilenetv3_v1.0',
+        detection: {
+          confidence: d.detection?.confidence ?? 0,
+          bbox:       d.detection?.bbox       ?? [0, 0, 0, 0],
+          class:      d.detection?.class      ?? 'vehicle',
+        },
+        plate_number:  d.plate_number  ?? undefined,
+        vehicle_make:  d.vehicle_make  ?? undefined,
+        vehicle_model: d.vehicle_model ?? undefined,
+        vehicle_colour:d.vehicle_colour ?? undefined,
+      },
+      error: null,
+    }
+  } catch (error: any) {
+    return {
+      data: null,
+      error: error.message || 'Network error contacting inference service',
+    }
+  }
+}
+
+/**
+ * Detect vehicles in photo using YOLO model.
+ * @deprecated Use inferVehicle() – maps to the same /infer endpoint.
  */
 export async function detectVehicles(
   photoUrl: string
 ): Promise<{ data: VehicleDetectionResult | null; error: string | null }> {
-  const { inferenceUrl, error: urlError } = await getRailwayServiceURLs()
-
-  if (urlError || !inferenceUrl) {
-    return {
-      data: null,
-      error: urlError || 'Inference service URL not configured',
-    }
-  }
-
-  try {
-    const response = await fetch(`${inferenceUrl}/detect`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ image_url: photoUrl }),
-    })
-
-    if (!response.ok) {
-      const errorText = await response.text()
-      return {
-        data: null,
-        error: `Vehicle detection failed: ${response.status} - ${errorText}`,
-      }
-    }
-
-    const data = await response.json()
-    return { data, error: null }
-  } catch (error: any) {
-    return {
-      data: null,
-      error: error.message || 'Network error contacting inference service',
-    }
+  const { data, error } = await inferVehicle(photoUrl)
+  if (error || !data) return { data: null, error }
+  return {
+    data: {
+      detected: true,
+      objects: [{ class: data.detection.class, confidence: data.detection.confidence, bbox: data.detection.bbox }],
+      vehicle_count: 1,
+    },
+    error: null,
   }
 }
 
 /**
- * Generate 384-D embedding for vehicle photo
+ * Generate 384-D embedding for vehicle photo.
+ * @deprecated Use inferVehicle() – maps to the same /infer endpoint.
  */
 export async function generateVehicleEmbedding(
   photoUrl: string
 ): Promise<{ data: VehicleEmbeddingResult | null; error: string | null }> {
-  const { inferenceUrl, error: urlError } = await getRailwayServiceURLs()
-
-  if (urlError || !inferenceUrl) {
-    return {
-      data: null,
-      error: urlError || 'Inference service URL not configured',
-    }
-  }
-
-  try {
-    const response = await fetch(`${inferenceUrl}/embed`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ image_url: photoUrl }),
-    })
-
-    if (!response.ok) {
-      const errorText = await response.text()
-      return {
-        data: null,
-        error: `Embedding generation failed: ${response.status} - ${errorText}`,
-      }
-    }
-
-    const data = await response.json()
-    return { data, error: null }
-  } catch (error: any) {
-    return {
-      data: null,
-      error: error.message || 'Network error contacting inference service',
-    }
+  const { data, error } = await inferVehicle(photoUrl)
+  if (error || !data) return { data: null, error }
+  return {
+    data: {
+      embedding:       data.embedding,
+      embedding_quality: data.embedding_quality,
+      model_version:   data.embedding_model_version,
+    },
+    error: null,
   }
 }
 
 /**
- * Perform OCR on vehicle photo to extract plate number
+ * Perform OCR on vehicle photo to extract plate number.
+ * Plate extraction requires OPENAI_API_KEY on the Railway inference service.
+ * @deprecated Use inferVehicle() – maps to the same /infer endpoint.
  */
 export async function performOCR(
   photoUrl: string
 ): Promise<{ data: OCRResult | null; error: string | null }> {
-  const { inferenceUrl, error: urlError } = await getRailwayServiceURLs()
-
-  if (urlError || !inferenceUrl) {
-    return {
-      data: null,
-      error: urlError || 'Inference service URL not configured',
-    }
+  const { data, error } = await inferVehicle(photoUrl)
+  if (error || !data) return { data: null, error }
+  if (!data.plate_number) {
+    return { data: null, error: 'No plate number detected (OPENAI_API_KEY not set on inference service)' }
   }
-
-  try {
-    const response = await fetch(`${inferenceUrl}/ocr`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ image_url: photoUrl }),
-    })
-
-    if (!response.ok) {
-      const errorText = await response.text()
-      return {
-        data: null,
-        error: `OCR failed: ${response.status} - ${errorText}`,
-      }
-    }
-
-    const data = await response.json()
-    return { data, error: null }
-  } catch (error: any) {
-    return {
-      data: null,
-      error: error.message || 'Network error contacting inference service',
-    }
+  return {
+    data: {
+      plate_number: data.plate_number,
+      confidence:   data.detection.confidence,
+      bounding_box: data.detection.bbox,
+    },
+    error: null,
   }
 }
 
 /**
- * Analyze vehicle photo with full AI pipeline
- * Returns detection + embedding + OCR
+ * Analyze vehicle photo with full AI pipeline.
+ * @deprecated Use inferVehicle() – maps to the same /infer endpoint.
  */
 export async function analyzeVehiclePhoto(photoUrl: string): Promise<{
   data: {
@@ -319,39 +342,29 @@ export async function analyzeVehiclePhoto(photoUrl: string): Promise<{
   } | null
   error: string | null
 }> {
-  const { inferenceUrl, error: urlError } = await getRailwayServiceURLs()
-
-  if (urlError || !inferenceUrl) {
-    return {
-      data: null,
-      error: urlError || 'Inference service URL not configured',
-    }
-  }
-
-  try {
-    const response = await fetch(`${inferenceUrl}/analyze`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
+  const { data, error } = await inferVehicle(photoUrl)
+  if (error || !data) return { data: null, error }
+  return {
+    data: {
+      detection: {
+        detected: true,
+        objects: [{ class: data.detection.class, confidence: data.detection.confidence, bbox: data.detection.bbox }],
+        vehicle_count: 1,
       },
-      body: JSON.stringify({ image_url: photoUrl }),
-    })
-
-    if (!response.ok) {
-      const errorText = await response.text()
-      return {
-        data: null,
-        error: `Analysis failed: ${response.status} - ${errorText}`,
-      }
-    }
-
-    const data = await response.json()
-    return { data, error: null }
-  } catch (error: any) {
-    return {
-      data: null,
-      error: error.message || 'Network error contacting inference service',
-    }
+      embedding: {
+        embedding:       data.embedding,
+        embedding_quality: data.embedding_quality,
+        model_version:   data.embedding_model_version,
+      },
+      ...(data.plate_number ? {
+        ocr: {
+          plate_number: data.plate_number,
+          confidence: data.detection.confidence,
+          bounding_box: data.detection.bbox,
+        }
+      } : {}),
+    },
+    error: null,
   }
 }
 
@@ -456,7 +469,8 @@ export const railwayServices = {
   checkNZSCVCertification,
   enrichVehicleFromMotorWeb,
 
-  // Inference
+  // Inference (use inferVehicle for new code; others are compatibility wrappers)
+  inferVehicle,
   detectVehicles,
   generateVehicleEmbedding,
   performOCR,
