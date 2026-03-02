@@ -6,6 +6,20 @@
 
 import { supabase } from './supabase'
 import { checkRailwayServicesHealth } from './railway'
+import type { Database } from '@/types/database'
+
+// Type aliases for query results
+type Organization = Database['public']['Tables']['organizations']['Row']
+type UserProfile = Database['public']['Tables']['user_profiles']['Row']
+type CanonicalVehicle = Database['public']['Tables']['canonical_vehicles']['Row']
+type Zone = Database['public']['Tables']['zones']['Row']
+type Observation = Database['public']['Tables']['observations']['Row']
+type BreachAlert = Database['public']['Tables']['breach_alerts']['Row']
+
+// Types for tables not in database.ts
+// These are manual definitions for tables that haven't been regenerated in the types file yet
+type ComplianceResult = { observation_id: string }
+type VehicleMonthlyStay = { plate_number: string; nights_stayed: number; consecutive_nights: number }
 
 /**
  * Smoke Test Suite - Verify critical app functionality
@@ -25,8 +39,9 @@ export const smokeTests = {
       
       if (error) throw error
       
+      const orgs = data as Pick<Organization, 'id' | 'name'>[] | null
       console.log('✅ Database connection successful')
-      console.log('   Sample organization:', data?.[0]?.name || 'None found')
+      console.log('   Sample organization:', orgs?.[0]?.name || 'None found')
       return { success: true, data }
     } catch (error: any) {
       console.error('❌ Database connection failed:', error.message)
@@ -78,11 +93,12 @@ export const smokeTests = {
       
       if (error) throw error
       
+      const profile = data as Pick<UserProfile, 'id' | 'first_name' | 'last_name' | 'role' | 'organization_id'> | null
       console.log('✅ User profile loaded')
-      console.log('   Name:', `${data.first_name} ${data.last_name}`)
-      console.log('   Role:', data.role)
-      console.log('   Organization ID:', data.organization_id)
-      return { success: true, profile: data }
+      console.log('   Name:', `${profile?.first_name} ${profile?.last_name}`)
+      console.log('   Role:', profile?.role)
+      console.log('   Organization ID:', profile?.organization_id)
+      return { success: true, profile }
     } catch (error: any) {
       console.error('❌ User profile load failed:', error.message)
       return { success: false, error: error.message }
@@ -103,12 +119,13 @@ export const smokeTests = {
       
       if (error) throw error
       
+      const vehicles = data as Pick<CanonicalVehicle, 'plate_number' | 'make' | 'model' | 'total_observations'>[] | null
       console.log('✅ Vehicle query successful')
-      console.log(`   Found ${data?.length || 0} vehicles`)
-      if (data && data.length > 0) {
-        console.log('   Sample:', data[0].plate_number, '-', data[0].make, data[0].model)
+      console.log(`   Found ${vehicles?.length || 0} vehicles`)
+      if (vehicles && vehicles.length > 0) {
+        console.log('   Sample:', vehicles[0].plate_number, '-', vehicles[0].make, vehicles[0].model)
       }
-      return { success: true, count: data?.length || 0 }
+      return { success: true, count: vehicles?.length || 0 }
     } catch (error: any) {
       console.error('❌ Vehicle query failed:', error.message)
       return { success: false, error: error.message }
@@ -129,12 +146,13 @@ export const smokeTests = {
       
       if (error) throw error
       
+      const zones = data as Pick<Zone, 'id' | 'name' | 'organization_id'>[] | null
       console.log('✅ Zone query successful')
-      console.log(`   Found ${data?.length || 0} zones`)
-      if (data && data.length > 0) {
-        console.log('   Sample:', data[0].name)
+      console.log(`   Found ${zones?.length || 0} zones`)
+      if (zones && zones.length > 0) {
+        console.log('   Sample:', zones[0].name)
       }
-      return { success: true, count: data?.length || 0 }
+      return { success: true, count: zones?.length || 0 }
     } catch (error: any) {
       console.error('❌ Zone query failed:', error.message)
       return { success: false, error: error.message }
@@ -156,13 +174,14 @@ export const smokeTests = {
       
       if (error) throw error
       
+      const observations = data as Pick<Observation, 'id' | 'plate_number' | 'recorded_at' | 'is_compliant'>[] | null
       console.log('✅ Observation query successful')
-      console.log(`   Found ${data?.length || 0} observations`)
-      if (data && data.length > 0) {
-        const latest = data[0]
+      console.log(`   Found ${observations?.length || 0} observations`)
+      if (observations && observations.length > 0) {
+        const latest = observations[0]
         console.log('   Latest:', latest.plate_number, 'at', new Date(latest.recorded_at).toLocaleString())
       }
-      return { success: true, count: data?.length || 0 }
+      return { success: true, count: observations?.length || 0 }
     } catch (error: any) {
       console.error('❌ Observation query failed:', error.message)
       return { success: false, error: error.message }
@@ -183,13 +202,14 @@ export const smokeTests = {
       
       if (error) throw error
       
+      const breaches = data as Pick<BreachAlert, 'id' | 'plate_number' | 'breach_type' | 'status'>[] | null
       console.log('✅ Breach alert query successful')
-      console.log(`   Found ${data?.length || 0} breach alerts`)
-      if (data && data.length > 0) {
-        const pending = data.filter(b => b.status === 'pending').length
-        console.log('   Pending:', pending, '/', data.length)
+      console.log(`   Found ${breaches?.length || 0} breach alerts`)
+      if (breaches && breaches.length > 0) {
+        const pending = breaches.filter(b => b.status === 'pending').length
+        console.log('   Pending:', pending, '/', breaches.length)
       }
-      return { success: true, count: data?.length || 0 }
+      return { success: true, count: breaches?.length || 0 }
     } catch (error: any) {
       console.error('❌ Breach alert query failed:', error.message)
       return { success: false, error: error.message }
@@ -327,21 +347,23 @@ export const dataVerification = {
    * Verify compliance results exist for all observations
    */
   async verifyComplianceResults() {
-    const { data: observations } = await supabase
+    const { data: observationsData } = await supabase
       .from('observations')
       .select('id')
       .is('deleted_at', null)
       .limit(100)
 
+    const observations = observationsData as Pick<Observation, 'id'>[] | null
     if (!observations) return { total: 0, missing: 0 }
 
     const observationIds = observations.map(o => o.id)
     
-    const { data: complianceResults } = await supabase
+    const { data: complianceResultsData } = await supabase
       .from('compliance_results')
       .select('observation_id')
       .in('observation_id', observationIds)
 
+    const complianceResults = complianceResultsData as ComplianceResult[] | null
     const complianceObsIds = new Set(complianceResults?.map(c => c.observation_id) || [])
     const missing = observationIds.filter(id => !complianceObsIds.has(id))
 
@@ -364,7 +386,7 @@ export const dataVerification = {
   async verifyMonthlyStays() {
     const currentMonth = new Date().toISOString().slice(0, 7) + '-01' // YYYY-MM-01
     
-    const { data: stays, error } = await supabase
+    const { data: staysData, error } = await supabase
       .from('vehicle_monthly_stays')
       .select('plate_number, nights_stayed, consecutive_nights')
       .eq('calendar_month', currentMonth)
@@ -374,6 +396,7 @@ export const dataVerification = {
       return null
     }
 
+    const stays = staysData as VehicleMonthlyStay[] | null
     console.log(`Monthly Stays (${currentMonth}): ${stays?.length || 0} vehicles tracked`)
     
     return {
@@ -444,10 +467,19 @@ export async function runSmokeTests() {
   return await smokeTests.runAll()
 }
 
+// Window extension interface for browser console access
+interface TestUtilsWindow {
+  smokeTests?: typeof smokeTests
+  dataVerification?: typeof dataVerification
+  performanceTests?: typeof performanceTests
+  runSmokeTests?: typeof runSmokeTests
+}
+
 // Make available in window for easy console access
 if (typeof window !== 'undefined') {
-  (window as any).smokeTests = smokeTests
-  (window as any).dataVerification = dataVerification
-  (window as any).performanceTests = performanceTests
-  (window as any).runSmokeTests = runSmokeTests
+  const win = window as TestUtilsWindow
+  win.smokeTests = smokeTests
+  win.dataVerification = dataVerification
+  win.performanceTests = performanceTests
+  win.runSmokeTests = runSmokeTests
 }

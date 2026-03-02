@@ -21,8 +21,16 @@ import {
   FileText,
   ExternalLink,
   Edit,
+  BarChart3,
 } from 'lucide-react'
 import { toast } from 'sonner'
+import type { Database } from '@/types/database'
+
+type CanonicalVehicle = Database['public']['Tables']['canonical_vehicles']['Row']
+
+type CanonicalVehicleWithFlaggedBy = CanonicalVehicle & {
+  user_profiles: { first_name: string; last_name: string } | null
+}
 
 interface VehicleDetailsPanelProps {
   plateNumber: string
@@ -54,7 +62,7 @@ export function VehicleDetailsPanel({
         .single()
 
       if (error) throw error
-      return data
+      return data as CanonicalVehicleWithFlaggedBy
     },
   })
 

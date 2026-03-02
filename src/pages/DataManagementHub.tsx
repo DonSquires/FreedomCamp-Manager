@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { AppLayout } from '@/components/features/AppLayout'
@@ -23,6 +23,19 @@ import {
   RefreshCw,
   Archive,
 } from 'lucide-react'
+
+// Type for import history records (table may not be in generated types)
+interface ImportHistoryRecord {
+  id: string
+  organization_id: string
+  import_type: string
+  file_name: string
+  status: string
+  records_imported: number
+  duplicates_skipped: number
+  failed_records: number
+  created_at: string
+}
 
 export default function DataManagementHub() {
   const { user } = useAuthStore()
@@ -103,7 +116,7 @@ export default function DataManagementHub() {
         throw error
       }
 
-      return data || []
+      return (data as ImportHistoryRecord[]) || []
     },
     enabled: !!user,
   })
@@ -142,28 +155,24 @@ export default function DataManagementHub() {
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           <StatCard
             title="Total Observations"
-            value={stats?.totalObservations || 0}
+            value={isLoading ? '...' : (stats?.totalObservations || 0)}
             icon={Database}
-            loading={isLoading}
           />
           <StatCard
             title="Unique Vehicles"
-            value={stats?.totalVehicles || 0}
+            value={isLoading ? '...' : (stats?.totalVehicles || 0)}
             icon={CheckCircle2}
-            loading={isLoading}
           />
           <StatCard
             title="Active Zones"
-            value={stats?.totalZones || 0}
+            value={isLoading ? '...' : (stats?.totalZones || 0)}
             icon={BarChart3}
-            loading={isLoading}
           />
           <StatCard
             title="Active Breaches"
-            value={stats?.activeBreaches || 0}
+            value={isLoading ? '...' : (stats?.activeBreaches || 0)}
             icon={AlertTriangle}
-            variant={stats?.activeBreaches ? 'destructive' : 'default'}
-            loading={isLoading}
+            variant={stats?.activeBreaches ? 'danger' : 'default'}
           />
         </div>
 

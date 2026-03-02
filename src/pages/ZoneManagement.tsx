@@ -16,23 +16,15 @@ import { toast } from 'sonner'
 import { AppLayout } from '@/components/features/AppLayout'
 import { GlobalFilterRibbon } from '@/components/features/GlobalFilterRibbon'
 import { ZoneGeofenceEditor } from '@/components/features/ZoneGeofenceEditor'
+import type { Database } from '@/types/database'
 
-interface Zone {
-  id: string
-  name: string
-  organization_id: string
-  parent_zone_id: string | null
-  zone_type: string
-  location_lat: number | null
-  location_lng: number | null
-  geometry: any
-  geom: any
-  is_active: boolean
-  day_visit_only: boolean
-  nights_per_month: number
-  max_consecutive_nights: number
-  self_contained_required: boolean
-  created_at: string
+// Database row type for zones
+type ZoneRow = Database['public']['Tables']['zones']['Row']
+type ZoneInsert = Database['public']['Tables']['zones']['Insert']
+type ZoneUpdate = Database['public']['Tables']['zones']['Update']
+
+// Extended zone with relations and counts
+interface Zone extends ZoneRow {
   organization?: {
     id: string
     name: string
@@ -41,6 +33,8 @@ interface Zone {
     id: string
     name: string
   }
+  observationCount?: number
+  breachCount?: number
 }
 
 interface Organization {
@@ -141,9 +135,12 @@ export default function ZoneManagement() {
       const { data, error } = await query
       if (error) throw error
 
+      // Cast data to Zone array (includes relations from join)
+      const zonesData = (data || []) as Zone[]
+
       // Fetch counts for each zone
       const zonesWithCounts = await Promise.all(
-        (data || []).map(async (zone) => {
+        zonesData.map(async (zone) => {
           const [obsCount, breachCount] = await Promise.all([
             supabase.from('observations').select('id', { count: 'exact', head: true }).eq('zone_id', zone.id),
             supabase.from('breach_alerts').select('id', { count: 'exact', head: true }).eq('zone_id', zone.id),
@@ -153,7 +150,7 @@ export default function ZoneManagement() {
             ...zone,
             observationCount: obsCount.count || 0,
             breachCount: breachCount.count || 0,
-          }
+          } as Zone
         })
       )
 
@@ -164,8 +161,8 @@ export default function ZoneManagement() {
   // Toggle zone active status
   const toggleActiveMutation = useMutation({
     mutationFn: async ({ zoneId, isActive }: { zoneId: string; isActive: boolean }) => {
-      const { error } = await supabase
-        .from('zones')
+      const { error } = await (supabase
+        .from('zones') as any)
         .update({ is_active: !isActive })
         .eq('id', zoneId)
 
@@ -182,11 +179,11 @@ export default function ZoneManagement() {
 
   // Update zone mutation
   const updateZoneMutation = useMutation({
-    mutationFn: async (updates: Partial<Zone>) => {
+    mutationFn: async (updates: ZoneUpdate) => {
       if (!selectedZone) throw new Error('No zone selected')
       
-      const { error } = await supabase
-        .from('zones')
+      const { error } = await (supabase
+        .from('zones') as any)
         .update(updates)
         .eq('id', selectedZone.id)
 
@@ -211,20 +208,22 @@ export default function ZoneManagement() {
       const orgId = user?.role === 'master' ? createOrganizationId : user?.organization_id
       if (!orgId) throw new Error('Organization is required')
 
-      const { error } = await supabase
-        .from('zones')
-        .insert({
-          name: createName.trim(),
-          description: createDescription || null,
-          organization_id: orgId,
-          zone_type: createZoneType,
-          parent_zone_id: createZoneType === 'general' ? null : createParentZoneId,
-          nights_per_month: createNightsPerMonth,
-          max_consecutive_nights: createMaxConsecutive,
-          day_visit_only: createDayVisitOnly,
-          self_contained_required: createSelfContained,
-          is_active: true,
-        })
+      const insertData: ZoneInsert = {
+        name: createName.trim(),
+        description: createDescription || null,
+        organization_id: orgId,
+        zone_type: createZoneType,
+        parent_zone_id: createZoneType === 'general' ? null : createParentZoneId,
+        nights_per_month: createNightsPerMonth,
+        max_consecutive_nights: createMaxConsecutive,
+        day_visit_only: createDayVisitOnly,
+        self_contained_required: createSelfContained,
+        is_active: true,
+      }
+
+      const { error } = await (supabase
+        .from('zones') as any)
+        .insert(insertData)
 
       if (error) throw error
     },
@@ -739,8 +738,8 @@ export default function ZoneManagement() {
                   onSave={async (geometry) => {
                     if (!selectedZone) return
                     // Only update geometry (JSONB). geom is PostGIS and cannot be set from JSON directly.
-                    const { error } = await supabase
-                      .from('zones')
+                    const { error } = await (supabase
+                      .from('zones') as any)
                       .update({ geometry })
                       .eq('id', selectedZone.id)
                     if (error) throw error
@@ -759,7 +758,7 @@ export default function ZoneManagement() {
             </Button>
             <Button 
               onClick={() => {
-                const updates: Partial<Zone> = {
+                const updates: ZoneUpdate = {
                   name: editName,
                   description: editDescription || null,
                   nights_per_month: editNightsPerMonth,

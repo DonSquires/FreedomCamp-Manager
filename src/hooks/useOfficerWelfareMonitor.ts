@@ -8,6 +8,21 @@ import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { toast } from 'sonner'
 
+/**
+ * Helper for querying tables not yet defined in database.ts.
+ * @param name - The table name to query
+ * @returns An untyped Supabase query builder - use with caution as there's no type safety
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const untypedTable = (name: string) => (supabase as any).from(name)
+
+// Type for welfare alert stats query result
+type WelfareAlertStats = {
+  alert_type: string
+  status: string
+  escalation_level: number | null
+}
+
 interface WelfareAlert {
   id: string
   officer_id: string
@@ -62,8 +77,7 @@ export function useOfficerWelfareMonitor(options?: {
   const alertsQuery = useQuery({
     queryKey: ['welfare-alerts', options],
     queryFn: async () => {
-      let query = supabase
-        .from('officer_welfare_alerts')
+      let query = untypedTable('officer_welfare_alerts')
         .select('*')
         .order('created_at', { ascending: false })
 
@@ -99,8 +113,7 @@ export function useOfficerWelfareMonitor(options?: {
   // Acknowledge alert mutation
   const acknowledgeAlert = useMutation({
     mutationFn: async ({ alertId, notes }: { alertId: string; notes?: string }) => {
-      const { error } = await supabase
-        .from('officer_welfare_alerts')
+      const { error } = await untypedTable('officer_welfare_alerts')
         .update({
           status: 'acknowledged',
           acknowledged_by: user?.id,
@@ -123,8 +136,7 @@ export function useOfficerWelfareMonitor(options?: {
   // Resolve alert mutation
   const resolveAlert = useMutation({
     mutationFn: async ({ alertId, notes }: { alertId: string; notes?: string }) => {
-      const { error } = await supabase
-        .from('officer_welfare_alerts')
+      const { error } = await untypedTable('officer_welfare_alerts')
         .update({
           status: 'resolved',
           resolved_by: user?.id,
@@ -169,8 +181,7 @@ export function useOfficerWelfareSettings(userId?: string) {
       const targetUserId = userId || user?.id
       if (!targetUserId) return null
 
-      const { data, error } = await supabase
-        .from('officer_welfare_settings')
+      const { data, error } = await untypedTable('officer_welfare_settings')
         .select('*')
         .eq('user_id', targetUserId)
         .single()
@@ -195,24 +206,21 @@ export function useOfficerWelfareSettings(userId?: string) {
       if (!targetUserId) throw new Error('No user ID')
 
       // Check if settings exist
-      const { data: existing } = await supabase
-        .from('officer_welfare_settings')
+      const { data: existing } = await untypedTable('officer_welfare_settings')
         .select('id')
         .eq('user_id', targetUserId)
         .single()
 
       if (existing) {
         // Update existing
-        const { error } = await supabase
-          .from('officer_welfare_settings')
+        const { error } = await untypedTable('officer_welfare_settings')
           .update(updates)
           .eq('user_id', targetUserId)
 
         if (error) throw error
       } else {
         // Insert new
-        const { error } = await supabase
-          .from('officer_welfare_settings')
+        const { error } = await untypedTable('officer_welfare_settings')
           .insert({
             user_id: targetUserId,
             organization_id: user?.organization_id,
@@ -249,8 +257,7 @@ export function useWelfareStats(options?: {
   return useQuery({
     queryKey: ['welfare-stats', options],
     queryFn: async () => {
-      let query = supabase
-        .from('officer_welfare_alerts')
+      let query = untypedTable('officer_welfare_alerts')
         .select('alert_type, status, escalation_level')
 
       // Organization scoping
@@ -269,13 +276,15 @@ export function useWelfareStats(options?: {
 
       if (error) throw error
 
+      const alerts = data as WelfareAlertStats[] | null
+
       return {
-        total: data?.length || 0,
-        pending: data?.filter(a => a.status === 'pending').length || 0,
-        acknowledged: data?.filter(a => a.status === 'acknowledged').length || 0,
-        resolved: data?.filter(a => a.status === 'resolved').length || 0,
-        escalated: data?.filter(a => a.escalation_level && a.escalation_level > 1).length || 0,
-        byType: data?.reduce((acc: Record<string, number>, alert: any) => {
+        total: alerts?.length || 0,
+        pending: alerts?.filter(a => a.status === 'pending').length || 0,
+        acknowledged: alerts?.filter(a => a.status === 'acknowledged').length || 0,
+        resolved: alerts?.filter(a => a.status === 'resolved').length || 0,
+        escalated: alerts?.filter(a => a.escalation_level && a.escalation_level > 1).length || 0,
+        byType: alerts?.reduce((acc: Record<string, number>, alert) => {
           acc[alert.alert_type] = (acc[alert.alert_type] || 0) + 1
           return acc
         }, {}),

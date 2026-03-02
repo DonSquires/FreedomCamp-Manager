@@ -18,6 +18,18 @@ import {
   XCircle,
   ExternalLink,
 } from 'lucide-react'
+import type { Database } from '@/types/database'
+
+// Type aliases for database tables
+type EnforcementActionRow = Database['public']['Tables']['enforcement_actions']['Row']
+type ZoneRow = Database['public']['Tables']['zones']['Row']
+type UserProfileRow = Database['public']['Tables']['user_profiles']['Row']
+
+// Extended type for enforcement action with joined relations
+type EnforcementActionWithRelations = EnforcementActionRow & {
+  zones: Pick<ZoneRow, 'name'> | null
+  user_profiles: Pick<UserProfileRow, 'first_name' | 'last_name'> | null
+}
 
 interface EnforcementTimelineProps {
   plateNumber: string
@@ -51,7 +63,7 @@ export function EnforcementTimeline({
         .limit(limit)
 
       if (error) throw error
-      return data || []
+      return (data || []) as EnforcementActionWithRelations[]
     },
   })
 
@@ -163,21 +175,21 @@ export function EnforcementTimeline({
                         {/* Details */}
                         <div className="space-y-2 text-sm">
                           {/* Zone */}
-                          {(action.zones as any)?.name && (
+                          {action.zones?.name && (
                             <div className="flex items-center gap-2">
                               <span className="text-muted-foreground">Zone:</span>
-                              <span>{(action.zones as any).name}</span>
+                              <span>{action.zones.name}</span>
                             </div>
                           )}
 
                           {/* Officer */}
-                          {(action.user_profiles as any)?.first_name && (
+                          {action.user_profiles?.first_name && (
                             <div className="flex items-center gap-2">
                               <User className="h-3 w-3 text-muted-foreground" />
                               <span className="text-muted-foreground">Officer:</span>
                               <span>
-                                {(action.user_profiles as any).first_name}{' '}
-                                {(action.user_profiles as any).last_name}
+                                {action.user_profiles.first_name}{' '}
+                                {action.user_profiles.last_name}
                               </span>
                             </div>
                           )}

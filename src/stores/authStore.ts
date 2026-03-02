@@ -1,7 +1,9 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { supabase } from '@/lib/supabase'
-import type { User } from '@supabase/supabase-js'
+import type { Database } from '@/types/database'
+
+type UserProfile = Database['public']['Tables']['user_profiles']['Row']
 
 interface AuthUser {
   id: string
@@ -44,14 +46,16 @@ export const useAuthStore = create<AuthState>()(
           .eq('id', data.user.id)
           .single()
 
-        if (profileError) throw profileError
+        if (profileError || !profile) throw profileError ?? new Error('Profile not found')
+
+        const typedProfile = profile as UserProfile
 
         const authUser: AuthUser = {
-          id: profile.id,
-          email: profile.email,
-          role: profile.role as AuthUser['role'],
-          organization_id: profile.organization_id,
-          full_name: `${profile.first_name} ${profile.last_name}`,
+          id: typedProfile.id,
+          email: typedProfile.email,
+          role: typedProfile.role as AuthUser['role'],
+          organization_id: typedProfile.organization_id,
+          full_name: `${typedProfile.first_name} ${typedProfile.last_name}`,
         }
 
         set({ user: authUser, isAuthenticated: true, loading: false })
@@ -78,12 +82,13 @@ export const useAuthStore = create<AuthState>()(
           .single()
 
         if (profile) {
+          const typedProfile = profile as UserProfile
           const authUser: AuthUser = {
-            id: profile.id,
-            email: profile.email,
-            role: profile.role as AuthUser['role'],
-            organization_id: profile.organization_id,
-            full_name: `${profile.first_name} ${profile.last_name}`,
+            id: typedProfile.id,
+            email: typedProfile.email,
+            role: typedProfile.role as AuthUser['role'],
+            organization_id: typedProfile.organization_id,
+            full_name: `${typedProfile.first_name} ${typedProfile.last_name}`,
           }
           set({ user: authUser, isAuthenticated: true, loading: false })
         } else {

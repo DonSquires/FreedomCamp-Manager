@@ -4,12 +4,11 @@
  */
 
 import { useState } from 'react'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useQueryClient } from '@tanstack/react-query'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Progress } from '@/components/ui/progress'
-import { useOfflineQueue } from '@/hooks/useOfflineQueue'
+import { useOfflineQueue, useOfflineQueueStats } from '@/hooks/useOfflineQueue'
 import { 
   RefreshCw, 
   Trash2, 
@@ -31,18 +30,19 @@ export function ScanQueue({ onRetrySuccess }: ScanQueueProps) {
   
   const {
     queue,
-    stats,
     isLoading,
-    retryItem,
-    retryAll,
-    clearQueue,
-    removeItem,
+    syncObservation,
+    syncAll,
+    clearSynced,
+    removeFromQueue,
   } = useOfflineQueue()
+
+  const { data: stats } = useOfflineQueueStats()
 
   // Retry single item
   const handleRetryItem = async (id: string) => {
     try {
-      await retryItem(id)
+      await syncObservation.mutateAsync(id)
       toast.success('Scan uploaded successfully')
       onRetrySuccess?.()
     } catch (error: any) {
@@ -54,7 +54,7 @@ export function ScanQueue({ onRetrySuccess }: ScanQueueProps) {
   const handleRetryAll = async () => {
     setIsRetrying(true)
     try {
-      const results = await retryAll()
+      const results = await syncAll.mutateAsync()
       const successCount = results.filter(r => r.success).length
       const failCount = results.filter(r => !r.success).length
 
@@ -76,7 +76,7 @@ export function ScanQueue({ onRetrySuccess }: ScanQueueProps) {
   // Clear all queue items
   const handleClearQueue = async () => {
     if (confirm('Clear all queued scans? This cannot be undone.')) {
-      await clearQueue()
+      await clearSynced.mutateAsync()
       toast.success('Queue cleared')
     }
   }
@@ -132,7 +132,7 @@ export function ScanQueue({ onRetrySuccess }: ScanQueueProps) {
               Scans waiting to be uploaded when network is available
             </CardDescription>
           </div>
-          {stats && stats.total > 0 && (
+          {stats && stats.total_queued > 0 && (
             <div className="flex gap-2">
               <Button
                 size="sm"
@@ -158,10 +158,10 @@ export function ScanQueue({ onRetrySuccess }: ScanQueueProps) {
 
       <CardContent>
         {/* Stats */}
-        {stats && stats.total > 0 && (
+        {stats && stats.total_queued > 0 && (
           <div className="grid grid-cols-3 gap-4 mb-4">
             <div className="text-center p-3 bg-muted rounded-lg">
-              <div className="text-2xl font-bold">{stats.total}</div>
+              <div className="text-2xl font-bold">{stats.total_queued}</div>
               <div className="text-sm text-muted-foreground">Total</div>
             </div>
             <div className="text-center p-3 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg">
@@ -192,25 +192,25 @@ export function ScanQueue({ onRetrySuccess }: ScanQueueProps) {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">
                     <span className="font-medium">
-                      {item.data?.plate_number || 'Unknown Plate'}
+                      {item.plate_number || 'Unknown Plate'}
                     </span>
                     {getStatusBadge(item.status)}
                   </div>
                   
                   <div className="text-sm text-muted-foreground">
-                    {item.data?.zone_name || 'Unknown Zone'} • {' '}
+                    {item.zone_id || 'Unknown Zone'} • {' '}
                     {new Date(item.created_at).toLocaleString()}
                   </div>
 
-                  {item.status === 'failed' && item.error && (
+                  {item.status === 'failed' && item.sync_error && (
                     <div className="mt-2 text-xs text-red-600">
-                      Error: {item.error}
+                      Error: {item.sync_error}
                     </div>
                   )}
 
-                  {item.retry_count > 0 && (
+                  {item.sync_attempts > 0 && (
                     <div className="mt-1 text-xs text-muted-foreground">
-                      Retried {item.retry_count} time(s)
+                      Retried {item.sync_attempts} time(s)
                     </div>
                   )}
                 </div>
@@ -230,7 +230,7 @@ export function ScanQueue({ onRetrySuccess }: ScanQueueProps) {
                   <Button
                     size="sm"
                     variant="ghost"
-                    onClick={() => removeItem(item.id)}
+                    onClick={() => removeFromQueue.mutate(item.id)}
                   >
                     <Trash2 className="h-3 w-3" />
                   </Button>

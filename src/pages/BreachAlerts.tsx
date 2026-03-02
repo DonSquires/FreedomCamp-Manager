@@ -18,7 +18,7 @@ import {
   Search,
   Bell,
   FileText,
-  Database,
+  Database as DatabaseIcon,
   RefreshCw,
   ShieldAlert,
   UserX,
@@ -33,31 +33,32 @@ import { formatDateTime } from '@/lib/utils'
 import { AppLayout } from '@/components/features/AppLayout'
 import { GlobalFilterRibbon } from '@/components/features/GlobalFilterRibbon'
 import { enrichVehicleFromMotorWeb } from '@/lib/railwayServices'
+import { Database } from '@/types/database'
 
-// Schema-aligned BreachAlert type
-// breach_alerts table columns (from 20260218_rebuild_breach_alerts_system.sql):
-// - created_at (NOT detected_at)
-// - status: pending | acknowledged | enforcement_started | resolved | dismissed
-// - breach_type: consecutive_nights | monthly_limit | self_contained | after_hours | day_visit_violation | allowed_days_violation
-// - NO resolved_by column (only resolved_at)
-interface BreachAlert {
+// Database types
+type BreachAlertRow = Database['public']['Tables']['breach_alerts']['Row']
+type CanonicalVehicleRow = Database['public']['Tables']['canonical_vehicles']['Row']
+type ZoneRow = Database['public']['Tables']['zones']['Row']
+type OrganizationRow = Database['public']['Tables']['organizations']['Row']
+
+// Extended types for queries with joins
+type BreachAlertWithJoins = BreachAlertRow & {
+  zones: Pick<ZoneRow, 'name'> | null
+  organizations: Pick<OrganizationRow, 'name'> | null
+}
+
+type IntelligenceAlert = Pick<BreachAlertRow, 'id' | 'plate_number' | 'breach_type' | 'created_at' | 'status'> & {
+  zones: Pick<ZoneRow, 'name'> | null
+}
+
+type OfficerWelfareAlert = {
   id: string
-  organization_id: string
-  zone_id: string
-  plate_number: string | null
-  breach_type: string
-  breach_details: any
+  officer_name: string
+  alert_type: string
   status: string
   created_at: string
-  resolved_at: string | null
-  notified_at: string | null
-  notified_by: string | null
-  due_date: string | null
-  resolution_notes: string | null
-  assigned_to: string | null
-  assigned_at: string | null
-  assigned_by: string | null
-  admin_review_notes: string | null
+  gps_latitude: number | null
+  gps_longitude: number | null
 }
 
 export default function BreachAlerts() {
@@ -91,7 +92,7 @@ export default function BreachAlerts() {
       if (zoneId) q = q.eq('zone_id', zoneId)
 
       const { data } = await q
-      return data || []
+      return (data || []) as IntelligenceAlert[]
     },
   })
 
@@ -114,7 +115,7 @@ export default function BreachAlerts() {
       }
 
       const { data } = await q
-      return data || []
+      return (data || []) as OfficerWelfareAlert[]
     },
   })
 
@@ -145,7 +146,7 @@ export default function BreachAlerts() {
 
       const { data, error } = await query.limit(100)
       if (error) throw error
-      return data
+      return (data || []) as BreachAlertWithJoins[]
     },
   })
 
@@ -159,7 +160,7 @@ export default function BreachAlerts() {
         .select('*')
         .eq('plate_number', selectedBreach.plate_number)
         .single()
-      return data
+      return data as CanonicalVehicleRow | null
     },
     enabled: showDetailsDialog && !!selectedBreach?.plate_number,
   })
@@ -173,7 +174,7 @@ export default function BreachAlerts() {
           status: 'acknowledged',
           notified_at: new Date().toISOString(),
           notified_by: user?.id,
-        })
+        } as unknown as never)
         .eq('id', breachId)
       if (error) throw error
     },
@@ -190,7 +191,7 @@ export default function BreachAlerts() {
     mutationFn: async (breachId: string) => {
       const { error } = await supabase
         .from('breach_alerts')
-        .update({ status: 'enforcement_started', assigned_by: user?.id, assigned_at: new Date().toISOString() })
+        .update({ status: 'enforcement_started', assigned_by: user?.id, assigned_at: new Date().toISOString() } as unknown as never)
         .eq('id', breachId)
       if (error) throw error
     },
@@ -210,7 +211,7 @@ export default function BreachAlerts() {
           status: 'resolved',
           resolved_at: new Date().toISOString(),
           resolution_notes: notes || null,
-        })
+        } as unknown as never)
         .eq('id', breachId)
       if (error) throw error
     },
@@ -229,7 +230,7 @@ export default function BreachAlerts() {
     mutationFn: async (breachId: string) => {
       const { error } = await supabase
         .from('breach_alerts')
-        .update({ status: 'dismissed' })
+        .update({ status: 'dismissed' } as unknown as never)
         .eq('id', breachId)
       if (error) throw error
     },
@@ -245,7 +246,7 @@ export default function BreachAlerts() {
     mutationFn: async (alertId: string) => {
       const { error } = await supabase
         .from('officer_welfare_alerts')
-        .update({ status: 'acknowledged', acknowledged_by: user?.id, acknowledged_at: new Date().toISOString() })
+        .update({ status: 'acknowledged', acknowledged_by: user?.id, acknowledged_at: new Date().toISOString() } as unknown as never)
         .eq('id', alertId)
       if (error) throw error
     },
@@ -278,7 +279,7 @@ export default function BreachAlerts() {
             owner_first_name: data.owner_name?.split(' ')[0] || null,
             owner_last_name: data.owner_name?.split(' ').slice(1).join(' ') || null,
             owner_address: data.owner_address,
-          })
+          } as unknown as never)
           .eq('plate_number', plateNumber)
 
         if (updateError) {
@@ -298,10 +299,10 @@ export default function BreachAlerts() {
   // Calculate stats
   const stats = breaches ? {
     total: breaches.length,
-    pending: breaches.filter((b: any) => b.status === 'pending').length,
-    acknowledged: breaches.filter((b: any) => b.status === 'acknowledged').length,
-    enforcement: breaches.filter((b: any) => b.status === 'enforcement_started').length,
-    resolved: breaches.filter((b: any) => b.status === 'resolved').length,
+    pending: breaches.filter((b) => b.status === 'pending').length,
+    acknowledged: breaches.filter((b) => b.status === 'acknowledged').length,
+    enforcement: breaches.filter((b) => b.status === 'enforcement_started').length,
+    resolved: breaches.filter((b) => b.status === 'resolved').length,
   } : null
 
   const getStatusIcon = (status: string) => {
@@ -583,7 +584,7 @@ export default function BreachAlerts() {
                         {enrichingVehicle === breach.plate_number ? (
                           <><RefreshCw className="h-4 w-4 mr-2 animate-spin" />Enriching from MotorWeb...</>
                         ) : (
-                          <><Database className="h-4 w-4 mr-2" />Enrich Vehicle Data (MotorWeb)</>
+                          <><DatabaseIcon className="h-4 w-4 mr-2" />Enrich Vehicle Data (MotorWeb)</>
                         )}
                       </Button>
                       <div className="text-xs text-gray-600 mt-1 text-center">
@@ -735,7 +736,7 @@ export default function BreachAlerts() {
                     >
                       {enrichingVehicle === selectedBreach.plate_number
                         ? <><RefreshCw className="h-3 w-3 mr-1 animate-spin" />Enriching...</>
-                        : <><Database className="h-3 w-3 mr-1" />Re-fetch from MotorWeb</>
+                        : <><DatabaseIcon className="h-3 w-3 mr-1" />Re-fetch from MotorWeb</>
                       }
                     </Button>
                   </div>
