@@ -520,59 +520,6 @@ export interface Database {
           updated_at?: string
         }
       }
-      observation_jobs: {
-        Row: {
-          id: string
-          observation_id: string
-          job_type: string
-          status: 'pending' | 'processing' | 'completed' | 'failed'
-          recorded_by: string
-          organization_id: string
-          input_data: any
-          output_data: any
-          error_message: string | null
-          attempts: number
-          max_attempts: number
-          created_at: string
-          updated_at: string
-          started_at: string | null
-          completed_at: string | null
-        }
-        Insert: {
-          id?: string
-          observation_id: string
-          job_type?: string
-          status?: 'pending' | 'processing' | 'completed' | 'failed'
-          recorded_by: string
-          organization_id: string
-          input_data?: any
-          output_data?: any
-          error_message?: string | null
-          attempts?: number
-          max_attempts?: number
-          created_at?: string
-          updated_at?: string
-          started_at?: string | null
-          completed_at?: string | null
-        }
-        Update: {
-          id?: string
-          observation_id?: string
-          job_type?: string
-          status?: 'pending' | 'processing' | 'completed' | 'failed'
-          recorded_by?: string
-          organization_id?: string
-          input_data?: any
-          output_data?: any
-          error_message?: string | null
-          attempts?: number
-          max_attempts?: number
-          created_at?: string
-          updated_at?: string
-          started_at?: string | null
-          completed_at?: string | null
-        }
-      }
       breach_alerts: {
         Row: {
           id: string
