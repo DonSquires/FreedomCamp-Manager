@@ -28,6 +28,7 @@ import AuditLog from '@/pages/AuditLog'
 import EnforcementActions from '@/pages/EnforcementActions'
 import EnforcementCommandCenter from '@/pages/EnforcementCommandCenter'
 import PrivacyCurtain from '@/pages/PrivacyCurtain'
+import PatrolCheckpointManagement from '@/pages/PatrolCheckpointManagement'
 
 // Create a client
 const queryClient = new QueryClient({
@@ -315,6 +316,17 @@ export default function App() {
               <ProtectedRoute>
                 <RoleRoute allowedRoles={['admin', 'master']}>
                   <PrivacyCurtain />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/patrol-checkpoints"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <PatrolCheckpointManagement />
                 </RoleRoute>
               </ProtectedRoute>
             }
