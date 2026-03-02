@@ -29,7 +29,6 @@ import EnforcementActions from '@/pages/EnforcementActions'
 import EnforcementCommandCenter from '@/pages/EnforcementCommandCenter'
 import PrivacyCurtain from '@/pages/PrivacyCurtain'
 import PatrolCheckpointManagement from '@/pages/PatrolCheckpointManagement'
-import UniversalSearch from '@/pages/UniversalSearch'
 import DataManagementHub from '@/pages/DataManagementHub'
 import DataCleanupUtility from '@/pages/DataCleanupUtility'
 import DataIntegrityDashboard from '@/pages/DataIntegrityDashboard'
@@ -338,15 +337,6 @@ export default function App() {
                 <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
                   <PatrolCheckpointManagement />
                 </RoleRoute>
-              </ProtectedRoute>
-            }
-          />
-
-          <Route
-            path="/search"
-            element={
-              <ProtectedRoute>
-                <UniversalSearch />
               </ProtectedRoute>
             }
           />

@@ -9,24 +9,9 @@ import { ZoneHierarchyManager } from '@/components/features/ZoneHierarchyManager
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Map, Shield, RefreshCw } from 'lucide-react'
+import { Map, Shield, AlertTriangle, RefreshCw } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { toast } from 'sonner'
-import type { Database } from '@/types/database'
-
-// Organization type with optional PostGIS geom field (geometry columns not auto-generated in Supabase types)
-type Organization = Database['public']['Tables']['organizations']['Row']
-type OrganizationWithGeom = Organization & { geom?: unknown }
-
-// Restriction zones - derived from zones table (no dedicated restrictions table exists)
-interface Restriction {
-  id: string
-  name: string
-  restriction_type: string
-  organization_id: string | null
-  created_at: string
-  organization?: { name: string } | null
-}
 
 export default function SpatialComplianceAdmin() {
   const { user } = useAuthStore()
@@ -39,11 +24,11 @@ export default function SpatialComplianceAdmin() {
       if (!user?.organization_id) return null
       const { data, error } = await supabase
         .from('organizations')
-        .select('*')
+        .select('geom')
         .eq('id', user.organization_id)
         .single()
       if (error) throw error
-      return data as OrganizationWithGeom | null
+      return data
     },
     enabled: !!user?.organization_id,
   })
@@ -55,34 +40,25 @@ export default function SpatialComplianceAdmin() {
       const { data, error } = await supabase
         .from('organizations')
         .select('*')
+        .not('geom', 'is', null)
         .order('name')
 
       if (error) throw error
-      return data as OrganizationWithGeom[]
+      return data
     },
   })
 
-  // Fetch restrictions - uses zones table as restrictions source (no dedicated restrictions table)
+  // Fetch restrictions
   const { data: restrictions, refetch: refetchRestrictions } = useQuery({
     queryKey: ['restrictions'],
     queryFn: async () => {
-      type ZoneRow = Database['public']['Tables']['zones']['Row']
       const { data, error } = await supabase
-        .from('zones')
-        .select('id, name, zone_type, organization_id, created_at')
+        .from('restrictions')
+        .select('*, organization:organizations(name)')
         .order('created_at', { ascending: false })
 
       if (error) throw error
-      const zones = data as Pick<ZoneRow, 'id' | 'name' | 'zone_type' | 'organization_id' | 'created_at'>[] | null
-      // Map zones to restriction-like structure (organization lookup not implemented)
-      return (zones || []).map(zone => ({
-        id: zone.id,
-        name: zone.name,
-        restriction_type: zone.zone_type || 'unknown',
-        organization_id: zone.organization_id,
-        created_at: zone.created_at,
-        organization: null,
-      })) as Restriction[]
+      return data
     },
   })
 
@@ -199,7 +175,7 @@ export default function SpatialComplianceAdmin() {
                     {jurisdiction.name}
                   </CardTitle>
                   <CardDescription>
-                    Type: {jurisdiction.organization_type?.toUpperCase() || 'Unknown'}
+                    Type: {jurisdiction.type?.toUpperCase() || 'Unknown'}
                   </CardDescription>
                 </CardHeader>
                 <CardContent>

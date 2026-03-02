@@ -10,24 +10,16 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { supabase } from '@/lib/supabase'
-import { Database } from '@/types/database'
 import { 
+  Calendar,
   MapPin,
   CheckCircle2,
   XCircle,
   AlertTriangle,
   Clock,
+  Filter,
   Eye,
 } from 'lucide-react'
-
-// Type definitions for Supabase query results
-type Observation = Database['public']['Tables']['observations']['Row']
-
-// Extended observation type with joined relations
-type ObservationWithRelations = Observation & {
-  zones: { name: string } | null
-  user_profiles: { first_name: string; last_name: string } | null
-}
 
 interface VehicleTimelineViewProps {
   plateNumber: string
@@ -72,14 +64,14 @@ export function VehicleTimelineView({
       const { data, error } = await query
 
       if (error) throw error
-      return (data || []) as ObservationWithRelations[]
+      return data || []
     },
   })
 
   // Filter by zone search
-  const filteredObservations = observations?.filter((obs: ObservationWithRelations) => {
+  const filteredObservations = observations?.filter(obs => {
     if (!searchZone) return true
-    return obs.zones?.name?.toLowerCase().includes(searchZone.toLowerCase())
+    return (obs.zones as any)?.name?.toLowerCase().includes(searchZone.toLowerCase())
   })
 
   const getStatusIcon = (isCompliant: boolean) => {
@@ -202,7 +194,7 @@ export function VehicleTimelineView({
                               </div>
                               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                                 <MapPin className="h-3 w-3" />
-                                <span>{obs.zones?.name || 'Unknown Zone'}</span>
+                                <span>{(obs.zones as any)?.name || 'Unknown Zone'}</span>
                               </div>
                             </div>
                             {onViewDetails && (
@@ -228,12 +220,12 @@ export function VehicleTimelineView({
                           {/* Details */}
                           <div className="space-y-2 text-sm">
                             {/* Officer */}
-                            {obs.user_profiles?.first_name && (
+                            {(obs.user_profiles as any)?.first_name && (
                               <div className="flex items-center gap-2">
                                 <span className="text-muted-foreground">Officer:</span>
                                 <span>
-                                  {obs.user_profiles.first_name}{' '}
-                                  {obs.user_profiles.last_name}
+                                  {(obs.user_profiles as any).first_name}{' '}
+                                  {(obs.user_profiles as any).last_name}
                                 </span>
                               </div>
                             )}

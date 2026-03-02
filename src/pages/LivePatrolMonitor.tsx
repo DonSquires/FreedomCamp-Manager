@@ -3,14 +3,6 @@ import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { useGlobalFiltersStore } from '@/stores/globalFiltersStore'
-import type { Database } from '@/types/database'
-
-// Type for patrol query result with joined relations
-type PatrolRow = Database['public']['Tables']['patrols']['Row']
-type PatrolQueryResult = PatrolRow & {
-  zone: { id: string; name: string }
-  officer: { id: string; first_name: string; last_name: string; phone: string | null }
-}
 import { AppLayout } from '@/components/features/AppLayout'
 import { GlobalFilterRibbon } from '@/components/features/GlobalFilterRibbon'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -132,12 +124,9 @@ export default function LivePatrolMonitor() {
 
       if (patrolsError) throw patrolsError
 
-      // Cast patrolsData to proper type
-      const typedPatrolsData = (patrolsData || []) as PatrolQueryResult[]
-
       // Enrich with vehicle counts and GPS data
       const enrichedPatrols = await Promise.all(
-        typedPatrolsData.map(async (patrol) => {
+        (patrolsData || []).map(async (patrol) => {
           // Get vehicles checked count from observations
           const { count: vehiclesChecked } = await supabase
             .from('observations')
@@ -161,17 +150,13 @@ export default function LivePatrolMonitor() {
           const durationMs = now.getTime() - startTime.getTime()
           const durationMinutes = Math.floor(durationMs / 60000)
 
-          // Type for activity log result
-          type ActivityLogResult = { gps_latitude: number; gps_longitude: number; recorded_at: string } | null
-          const activity = latestActivity as ActivityLogResult
-
           return {
             ...patrol,
             _vehicles_checked: vehiclesChecked || 0,
             _duration_minutes: durationMinutes,
-            _last_gps_update: activity?.recorded_at ?? null,
-            _last_gps_lat: activity?.gps_latitude ?? null,
-            _last_gps_lng: activity?.gps_longitude ?? null,
+            _last_gps_update: latestActivity?.recorded_at || null,
+            _last_gps_lat: latestActivity?.gps_latitude || null,
+            _last_gps_lng: latestActivity?.gps_longitude || null,
           } as ActivePatrol
         })
       )

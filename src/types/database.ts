@@ -611,83 +611,6 @@ export interface Database {
           updated_at?: string
         }
       }
-      enforcement_actions: {
-        Row: {
-          id: string
-          organization_id: string
-          zone_id: string | null
-          user_id: string | null
-          action_type: string
-          status: string
-          delivery_method: string | null
-          delivered_at: string | null
-          notes: string | null
-          recorded_at: string
-          observation_id: string | null
-          compliance_result_id: string | null
-          plate_number: string | null
-          assigned_to: string | null
-          assigned_at: string | null
-          assigned_by: string | null
-          completed_by: string | null
-          completed_at: string | null
-          completion_outcome: string | null
-          completion_notes: string | null
-          breach_status: string | null
-          created_at: string
-          updated_at: string
-        }
-        Insert: {
-          id?: string
-          organization_id: string
-          zone_id?: string | null
-          user_id?: string | null
-          action_type: string
-          status?: string
-          delivery_method?: string | null
-          delivered_at?: string | null
-          notes?: string | null
-          recorded_at?: string
-          observation_id?: string | null
-          compliance_result_id?: string | null
-          plate_number?: string | null
-          assigned_to?: string | null
-          assigned_at?: string | null
-          assigned_by?: string | null
-          completed_by?: string | null
-          completed_at?: string | null
-          completion_outcome?: string | null
-          completion_notes?: string | null
-          breach_status?: string | null
-          created_at?: string
-          updated_at?: string
-        }
-        Update: {
-          id?: string
-          organization_id?: string
-          zone_id?: string | null
-          user_id?: string | null
-          action_type?: string
-          status?: string
-          delivery_method?: string | null
-          delivered_at?: string | null
-          notes?: string | null
-          recorded_at?: string
-          observation_id?: string | null
-          compliance_result_id?: string | null
-          plate_number?: string | null
-          assigned_to?: string | null
-          assigned_at?: string | null
-          assigned_by?: string | null
-          completed_by?: string | null
-          completed_at?: string | null
-          completion_outcome?: string | null
-          completion_notes?: string | null
-          breach_status?: string | null
-          created_at?: string
-          updated_at?: string
-        }
-      }
       patrols: {
         Row: {
           id: string
@@ -936,17 +859,6 @@ export interface Database {
       ensure_other_location_zone: {
         Args: { p_organization_id: string }
         Returns: string
-      }
-      check_location_in_org: {
-        Args: { org_id: string; lat: number; lon: number }
-        Returns: {
-          inside: boolean
-          distance_m: number | null
-          nearest_point: {
-            type: string
-            coordinates: [number, number]
-          } | null
-        }
       }
       get_admin_dashboard_stats: {
         Args: {

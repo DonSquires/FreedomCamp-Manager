@@ -6,11 +6,6 @@
 
 import { supabase } from './supabase'
 import { toast } from 'sonner'
-import type { Database } from '@/types/database'
-
-type ZoneRow = Database['public']['Tables']['zones']['Row']
-type PatrolRow = Database['public']['Tables']['patrols']['Row']
-type PatrolInsert = Database['public']['Tables']['patrols']['Insert']
 
 export interface GeofenceZone {
   id: string
@@ -90,7 +85,7 @@ export async function detectCurrentZones(
     if (!zones) return []
     
     // Filter zones by distance
-    const nearbyZones = (zones as ZoneRow[]).filter((zone) => {
+    const nearbyZones = zones.filter((zone) => {
       if (!zone.location_lat || !zone.location_lng) return false
       return isInsideGeofence(userLat, userLng, zone as GeofenceZone)
     })
@@ -124,35 +119,32 @@ export async function autoStartPatrol(
       .maybeSingle()
     
     if (existingPatrol) {
-      console.log('Patrol already active:', (existingPatrol as Pick<PatrolRow, 'id'>).id)
-      return { success: true, patrolId: (existingPatrol as Pick<PatrolRow, 'id'>).id }
+      console.log('Patrol already active:', existingPatrol.id)
+      return { success: true, patrolId: existingPatrol.id }
     }
     
     // Create new patrol
-    const patrolData: PatrolInsert = {
-      organization_id: organizationId,
-      zone_id: zoneId,
-      patrol_date: new Date().toISOString().split('T')[0],
-      shift: 'day', // TODO: Detect shift based on time
-      assigned_to: userId,
-      checked_in_at: new Date().toISOString(),
-      check_in_location_lat: gpsLat,
-      check_in_location_lng: gpsLng,
-      status: 'active',
-      notes: 'Auto-started via geofence entry',
-    }
-    
     const { data: patrol, error } = await supabase
       .from('patrols')
-      .insert(patrolData as any)
-      .select('id')
+      .insert({
+        organization_id: organizationId,
+        zone_id: zoneId,
+        patrol_date: new Date().toISOString().split('T')[0],
+        shift: 'day', // TODO: Detect shift based on time
+        assigned_to: userId,
+        checked_in_at: new Date().toISOString(),
+        check_in_location_lat: gpsLat,
+        check_in_location_lng: gpsLng,
+        status: 'active',
+        notes: 'Auto-started via geofence entry',
+      })
+      .select()
       .single()
     
     if (error) throw error
-    if (!patrol) throw new Error('Failed to create patrol')
     
     toast.success(`Patrol started in ${zoneId}`)
-    return { success: true, patrolId: (patrol as { id: string }).id }
+    return { success: true, patrolId: patrol.id }
   } catch (error: any) {
     console.error('Auto-start patrol error:', error)
     toast.error('Failed to start patrol automatically')
@@ -184,16 +176,14 @@ export async function autoStopPatrol(
       return { success: true }
     }
     
-    const patrolRecord = patrol as Pick<PatrolRow, 'id'>
-    
-    // Update patrol to completed  
-    const { error: updateError } = await (supabase as any)
+    // Update patrol to completed
+    const { error: updateError } = await supabase
       .from('patrols')
       .update({
         completed_at: new Date().toISOString(),
         status: 'completed',
       })
-      .eq('id', patrolRecord.id)
+      .eq('id', patrol.id)
     
     if (updateError) throw updateError
     

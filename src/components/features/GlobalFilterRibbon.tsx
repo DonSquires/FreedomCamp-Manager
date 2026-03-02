@@ -6,10 +6,6 @@ import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Calendar, Building2, MapPin, X, ChevronLeft, ChevronRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
-import type { Database } from '@/types/database'
-
-type Organization = Pick<Database['public']['Tables']['organizations']['Row'], 'id' | 'name'>
-type Zone = Pick<Database['public']['Tables']['zones']['Row'], 'id' | 'name'>
 
 interface GlobalFilterRibbonProps {
   showDateFilter?: boolean
@@ -54,7 +50,7 @@ export function GlobalFilterRibbon({
         .order('name')
 
       if (error) throw error
-      return data as Organization[]
+      return data
     },
     enabled: showOrgFilter && user?.role === 'master',
   })
@@ -75,7 +71,7 @@ export function GlobalFilterRibbon({
 
       const { data, error } = await query
       if (error) throw error
-      return data as Zone[]
+      return data
     },
     enabled: showZoneFilter,
   })
