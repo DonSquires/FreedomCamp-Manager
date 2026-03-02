@@ -177,6 +177,24 @@ export interface InferResult {
   vehicle_make?: string
   vehicle_model?: string
   vehicle_colour?: string
+  vehicle_make_confidence?: number
+  vehicle_model_confidence?: number
+  vehicle_colour_confidence?: number
+  /** Sticker detection (v1 self-contained) — null presence = inconclusive */
+  sticker?: {
+    presence: boolean | null
+    color: 'blue' | 'green' | 'unknown'
+    bbox?: { x: number; y: number; width: number; height: number }
+    detection_confidence?: number
+    color_confidence?: number
+  }
+  /** Movement comparison against a previous observation in the same incident */
+  movement?: {
+    moved: boolean | null
+    background_similarity?: number
+    vehicle_bbox_iou?: number
+    decision?: string
+  }
 }
 
 // Legacy type aliases kept for backwards-compatibility
@@ -258,6 +276,11 @@ export async function inferVehicle(
         vehicle_make:  d.vehicle_make  ?? undefined,
         vehicle_model: d.vehicle_model ?? undefined,
         vehicle_colour:d.vehicle_colour ?? undefined,
+        vehicle_make_confidence:  d.vehicle_make_confidence  ?? undefined,
+        vehicle_model_confidence: d.vehicle_model_confidence ?? undefined,
+        vehicle_colour_confidence:d.vehicle_colour_confidence ?? undefined,
+        sticker:  d.sticker  ?? undefined,
+        movement: d.movement ?? undefined,
       },
       error: null,
     }

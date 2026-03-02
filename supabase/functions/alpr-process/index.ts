@@ -41,6 +41,10 @@ interface ALPRRequest {
   photo_url: string;
   photo_hash?: string;
   
+  // OPTIONAL: Context for movement comparison
+  incident_id?: string;
+  previous_observation_id?: string;
+  
   // OPTIONAL: Configuration
   regions?: string[];
   mmc?: boolean;
@@ -55,6 +59,21 @@ interface VehicleDetails {
   type?: string;
 }
 
+interface InferenceSticker {
+  presence: boolean | null;   // null = inconclusive
+  color: 'blue' | 'green' | 'unknown';
+  bbox?: { x: number; y: number; width: number; height: number };
+  detection_confidence?: number;
+  color_confidence?: number;
+}
+
+interface InferenceMovement {
+  moved: boolean | null;      // null = not yet run
+  background_similarity?: number;
+  vehicle_bbox_iou?: number;
+  decision?: string;
+}
+
 interface ALPRResponse {
   success: boolean;
   observation_id?: string;
@@ -66,7 +85,12 @@ interface ALPRResponse {
     model?: string;
     color?: string;
     type?: string;
+    make_confidence?: number;
+    model_confidence?: number;
+    color_confidence?: number;
   };
+  sticker?: InferenceSticker;
+  movement?: InferenceMovement;
   is_compliant?: boolean;
   error?: string;
   warnings?: string[];
@@ -244,11 +268,15 @@ Deno.serve(async (req) => {
     // ==========================================================================
     // STAGE 2: RAILWAY INFERENCE SERVICE (vehicle embedding + plate fallback)
     // Endpoint: POST /infer  (multipart/form-data with "photo" field)
-    // Returns:  { success, data: { embedding[], embedding_quality, detection: { confidence } } }
+    // Returns:  { success, data: { embedding[], embedding_quality, detection: { confidence },
+    //             sticker: { presence, color, bbox, detection_confidence, color_confidence },
+    //             movement: { moved, background_similarity, vehicle_bbox_iou, decision } } }
     // Plate extraction only available when OPENAI_API_KEY is set on Railway.
     // ==========================================================================
     let vehicleEmbedding: number[] | null = null;
     let embeddingQuality: number | null = null;
+    let inferSticker: InferenceSticker | null = null;
+    let inferMovement: InferenceMovement | null = null;
 
     if (RAILWAY_INFERENCE_URL) {
       try {
@@ -296,7 +324,39 @@ Deno.serve(async (req) => {
                 make: inferData.vehicle_make,
                 model: inferData.vehicle_model,
                 color: inferData.vehicle_colour,
+                make_confidence: inferData.vehicle_make_confidence ?? undefined,
+                model_confidence: inferData.vehicle_model_confidence ?? undefined,
+                color_confidence: inferData.vehicle_colour_confidence ?? undefined,
               };
+            }
+
+            // Sticker detection (v1 self-contained sticker)
+            if (inferData.sticker) {
+              const s = inferData.sticker;
+              inferSticker = {
+                // Tri-state: null (inference sent null/undefined) = inconclusive → force review
+                // false = sticker confirmed absent; true = sticker confirmed present
+                presence: s.presence !== undefined ? s.presence : null,
+                // Guard against non-string or unexpected enum values from inference service
+                color: typeof s.color === 'string' && ['blue', 'green'].includes(s.color) ? s.color as 'blue' | 'green' : 'unknown',
+                bbox: s.bbox ?? undefined,
+                detection_confidence: s.detection_confidence ?? undefined,
+                color_confidence: s.color_confidence ?? undefined,
+              };
+              console.log('✅ Stage 2: sticker data received:', inferSticker);
+            }
+
+            // Movement comparison (set by inference when previous_observation_id supplied)
+            if (inferData.movement) {
+              const m = inferData.movement;
+              inferMovement = {
+                // Tri-state: null = comparison not run; false = stationary; true = moved
+                moved: m.moved !== undefined ? m.moved : null,
+                background_similarity: m.background_similarity ?? undefined,
+                vehicle_bbox_iou: m.vehicle_bbox_iou ?? undefined,
+                decision: m.decision ?? undefined,
+              };
+              console.log('✅ Stage 2: movement data received:', inferMovement);
             }
           } else {
             console.log('⚠️ Stage 2: No vehicle detected in photo');
@@ -333,13 +393,24 @@ Deno.serve(async (req) => {
       // UPDATE MODE: Update existing observation with AI results
       const updateData: Record<string, any> = {
         plate_number: plateNumber,
+        // plateConfidence is initialised to 0 and only set > 0 when a plate is actually
+        // detected.  A value of 0 therefore means "no confident detection" (stage=manual),
+        // so we store null rather than a misleading zero confidence score.
+        plate_confidence: plateConfidence > 0 ? plateConfidence : null,
         vehicle_make: vehicle.make || null,
         vehicle_model: vehicle.model || null,
         vehicle_color: vehicle.color || null,
+        vehicle_make_confidence: vehicle.make_confidence ?? null,
+        vehicle_model_confidence: vehicle.model_confidence ?? null,
+        vehicle_color_confidence: vehicle.color_confidence ?? null,
         processing_status: 'completed',
         processing_completed_at: new Date().toISOString(),
         processing_error: warnings.length > 0 ? warnings.join('; ') : null,
       };
+
+      // Optional incident / movement context supplied by caller
+      if (body.incident_id) updateData.incident_id = body.incident_id;
+      if (body.previous_observation_id) updateData.previous_observation_id = body.previous_observation_id;
 
       // Store vehicle embedding when inference service provided one
       if (vehicleEmbedding) {
@@ -347,6 +418,23 @@ Deno.serve(async (req) => {
         updateData.embedding_quality = embeddingQuality;
         updateData.embedding_model_version = 'yolov8n_mobilenetv3_v1.0';
         updateData.embedding_created_at = new Date().toISOString();
+      }
+
+      // Sticker detection fields
+      if (inferSticker !== null) {
+        updateData.sticker_presence = inferSticker.presence; // may be null (inconclusive)
+        updateData.sticker_color = inferSticker.color;
+        updateData.sticker_bbox = inferSticker.bbox ?? null;
+        updateData.sticker_detection_confidence = inferSticker.detection_confidence ?? null;
+        updateData.sticker_color_confidence = inferSticker.color_confidence ?? null;
+      }
+
+      // Movement comparison fields
+      if (inferMovement !== null) {
+        updateData.movement_moved = inferMovement.moved; // may be null
+        updateData.movement_background_similarity = inferMovement.background_similarity ?? null;
+        updateData.movement_vehicle_bbox_iou = inferMovement.vehicle_bbox_iou ?? null;
+        updateData.movement_decision = inferMovement.decision ?? null;
       }
 
       console.log('💾 Updating observation:', {
@@ -396,6 +484,7 @@ Deno.serve(async (req) => {
         photo_url: body.photo_url,
         photo_hash: photoHash,
         plate_number: plateNumber,
+        plate_confidence: plateConfidence > 0 ? plateConfidence : null,
         gps_latitude: body.gpsLatitude,
         gps_longitude: body.gpsLongitude,
         gps_accuracy: body.gpsAccuracy || null,
@@ -405,6 +494,10 @@ Deno.serve(async (req) => {
         vehicle_make: vehicle.make || null,
         vehicle_model: vehicle.model || null,
         vehicle_color: vehicle.color || null,
+        vehicle_make_confidence: vehicle.make_confidence ?? null,
+        vehicle_model_confidence: vehicle.model_confidence ?? null,
+        vehicle_color_confidence: vehicle.color_confidence ?? null,
+        incident_id: body.incident_id ?? null,
         processing_status: 'completed',
         processing_completed_at: new Date().toISOString(),
         is_compliant: true,
@@ -454,6 +547,8 @@ Deno.serve(async (req) => {
       confidence: plateConfidence,
       stage,
       vehicle,
+      sticker: inferSticker ?? undefined,
+      movement: inferMovement ?? undefined,
       is_compliant: observation.is_compliant,
       warnings: warnings.length > 0 ? warnings : undefined,
     };

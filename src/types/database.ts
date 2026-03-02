@@ -422,6 +422,21 @@ export interface Database {
           embedding_created_at: string | null
           parkpow_session_id: number | null
           parkpow_violation_id: number | null
+          incident_id: string | null
+          plate_confidence: number | null
+          vehicle_make_confidence: number | null
+          vehicle_model_confidence: number | null
+          vehicle_color_confidence: number | null
+          sticker_presence: boolean | null
+          sticker_color: string | null
+          sticker_bbox: any | null
+          sticker_detection_confidence: number | null
+          sticker_color_confidence: number | null
+          previous_observation_id: string | null
+          movement_moved: boolean | null
+          movement_background_similarity: number | null
+          movement_vehicle_bbox_iou: number | null
+          movement_decision: string | null
           retention_pending: boolean
           retention_reason: string | null
           retention_marked_at: string | null
@@ -465,6 +480,21 @@ export interface Database {
           embedding_created_at?: string | null
           parkpow_session_id?: number | null
           parkpow_violation_id?: number | null
+          incident_id?: string | null
+          plate_confidence?: number | null
+          vehicle_make_confidence?: number | null
+          vehicle_model_confidence?: number | null
+          vehicle_color_confidence?: number | null
+          sticker_presence?: boolean | null
+          sticker_color?: string | null
+          sticker_bbox?: any | null
+          sticker_detection_confidence?: number | null
+          sticker_color_confidence?: number | null
+          previous_observation_id?: string | null
+          movement_moved?: boolean | null
+          movement_background_similarity?: number | null
+          movement_vehicle_bbox_iou?: number | null
+          movement_decision?: string | null
           retention_pending?: boolean
           retention_reason?: string | null
           retention_marked_at?: string | null
@@ -508,6 +538,21 @@ export interface Database {
           embedding_created_at?: string | null
           parkpow_session_id?: number | null
           parkpow_violation_id?: number | null
+          incident_id?: string | null
+          plate_confidence?: number | null
+          vehicle_make_confidence?: number | null
+          vehicle_model_confidence?: number | null
+          vehicle_color_confidence?: number | null
+          sticker_presence?: boolean | null
+          sticker_color?: string | null
+          sticker_bbox?: any | null
+          sticker_detection_confidence?: number | null
+          sticker_color_confidence?: number | null
+          previous_observation_id?: string | null
+          movement_moved?: boolean | null
+          movement_background_similarity?: number | null
+          movement_vehicle_bbox_iou?: number | null
+          movement_decision?: string | null
           retention_pending?: boolean
           retention_reason?: string | null
           retention_marked_at?: string | null
