@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/stores/authStore'
 import { useGlobalFiltersStore } from '@/stores/globalFiltersStore'
 import { monitorGeofenceAndPatrol } from '@/lib/geofence'
@@ -10,10 +11,11 @@ import { CameraCapture } from '@/components/features/CameraCapture'
 import { LocationAuthorizationStatus } from '@/components/features/LocationAuthorizationStatus'
 import { QRCheckpointScanner } from '@/components/features/QRCheckpointScanner'
 import { useManDownDetection } from '@/hooks/useManDownDetection'
-import { Camera, Map, FileText, History, AlertTriangle, MapPin, QrCode, ShieldAlert } from 'lucide-react'
+import { Camera, Map, FileText, History, AlertTriangle, MapPin, QrCode, ShieldAlert, CheckCircle, Shield, Megaphone, FileWarning } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
+import { formatDateTime } from '@/lib/utils'
 
 // ============================================================================
 // FALLBACK ZONE: Use NULL for scans outside geofences
