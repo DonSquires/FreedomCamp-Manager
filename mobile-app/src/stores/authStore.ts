@@ -1,5 +1,39 @@
 import { create } from 'zustand'
+import * as Notifications from 'expo-notifications'
+import { Platform } from 'react-native'
 import { supabase } from '../lib/supabase'
+
+async function registerPushToken(userId: string): Promise<void> {
+  try {
+    const { status: existingStatus } = await Notifications.getPermissionsAsync()
+    let finalStatus = existingStatus
+    if (existingStatus !== 'granted') {
+      const { status } = await Notifications.requestPermissionsAsync()
+      finalStatus = status
+    }
+    if (finalStatus !== 'granted') return
+
+    const tokenData = await Notifications.getExpoPushTokenAsync()
+    const token = tokenData.data
+    if (!token) return
+
+    await supabase
+      .from('user_profiles')
+      .update({ expo_push_token: token })
+      .eq('id', userId)
+
+    if (Platform.OS === 'android') {
+      await Notifications.setNotificationChannelAsync('default', {
+        name: 'FreedomCamp Alerts',
+        importance: Notifications.AndroidImportance.HIGH,
+        vibrationPattern: [0, 250, 250, 250],
+        lightColor: '#1d4ed8',
+      })
+    }
+  } catch {
+    // Non-critical — notifications degraded gracefully
+  }
+}
 
 export interface AuthUser {
   id: string
@@ -63,6 +97,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
 
     set({ user, isAuthenticated: true, loading: false, enforcementWorkflow: workflow })
+
+    // Register push token non-blocking
+    registerPushToken(user.id).catch(() => {})
   },
 
   logout: async () => {
