@@ -21,18 +21,6 @@ import {
   Filter,
 } from 'lucide-react'
 import { toast } from 'sonner'
-import type { Database } from '@/types/database'
-
-// Type aliases for database tables
-type ObservationRow = Database['public']['Tables']['observations']['Row']
-type ZoneRow = Database['public']['Tables']['zones']['Row']
-type CanonicalVehicleRow = Database['public']['Tables']['canonical_vehicles']['Row']
-
-// Extended type for observation with joined relations
-type ObservationWithRelations = Pick<ObservationRow, 'id' | 'plate_number' | 'photo_url' | 'recorded_at' | 'is_compliant' | 'breach_type'> & {
-  zones: Pick<ZoneRow, 'name'> | null
-  canonical_vehicles: Pick<CanonicalVehicleRow, 'make' | 'model' | 'colour'> | null
-}
 
 interface ScanHistoryViewerProps {
   limit?: number
@@ -82,7 +70,7 @@ export function ScanHistoryViewer({
       const { data, error } = await query
 
       if (error) throw error
-      return (data || []) as ObservationWithRelations[]
+      return data || []
     },
     enabled: !!user,
   })
@@ -94,8 +82,8 @@ export function ScanHistoryViewer({
     const searchLower = searchQuery.toLowerCase()
     return (
       scan.plate_number.toLowerCase().includes(searchLower) ||
-      scan.zones?.name?.toLowerCase().includes(searchLower) ||
-      scan.canonical_vehicles?.make?.toLowerCase().includes(searchLower)
+      (scan.zones as any)?.name?.toLowerCase().includes(searchLower) ||
+      (scan.canonical_vehicles as any)?.make?.toLowerCase().includes(searchLower)
     )
   })
 
@@ -207,15 +195,15 @@ export function ScanHistoryViewer({
                   </div>
 
                   <div className="text-sm text-muted-foreground space-y-1">
-                    {scan.canonical_vehicles?.make && (
+                    {(scan.canonical_vehicles as any)?.make && (
                       <div>
-                        {scan.canonical_vehicles.make}{' '}
-                        {scan.canonical_vehicles.model}{' '}
-                        {scan.canonical_vehicles.colour && `• ${scan.canonical_vehicles.colour}`}
+                        {(scan.canonical_vehicles as any).make}{' '}
+                        {(scan.canonical_vehicles as any).model}{' '}
+                        {(scan.canonical_vehicles as any).colour && `• ${(scan.canonical_vehicles as any).colour}`}
                       </div>
                     )}
                     <div>
-                      {scan.zones?.name || 'Unknown Zone'} • {' '}
+                      {(scan.zones as any)?.name || 'Unknown Zone'} • {' '}
                       {new Date(scan.recorded_at).toLocaleString()}
                     </div>
                   </div>

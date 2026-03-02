@@ -22,25 +22,6 @@ import {
   List,
 } from 'lucide-react'
 import { toast } from 'sonner'
-import type { Database } from '@/types/database'
-
-type Zone = Database['public']['Tables']['zones']['Row']
-type CanonicalVehicle = Database['public']['Tables']['canonical_vehicles']['Row']
-
-// Type for observation with joined zone (only name selected)
-type ObservationPhoto = {
-  id: string
-  photo_url: string
-  photo_hash: string
-  recorded_at: string
-  zones: { name: string } | null
-  gps_latitude: number
-  gps_longitude: number
-  is_compliant: boolean
-}
-
-// Type for vehicle profile photo query result
-type VehicleProfilePhoto = Pick<CanonicalVehicle, 'profile_photo'>
 
 interface VehiclePhotoGalleryProps {
   plateNumber: string
@@ -80,7 +61,7 @@ export function VehiclePhotoGallery({
 
       if (error) throw error
 
-      return (data || []) as ObservationPhoto[]
+      return data || []
     },
   })
 
@@ -95,16 +76,15 @@ export function VehiclePhotoGallery({
         .single()
 
       if (error) throw error
-      return data as VehicleProfilePhoto
+      return data
     },
   })
 
   // Set profile photo mutation
   const setProfilePhotoMutation = useMutation({
     mutationFn: async (photoUrl: string) => {
-      // Use type assertion to bypass Supabase type inference issue
-      const { data, error } = await (supabase
-        .from('canonical_vehicles') as any)
+      const { data, error } = await supabase
+        .from('canonical_vehicles')
         .update({
           profile_photo: photoUrl,
           profile_photo_selected_at: new Date().toISOString(),
@@ -114,7 +94,7 @@ export function VehiclePhotoGallery({
         .single()
 
       if (error) throw error
-      return data as CanonicalVehicle
+      return data
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['vehicle-profile-photo', plateNumber] })
@@ -268,10 +248,10 @@ export function VehiclePhotoGallery({
                             </span>
                           </div>
                           
-                          {photo.zones?.name && (
+                          {(photo.zones as any)?.name && (
                             <div className="flex items-center gap-2">
                               <MapPin className="h-4 w-4 text-muted-foreground" />
-                              <span className="text-sm">{photo.zones.name}</span>
+                              <span className="text-sm">{(photo.zones as any).name}</span>
                             </div>
                           )}
 

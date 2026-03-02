@@ -1,9 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 
-// PostgREST error code for "function not found in schema cache" (HTTP 404)
-const PGRST_FUNCTION_NOT_FOUND = 'PGRST202'
-
 interface LocationCheckResult {
   inside: boolean
   distance_m: number | null
@@ -35,13 +32,7 @@ export function useLocationCheck(
         lat: latitude,
       })
 
-      if (error) {
-        // Function not yet deployed — return null silently instead of throwing
-        if (error.code === PGRST_FUNCTION_NOT_FOUND) {
-          return null
-        }
-        throw error
-      }
+      if (error) throw error
 
       const result: LocationCheckResult = {
         inside: data?.inside || false,
@@ -57,10 +48,5 @@ export function useLocationCheck(
     enabled: options?.enabled !== false && !!organizationId && latitude !== undefined && longitude !== undefined,
     refetchInterval: options?.refetchInterval || 10000, // Default 10 seconds
     staleTime: 5000, // 5 seconds
-    // Don't retry on function-not-found — avoids 3x retry storm on every poll cycle
-    retry: (failureCount, error: unknown) => {
-      if ((error as { code?: string })?.code === PGRST_FUNCTION_NOT_FOUND) return false
-      return failureCount < 3
-    },
   })
 }
