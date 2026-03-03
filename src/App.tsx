@@ -54,6 +54,7 @@ import ObservationsReport from '@/pages/ObservationsReport'
 import PortalSelection from '@/pages/PortalSelection'
 import Settings from '@/pages/Settings'
 import Profile from '@/pages/Profile'
+import VehicleRegistry from '@/pages/VehicleRegistry'
 
 // Create a client
 const queryClient = new QueryClient({
@@ -611,6 +612,17 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <Profile />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/vehicle-registry"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <VehicleRegistry />
+                </RoleRoute>
               </ProtectedRoute>
             }
           />

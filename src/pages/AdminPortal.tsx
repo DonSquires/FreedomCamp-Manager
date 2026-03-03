@@ -33,6 +33,7 @@ import {
   Upload,
   FileSpreadsheet,
   Bell,
+  BookOpen,
 } from 'lucide-react'
 
 export default function AdminPortal() {
@@ -102,6 +103,7 @@ export default function AdminPortal() {
       <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-3">Management</h2>
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 mb-8">
         {tile(<Car className="h-4 w-4" />, 'Vehicles', 'Search and manage vehicles', '/vehicles', 'Manage Vehicles')}
+        {tile(<BookOpen className="h-4 w-4" />, 'Vehicle Registry', 'Read-only vehicle registry and search', '/vehicle-registry', 'Browse Registry')}
         {tile(<MapPin className="h-4 w-4" />, 'Zones', 'Configure compliance zones', '/zones', 'Manage Zones')}
         {tile(<Users className="h-4 w-4" />, 'Users', 'Manage officers and admins', '/users', 'Manage Users')}
         {tile(<Users className="h-4 w-4" />, 'Person Records', 'Canonical person records and observations', '/person-records', 'View Persons')}
