@@ -160,7 +160,7 @@ jobs:
           supabase link --project-ref "$SUPABASE_PROJECT_REF"
 
           echo "Pushing pending migrations …"
-          supabase db push --password "$SUPABASE_DB_PASSWORD"
+          supabase db push --include-all --password "$SUPABASE_DB_PASSWORD"
 
           echo ""
           echo "╔══════════════════════════════════════════════════════════════════╗"
