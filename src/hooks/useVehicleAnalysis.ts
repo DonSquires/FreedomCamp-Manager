@@ -7,16 +7,6 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { toast } from 'sonner'
-import type { Database } from '@/types/database'
-
-type ObservationRow = Database['public']['Tables']['observations']['Row']
-
-type ObservationAnalysisResult = Pick<
-  ObservationRow,
-  'plate_number' | 'photo_url' | 'vehicle_make' | 'vehicle_model' | 'vehicle_color' | 'vehicle_year' | 'embedding_quality' | 'recorded_at'
->
-
-type SingleObservationResult = Pick<ObservationRow, 'photo_url' | 'plate_number'>
 
 interface VehicleAnalysis {
   plate_number: string
@@ -68,7 +58,7 @@ export function useVehicleAnalysis(plateNumber?: string) {
         throw error
       }
 
-      return (data as ObservationAnalysisResult[]).map(obs => ({
+      return data.map(obs => ({
         plate_number: obs.plate_number,
         photo_url: obs.photo_url,
         ai_make: obs.vehicle_make,
@@ -155,13 +145,11 @@ export function useAnalyzeObservation(observationId: string | null) {
 
       if (obsError) throw obsError
 
-      const observation = obs as SingleObservationResult
-
       // Analyze photo
       const { data, error } = await supabase.functions.invoke('analyze-vehicle-photo', {
         body: { 
-          photo_url: observation.photo_url,
-          plate_number: observation.plate_number,
+          photo_url: obs.photo_url,
+          plate_number: obs.plate_number,
         },
       })
 
