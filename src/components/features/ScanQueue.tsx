@@ -217,7 +217,7 @@ export function ScanQueue({ onRetrySuccess }: ScanQueueProps) {
 
                 {/* Actions */}
                 <div className="flex gap-1">
-                  {item.status !== 'success' && (
+                  {item.status !== 'synced' && (
                     <Button
                       size="sm"
                       variant="outline"

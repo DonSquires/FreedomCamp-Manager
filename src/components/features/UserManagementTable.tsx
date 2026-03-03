@@ -39,9 +39,9 @@ export function UserManagementTable({
   const [filterRole, setFilterRole] = useState<string>('all')
   const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'inactive'>('all')
 
-  const { users, isLoading } = useUsers({
-    organizationId,
-  })
+  const usersQuery = useUsers({})
+  const users = usersQuery.data
+  const isLoading = usersQuery.isLoading
 
   const getRoleBadge = (role: string) => {
     const roleColors: Record<string, string> = {

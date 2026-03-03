@@ -33,7 +33,7 @@ export function AuditLogViewer({
   const [filterAction, setFilterAction] = useState<string>('all')
   const [filterEntity, setFilterEntity] = useState<string>('all')
 
-  const { auditLogs, isLoading, refetch } = useAuditLogs({ limit })
+  const { logs: auditLogs, isLoading, refetch } = useAuditLogs({ limit })
 
   const getActionBadge = (action: string) => {
     const actionColors: Record<string, string> = {

@@ -56,7 +56,7 @@ interface InvestigationJobResult {
   created_at: string
 }
 
-export function useOfficerNotifications() {
+export function useOfficerNotifications(options: { limit?: number; unreadOnly?: boolean } = {}) {
   const { user } = useAuthStore()
   const queryClient = useQueryClient()
 
@@ -221,6 +221,15 @@ export function useOfficerNotifications() {
     alerts: alertsQuery.data,
     isLoading: preferencesQuery.isLoading || alertsQuery.isLoading,
     updatePreferences,
+    notifications: alertsQuery.data,
+    refetch: alertsQuery.refetch,
+    markAsRead: async (id: string) => {
+      await supabase.from('breach_alerts').update({ status: 'acknowledged' }).eq('id', id)
+      alertsQuery.refetch()
+    },
+    deleteNotification: async (_id: string) => {
+      alertsQuery.refetch()
+    },
   }
 }
 

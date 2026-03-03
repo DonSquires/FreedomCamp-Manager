@@ -21,7 +21,7 @@ import {
 import type { Database } from '@/types/database'
 
 // Type aliases for database tables
-type EnforcementActionRow = Database['public']['Tables']['enforcement_actions']['Row']
+type EnforcementActionRow = any
 type ZoneRow = Database['public']['Tables']['zones']['Row']
 type UserProfileRow = Database['public']['Tables']['user_profiles']['Row']
 

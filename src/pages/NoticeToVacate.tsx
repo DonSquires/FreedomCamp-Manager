@@ -245,7 +245,7 @@ export default function NoticeToVacate() {
 
   return (
     <AppLayout title="Notices to Vacate" description="Issue and track legal notices to vacate">
-      <GlobalFilterRibbon showZone showDateRange />
+      <GlobalFilterRibbon showDateFilter showZoneFilter />
 
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">

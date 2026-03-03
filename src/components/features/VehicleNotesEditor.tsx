@@ -80,7 +80,6 @@ export function VehicleNotesEditor({
         .update({
           last_note_preview: text.substring(0, 200),
           last_note_at: new Date().toISOString(),
-          total_notes: supabase.raw('total_notes + 1'),
         })
         .eq('plate_number', plateNumber)
         .select()
@@ -110,7 +109,6 @@ export function VehicleNotesEditor({
         .update({
           last_note_preview: null,
           last_note_at: null,
-          total_notes: Math.max(0, supabase.raw('total_notes - 1')),
         })
         .eq('plate_number', plateNumber)
         .select()

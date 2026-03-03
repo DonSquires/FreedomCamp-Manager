@@ -200,7 +200,7 @@ export default function EnforcementReview() {
       title="Enforcement Review"
       description="Review and approve pending enforcement actions"
     >
-      <GlobalFilterRibbon showZone showDateRange />
+      <GlobalFilterRibbon showDateFilter showZoneFilter />
 
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">

@@ -204,12 +204,11 @@ export default function DataCleanupUtility() {
         const ninetyDaysAgo = new Date()
         ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90)
 
-        const { count, error } = await supabase
+        const { count, error } = await (supabase
           .from('breach_alerts')
           .update({ status: 'archived' })
           .eq('status', 'resolved')
-          .lt('resolved_at', ninetyDaysAgo.toISOString())
-          .select('id', { count: 'exact', head: true })
+          .lt('resolved_at', ninetyDaysAgo.toISOString()) as any).select('id', { count: 'exact', head: true })
 
         if (error) throw error
 

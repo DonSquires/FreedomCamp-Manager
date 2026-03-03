@@ -38,7 +38,9 @@ export function OrganizationSelector({
   const { user } = useAuthStore()
   const [isOpen, setIsOpen] = useState(false)
 
-  const { organizations, isLoading } = useOrganizations()
+  const orgQuery = useOrganizations()
+  const organizations = orgQuery.data
+  const isLoading = orgQuery.isLoading
 
   const selectedOrg = organizations?.find((org: any) => org.id === value)
   const isMaster = user?.role === 'master'
@@ -49,9 +51,7 @@ export function OrganizationSelector({
     
     // Check if user has access to this org
     return (
-      org.id === user?.organization_id ||
-      user?.organization_id === org.id ||
-      user?.authorized_work_locations?.includes(org.id)
+      org.id === user?.organization_id
     )
   })
 

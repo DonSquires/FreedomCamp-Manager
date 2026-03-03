@@ -260,7 +260,7 @@ export default function InfringementNotices() {
   // ── Stats ─────────────────────────────────────────────────────────────────
   const today = new Date().toISOString().split('T')[0]
   const stats = {
-    issuedToday:   notices.filter(n => n.created_at?.startsWith(today)).length,
+    issuedToday:   notices.filter(n => n.issued_at?.startsWith(today)).length,
     outstanding:   notices.filter(n => ['issued', 'reminder_sent'].includes(n.status)).length,
     paid:          notices.filter(n => n.status === 'paid').length,
     court:         notices.filter(n => n.status === 'court_referred').length,
@@ -359,7 +359,7 @@ export default function InfringementNotices() {
                         {notice.due_date && (
                           <span>Due: {new Date(notice.due_date).toLocaleDateString('en-NZ')}</span>
                         )}
-                        <span>Issued: {formatDateTime(notice.created_at)}</span>
+                        <span>Issued: {formatDateTime(notice.issued_at)}</span>
                       </div>
                     </div>
 

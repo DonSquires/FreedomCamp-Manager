@@ -284,7 +284,7 @@ export function CameraCapture({
       <div className="absolute top-4 left-4 right-4 bg-black bg-opacity-50 text-white p-3 rounded-lg space-y-1 text-sm z-20">
         {/* Officer & Organization */}
         <div className="flex items-center gap-2 text-xs">
-          <span className="font-semibold">{user?.full_name || user?.first_name || 'Unknown Officer'}</span>
+          <span className="font-semibold">{user?.full_name || 'Unknown Officer'}</span>
         </div>
         
         {/* Zone - PROMINENT */}
