@@ -33,8 +33,7 @@ export function ComplianceRulesViewer({
   const { data: matrix, isLoading } = useQuery({
     queryKey: ['compliance-matrix', zoneId],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .rpc('get_active_matrix', { p_zone_id: zoneId })
+      const { data, error } = await (supabase as any).rpc('get_active_matrix', { p_zone_id: zoneId })
 
       if (error) throw error
       return (data as any)?.[0] || null

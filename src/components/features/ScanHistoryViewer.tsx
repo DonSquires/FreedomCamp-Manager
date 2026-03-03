@@ -41,8 +41,7 @@ export function ScanHistoryViewer({
   const { data: scans, isLoading, refetch } = useQuery({
     queryKey: ['recent-scans', user?.id, statusFilter],
     queryFn: async () => {
-      let query = supabase
-        .from('observations')
+      let query = (supabase.from('observations') as any)
         .select(`
           id,
           plate_number,

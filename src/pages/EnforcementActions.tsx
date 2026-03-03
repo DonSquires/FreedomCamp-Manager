@@ -216,8 +216,7 @@ export default function EnforcementActions() {
   // Assign action mutation
   const assignMutation = useMutation({
     mutationFn: async (actionId: string) => {
-      const { error } = await supabase
-        .from('enforcement_actions')
+      const { error } = await (supabase.from('enforcement_actions') as any)
         .update({
           status: 'assigned',
           assigned_to: user?.id,
@@ -239,8 +238,7 @@ export default function EnforcementActions() {
   // Complete action mutation
   const completeMutation = useMutation({
     mutationFn: async (data: { actionId: string; outcome: string }) => {
-      const { error } = await supabase
-        .from('enforcement_actions')
+      const { error } = await (supabase.from('enforcement_actions') as any)
         .update({
           status: 'completed',
           completion_outcome: data.outcome,

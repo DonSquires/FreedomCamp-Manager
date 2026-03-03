@@ -47,8 +47,7 @@ export function getNotificationPermission(): NotificationPermission {
  * Register push token with user profile
  */
 export async function registerPushToken(token: string, userId: string): Promise<void> {
-  const { error } = await supabase
-    .from('user_profiles')
+  const { error } = await (supabase.from('user_profiles') as any)
     .update({
       push_token: token,
       push_token_updated_at: new Date().toISOString(),
@@ -65,8 +64,7 @@ export async function registerPushToken(token: string, userId: string): Promise<
  * Unregister push token
  */
 export async function unregisterPushToken(userId: string): Promise<void> {
-  const { error } = await supabase
-    .from('user_profiles')
+  const { error } = await (supabase.from('user_profiles') as any)
     .update({
       push_token: null,
       push_token_updated_at: null,
@@ -230,8 +228,7 @@ export async function updateNotificationPreferences(
     system_alerts?: boolean
   }
 ): Promise<void> {
-  const { data: current, error: fetchError } = await supabase
-    .from('user_profiles')
+  const { data: current, error: fetchError } = await (supabase.from('user_profiles') as any)
     .select('notification_preferences')
     .eq('id', userId)
     .single()
@@ -246,8 +243,7 @@ export async function updateNotificationPreferences(
     ...preferences,
   }
 
-  const { error: updateError } = await supabase
-    .from('user_profiles')
+  const { error: updateError } = await (supabase.from('user_profiles') as any)
     .update({ notification_preferences: updatedPreferences })
     .eq('id', userId)
 
@@ -264,8 +260,7 @@ export async function hasNotificationEnabled(
   userId: string,
   notificationType: string
 ): Promise<boolean> {
-  const { data, error } = await supabase
-    .from('user_profiles')
+  const { data, error } = await (supabase.from('user_profiles') as any)
     .select('notification_preferences')
     .eq('id', userId)
     .single()

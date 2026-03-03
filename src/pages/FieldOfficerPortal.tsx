@@ -255,7 +255,7 @@ export default function FieldOfficerPortal() {
       if (!finalZoneId) {
         // Scan is outside geofences - get/create "Other Location" zone using RPC
         // (Officers can't INSERT into zones table directly due to RLS)
-        const { data: otherZoneId, error: rpcError } = await supabase
+        const { data: otherZoneId, error: rpcError } = await (supabase as any)
           .rpc('ensure_other_location_zone', { p_organization_id: user.organization_id });
 
         if (rpcError) {

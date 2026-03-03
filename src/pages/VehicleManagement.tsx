@@ -120,8 +120,7 @@ export default function VehicleManagement() {
 
       if (data) {
         // Update vehicle in database with enriched data using correct column names
-        const { error: updateError } = await supabase
-          .from('canonical_vehicles')
+        const { error: updateError } = await (supabase.from('canonical_vehicles') as any)
           .update({
             make: data.make,
             model: data.model,

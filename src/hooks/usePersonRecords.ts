@@ -172,8 +172,7 @@ export function usePersonRecords(options?: {
   // Confirm homeless status mutation
   const confirmHomelessStatus = useMutation({
     mutationFn: async ({ id, confirmed }: { id: string; confirmed: boolean }) => {
-      const { error } = await supabase
-        .from('person_records')
+      const { error } = await (supabase.from('person_records') as any)
         .update({
           homeless_confirmed: confirmed,
           homeless_confirmed_by: confirmed ? user?.id : null,
@@ -195,8 +194,7 @@ export function usePersonRecords(options?: {
   // Update person record mutation
   const updatePersonRecord = useMutation({
     mutationFn: async ({ id, ...updates }: Partial<PersonRecord> & { id: string }) => {
-      const { error } = await supabase
-        .from('person_records')
+      const { error } = await (supabase.from('person_records') as any)
         .update(updates)
         .eq('id', id)
 

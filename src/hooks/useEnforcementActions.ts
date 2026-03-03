@@ -159,8 +159,7 @@ export function useEnforcementActions(options?: {
   // Assign action mutation
   const assignAction = useMutation({
     mutationFn: async ({ id, assigned_to }: AssignActionInput) => {
-      const { error } = await supabase
-        .from('enforcement_actions')
+      const { error } = await (supabase.from('enforcement_actions') as any)
         .update({
           assigned_to,
           assigned_at: new Date().toISOString(),
@@ -185,8 +184,7 @@ export function useEnforcementActions(options?: {
     mutationFn: async (id: string) => {
       if (!user?.id) throw new Error('User not authenticated')
 
-      const { error } = await supabase
-        .from('enforcement_actions')
+      const { error } = await (supabase.from('enforcement_actions') as any)
         .update({
           assigned_to: user.id,
           assigned_at: new Date().toISOString(),
@@ -209,8 +207,7 @@ export function useEnforcementActions(options?: {
   // Complete action mutation
   const completeAction = useMutation({
     mutationFn: async ({ id, outcome, notes }: CompleteActionInput) => {
-      const { error } = await supabase
-        .from('enforcement_actions')
+      const { error } = await (supabase.from('enforcement_actions') as any)
         .update({
           status: 'completed',
           completion_outcome: outcome,

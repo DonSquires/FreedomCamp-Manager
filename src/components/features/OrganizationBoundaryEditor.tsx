@@ -244,7 +244,7 @@ export function OrganizationBoundaryEditor({
     setUploading(true)
     try {
       // Call RPC to update organization boundary
-      const { data, error } = await supabase.rpc('set_org_geometry', {
+      const { data, error } = await (supabase as any).rpc('set_org_geometry', {
         org_id: organizationId,
         geom_geojson: JSON.stringify(geojsonData),
       })

@@ -45,7 +45,7 @@ export function LocationAuthorizationStatus({
     setError(null)
 
     try {
-      const { data, error: rpcError } = await supabase.rpc('check_location_in_org', {
+      const { data, error: rpcError } = await (supabase as any).rpc('check_location_in_org', {
         org_id: organizationId,
         lon: longitude,
         lat: latitude,

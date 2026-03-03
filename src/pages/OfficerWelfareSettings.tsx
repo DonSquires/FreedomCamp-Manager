@@ -144,8 +144,7 @@ export default function OfficerWelfareSettings() {
   // Acknowledge alert
   const acknowledgeAlert = useMutation({
     mutationFn: async (alertId: string) => {
-      const { error } = await supabase
-        .from('officer_welfare_alerts')
+      const { error } = await (supabase.from('officer_welfare_alerts') as any)
         .update({
           acknowledged_at: new Date().toISOString(),
           acknowledged_by: user!.id,
@@ -163,8 +162,7 @@ export default function OfficerWelfareSettings() {
   // Resolve alert
   const resolveAlert = useMutation({
     mutationFn: async (alertId: string) => {
-      const { error } = await supabase
-        .from('officer_welfare_alerts')
+      const { error } = await (supabase.from('officer_welfare_alerts') as any)
         .update({ resolved_at: new Date().toISOString() })
         .eq('id', alertId)
       if (error) throw error
@@ -180,8 +178,7 @@ export default function OfficerWelfareSettings() {
   const saveSettings = useMutation({
     mutationFn: async (settings: Partial<WelfareSettings> & { id: string }) => {
       const { id, ...rest } = settings
-      const { error } = await supabase
-        .from('officer_welfare_settings')
+      const { error } = await (supabase.from('officer_welfare_settings') as any)
         .update({ ...rest, updated_at: new Date().toISOString() })
         .eq('id', id)
       if (error) throw error

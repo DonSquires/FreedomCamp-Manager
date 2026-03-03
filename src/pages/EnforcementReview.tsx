@@ -159,8 +159,7 @@ export default function EnforcementReview() {
         updates.completed_at = new Date().toISOString()
         updates.completion_outcome = 'approved_by_admin'
       }
-      const { error } = await supabase
-        .from('enforcement_actions')
+      const { error } = await (supabase.from('enforcement_actions') as any)
         .update(updates)
         .eq('id', id)
       if (error) throw error

@@ -174,8 +174,7 @@ export default function InfringementNotices() {
   // ── Status update mutation ────────────────────────────────────────────────
   const updateStatus = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: string }) => {
-      const { error } = await supabase
-        .from('infringement_notices')
+      const { error } = await (supabase.from('infringement_notices') as any)
         .update({ status, updated_at: new Date().toISOString() })
         .eq('id', id)
       if (error) throw error

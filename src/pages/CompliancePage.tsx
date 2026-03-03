@@ -472,8 +472,7 @@ function ZonesTab({
   const { data: obsCounts } = useQuery({
     queryKey: ['comp-zone-obs', dateFrom, dateTo, orgId],
     queryFn: async () => {
-      let q = supabase
-        .from('observations')
+      let q = (supabase.from('observations') as any)
         .select('zone_id, is_compliant')
         .gte('recorded_at', from.toISOString())
         .lte('recorded_at', to.toISOString());

@@ -198,8 +198,7 @@ export default function NoticeToVacate() {
   // Update status mutation
   const updateStatus = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: string }) => {
-      const { error } = await supabase
-        .from('notices_to_vacate')
+      const { error } = await (supabase.from('notices_to_vacate') as any)
         .update({ status })
         .eq('id', id)
       if (error) throw error

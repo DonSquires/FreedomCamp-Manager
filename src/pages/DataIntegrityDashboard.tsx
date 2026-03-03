@@ -109,8 +109,7 @@ export default function DataIntegrityDashboard() {
       })
 
       // 4. Zones with compliance matrix
-      let zoneQuery = supabase
-        .from('zones')
+      let zoneQuery = (supabase.from('zones') as any)
         .select('id, zone_compliance_matrix(id)')
 
       if (orgFilter) zoneQuery = zoneQuery.eq('organization_id', orgFilter)
@@ -129,8 +128,7 @@ export default function DataIntegrityDashboard() {
       })
 
       // 5. Vehicles with observations
-      const { data: vehiclesData } = await supabase
-        .from('canonical_vehicles')
+      const { data: vehiclesData } = await (supabase.from('canonical_vehicles') as any)
         .select('id, total_observations')
 
       const vehiclesWithoutObs = vehiclesData?.filter(v => v.total_observations === 0).length || 0

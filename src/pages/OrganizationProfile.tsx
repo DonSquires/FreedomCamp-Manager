@@ -182,8 +182,7 @@ export default function OrganizationProfile() {
   const updateZoneMutation = useMutation({
     mutationFn: async (updates: { id: string } & Partial<Zone>) => {
       const { id, ...fields } = updates
-      const { error } = await supabase
-        .from('zones')
+      const { error } = await (supabase.from('zones') as any)
         .update(fields)
         .eq('id', id)
       if (error) throw error
@@ -601,8 +600,7 @@ export default function OrganizationProfile() {
             onSave={async (geometry) => {
               if (!editingZoneId) return
               // Only update geometry (JSONB). geom is PostGIS and cannot be set from JSON directly.
-              const { error } = await supabase
-                .from('zones')
+              const { error } = await (supabase.from('zones') as any)
                 .update({ geometry })
                 .eq('id', editingZoneId)
               if (error) throw error

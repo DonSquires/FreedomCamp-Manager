@@ -39,8 +39,7 @@ export function VehicleTimelineView({
   const { data: observations, isLoading } = useQuery({
     queryKey: ['vehicle-timeline', plateNumber, filter],
     queryFn: async () => {
-      let query = supabase
-        .from('observations')
+      let query = (supabase.from('observations') as any)
         .select(`
           *,
           zones!observations_zone_id_fkey (

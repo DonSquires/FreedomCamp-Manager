@@ -96,8 +96,7 @@ export default function BreachAlerts() {
   const { data: intelligenceAlerts } = useQuery({
     queryKey: ['intelligence-alerts', organizationId, zoneId],
     queryFn: async () => {
-      let q = supabase
-        .from('breach_alerts')
+      let q = (supabase.from('breach_alerts') as any)
         .select('id, plate_number, breach_type, created_at, status, zones!zone_id(name)')
         .in('breach_type', ['after_hours', 'day_visit_violation', 'allowed_days_violation'])
         .eq('status', 'pending')
@@ -120,8 +119,7 @@ export default function BreachAlerts() {
   const { data: safetyAlerts } = useQuery({
     queryKey: ['safety-alerts', organizationId],
     queryFn: async () => {
-      let q = supabase
-        .from('officer_welfare_alerts')
+      let q = (supabase.from('officer_welfare_alerts') as any)
         .select('id, officer_name, alert_type, status, created_at, gps_latitude, gps_longitude')
         .in('alert_type', ['inactivity', 'gps_lost'])
         .eq('status', 'pending')
@@ -143,8 +141,7 @@ export default function BreachAlerts() {
   const { data: breaches, isLoading } = useQuery({
     queryKey: ['breach-alerts', organizationId, zoneId, statusFilter, searchQuery, dateFrom, dateTo],
     queryFn: async () => {
-      let query = supabase
-        .from('breach_alerts')
+      let query = (supabase.from('breach_alerts') as any)
         .select(`
           *,
           zones!zone_id(name),
@@ -178,8 +175,7 @@ export default function BreachAlerts() {
     queryKey: ['breach-vehicle', activeBreach?.plate_number],
     queryFn: async () => {
       if (!activeBreach?.plate_number) return null
-      const { data } = await supabase
-        .from('canonical_vehicles')
+      const { data } = await (supabase.from('canonical_vehicles') as any)
         .select('*')
         .eq('plate_number', activeBreach.plate_number)
         .single()
@@ -193,8 +189,7 @@ export default function BreachAlerts() {
     queryKey: ['breach-evidence-photos', activeBreach?.plate_number],
     queryFn: async () => {
       if (!activeBreach?.plate_number) return []
-      const { data } = await supabase
-        .from('observations')
+      const { data } = await (supabase.from('observations') as any)
         .select('id, photo_url, recorded_at, gps_latitude, gps_longitude, zones!observations_zone_id_fkey(name)')
         .eq('plate_number', activeBreach.plate_number)
         .not('photo_url', 'is', null)
@@ -210,8 +205,7 @@ export default function BreachAlerts() {
     queryKey: ['breach-history', activeBreach?.plate_number],
     queryFn: async () => {
       if (!activeBreach?.plate_number) return []
-      const { data } = await supabase
-        .from('breach_alerts')
+      const { data } = await (supabase.from('breach_alerts') as any)
         .select('id, breach_type, status, created_at, resolved_at, zones!zone_id(name)')
         .eq('plate_number', activeBreach.plate_number)
         .neq('id', activeBreach.id)
@@ -225,8 +219,7 @@ export default function BreachAlerts() {
   // Acknowledge (was "notify") – correct status value per schema
   const acknowledgeMutation = useMutation({
     mutationFn: async (breachId: string) => {
-      const { error } = await supabase
-        .from('breach_alerts')
+      const { error } = await (supabase.from('breach_alerts') as any)
         .update({ 
           status: 'acknowledged',
           notified_at: new Date().toISOString(),
@@ -246,8 +239,7 @@ export default function BreachAlerts() {
   // Mark as enforcement started
   const enforcementMutation = useMutation({
     mutationFn: async (breachId: string) => {
-      const { error } = await supabase
-        .from('breach_alerts')
+      const { error } = await (supabase.from('breach_alerts') as any)
         .update({ status: 'enforcement_started', assigned_by: user?.id, assigned_at: new Date().toISOString() })
         .eq('id', breachId)
       if (error) throw error
@@ -262,8 +254,7 @@ export default function BreachAlerts() {
   // Resolve breach – schema has no resolved_by column
   const resolveMutation = useMutation({
     mutationFn: async ({ breachId, notes }: { breachId: string; notes: string }) => {
-      const { error } = await supabase
-        .from('breach_alerts')
+      const { error } = await (supabase.from('breach_alerts') as any)
         .update({ 
           status: 'resolved',
           resolved_at: new Date().toISOString(),
@@ -284,8 +275,7 @@ export default function BreachAlerts() {
   // Dismiss breach
   const dismissMutation = useMutation({
     mutationFn: async ({ breachId, reason }: { breachId: string; reason?: string }) => {
-      const { error } = await supabase
-        .from('breach_alerts')
+      const { error } = await (supabase.from('breach_alerts') as any)
         .update({ 
           status: 'dismissed',
           resolution_notes: reason || null,
@@ -303,8 +293,7 @@ export default function BreachAlerts() {
   // Welfare alert acknowledgement
   const acknowledgeWelfareMutation = useMutation({
     mutationFn: async (alertId: string) => {
-      const { error } = await supabase
-        .from('officer_welfare_alerts')
+      const { error } = await (supabase.from('officer_welfare_alerts') as any)
         .update({ status: 'acknowledged', acknowledged_by: user?.id, acknowledged_at: new Date().toISOString() })
         .eq('id', alertId)
       if (error) throw error
@@ -327,8 +316,7 @@ export default function BreachAlerts() {
         return
       }
       if (data) {
-        const { error: updateError } = await supabase
-          .from('canonical_vehicles')
+        const { error: updateError } = await (supabase.from('canonical_vehicles') as any)
           .update({
             make: data.make,
             model: data.model,

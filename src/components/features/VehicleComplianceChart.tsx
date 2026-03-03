@@ -56,8 +56,7 @@ export function VehicleComplianceChart({
       }
 
       // Fetch observations
-      const { data: observations, error } = await supabase
-        .from('observations')
+      const { data: observations, error } = await (supabase.from('observations') as any)
         .select('*')
         .eq('plate_number', plateNumber)
         .gte('recorded_at', startDate.toISOString())

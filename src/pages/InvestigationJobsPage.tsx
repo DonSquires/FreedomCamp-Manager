@@ -157,8 +157,7 @@ export default function InvestigationJobsPage() {
   // Assign job
   const assignJob = useMutation({
     mutationFn: async ({ id, officerId, notes }: { id: string; officerId: string; notes?: string }) => {
-      const { error } = await supabase
-        .from('investigation_jobs')
+      const { error } = await (supabase.from('investigation_jobs') as any)
         .update({
           assigned_to: officerId,
           status: 'assigned',
@@ -181,8 +180,7 @@ export default function InvestigationJobsPage() {
   // Complete job
   const completeJob = useMutation({
     mutationFn: async ({ id, summary }: { id: string; summary: string }) => {
-      const { error } = await supabase
-        .from('investigation_jobs')
+      const { error } = await (supabase.from('investigation_jobs') as any)
         .update({
           status: 'completed',
           completed_at: new Date().toISOString(),
@@ -204,8 +202,7 @@ export default function InvestigationJobsPage() {
   // Cancel job
   const cancelJob = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase
-        .from('investigation_jobs')
+      const { error } = await (supabase.from('investigation_jobs') as any)
         .update({ status: 'cancelled', updated_at: new Date().toISOString() })
         .eq('id', id)
       if (error) throw error

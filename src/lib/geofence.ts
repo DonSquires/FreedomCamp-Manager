@@ -70,8 +70,7 @@ export async function detectCurrentZones(
 ): Promise<GeofenceZone[]> {
   try {
     // Fetch all active zones
-    let query = supabase
-      .from('zones')
+    let query = (supabase.from('zones') as any)
       .select('id, name, location_lat, location_lng, geometry')
       .eq('is_active', true)
     
@@ -109,8 +108,7 @@ export async function autoStartPatrol(
 ): Promise<{ success: boolean; patrolId?: string }> {
   try {
     // Check if patrol already active
-    const { data: existingPatrol } = await supabase
-      .from('patrols')
+    const { data: existingPatrol } = await (supabase.from('patrols') as any)
       .select('id')
       .eq('assigned_to', userId)
       .eq('zone_id', zoneId)
@@ -161,8 +159,7 @@ export async function autoStopPatrol(
 ): Promise<{ success: boolean }> {
   try {
     // Find active patrol
-    const { data: patrol, error: findError } = await supabase
-      .from('patrols')
+    const { data: patrol, error: findError } = await (supabase.from('patrols') as any)
       .select('id')
       .eq('assigned_to', userId)
       .eq('zone_id', zoneId)
@@ -177,8 +174,7 @@ export async function autoStopPatrol(
     }
     
     // Update patrol to completed
-    const { error: updateError } = await supabase
-      .from('patrols')
+    const { error: updateError } = await (supabase.from('patrols') as any)
       .update({
         completed_at: new Date().toISOString(),
         status: 'completed',

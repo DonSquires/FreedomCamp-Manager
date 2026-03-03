@@ -101,8 +101,7 @@ export default function OrganizationManagement() {
     mutationFn: async (updates: Partial<Organization>) => {
       if (!selectedOrg) throw new Error('No organization selected')
       
-      const { error } = await supabase
-        .from('organizations')
+      const { error } = await (supabase.from('organizations') as any)
         .update(updates)
         .eq('id', selectedOrg.id)
 

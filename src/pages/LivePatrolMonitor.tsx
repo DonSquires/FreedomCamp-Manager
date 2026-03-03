@@ -82,8 +82,7 @@ export default function LivePatrolMonitor() {
     queryFn: async () => {
       const today = new Date().toISOString().split('T')[0]
       
-      let query = supabase
-        .from('patrols')
+      let query = (supabase.from('patrols') as any)
         .select(`
           id,
           status,
@@ -128,15 +127,13 @@ export default function LivePatrolMonitor() {
       const enrichedPatrols = await Promise.all(
         (patrolsData || []).map(async (patrol) => {
           // Get vehicles checked count from observations
-          const { count: vehiclesChecked } = await supabase
-            .from('observations')
+          const { count: vehiclesChecked } = await (supabase.from('observations') as any)
             .select('*', { count: 'exact', head: true })
             .eq('recorded_by', patrol.officer.id)
             .gte('recorded_at', patrol.checked_in_at || today)
 
           // Get latest GPS position from activity log
-          const { data: latestActivity } = await supabase
-            .from('officer_activity_log')
+          const { data: latestActivity } = await (supabase.from('officer_activity_log') as any)
             .select('gps_latitude, gps_longitude, recorded_at')
             .eq('user_id', patrol.officer.id)
             .gte('recorded_at', patrol.checked_in_at || today)

@@ -165,8 +165,7 @@ export function useIncidents(options?: {
   // Update incident mutation
   const updateIncident = useMutation({
     mutationFn: async ({ id, ...updates }: UpdateIncidentInput & { id: string }) => {
-      const { error } = await supabase
-        .from('incidents')
+      const { error } = await (supabase.from('incidents') as any)
         .update(updates)
         .eq('id', id)
 
@@ -188,8 +187,7 @@ export function useIncidents(options?: {
         ? new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString()
         : null
 
-      const { error } = await supabase
-        .from('incidents')
+      const { error } = await (supabase.from('incidents') as any)
         .update({
           retention_hold: enable,
           retention_until: retentionDate,
@@ -210,8 +208,7 @@ export function useIncidents(options?: {
   // Mark court ready mutation
   const markCourtReady = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase
-        .from('incidents')
+      const { error } = await (supabase.from('incidents') as any)
         .update({
           court_ready: true,
           approved_by: user?.id,

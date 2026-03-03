@@ -41,7 +41,7 @@ export default function LiveOfficerTracking() {
   const { data: officers, isLoading, refetch } = useQuery({
     queryKey: ['live-officers', organizationId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .rpc('get_live_officer_locations', {
           p_organization_id: organizationId || null
         })

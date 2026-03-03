@@ -160,8 +160,7 @@ export default function PatrolCheckpointManagement() {
 
   const updateMutation = useMutation({
     mutationFn: async ({ id, f }: { id: string; f: CheckpointFormState }) => {
-      const { error } = await supabase
-        .from('patrol_checkpoints')
+      const { error } = await (supabase.from('patrol_checkpoints') as any)
         .update({
           name: f.name.trim(),
           description: f.description.trim() || null,

@@ -43,7 +43,7 @@ export default function DataCleanupUtility() {
       const orgFilter = organizationId || (user?.role === 'master' ? null : user?.organization_id)
 
       // Duplicate observations (same plate, zone, within 5 minutes)
-      let dupQuery = supabase.rpc('get_duplicate_observations', {
+      let dupQuery = (supabase as any).rpc('get_duplicate_observations', {
         org_id: orgFilter,
       })
       const { data: duplicates } = await dupQuery
@@ -124,8 +124,7 @@ export default function DataCleanupUtility() {
       icon: Trash2,
       severity: 'medium',
       action: async () => {
-        const { data: orphans } = await supabase
-          .from('photo_metadata')
+        const { data: orphans } = await (supabase.from('photo_metadata') as any)
           .select('id, storage_path, bucket_name')
           .is('observation_id', null)
           .is('incident_id', null)
@@ -144,8 +143,7 @@ export default function DataCleanupUtility() {
         }
 
         // Delete metadata
-        const { error } = await supabase
-          .from('photo_metadata')
+        const { error } = await (supabase.from('photo_metadata') as any)
           .delete()
           .in('id', orphans.map(p => p.id))
 
@@ -204,8 +202,7 @@ export default function DataCleanupUtility() {
         const ninetyDaysAgo = new Date()
         ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90)
 
-        const archiveQuery = supabase
-          .from('breach_alerts')
+        const archiveQuery = (supabase.from('breach_alerts') as any)
           .update({ status: 'archived' })
           .eq('status', 'resolved')
           .lt('resolved_at', ninetyDaysAgo.toISOString())

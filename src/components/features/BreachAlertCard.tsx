@@ -55,8 +55,7 @@ export function BreachAlertCard({
   // Acknowledge/dismiss alert mutation
   const dismissAlertMutation = useMutation({
     mutationFn: async () => {
-      const { error } = await supabase
-        .from('breach_alerts')
+      const { error } = await (supabase.from('breach_alerts') as any)
         .update({ status: 'acknowledged' })
         .eq('id', alert.id)
 
@@ -77,8 +76,7 @@ export function BreachAlertCard({
   // Toggle notification mutation
   const toggleNotificationMutation = useMutation({
     mutationFn: async () => {
-      const { error } = await supabase
-        .from('breach_alerts')
+      const { error } = await (supabase.from('breach_alerts') as any)
         .update({ notification_sent: !alert.notification_sent })
         .eq('id', alert.id)
 

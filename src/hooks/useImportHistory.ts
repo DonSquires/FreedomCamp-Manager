@@ -50,8 +50,7 @@ export function useImportHistory(options?: {
   const query = useQuery({
     queryKey: ['import-history', options],
     queryFn: async () => {
-      let query = supabase
-        .from('import_history')
+      let query = (supabase.from('import_history') as any)
         .select(`
           *,
           importer:user_profiles!import_history_imported_by_fkey(first_name, last_name, email)
@@ -110,8 +109,7 @@ export function useImportStats(options?: {
   return useQuery({
     queryKey: ['import-stats', options],
     queryFn: async () => {
-      let query = supabase
-        .from('import_history')
+      let query = (supabase.from('import_history') as any)
         .select('*')
 
       // Organization scoping

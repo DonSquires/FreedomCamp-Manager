@@ -159,8 +159,7 @@ export function usePlateScans(options?: {
   // Review scan mutation
   const reviewScan = useMutation({
     mutationFn: async ({ id, action, notes }: ReviewScanInput) => {
-      const { error } = await supabase
-        .from('plate_scans')
+      const { error } = await (supabase.from('plate_scans') as any)
         .update({
           reviewed: true,
           reviewed_by: user?.id,

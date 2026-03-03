@@ -70,7 +70,7 @@ export function SpatialComplianceMap({
       
       setLoading(true)
       try {
-        const { data, error } = await supabase.rpc('check_compliance', {
+        const { data, error } = await (supabase as any).rpc('check_compliance', {
           lat: latitude,
           lng: longitude,
         })
