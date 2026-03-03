@@ -19,9 +19,17 @@
 
 -- PostGIS — required for geography column types and ST_* functions
 -- (first actual geography column is added in 20260219_evidence_integrity…)
-CREATE EXTENSION IF NOT EXISTS postgis;
+-- NOTE: PostGIS requires the Supabase Pro plan. On the Free plan this step
+-- is skipped gracefully — spatial features will be unavailable until the
+-- project is upgraded and the extension is enabled manually.
+DO $$
+BEGIN
+  CREATE EXTENSION IF NOT EXISTS postgis;
+EXCEPTION WHEN OTHERS THEN
+  RAISE WARNING 'PostGIS not available on this plan (requires Supabase Pro). Spatial features disabled. Enable it later with: CREATE EXTENSION postgis; Error: %', SQLERRM;
+END $$;
 
--- pg_trgm — trigram text-search indexes
+-- pg_trgm — trigram text-search indexes (available on all Supabase plans)
 CREATE EXTENSION IF NOT EXISTS pg_trgm;
 
 -- pg_cron is enabled in 20250124_schedule_zone_correction.sql (CREATE EXTENSION IF NOT EXISTS pg_cron)
