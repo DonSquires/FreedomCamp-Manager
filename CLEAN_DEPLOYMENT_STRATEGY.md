@@ -65,7 +65,25 @@ This is the most important step. The old project (`xbfnlzmpumthnjmtqufp`) has ac
 3. Region: **ap-southeast-2** (Sydney — lowest latency to NZ)
 4. Save the new credentials from **Project Settings → API**
 
-### 2.2 Apply all 106 migrations from scratch
+### 2.2 Enable required PostgreSQL extensions first
+
+Before running migrations, ensure the required extensions are available.
+`postgis` and `pg_trgm` must be enabled **before** running `supabase db push`
+because the initial schema migration activates them immediately.
+`pg_cron` and `vector` are enabled automatically by later migrations.
+
+In the **Supabase Dashboard → SQL Editor**, run:
+
+```sql
+CREATE EXTENSION IF NOT EXISTS postgis;
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+```
+
+> **Note:** PostGIS requires the **Pro plan** or above. Contact Supabase support
+> if it is not available. `pg_cron` is available on Pro and above; on the Free
+> plan the cron-schedule migrations will skip gracefully.
+
+### 2.3 Apply all 107 migrations from scratch
 
 ```bash
 cd /path/to/FreedomCamp-Manager
@@ -80,16 +98,17 @@ supabase db push
 This creates a perfectly clean schema with all tables, triggers, RLS policies,
 pg_cron schedules, pgvector, and PostGIS — exactly as designed.
 
-### 2.3 Enable required PostgreSQL extensions (if not auto-enabled)
+### 2.4 Enable remaining extensions (auto-enabled by migrations — verify only)
+
+The migrations automatically run `CREATE EXTENSION IF NOT EXISTS pg_cron` and
+`CREATE EXTENSION IF NOT EXISTS vector`. After `supabase db push`, confirm they
+are installed:
 
 ```sql
-CREATE EXTENSION IF NOT EXISTS postgis;
-CREATE EXTENSION IF NOT EXISTS vector;
-CREATE EXTENSION IF NOT EXISTS pg_cron;
-CREATE EXTENSION IF NOT EXISTS pg_trgm;
+SELECT extname FROM pg_extension WHERE extname IN ('postgis', 'pg_trgm', 'pg_cron', 'vector');
 ```
 
-### 2.4 Create Storage buckets
+### 2.5 Create Storage buckets
 
 | Bucket | Public | Purpose |
 |---|---|---|
@@ -98,7 +117,7 @@ CREATE EXTENSION IF NOT EXISTS pg_trgm;
 | `incident-evidence` | ❌ No | Incident PDF attachments |
 | `credentials` | ❌ No | Officer credential documents |
 
-### 2.5 Seed the first master user + organisation
+### 2.6 Seed the first master user + organisation
 
 ```sql
 -- After creating auth user in Supabase Dashboard → Auth → Users → Add user
@@ -225,8 +244,9 @@ Code:
 
 New Supabase project:
 [ ] Create project (ap-southeast-2)
+[ ] Enable extensions in SQL Editor: CREATE EXTENSION IF NOT EXISTS postgis; CREATE EXTENSION IF NOT EXISTS pg_trgm;
 [ ] supabase link --project-ref NEW_REF
-[ ] supabase db push   (106 migrations)
+[ ] supabase db push   (107 migrations — includes new 20250101_initial_schema.sql)
 [ ] Create storage buckets (scans, evidence, incident-evidence, credentials)
 [ ] Create master user + first organisation
 [ ] supabase secrets set (all 8 secrets)
