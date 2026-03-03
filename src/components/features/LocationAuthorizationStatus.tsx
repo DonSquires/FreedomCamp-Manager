@@ -61,11 +61,11 @@ export function LocationAuthorizationStatus({
       }
 
       const newStatus: LocationStatus = {
-        inside: data?.inside || false,
-        distance_m: data?.distance_m || null,
-        nearest_point: data?.nearest_point ? {
-          latitude: data.nearest_point.coordinates[1],
-          longitude: data.nearest_point.coordinates[0],
+        inside: (data as any)?.inside || false,
+        distance_m: (data as any)?.distance_m || null,
+        nearest_point: (data as any)?.nearest_point ? {
+          latitude: (data as any).nearest_point.coordinates[1],
+          longitude: (data as any).nearest_point.coordinates[0],
         } : undefined,
         checked_at: new Date().toISOString(),
       }

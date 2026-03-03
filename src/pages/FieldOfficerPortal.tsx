@@ -58,7 +58,7 @@ export default function FieldOfficerPortal() {
         .eq('id', user.organization_id)
         .single()
       if (error) return 'admin_first'
-      return (data?.enforcement_workflow as string) || 'admin_first'
+      return ((data as any)?.enforcement_workflow as string) || 'admin_first'
     },
     enabled: !!user?.organization_id,
     staleTime: 1000 * 60 * 10,
@@ -90,8 +90,8 @@ export default function FieldOfficerPortal() {
       plateNumber: string
       actionType: 'warning' | 'notice_to_vacate'
     }) => {
-      const { error } = await supabase
-        .from('enforcement_actions')
+      const { error } = await (supabase
+        .from('enforcement_actions') as any)
         .insert({
           organization_id: user?.organization_id,
           user_id: user?.id,
@@ -272,8 +272,8 @@ export default function FieldOfficerPortal() {
       // ============================================================================
       toast.info('Saving observation...')
       
-      const { data: observation, error: obsError } = await supabase
-        .from('observations')
+      const { data: observation, error: obsError } = await (supabase
+        .from('observations') as any)
         .insert({
           // CRITICAL: Identity
           idempotency_key: idempotencyKey,
@@ -310,9 +310,9 @@ export default function FieldOfficerPortal() {
       }
 
       console.log('✅ Observation saved (pending AI):', {
-        observation_id: observation.id,
+        observation_id: observation?.id,
         zone_id: finalZoneId,
-        status: observation.processing_status,
+        status: observation?.processing_status,
         weather: weatherConditions
       })
 
@@ -322,7 +322,7 @@ export default function FieldOfficerPortal() {
       // Call Edge Function asynchronously (don't wait for it)
       supabase.functions.invoke('alpr-process', {
         body: {
-          observation_id: observation.id,
+          observation_id: observation?.id,
           photo_url: photoUrl,
           regions: ['nz'],
           mmc: true,

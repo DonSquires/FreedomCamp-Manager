@@ -242,7 +242,7 @@ export async function updateNotificationPreferences(
   }
 
   const updatedPreferences = {
-    ...current?.notification_preferences,
+    ...((current as any)?.notification_preferences || {}),
     ...preferences,
   }
 
@@ -270,9 +270,9 @@ export async function hasNotificationEnabled(
     .eq('id', userId)
     .single()
 
-  if (error || !data?.notification_preferences) {
+  if (error || !data || !data.notification_preferences) {
     return true // Default to enabled if no preferences set
   }
 
-  return data.notification_preferences[notificationType] !== false
+  return (data.notification_preferences as any)[notificationType] !== false
 }

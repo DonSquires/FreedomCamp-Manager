@@ -123,8 +123,8 @@ export function useEnforcementActions(options?: {
   // Create action mutation
   const createAction = useMutation({
     mutationFn: async (input: CreateActionInput) => {
-      const { data, error } = await supabase
-        .from('enforcement_actions')
+      const { data, error } = await (supabase
+        .from('enforcement_actions') as any)
         .insert({
           organization_id: user?.organization_id,
           user_id: user?.id,

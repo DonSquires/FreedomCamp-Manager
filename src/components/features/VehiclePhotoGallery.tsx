@@ -114,7 +114,7 @@ export function VehiclePhotoGallery({
   }
 
   const isProfilePhoto = (photoUrl: string) => {
-    return vehicle?.profile_photo === photoUrl
+    return (vehicle as any)?.profile_photo === photoUrl
   }
 
   const openLightbox = (photoUrl: string) => {

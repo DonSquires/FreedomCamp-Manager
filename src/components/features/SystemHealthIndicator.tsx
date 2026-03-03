@@ -18,7 +18,7 @@ import {
   Server,
   Zap,
 } from 'lucide-react'
-import { checkRailwayHealth } from '@/lib/railway'
+import { checkRailwayServicesHealth } from '@/lib/railway'
 
 interface ServiceStatus {
   name: string
@@ -32,7 +32,7 @@ export function SystemHealthIndicator() {
   // Check Railway services health
   const { data: railwayHealth, isLoading: railwayLoading, refetch } = useQuery({
     queryKey: ['railway-health'],
-    queryFn: checkRailwayHealth,
+    queryFn: checkRailwayServicesHealth,
     refetchInterval: 60000, // Check every minute
   })
 

@@ -137,8 +137,8 @@ export function usePersonRecords(options?: {
   // Create person record mutation
   const createPersonRecord = useMutation({
     mutationFn: async (input: CreatePersonRecordInput) => {
-      const { data, error } = await supabase
-        .from('person_records')
+      const { data, error } = await (supabase
+        .from('person_records') as any)
         .insert({
           organization_id: user?.organization_id,
           user_id: user?.id,
@@ -274,8 +274,8 @@ export function usePersonObservations(personId: string | null) {
   // Create observation mutation
   const createObservation = useMutation({
     mutationFn: async (input: CreatePersonObservationInput) => {
-      const { data, error } = await supabase
-        .from('person_observations')
+      const { data, error } = await (supabase
+        .from('person_observations') as any)
         .insert({
           person_id: input.person_id,
           organization_id: user?.organization_id,

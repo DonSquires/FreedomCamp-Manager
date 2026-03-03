@@ -252,7 +252,7 @@ export function OrganizationBoundaryEditor({
       if (error) throw error
 
       toast.success('✅ Organization boundary updated successfully', {
-        description: `Area: ${data?.area_km2?.toFixed(2) || 'N/A'} km²`,
+        description: `Area: ${(data as any)?.area_km2?.toFixed(2) || 'N/A'} km²`,
         duration: 5000,
       })
 

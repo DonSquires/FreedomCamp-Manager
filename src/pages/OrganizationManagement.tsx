@@ -129,8 +129,8 @@ export default function OrganizationManagement() {
       const levelMap: Record<string, number> = { owner: 1, service_provider: 2, client: 3 }
       const level = levelMap[createOrgType] || 3
 
-      const { error } = await supabase
-        .from('organizations')
+      const { error } = await (supabase
+        .from('organizations') as any)
         .insert({
           name: createName.trim(),
           organization_type: createOrgType,

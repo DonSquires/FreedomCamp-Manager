@@ -37,7 +37,7 @@ export function ComplianceRulesViewer({
         .rpc('get_active_matrix', { p_zone_id: zoneId })
 
       if (error) throw error
-      return data?.[0] || null
+      return (data as any)?.[0] || null
     },
   })
 

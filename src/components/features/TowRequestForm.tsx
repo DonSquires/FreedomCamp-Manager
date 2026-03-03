@@ -57,8 +57,8 @@ export function TowRequestForm({
   // Submit tow request mutation
   const submitTowRequestMutation = useMutation({
     mutationFn: async () => {
-      const { data, error } = await supabase
-        .from('enforcement_actions')
+      const { data, error } = await (supabase
+        .from('enforcement_actions') as any)
         .insert({
           organization_id: user?.organization_id,
           user_id: user?.id,
@@ -89,7 +89,7 @@ ${notesTowOperator ? `\nNotes for Operator:\n${notesTowOperator}` : ''}
       toast.success('Tow request submitted successfully')
       
       if (onSubmitted) {
-        onSubmitted(data.id)
+        onSubmitted(data?.id)
       }
     },
     onError: (error: any) => {

@@ -108,10 +108,6 @@ export function usePermissions() {
     if (user.organization_id === organizationId) return true
 
     // Check if organization is in user's authorized work locations
-    if (user.organization_ids && user.organization_ids.includes(organizationId)) {
-      return true
-    }
-
     return false
   }
 
@@ -176,6 +172,8 @@ export function useManagePermissions(userId: string | null) {
         console.error('Failed to load user permissions:', error)
         return null
       }
+
+      if (!data) return null
 
       return {
         role: data.role,

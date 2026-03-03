@@ -49,7 +49,7 @@ export function GeoJsonUploader({ organizationId }: GeoJsonUploaderProps) {
       // Insert into appropriate table
       if (layerType === 'jurisdiction') {
         // Insert into organizations table
-        const { error } = await supabase.from('organizations').insert({
+        const { error } = await (supabase.from('organizations') as any).insert({
           name: name,
           type: 'council', // Default type
           geom: geojson.features[0].geometry, // First feature
@@ -60,7 +60,7 @@ export function GeoJsonUploader({ organizationId }: GeoJsonUploaderProps) {
       } else {
         // Insert into restrictions table
         for (const feature of geojson.features) {
-          const { error } = await supabase.from('restrictions').insert({
+          const { error } = await (supabase.from('restrictions') as any).insert({
             organization_id: organizationId,
             name: name,
             restriction_type: restrictionType,

@@ -38,7 +38,7 @@ import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/stores/authStore';
 import { Navigate } from 'react-router-dom';
 import { GlobalFilterRibbon } from '@/components/features/GlobalFilterRibbon';
-import { useGlobalFilters } from '@/stores/globalFiltersStore';
+import { useGlobalFiltersStore as useGlobalFilters } from '@/stores/globalFiltersStore';
 import { AdminNavigationMenu } from '@/components/features/AdminNavigationMenu';
 
 // ============================================================================

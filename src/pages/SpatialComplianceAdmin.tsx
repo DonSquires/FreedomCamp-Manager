@@ -145,7 +145,7 @@ export default function SpatialComplianceAdmin() {
           <OrganizationBoundaryEditor
             organizationId={user?.organization_id || ''}
             organizationName={user?.email?.split('@')[0] || 'Organization'}
-            currentBoundary={orgBoundary?.geom}
+            currentBoundary={(orgBoundary as any)?.geom}
             onBoundaryUpdated={refetchBoundary}
           />
         </TabsContent>

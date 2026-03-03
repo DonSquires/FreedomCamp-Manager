@@ -83,7 +83,7 @@ export default function DataCleanupUtility() {
       const { count: oldResolvedBreaches } = await oldBreachQuery
 
       return {
-        duplicateObservations: duplicates?.length || 0,
+        duplicateObservations: (duplicates as any)?.length || 0,
         orphanedPhotos: orphanedPhotos || 0,
         expiredPhotos: expiredPhotos || 0,
         observationsWithoutPhotos: observationsWithoutPhotos || 0,

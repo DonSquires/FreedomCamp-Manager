@@ -106,8 +106,8 @@ export function useFlaggedVehicles(options?: {
   // Create flagged vehicle mutation
   const createFlaggedVehicle = useMutation({
     mutationFn: async (input: CreateFlaggedVehicleInput) => {
-      const { data, error } = await supabase
-        .from('flagged_vehicles')
+      const { data, error } = await (supabase
+        .from('flagged_vehicles') as any)
         .insert({
           organization_id: user?.organization_id,
           created_by: user?.id,

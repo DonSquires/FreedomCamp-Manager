@@ -66,8 +66,8 @@ export function useCreateZone() {
 
   return useMutation({
     mutationFn: async (zone: Omit<Zone, 'id' | 'created_at'>) => {
-      const { error } = await supabase
-        .from('zones')
+      const { error } = await (supabase
+        .from('zones') as any)
         .insert(zone)
 
       if (error) throw error

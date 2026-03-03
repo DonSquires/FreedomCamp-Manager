@@ -202,7 +202,7 @@ export default function EnforcementCommandCenter() {
       const { data, error } = await query
       if (error) throw error
       
-      return data.map(action => ({
+      return data.map((action: any) => ({
         ...action,
         user_profile: action.user_profile ? {
           full_name: `${action.user_profile.first_name} ${action.user_profile.last_name}`

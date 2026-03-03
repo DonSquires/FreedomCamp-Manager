@@ -34,7 +34,7 @@ export function useOrganizationBoundary(organizationId?: string) {
       // Calculate bbox and area client-side if needed
       // Or fetch from a computed column/RPC
       const boundary: OrganizationBoundary = {
-        ...data,
+        ...(data as any),
         bbox: null, // TODO: Parse from geom or fetch via RPC
         area_km2: null, // TODO: Calculate or fetch via RPC
       }
@@ -43,6 +43,6 @@ export function useOrganizationBoundary(organizationId?: string) {
     },
     enabled: !!organizationId,
     staleTime: 5 * 60 * 1000, // 5 minutes
-    cacheTime: 10 * 60 * 1000, // 10 minutes
+    gcTime: 10 * 60 * 1000, // 10 minutes
   })
 }

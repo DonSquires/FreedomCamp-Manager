@@ -12,7 +12,7 @@ import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
-import { requestNotificationPermission, isPushSupported } from '@/lib/pushNotifications'
+import { requestNotificationPermission, isNotificationSupported } from '@/lib/pushNotifications'
 import { 
   Bell,
   BellOff,
@@ -53,7 +53,7 @@ export function PushNotificationSettings() {
   useEffect(() => {
     if ('Notification' in window) {
       setPermissionStatus(Notification.permission)
-      setPushEnabled(!!preferences?.push_token)
+      setPushEnabled(!!(preferences as any)?.push_token)
     }
   }, [preferences])
 
@@ -77,7 +77,7 @@ export function PushNotificationSettings() {
   })
 
   const handleTogglePreference = (key: string, value: boolean) => {
-    const currentPrefs = preferences?.notification_preferences || {}
+    const currentPrefs = (preferences as any)?.notification_preferences || {}
     updatePreferencesMutation.mutate({
       ...currentPrefs,
       [key]: value,
@@ -85,7 +85,7 @@ export function PushNotificationSettings() {
   }
 
   const handleEnablePush = async () => {
-    if (!isPushSupported()) {
+    if (!isNotificationSupported()) {
       toast.error('Push notifications are not supported in this browser')
       return
     }
@@ -136,7 +136,7 @@ export function PushNotificationSettings() {
     }
   }
 
-  const currentPrefs = preferences?.notification_preferences || {}
+  const currentPrefs = (preferences as any)?.notification_preferences || {}
 
   return (
     <Card>

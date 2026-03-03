@@ -65,8 +65,8 @@ export function useCreateOrganization() {
       type: Organization['type']
       parent_organization_id?: string | null
     }) => {
-      const { data, error } = await supabase
-        .from('organizations')
+      const { data, error } = await (supabase
+        .from('organizations') as any)
         .insert([orgData])
         .select()
         .single()

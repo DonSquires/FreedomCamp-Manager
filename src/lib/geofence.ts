@@ -124,8 +124,8 @@ export async function autoStartPatrol(
     }
     
     // Create new patrol
-    const { data: patrol, error } = await supabase
-      .from('patrols')
+    const { data: patrol, error } = await (supabase
+      .from('patrols') as any)
       .insert({
         organization_id: organizationId,
         zone_id: zoneId,
@@ -144,7 +144,7 @@ export async function autoStartPatrol(
     if (error) throw error
     
     toast.success(`Patrol started in ${zoneId}`)
-    return { success: true, patrolId: patrol.id }
+    return { success: true, patrolId: patrol?.id }
   } catch (error: any) {
     console.error('Auto-start patrol error:', error)
     toast.error('Failed to start patrol automatically')

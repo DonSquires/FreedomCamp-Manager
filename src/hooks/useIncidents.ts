@@ -129,8 +129,8 @@ export function useIncidents(options?: {
   // Create incident mutation
   const createIncident = useMutation({
     mutationFn: async (input: CreateIncidentInput) => {
-      const { data, error } = await supabase
-        .from('incidents')
+      const { data, error } = await (supabase
+        .from('incidents') as any)
         .insert({
           organization_id: user?.organization_id,
           user_id: user?.id,

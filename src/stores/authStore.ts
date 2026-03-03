@@ -47,11 +47,11 @@ export const useAuthStore = create<AuthState>()(
         if (profileError) throw profileError
 
         const authUser: AuthUser = {
-          id: profile.id,
-          email: profile.email,
-          role: profile.role as AuthUser['role'],
-          organization_id: profile.organization_id,
-          full_name: `${profile.first_name} ${profile.last_name}`,
+          id: (profile as any).id,
+          email: (profile as any).email,
+          role: (profile as any).role as AuthUser['role'],
+          organization_id: (profile as any).organization_id,
+          full_name: `${(profile as any).first_name} ${(profile as any).last_name}`,
         }
 
         set({ user: authUser, isAuthenticated: true, loading: false })

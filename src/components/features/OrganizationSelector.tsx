@@ -50,7 +50,7 @@ export function OrganizationSelector({
     // Check if user has access to this org
     return (
       org.id === user?.organization_id ||
-      user?.organization_ids?.includes(org.id) ||
+      user?.organization_id === org.id ||
       user?.authorized_work_locations?.includes(org.id)
     )
   })

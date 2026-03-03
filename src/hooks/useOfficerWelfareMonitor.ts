@@ -211,8 +211,8 @@ export function useOfficerWelfareSettings(userId?: string) {
         if (error) throw error
       } else {
         // Insert new
-        const { error } = await supabase
-          .from('officer_welfare_settings')
+        const { error } = await (supabase
+          .from('officer_welfare_settings') as any)
           .insert({
             user_id: targetUserId,
             organization_id: user?.organization_id,

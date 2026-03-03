@@ -142,8 +142,8 @@ export default function OrganizationProfile() {
 
       const parentZone = parentZones[0] // Use first parent zone
 
-      const { error } = await supabase
-        .from('zones')
+      const { error } = await (supabase
+        .from('zones') as any)
         .insert({
           organization_id: organizationId,
           name: childName.trim(),

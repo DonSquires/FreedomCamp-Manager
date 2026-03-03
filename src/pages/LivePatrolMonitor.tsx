@@ -151,12 +151,12 @@ export default function LivePatrolMonitor() {
           const durationMinutes = Math.floor(durationMs / 60000)
 
           return {
-            ...patrol,
+            ...(patrol as any),
             _vehicles_checked: vehiclesChecked || 0,
             _duration_minutes: durationMinutes,
-            _last_gps_update: latestActivity?.recorded_at || null,
-            _last_gps_lat: latestActivity?.gps_latitude || null,
-            _last_gps_lng: latestActivity?.gps_longitude || null,
+            _last_gps_update: (latestActivity as any)?.recorded_at || null,
+            _last_gps_lat: (latestActivity as any)?.gps_latitude || null,
+            _last_gps_lng: (latestActivity as any)?.gps_longitude || null,
           } as ActivePatrol
         })
       )

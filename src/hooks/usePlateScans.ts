@@ -123,8 +123,8 @@ export function usePlateScans(options?: {
   // Create scan mutation
   const createScan = useMutation({
     mutationFn: async (input: CreateScanInput) => {
-      const { data, error } = await supabase
-        .from('plate_scans')
+      const { data, error } = await (supabase
+        .from('plate_scans') as any)
         .insert({
           organization_id: user?.organization_id,
           zone_id: input.zone_id,
