@@ -11,7 +11,7 @@
     "ghcr.io/devcontainers/features/node:1": { "version": "20" },
     "ghcr.io/devcontainers/features/github-cli:1": {},
     "ghcr.io/devcontainers/features/postgres:1": { "version": "15" },
-    "ghcr.io/devcontainers-contrib/features/supabase-cli:1": {},
+    "ghcr.io/devcontainers-contrib/features/supabase-cli:1": { "version": "2.75.0" },
     "ghcr.io/devcontainers-contrib/features/deno:1": {}
   },
 
