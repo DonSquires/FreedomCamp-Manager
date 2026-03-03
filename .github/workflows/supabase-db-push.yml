@@ -57,7 +57,7 @@ jobs:
       - name: Push all pending migrations
         run: |
           echo "Pushing pending migrations to project $SUPABASE_PROJECT_REF …"
-          supabase db push --project-ref "$SUPABASE_PROJECT_REF"
+          supabase db push
           echo ""
           echo "✅ All pending migrations applied successfully."
         env:
