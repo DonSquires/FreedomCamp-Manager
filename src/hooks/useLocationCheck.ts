@@ -34,12 +34,13 @@ export function useLocationCheck(
 
       if (error) throw error
 
+      const d = data as any
       const result: LocationCheckResult = {
-        inside: (data as any)?.inside || false,
-        distance_m: (data as any)?.distance_m || null,
-        nearest_point: (data as any)?.nearest_point ? {
-          latitude: (data as any).nearest_point.coordinates[1],
-          longitude: (data as any).nearest_point.coordinates[0],
+        inside: d?.inside || false,
+        distance_m: d?.distance_m || null,
+        nearest_point: d?.nearest_point ? {
+          latitude: d.nearest_point.coordinates[1],
+          longitude: d.nearest_point.coordinates[0],
         } : null,
       }
 

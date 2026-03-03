@@ -54,13 +54,14 @@ export function useVehicleProfilePhoto(plateNumber?: string) {
         .not('photo_url', 'is', null)
         .is('deleted_at', null)
 
+      const d = data as any
       return {
-        plate_number: (data as any)?.plate_number,
-        profile_photo: (data as any)?.profile_photo,
-        profile_photo_selected_at: (data as any)?.profile_photo_selected_at,
-        profile_photo_metadata: (data as any)?.profile_photo_metadata,
+        plate_number: d?.plate_number,
+        profile_photo: d?.profile_photo,
+        profile_photo_selected_at: d?.profile_photo_selected_at,
+        profile_photo_metadata: d?.profile_photo_metadata,
         total_photos: count || 0,
-        best_quality_score: (data as any)?.profile_photo_metadata?.quality_score || null,
+        best_quality_score: d?.profile_photo_metadata?.quality_score || null,
       } as ProfilePhoto
     },
     enabled: !!plateNumber,
