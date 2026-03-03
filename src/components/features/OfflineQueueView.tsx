@@ -108,7 +108,7 @@ export function OfflineQueueView({
             </span>
           )}
         </div>
-        <span className="text-xs opacity-80">{items.length} item{items.length !== 1 ? 's' : ''}</span>
+        <span className="text-xs opacity-80">{`${items.length} ${items.length !== 1 ? 'items' : 'item'}`}</span>
       </div>
 
       {/* Count summary */}

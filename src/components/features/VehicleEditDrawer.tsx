@@ -71,7 +71,7 @@ export function VehicleEditDrawer({ open, onClose, vehicle, onSave }: VehicleEdi
   }
 
   return (
-    <Sheet open={open} onOpenChange={(v) => { if (!v) onClose() }}>
+    <Sheet open={open} onOpenChange={(open) => { if (!open) onClose() }}>
       <SheetContent className="w-full sm:max-w-md overflow-y-auto">
         <SheetHeader>
           <SheetTitle>Edit Vehicle – {vehicle.plate_number}</SheetTitle>

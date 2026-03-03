@@ -1,4 +1,4 @@
-import { useRef, useState, useCallback } from 'react'
+import { useRef, useState, useCallback, useEffect } from 'react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
@@ -56,6 +56,13 @@ export function MultiPhotoUpload({
     setPreviews(updatedPreviews)
     onPhotosChange?.(updatedPhotos)
   }
+
+  // Revoke all preview URLs when component unmounts to prevent memory leaks
+  useEffect(() => {
+    return () => {
+      previews.forEach((url) => URL.revokeObjectURL(url))
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const totalCount = photos.length + existingPhotoUrls.length
 

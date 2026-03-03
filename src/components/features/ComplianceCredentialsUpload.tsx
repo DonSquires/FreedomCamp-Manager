@@ -59,11 +59,16 @@ export function ComplianceCredentialsUpload({
     }
     setIsUploading(true)
     try {
-      // TODO: Replace with actual Supabase storage upload; manage URL lifecycle appropriately
+      // TODO: Replace with actual Supabase storage upload
       await new Promise((res) => setTimeout(res, 800))
-      const fakeUrl = URL.createObjectURL(selectedFile)
-      toast.success('Document uploaded')
-      if (onUploadComplete) onUploadComplete(fakeUrl, selectedType)
+      const blobUrl = URL.createObjectURL(selectedFile)
+      try {
+        toast.success('Document uploaded')
+        if (onUploadComplete) onUploadComplete(blobUrl, selectedType)
+      } finally {
+        // Revoke immediately — caller should use the URL synchronously or store a copy
+        URL.revokeObjectURL(blobUrl)
+      }
       setSelectedFile(null)
     } catch {
       toast.error('Upload failed. Please try again.')

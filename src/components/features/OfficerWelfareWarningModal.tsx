@@ -40,8 +40,7 @@ export function OfficerWelfareWarningModal({
   supervisorNotified,
 }: OfficerWelfareWarningModalProps) {
   return (
-    <Dialog open={open} onOpenChange={() => {}}>
-      {/* onOpenChange is intentionally empty — this dialog requires an explicit action to close */}
+    <Dialog open={open}>
       <DialogContent
         className="max-w-md p-0 overflow-hidden [&>button:first-of-type]:hidden"
         onInteractOutside={(e) => e.preventDefault()}
