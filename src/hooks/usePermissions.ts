@@ -74,8 +74,9 @@ export function usePermissions() {
     if (rolePermissions.includes(permission)) return true
 
     // Check custom permissions from user_profiles.permissions
-    if ((user as any).permissions && Array.isArray((user as any).permissions)) {
-      return (user as any).permissions.includes(permission)
+    const userPerms = (user as any).permissions
+    if (userPerms && Array.isArray(userPerms)) {
+      return userPerms.includes(permission)
     }
 
     return false
