@@ -181,6 +181,32 @@ Once deployed, fill out the NZSCV application form with:
 
 ## 🧪 Testing Your Proxy
 
+### NZSCV Test Environment
+
+NZSCV provides a **test environment** at a different URL from production. The endpoint path also
+differs, so use the `NZSCV_ENDPOINT_URL` variable to point to the correct URL:
+
+| Environment | NZSCV_ENDPOINT_URL |
+|---|---|
+| **Test** | `https://tst.nzscv.co.nz/rest/info/v1/vehicleregistrationinfo` |
+| **Production** | `https://www.nzscv.co.nz/api/rest/scv/v1/vehicleregistrationinfo` |
+
+Set these as environment variables on your Railway/DigitalOcean server — **never commit credentials
+to Git**. On Railway:
+
+1. Open your proxy-server service → **Variables**
+2. Add:
+   - `NZSCV_ENDPOINT_URL` = the test or production URL above
+   - `NZSCV_ID_KEY` = your API Identifier (from PGDB)
+   - `NZSCV_API_KEY` = your API Authorization (from PGDB)
+3. Redeploy
+
+The proxy server sends:
+- `PGDB-Identifier: <NZSCV_ID_KEY>` header
+- `PGDB-Authorization: <NZSCV_API_KEY>` header
+
+---
+
 ### Local Test (before NZSCV approval)
 
 ```bash
