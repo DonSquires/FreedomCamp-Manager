@@ -110,6 +110,12 @@ SELECT extname FROM pg_extension WHERE extname IN ('postgis', 'pg_trgm', 'pg_cro
 
 ### 2.5 Create Storage buckets
 
+Storage bucket RLS policies are applied during `supabase db push`. The buckets
+themselves must be created manually — you can do this **before or after** running
+`db push`; the policies activate as soon as the bucket exists.
+
+In **Supabase Dashboard → Storage → New bucket**:
+
 | Bucket | Public | Purpose |
 |---|---|---|
 | `scans` | ✅ Yes | Vehicle scan photos |
