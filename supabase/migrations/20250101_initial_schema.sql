@@ -89,6 +89,8 @@ END;
 $$;
 
 -- get_descendant_organizations — recursive org hierarchy helper
+-- Drop any prior definition (parameter name may differ, e.g. "root_org_id" vs "org_id")
+DROP FUNCTION IF EXISTS get_descendant_organizations(UUID);
 CREATE OR REPLACE FUNCTION get_descendant_organizations(org_id UUID)
 RETURNS UUID[]
 LANGUAGE plpgsql
