@@ -108,7 +108,7 @@ export default function ComplianceRecalculation() {
       return
     }
 
-    recalculateMutation.mutate()
+    recalculateMutation.mutate(undefined as any)
   }
 
   return (

@@ -58,8 +58,7 @@ export function VehicleNotesEditor({
     queryKey: ['vehicle-notes', plateNumber],
     queryFn: async () => {
       // First check if vehicle_notes table exists, otherwise use a simple approach
-      const { data, error } = await supabase
-        .rpc('get_vehicle_notes_history', { p_plate_number: plateNumber })
+      const { data, error } = await (supabase as any).rpc('get_vehicle_notes_history', { p_plate_number: plateNumber })
 
       if (error) {
         // Fallback: Return empty array if function doesn't exist
@@ -75,12 +74,10 @@ export function VehicleNotesEditor({
   const addNoteMutation = useMutation({
     mutationFn: async (text: string) => {
       // Since we don't have a dedicated notes table yet, we'll store in canonical_vehicles
-      const { data, error } = await supabase
-        .from('canonical_vehicles')
+      const { data, error } = await (supabase.from('canonical_vehicles') as any)
         .update({
           last_note_preview: text.substring(0, 200),
           last_note_at: new Date().toISOString(),
-          total_notes: supabase.raw('total_notes + 1'),
         })
         .eq('plate_number', plateNumber)
         .select()
@@ -105,12 +102,10 @@ export function VehicleNotesEditor({
   const deleteNoteMutation = useMutation({
     mutationFn: async (noteId: string) => {
       // For now, just clear the last note
-      const { data, error } = await supabase
-        .from('canonical_vehicles')
+      const { data, error } = await (supabase.from('canonical_vehicles') as any)
         .update({
           last_note_preview: null,
           last_note_at: null,
-          total_notes: Math.max(0, supabase.raw('total_notes - 1')),
         })
         .eq('plate_number', plateNumber)
         .select()

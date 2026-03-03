@@ -137,12 +137,12 @@ export function BulkActionToolbar({
           onClose={() => setConfirmAction(null)}
           onConfirm={() => executeAction(confirmAction)}
           title={confirmAction.confirmTitle || `Confirm ${confirmAction.label}`}
-          message={
+          description={
             confirmAction.confirmMessage ||
             `Are you sure you want to ${confirmAction.label.toLowerCase()} ${selectedCount} item${selectedCount > 1 ? 's' : ''}? This action cannot be undone.`
           }
-          confirmLabel={confirmAction.label}
-          variant={confirmAction.variant === 'destructive' ? 'destructive' : 'default'}
+          confirmText={confirmAction.label}
+          variant={confirmAction.variant === 'destructive' ? 'danger' : 'info'}
         />
       )}
     </>

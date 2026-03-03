@@ -99,8 +99,7 @@ export function useOfficerWelfareMonitor(options?: {
   // Acknowledge alert mutation
   const acknowledgeAlert = useMutation({
     mutationFn: async ({ alertId, notes }: { alertId: string; notes?: string }) => {
-      const { error } = await supabase
-        .from('officer_welfare_alerts')
+      const { error } = await (supabase.from('officer_welfare_alerts') as any)
         .update({
           status: 'acknowledged',
           acknowledged_by: user?.id,
@@ -123,8 +122,7 @@ export function useOfficerWelfareMonitor(options?: {
   // Resolve alert mutation
   const resolveAlert = useMutation({
     mutationFn: async ({ alertId, notes }: { alertId: string; notes?: string }) => {
-      const { error } = await supabase
-        .from('officer_welfare_alerts')
+      const { error } = await (supabase.from('officer_welfare_alerts') as any)
         .update({
           status: 'resolved',
           resolved_by: user?.id,
@@ -169,8 +167,7 @@ export function useOfficerWelfareSettings(userId?: string) {
       const targetUserId = userId || user?.id
       if (!targetUserId) return null
 
-      const { data, error } = await supabase
-        .from('officer_welfare_settings')
+      const { data, error } = await (supabase.from('officer_welfare_settings') as any)
         .select('*')
         .eq('user_id', targetUserId)
         .single()
@@ -195,24 +192,22 @@ export function useOfficerWelfareSettings(userId?: string) {
       if (!targetUserId) throw new Error('No user ID')
 
       // Check if settings exist
-      const { data: existing } = await supabase
-        .from('officer_welfare_settings')
+      const { data: existing } = await (supabase.from('officer_welfare_settings') as any)
         .select('id')
         .eq('user_id', targetUserId)
         .single()
 
       if (existing) {
         // Update existing
-        const { error } = await supabase
-          .from('officer_welfare_settings')
+        const { error } = await (supabase.from('officer_welfare_settings') as any)
           .update(updates)
           .eq('user_id', targetUserId)
 
         if (error) throw error
       } else {
         // Insert new
-        const { error } = await supabase
-          .from('officer_welfare_settings')
+        const { error } = await (supabase
+          .from('officer_welfare_settings') as any)
           .insert({
             user_id: targetUserId,
             organization_id: user?.organization_id,
@@ -249,8 +244,7 @@ export function useWelfareStats(options?: {
   return useQuery({
     queryKey: ['welfare-stats', options],
     queryFn: async () => {
-      let query = supabase
-        .from('officer_welfare_alerts')
+      let query = (supabase.from('officer_welfare_alerts') as any)
         .select('alert_type, status, escalation_level')
 
       // Organization scoping

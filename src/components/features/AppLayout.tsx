@@ -24,6 +24,8 @@ import {
   MonitorPlay,
   EyeOff,
   ScanLine,
+  Receipt,
+  User,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -40,6 +42,7 @@ const navigationItems = [
   { path: '/compliance', icon: BarChart3, label: 'Compliance Dashboard', roles: ['admin', 'admin_officer', 'master', 'officer'] },
   { path: '/breaches', icon: AlertTriangle, label: 'Breach & Safety Alerts', roles: ['admin', 'admin_officer', 'master', 'officer'] },
   { path: '/enforcement-actions', icon: Gavel, label: 'Enforcement Actions', roles: ['admin', 'admin_officer', 'master', 'officer'] },
+  { path: '/infringements', icon: Receipt, label: 'Infringement Notices', roles: ['admin', 'admin_officer', 'master'] },
   { path: '/enforcement-command-center', icon: MonitorPlay, label: 'Command Center', roles: ['admin', 'admin_officer', 'master'] },
   { path: '/vehicles', icon: Car, label: 'Vehicle Management', roles: ['admin', 'admin_officer', 'master', 'officer'] },
   { path: '/zones', icon: MapPin, label: 'Zone Management', roles: ['admin', 'admin_officer', 'master'] },
@@ -53,6 +56,8 @@ const navigationItems = [
   { path: '/organization-profile', icon: Building2, label: 'Organization Profile', roles: ['admin', 'admin_officer', 'master'] },
   { path: '/organizations', icon: Building2, label: 'Organizations', roles: ['master'] },
   { path: '/diagnostics', icon: Settings, label: 'System Diagnostics', roles: ['master'] },
+  { path: '/profile', icon: User, label: 'My Profile', roles: ['admin', 'admin_officer', 'master', 'officer'] },
+  { path: '/settings', icon: Settings, label: 'Settings', roles: ['admin', 'admin_officer', 'master', 'officer'] },
 ]
 
 function NavigationLinks({ onClick }: { onClick?: () => void }) {

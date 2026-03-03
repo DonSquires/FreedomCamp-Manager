@@ -89,6 +89,7 @@ export function useAuditLogs(options?: {
     logs: query.data,
     isLoading: query.isLoading,
     error: query.error,
+    refetch: query.refetch,
   }
 }
 

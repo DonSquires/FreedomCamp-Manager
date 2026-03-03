@@ -111,8 +111,8 @@ export function useHealthSafety(options?: {
   // Create report mutation
   const createReport = useMutation({
     mutationFn: async (input: CreateHSReportInput) => {
-      const { data, error } = await supabase
-        .from('health_safety_reports')
+      const { data, error } = await (supabase
+        .from('health_safety_reports') as any)
         .insert({
           organization_id: user?.organization_id,
           reported_by: user?.id,
@@ -151,8 +151,7 @@ export function useHealthSafety(options?: {
         payload.resolved_at = new Date().toISOString()
       }
 
-      const { error } = await supabase
-        .from('health_safety_reports')
+      const { error } = await (supabase.from('health_safety_reports') as any)
         .update(payload)
         .eq('id', id)
 

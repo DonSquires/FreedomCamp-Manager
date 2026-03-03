@@ -27,6 +27,7 @@ import OrganizationProfile from '@/pages/OrganizationProfile'
 import AuditLog from '@/pages/AuditLog'
 import EnforcementActions from '@/pages/EnforcementActions'
 import EnforcementCommandCenter from '@/pages/EnforcementCommandCenter'
+import InfringementNotices from '@/pages/InfringementNotices'
 import PrivacyCurtain from '@/pages/PrivacyCurtain'
 import PatrolCheckpointManagement from '@/pages/PatrolCheckpointManagement'
 import DataManagementHub from '@/pages/DataManagementHub'
@@ -38,6 +39,22 @@ import HotspotsMap from '@/pages/HotspotsMap'
 import SpatialComplianceAdmin from '@/pages/SpatialComplianceAdmin'
 import ComplianceAnalytics from '@/pages/ComplianceAnalytics'
 import IncidentReports from '@/pages/IncidentReports'
+import ObservationsView from '@/pages/ObservationsView'
+import UniversalSearch from '@/pages/UniversalSearch'
+import NoticeToVacate from '@/pages/NoticeToVacate'
+import OfficerWelfareSettings from '@/pages/OfficerWelfareSettings'
+import EnforcementReview from '@/pages/EnforcementReview'
+import InvestigationJobsPage from '@/pages/InvestigationJobsPage'
+import VehicleDetailPage from '@/pages/VehicleDetailPage'
+import PersonRecords from '@/pages/PersonRecords'
+import ImportData from '@/pages/ImportData'
+import ImportHistoricalData from '@/pages/ImportHistoricalData'
+import BreachNotices from '@/pages/BreachNotices'
+import ObservationsReport from '@/pages/ObservationsReport'
+import PortalSelection from '@/pages/PortalSelection'
+import Settings from '@/pages/Settings'
+import Profile from '@/pages/Profile'
+import VehicleRegistry from '@/pages/VehicleRegistry'
 
 // Create a client
 const queryClient = new QueryClient({
@@ -115,7 +132,19 @@ export default function App() {
         <Routes>
           {/* Public routes */}
           <Route path="/login" element={<Login />} />
+          <Route path="/portal-selection" element={<PortalSelection />} />
 
+          {/* Field Officer Portal */}
+          <Route
+            path="/field-officer"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['officer', 'admin_officer']}>
+                  <FieldOfficerPortal />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
           {/* Protected routes */}
           <Route
             path="/"
@@ -320,6 +349,17 @@ export default function App() {
           />
 
           <Route
+            path="/infringements"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master', 'officer']}>
+                  <InfringementNotices />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
             path="/privacy-curtain"
             element={
               <ProtectedRoute>
@@ -432,6 +472,157 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <IncidentReports />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/observations"
+            element={
+              <ProtectedRoute>
+                <ObservationsView />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/search"
+            element={
+              <ProtectedRoute>
+                <UniversalSearch />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/notice-to-vacate"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <NoticeToVacate />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/officer-welfare"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <OfficerWelfareSettings />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/enforcement-review"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <EnforcementReview />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/investigations"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <InvestigationJobsPage />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/vehicles/:id"
+            element={
+              <ProtectedRoute>
+                <VehicleDetailPage />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/person-records"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <PersonRecords />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/import-data"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <ImportData />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/import-historical"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <ImportHistoricalData />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/breach-notices"
+            element={
+              <ProtectedRoute>
+                <BreachNotices />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/observations-report"
+            element={
+              <ProtectedRoute>
+                <ObservationsReport />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/settings"
+            element={
+              <ProtectedRoute>
+                <Settings />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/profile"
+            element={
+              <ProtectedRoute>
+                <Profile />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/vehicle-registry"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <VehicleRegistry />
+                </RoleRoute>
               </ProtectedRoute>
             }
           />

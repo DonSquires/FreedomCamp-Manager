@@ -30,3 +30,11 @@ tools/onspace-analysis/output/
 # Root-level package-lock.json (no root package.json - project uses bun.lock)
 /package-lock.json
 *.tsbuildinfo
+
+# Environment files — NEVER commit credentials
+.env
+.env.*
+!.env.example
+proxy-server/.env
+proxy-server/.env.*
+!proxy-server/.env.example

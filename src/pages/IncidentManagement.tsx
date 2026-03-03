@@ -27,13 +27,13 @@ interface Incident {
 
 export default function IncidentManagement() {
   const { user } = useAuthStore()
-  const { dateRange, organizationId, zoneId } = useGlobalFiltersStore()
+  const { dateFrom, dateTo, organizationId, zoneId } = useGlobalFiltersStore()
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('all')
 
   // Fetch incidents
   const { data: incidents, isLoading } = useQuery({
-    queryKey: ['incidents', dateRange, organizationId, zoneId, statusFilter, searchTerm],
+    queryKey: ['incidents', dateFrom, dateTo, organizationId, zoneId, statusFilter, searchTerm],
     queryFn: async () => {
       let query = supabase
         .from('incidents')
@@ -41,11 +41,11 @@ export default function IncidentManagement() {
         .order('recorded_at', { ascending: false })
 
       // Apply filters
-      if (dateRange.from) {
-        query = query.gte('recorded_at', dateRange.from.toISOString())
+      if (dateFrom) {
+        query = query.gte('recorded_at', dateFrom)
       }
-      if (dateRange.to) {
-        query = query.lte('recorded_at', dateRange.to.toISOString())
+      if (dateTo) {
+        query = query.lte('recorded_at', dateTo)
       }
       if (organizationId) {
         query = query.eq('organization_id', organizationId)

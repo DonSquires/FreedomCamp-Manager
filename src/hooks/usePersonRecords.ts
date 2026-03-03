@@ -137,8 +137,8 @@ export function usePersonRecords(options?: {
   // Create person record mutation
   const createPersonRecord = useMutation({
     mutationFn: async (input: CreatePersonRecordInput) => {
-      const { data, error } = await supabase
-        .from('person_records')
+      const { data, error } = await (supabase
+        .from('person_records') as any)
         .insert({
           organization_id: user?.organization_id,
           user_id: user?.id,
@@ -172,8 +172,7 @@ export function usePersonRecords(options?: {
   // Confirm homeless status mutation
   const confirmHomelessStatus = useMutation({
     mutationFn: async ({ id, confirmed }: { id: string; confirmed: boolean }) => {
-      const { error } = await supabase
-        .from('person_records')
+      const { error } = await (supabase.from('person_records') as any)
         .update({
           homeless_confirmed: confirmed,
           homeless_confirmed_by: confirmed ? user?.id : null,
@@ -195,8 +194,7 @@ export function usePersonRecords(options?: {
   // Update person record mutation
   const updatePersonRecord = useMutation({
     mutationFn: async ({ id, ...updates }: Partial<PersonRecord> & { id: string }) => {
-      const { error } = await supabase
-        .from('person_records')
+      const { error } = await (supabase.from('person_records') as any)
         .update(updates)
         .eq('id', id)
 
@@ -274,8 +272,8 @@ export function usePersonObservations(personId: string | null) {
   // Create observation mutation
   const createObservation = useMutation({
     mutationFn: async (input: CreatePersonObservationInput) => {
-      const { data, error } = await supabase
-        .from('person_observations')
+      const { data, error } = await (supabase
+        .from('person_observations') as any)
         .insert({
           person_id: input.person_id,
           organization_id: user?.organization_id,

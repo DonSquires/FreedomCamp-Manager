@@ -55,8 +55,8 @@ export function WarningNoticeGenerator({
   // Generate warning notice mutation
   const generateWarningMutation = useMutation({
     mutationFn: async () => {
-      const { data, error } = await supabase
-        .from('enforcement_actions')
+      const { data, error } = await (supabase
+        .from('enforcement_actions') as any)
         .insert({
           organization_id: user?.organization_id,
           user_id: user?.id,
@@ -81,7 +81,7 @@ export function WarningNoticeGenerator({
       toast.success('Warning notice created successfully')
       
       if (onGenerated) {
-        onGenerated(data.id)
+        onGenerated(data?.id)
       }
     },
     onError: (error: any) => {

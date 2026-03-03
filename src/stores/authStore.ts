@@ -46,12 +46,13 @@ export const useAuthStore = create<AuthState>()(
 
         if (profileError) throw profileError
 
+        const p = profile as any
         const authUser: AuthUser = {
-          id: profile.id,
-          email: profile.email,
-          role: profile.role as AuthUser['role'],
-          organization_id: profile.organization_id,
-          full_name: `${profile.first_name} ${profile.last_name}`,
+          id: p.id,
+          email: p.email,
+          role: p.role as AuthUser['role'],
+          organization_id: p.organization_id,
+          full_name: `${p.first_name} ${p.last_name}`,
         }
 
         set({ user: authUser, isAuthenticated: true, loading: false })
@@ -71,8 +72,7 @@ export const useAuthStore = create<AuthState>()(
         }
 
         // Fetch user profile
-        const { data: profile } = await supabase
-          .from('user_profiles')
+        const { data: profile } = await (supabase.from('user_profiles') as any)
           .select('id, email, role, organization_id, first_name, last_name')
           .eq('id', session.user.id)
           .single()

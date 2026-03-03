@@ -43,8 +43,7 @@ export function GlobalFilterRibbon({
   const { data: organizations } = useQuery({
     queryKey: ['organizations-filter'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('organizations')
+      const { data, error } = await (supabase.from('organizations') as any)
         .select('id, name')
         .eq('is_active', true)
         .order('name')
@@ -59,8 +58,7 @@ export function GlobalFilterRibbon({
   const { data: zones } = useQuery({
     queryKey: ['zones-filter', organizationId],
     queryFn: async () => {
-      let query = supabase
-        .from('zones')
+      let query = (supabase.from('zones') as any)
         .select('id, name')
         .eq('is_active', true)
         .order('name')

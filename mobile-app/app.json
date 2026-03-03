@@ -1,0 +1,71 @@
+{
+  "expo": {
+    "name": "FreedomCamp Officer",
+    "slug": "freedomcamp-officer",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "scheme": "freedomcamp",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#1e40af"
+    },
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "co.nz.iea.freedomcamp.officer",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Camera is needed to photograph vehicle plates as evidence.",
+        "NSLocationWhenInUseUsageDescription": "GPS location is recorded with each scan for geofence assignment and evidence.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "Background GPS tracks patrol activity for lone-worker welfare monitoring."
+      }
+    },
+    "android": {
+      "package": "co.nz.iea.freedomcamp.officer",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#1e40af"
+      },
+      "permissions": [
+        "CAMERA",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_BACKGROUND_LOCATION",
+        "RECEIVE_BOOT_COMPLETED",
+        "VIBRATE"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-secure-store",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow FreedomCamp Officer to access your camera to photograph vehicle plates."
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Allow FreedomCamp Officer to use your location for geofence assignment and patrol tracking."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification-icon.png",
+          "color": "#1e40af"
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "YOUR_EAS_PROJECT_ID"
+      }
+    }
+  }
+}

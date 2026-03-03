@@ -39,8 +39,7 @@ export function MonthlyStayTracker({
       const startOfMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1)
       const endOfMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0)
 
-      const { data, error } = await supabase
-        .from('observations')
+      const { data, error } = await (supabase.from('observations') as any)
         .select('*')
         .eq('plate_number', plateNumber)
         .eq('zone_id', zoneId)

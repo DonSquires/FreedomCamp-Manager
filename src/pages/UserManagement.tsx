@@ -159,8 +159,7 @@ export default function UserManagement() {
     mutationFn: async (updates: Partial<UserProfile>) => {
       if (!selectedUser) throw new Error('No user selected')
       
-      const { error } = await supabase
-        .from('user_profiles')
+      const { error } = await (supabase.from('user_profiles') as any)
         .update(updates)
         .eq('id', selectedUser.id)
 
@@ -181,8 +180,7 @@ export default function UserManagement() {
   // Toggle user active status mutation
   const toggleActiveMutation = useMutation({
     mutationFn: async ({ userId, isActive }: { userId: string; isActive: boolean }) => {
-      const { error } = await supabase
-        .from('user_profiles')
+      const { error } = await (supabase.from('user_profiles') as any)
         .update({ is_active: !isActive })
         .eq('id', userId)
 
@@ -249,8 +247,7 @@ export default function UserManagement() {
 
       if (result.error) throw new Error(result.error)
 
-      const { error } = await supabase
-        .from('user_profiles')
+      const { error } = await (supabase.from('user_profiles') as any)
         .update({ coa_document_url: result.url })
         .eq('id', selectedUser.id)
 
@@ -280,8 +277,7 @@ export default function UserManagement() {
 
       if (result.error) throw new Error(result.error)
 
-      const { error } = await supabase
-        .from('user_profiles')
+      const { error } = await (supabase.from('user_profiles') as any)
         .update({ warrant_document_url: result.url })
         .eq('id', selectedUser.id)
 
@@ -301,8 +297,7 @@ export default function UserManagement() {
     mutationFn: async () => {
       if (!selectedUser) throw new Error('No user selected')
       
-      const { error } = await supabase
-        .from('user_profiles')
+      const { error } = await (supabase.from('user_profiles') as any)
         .update({
           coa_number: coaNumber || null,
           coa_expiry: coaExpiry || null,
@@ -327,8 +322,7 @@ export default function UserManagement() {
   // Verify credentials mutation
   const verifyCredentialsMutation = useMutation({
     mutationFn: async (userId: string) => {
-      const { error } = await supabase
-        .from('user_profiles')
+      const { error } = await (supabase.from('user_profiles') as any)
         .update({
           credentials_verified: true,
           credentials_verified_at: new Date().toISOString(),
@@ -352,8 +346,7 @@ export default function UserManagement() {
     mutationFn: async () => {
       if (!selectedUser) throw new Error('No user selected')
       
-      const { error } = await supabase
-        .from('user_profiles')
+      const { error } = await (supabase.from('user_profiles') as any)
         .update({ role })
         .eq('id', selectedUser.id)
 

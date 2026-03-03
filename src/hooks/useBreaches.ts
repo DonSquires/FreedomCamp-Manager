@@ -32,8 +32,7 @@ export function useBreaches(options: UseBreachesOptions = {}) {
   return useQuery({
     queryKey: ['breach-alerts', organizationId, zoneId, statusFilter, severityFilter, searchQuery],
     queryFn: async () => {
-      let query = supabase
-        .from('breach_alerts')
+      let query = (supabase.from('breach_alerts') as any)
         .select(`
           *,
           zone:zones(name),
@@ -73,8 +72,7 @@ export function useBreach(breachId: string) {
   return useQuery({
     queryKey: ['breach', breachId],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('breach_alerts')
+      const { data, error } = await (supabase.from('breach_alerts') as any)
         .select(`
           *,
           zone:zones(name),
@@ -95,8 +93,7 @@ export function useResolveBreach() {
 
   return useMutation({
     mutationFn: async ({ breachId, userId }: { breachId: string; userId: string }) => {
-      const { error } = await supabase
-        .from('breach_alerts')
+      const { error } = await (supabase.from('breach_alerts') as any)
         .update({ 
           status: 'resolved',
           resolved_at: new Date().toISOString(),
@@ -121,8 +118,7 @@ export function useNotifyBreach() {
 
   return useMutation({
     mutationFn: async (breachId: string) => {
-      const { error } = await supabase
-        .from('breach_alerts')
+      const { error } = await (supabase.from('breach_alerts') as any)
         .update({ status: 'notified' })
         .eq('id', breachId)
 
@@ -142,8 +138,7 @@ export function useBreachStats(organizationId?: string | null) {
   return useQuery({
     queryKey: ['breach-stats', organizationId],
     queryFn: async () => {
-      let query = supabase
-        .from('breach_alerts')
+      let query = (supabase.from('breach_alerts') as any)
         .select('status, severity', { count: 'exact' })
 
       if (organizationId) {

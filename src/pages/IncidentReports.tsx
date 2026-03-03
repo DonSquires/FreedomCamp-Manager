@@ -143,8 +143,7 @@ export default function IncidentReports() {
     mutationFn: async ({ incidentId, enable }: { incidentId: string; enable: boolean }) => {
       const retentionDate = enable ? new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString() : null
 
-      const { error } = await supabase
-        .from('incidents')
+      const { error } = await (supabase.from('incidents') as any)
         .update({
           retention_hold: enable,
           retention_until: retentionDate,
@@ -165,8 +164,7 @@ export default function IncidentReports() {
   // Mark court ready mutation
   const markCourtReadyMutation = useMutation({
     mutationFn: async (incidentId: string) => {
-      const { error } = await supabase
-        .from('incidents')
+      const { error } = await (supabase.from('incidents') as any)
         .update({
           court_ready: true,
           approved_by: user?.id,

@@ -446,7 +446,7 @@ declare global {
 
   interface WakeLockSentinel {
     release(): Promise<void>
-    released: boolean
-    type: 'screen'
+    readonly released: boolean
+    readonly type: WakeLockType
   }
 }

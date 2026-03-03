@@ -97,8 +97,7 @@ export function useStartPatrol() {
 
   return useMutation({
     mutationFn: async (patrolId: string) => {
-      const { error } = await supabase
-        .from('patrols')
+      const { error } = await (supabase.from('patrols') as any)
         .update({ 
           status: 'in_progress',
           started_at: new Date().toISOString()
@@ -126,8 +125,7 @@ export function useCompletePatrol() {
       vehiclesChecked: number
       breachesFound: number
     }) => {
-      const { error } = await supabase
-        .from('patrols')
+      const { error } = await (supabase.from('patrols') as any)
         .update({ 
           status: 'completed',
           ended_at: new Date().toISOString(),
@@ -152,8 +150,7 @@ export function usePatrolStats(organizationId?: string | null) {
   return useQuery({
     queryKey: ['patrol-stats', organizationId],
     queryFn: async () => {
-      let query = supabase
-        .from('patrols')
+      let query = (supabase.from('patrols') as any)
         .select('status, vehicles_checked, breaches_found', { count: 'exact' })
 
       if (organizationId) {

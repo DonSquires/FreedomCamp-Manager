@@ -20,8 +20,26 @@ import {
 } from 'lucide-react'
 import type { Database } from '@/types/database'
 
-// Type aliases for database tables
-type EnforcementActionRow = Database['public']['Tables']['enforcement_actions']['Row']
+// Type alias for enforcement action rows (not in generated Database types)
+type EnforcementActionRow = {
+  id: string
+  plate_number: string | null
+  action_type: string
+  status: string
+  notes: string | null
+  action_notes: string | null
+  zone_id: string | null
+  recorded_by: string | null
+  recorded_at: string | null
+  assigned_to: string | null
+  breach_status: string | null
+  completion_outcome: string | null
+  completion_notes: string | null
+  delivery_method: string | null
+  delivered_at: string | null
+  created_at: string
+  updated_at: string
+}
 type ZoneRow = Database['public']['Tables']['zones']['Row']
 type UserProfileRow = Database['public']['Tables']['user_profiles']['Row']
 

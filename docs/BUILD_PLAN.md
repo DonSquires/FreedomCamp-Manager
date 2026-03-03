@@ -1,35 +1,287 @@
-# FreedomCamp Manager — Complete Build Plan
+# FreedomCamp Manager — Complete Build Plan (v2)
 
-> **Purpose**: This document is the single source of truth for OnSpace AI to rebuild
-> FreedomCamp Manager from scratch. It captures every architectural decision, database
-> table, Edge Function, frontend page, external integration, and deployment step.
+> **Purpose**: This is the single source of truth for rebuilding FreedomCamp Manager from
+> scratch. It reflects the **current, live schema** (as of 2026-03-10) including every
+> architectural decision, database table, Edge Function, frontend page, external
+> integration, and deployment step.
+>
+> **Why a fresh rebuild resolves bugs**: The original project accumulated 105+ migrations
+> applied incrementally, leaving legacy columns, orphaned tables, redundant triggers, and
+> conflicting schema references in production. A clean project starting from this plan
+> avoids all of that technical debt.
 >
 > **Railway services** (inference-service and proxy-server) are **already deployed and
 > operational**. This rebuild focuses on the Supabase backend and the React SPA frontend
 > that connect to them.
+>
+> **Last updated**: 2026-03-10 — schema is accurate through migration
+> `20260310_fix_ensure_other_location_zone.sql`.
 
 ---
 
 ## Table of Contents
 
-1. [Executive Summary](#1-executive-summary)
-2. [Tech Stack](#2-tech-stack)
-3. [Repository Layout](#3-repository-layout)
-4. [Environment Configuration](#4-environment-configuration)
-5. [Database Schema](#5-database-schema)
-6. [Row-Level Security & Auth Model](#6-row-level-security--auth-model)
-7. [Supabase Edge Functions](#7-supabase-edge-functions)
-8. [Frontend Architecture](#8-frontend-architecture)
-9. [Railway Services (Already Built)](#9-railway-services-already-built)
-10. [External Integrations](#10-external-integrations)
-11. [Feature Flags & Phased Rollout](#11-feature-flags--phased-rollout)
-12. [Build & Deployment](#12-build--deployment)
-13. [Step-by-Step Rebuild Instructions](#13-step-by-step-rebuild-instructions)
-14. [Learnings & Pitfalls](#14-learnings--pitfalls)
+1. [Build Purpose, Users & Outputs](#1-build-purpose-users--outputs)
+2. [Executive Summary](#2-executive-summary)
+3. [Tech Stack](#3-tech-stack)
+4. [Repository Layout](#4-repository-layout)
+5. [Environment Configuration](#5-environment-configuration)
+6. [Database Schema](#6-database-schema)
+7. [Row-Level Security & Auth Model](#7-row-level-security--auth-model)
+8. [Supabase Edge Functions](#8-supabase-edge-functions)
+9. [Frontend Architecture](#9-frontend-architecture)
+10. [Railway Services (Already Built)](#10-railway-services-already-built)
+11. [External Integrations](#11-external-integrations)
+12. [Feature Flags & Phased Rollout](#12-feature-flags--phased-rollout)
+13. [Build & Deployment](#13-build--deployment)
+14. [Step-by-Step Rebuild Instructions](#14-step-by-step-rebuild-instructions)
+15. [Learnings & Pitfalls](#15-learnings--pitfalls)
+16. [V1 Inference Contract](#16-v1-inference-contract)
 
 ---
 
-## 1. Executive Summary
+## 1. Build Purpose, Users & Outputs
+
+### 1.1 What This System Is For
+
+FreedomCamp Manager is a **digital enforcement platform** built for New Zealand councils
+and contracted security companies (such as Iron Eagle Security) to manage and enforce
+freedom camping rules under the **Freedom Camping Act 2011** and local bylaws.
+
+**The problem it solves**: Before this system, officers patrolled camping sites on foot or
+by vehicle, manually writing down licence plates in notebooks, checking paper registers,
+and issuing handwritten notices. There was no central record of who had camped where, for
+how long, or whether the same vehicle had exceeded the legal stay limits. Councils had no
+way to prove compliance history in court, no way to share data between patrol teams, and
+no way to detect repeat offenders automatically.
+
+FreedomCamp Manager replaces that manual process end-to-end:
+
+- A field officer **photographs a vehicle's number plate** on their phone.
+- The system **automatically identifies the plate**, checks the vehicle's stay history,
+  and tells the officer in seconds whether the vehicle is **compliant or in breach**.
+- If in breach, the officer can issue a formal **Notice to Vacate** directly from the app,
+  generating a dated, signed, court-ready PDF.
+- All data is stored centrally, shared across the patrol team in real time, and auditable
+  by administrators and council managers.
+
+---
+
+### 1.2 Who Uses This System
+
+#### Field Officers (`officer` role)
+Security officers patrolling freedom camping zones. They use the system exclusively
+through the **mobile-optimised Field Officer Portal**, primarily on smartphones or tablets
+while on foot or in a vehicle.
+
+**What they need the app to do:**
+- Start and end a patrol shift with a single tap.
+- Scan a vehicle's licence plate by taking a photo (or entering it manually if the camera
+  fails) and get an instant compliance verdict.
+- See a vehicle's history — how many nights it has stayed at this zone and others.
+- Record a formal observation with GPS coordinates, photo evidence, and weather conditions.
+- Issue a verbal warning or generate a Notice to Vacate without leaving the app.
+- Scan QR or NFC checkpoints to prove they visited each required location on their route
+  (Lone Worker Protocol / Health & Safety).
+- Continue working if phone signal drops — scans queue offline and sync automatically
+  when connectivity returns.
+- Receive welfare check-ins and respond to confirm they are safe.
+
+#### Administrators (`admin` role)
+Managers at Iron Eagle Security or the contracting council. They use the
+**Admin Portal** on a desktop or laptop browser.
+
+**What they need the app to do:**
+- View a live map showing all active officers, their locations, and patrol status.
+- See a compliance dashboard with key metrics: total scans today, breach rate, most
+  problematic vehicles, highest-activity zones.
+- Review and action breach alerts — acknowledge, assign to an officer, or dismiss.
+- Manage the zone map — draw geofenced compliance areas, set nightly limits, require
+  self-contained certification, restrict certain days or hours.
+- Manage officers — create accounts, assign credentials, activate/deactivate.
+- Generate and download PDF reports: incident reports, leadership packs, compliance
+  statistics.
+- Review all evidence photos and observation records.
+- Trigger a bulk compliance recalculation if zone rules change.
+- Manage multi-organisation access (if operating across multiple councils).
+
+#### Master Users (`master` role)
+OnSpace AI system operators. They have full access to all organisations and all data.
+They use this role for support, auditing, data migration, and cross-org reporting.
+
+#### Dual-Role Officers (`admin_officer` role)
+Officers who also perform administrative duties (e.g. team leaders). They can
+switch between the Field Officer Portal and the Admin Portal within a single session
+without logging out.
+
+---
+
+### 1.3 How It Works — End-to-End User Journey
+
+#### Journey A: Officer Scans a Vehicle (core workflow)
+
+```
+1. Officer opens the app on their phone and logs in.
+   → Login page verifies credentials.
+   → If COA or Warrant has expired, a compliance gate blocks access until resolved.
+
+2. Officer selects their zone and starts a patrol.
+   → A patrol record is created in the database with start time and GPS location.
+   → The live officer tracking map in the admin portal shows them as active.
+
+3. Officer sees a vehicle camped in the zone. They tap "Scan".
+   → The camera opens in a guided viewfinder optimised for number plates.
+   → Officer photographs the plate (or zooms in using "Zoom Scan" mode).
+
+4. The photo is sent to the ALPR pipeline (alpr-process Edge Function):
+   a. Plate Recognizer API extracts the plate number and confidence score.
+   b. Railway ORC/AI Inference Service detects vehicle make/model/colour and generates
+      a 384-dimensional visual fingerprint (embedding) for the vehicle.
+   c. ORC also checks for a blue/green self-contained certification sticker.
+   d. The system calls NZSCV to verify if the vehicle holds a valid self-contained cert.
+   e. An observation record is created in the database with all evidence.
+
+5. The compliance engine runs automatically:
+   → It looks up how many nights this plate has been seen at this zone this month.
+   → It checks the zone's rules (max nights, consecutive limit, self-contained required).
+   → It checks if the vehicle qualifies for a Freedom Camping Act exemption (homeless).
+   → It produces a compliance result: COMPLIANT or IN BREACH.
+
+6. The result is displayed to the officer instantly:
+   ✅ COMPLIANT  — green screen, vehicle details shown, officer continues patrol.
+   ❌ IN BREACH  — red screen with breach type (e.g. "5 consecutive nights — limit is 3"),
+                  officer is prompted to take action.
+
+7. If the officer selects "Issue Warning":
+   → A breach alert is created with status = 'pending'.
+   → Officer adds notes, the alert is saved to the database.
+
+8. If the officer selects "Issue Notice to Vacate":
+   → The app generates a PDF notice using the zone's legal configuration.
+   → The notice is date/time stamped, references the zone bylaw, lists the violation.
+   → Officer can print via AirPrint or email directly from the app.
+   → The notice is stored as evidence against the breach alert.
+
+9. Officer continues patrol, scanning vehicles.
+   → Each scan and observation is recorded in real time.
+   → At the end of patrol, officer taps "End Patrol".
+   → Patrol record is closed with end time and statistics (vehicles checked, breaches found).
+```
+
+#### Journey B: Officer Scans a QR Checkpoint (Lone Worker Protocol)
+
+```
+1. Officer arrives at a physical checkpoint location (sign, gate, etc. with a QR code).
+2. Officer taps "Scan Checkpoint" in the app.
+3. Camera opens — officer scans the QR code.
+4. App records: checkpoint ID, GPS location, timestamp, scan method, distance from checkpoint.
+5. The admin portal shows the checkpoint as visited on the patrol route map.
+6. If the officer fails to visit a required checkpoint within the expected window,
+   an alert is raised for the patrol manager.
+```
+
+#### Journey C: Admin Reviews Breaches (admin workflow)
+
+```
+1. Admin logs in and sees the Breach Alerts dashboard.
+2. Alerts are listed with: plate number, zone, breach type, severity, time detected.
+3. Admin clicks an alert to open the Breach Advisory modal:
+   → Full vehicle history shown (timeline of all observations).
+   → Evidence photos from the observation.
+   → Previous enforcement actions for this vehicle.
+4. Admin can:
+   → Acknowledge the alert (moves to 'acknowledged').
+   → Assign it to an officer for follow-up.
+   → Mark enforcement started (moves to 'enforcement_started').
+   → Resolve or dismiss the alert with notes.
+5. If enforcement was taken, admin can record the action type:
+   warning, notice_to_vacate, tow request, or referral to council.
+```
+
+#### Journey D: Admin Generates a Leadership Pack (reporting workflow)
+
+```
+1. Admin opens Reports Hub → Generate Leadership Pack.
+2. Selects date range, organisation, and zones.
+3. The generate-leadership-pack Edge Function queries the database and produces:
+   → Total observations in period.
+   → Breach rate by zone (% of vehicles that were non-compliant).
+   → Top 10 repeat offenders (vehicles seen most often).
+   → Compliance trend chart (daily breach count over the period).
+   → Drift events (any zone rules changed during the period and their impact).
+4. A PDF is generated server-side and downloaded automatically.
+5. Admin emails this to the council contract manager as part of monthly reporting.
+```
+
+---
+
+### 1.4 What This System Produces
+
+Every interaction with the system creates a permanent, auditable record. Below is the
+complete catalogue of outputs.
+
+#### Operational Records (real-time, stored in database)
+
+| Output | Description | Where Stored |
+|---|---|---|
+| **Observation record** | Vehicle seen at location: plate, GPS, photo, time, compliance result | `observations` table |
+| **Compliance result** | Per-requirement breakdown: pass/fail for each zone rule | `compliance_results` table |
+| **Breach alert** | Auto-created when a vehicle is non-compliant; tracks workflow | `breach_alerts` table |
+| **Enforcement action** | What the officer did about a breach (warning, notice, etc.) | `enforcement_actions` table |
+| **Patrol record** | Start/end time, vehicles checked, GPS track | `patrols` table |
+| **Checkpoint visit** | Proof of officer presence at QR/NFC point | `checkpoint_visits` table |
+| **Incident report** | Multi-photo evidence package with legal hold | `incidents` table |
+| **Welfare alert** | Automated officer safety notifications | `officer_welfare_alerts` table |
+| **Privacy access log** | Who viewed what PII field and why | `privacy_access_log` table |
+
+#### Evidence Files (stored in Supabase Storage)
+
+| File Type | Description | Storage Bucket |
+|---|---|---|
+| **Vehicle scan photo** | Photo taken at time of observation, SHA-256 hashed | `scans` |
+| **Incident evidence photo** | Additional photos uploaded to an incident | `incident-evidence` |
+| **COA document** | Officer's Certificate of Approval PDF | `credentials` |
+| **Warrant document** | Officer's legal warrant PDF | `credentials` |
+
+#### Generated Documents (PDF, on demand)
+
+| Document | Triggered By | Contents |
+|---|---|---|
+| **Notice to Vacate** | Officer during scan or admin from portal | Zone details, vehicle plate, violation type, legal reference, officer name, date/time, signature block |
+| **Incident Report** | Admin from Incident Management | Timeline of events, evidence photos, officer notes, GPS map, legal hold status |
+| **Vehicle Report** | Admin from Vehicle Management | Full observation history, photo gallery, enforcement history, NZSCV/MotorWeb data |
+| **Dashboard Report** | Admin from Reports Hub | KPIs, breach counts, zone activity, date-range summary |
+| **Leadership Pack** | Admin from Reports Hub | Executive summary, breach trends, top offenders, compliance rate by zone, drift events, charts |
+| **Compliance Export** | Admin from Data Management | CSV of all observations and compliance results for the selected period |
+
+#### Analytics & Dashboards (live, in-browser)
+
+| Dashboard | What It Shows |
+|---|---|
+| **Admin Portal** | Today's stats: scans, breaches, active officers, open alerts |
+| **Compliance Dashboard** | Compliance rate by zone and period, drift detection, matrix version history |
+| **Enforcement Command Centre** | Open breach alerts, enforcement actions in progress, escalation pipeline |
+| **Hotspots Map** | GPS heatmap of where observations are densest — identifies most problematic zones |
+| **Compliance Analytics** | Deep dive: breach type breakdown, monthly trends, repeat offender analysis |
+| **Live Patrol Monitor** | Real-time map of all active officers with GPS positions |
+| **Live Officer Tracking** | Per-officer activity: last seen, last scan, welfare status |
+| **Data Integrity Dashboard** | Photo integrity, duplicate detection, orphaned records |
+
+#### Automated Outputs (background jobs)
+
+| Output | Trigger | Description |
+|---|---|---|
+| **Breach detection sweep** | Scheduled / on-demand | Scans all recent observations for violations, creates breach alerts |
+| **Zone correction sweep** | Daily 3am NZT | GPS-corrects observations assigned to wrong zone |
+| **Compliance recalculation** | On demand (admin) | Rebuilds all compliance results from scratch using current zone rules |
+| **Welfare check** | Periodic | Sends automated check-in to officers; raises alert if no response |
+| **Man-Down alert** | Automatic | Triggers if GPS is stationary for 15+ minutes with no acknowledgement |
+| **ParkPow sync** | On demand | Syncs zones, vehicles, and violations to ParkPow platform |
+| **Push notification** | On breach/alert | Sends Expo push to officer's device for assignments and alerts |
+
+---
+
+## 2. Executive Summary
 
 FreedomCamp Manager is a web-based admin control centre for freedom camping
 enforcement in New Zealand, operated by Iron Eagle Security / OnSpace AI. It provides:
@@ -41,11 +293,34 @@ enforcement in New Zealand, operated by Iron Eagle Security / OnSpace AI. It pro
 | **Zone Geofencing** | Polygon/circle-based compliance zones with per-zone rules |
 | **Compliance Reporting** | Dashboards, KPIs, drift detection, leadership packs |
 | **Vehicle Scanning (ALPR)** | Plate Recognizer + ORC/AI pipeline for plate recognition |
-| **Officer Welfare** | Automated inactivity detection, wellness checks |
+| **Officer Welfare** | Automated inactivity detection, Man-Down alerts, wellness checks |
 | **Multi-Organisation** | 3-tier hierarchy: owner → service_provider → client |
 | **Enforcement Workflow** | Warnings → Notices to Vacate → Escalation pipeline |
 | **ParkPow Integration** | Parking enforcement platform sync |
 | **Incident Management** | Court-ready evidence trails with legal holds |
+| **Patrol Checkpoints** | QR/NFC checkpoint scanning for Lone Worker Protocol |
+| **Privacy Curtain** | Auto-redaction & PII access logging (Privacy Act 2020) |
+| **V1 AI Inference** | Vehicle embeddings, sticker detection, movement comparison |
+
+### Clean Architecture Principles (v2)
+
+The v2 rebuild applies strict separation of concerns to eliminate the root causes
+of accumulated bugs:
+
+1. **One pipeline, one table** — `alpr-process` is the single ALPR entrypoint.
+   `observations` is the only operational table. `vehicle_observations_v2` is a
+   legacy mirror — never write to or read from it for operational data.
+2. **No observation queue** — `observation_jobs` has been permanently removed.
+   The ALPR pipeline uses `observations.processing_status` directly.
+3. **SECURITY DEFINER RPCs for privilege escalation** — `ensure_other_location_zone()`
+   and `check_location_in_org()` exist precisely so officers can perform zone
+   lookups without RLS escalation.
+4. **Resilient triggers** — `sync_zone_to_matrix` wraps its matrix INSERT in an
+   exception block so zone creation never fails due to matrix errors.
+5. **Storage grants are additive** — always `GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA
+   storage` plus `ALTER DEFAULT PRIVILEGES` to cover future Supabase-added functions.
+6. **Single compliance engine** — `calculate_vehicle_compliance_v3()` is the only
+   compliance function. Never add a v4, v5, etc. — extend the existing function.
 
 ### User Roles
 
@@ -58,7 +333,7 @@ enforcement in New Zealand, operated by Iron Eagle Security / OnSpace AI. It pro
 
 ---
 
-## 2. Tech Stack
+## 3. Tech Stack
 
 | Layer | Technology | Version/Notes |
 |---|---|---|
@@ -82,38 +357,40 @@ enforcement in New Zealand, operated by Iron Eagle Security / OnSpace AI. It pro
 
 ---
 
-## 3. Repository Layout
+## 4. Repository Layout
 
 ```
 /
 ├── src/
 │   ├── App.tsx                    # Root router with role-based guards
 │   ├── main.tsx                   # Vite entry point
-│   ├── pages/                     # 104 page components
+│   ├── pages/                     # 37+ page components
 │   ├── components/
 │   │   ├── ui/                    # shadcn/ui primitives (40+ components)
-│   │   ├── features/              # 63 app-specific feature components
+│   │   ├── features/              # 70+ app-specific feature components
 │   │   └── layout/                # JDSLogo, ResponsiveContainer
-│   ├── hooks/                     # 25 custom React hooks
+│   ├── hooks/                     # 30+ custom React hooks
 │   ├── stores/                    # Zustand stores
 │   │   ├── authStore.ts           # Auth + session management
 │   │   └── globalFiltersStore.ts  # Dashboard date/org/zone filters
-│   ├── lib/                       # 19 utility modules
+│   ├── lib/                       # 22 utility modules
 │   │   ├── supabase.ts            # Typed Supabase client
 │   │   ├── fileUpload.ts          # Storage upload helpers
 │   │   ├── geocoding.ts           # Reverse geocoding
 │   │   ├── geofence.ts            # Point-in-polygon checks
 │   │   ├── imageProcessing.ts     # Client-side image ops
 │   │   ├── offlineStorage.ts      # IndexedDB offline queue
+│   │   ├── privacyCurtain.ts      # Privacy Act 2020 redaction helpers
 │   │   ├── pushNotifications.ts   # Expo push registration
+│   │   ├── railway.ts             # Railway service health + helpers
 │   │   └── timezone.ts            # NZ timezone helpers
 │   └── types/
 │       ├── database.ts            # Generated Supabase types
 │       └── index.ts               # App-level type definitions
 ├── supabase/
-│   ├── functions/                 # 45 Edge Functions (Deno/TypeScript)
+│   ├── functions/                 # 47 Edge Functions (Deno/TypeScript)
 │   │   └── _shared/               # CORS helpers (cors.ts, withCors.ts)
-│   └── migrations/                # 70+ SQL migration files
+│   └── migrations/                # 105+ SQL migration files (YYYYMMDD_ prefix)
 ├── proxy-server/                  # Railway: NZSCV/MotorWeb proxy
 ├── inference-service/             # Railway: ORC/AI vehicle inference
 ├── docs/                          # Architecture & feature docs
@@ -137,7 +414,7 @@ All imports use `@/` prefix: `import { supabase } from '@/lib/supabase'`
 
 ---
 
-## 4. Environment Configuration
+## 5. Environment Configuration
 
 ### Frontend (.env)
 
@@ -196,7 +473,19 @@ EMBEDDING_MODEL_PATH=./models/mobilenet_v3.onnx
 
 ---
 
-## 5. Database Schema
+## 6. Database Schema
+
+> **⚠️ IMPORTANT — COLUMN NAMES**: Many column names in the live database differ from
+> early documentation. Always use the names shown here, not names from older docs.
+
+### PostgreSQL Extensions Required
+
+```sql
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";        -- UUID generation
+CREATE EXTENSION IF NOT EXISTS "postgis";           -- Geospatial queries
+CREATE EXTENSION IF NOT EXISTS "vector";            -- pgvector for embeddings
+CREATE EXTENSION IF NOT EXISTS "pg_cron";           -- Scheduled jobs
+```
 
 ### Core Tables
 
@@ -242,22 +531,31 @@ Officers, admins, system users. Linked to `auth.users`.
 #### `zones`
 Geofenced compliance areas.
 
+> **⚠️ Column names** — use `self_contained_required`, `nights_per_month`,
+> `max_consecutive_nights`, `day_visit_only`, `allowed_days`. The old names
+> (`requires_self_contained`, `max_nights_per_month`, `is_day_visit_only`) no
+> longer match the live schema.
+
 | Column | Type | Description |
 |---|---|---|
 | id | uuid PK | |
 | name | text | Zone display name |
+| description | text | Optional description |
+| zone_type | text | `general`, `enforcement`, `restricted`, etc. |
+| parent_zone_id | uuid FK | Parent zone (zone hierarchy) |
 | organization_id | uuid FK | |
-| geofence | jsonb | Polygon/circle coordinates |
+| geometry | jsonb | GeoJSON geometry (Polygon or Point) |
 | geofence_type | text | `polygon` or `circle` |
-| geofence_radius | numeric | For circle type |
-| is_day_visit_only | boolean | No overnight stays |
-| max_nights_per_month | integer | Monthly limit |
-| max_consecutive_nights | integer | Consecutive limit |
-| requires_self_contained | boolean | Vehicle must be certified |
-| permitted_hours_start | time | Allowed arrival time |
-| permitted_hours_end | time | Must leave by |
+| geofence_radius | numeric | Radius in metres (circle type) |
 | latitude | numeric | Centre point |
 | longitude | numeric | Centre point |
+| day_visit_only | boolean | No overnight stays |
+| nights_per_month | integer | Monthly night limit |
+| max_consecutive_nights | integer | Max consecutive nights |
+| self_contained_required | boolean | Vehicle must be NZSCV certified |
+| allowed_days | jsonb | `["monday","tuesday",...]` — null = all days |
+| permitted_hours_start | time | Allowed arrival time |
+| permitted_hours_end | time | Must leave by |
 | is_active | boolean | |
 | parkpow_lot_id | text | ParkPow integration |
 
@@ -290,7 +588,13 @@ Master vehicle registry — one row per plate number.
 | organization_id | uuid FK | |
 
 #### `observations`
-Individual vehicle sightings — the core operational table.
+Individual vehicle sightings — **the only operational table** for ALPR data.
+
+> **⚠️ NEVER use `vehicle_observations_v2` for operational queries.** That table
+> is a legacy mirror only. All writes and reads go through `observations`.
+>
+> **⚠️ `observation_jobs` has been permanently removed.** Use
+> `observations.processing_status` to track ALPR pipeline state.
 
 | Column | Type | Description |
 |---|---|---|
@@ -299,7 +603,7 @@ Individual vehicle sightings — the core operational table.
 | plate_number | text | Observed plate |
 | zone_id | uuid FK | Where observed |
 | organization_id | uuid FK | |
-| recorded_at | timestamptz | When observed |
+| recorded_at | timestamptz | When observed (NZ timezone) |
 | recorded_by | uuid FK | Officer who scanned |
 | latitude | numeric | GPS lat |
 | longitude | numeric | GPS lng |
@@ -309,23 +613,45 @@ Individual vehicle sightings — the core operational table.
 | photo_hash | text | SHA-256 for integrity |
 | photo_source | text | `camera`, `upload`, `stream` |
 | exif_data | jsonb | Photo metadata |
-| plate_confidence | numeric | ALPR confidence 0-1 |
 | plate_source | text | `plate_recognizer`, `manual`, `stream` |
-| vehicle_type | text | Detected type |
+| vehicle_type | text | Detected vehicle type |
 | vehicle_make | text | |
 | vehicle_model | text | |
 | vehicle_colour | text | |
+| vehicle_year | integer | Approximate year (from OpenAI Vision) |
 | is_compliant | boolean | Compliance result |
 | compliance_summary | jsonb | Immutable audit trail |
-| weather_description | text | Conditions at time |
+| processing_status | text | `pending`, `processing`, `complete`, `failed` |
+| weather_description | text | Conditions at time of scan |
 | evidence_state | text | `original_present`, `legacy_no_photo`, etc. |
-| embedding_384 | vector(384) | MobileNetV3 fingerprint |
 | parkpow_session_id | text | ParkPow session |
 | parkpow_violation_id | text | ParkPow violation |
+| incident_id | uuid FK → incidents | Optional parent incident/case |
+| **ALPR Confidence** | | |
+| plate_confidence | real | Confidence (0–1) for recognised plate |
+| vehicle_make_confidence | real | Confidence (0–1) for make inference |
+| vehicle_model_confidence | real | Confidence (0–1) for model inference |
+| vehicle_color_confidence | real | Confidence (0–1) for colour inference |
+| **V1 Inference — Sticker Detection** | | |
+| sticker_presence | boolean (nullable) | `true`=present, `false`=absent, `null`=inconclusive |
+| sticker_color | text | `blue`, `green`, or `unknown` (CHECK constrained) |
+| sticker_bbox | jsonb | `{x, y, width, height}` pixel bounding box |
+| sticker_detection_confidence | real | Confidence for sticker presence |
+| sticker_color_confidence | real | Confidence for sticker colour |
+| **V1 Inference — Movement Comparison** | | |
+| previous_observation_id | uuid FK → observations | Reference frame for movement |
+| movement_moved | boolean (nullable) | `true`=moved, `false`=stationary, `null`=not run |
+| movement_background_similarity | real | Background SSIM score (0–1) |
+| movement_vehicle_bbox_iou | real | Vehicle bbox overlap (0–1) |
+| movement_decision | text | `moved`, `stationary`, or `inconclusive` |
+| **V1 Inference — Embeddings** | | |
+| vehicle_embedding | vector(384) | MobileNetV3 384-D feature fingerprint |
+| embedding_quality | real | L2-norm-derived quality score (0–1) |
+| embedding_model_version | text | e.g. `yolov8n_mobilenetv3_v1.0` |
+| embedding_created_at | timestamptz | When embedding was generated |
 
-> **Note**: `vehicle_observations_v2` exists as a mirror/backup table only.
-> All queries must target `observations`. Never query `vehicle_observations_v2`
-> for operational data.
+> **Sticker constraint**: `sticker_color` is constrained to `('blue', 'green', 'unknown')`.
+> When `sticker_presence IS NULL`, `sticker_color` **must** be `'unknown'`.
 
 #### `vehicle_monthly_stays`
 Calendar-month aggregation per vehicle per zone.
@@ -337,23 +663,31 @@ Calendar-month aggregation per vehicle per zone.
 | zone_id | uuid FK | |
 | month | date | First of month |
 | nights_stayed | integer | Total nights |
-| consecutive_nights | integer | Max consecutive |
+| consecutive_nights | integer | Max consecutive nights |
 | last_seen_at | timestamptz | |
 
 #### `zone_compliance_matrix`
 Versioned compliance rules per zone — enables drift detection.
+Kept in sync with the `zones` table via the `sync_zone_to_matrix` trigger (resilient
+— trigger errors are warnings, never abort the zone INSERT).
 
 | Column | Type | Description |
 |---|---|---|
 | id | uuid PK | |
 | zone_id | uuid FK | |
+| organization_id | uuid FK | |
 | version | integer | Auto-incremented |
-| max_nights_per_month | integer | |
+| self_contained_required | boolean | |
+| requires_csc | boolean | Mirror of self_contained_required |
+| nights_per_month | integer | |
 | max_consecutive_nights | integer | |
-| is_day_visit_only | boolean | |
-| requires_self_contained | boolean | |
+| day_visit_only | boolean | |
+| allowed_days | jsonb | |
 | effective_from | timestamptz | |
 | effective_to | timestamptz | NULL = current |
+| created_by | uuid FK | |
+| change_reason | text | e.g. `auto_created_with_zone` |
+| change_notes | text | |
 
 #### `compliance_results`
 Per-observation compliance evaluation.
@@ -367,30 +701,48 @@ Per-observation compliance evaluation.
 | is_compliant | boolean | |
 | violation_types | text[] | Array of breach types |
 | violation_reasons | text[] | Human-readable reasons |
-| requirement_details | jsonb | Per-requirement breakdown |
+| requirement_details | jsonb | Per-requirement breakdown (YES/NO/BREACH) |
 | matrix_version | integer | Which matrix version used |
-| is_homeless_exempt | boolean | FCA exemption |
+| is_homeless_exempt | boolean | Freedom Camping Act exemption |
 | evidence_observations | jsonb | Sequential evidence trail |
-| analytics_only | boolean | Historical backfill flag |
+| analytics_only | boolean | TRUE = historical backfill, no enforcement |
 
 #### `breach_alerts`
 Non-compliant observations escalated for enforcement.
 
+> **⚠️ Correct status values**: `pending` → `acknowledged` → `enforcement_started`
+> → `resolved` or `dismissed` (NOT `notified` or `escalated`).
+>
+> **⚠️ Correct breach types**: `consecutive_nights`, `monthly_limit`,
+> `self_contained`, `after_hours`, `day_visit_violation`, `allowed_days_violation`
+> (NOT `overstay`, `no_self_contained`, etc.).
+
 | Column | Type | Description |
 |---|---|---|
 | id | uuid PK | |
-| plate_number | text | |
-| zone_id | uuid FK | |
 | organization_id | uuid FK | |
-| breach_type | text | `overstay`, `no_self_contained`, `no_wof`, `consecutive_days`, `unauthorized_zone`, `nights_exceeded` |
-| status | text | `pending`, `notified`, `resolved`, `escalated` |
-| severity | text | `low`, `medium`, `high`, `critical` |
-| detected_at | timestamptz | |
+| zone_id | uuid FK | |
+| plate_number | text FK | |
+| observation_id | uuid FK | |
+| patrol_id | uuid FK | |
+| breach_type | text CHECK | `consecutive_nights`, `monthly_limit`, `self_contained`, `after_hours`, `day_visit_violation`, `allowed_days_violation` |
+| breach_details | jsonb | `{message, severity, consecutiveNights, ...}` |
+| due_date | date | |
+| notification_sent | boolean | |
+| notification_method | text | |
+| notified_at | timestamptz | |
+| notified_by | uuid FK | |
+| status | text CHECK | `pending`, `acknowledged`, `enforcement_started`, `resolved`, `dismissed` |
+| resolution_notes | text | |
 | resolved_at | timestamptz | |
-| resolved_by | uuid FK | |
-| action_taken | text | |
-| notice_count | integer | Notices issued |
-| last_notice_at | timestamptz | |
+| assigned_to | uuid FK | |
+| assigned_at | timestamptz | |
+| assigned_by | uuid FK | |
+| admin_reviewed_by | uuid FK | |
+| admin_reviewed_at | timestamptz | |
+| admin_review_notes | text | |
+| created_at | timestamptz | |
+| updated_at | timestamptz | |
 
 #### `enforcement_actions`
 Officer actions on breaches.
@@ -429,7 +781,8 @@ Per-zone legal details for notice generation.
 | breach_details_template | text | |
 
 #### `incidents`
-ALPR-processed incidents with evidence and legal holds.
+ALPR-processed incidents with evidence and legal holds. Observations can be linked
+to an incident via `observations.incident_id`.
 
 | Column | Type | Description |
 |---|---|---|
@@ -461,6 +814,78 @@ Officer patrol assignments with geofence tracking.
 | vehicles_checked | integer | |
 | breaches_found | integer | |
 
+#### `patrol_checkpoints`
+QR/NFC checkpoint definitions for Lone Worker Protocol
+(Health & Safety at Work Act 2015).
+
+| Column | Type | Description |
+|---|---|---|
+| id | uuid PK | |
+| organization_id | uuid FK | |
+| zone_id | uuid FK (nullable) | |
+| name | text | |
+| description | text | |
+| location_lat | double precision | |
+| location_lng | double precision | |
+| qr_code | text UNIQUE | Encoded QR payload / URL |
+| nfc_tag_id | text | NFC tag UID (optional) |
+| is_active | boolean | |
+| required_on_patrol | boolean | |
+| check_in_radius_metres | integer | Default 50m |
+| created_by | uuid FK | |
+| created_at | timestamptz | |
+| updated_at | timestamptz | |
+
+#### `checkpoint_visits`
+Immutable append-only check-in records (chain-of-custody evidence).
+
+| Column | Type | Description |
+|---|---|---|
+| id | uuid PK | |
+| checkpoint_id | uuid FK | |
+| officer_id | uuid FK | |
+| patrol_id | uuid FK (nullable) | |
+| organization_id | uuid FK | |
+| scan_method | text CHECK | `qr_camera`, `nfc`, `manual_code`, `url_deep_link` |
+| gps_latitude | double precision | |
+| gps_longitude | double precision | |
+| gps_accuracy | double precision | |
+| gps_distance_from_checkpoint | double precision | |
+| within_radius | boolean | Set by app layer on insert |
+| visited_at | timestamptz | |
+| notes | text | |
+| created_at | timestamptz | |
+
+#### `officer_welfare_settings`
+Auto-logoff & wellness thresholds. Includes Man-Down detection.
+
+| Column | Type | Description |
+|---|---|---|
+| id | uuid PK | |
+| organization_id | uuid FK | |
+| inactivity_threshold_minutes | integer | |
+| wellness_check_interval_minutes | integer | |
+| man_down_enabled | boolean | Default `true` |
+| man_down_stationary_minutes | integer | Default 15 — GPS stationary threshold |
+| man_down_escalation_minutes | integer | Default 5 — Time before critical escalation |
+| created_at | timestamptz | |
+| updated_at | timestamptz | |
+
+#### `officer_welfare_alerts`
+Triggered welfare notifications. Alert types include Man-Down.
+
+| Column | Type | Description |
+|---|---|---|
+| id | uuid PK | |
+| officer_id | uuid FK | |
+| organization_id | uuid FK | |
+| alert_type | text CHECK | `inactivity`, `gps_lost`, `manual`, `investigation_overdue`, `man_down` |
+| triggered_at | timestamptz | |
+| acknowledged_at | timestamptz | |
+| acknowledged_by | uuid FK | |
+| resolved_at | timestamptz | |
+| notes | text | |
+
 #### `health_safety_reports`
 Incident severity tracking for officers.
 
@@ -474,19 +899,64 @@ Incident severity tracking for officers.
 | severity | text | |
 | description | text | |
 
+#### `privacy_curtain_settings`
+Per-org Privacy Act 2020 auto-redaction configuration.
+
+| Column | Type | Description |
+|---|---|---|
+| id | uuid PK | |
+| organization_id | uuid UNIQUE FK | |
+| auto_redact_enabled | boolean | |
+| redact_owner_name | boolean | |
+| redact_owner_address | boolean | |
+| redact_phone_number | boolean | |
+| redact_plate_in_exports | boolean | |
+| require_reason_for_unredact | boolean | |
+| unredact_roles | text[] | Default `['admin', 'master']` |
+| created_at | timestamptz | |
+| updated_at | timestamptz | |
+
+#### `privacy_access_log`
+Immutable PII field access audit log (Privacy Act 2020 s22–s27).
+
+| Column | Type | Description |
+|---|---|---|
+| id | uuid PK | |
+| organization_id | uuid FK | |
+| actor | uuid FK → user_profiles | |
+| target_table | text | e.g. `observation`, `incident` |
+| target_record_id | text | |
+| field_accessed | text | Name of the PII field accessed |
+| access_reason | text | Required when `require_reason_for_unredact` is true |
+| ip_address | inet | |
+| user_agent | text | |
+| accessed_at | timestamptz | |
+
+#### `record_access_log`
+Privacy Act 2020 – who viewed each record and when.
+
+| Column | Type | Description |
+|---|---|---|
+| id | uuid PK | |
+| user_id | uuid FK → auth.users | |
+| organization_id | uuid FK | |
+| record_type | text | `observation`, `incident`, `vehicle`, `breach_alert` |
+| record_id | uuid | |
+| accessed_at | timestamptz | |
+| ip_address | text | |
+| user_agent | text | |
+
 #### Additional Tables
 
 | Table | Purpose |
 |---|---|
 | `person_observations` | Links persons to vehicles/zones |
-| `officer_welfare_settings` | Auto-logoff & wellness thresholds |
-| `welfare_alerts` | Triggered welfare notifications |
+| `welfare_alerts` | Triggered welfare notifications (legacy — prefer `officer_welfare_alerts`) |
 | `alert_queue` | Priority-based notification queue |
 | `drift_events` | Compliance matrix change tracking |
 | `admin_recalculation_actions` | Audit trail for compliance recalcs |
 | `photo_metadata` | Evidence photo metadata |
 | `plate_scans` | Raw ALPR scan results |
-| `plate_history` | Historical plate lookups |
 | `bug_reports` | In-app issue tracking |
 | `import_batches` / `import_staging` | Data import pipeline |
 | `missing_photo_queue` | Photo integrity reconciliation |
@@ -498,6 +968,16 @@ Incident severity tracking for officers.
 | `audit_log` | System audit trail |
 | `verification_results` | NZSCV verification cache |
 
+### Deprecated Tables (do NOT recreate)
+
+| Table | Reason |
+|---|---|
+| `vehicle_observations_v2` | Legacy mirror — `observations` is the source of truth |
+| `vehicle_records` | Merged into `canonical_vehicles` |
+| `flagged_vehicles` | Merged into `canonical_vehicles.is_flagged` |
+| `observation_jobs` | Removed — use `observations.processing_status` |
+| `canonical_vehicles_backup_20250203` | Old backup only |
+
 ### Key Relationships
 
 ```
@@ -506,33 +986,31 @@ organizations (1) ──→ (N) zones
 organizations (1) ──→ (N) observations
 
 zones (1) ──→ (N) observations
-zones (1) ──→ (N) zone_compliance_matrix (versioned)
+zones (1) ──→ (N) zone_compliance_matrix (versioned, auto-synced via trigger)
 zones (1) ──→ (1) zone_legal_config
+zones (1) ──→ (N) patrol_checkpoints
 
 canonical_vehicles (1) ──→ (N) observations (via plate_number)
 canonical_vehicles (1) ──→ (N) vehicle_monthly_stays
 
 observations (1) ──→ (1) compliance_results
+observations (N) ──→ (1) incidents (via incident_id)
+observations (1) ──→ (1) previous_observation (via previous_observation_id)
 compliance_results ──→ (1) breach_alerts (if non-compliant)
 breach_alerts (1) ──→ (N) enforcement_actions
 breach_alerts (1) ──→ (N) notices_to_vacate
 
 user_profiles (1) ──→ (N) patrols
 user_profiles (1) ──→ (N) observations (recorded_by)
-```
+user_profiles (1) ──→ (N) checkpoint_visits
 
-### PostgreSQL Extensions Required
-
-```sql
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";        -- UUID generation
-CREATE EXTENSION IF NOT EXISTS "postgis";           -- Geospatial queries
-CREATE EXTENSION IF NOT EXISTS "vector";            -- pgvector for embeddings
-CREATE EXTENSION IF NOT EXISTS "pg_cron";           -- Scheduled jobs
+patrols (1) ──→ (N) checkpoint_visits
+patrol_checkpoints (1) ──→ (N) checkpoint_visits
 ```
 
 ---
 
-## 6. Row-Level Security & Auth Model
+## 7. Row-Level Security & Auth Model
 
 ### RLS Principles
 
@@ -575,7 +1053,7 @@ const supabaseClient = createClient(
 
 ---
 
-## 7. Supabase Edge Functions
+## 8. Supabase Edge Functions
 
 All Edge Functions are in `supabase/functions/<name>/index.ts` (Deno TypeScript).
 
@@ -704,7 +1182,7 @@ preview-react-9b4t5o-*.onspace.build (preview deployments)
 
 ---
 
-## 8. Frontend Architecture
+## 9. Frontend Architecture
 
 ### Routing (App.tsx)
 
@@ -846,7 +1324,7 @@ helper function.
 
 ---
 
-## 9. Railway Services (Already Built)
+## 10. Railway Services (Already Built)
 
 > **These services are already deployed on Railway and should NOT be rebuilt.**
 > The new app simply connects to them via their Railway URLs.
@@ -953,7 +1431,7 @@ const motorwebResponse = await fetch(
 
 ---
 
-## 10. External Integrations
+## 11. External Integrations
 
 ### 10.1 Plate Recognizer
 
@@ -1020,7 +1498,7 @@ investigation assignments.
 
 ---
 
-## 11. Feature Flags & Phased Rollout
+## 12. Feature Flags & Phased Rollout
 
 ### Phase Sequence
 
@@ -1054,7 +1532,7 @@ After all phases complete, these 5 core RPCs are frozen (signatures cannot chang
 
 ---
 
-## 12. Build & Deployment
+## 13. Build & Deployment
 
 ### Prerequisites
 
@@ -1148,7 +1626,7 @@ Deploy the `dist/` folder to any static host:
 
 ---
 
-## 13. Step-by-Step Rebuild Instructions
+## 14. Step-by-Step Rebuild Instructions
 
 ### For OnSpace AI to rebuild the entire application:
 
@@ -1332,62 +1810,137 @@ Build in parallel with pages:
 
 ---
 
-## 14. Learnings & Pitfalls
+## 15. Learnings & Pitfalls
 
 ### Critical Lessons from the Current Build
 
-1. **Never query `vehicle_observations_v2`** — it is a mirror/backup table only.
-   All operational queries must target the `observations` table.
+1. **Never query `vehicle_observations_v2`** — it is a legacy mirror only.
+   All operational writes and reads must target the `observations` table.
 
-2. **TypeScript config must stay lenient** — `strict: false`, `noImplicitAny: false`,
-   `strictNullChecks: false`. Do not tighten these settings.
+2. **`observation_jobs` has been permanently removed** — do not recreate it.
+   The ALPR pipeline tracks state via `observations.processing_status`. The values
+   are `pending`, `processing`, `complete`, `failed`.
 
-3. **Timezone is always NZ** — `Pacific/Auckland`. Every datetime operation must
-   account for this. The Supabase client sends `X-Client-Timezone` header.
+3. **Zone column names are different from early docs** — see the `zones` table in
+   Section 6 for the exact column names. The old names (`requires_self_contained`,
+   `max_nights_per_month`, `is_day_visit_only`) do not exist in the live schema.
 
-4. **RLS helper functions need exception handlers** — wrap in
-   `EXCEPTION WHEN invalid_text_representation OR data_exception` to prevent
-   bad data from crashing policy evaluation.
+4. **Breach alert status values** — the CHECK constraint allows only:
+   `pending`, `acknowledged`, `enforcement_started`, `resolved`, `dismissed`.
+   The old values `notified` and `escalated` do not exist.
 
-5. **Migrations must be idempotent** — use `information_schema` checks before
-   `ALTER TABLE`. Check column existence and data type before modifying.
+5. **Breach alert type values** — the CHECK constraint allows only:
+   `consecutive_nights`, `monthly_limit`, `self_contained`, `after_hours`,
+   `day_visit_violation`, `allowed_days_violation`. Old type names will be rejected.
 
-6. **CORS has two modes** — `cors.ts` (wildcard, for dev) and `withCors.ts`
-   (production allowlist). All Edge Functions must handle OPTIONS preflight.
+6. **`vehicle_embedding` not `embedding_384`** — the vector column in `observations`
+   is named `vehicle_embedding vector(384)`. Always pass it as a native JS number
+   array — never `JSON.stringify()` it.
 
-7. **Edge Function auth pattern** — always check `Authorization` header starts
-   with `Bearer `. Use `SUPABASE_SERVICE_ROLE_KEY` for server-side operations.
+7. **`ensure_other_location_zone()` is the fallback zone RPC** — when a scan GPS
+   is outside all known zone geofences, call this SECURITY DEFINER RPC to get or
+   create the "Other Location" zone for the org. Never insert directly into `zones`
+   from the officer client (RLS blocks it).
 
-8. **Models are baked into Docker** — inference-service exports ONNX models
-   during Docker build (Python stage). No external download URLs exist.
+8. **`sync_zone_to_matrix` trigger is resilient** — it wraps its matrix INSERT in
+   an exception block. Trigger errors produce a WARNING log entry but never abort
+   the zone INSERT. Zone creation is always more important than the auto-sync.
+   Admins can reconcile the matrix separately.
 
-9. **GPS accuracy matters** — the geofence system uses 15m threshold (not 5m)
-   to account for GPS inaccuracy on mobile devices.
+9. **Storage 403 (`mark_object_ref`)** — when Supabase's "Database References"
+   (Object Reference Tracking) feature is enabled on a bucket, it creates an internal
+   trigger that calls `storage.mark_object_ref()`. The `authenticated` role must have
+   EXECUTE on this function or all inserts to that table will return HTTP 403. Fix:
+   ```sql
+   GRANT USAGE ON SCHEMA storage TO authenticated;
+   GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA storage TO authenticated;
+   ALTER DEFAULT PRIVILEGES IN SCHEMA storage GRANT EXECUTE ON FUNCTIONS TO authenticated;
+   ```
+   The `ALTER DEFAULT PRIVILEGES` line is essential — it covers functions added by
+   Supabase in future (e.g. when a new bucket feature is enabled via the Dashboard).
 
-10. **Session management prevents duplicates** — login flow checks for existing
-    sessions and either blocks or force-terminates them.
+10. **`supabase config push --include-all` can break PostgREST** — this flag pushes the
+    `[api]` section from `config.toml` to the remote project, which can trigger a
+    PostgREST schema cache reload. If a trigger (e.g. `sync_zone_to_matrix`) has a bug
+    at that moment, RPCs that insert into those tables will fail. After deploying config
+    changes, always verify key RPCs (especially `ensure_other_location_zone`) still work.
 
-11. **NZSCV is source of truth** — for self-contained vehicle status, the NZSCV
-    registry overrides any AI detection results.
+11. **TypeScript config must stay lenient** — `strict: false`, `noImplicitAny: false`,
+    `strictNullChecks: false`. The codebase has 600+ pre-existing TS errors under strict
+    mode. Do not tighten these settings; `vite build` succeeds even when `tsc -b` fails.
 
-12. **Photo evidence is mandatory** — after migration `20260219`, no observation
-    can exist without a verifiable photo (enforced at database level).
+12. **Timezone is always NZ** — `Pacific/Auckland`. Every datetime operation must
+    account for this. The Supabase client sends `X-Client-Timezone: Pacific/Auckland`
+    on every request. Use `nz_now()` in SQL instead of `now()` where timezone matters.
 
-13. **Compliance matrix is versioned** — every change to zone rules creates a new
-    matrix version. Compliance results reference the matrix version used for
-    audit trail.
+13. **RLS helper functions need exception handlers** — wrap all `SELECT` queries in
+    `EXCEPTION WHEN invalid_text_representation OR data_exception` to prevent bad data
+    from crashing policy evaluation and locking users out.
 
-14. **ParkPow sync is zone-based** — zones map to ParkPow lots. Vehicles map to
-    ParkPow vehicles. Breaches map to ParkPow violations.
+14. **Migrations must be idempotent** — use `ADD COLUMN IF NOT EXISTS`, `CREATE TABLE
+    IF NOT EXISTS`, `CREATE OR REPLACE FUNCTION`, and `information_schema` checks before
+    any `ALTER TABLE`. Every migration must be safe to re-run.
 
-15. **Offline-first design** — the Field Officer Portal uses IndexedDB for offline
-    queue. Scans are queued locally and synced when connectivity returns.
+15. **CORS has two modes** — `cors.ts` (wildcard `*`, dev only) and `withCors.ts`
+    (production allowlist). All Edge Functions must handle `OPTIONS` preflight with a
+    `200 OK` response before any auth or body parsing.
 
-16. **PWA support is critical** — officers use the app in the field on mobile
-    devices. Install prompt, update notification, and screen-awake are essential.
+16. **Edge Function auth pattern** — always check `Authorization` header starts with
+    `Bearer `. Use `SUPABASE_SERVICE_ROLE_KEY` for server-side DB operations that must
+    bypass RLS. Never expose the service role key to the browser.
 
-17. **No root package.json is committed** — if missing after clone, create it with
-    the standard scripts (dev, build, lint, preview).
+17. **`sticker_presence = null` requires human review** — never auto-approve compliance
+    when the sticker result is inconclusive. Always surface these observations for officer
+    review before making a compliance decision.
+
+18. **Models are baked into Docker** — the inference-service exports ONNX models during
+    the Docker build (Python stage). There are no external download URLs. Rebuild the
+    Docker image if models need updating.
+
+19. **GPS accuracy is 15m** — the geofence system uses a 15-metre threshold (not 5m) to
+    account for GPS inaccuracy on mobile devices in urban/coastal environments.
+
+20. **Session management prevents duplicate logins** — the login flow checks for an
+    existing active session. `forceLogin()` terminates the existing session before
+    creating a new one. This prevents ghost sessions blocking officers from logging in.
+
+21. **NZSCV is source of truth** — for self-contained vehicle status, the NZSCV registry
+    overrides AI sticker detection. AI detection is a fast pre-check only.
+
+22. **Photo evidence is mandatory** — no observation can exist without a verifiable photo.
+    The `evidence_state` column tracks integrity: `original_present`, `legacy_no_photo`,
+    `hash_mismatch`, etc.
+
+23. **Compliance matrix is versioned** — every change to zone rules auto-creates a new
+    matrix version (via the `sync_zone_to_matrix` trigger). Compliance results reference
+    the matrix version used, providing a full audit trail for rule-change disputes.
+
+24. **Offline-first design** — the Field Officer Portal uses IndexedDB for the offline
+    queue. Scans queue locally and sync automatically when connectivity returns. The
+    `useOfflineQueue` hook manages this with statuses `pending`, `syncing`, `synced`,
+    `failed`.
+
+25. **PWA is critical** — officers use the app in the field on mobile devices. The
+    install prompt, update notification, and "Keep Screen Awake" feature are essential
+    for operational use. Do not remove these without user testing.
+
+26. **No root package.json is committed** — if missing after clone, create it:
+    ```json
+    {
+      "name": "vite_react_shadcn_ts",
+      "private": true,
+      "scripts": {
+        "dev": "vite",
+        "build": "tsc -b && vite build",
+        "lint": "eslint .",
+        "preview": "vite preview"
+      }
+    }
+    ```
+
+27. **Security DEFINER RPCs only grant to `authenticated`** — never grant EXECUTE
+    on sensitive SECURITY DEFINER functions to `anon`. See `ensure_other_location_zone`
+    and `check_location_in_org` for the correct pattern.
 
 ### Security Considerations
 
@@ -1398,18 +1951,21 @@ Build in parallel with pages:
 - Photo hashing (SHA-256) ensures evidence integrity
 - Legal hold flag on incidents prevents accidental deletion
 - User deactivation is queued (not immediate) to prevent auth.users table issues
+- Privacy access log records every PII field access (Privacy Act 2020 compliance)
+- `sticker_presence = null` always requires human review — never auto-approve
 
 ### Performance Notes
 
 - Core indexes on `observations`: `recorded_at`, `org_id`, `zone_id`, `plate_number`, GPS
-- `dashboard_stats_live` is a materialised view for real-time KPIs
+- IVFFlat index on `vehicle_embedding` for fast top-K similarity search
 - Compliance recalculation runs in batches to avoid timeout
 - ALPR processing has 10s timeout; inference has separate 15s timeout
 - Edge Functions use `SUPABASE_SERVICE_ROLE_KEY` to bypass RLS for admin operations
+- `get_admin_dashboard_stats()` is a pre-computed RPC, not a live aggregate query
 
 ---
 
-## Appendix A: Complete Page Inventory (104 pages)
+## Appendix A: Complete Page Inventory
 
 ### Admin Pages
 - AdminPortal, AdminDashboard
@@ -1429,6 +1985,9 @@ Build in parallel with pages:
 - ImportData, ImportHistoricalData
 - OfficerWelfareSettings
 - PersonRecords
+- PatrolCheckpointManagement
+- PrivacyCurtain
+- SystemDiagnostics
 
 ### Field Officer Pages
 - FieldOfficerPortal (multi-view: dashboard, scanning, reports, history, settings)
@@ -1439,11 +1998,22 @@ Build in parallel with pages:
 
 ## Appendix B: Supabase Storage Buckets
 
-| Bucket | Purpose | RLS |
-|---|---|---|
-| `evidence` | Vehicle observation photos | Scoped to officer's org |
-| `incident-evidence` | Incident report photos & documents | Scoped to user UUID path |
-| `credentials` | COA/Warrant documents | Scoped to user |
+| Bucket | Purpose | RLS | Access |
+|---|---|---|---|
+| `evidence` | Vehicle observation photos | Scoped to officer's org | Auth only |
+| `incident-evidence` | Incident report photos & documents | Scoped to user UUID path | Auth only |
+| `credentials` | COA/Warrant documents | Scoped to user | Auth only |
+| `scans` | Field officer scan photos | Public read; auth write | Public read |
+
+> **⚠️ Storage 403 fix** — when enabling "Database References" (Object Reference Tracking)
+> on a bucket in the Supabase Dashboard, always run:
+> ```sql
+> GRANT USAGE ON SCHEMA storage TO authenticated;
+> GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA storage TO authenticated;
+> ALTER DEFAULT PRIVILEGES IN SCHEMA storage GRANT EXECUTE ON FUNCTIONS TO authenticated;
+> ```
+> This prevents HTTP 403 errors caused by the `storage.mark_object_ref()` function not
+> having EXECUTE permission for the `authenticated` role.
 
 ## Appendix C: Scheduled Jobs (pg_cron)
 
@@ -1453,15 +2023,120 @@ Build in parallel with pages:
 | Periodic | `monitor-officer-welfare` | Welfare check & auto-logoff |
 | Periodic | `check-almost-breaches` | Overnight breach prediction |
 
-## Appendix D: RPC Functions
+## Appendix D: RPC Functions (PostgreSQL)
 
-| Function | Purpose |
-|---|---|
-| `get_admin_dashboard_stats()` | KPI aggregations for admin dashboard |
-| `get_zones_with_activity()` | Zones with recent observations |
-| `match_vehicle()` | Visual vehicle matching via pgvector |
-| `get_my_scans_24h()` | Officer's own scans (last 24h) |
-| `check_organization_compliance()` | Org-level compliance check |
-| `calculate_vehicle_compliance_v3()` | Current compliance engine |
-| `evaluate_observation_requirements()` | Per-requirement compliance eval |
-| `nz_now()` | Current NZ time |
+| Function | Signature | Purpose |
+|---|---|---|
+| `nz_now()` | `() → timestamptz` | Current NZ time (`Pacific/Auckland`) |
+| `get_admin_dashboard_stats()` | `(org_id, from, to) → jsonb` | KPI aggregations for admin dashboard |
+| `get_zones_with_activity()` | `(org_id, from, to) → table` | Zones with recent observations + counts |
+| `match_vehicle()` | `(obs_id, k, since, org_id, zone_id, min_quality) → table` | Top-K visual similarity via pgvector |
+| `get_my_scans_24h()` | `() → table` | Officer's own scans in the last 24 hours |
+| `check_organization_compliance()` | `(org_id) → jsonb` | Org-level compliance summary |
+| `calculate_vehicle_compliance_v3()` | `(plate, zone_id, obs_id, date) → table` | **Single compliance engine** |
+| `evaluate_observation_requirements()` | `(obs_id) → table` | Per-requirement compliance breakdown |
+| `ensure_other_location_zone()` | `(org_id) → uuid` | Get-or-create "Other Location" fallback zone (SECURITY DEFINER) |
+| `check_location_in_org()` | `(org_id, lat, lon) → jsonb` | Check if GPS is inside any active org zone (SECURITY DEFINER) |
+| `sync_zone_to_matrix()` | trigger function | Auto-creates matrix entry on zone INSERT/UPDATE (resilient) |
+
+---
+
+## 16. V1 Inference Contract
+
+> This section documents the response fields produced by the Railway ORC/AI inference
+> service (`POST /infer`) and how they map to columns in the `observations` table.
+> See also `docs/INFERENCE_CONTRACT_V1.md` for the full specification.
+
+### Inference Service Endpoint
+
+```
+POST /infer   (Railway inference-service, multipart/form-data or JSON)
+GET  /health  (liveness check)
+```
+
+### Response Shape
+
+```json
+{
+  "success": true,
+  "data": {
+    "embedding": [/* 384 floats — MobileNetV3 feature vector */],
+    "embedding_quality": 0.82,
+    "embedding_model_version": "yolov8n_mobilenetv3_v1.0",
+
+    "detection": {
+      "confidence": 0.91,
+      "bbox": { "x": 120, "y": 40, "width": 320, "height": 200 },
+      "class": 2
+    },
+
+    "plate_number": "ABC123",
+
+    "vehicle_make":  "Toyota",
+    "vehicle_model": "HiAce",
+    "vehicle_colour": "White",
+    "vehicle_make_confidence":  0.88,
+    "vehicle_model_confidence": 0.76,
+    "vehicle_colour_confidence": 0.91,
+
+    "sticker": {
+      "presence": true,
+      "color": "blue",
+      "bbox": { "x": 10, "y": 5, "width": 60, "height": 30 },
+      "detection_confidence": 0.94,
+      "color_confidence": 0.87
+    },
+
+    "movement": {
+      "moved": false,
+      "background_similarity": 0.96,
+      "vehicle_bbox_iou": 0.91,
+      "decision": "stationary"
+    },
+
+    "metadata": {
+      "norm": 12.4,
+      "dimension": 384,
+      "processing_time_ms": 220
+    }
+  }
+}
+```
+
+### Field → Database Column Mapping
+
+| Inference field | `observations` column | Notes |
+|---|---|---|
+| `embedding` (array) | `vehicle_embedding` | 384-D vector, passed as native JS array |
+| `embedding_quality` | `embedding_quality` | |
+| `embedding_model_version` | `embedding_model_version` | |
+| `detection.confidence` | `plate_confidence` | |
+| `vehicle_make` | `vehicle_make` | |
+| `vehicle_model` | `vehicle_model` | |
+| `vehicle_colour` | `vehicle_colour` | Note: DB column is `vehicle_colour` |
+| `vehicle_make_confidence` | `vehicle_make_confidence` | |
+| `vehicle_model_confidence` | `vehicle_model_confidence` | |
+| `vehicle_colour_confidence` | `vehicle_color_confidence` | Note: DB column uses `color` |
+| `sticker.presence` | `sticker_presence` | nullable boolean: `null` = inconclusive |
+| `sticker.color` | `sticker_color` | `blue`, `green`, or `unknown` |
+| `sticker.bbox` | `sticker_bbox` | jsonb |
+| `sticker.detection_confidence` | `sticker_detection_confidence` | |
+| `sticker.color_confidence` | `sticker_color_confidence` | |
+| `movement.moved` | `movement_moved` | nullable — null if not requested |
+| `movement.background_similarity` | `movement_background_similarity` | |
+| `movement.vehicle_bbox_iou` | `movement_vehicle_bbox_iou` | |
+| `movement.decision` | `movement_decision` | `moved`, `stationary`, `inconclusive` |
+
+### Critical Rules
+
+1. **`sticker_presence = null` means "inconclusive"** — never auto-approve compliance
+   when sticker result is null. Always surface for officer review.
+2. **`sticker_color` must be `'unknown'` when `sticker_presence IS NULL`** — enforced
+   by database CHECK constraint.
+3. **Movement comparison is opt-in** — pass `previous_observation_id` in the
+   `alpr-process` request body. If omitted, all movement columns remain `null`.
+4. **Embeddings are native arrays** — pass `vehicle_embedding` as a JavaScript array,
+   never as a `JSON.stringify()`-encoded string. The pgvector column accepts the array
+   directly from the Supabase JS client.
+5. **GPS stays with the phone** — GPS coordinates are always captured by the mobile app
+   and never sourced from the inference service.

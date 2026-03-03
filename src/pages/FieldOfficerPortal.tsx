@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/stores/authStore'
 import { useGlobalFiltersStore } from '@/stores/globalFiltersStore'
 import { monitorGeofenceAndPatrol } from '@/lib/geofence'
@@ -10,10 +11,11 @@ import { CameraCapture } from '@/components/features/CameraCapture'
 import { LocationAuthorizationStatus } from '@/components/features/LocationAuthorizationStatus'
 import { QRCheckpointScanner } from '@/components/features/QRCheckpointScanner'
 import { useManDownDetection } from '@/hooks/useManDownDetection'
-import { Camera, Map, FileText, History, AlertTriangle, MapPin, QrCode, ShieldAlert } from 'lucide-react'
+import { Camera, Map, FileText, History, AlertTriangle, MapPin, QrCode, ShieldAlert, CheckCircle, Shield, Megaphone, FileWarning } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
+import { formatDateTime } from '@/lib/utils'
 
 // ============================================================================
 // FALLBACK ZONE: Use NULL for scans outside geofences
@@ -21,10 +23,18 @@ import { supabase } from '@/lib/supabase'
 // ============================================================================
 const OTHER_LOCATION_ZONE_ID = null;
 
+// Enforcement workflow mode labels shown in the status card
+const WORKFLOW_LABELS: Record<string, string> = {
+  admin_first:    'Admin First',
+  officer_direct: 'Officer Direct',
+  hybrid:         'Hybrid',
+}
+
 export default function FieldOfficerPortal() {
   const { user } = useAuthStore()
   const { zoneId, zoneName, setZone } = useGlobalFiltersStore()
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const [showScanner, setShowScanner] = useState(false)
   const [showCheckpoint, setShowCheckpoint] = useState(false)
   const [isProcessing, setIsProcessing] = useState(false)
@@ -36,6 +46,76 @@ export default function FieldOfficerPortal() {
 
   // Display-friendly zone label for the officer status card
   const displayZone = zoneName || (zoneId ? `${zoneId.substring(0, 8)}...` : 'Scanning Geofence...')
+
+  // ── Fetch org enforcement_workflow ────────────────────────────────────────
+  const { data: orgWorkflow } = useQuery({
+    queryKey: ['org-workflow', user?.organization_id],
+    queryFn: async () => {
+      if (!user?.organization_id) return 'admin_first'
+      const { data, error } = await supabase
+        .from('organizations')
+        .select('enforcement_workflow')
+        .eq('id', user.organization_id)
+        .single()
+      if (error) return 'admin_first'
+      return ((data as any)?.enforcement_workflow as string) || 'admin_first'
+    },
+    enabled: !!user?.organization_id,
+    staleTime: 1000 * 60 * 10,
+  })
+
+  // ── Fetch officer's recent observations ───────────────────────────────────
+  const { data: recentScans = [], refetch: refetchScans } = useQuery({
+    queryKey: ['my-recent-scans', user?.id],
+    queryFn: async () => {
+      if (!user?.id) return []
+      const { data, error } = await supabase
+        .from('observations')
+        .select('id, plate_number, recorded_at, is_compliant, processing_status, photo_url, zone_id, zone:zones!zone_id(name)')
+        .eq('recorded_by', user.id)
+        .order('recorded_at', { ascending: false })
+        .limit(10)
+      if (error) return []
+      return data as any[]
+    },
+    enabled: !!user?.id,
+    refetchInterval: 15000,  // auto-refresh every 15 s so AI results appear
+  })
+
+  // ── Enforcement action mutation ────────────────────────────────────────────
+  const issueAction = useMutation({
+    mutationFn: async ({ observationId, zoneId: obsZoneId, plateNumber, actionType }: {
+      observationId: string
+      zoneId: string
+      plateNumber: string
+      actionType: 'warning' | 'notice_to_vacate'
+    }) => {
+      const { error } = await (supabase
+        .from('enforcement_actions') as any)
+        .insert({
+          organization_id: user?.organization_id,
+          user_id: user?.id,
+          zone_id: obsZoneId,
+          plate_number: plateNumber,
+          action_type: actionType,
+          observation_id: observationId,
+          status: 'pending',
+          recorded_at: new Date().toISOString(),
+        })
+      if (error) throw error
+    },
+    onSuccess: (_, variables) => {
+      toast.success(
+        variables.actionType === 'warning'
+          ? '⚠️ Warning issued'
+          : '📋 Notice to Vacate issued'
+      )
+      queryClient.invalidateQueries({ queryKey: ['enforcement-actions'] })
+    },
+    onError: (err: any) => {
+      toast.error(err.message || 'Failed to issue enforcement action')
+    },
+  })
 
   // Auto-monitor geofence and manage patrol
   useEffect(() => {
@@ -175,7 +255,7 @@ export default function FieldOfficerPortal() {
       if (!finalZoneId) {
         // Scan is outside geofences - get/create "Other Location" zone using RPC
         // (Officers can't INSERT into zones table directly due to RLS)
-        const { data: otherZoneId, error: rpcError } = await supabase
+        const { data: otherZoneId, error: rpcError } = await (supabase as any)
           .rpc('ensure_other_location_zone', { p_organization_id: user.organization_id });
 
         if (rpcError) {
@@ -192,8 +272,8 @@ export default function FieldOfficerPortal() {
       // ============================================================================
       toast.info('Saving observation...')
       
-      const { data: observation, error: obsError } = await supabase
-        .from('observations')
+      const { data: observation, error: obsError } = await (supabase
+        .from('observations') as any)
         .insert({
           // CRITICAL: Identity
           idempotency_key: idempotencyKey,
@@ -230,9 +310,9 @@ export default function FieldOfficerPortal() {
       }
 
       console.log('✅ Observation saved (pending AI):', {
-        observation_id: observation.id,
+        observation_id: observation?.id,
         zone_id: finalZoneId,
-        status: observation.processing_status,
+        status: observation?.processing_status,
         weather: weatherConditions
       })
 
@@ -242,7 +322,7 @@ export default function FieldOfficerPortal() {
       // Call Edge Function asynchronously (don't wait for it)
       supabase.functions.invoke('alpr-process', {
         body: {
-          observation_id: observation.id,
+          observation_id: observation?.id,
           photo_url: photoUrl,
           regions: ['nz'],
           mmc: true,
@@ -450,6 +530,23 @@ export default function FieldOfficerPortal() {
               </Button>
             </CardContent>
           </Card>
+
+          <Card className="hover:shadow-lg transition-shadow border-red-200 dark:border-red-900">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <div className="p-2 bg-red-100 dark:bg-red-900 rounded-lg">
+                  <Shield className="h-5 w-5 text-red-600 dark:text-red-400" />
+                </div>
+                Infringement Notices
+              </CardTitle>
+              <CardDescription>Issue fines on-site</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button className="w-full" variant="outline" onClick={() => navigate('/infringements')}>
+                Issue / View Notices
+              </Button>
+            </CardContent>
+          </Card>
         </div>
       )}
 
@@ -465,7 +562,7 @@ export default function FieldOfficerPortal() {
         </div>
       )}
 
-      {/* Info Card */}
+      {/* Info Card — includes enforcement workflow badge */}
       <Card className="mt-6 bg-slate-50 dark:bg-slate-900/50">
         <CardHeader>
           <CardTitle className="text-sm">Officer Status</CardTitle>
@@ -480,9 +577,148 @@ export default function FieldOfficerPortal() {
               <span>Organization:</span>
               <span>{user?.organization_id?.substring(0, 8)}...</span>
             </div>
+            <div className="flex justify-between items-center">
+              <span>Enforcement Mode:</span>
+              <Badge
+                variant="outline"
+                className={
+                  orgWorkflow === 'officer_direct'
+                    ? 'border-green-500 text-green-700 bg-green-50'
+                    : orgWorkflow === 'hybrid'
+                    ? 'border-yellow-500 text-yellow-700 bg-yellow-50'
+                    : 'border-blue-400 text-blue-700 bg-blue-50'
+                }
+              >
+                {WORKFLOW_LABELS[orgWorkflow || 'admin_first'] || orgWorkflow}
+              </Badge>
+            </div>
           </div>
         </CardContent>
       </Card>
+
+      {/* ── Recent Scans with enforcement actions ─────────────────────────── */}
+      {!showScanner && !showCheckpoint && recentScans.length > 0 && (
+        <Card className="mt-6">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm flex items-center gap-2">
+              <History className="h-4 w-4" />
+              Recent Scans
+            </CardTitle>
+            <CardDescription className="text-xs">
+              {orgWorkflow === 'officer_direct' && 'Officer Direct mode — you can issue warnings and notices on-site.'}
+              {orgWorkflow === 'hybrid' && 'Hybrid mode — you can issue warnings on-site; notices require admin approval.'}
+              {(!orgWorkflow || orgWorkflow === 'admin_first') && 'Admin First mode — breaches are automatically reported to admin.'}
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-2 pt-0">
+            {recentScans.map((scan: any) => {
+              const isProcessingAI = scan.processing_status === 'pending'
+              const inBreach = !scan.is_compliant && !isProcessingAI
+              return (
+                <div
+                  key={scan.id}
+                  className={`flex items-center gap-3 rounded-lg border p-2.5 ${
+                    inBreach ? 'border-red-200 bg-red-50 dark:bg-red-950/30' : 'border-gray-100 bg-white dark:bg-slate-900'
+                  }`}
+                >
+                  {/* Thumbnail */}
+                  {scan.photo_url ? (
+                    <img
+                      src={scan.photo_url}
+                      alt={scan.plate_number}
+                      className="h-10 w-10 rounded object-cover shrink-0"
+                    />
+                  ) : (
+                    <div className="h-10 w-10 rounded bg-gray-100 flex items-center justify-center shrink-0">
+                      <Camera className="h-5 w-5 text-gray-400" />
+                    </div>
+                  )}
+
+                  {/* Details */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="font-mono font-bold text-sm">
+                        {isProcessingAI ? '⏳ Scanning...' : (scan.plate_number || '—')}
+                      </span>
+                      {!isProcessingAI && (
+                        <Badge
+                          variant={scan.is_compliant ? 'default' : 'destructive'}
+                          className="text-[10px] px-1.5 py-0"
+                        >
+                          {scan.is_compliant ? 'Compliant' : 'Breach'}
+                        </Badge>
+                      )}
+                    </div>
+                    <div className="text-[11px] text-muted-foreground truncate">
+                      {scan.zone?.name} · {formatDateTime(scan.recorded_at)}
+                    </div>
+                  </div>
+
+                  {/* Enforcement action buttons — only shown for breach + AI complete */}
+                  {inBreach && (
+                    <div className="flex gap-1 shrink-0">
+                      {/* Warning: shown for officer_direct AND hybrid */}
+                      {(orgWorkflow === 'officer_direct' || orgWorkflow === 'hybrid') && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 px-2 text-[11px] border-yellow-400 text-yellow-700 hover:bg-yellow-50"
+                          disabled={issueAction.isPending}
+                          onClick={() =>
+                            issueAction.mutate({
+                              observationId: scan.id,
+                              zoneId: scan.zone_id || '',
+                              plateNumber: scan.plate_number,
+                              actionType: 'warning',
+                            })
+                          }
+                        >
+                          <FileWarning className="h-3 w-3 mr-1" />
+                          Warning
+                        </Button>
+                      )}
+
+                      {/* Notice to Vacate: officer_direct only */}
+                      {orgWorkflow === 'officer_direct' && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 px-2 text-[11px] border-red-400 text-red-700 hover:bg-red-50"
+                          disabled={issueAction.isPending}
+                          onClick={() =>
+                            issueAction.mutate({
+                              observationId: scan.id,
+                              zoneId: scan.zone_id || '',
+                              plateNumber: scan.plate_number,
+                              actionType: 'notice_to_vacate',
+                            })
+                          }
+                        >
+                          <Megaphone className="h-3 w-3 mr-1" />
+                          Notice
+                        </Button>
+                      )}
+
+                      {/* Admin First: read-only badge */}
+                      {(!orgWorkflow || orgWorkflow === 'admin_first') && (
+                        <Badge variant="secondary" className="text-[10px]">
+                          <Shield className="h-2.5 w-2.5 mr-1" />
+                          Reported
+                        </Badge>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Compliant: green tick */}
+                  {!inBreach && !isProcessingAI && (
+                    <CheckCircle className="h-4 w-4 text-green-500 shrink-0" />
+                  )}
+                </div>
+              )
+            })}
+          </CardContent>
+        </Card>
+      )}
     </AppLayout>
   )
 }

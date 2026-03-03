@@ -18,7 +18,7 @@ import {
   Server,
   Zap,
 } from 'lucide-react'
-import { checkRailwayHealth } from '@/lib/railway'
+import { checkRailwayServicesHealth } from '@/lib/railway'
 
 interface ServiceStatus {
   name: string
@@ -32,7 +32,7 @@ export function SystemHealthIndicator() {
   // Check Railway services health
   const { data: railwayHealth, isLoading: railwayLoading, refetch } = useQuery({
     queryKey: ['railway-health'],
-    queryFn: checkRailwayHealth,
+    queryFn: checkRailwayServicesHealth,
     refetchInterval: 60000, // Check every minute
   })
 
@@ -74,7 +74,7 @@ export function SystemHealthIndicator() {
     },
     {
       name: 'Railway Services',
-      status: railwayHealth?.healthy ? 'operational' : 'degraded',
+      status: (railwayHealth?.proxy && railwayHealth?.inference) ? 'operational' : 'degraded',
       icon: <Server className="h-5 w-5" />,
     },
     {
@@ -223,20 +223,15 @@ export function SystemHealthIndicator() {
         )}
 
         {/* Railway services detail */}
-        {railwayHealth && !railwayHealth.healthy && (
+        {railwayHealth && !(railwayHealth.proxy && railwayHealth.inference) && (
           <div className="p-3 bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg text-sm">
             <div className="font-medium mb-2">Service Issues</div>
-            {!railwayHealth.nzscv && (
+            {!railwayHealth.proxy && (
               <div className="text-yellow-900 dark:text-yellow-100">
                 • NZSCV verification service unavailable
               </div>
             )}
-            {!railwayHealth.motorweb && (
-              <div className="text-yellow-900 dark:text-yellow-100">
-                • MotorWeb enrichment service unavailable
-              </div>
-            )}
-            {!railwayHealth.orc && (
+            {!railwayHealth.inference && (
               <div className="text-yellow-900 dark:text-yellow-100">
                 • ORC/AI inference service unavailable
               </div>

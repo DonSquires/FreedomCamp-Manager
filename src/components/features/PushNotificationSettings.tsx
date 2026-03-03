@@ -12,7 +12,7 @@ import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
-import { requestNotificationPermission, isPushSupported } from '@/lib/pushNotifications'
+import { requestNotificationPermission, isNotificationSupported } from '@/lib/pushNotifications'
 import { 
   Bell,
   BellOff,
@@ -53,15 +53,14 @@ export function PushNotificationSettings() {
   useEffect(() => {
     if ('Notification' in window) {
       setPermissionStatus(Notification.permission)
-      setPushEnabled(!!preferences?.push_token)
+      setPushEnabled(!!(preferences as any)?.push_token)
     }
   }, [preferences])
 
   // Update preferences mutation
   const updatePreferencesMutation = useMutation({
     mutationFn: async (newPreferences: any) => {
-      const { error } = await supabase
-        .from('user_profiles')
+      const { error } = await (supabase.from('user_profiles') as any)
         .update({ notification_preferences: newPreferences })
         .eq('id', user?.id)
 
@@ -77,7 +76,7 @@ export function PushNotificationSettings() {
   })
 
   const handleTogglePreference = (key: string, value: boolean) => {
-    const currentPrefs = preferences?.notification_preferences || {}
+    const currentPrefs = (preferences as any)?.notification_preferences || {}
     updatePreferencesMutation.mutate({
       ...currentPrefs,
       [key]: value,
@@ -85,7 +84,7 @@ export function PushNotificationSettings() {
   }
 
   const handleEnablePush = async () => {
-    if (!isPushSupported()) {
+    if (!isNotificationSupported()) {
       toast.error('Push notifications are not supported in this browser')
       return
     }
@@ -94,8 +93,7 @@ export function PushNotificationSettings() {
       const token = await requestNotificationPermission()
       if (token) {
         // Save push token
-        const { error } = await supabase
-          .from('user_profiles')
+        const { error } = await (supabase.from('user_profiles') as any)
           .update({ 
             push_token: token,
             push_token_updated_at: new Date().toISOString(),
@@ -118,8 +116,7 @@ export function PushNotificationSettings() {
 
   const handleDisablePush = async () => {
     try {
-      const { error } = await supabase
-        .from('user_profiles')
+      const { error } = await (supabase.from('user_profiles') as any)
         .update({ 
           push_token: null,
           push_token_updated_at: null,
@@ -136,7 +133,7 @@ export function PushNotificationSettings() {
     }
   }
 
-  const currentPrefs = preferences?.notification_preferences || {}
+  const currentPrefs = (preferences as any)?.notification_preferences || {}
 
   return (
     <Card>

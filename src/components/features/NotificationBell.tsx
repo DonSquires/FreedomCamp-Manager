@@ -62,8 +62,7 @@ export function NotificationBell({
     if (!notifications || notifications.length === 0) return
 
     try {
-      const { error } = await supabase
-        .from('breach_alerts')
+      const { error } = await (supabase.from('breach_alerts') as any)
         .update({ status: 'acknowledged' })
         .eq('assigned_to', user?.id)
         .eq('status', 'pending')

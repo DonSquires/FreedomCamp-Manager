@@ -22,6 +22,10 @@ app.use(express.json());
 const NZSCV_API_KEY = process.env.NZSCV_API_KEY;
 const NZSCV_ID_KEY = process.env.NZSCV_ID_KEY;
 const NZSCV_BASE_URL = process.env.NZSCV_BASE_URL || 'https://www.nzscv.co.nz';
+// NZSCV_ENDPOINT_URL overrides the full endpoint URL — set this to match the target
+// environment (test or production). See proxy-server/.env.example for the correct values.
+const NZSCV_ENDPOINT_URL = process.env.NZSCV_ENDPOINT_URL ||
+  `${NZSCV_BASE_URL}/api/rest/scv/v1/vehicleregistrationinfo`;
 const MOTORWEB_API_KEY = process.env.MOTORWEB_API_KEY;
 const MOTORWEB_ID_KEY = process.env.MOTORWEB_ID_KEY;
 const MOTORWEB_BASE_URL = process.env.MOTORWEB_BASE_URL || 'https://robot.motorweb.co.nz';
@@ -70,7 +74,7 @@ app.post('/api/nzscv/vehicle-info', async (req, res) => {
 
     // Call NZSCV API
     const response = await axios.post(
-      `${NZSCV_BASE_URL}/api/rest/scv/v1/vehicleregistrationinfo`,
+      NZSCV_ENDPOINT_URL,
       { RegistrationNumber },
       {
         headers: {
@@ -198,6 +202,7 @@ app.get('/api/info', (req, res) => {
     },
     motorwebConfigured: !!(MOTORWEB_API_KEY && MOTORWEB_ID_KEY),
     nzscvConfigured: !!(NZSCV_API_KEY && NZSCV_ID_KEY),
+    nzscvEndpoint: NZSCV_ENDPOINT_URL,
   });
 });
 

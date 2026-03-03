@@ -45,7 +45,7 @@ export function LocationAuthorizationStatus({
     setError(null)
 
     try {
-      const { data, error: rpcError } = await supabase.rpc('check_location_in_org', {
+      const { data, error: rpcError } = await (supabase as any).rpc('check_location_in_org', {
         org_id: organizationId,
         lon: longitude,
         lat: latitude,
@@ -60,12 +60,13 @@ export function LocationAuthorizationStatus({
         throw rpcError
       }
 
+      const d = data as any
       const newStatus: LocationStatus = {
-        inside: data?.inside || false,
-        distance_m: data?.distance_m || null,
-        nearest_point: data?.nearest_point ? {
-          latitude: data.nearest_point.coordinates[1],
-          longitude: data.nearest_point.coordinates[0],
+        inside: d?.inside || false,
+        distance_m: d?.distance_m || null,
+        nearest_point: d?.nearest_point ? {
+          latitude: d.nearest_point.coordinates[1],
+          longitude: d.nearest_point.coordinates[0],
         } : undefined,
         checked_at: new Date().toISOString(),
       }

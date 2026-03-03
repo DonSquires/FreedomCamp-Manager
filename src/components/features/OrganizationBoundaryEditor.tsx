@@ -244,7 +244,7 @@ export function OrganizationBoundaryEditor({
     setUploading(true)
     try {
       // Call RPC to update organization boundary
-      const { data, error } = await supabase.rpc('set_org_geometry', {
+      const { data, error } = await (supabase as any).rpc('set_org_geometry', {
         org_id: organizationId,
         geom_geojson: JSON.stringify(geojsonData),
       })
@@ -252,7 +252,7 @@ export function OrganizationBoundaryEditor({
       if (error) throw error
 
       toast.success('✅ Organization boundary updated successfully', {
-        description: `Area: ${data?.area_km2?.toFixed(2) || 'N/A'} km²`,
+        description: `Area: ${(data as any)?.area_km2?.toFixed(2) || 'N/A'} km²`,
         duration: 5000,
       })
 

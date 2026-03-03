@@ -22,8 +22,7 @@ export default function SpatialComplianceAdmin() {
     queryKey: ['org-boundary', user?.organization_id],
     queryFn: async () => {
       if (!user?.organization_id) return null
-      const { data, error } = await supabase
-        .from('organizations')
+      const { data, error } = await (supabase.from('organizations') as any)
         .select('geom')
         .eq('id', user.organization_id)
         .single()
@@ -37,8 +36,7 @@ export default function SpatialComplianceAdmin() {
   const { data: jurisdictions, refetch: refetchJurisdictions } = useQuery({
     queryKey: ['jurisdictions'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('organizations')
+      const { data, error } = await (supabase.from('organizations') as any)
         .select('*')
         .not('geom', 'is', null)
         .order('name')
@@ -52,8 +50,7 @@ export default function SpatialComplianceAdmin() {
   const { data: restrictions, refetch: refetchRestrictions } = useQuery({
     queryKey: ['restrictions'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('restrictions')
+      const { data, error } = await (supabase.from('restrictions') as any)
         .select('*, organization:organizations(name)')
         .order('created_at', { ascending: false })
 
@@ -145,7 +142,7 @@ export default function SpatialComplianceAdmin() {
           <OrganizationBoundaryEditor
             organizationId={user?.organization_id || ''}
             organizationName={user?.email?.split('@')[0] || 'Organization'}
-            currentBoundary={orgBoundary?.geom}
+            currentBoundary={(orgBoundary as any)?.geom}
             onBoundaryUpdated={refetchBoundary}
           />
         </TabsContent>

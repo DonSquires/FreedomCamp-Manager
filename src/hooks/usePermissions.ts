@@ -74,8 +74,9 @@ export function usePermissions() {
     if (rolePermissions.includes(permission)) return true
 
     // Check custom permissions from user_profiles.permissions
-    if (user.permissions && Array.isArray(user.permissions)) {
-      return user.permissions.includes(permission)
+    const userPerms = (user as any).permissions
+    if (userPerms && Array.isArray(userPerms)) {
+      return userPerms.includes(permission)
     }
 
     return false
@@ -108,10 +109,6 @@ export function usePermissions() {
     if (user.organization_id === organizationId) return true
 
     // Check if organization is in user's authorized work locations
-    if (user.organization_ids && user.organization_ids.includes(organizationId)) {
-      return true
-    }
-
     return false
   }
 
@@ -166,8 +163,7 @@ export function useManagePermissions(userId: string | null) {
     queryFn: async () => {
       if (!userId || !hasPermission('manage_users')) return null
 
-      const { data, error } = await supabase
-        .from('user_profiles')
+      const { data, error } = await (supabase.from('user_profiles') as any)
         .select('permissions, role')
         .eq('id', userId)
         .single()
@@ -176,6 +172,8 @@ export function useManagePermissions(userId: string | null) {
         console.error('Failed to load user permissions:', error)
         return null
       }
+
+      if (!data) return null
 
       return {
         role: data.role,
@@ -191,8 +189,7 @@ export function useManagePermissions(userId: string | null) {
         throw new Error('Unauthorized')
       }
 
-      const { error } = await supabase
-        .from('user_profiles')
+      const { error } = await (supabase.from('user_profiles') as any)
         .update({ permissions })
         .eq('id', userId)
 

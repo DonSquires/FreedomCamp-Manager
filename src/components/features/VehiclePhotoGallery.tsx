@@ -41,8 +41,7 @@ export function VehiclePhotoGallery({
   const { data: photos, isLoading } = useQuery({
     queryKey: ['vehicle-photos', plateNumber],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('observations')
+      const { data, error } = await (supabase.from('observations') as any)
         .select(`
           id,
           photo_url,
@@ -69,8 +68,7 @@ export function VehiclePhotoGallery({
   const { data: vehicle } = useQuery({
     queryKey: ['vehicle-profile-photo', plateNumber],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('canonical_vehicles')
+      const { data, error } = await (supabase.from('canonical_vehicles') as any)
         .select('profile_photo')
         .eq('plate_number', plateNumber)
         .single()
@@ -83,8 +81,7 @@ export function VehiclePhotoGallery({
   // Set profile photo mutation
   const setProfilePhotoMutation = useMutation({
     mutationFn: async (photoUrl: string) => {
-      const { data, error } = await supabase
-        .from('canonical_vehicles')
+      const { data, error } = await (supabase.from('canonical_vehicles') as any)
         .update({
           profile_photo: photoUrl,
           profile_photo_selected_at: new Date().toISOString(),
@@ -114,7 +111,7 @@ export function VehiclePhotoGallery({
   }
 
   const isProfilePhoto = (photoUrl: string) => {
-    return vehicle?.profile_photo === photoUrl
+    return (vehicle as any)?.profile_photo === photoUrl
   }
 
   const openLightbox = (photoUrl: string) => {

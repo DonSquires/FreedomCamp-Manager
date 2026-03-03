@@ -53,8 +53,7 @@ export function useVehicleCompliance(plateNumber?: string, options?: {
     queryFn: async () => {
       if (!plateNumber) return []
 
-      let query = supabase
-        .from('compliance_results')
+      let query = (supabase.from('compliance_results') as any)
         .select(`
           *,
           observation:observations(
@@ -66,8 +65,7 @@ export function useVehicleCompliance(plateNumber?: string, options?: {
         .order('created_at', { ascending: false })
 
       // Filter by plate via observation join
-      const { data: observations, error: obsError } = await supabase
-        .from('observations')
+      const { data: observations, error: obsError } = await (supabase.from('observations') as any)
         .select('id')
         .eq('plate_number', plateNumber)
         .is('deleted_at', null)
@@ -102,8 +100,7 @@ export function useVehicleCompliance(plateNumber?: string, options?: {
     queryFn: async () => {
       if (!plateNumber) return null
 
-      let query = supabase
-        .from('observations')
+      let query = (supabase.from('observations') as any)
         .select(`
           id,
           is_compliant,

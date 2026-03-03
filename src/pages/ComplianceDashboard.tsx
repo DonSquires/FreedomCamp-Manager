@@ -47,11 +47,11 @@ export default function ComplianceDashboard() {
 
   // Stats calculation
   const calculateStatsManually = async () => {
-    let obsQuery = supabase.from('observations').select('*', { count: 'exact', head: true })
-    let compliantQuery = supabase.from('observations').select('*', { count: 'exact', head: true }).eq('is_compliant', true)
-    let breachQuery = supabase.from('breach_alerts').select('*', { count: 'exact' }).eq('status', 'pending')
-    let vehicleQuery = supabase.from('canonical_vehicles').select('*', { count: 'exact' })
-    let patrolQuery = supabase.from('patrols').select('*', { count: 'exact' }).eq('status', 'in_progress')
+    let obsQuery = (supabase.from('observations') as any).select('*', { count: 'exact', head: true })
+    let compliantQuery = (supabase.from('observations') as any).select('*', { count: 'exact', head: true }).eq('is_compliant', true)
+    let breachQuery = (supabase.from('breach_alerts') as any).select('*', { count: 'exact' }).eq('status', 'pending')
+    let vehicleQuery = (supabase.from('canonical_vehicles') as any).select('*', { count: 'exact' })
+    let patrolQuery = (supabase.from('patrols') as any).select('*', { count: 'exact' }).eq('status', 'in_progress')
 
     if (user?.role !== 'master' && user?.organization_id) {
       obsQuery = obsQuery.eq('organization_id', user.organization_id)
@@ -102,8 +102,7 @@ export default function ComplianceDashboard() {
   const { data: recentActivity } = useQuery({
     queryKey: ['recent-activity', organizationId, user?.organization_id],
     queryFn: async () => {
-      let query = supabase
-        .from('observations')
+      let query = (supabase.from('observations') as any)
         .select(`
           id,
           plate_number,
@@ -137,8 +136,7 @@ export default function ComplianceDashboard() {
     setAnalyzingPhotos(true)
     try {
       // Get recent observations with photos
-      let query = supabase
-        .from('observations')
+      let query = (supabase.from('observations') as any)
         .select('id, photo_url, plate_number')
         .not('photo_url', 'is', null)
         .order('recorded_at', { ascending: false })

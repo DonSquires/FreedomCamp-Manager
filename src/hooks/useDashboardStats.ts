@@ -26,7 +26,7 @@ export function useDashboardStats(params: DashboardStatsParams = {}) {
     queryKey: ['dashboard-stats', organizationId, dateFrom, dateTo],
     queryFn: async () => {
       // Try RPC function first
-      const { data: rpcData, error: rpcError } = await supabase.rpc('get_admin_dashboard_stats', {
+      const { data: rpcData, error: rpcError } = await (supabase as any).rpc('get_admin_dashboard_stats', {
         p_organization_id: organizationId || null,
         p_date_from: dateFrom || null,
         p_date_to: dateTo || null,
@@ -47,10 +47,10 @@ async function calculateStatsManually(
   dateFrom?: string | null,
   dateTo?: string | null
 ): Promise<DashboardStats> {
-  let obsQuery = supabase.from('observations').select('is_compliant', { count: 'exact' })
-  let breachQuery = supabase.from('breach_alerts').select('*', { count: 'exact' }).eq('status', 'pending')
-  let vehicleQuery = supabase.from('canonical_vehicles').select('*', { count: 'exact' })
-  let patrolQuery = supabase.from('patrols').select('*', { count: 'exact' }).eq('status', 'in_progress')
+  let obsQuery = (supabase.from('observations') as any).select('is_compliant', { count: 'exact' })
+  let breachQuery = (supabase.from('breach_alerts') as any).select('*', { count: 'exact' }).eq('status', 'pending')
+  let vehicleQuery = (supabase.from('canonical_vehicles') as any).select('*', { count: 'exact' })
+  let patrolQuery = (supabase.from('patrols') as any).select('*', { count: 'exact' }).eq('status', 'in_progress')
 
   if (organizationId) {
     obsQuery = obsQuery.eq('organization_id', organizationId)
@@ -94,8 +94,7 @@ export function useRecentActivity(organizationId?: string | null) {
   return useQuery({
     queryKey: ['recent-activity', organizationId],
     queryFn: async () => {
-      let query = supabase
-        .from('observations')
+      let query = (supabase.from('observations') as any)
         .select(`
           id,
           plate_number,

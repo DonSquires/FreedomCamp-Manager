@@ -56,7 +56,7 @@ interface InvestigationJobResult {
   created_at: string
 }
 
-export function useOfficerNotifications() {
+export function useOfficerNotifications(options: { limit?: number; unreadOnly?: boolean } = {}) {
   const { user } = useAuthStore()
   const queryClient = useQueryClient()
 
@@ -221,6 +221,18 @@ export function useOfficerNotifications() {
     alerts: alertsQuery.data,
     isLoading: preferencesQuery.isLoading || alertsQuery.isLoading,
     updatePreferences,
+    notifications: alertsQuery.data,
+    refetch: alertsQuery.refetch,
+    markAsRead: async (id: string) => {
+      const { error } = await (supabase.from('breach_alerts') as any).update({ status: 'acknowledged' }).eq('id', id)
+      if (error) console.error('Failed to acknowledge alert:', error)
+      alertsQuery.refetch()
+    },
+    deleteNotification: async (id: string) => {
+      const { error } = await (supabase.from('breach_alerts') as any).update({ status: 'dismissed' }).eq('id', id)
+      if (error) console.error('Failed to dismiss alert:', error)
+      alertsQuery.refetch()
+    },
   }
 }
 

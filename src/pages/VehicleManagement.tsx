@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { useGlobalFiltersStore } from '@/stores/globalFiltersStore'
@@ -38,6 +39,7 @@ export default function VehicleManagement() {
   const { user } = useAuthStore()
   const { organizationId } = useGlobalFiltersStore()
   const queryClient = useQueryClient()
+  const navigate = useNavigate()
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<'all' | 'compliant' | 'breaches'>('all')
   const [showDetailsDialog, setShowDetailsDialog] = useState(false)
@@ -118,8 +120,7 @@ export default function VehicleManagement() {
 
       if (data) {
         // Update vehicle in database with enriched data using correct column names
-        const { error: updateError } = await supabase
-          .from('canonical_vehicles')
+        const { error: updateError } = await (supabase.from('canonical_vehicles') as any)
           .update({
             make: data.make,
             model: data.model,
@@ -388,14 +389,22 @@ export default function VehicleManagement() {
                     )}
                   </div>
 
-                  <div className="pt-3 mt-3 border-t">
+                  <div className="pt-3 mt-3 border-t flex gap-2">
                     <Button 
                       variant="outline" 
                       size="sm" 
-                      className="w-full"
+                      className="flex-1"
                       onClick={() => openDetails(vehicle)}
                     >
-                      View Details
+                      Quick View
+                    </Button>
+                    <Button
+                      variant="default"
+                      size="sm"
+                      className="flex-1"
+                      onClick={() => navigate(`/vehicles/${vehicle.id}`)}
+                    >
+                      Full Profile
                     </Button>
                   </div>
                 </div>

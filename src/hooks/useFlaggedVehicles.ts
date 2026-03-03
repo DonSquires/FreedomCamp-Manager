@@ -106,8 +106,8 @@ export function useFlaggedVehicles(options?: {
   // Create flagged vehicle mutation
   const createFlaggedVehicle = useMutation({
     mutationFn: async (input: CreateFlaggedVehicleInput) => {
-      const { data, error } = await supabase
-        .from('flagged_vehicles')
+      const { data, error } = await (supabase
+        .from('flagged_vehicles') as any)
         .insert({
           organization_id: user?.organization_id,
           created_by: user?.id,
@@ -141,8 +141,7 @@ export function useFlaggedVehicles(options?: {
   // Update flagged vehicle mutation
   const updateFlaggedVehicle = useMutation({
     mutationFn: async ({ id, ...updates }: UpdateFlaggedVehicleInput & { id: string }) => {
-      const { error } = await supabase
-        .from('flagged_vehicles')
+      const { error } = await (supabase.from('flagged_vehicles') as any)
         .update(updates)
         .eq('id', id)
 
@@ -160,8 +159,7 @@ export function useFlaggedVehicles(options?: {
   // Toggle active status mutation
   const toggleActive = useMutation({
     mutationFn: async ({ id, isActive }: { id: string; isActive: boolean }) => {
-      const { error } = await supabase
-        .from('flagged_vehicles')
+      const { error } = await (supabase.from('flagged_vehicles') as any)
         .update({ is_active: !isActive })
         .eq('id', id)
 
