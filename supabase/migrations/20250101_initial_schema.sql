@@ -51,6 +51,8 @@ END;
 $$;
 
 -- get_user_role — returns the role of the given user (default 'officer')
+-- Drop any prior definition (parameter name may differ, e.g. "uid" vs "p_user_id")
+DROP FUNCTION IF EXISTS get_user_role(UUID);
 CREATE OR REPLACE FUNCTION get_user_role(p_user_id UUID)
 RETURNS TEXT
 LANGUAGE plpgsql
@@ -68,6 +70,8 @@ END;
 $$;
 
 -- get_user_organization_id — returns the primary organisation of the caller
+-- Drop any prior definition (parameter name may differ)
+DROP FUNCTION IF EXISTS get_user_organization_id(UUID);
 CREATE OR REPLACE FUNCTION get_user_organization_id(p_user_id UUID)
 RETURNS UUID
 LANGUAGE plpgsql
