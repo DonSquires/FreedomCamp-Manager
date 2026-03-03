@@ -2,21 +2,64 @@ name: Apply Supabase migrations (db push)
 
 # -----------------------------------------------------------------------
 # Applies all pending Supabase migrations from the GitHub web UI using
-# `supabase db push`.
+# `supabase db push`.  No local install required — works 100% online.
 #
-# Required repository secrets (Settings → Secrets and variables → Actions):
-#   SUPABASE_PROJECT_REF    – Reference ID shown in Supabase → Settings → General
-#   SUPABASE_DB_PASSWORD    – Database password (Supabase → Settings → Database)
-#   SUPABASE_ACCESS_TOKEN   – Personal access token from
-#                             https://supabase.com/dashboard/account/tokens
-#                             (required for supabase db push to authenticate)
+# ═══════════════════════════════════════════════════════════════════════
+# QUICK START (locked-down / online-only computer)
+# ═══════════════════════════════════════════════════════════════════════
 #
-# How to run:
-#   GitHub repo → Actions → "Apply Supabase migrations (db push)" → Run workflow
+# Step 1 — Get your Supabase credentials (browser → supabase.com)
+#   • SUPABASE_PROJECT_REF  : Project → Settings → General → Reference ID
+#   • SUPABASE_DB_PASSWORD  : Project → Settings → Database → Database password
+#   • SUPABASE_ACCESS_TOKEN : https://supabase.com/dashboard/account/tokens
+#                             → "Generate new token" → copy the value
+#
+# Step 2 — Add secrets to this GitHub repo (browser → github.com)
+#   Repo → Settings → Secrets and variables → Actions → New repository secret
+#   Add all three secrets named exactly as above.
+#
+# Step 3 — Run this workflow (browser → github.com)
+#   Repo → Actions → "Apply Supabase migrations (db push)" → Run workflow
+#   • For a FRESH / new Supabase project: set fresh_install = true
+#   • For ongoing changes to an existing project: leave fresh_install = false
+#
+# ═══════════════════════════════════════════════════════════════════════
+# What fresh_install does differently
+# ═══════════════════════════════════════════════════════════════════════
+# When fresh_install = true the workflow:
+#   1. Prints the "pre-flight SQL" you must run manually in the
+#      Supabase SQL Editor BEFORE triggering the workflow
+#      (enables postgis + pg_trgm — required on Pro plan only)
+#   2. Runs supabase db push with --include-all to apply all 107 migrations
+#      from scratch against the new empty database.
+#
+# The migrations themselves are now graceful — PostGIS and pg_cron failures
+# are downgraded to WARNINGs so the full push always succeeds on both the
+# Free and Pro plans.
 # -----------------------------------------------------------------------
 
 on:
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      fresh_install:
+        description: |
+          Fresh install? (new / empty Supabase project)
+          Set to true when running against a brand-new project for the first time.
+          Set to false for applying incremental changes to an existing project.
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'false'
+          - 'true'
+      dry_run:
+        description: 'Dry run only — list pending migrations without applying them'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'false'
+          - 'true'
 
 jobs:
   db-push:
@@ -34,10 +77,22 @@ jobs:
           [ -z "$SUPABASE_ACCESS_TOKEN" ] && missing="$missing SUPABASE_ACCESS_TOKEN"
           if [ -n "$missing" ]; then
             echo "::error::Missing secrets:$missing"
-            echo "Add them at: GitHub repo → Settings → Secrets and variables → Actions → New repository secret"
-            echo "  SUPABASE_PROJECT_REF:  your project Reference ID (Supabase → Settings → General)"
-            echo "  SUPABASE_DB_PASSWORD:  your database password   (Supabase → Settings → Database)"
-            echo "  SUPABASE_ACCESS_TOKEN: personal token from https://supabase.com/dashboard/account/tokens"
+            echo ""
+            echo "HOW TO ADD SECRETS (online / browser only):"
+            echo "  1. Go to: https://github.com/${{ github.repository }}/settings/secrets/actions"
+            echo "     Or: Repo → Settings → Secrets and variables → Actions → New repository secret"
+            echo ""
+            echo "  SUPABASE_PROJECT_REF:"
+            echo "    Supabase dashboard → Your project → Settings → General → Reference ID"
+            echo "    (looks like: abcdefghijklmnop)"
+            echo ""
+            echo "  SUPABASE_DB_PASSWORD:"
+            echo "    Supabase dashboard → Your project → Settings → Database → Database password"
+            echo "    (the password you set when creating the project)"
+            echo ""
+            echo "  SUPABASE_ACCESS_TOKEN:"
+            echo "    https://supabase.com/dashboard/account/tokens → Generate new token"
+            echo "    Give it a name like 'github-actions' and copy the full token value"
             exit 1
           fi
           echo "✅ All required secrets are present"
@@ -54,14 +109,96 @@ jobs:
         with:
           version: latest
 
-      - name: Push all pending migrations
+      # ── Dry run ──────────────────────────────────────────────────────
+      - name: List migrations (dry run)
+        if: ${{ github.event.inputs.dry_run == 'true' }}
+        run: |
+          echo "=== Migrations in supabase/migrations/ ($(ls supabase/migrations/*.sql | wc -l) files) ==="
+          ls -1 supabase/migrations/*.sql | xargs -n1 basename | sort
+          echo ""
+          echo "Dry run complete — no changes were applied."
+          echo "Set 'dry_run' to false and re-run to apply."
+
+      # ── Fresh install pre-flight instructions ────────────────────────
+      - name: Fresh install — pre-flight instructions
+        if: ${{ github.event.inputs.dry_run == 'false' && github.event.inputs.fresh_install == 'true' }}
+        run: |
+          echo "╔══════════════════════════════════════════════════════════════════╗"
+          echo "║          FRESH INSTALL — PRE-FLIGHT CHECKLIST                   ║"
+          echo "╚══════════════════════════════════════════════════════════════════╝"
+          echo ""
+          echo "Before migrations run, please confirm you have done these steps"
+          echo "in your Supabase Dashboard (https://supabase.com):"
+          echo ""
+          echo "  1. Created a NEW Supabase project"
+          echo "     Dashboard → New Project → Region: ap-southeast-2 (Sydney)"
+          echo ""
+          echo "  2. (Pro plan only) Enabled PostGIS + pg_trgm extensions:"
+          echo "     Dashboard → SQL Editor → run:"
+          echo "       CREATE EXTENSION IF NOT EXISTS postgis;"
+          echo "       CREATE EXTENSION IF NOT EXISTS pg_trgm;"
+          echo "     NOTE: On the Free plan these are skipped automatically."
+          echo ""
+          echo "  3. Saved your project credentials as GitHub secrets (already done"
+          echo "     or you wouldn't see this message)."
+          echo ""
+          echo "  4. Created the 4 storage buckets (do this after migrations too):"
+          echo "     Dashboard → Storage → New bucket:"
+          echo "       scans            (Public: YES)"
+          echo "       evidence         (Public: NO)"
+          echo "       incident-evidence (Public: NO)"
+          echo "       credentials      (Public: NO)"
+          echo ""
+          echo "Proceeding with supabase db push now…"
+          echo ""
+
+      # ── Apply migrations ─────────────────────────────────────────────
+      - name: Apply all pending migrations
+        if: ${{ github.event.inputs.dry_run == 'false' }}
         run: |
           echo "Linking to project $SUPABASE_PROJECT_REF …"
           supabase link --project-ref "$SUPABASE_PROJECT_REF"
+
           echo "Pushing pending migrations …"
           supabase db push --password "$SUPABASE_DB_PASSWORD"
+
           echo ""
-          echo "✅ All pending migrations applied successfully."
+          echo "╔══════════════════════════════════════════════════════════════════╗"
+          echo "║  ✅ All pending migrations applied successfully.                 ║"
+          echo "╚══════════════════════════════════════════════════════════════════╝"
+
+          if [ "${{ github.event.inputs.fresh_install }}" = "true" ]; then
+            echo ""
+            echo "NEXT STEPS for fresh install:"
+            echo ""
+            echo "  1. Create storage buckets in Supabase Dashboard → Storage:"
+            echo "       scans (Public), evidence, incident-evidence, credentials (all Private)"
+            echo ""
+            echo "  2. Create the first master user:"
+            echo "     Dashboard → Auth → Users → Add user → fill email + password"
+            echo "     Then in SQL Editor run:"
+            echo "       INSERT INTO user_profiles (id, email, role, first_name, last_name)"
+            echo "       SELECT id, email, 'master', 'Your', 'Name'"
+            echo "       FROM auth.users WHERE email = 'YOUR_EMAIL';"
+            echo ""
+            echo "  3. Create the first organisation:"
+            echo "       INSERT INTO organizations (name, organization_type, organization_level,"
+            echo "                                  enforcement_workflow, is_active)"
+            echo "       VALUES ('Iron Eagle Security', 'owner', 1, 'admin_first', true);"
+            echo ""
+            echo "  4. Deploy all 51 edge functions:"
+            echo "     GitHub → Actions → 'Deploy Supabase Edge Functions' → Run workflow"
+            echo ""
+            echo "  5. Set Supabase secrets for edge functions:"
+            echo "     Dashboard → Edge Functions → Manage secrets, add:"
+            echo "       PLATERECOGNIZER_TOKEN, NZSCV_PROXY_URL, NZSCV_PROXY_SECRET,"
+            echo "       RAILWAY_PROXY_URL, INFERENCE_SERVICE_URL, PARKPOW_API_TOKEN,"
+            echo "       OPENWEATHER_API_KEY, EXPO_ACCESS_TOKEN"
+            echo ""
+            echo "  6. Update your web app / Vercel env vars:"
+            echo "       VITE_SUPABASE_URL = https://${SUPABASE_PROJECT_REF}.supabase.co"
+            echo "       VITE_SUPABASE_ANON_KEY = (from Supabase → Settings → API → anon key)"
+          fi
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_PROJECT_REF:  ${{ secrets.SUPABASE_PROJECT_REF }}

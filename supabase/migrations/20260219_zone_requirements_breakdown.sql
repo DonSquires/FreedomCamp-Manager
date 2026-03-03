@@ -166,19 +166,9 @@ COMMENT ON VIEW observation_requirements IS
 
 -- ==================== RLS POLICIES ====================
 
--- Allow users to view requirements for observations in their org
-CREATE POLICY users_view_observation_requirements
-  ON observation_requirements
-  FOR SELECT
-  TO authenticated
-  USING (
-    (get_user_role(auth.uid()) = 'master') OR
-    (EXISTS (
-      SELECT 1 FROM vehicle_observations_v2 o
-      WHERE o.observation_id = observation_requirements.observation_id
-        AND o.organization_id = ANY(get_user_organization_ids())
-    ))
-  );
+-- NOTE: observation_requirements is a VIEW (not a table). PostgreSQL does not
+-- support row-level security policies on views. Access is governed by RLS on
+-- the underlying vehicle_observations_v2 and related tables. No policy needed here.
 
 -- ==================== KPI DRILL-DOWN RPC ====================
 

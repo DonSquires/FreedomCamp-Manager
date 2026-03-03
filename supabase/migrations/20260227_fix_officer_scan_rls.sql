@@ -77,17 +77,27 @@ CREATE POLICY "system_manage_monthly_stays"
 
 -- ============================================================================
 -- 4. COMPLIANCE_RESULTS - Allow automatic compliance evaluation
+--    NOTE: compliance_results was dropped in 20260221_rebuild_observations_clean.sql.
+--          These statements are wrapped to be no-ops when the table no longer exists.
 -- ============================================================================
 
--- Drop existing policy if too restrictive
-DROP POLICY IF EXISTS "system_insert_compliance_results" ON compliance_results;
-
--- Allow system to create compliance results
-CREATE POLICY "system_manage_compliance_results"
-  ON compliance_results
-  FOR ALL
-  USING (true)
-  WITH CHECK (true);
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.tables
+    WHERE table_schema = 'public' AND table_name = 'compliance_results'
+  ) THEN
+    DROP POLICY IF EXISTS "system_insert_compliance_results" ON compliance_results;
+    -- Allow system to create compliance results
+    EXECUTE $p$
+      CREATE POLICY "system_manage_compliance_results"
+        ON compliance_results
+        FOR ALL
+        USING (true)
+        WITH CHECK (true)
+    $p$;
+  END IF;
+END $$;
 
 -- ============================================================================
 -- 5. BREACH_ALERTS - Allow system to create breach alerts

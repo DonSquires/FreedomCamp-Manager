@@ -227,14 +227,23 @@ using (
 );
 
 -- zone_creation_suggestions table
-drop policy if exists "users_view_org_zone_suggestions" on zone_creation_suggestions;
-create policy "users_view_org_zone_suggestions"
-on zone_creation_suggestions for select
-to authenticated
-using (
-  (get_user_role(auth.uid()) = 'master') or
-  (organization_id = any(get_user_organization_ids()))
-);
+--   NOTE: This table may not exist on all deployments. Guard with IF EXISTS.
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.tables
+    WHERE table_schema = 'public' AND table_name = 'zone_creation_suggestions'
+  ) THEN
+    DROP POLICY IF EXISTS "users_view_org_zone_suggestions" ON zone_creation_suggestions;
+    CREATE POLICY "users_view_org_zone_suggestions"
+      ON zone_creation_suggestions FOR SELECT
+      TO authenticated
+      USING (
+        (get_user_role(auth.uid()) = 'master') OR
+        (organization_id = ANY(get_user_organization_ids()))
+      );
+  END IF;
+END $$;
 
 -- vehicle_monthly_stays table
 drop policy if exists "users_view_monthly_stays" on vehicle_monthly_stays;
@@ -257,24 +266,42 @@ using (
 );
 
 -- photo_retention_policies table
-drop policy if exists "users_view_org_retention_policies" on photo_retention_policies;
-create policy "users_view_org_retention_policies"
-on photo_retention_policies for select
-to authenticated
-using (
-  (get_user_role(auth.uid()) = 'master') or
-  (organization_id = any(get_user_organization_ids()))
-);
+--   NOTE: This table may not exist on all deployments. Guard with IF EXISTS.
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.tables
+    WHERE table_schema = 'public' AND table_name = 'photo_retention_policies'
+  ) THEN
+    DROP POLICY IF EXISTS "users_view_org_retention_policies" ON photo_retention_policies;
+    CREATE POLICY "users_view_org_retention_policies"
+      ON photo_retention_policies FOR SELECT
+      TO authenticated
+      USING (
+        (get_user_role(auth.uid()) = 'master') OR
+        (organization_id = ANY(get_user_organization_ids()))
+      );
+  END IF;
+END $$;
 
 -- import_history table
-drop policy if exists "org_users_select_import_history" on import_history;
-create policy "org_users_select_import_history"
-on import_history for select
-to authenticated
-using (
-  (get_user_role(auth.uid()) = 'master') or
-  (organization_id = any(get_user_organization_ids()))
-);
+--   NOTE: This table may not exist on all deployments. Guard with IF EXISTS.
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.tables
+    WHERE table_schema = 'public' AND table_name = 'import_history'
+  ) THEN
+    DROP POLICY IF EXISTS "org_users_select_import_history" ON import_history;
+    CREATE POLICY "org_users_select_import_history"
+      ON import_history FOR SELECT
+      TO authenticated
+      USING (
+        (get_user_role(auth.uid()) = 'master') OR
+        (organization_id = ANY(get_user_organization_ids()))
+      );
+  END IF;
+END $$;
 
 -- Step 6: Verify hierarchy setup
 do $$

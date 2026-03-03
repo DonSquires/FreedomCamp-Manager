@@ -9,7 +9,7 @@ BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM storage.buckets WHERE id = 'incident-evidence'
   ) THEN
-    RAISE EXCEPTION 'Bucket "incident-evidence" does not exist. Create it first in Supabase Dashboard.';
+    RAISE WARNING 'Bucket "incident-evidence" does not exist yet. Create it in Supabase Dashboard → Storage, then the policies below will take effect automatically.';
   END IF;
 END
 $$;

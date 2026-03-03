@@ -58,13 +58,30 @@ npm install -g supabase
 supabase login
 ```
 
+#### Step A — Enable required extensions first
+
+The initial schema migration enables PostGIS and pg_trgm immediately.
+They must be available **before** running `supabase db push`.
+In the **Supabase Dashboard → SQL Editor**, run:
+
+```sql
+CREATE EXTENSION IF NOT EXISTS postgis;
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+```
+
+> **Note:** PostGIS requires the **Pro plan** or above. Contact Supabase support
+> if it is unavailable. `pg_cron` and `vector` (pgvector) are enabled
+> automatically by later migrations.
+
+#### Step B — Link and push
+
 Link to your new project:
 ```bash
 cd /path/to/FreedomCamp-Manager
 supabase link --project-ref YOUR_REF
 ```
 
-Apply all 70+ migrations:
+Apply all 107 migrations:
 ```bash
 supabase db push
 ```
@@ -97,19 +114,7 @@ ON storage.objects FOR SELECT TO authenticated
 USING (bucket_id = 'scans');
 ```
 
-### 1.5 Enable required PostgreSQL extensions
-
-In **SQL Editor**, run:
-```sql
-CREATE EXTENSION IF NOT EXISTS postgis;
-CREATE EXTENSION IF NOT EXISTS vector;
-CREATE EXTENSION IF NOT EXISTS pg_cron;
-CREATE EXTENSION IF NOT EXISTS pg_trgm;
-```
-
-If PostGIS is not available in your plan, contact Supabase support — it's available on Pro tier.
-
-### 1.6 Create the first master user
+### 1.5 Create the first master user
 
 In **Authentication → Users → Add user**:
 - Email: your admin email
@@ -130,7 +135,7 @@ FROM auth.users
 WHERE email = 'YOUR_ADMIN_EMAIL@example.com';
 ```
 
-### 1.7 Create the first organization
+### 1.6 Create the first organization
 
 ```sql
 INSERT INTO organizations (name, organization_type, organization_level, enforcement_workflow, is_active)

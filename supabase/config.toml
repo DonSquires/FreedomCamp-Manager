@@ -1,8 +1,11 @@
 # Supabase CLI configuration
 # Used by 'supabase link', 'supabase db push', and 'supabase functions deploy'
 # Reference: https://supabase.com/docs/guides/cli/config
+#
+# NEW PROJECT: run `supabase link --project-ref YOUR_NEW_REF` to update this
+# field, or edit it manually to match your new project reference.
 
-project_id = "xbfnlzmpumthnjmtqufp"  # public project reference, not a secret
+project_id = "xbfnlzmpumthnjmtqufp"  # update to your new project ref
 
 [api]
 enabled = true

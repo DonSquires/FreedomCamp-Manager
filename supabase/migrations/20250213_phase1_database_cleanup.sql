@@ -34,8 +34,9 @@ BEGIN
   RAISE NOTICE '   - Users: %', users_count;
   RAISE NOTICE '';
   
-  -- Safety check: Abort if data is missing
-  IF canonical_count < 10000 THEN
+  -- Safety check: Abort only on a populated database where data looks wrong.
+  -- canonical_count = 0 means this is a fresh install — skip the check.
+  IF canonical_count > 0 AND canonical_count < 10000 THEN
     RAISE EXCEPTION 'SAFETY ABORT: Expected 17k+ canonical vehicles, found %', canonical_count;
   END IF;
 END $$;
@@ -344,8 +345,8 @@ BEGIN
   RAISE NOTICE '   - Users: %', users_count;
   RAISE NOTICE '';
   
-  -- Safety check: Verify data intact
-  IF canonical_count < 10000 THEN
+  -- Safety check: Verify data intact (skip on fresh / empty databases)
+  IF canonical_count > 0 AND canonical_count < 10000 THEN
     RAISE EXCEPTION 'DATA LOSS DETECTED: Expected 17k+ vehicles, found %', canonical_count;
   END IF;
   

@@ -400,70 +400,79 @@ CREATE POLICY admins_update_jobs
 
 -- ============================================================
 -- 8. VEHICLE_RECORDS (Legacy)
+--    NOTE: vehicle_records was renamed to vehicle_records_deprecated_20250131
+--          by 20250131_deprecate_vehicle_records.sql. These policy statements
+--          are wrapped to be no-ops when the table no longer exists under its
+--          original name.
 -- ============================================================
 
--- Drop existing policies
-DROP POLICY IF EXISTS users_view_vehicle_records ON vehicle_records;
-DROP POLICY IF EXISTS admin_update_vehicle_records ON vehicle_records;
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.tables
+    WHERE table_schema = 'public' AND table_name = 'vehicle_records'
+  ) THEN
+    DROP POLICY IF EXISTS users_view_vehicle_records ON vehicle_records;
+    DROP POLICY IF EXISTS admin_update_vehicle_records ON vehicle_records;
 
--- SELECT: admin_officer sees ALL org data
-CREATE POLICY users_view_vehicle_records
-  ON vehicle_records FOR SELECT
-  TO authenticated
-  USING (
-    (get_user_role(auth.uid()) = 'master')
-    OR
-    (organization_id = get_user_organization_id(auth.uid()))
-  );
+    CREATE POLICY users_view_vehicle_records
+      ON vehicle_records FOR SELECT
+      TO authenticated
+      USING (
+        (get_user_role(auth.uid()) = 'master')
+        OR
+        (organization_id = get_user_organization_id(auth.uid()))
+      );
 
--- UPDATE: admin_officer can edit, but NOT their own records
-CREATE POLICY admin_update_vehicle_records
-  ON vehicle_records FOR UPDATE
-  TO authenticated
-  USING (
-    (
-      (get_user_role(auth.uid()) = 'master')
-      OR
-      (
-        (organization_id IN (
-          SELECT user_profiles.organization_id
-          FROM user_profiles
-          WHERE user_profiles.id = auth.uid()
-        ))
+    CREATE POLICY admin_update_vehicle_records
+      ON vehicle_records FOR UPDATE
+      TO authenticated
+      USING (
+        (
+          (get_user_role(auth.uid()) = 'master')
+          OR
+          (
+            (organization_id IN (
+              SELECT user_profiles.organization_id
+              FROM user_profiles
+              WHERE user_profiles.id = auth.uid()
+            ))
+            AND
+            (get_user_role(auth.uid()) = ANY (ARRAY['admin'::text, 'admin_officer'::text, 'master'::text]))
+          )
+        )
         AND
-        (get_user_role(auth.uid()) = ANY (ARRAY['admin'::text, 'admin_officer'::text, 'master'::text]))
+        -- admin_officer CANNOT edit their own records (conflict of interest)
+        (
+          (get_user_role(auth.uid()) != 'admin_officer')
+          OR
+          (recorded_by != auth.uid())
+        )
       )
-    )
-    AND
-    -- admin_officer CANNOT edit their own records (conflict of interest)
-    (
-      (get_user_role(auth.uid()) != 'admin_officer')
-      OR
-      (recorded_by != auth.uid())
-    )
-  )
-  WITH CHECK (
-    (
-      (get_user_role(auth.uid()) = 'master')
-      OR
-      (
-        (organization_id IN (
-          SELECT user_profiles.organization_id
-          FROM user_profiles
-          WHERE user_profiles.id = auth.uid()
-        ))
+      WITH CHECK (
+        (
+          (get_user_role(auth.uid()) = 'master')
+          OR
+          (
+            (organization_id IN (
+              SELECT user_profiles.organization_id
+              FROM user_profiles
+              WHERE user_profiles.id = auth.uid()
+            ))
+            AND
+            (get_user_role(auth.uid()) = ANY (ARRAY['admin'::text, 'admin_officer'::text, 'master'::text]))
+          )
+        )
         AND
-        (get_user_role(auth.uid()) = ANY (ARRAY['admin'::text, 'admin_officer'::text, 'master'::text]))
-      )
-    )
-    AND
-    -- admin_officer CANNOT edit their own records (conflict of interest)
-    (
-      (get_user_role(auth.uid()) != 'admin_officer')
-      OR
-      (recorded_by != auth.uid())
-    )
-  );
+        -- admin_officer CANNOT edit their own records (conflict of interest)
+        (
+          (get_user_role(auth.uid()) != 'admin_officer')
+          OR
+          (recorded_by != auth.uid())
+        )
+      );
+  END IF;
+END $$;
 
 -- ============================================================
 -- 9. PATROLS

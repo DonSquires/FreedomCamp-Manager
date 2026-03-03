@@ -91,17 +91,27 @@ CREATE POLICY "service_role_manage_monthly_stays"
 
 -- ============================================================================
 -- 6. FIX COMPLIANCE_RESULTS POLICIES
+--    NOTE: compliance_results was dropped in 20260221_rebuild_observations_clean.sql.
+--          These statements are wrapped to be no-ops when the table no longer exists.
 -- ============================================================================
 
-DROP POLICY IF EXISTS "system_manage_compliance_results" ON compliance_results;
-
--- Allow SERVICE_ROLE to manage compliance results (used by triggers)
-CREATE POLICY "service_role_manage_compliance_results"
-  ON compliance_results
-  FOR ALL
-  TO service_role
-  USING (true)
-  WITH CHECK (true);
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.tables
+    WHERE table_schema = 'public' AND table_name = 'compliance_results'
+  ) THEN
+    DROP POLICY IF EXISTS "system_manage_compliance_results" ON compliance_results;
+    EXECUTE $p$
+      CREATE POLICY "service_role_manage_compliance_results"
+        ON compliance_results
+        FOR ALL
+        TO service_role
+        USING (true)
+        WITH CHECK (true)
+    $p$;
+  END IF;
+END $$;
 
 -- ============================================================================
 -- 7. FIX BREACH_ALERTS POLICIES
