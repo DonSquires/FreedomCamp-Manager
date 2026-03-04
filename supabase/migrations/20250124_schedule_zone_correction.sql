@@ -18,7 +18,7 @@ BEGIN
     PERFORM cron.schedule(
       'daily-gps-zone-correction',
       '0 14 * * *', -- 2pm UTC = ~3am NZDT
-      $$
+      $cron$
       select
         net.http_post(
           url := current_setting('app.supabase_url') || '/functions/v1/correct-zone-assignments',
@@ -28,7 +28,7 @@ BEGIN
           ),
           body := '{}'::jsonb
         ) as request_id;
-      $$
+      $cron$
     );
     RAISE NOTICE 'Scheduled daily-gps-zone-correction (2pm UTC / ~3am NZDT)';
   ELSE
