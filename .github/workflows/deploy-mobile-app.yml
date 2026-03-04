@@ -1,0 +1,157 @@
+name: Deploy Mobile App to OnSpace AI
+
+# -----------------------------------------------------------------------
+# Builds and publishes the FreedomCamp Officer Expo app via EAS.
+#
+# Triggers:
+#   • Automatically on every push to main that touches mobile-app/
+#   • Manually from the GitHub Actions tab (workflow_dispatch)
+#
+# Required repository secrets (Settings → Secrets and variables → Actions):
+#   EXPO_TOKEN              – from https://expo.dev/accounts/[account]/settings/access-tokens
+#                             (create a personal access token with "Build" scope)
+#   EXPO_PUBLIC_SUPABASE_URL      – https://YOUR_REF.supabase.co
+#   EXPO_PUBLIC_SUPABASE_ANON_KEY – your Supabase anon/public key
+#
+# First-time setup:
+#   1. Create an Expo account at https://expo.dev and run:
+#        npm install -g eas-cli
+#        eas login
+#        cd mobile-app && eas init
+#   2. Replace "YOUR_EAS_PROJECT_ID" in mobile-app/app.json with the
+#      project ID printed by `eas init`.
+#   3. Add EXPO_TOKEN, EXPO_PUBLIC_SUPABASE_URL, and
+#      EXPO_PUBLIC_SUPABASE_ANON_KEY to repository secrets.
+#   4. Push to main or manually trigger this workflow.
+# -----------------------------------------------------------------------
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'mobile-app/**'
+  workflow_dispatch:
+    inputs:
+      platform:
+        description: 'Target platform'
+        required: false
+        default: 'all'
+        type: choice
+        options: [all, android, ios]
+      profile:
+        description: 'EAS build profile'
+        required: false
+        default: 'production'
+        type: choice
+        options: [production, preview, development]
+
+jobs:
+  build-and-publish:
+    name: Build & Publish to OnSpace AI (EAS)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Check required secrets
+        id: check-secrets
+        run: |
+          missing=""
+          [ -z "$EXPO_TOKEN" ]                    && missing="$missing EXPO_TOKEN"
+          [ -z "$EXPO_PUBLIC_SUPABASE_URL" ]      && missing="$missing EXPO_PUBLIC_SUPABASE_URL"
+          [ -z "$EXPO_PUBLIC_SUPABASE_ANON_KEY" ] && missing="$missing EXPO_PUBLIC_SUPABASE_ANON_KEY"
+          if [ -n "$missing" ]; then
+            echo "::warning::Required secrets not configured ($missing) — deployment skipped."
+            echo ""
+            echo "This workflow builds and publishes the Expo mobile app via EAS."
+            echo ""
+            echo "To enable this workflow, add the following repository secrets at:"
+            echo "  GitHub repo → Settings → Secrets and variables → Actions"
+            echo ""
+            echo "  EXPO_TOKEN:                    Create at https://expo.dev/accounts/[account]/settings/access-tokens"
+            echo "  EXPO_PUBLIC_SUPABASE_URL:      Your Supabase project URL"
+            echo "  EXPO_PUBLIC_SUPABASE_ANON_KEY: Your Supabase anon/public key"
+            echo "secrets_present=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "✅ Required secrets present"
+            echo "secrets_present=true" >> "$GITHUB_OUTPUT"
+          fi
+        env:
+          EXPO_TOKEN:                    ${{ secrets.EXPO_TOKEN }}
+          EXPO_PUBLIC_SUPABASE_URL:      ${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}
+          EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_ANON_KEY }}
+
+      - name: Checkout repository
+        if: steps.check-secrets.outputs.secrets_present == 'true'
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        if: steps.check-secrets.outputs.secrets_present == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: mobile-app/package-lock.json
+
+      - name: Install dependencies
+        if: steps.check-secrets.outputs.secrets_present == 'true'
+        run: |
+          cd mobile-app
+          npm install
+
+      - name: Install EAS CLI
+        if: steps.check-secrets.outputs.secrets_present == 'true'
+        run: npm install -g eas-cli@latest
+
+      - name: Resolve build platform
+        if: steps.check-secrets.outputs.secrets_present == 'true'
+        id: resolve-platform
+        run: |
+          # On an automatic push, default to android (no iOS signing required).
+          # On workflow_dispatch, use the selected platform.
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "platform=${{ github.event.inputs.platform }}" >> "$GITHUB_OUTPUT"
+            echo "profile=${{ github.event.inputs.profile }}"   >> "$GITHUB_OUTPUT"
+          else
+            echo "platform=android" >> "$GITHUB_OUTPUT"
+            echo "profile=production" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build mobile app (EAS)
+        if: steps.check-secrets.outputs.secrets_present == 'true'
+        env:
+          EXPO_TOKEN:                    ${{ secrets.EXPO_TOKEN }}
+          EXPO_PUBLIC_SUPABASE_URL:      ${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}
+          EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_ANON_KEY }}
+        run: |
+          cd mobile-app
+          PLATFORM="${{ steps.resolve-platform.outputs.platform }}"
+          PROFILE="${{ steps.resolve-platform.outputs.profile }}"
+          echo "🏗️  Building for platform: $PLATFORM (profile: $PROFILE)"
+          eas build \
+            --platform "$PLATFORM" \
+            --profile  "$PROFILE" \
+            --non-interactive \
+            --no-wait
+          echo ""
+          echo "✅ EAS build triggered successfully."
+          echo "📱 Monitor build progress at: https://expo.dev (Projects → freedomcamp-officer → Builds)"
+
+      - name: Publish OTA update (EAS Update)
+        if: steps.check-secrets.outputs.secrets_present == 'true'
+        env:
+          EXPO_TOKEN:                    ${{ secrets.EXPO_TOKEN }}
+          EXPO_PUBLIC_SUPABASE_URL:      ${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}
+          EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_ANON_KEY }}
+        run: |
+          cd mobile-app
+          PROFILE="${{ steps.resolve-platform.outputs.profile }}"
+          BRANCH="$PROFILE"
+          echo "📡 Publishing OTA update to branch: $BRANCH"
+          eas update \
+            --branch  "$BRANCH" \
+            --message "Deploy from GitHub Actions — ${{ github.sha }}" \
+            --non-interactive
+          echo ""
+          echo "✅ OTA update published to OnSpace AI (branch: $BRANCH)."
+          echo "📡 Verify at: https://expo.dev (Projects → freedomcamp-officer → Updates)"
