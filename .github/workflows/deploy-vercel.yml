@@ -58,53 +58,61 @@ jobs:
 
     steps:
       - name: Check required secrets
+        id: check-secrets
         run: |
           missing=""
           [ -z "$VERCEL_TOKEN" ]      && missing="$missing VERCEL_TOKEN"
           [ -z "$VERCEL_ORG_ID" ]     && missing="$missing VERCEL_ORG_ID"
           [ -z "$VERCEL_PROJECT_ID" ] && missing="$missing VERCEL_PROJECT_ID"
           if [ -n "$missing" ]; then
-            echo "::error::Missing secrets:$missing"
+            echo "::warning::Vercel secrets not configured ($missing) — deployment skipped."
             echo ""
-            echo "Add these at: GitHub repo → Settings → Secrets and variables → Actions → New repository secret"
+            echo "This workflow deploys via the Vercel CLI.  If you are using Vercel's"
+            echo "native GitHub integration instead, you can ignore this message."
+            echo ""
+            echo "To enable this workflow, add the following repository secrets at:"
+            echo "  GitHub repo → Settings → Secrets and variables → Actions"
             echo ""
             echo "  VERCEL_TOKEN:      Create at https://vercel.com/account/tokens"
-            echo "  VERCEL_ORG_ID:     Found in .vercel/project.json (teamId) after running 'vercel link' locally"
-            echo "  VERCEL_PROJECT_ID: Found in .vercel/project.json (projectId) after running 'vercel link' locally"
-            echo ""
-            echo "First-time Vercel setup (run locally once):"
-            echo "  npm install -g vercel"
-            echo "  vercel login"
-            echo "  vercel link   # creates .vercel/project.json with the IDs"
-            exit 1
+            echo "  VERCEL_ORG_ID:     Vercel Dashboard → Settings → General → Team ID"
+            echo "  VERCEL_PROJECT_ID: Vercel Dashboard → Project → Settings → General → Project ID"
+            echo "secrets_present=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "✅ Vercel secrets present"
+            echo "secrets_present=true" >> "$GITHUB_OUTPUT"
           fi
-          echo "✅ Vercel secrets present"
         env:
           VERCEL_TOKEN:      ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID:     ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
 
       - name: Checkout repository
+        if: steps.check-secrets.outputs.secrets_present == 'true'
         uses: actions/checkout@v4
 
       - name: Setup Bun
+        if: steps.check-secrets.outputs.secrets_present == 'true'
         uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
 
       - name: Install dependencies
+        if: steps.check-secrets.outputs.secrets_present == 'true'
         run: bun install
 
-      - name: Build (Vite only — TypeScript errors are pre-existing)
-        run: node_modules/.bin/vite build
+      - name: Build
+        if: steps.check-secrets.outputs.secrets_present == 'true'
+        run: bun run build
         env:
           VITE_SUPABASE_URL:      ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
 
       - name: Install Vercel CLI
+        if: steps.check-secrets.outputs.secrets_present == 'true'
         run: npm install -g vercel@latest
 
       - name: Pull Vercel project settings
+        if: steps.check-secrets.outputs.secrets_present == 'true'
         run: vercel pull --yes --environment=production
         env:
           VERCEL_TOKEN:      ${{ secrets.VERCEL_TOKEN }}
@@ -112,7 +120,7 @@ jobs:
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
 
       - name: Deploy to Vercel (production)
-        if: ${{ github.event_name == 'push' || github.event.inputs.environment == 'production' }}
+        if: steps.check-secrets.outputs.secrets_present == 'true' && (github.event_name == 'push' || github.event.inputs.environment == 'production')
         run: |
           vercel deploy --prebuilt --prod | tee /tmp/deploy-url.txt
           echo ""
@@ -124,7 +132,7 @@ jobs:
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
 
       - name: Deploy to Vercel (preview)
-        if: ${{ github.event.inputs.environment == 'preview' }}
+        if: steps.check-secrets.outputs.secrets_present == 'true' && github.event.inputs.environment == 'preview'
         run: |
           vercel deploy --prebuilt | tee /tmp/deploy-url.txt
           echo ""

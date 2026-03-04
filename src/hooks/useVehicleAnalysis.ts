@@ -36,7 +36,7 @@ export function useVehicleAnalysis(plateNumber?: string) {
     queryFn: async () => {
       if (!plateNumber) return []
 
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('observations')
         .select(`
           plate_number,
@@ -137,7 +137,7 @@ export function useAnalyzeObservation(observationId: string | null) {
       if (!observationId) throw new Error('No observation ID')
 
       // Get observation
-      const { data: obs, error: obsError } = await supabase
+      const { data: obs, error: obsError } = await (supabase as any)
         .from('observations')
         .select('photo_url, plate_number')
         .eq('id', observationId)
