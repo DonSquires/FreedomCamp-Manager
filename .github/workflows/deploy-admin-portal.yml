@@ -4,6 +4,20 @@ name: "Part 4 — Deploy Web Admin Portal"
 # Part 4 of the OnSpace AI deployment series.
 # Builds the Vite/React web admin portal and deploys it to Vercel.
 #
+# ── OnSpace AI (https://react-9b4t5o.onspace.build) ───────────────────
+# OnSpace AI auto-deploys from the main branch via its own GitHub
+# integration — no extra workflow step is required.  For the build to
+# succeed and the live site to function you MUST set these two environment
+# variables inside the OnSpace AI project dashboard before pushing:
+#
+#   OnSpace AI dashboard → Project → Environment Variables → Add:
+#     VITE_SUPABASE_URL      = https://YOUR_REF.supabase.co
+#     VITE_SUPABASE_ANON_KEY = eyJhbGci...YOUR_ANON_KEY
+#
+# ── Vercel (CI/CD backup deployment) ──────────────────────────────────
+# This workflow also deploys to Vercel on every merge to main so that
+# a Vercel URL is always available as a fallback / staging target.
+#
 # Environment file setup (local reference):
 #   cp .env.example .env
 #   # then edit .env:
@@ -105,22 +119,15 @@ jobs:
         if: steps.check-secrets.outputs.secrets_present == 'true'
         run: bun install
 
-      # ------------------------------------------------------------------
-      # 4.2 — Create environment file (equivalent to: cp .env.example .env)
-      # Secrets are injected directly as environment variables so no .env
-      # file needs to be written to disk.
-      # ------------------------------------------------------------------
-      - name: Build admin portal
-        if: steps.check-secrets.outputs.secrets_present == 'true'
-        run: bun run build
-        env:
-          VITE_SUPABASE_URL:      ${{ secrets.VITE_SUPABASE_URL }}
-          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
-
       - name: Install Vercel CLI
         if: steps.check-secrets.outputs.secrets_present == 'true'
         run: npm install -g vercel@latest
 
+      # ------------------------------------------------------------------
+      # 4.2 — Pull Vercel project settings BEFORE building so that any
+      # VITE_* env vars stored in the Vercel dashboard are written to
+      # .vercel/.env.production.local and picked up by vite build.
+      # ------------------------------------------------------------------
       - name: Pull Vercel project settings
         if: steps.check-secrets.outputs.secrets_present == 'true'
         run: vercel pull --yes --environment=production
@@ -128,6 +135,18 @@ jobs:
           VERCEL_TOKEN:      ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID:     ${{ secrets.VERCEL_ORG_ID }}
           VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+      # ------------------------------------------------------------------
+      # 4.3 — Build the portal.  Secrets are injected as env vars so no
+      # .env file needs to be written to disk (equivalent to the local
+      # `cp .env.example .env` + fill-in step).
+      # ------------------------------------------------------------------
+      - name: Build admin portal
+        if: steps.check-secrets.outputs.secrets_present == 'true'
+        run: bun run build
+        env:
+          VITE_SUPABASE_URL:      ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
 
       - name: Deploy to Vercel (production)
         if: steps.check-secrets.outputs.secrets_present == 'true' && (github.event_name == 'push' || github.event.inputs.environment == 'production')
