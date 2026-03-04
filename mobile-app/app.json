@@ -1,7 +1,8 @@
 {
   "expo": {
-    "name": "FreedomCamp Officer",
-    "slug": "freedomcamp-officer",
+    "name": "FreedomCamp Manager",
+    "slug": "freedomcamp-manager",
+    "owner": "iron-eagle-security",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -15,7 +16,7 @@
     "assetBundlePatterns": ["**/*"],
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "co.nz.iea.freedomcamp.officer",
+      "bundleIdentifier": "co.nz.iea.freedomcamp.manager",
       "infoPlist": {
         "NSCameraUsageDescription": "Camera is needed to photograph vehicle plates as evidence.",
         "NSLocationWhenInUseUsageDescription": "GPS location is recorded with each scan for geofence assignment and evidence.",
@@ -23,7 +24,7 @@
       }
     },
     "android": {
-      "package": "co.nz.iea.freedomcamp.officer",
+      "package": "co.nz.iea.freedomcamp.manager",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#1e40af"
@@ -45,13 +46,13 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "Allow FreedomCamp Officer to access your camera to photograph vehicle plates."
+          "cameraPermission": "Allow FreedomCamp Manager to access your camera to photograph vehicle plates."
         }
       ],
       [
         "expo-location",
         {
-          "locationAlwaysAndWhenInUsePermission": "Allow FreedomCamp Officer to use your location for geofence assignment and patrol tracking."
+          "locationAlwaysAndWhenInUsePermission": "Allow FreedomCamp Manager to use your location for geofence assignment and patrol tracking."
         }
       ],
       [
@@ -64,8 +65,14 @@
     ],
     "extra": {
       "eas": {
-        "projectId": "YOUR_EAS_PROJECT_ID"
+        "projectId": "EXPO_PROJECT_UUID"
       }
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/EXPO_PROJECT_UUID"
     }
   }
 }
