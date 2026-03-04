@@ -10,8 +10,11 @@ name: Deploy Mobile App to OnSpace AI
 #   • Manually from the GitHub Actions tab (workflow_dispatch)
 #
 # Required repository secrets (Settings → Secrets and variables → Actions):
-#   EXPO_TOKEN              – from https://expo.dev/accounts/iron-eagle-security/settings/access-tokens
-#                             (create a personal access token with "Build" scope)
+#   EXPO_TOKEN                    – from https://expo.dev/accounts/iron-eagle-security/settings/access-tokens
+#                                   (create a personal access token with "Build" scope)
+#   EXPO_PROJECT_ID               – the Expo project UUID (xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx)
+#                                   found at: https://expo.dev/accounts/iron-eagle-security/projects/freedomcamp-manager
+#                                   → Project Settings → Project ID
 #   EXPO_PUBLIC_SUPABASE_URL      – https://YOUR_REF.supabase.co
 #   EXPO_PUBLIC_SUPABASE_ANON_KEY – your Supabase anon/public key
 #
@@ -22,13 +25,14 @@ name: Deploy Mobile App to OnSpace AI
 #   2. Get the project UUID from:
 #        https://expo.dev/accounts/iron-eagle-security/projects/freedomcamp-manager
 #        → Project Settings → copy the Project ID (UUID format: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx)
-#   3. Update mobile-app/app.json:
-#        - Replace "REPLACE_WITH_YOUR_EXPO_PROJECT_UUID" in extra.eas.projectId
-#        - Replace "REPLACE_WITH_YOUR_EXPO_PROJECT_UUID" in updates.url
-#        (Both UUIDs must be identical!)
-#   4. Add EXPO_TOKEN, EXPO_PUBLIC_SUPABASE_URL, and
-#      EXPO_PUBLIC_SUPABASE_ANON_KEY to repository secrets.
-#   5. Push to main or manually trigger this workflow.
+#   3. Add the following repository secrets:
+#        EXPO_TOKEN                    – Expo personal access token with "Build" scope
+#        EXPO_PROJECT_ID               – the UUID from step 2
+#        EXPO_PUBLIC_SUPABASE_URL      – your Supabase project URL
+#        EXPO_PUBLIC_SUPABASE_ANON_KEY – your Supabase anon/public key
+#   4. Push to main or manually trigger this workflow.
+#      (The workflow injects EXPO_PROJECT_ID into app.json at build time —
+#       no need to edit app.json manually.)
 # -----------------------------------------------------------------------
 
 on:
@@ -64,6 +68,7 @@ jobs:
         run: |
           missing=""
           [ -z "$EXPO_TOKEN" ]                    && missing="$missing EXPO_TOKEN"
+          [ -z "$EXPO_PROJECT_ID" ]               && missing="$missing EXPO_PROJECT_ID"
           [ -z "$EXPO_PUBLIC_SUPABASE_URL" ]      && missing="$missing EXPO_PUBLIC_SUPABASE_URL"
           [ -z "$EXPO_PUBLIC_SUPABASE_ANON_KEY" ] && missing="$missing EXPO_PUBLIC_SUPABASE_ANON_KEY"
           if [ -n "$missing" ]; then
@@ -75,6 +80,7 @@ jobs:
             echo "  GitHub repo → Settings → Secrets and variables → Actions"
             echo ""
             echo "  EXPO_TOKEN:                    Create at https://expo.dev/accounts/[account]/settings/access-tokens"
+            echo "  EXPO_PROJECT_ID:               UUID from https://expo.dev/accounts/iron-eagle-security/projects/freedomcamp-manager → Project Settings"
             echo "  EXPO_PUBLIC_SUPABASE_URL:      Your Supabase project URL"
             echo "  EXPO_PUBLIC_SUPABASE_ANON_KEY: Your Supabase anon/public key"
             echo "secrets_present=false" >> "$GITHUB_OUTPUT"
@@ -84,6 +90,7 @@ jobs:
           fi
         env:
           EXPO_TOKEN:                    ${{ secrets.EXPO_TOKEN }}
+          EXPO_PROJECT_ID:               ${{ secrets.EXPO_PROJECT_ID }}
           EXPO_PUBLIC_SUPABASE_URL:      ${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}
           EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_ANON_KEY }}
 
@@ -104,6 +111,25 @@ jobs:
         run: |
           cd mobile-app
           npm install
+
+      - name: Inject Expo project ID into app.json
+        if: steps.check-secrets.outputs.secrets_present == 'true'
+        env:
+          EXPO_PROJECT_ID: ${{ secrets.EXPO_PROJECT_ID }}
+        run: |
+          cd mobile-app
+          # Replace the placeholder UUID with the real project ID from the secret.
+          # Note: sed -i (in-place, no backup) is standard on Linux (GNU sed) and safe on
+          # GitHub Actions ubuntu runners. It replaces all occurrences in one pass
+          # (extra.eas.projectId and updates.url both use the same placeholder).
+          sed -i "s/REPLACE_WITH_YOUR_EXPO_PROJECT_UUID/$EXPO_PROJECT_ID/g" app.json
+          echo "✅ Injected EXPO_PROJECT_ID into app.json"
+          # Verify no placeholder remains and surface exactly which lines still need fixing.
+          if grep -q "REPLACE_WITH_YOUR_EXPO_PROJECT_UUID" app.json; then
+            echo "::error::Placeholder UUID still found in app.json after injection:"
+            grep -n "REPLACE_WITH_YOUR_EXPO_PROJECT_UUID" app.json
+            exit 1
+          fi
 
       - name: Install EAS CLI
         if: steps.check-secrets.outputs.secrets_present == 'true'
