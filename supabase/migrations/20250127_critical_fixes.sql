@@ -5,7 +5,10 @@
 
 -- 1. FIX: Add public SELECT policy for incident-evidence bucket
 -- Allows public access to court-ready evidence photos
-CREATE POLICY IF NOT EXISTS "Allow public reads for incident evidence"
+-- DROP first for idempotency (CREATE POLICY IF NOT EXISTS is not valid PostgreSQL syntax)
+DROP POLICY IF EXISTS "Allow public reads for incident evidence" ON storage.objects;
+
+CREATE POLICY "Allow public reads for incident evidence"
 ON storage.objects FOR SELECT
 TO public
 USING (bucket_id = 'incident-evidence');
