@@ -266,16 +266,23 @@ Open http://localhost:5173 → login with the master user credentials from Part 
 
 ### 4.3 Deploy to Vercel
 
+The repo includes a `vercel.json` that configures Vercel automatically:
+
+- **Build command**: `npm run build` (runs `tsc -b && vite build` from `package.json`)
+- **Output directory**: `dist`
+- **SPA rewrite**: all routes rewrite to `/index.html` for client-side routing
+
+When Vercel imports from the `main` branch it will pick up `vercel.json` with no
+further prompts needed. If deploying manually via the CLI:
+
 ```bash
 npm install -g vercel
 vercel login
-vercel
+vercel --prod
 ```
 
-When prompted:
-- Build command: `bun run build` (note: TS errors are pre-existing, only Vite build matters)
-- Output directory: `dist`
-- Override build command: `node_modules/.bin/vite build`
+Accept the detected settings — do **not** override the build command; `vercel.json`
+already provides the correct value.
 
 Set environment variables in **Vercel Dashboard → Project → Settings → Environment Variables**:
 ```
@@ -283,10 +290,17 @@ VITE_SUPABASE_URL      = https://YOUR_REF.supabase.co
 VITE_SUPABASE_ANON_KEY = eyJhbGci...
 ```
 
-Deploy:
-```bash
-vercel --prod
+**Verify the build** — after deploying, open the Vercel deployment log and confirm
+the build step shows:
+
 ```
+Running build command: npm run build
+```
+
+If you see `node_modules/.bin/vite build` or any other command, the `vercel.json`
+may not be committed or may have been overridden in the Vercel project settings.
+Check **Vercel Dashboard → Project → Settings → General → Build & Output Settings**
+and ensure "Override" is disabled so `vercel.json` is respected.
 
 Your admin portal is now live at `https://YOUR_PROJECT.vercel.app`.
 
