@@ -21,10 +21,11 @@ name: Deploy Mobile App to OnSpace AI
 #        eas login
 #   2. Get the project UUID from:
 #        https://expo.dev/accounts/iron-eagle-security/projects/freedomcamp-manager
-#        → Project Settings → copy the Project ID (UUID)
+#        → Project Settings → copy the Project ID (UUID format: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx)
 #   3. Update mobile-app/app.json:
-#        - Replace "EXPO_PROJECT_UUID" in extra.eas.projectId
-#        - Replace "EXPO_PROJECT_UUID" in updates.url
+#        - Replace "REPLACE_WITH_YOUR_EXPO_PROJECT_UUID" in extra.eas.projectId
+#        - Replace "REPLACE_WITH_YOUR_EXPO_PROJECT_UUID" in updates.url
+#        (Both UUIDs must be identical!)
 #   4. Add EXPO_TOKEN, EXPO_PUBLIC_SUPABASE_URL, and
 #      EXPO_PUBLIC_SUPABASE_ANON_KEY to repository secrets.
 #   5. Push to main or manually trigger this workflow.

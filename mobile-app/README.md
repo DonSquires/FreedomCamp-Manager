@@ -101,22 +101,25 @@ eas build --platform android --profile preview --output-format=apk
 The project is linked to the Expo account `iron-eagle-security` and project `freedomcamp-manager`.
 
 **First, get the real Expo project ID:**
-```bash
-# Login to Expo account (requires iron-eagle-security access)
-eas login
 
-# Link the project and get the UUID (if not already linked)
-eas init --id <UUID_FROM_EXPO_DASHBOARD>
+1. Login to Expo:
+   ```bash
+   # Login to Expo account (requires iron-eagle-security access)
+   eas login
+   ```
 
-# Or find the project ID from the Expo dashboard:
-# Go to https://expo.dev/accounts/iron-eagle-security/projects/freedomcamp-manager
-# Click Project Settings → The project ID (UUID) is displayed there
-```
+2. Get the project UUID from the Expo dashboard:
+   - Go to https://expo.dev/accounts/iron-eagle-security/projects/freedomcamp-manager
+   - Click **Project Settings** (gear icon)
+   - Copy the **Project ID** (format: `xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx`)
 
 **Then update `app.json`:**
-Replace `EXPO_PROJECT_UUID` with the real UUID (format: `xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx`) in both:
-- `extra.eas.projectId`
-- `updates.url` → `https://u.expo.dev/<YOUR_UUID>`
+
+Replace `REPLACE_WITH_YOUR_EXPO_PROJECT_UUID` with the real UUID in both places:
+- Line 68: `extra.eas.projectId`
+- Line 75: `updates.url` → `https://u.expo.dev/YOUR_UUID_HERE`
+
+⚠️ **Important:** Both UUIDs must be identical!
 
 **Configure credentials (for production builds):**
 ```bash

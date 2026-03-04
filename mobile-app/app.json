@@ -65,14 +65,14 @@
     ],
     "extra": {
       "eas": {
-        "projectId": "EXPO_PROJECT_UUID"
+        "projectId": "REPLACE_WITH_YOUR_EXPO_PROJECT_UUID"
       }
     },
     "runtimeVersion": {
       "policy": "appVersion"
     },
     "updates": {
-      "url": "https://u.expo.dev/EXPO_PROJECT_UUID"
+      "url": "https://u.expo.dev/REPLACE_WITH_YOUR_EXPO_PROJECT_UUID"
     }
   }
 }
