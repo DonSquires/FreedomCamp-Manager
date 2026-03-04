@@ -12,6 +12,9 @@ name: Deploy Mobile App to OnSpace AI
 # Required repository secrets (Settings → Secrets and variables → Actions):
 #   EXPO_TOKEN              – from https://expo.dev/accounts/iron-eagle-security/settings/access-tokens
 #                             (create a personal access token with "Build" scope)
+#   EXPO_PROJECT_ID         – UUID of the Expo project (xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx)
+#                             found at: https://expo.dev/accounts/iron-eagle-security/projects/freedomcamp-manager
+#                             → Project Settings → copy the Project ID
 #   EXPO_PUBLIC_SUPABASE_URL      – https://YOUR_REF.supabase.co
 #   EXPO_PUBLIC_SUPABASE_ANON_KEY – your Supabase anon/public key
 #
@@ -22,13 +25,15 @@ name: Deploy Mobile App to OnSpace AI
 #   2. Get the project UUID from:
 #        https://expo.dev/accounts/iron-eagle-security/projects/freedomcamp-manager
 #        → Project Settings → copy the Project ID (UUID format: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx)
-#   3. Update mobile-app/app.json:
-#        - Replace "REPLACE_WITH_YOUR_EXPO_PROJECT_UUID" in extra.eas.projectId
-#        - Replace "REPLACE_WITH_YOUR_EXPO_PROJECT_UUID" in updates.url
-#        (Both UUIDs must be identical!)
-#   4. Add EXPO_TOKEN, EXPO_PUBLIC_SUPABASE_URL, and
-#      EXPO_PUBLIC_SUPABASE_ANON_KEY to repository secrets.
-#   5. Push to main or manually trigger this workflow.
+#   3. Add the following repository secrets at:
+#        GitHub repo → Settings → Secrets and variables → Actions
+#        - EXPO_TOKEN
+#        - EXPO_PROJECT_ID         (the UUID copied in step 2)
+#        - EXPO_PUBLIC_SUPABASE_URL
+#        - EXPO_PUBLIC_SUPABASE_ANON_KEY
+#   4. Push to main or manually trigger this workflow.
+#      The workflow injects EXPO_PROJECT_ID into app.json at build time —
+#      no need to edit app.json manually.
 # -----------------------------------------------------------------------
 
 on:
@@ -64,6 +69,7 @@ jobs:
         run: |
           missing=""
           [ -z "$EXPO_TOKEN" ]                    && missing="$missing EXPO_TOKEN"
+          [ -z "$EXPO_PROJECT_ID" ]               && missing="$missing EXPO_PROJECT_ID"
           [ -z "$EXPO_PUBLIC_SUPABASE_URL" ]      && missing="$missing EXPO_PUBLIC_SUPABASE_URL"
           [ -z "$EXPO_PUBLIC_SUPABASE_ANON_KEY" ] && missing="$missing EXPO_PUBLIC_SUPABASE_ANON_KEY"
           if [ -n "$missing" ]; then
@@ -75,6 +81,7 @@ jobs:
             echo "  GitHub repo → Settings → Secrets and variables → Actions"
             echo ""
             echo "  EXPO_TOKEN:                    Create at https://expo.dev/accounts/[account]/settings/access-tokens"
+            echo "  EXPO_PROJECT_ID:               UUID from https://expo.dev/accounts/iron-eagle-security/projects/freedomcamp-manager → Project Settings"
             echo "  EXPO_PUBLIC_SUPABASE_URL:      Your Supabase project URL"
             echo "  EXPO_PUBLIC_SUPABASE_ANON_KEY: Your Supabase anon/public key"
             echo "secrets_present=false" >> "$GITHUB_OUTPUT"
@@ -84,6 +91,7 @@ jobs:
           fi
         env:
           EXPO_TOKEN:                    ${{ secrets.EXPO_TOKEN }}
+          EXPO_PROJECT_ID:               ${{ secrets.EXPO_PROJECT_ID }}
           EXPO_PUBLIC_SUPABASE_URL:      ${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}
           EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_ANON_KEY }}
 
@@ -108,6 +116,19 @@ jobs:
       - name: Install EAS CLI
         if: steps.check-secrets.outputs.secrets_present == 'true'
         run: npm install -g eas-cli@latest
+
+      - name: Inject EAS project ID into app.json
+        if: steps.check-secrets.outputs.secrets_present == 'true'
+        env:
+          EXPO_PROJECT_ID: ${{ secrets.EXPO_PROJECT_ID }}
+        run: |
+          cd mobile-app
+          # https://u.expo.dev/ is the fixed Expo OTA updates base URL required by expo-updates.
+          # See: https://docs.expo.dev/eas-update/getting-started/
+          jq --arg id "$EXPO_PROJECT_ID" \
+            '.expo.extra.eas.projectId = $id | .expo.updates.url = ("https://u.expo.dev/" + $id)' \
+            app.json > app.json.tmp && mv app.json.tmp app.json
+          echo "✅ app.json patched with project ID: $EXPO_PROJECT_ID"
 
       - name: Resolve build platform
         if: steps.check-secrets.outputs.secrets_present == 'true'
