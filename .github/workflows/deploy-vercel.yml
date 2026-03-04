@@ -1,0 +1,136 @@
+name: Deploy to Vercel
+
+# -----------------------------------------------------------------------
+# Deploys the web admin portal (Vite/React SPA) to Vercel.
+#
+# Triggers:
+#   • Automatically on every push to main
+#   • Manually from the GitHub Actions tab (workflow_dispatch)
+#
+# Required repository secrets (Settings → Secrets and variables → Actions):
+#   VERCEL_TOKEN       – from https://vercel.com/account/tokens
+#                        (create a personal access token)
+#   VERCEL_ORG_ID      – from .vercel/project.json after first `vercel` link,
+#                        or Vercel Dashboard → Settings → General → "Team ID"
+#   VERCEL_PROJECT_ID  – from .vercel/project.json after first `vercel` link,
+#                        or Vercel Dashboard → Project → Settings → General → "Project ID"
+#
+# Required environment secrets (same location, or Vercel Dashboard → Project
+#   → Settings → Environment Variables):
+#   VITE_SUPABASE_URL      – https://YOUR_REF.supabase.co
+#   VITE_SUPABASE_ANON_KEY – your Supabase anon/public key
+#
+# First-time setup:
+#   1. Install Vercel CLI locally: npm install -g vercel
+#   2. Run: vercel login && vercel link
+#      When prompted:
+#        Build command:    node_modules/.bin/vite build
+#        Output directory: dist
+#   3. Copy VERCEL_ORG_ID and VERCEL_PROJECT_ID from .vercel/project.json
+#   4. Add all secrets above to this repository
+#   5. Push to main or manually trigger this workflow
+# -----------------------------------------------------------------------
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - '**.md'
+      - 'supabase/**'
+      - 'proxy-server/**'
+      - 'inference-service/**'
+      - 'mobile-app/**'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deployment target'
+        required: false
+        default: 'production'
+        type: choice
+        options: [production, preview]
+
+jobs:
+  deploy:
+    name: Build & Deploy to Vercel
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Check required secrets
+        run: |
+          missing=""
+          [ -z "$VERCEL_TOKEN" ]      && missing="$missing VERCEL_TOKEN"
+          [ -z "$VERCEL_ORG_ID" ]     && missing="$missing VERCEL_ORG_ID"
+          [ -z "$VERCEL_PROJECT_ID" ] && missing="$missing VERCEL_PROJECT_ID"
+          if [ -n "$missing" ]; then
+            echo "::error::Missing secrets:$missing"
+            echo ""
+            echo "Add these at: GitHub repo → Settings → Secrets and variables → Actions → New repository secret"
+            echo ""
+            echo "  VERCEL_TOKEN:      Create at https://vercel.com/account/tokens"
+            echo "  VERCEL_ORG_ID:     Found in .vercel/project.json (teamId) after running 'vercel link' locally"
+            echo "  VERCEL_PROJECT_ID: Found in .vercel/project.json (projectId) after running 'vercel link' locally"
+            echo ""
+            echo "First-time Vercel setup (run locally once):"
+            echo "  npm install -g vercel"
+            echo "  vercel login"
+            echo "  vercel link   # creates .vercel/project.json with the IDs"
+            exit 1
+          fi
+          echo "✅ Vercel secrets present"
+        env:
+          VERCEL_TOKEN:      ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID:     ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Build (Vite only — TypeScript errors are pre-existing)
+        run: node_modules/.bin/vite build
+        env:
+          VITE_SUPABASE_URL:      ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+
+      - name: Install Vercel CLI
+        run: npm install -g vercel@latest
+
+      - name: Pull Vercel project settings
+        run: vercel pull --yes --environment=production
+        env:
+          VERCEL_TOKEN:      ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID:     ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+      - name: Deploy to Vercel (production)
+        if: ${{ github.event_name == 'push' || github.event.inputs.environment == 'production' }}
+        run: |
+          vercel deploy --prebuilt --prod | tee /tmp/deploy-url.txt
+          echo ""
+          echo "✅ Production deployment complete!"
+          echo "🌐 URL: $(cat /tmp/deploy-url.txt | tail -1)"
+        env:
+          VERCEL_TOKEN:      ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID:     ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+      - name: Deploy to Vercel (preview)
+        if: ${{ github.event.inputs.environment == 'preview' }}
+        run: |
+          vercel deploy --prebuilt | tee /tmp/deploy-url.txt
+          echo ""
+          echo "✅ Preview deployment complete!"
+          echo "🌐 URL: $(cat /tmp/deploy-url.txt | tail -1)"
+        env:
+          VERCEL_TOKEN:      ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID:     ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}

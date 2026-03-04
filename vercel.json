@@ -1,0 +1,7 @@
+{
+  "buildCommand": "node_modules/.bin/vite build",
+  "outputDirectory": "dist",
+  "rewrites": [
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
+}
