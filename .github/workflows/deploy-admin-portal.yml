@@ -1,0 +1,154 @@
+name: "Part 4 — Deploy Web Admin Portal"
+
+# -----------------------------------------------------------------------
+# Part 4 of the OnSpace AI deployment series.
+# Builds the Vite/React web admin portal and deploys it to Vercel.
+#
+# Environment file setup (local reference):
+#   cp .env.example .env
+#   # then edit .env:
+#   #   VITE_SUPABASE_URL=https://YOUR_REF.supabase.co
+#   #   VITE_SUPABASE_ANON_KEY=eyJhbGci...YOUR_ANON_KEY
+#
+# In GitHub Actions the .env values are supplied via repository secrets
+# (no .env file is written to disk — the secrets are passed as env vars
+# directly to the build step).
+#
+# Required repository secrets (Settings → Secrets and variables → Actions):
+#   VITE_SUPABASE_URL      – https://YOUR_REF.supabase.co
+#   VITE_SUPABASE_ANON_KEY – your Supabase anon/public key
+#   VERCEL_TOKEN           – from https://vercel.com/account/tokens
+#   VERCEL_ORG_ID          – Vercel Dashboard → Settings → General → Team ID
+#   VERCEL_PROJECT_ID      – Vercel Dashboard → Project → Settings → General → Project ID
+#
+# Deployment:
+#   Pushes to Vercel (production) on every merge to main, or run manually
+#   from GitHub → Actions → "Part 4 — Deploy Web Admin Portal" → Run workflow.
+# -----------------------------------------------------------------------
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - '**.md'
+      - 'supabase/**'
+      - 'proxy-server/**'
+      - 'inference-service/**'
+      - 'mobile-app/**'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deployment target'
+        required: false
+        default: 'production'
+        type: choice
+        options: [production, preview]
+
+jobs:
+  deploy:
+    name: Build & Deploy Admin Portal
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      # ------------------------------------------------------------------
+      # 4.1 — Validate environment secrets
+      # ------------------------------------------------------------------
+      - name: Check required secrets
+        id: check-secrets
+        run: |
+          missing=""
+          [ -z "$VITE_SUPABASE_URL" ]      && missing="$missing VITE_SUPABASE_URL"
+          [ -z "$VITE_SUPABASE_ANON_KEY" ] && missing="$missing VITE_SUPABASE_ANON_KEY"
+          [ -z "$VERCEL_TOKEN" ]           && missing="$missing VERCEL_TOKEN"
+          [ -z "$VERCEL_ORG_ID" ]          && missing="$missing VERCEL_ORG_ID"
+          [ -z "$VERCEL_PROJECT_ID" ]      && missing="$missing VERCEL_PROJECT_ID"
+          if [ -n "$missing" ]; then
+            echo "::warning::Secrets not configured ($missing) — deployment skipped."
+            echo ""
+            echo "Add the following repository secrets at:"
+            echo "  GitHub repo → Settings → Secrets and variables → Actions"
+            echo ""
+            echo "  VITE_SUPABASE_URL:      https://YOUR_REF.supabase.co"
+            echo "  VITE_SUPABASE_ANON_KEY: Supabase Dashboard → Settings → API → anon key"
+            echo "  VERCEL_TOKEN:           https://vercel.com/account/tokens"
+            echo "  VERCEL_ORG_ID:          Vercel Dashboard → Settings → General → Team ID"
+            echo "  VERCEL_PROJECT_ID:      Vercel Dashboard → Project → Settings → Project ID"
+            echo ""
+            echo "Local setup:"
+            echo "  cp .env.example .env"
+            echo "  # then edit .env with your VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY"
+            echo "secrets_present=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "✅ All required secrets present"
+            echo "secrets_present=true" >> "$GITHUB_OUTPUT"
+          fi
+        env:
+          VITE_SUPABASE_URL:      ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          VERCEL_TOKEN:           ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID:          ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID:      ${{ secrets.VERCEL_PROJECT_ID }}
+
+      - name: Checkout repository
+        if: steps.check-secrets.outputs.secrets_present == 'true'
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        if: steps.check-secrets.outputs.secrets_present == 'true'
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        if: steps.check-secrets.outputs.secrets_present == 'true'
+        run: bun install
+
+      # ------------------------------------------------------------------
+      # 4.2 — Create environment file (equivalent to: cp .env.example .env)
+      # Secrets are injected directly as environment variables so no .env
+      # file needs to be written to disk.
+      # ------------------------------------------------------------------
+      - name: Build admin portal
+        if: steps.check-secrets.outputs.secrets_present == 'true'
+        run: bun run build
+        env:
+          VITE_SUPABASE_URL:      ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+
+      - name: Install Vercel CLI
+        if: steps.check-secrets.outputs.secrets_present == 'true'
+        run: npm install -g vercel@latest
+
+      - name: Pull Vercel project settings
+        if: steps.check-secrets.outputs.secrets_present == 'true'
+        run: vercel pull --yes --environment=production
+        env:
+          VERCEL_TOKEN:      ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID:     ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+      - name: Deploy to Vercel (production)
+        if: steps.check-secrets.outputs.secrets_present == 'true' && (github.event_name == 'push' || github.event.inputs.environment == 'production')
+        run: |
+          vercel deploy --prebuilt --prod | tee /tmp/deploy-url.txt
+          echo ""
+          echo "✅ Admin portal production deployment complete!"
+          echo "🌐 URL: $(tail -1 /tmp/deploy-url.txt)"
+        env:
+          VERCEL_TOKEN:      ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID:     ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+      - name: Deploy to Vercel (preview)
+        if: steps.check-secrets.outputs.secrets_present == 'true' && github.event.inputs.environment == 'preview'
+        run: |
+          vercel deploy --prebuilt | tee /tmp/deploy-url.txt
+          echo ""
+          echo "✅ Admin portal preview deployment complete!"
+          echo "🌐 URL: $(tail -1 /tmp/deploy-url.txt)"
+        env:
+          VERCEL_TOKEN:      ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID:     ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
