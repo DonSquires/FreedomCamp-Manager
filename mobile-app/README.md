@@ -1,6 +1,8 @@
-# FreedomCamp Officer — React Native Mobile App
+# FreedomCamp Manager — React Native Mobile App
 
 Native iOS and Android app for field officers. Built with **Expo** (React Native) and backed by the **same Supabase project** as the web admin portal.
+
+Connected to: **https://expo.dev/accounts/iron-eagle-security/projects/freedomcamp-manager**
 
 ---
 
@@ -96,18 +98,38 @@ eas build --platform android --profile preview --output-format=apk
 
 ## EAS Setup (first time only)
 
+The project is linked to the Expo account `iron-eagle-security` and project `freedomcamp-manager`.
+
+**First, get the real Expo project ID:**
+
+1. Login to Expo:
+   ```bash
+   # Login to Expo account (requires iron-eagle-security access)
+   eas login
+   ```
+
+2. Get the project UUID from the Expo dashboard:
+   - Go to https://expo.dev/accounts/iron-eagle-security/projects/freedomcamp-manager
+   - Click **Project Settings** (gear icon)
+   - Copy the **Project ID** (format: `xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx`)
+
+**Then update `app.json`:**
+
+Replace `REPLACE_WITH_YOUR_EXPO_PROJECT_UUID` with the real UUID in both places:
+- Line 68: `extra.eas.projectId`
+- Line 75: `updates.url` → `https://u.expo.dev/YOUR_UUID_HERE`
+
+⚠️ **Important:** Both UUIDs must be identical!
+
+**Configure credentials (for production builds):**
 ```bash
-# Login to Expo account
-eas login
-
-# Link this project
-eas init
-
-# Configure credentials
 eas credentials
 ```
 
-Update `app.json` → replace `YOUR_EAS_PROJECT_ID` with the project ID from the output of `eas init`.
+The `eas.json` defines three build profiles:
+- **development** — For development clients with debugging enabled
+- **preview** — For internal testing (APK for Android)
+- **production** — For App Store / Play Store submission
 
 ---
 

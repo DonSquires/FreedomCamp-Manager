@@ -1,5 +1,5 @@
 {
-  "name": "freedomcamp-officer",
+  "name": "freedomcamp-manager",
   "version": "1.0.0",
   "main": "./App.tsx",
   "scripts": {
