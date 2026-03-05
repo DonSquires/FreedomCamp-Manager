@@ -162,6 +162,27 @@ jobs:
           cd mobile-app
           npm install
 
+      - name: Inject Expo project ID into app.json
+        if: steps.check-secrets.outputs.secrets_present == 'true'
+        env:
+          EXPO_PROJECT_ID: ${{ secrets.EXPO_PROJECT_ID }}
+        run: |
+          cd mobile-app
+          PLACEHOLDER="REPLACE_WITH_YOUR_EXPO_PROJECT_UUID"
+          # Replace the placeholder UUID with the real project ID from the secret.
+          # Note: sed -i (in-place, no backup) is standard on Linux (GNU sed) and safe on
+          # GitHub Actions ubuntu runners. It replaces all occurrences in one pass
+          # (extra.eas.projectId and updates.url both use the same placeholder).
+          # Using | as the delimiter avoids issues if the replacement value contains /.
+          sed -i "s|$PLACEHOLDER|$EXPO_PROJECT_ID|g" app.json
+          echo "✅ Injected EXPO_PROJECT_ID into app.json"
+          # Verify no placeholder remains and surface exactly which lines still need fixing.
+          if grep -q "$PLACEHOLDER" app.json; then
+            echo "::error::Placeholder UUID still found in app.json after injection:"
+            grep -n "$PLACEHOLDER" app.json
+            exit 1
+          fi
+
       - name: Install EAS CLI
         if: steps.check-secrets.outputs.secrets_present == 'true'
         run: npm install -g eas-cli@latest
@@ -191,7 +212,7 @@ jobs:
         run: |
           cd mobile-app
           # Decode the base64-encoded keystore into a file
-          echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > android.keystore
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode --ignore-garbage > android.keystore
           # Write credentials.json — EAS reads this when credentialsSource is "local"
           jq -n \
             --arg keystorePath  "android.keystore" \
