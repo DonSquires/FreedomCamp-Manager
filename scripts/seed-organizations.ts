@@ -89,7 +89,7 @@ const organizations = [
   { name: 'LINZ - Land Information New Zealand', type: 'crown' },
   
   // Additional Regional Councils
-  { name: 'Hawkes Bay Regional Council', type: 'council' },
+  { name: "Hawke's Bay Regional Council", type: 'council' },
   { name: 'Horizons Regional Council', type: 'council' },
   { name: 'Northland Regional Council', type: 'council' },
   { name: 'Otago Regional Council', type: 'council' },
