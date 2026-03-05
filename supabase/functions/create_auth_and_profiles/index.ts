@@ -60,6 +60,9 @@ Deno.serve(async (req) => {
       page++;
     }
 
+    // Emails that must be skipped during migration (already exist in the system)
+    const SKIP_EMAILS = new Set(['squires.don@live.com']);
+
     const results: { email: string; status: string; auth_id?: string; error?: string }[] = [];
 
     for (const row of rows) {
@@ -67,6 +70,13 @@ Deno.serve(async (req) => {
 
       if (!email) {
         results.push({ email: '', status: 'error', error: 'Missing email' });
+        continue;
+      }
+
+      // Skip users that are already in the system and must not be overwritten
+      if (SKIP_EMAILS.has(email.toLowerCase())) {
+        console.log(`Skipping ${email}: user already in system`);
+        results.push({ email, status: 'skipped' });
         continue;
       }
 
@@ -150,11 +160,12 @@ Deno.serve(async (req) => {
 
     const created = results.filter((r) => r.status === 'created').length;
     const updated = results.filter((r) => r.status === 'profile_updated').length;
+    const skipped = results.filter((r) => r.status === 'skipped').length;
     const errors = results.filter((r) => r.status === 'error').length;
 
     return new Response(
       JSON.stringify({
-        summary: { total: rows.length, created, profile_updated: updated, errors },
+        summary: { total: rows.length, created, profile_updated: updated, skipped, errors },
         results,
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
