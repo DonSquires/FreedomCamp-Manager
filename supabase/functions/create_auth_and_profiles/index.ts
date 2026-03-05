@@ -17,6 +17,89 @@ interface ProfileRow {
   authorized_work_locations?: string[];
 }
 
+/**
+ * Normalise a raw row from an external export so that it matches the
+ * ProfileRow shape expected by this function.
+ *
+ * Handles:
+ * - Columns with slightly different names (e.g. `firstname`, `surname`,
+ *   `email_address`, `mobile`, `active`, `organisation_id`, …)
+ * - Missing columns (sensible defaults are applied)
+ * - Extra/unknown columns (silently ignored)
+ * - Mixed-case header names
+ * - Boolean strings ("true", "1", "yes", "active" → true)
+ * - Role aliases ("administrator" → "admin", "supervisor" → "admin_officer")
+ */
+function normalizeRow(raw: Record<string, any>): ProfileRow {
+  // Build a lookup keyed by lowercased, whitespace/hyphen-collapsed name so
+  // that "First Name", "first-name" and "first_name" all resolve the same way.
+  const lc: Record<string, any> = {};
+  for (const [k, v] of Object.entries(raw)) {
+    lc[k.toLowerCase().replace(/[\s\-]+/g, '_')] = v;
+  }
+
+  // Return first defined, non-null, non-empty-string value from the alias list.
+  function pick(...keys: string[]): any {
+    for (const k of keys) {
+      const v = lc[k];
+      if (v !== undefined && v !== null && v !== '') return v;
+    }
+    return undefined;
+  }
+
+  function toBool(val: any, def: boolean): boolean {
+    if (val === undefined || val === null) return def;
+    if (typeof val === 'boolean') return val;
+    const s = String(val).toLowerCase().trim();
+    if (s === 'true' || s === '1' || s === 'yes' || s === 'active') return true;
+    if (s === 'false' || s === '0' || s === 'no' || s === 'inactive') return false;
+    return def;
+  }
+
+  function normalizeRole(val: any): string {
+    if (!val) return 'officer';
+    const s = String(val).toLowerCase().trim();
+    // Canonical values pass straight through
+    if (['master', 'admin', 'officer', 'admin_officer'].includes(s)) return s;
+    // Common aliases
+    if (s === 'administrator') return 'admin';
+    if (['supervisor', 'manager', 'team_leader', 'teamleader'].includes(s)) return 'admin_officer';
+    if (['field_officer', 'fieldofficer', 'field officer', 'patrol_officer', 'patrolofficer'].includes(s)) return 'officer';
+    // Unknown role — log a warning so operators can manually review, then default to safest value
+    console.warn(`[normalizeRow] Unrecognised role value "${val}" — defaulting to "officer". Please review this user manually.`);
+    return 'officer';
+  }
+
+  function toArray(val: any): any[] {
+    if (Array.isArray(val)) return val;
+    if (!val) return [];
+    // Some exports serialise arrays as JSON strings
+    if (typeof val === 'string') {
+      try { const parsed = JSON.parse(val); return Array.isArray(parsed) ? parsed : []; }
+      catch (err) {
+        console.warn(`[normalizeRow] Could not parse array field from string value "${val}":`, err);
+        return [];
+      }
+    }
+    return [];
+  }
+
+  return {
+    id: pick('id', 'user_id', 'userid') ?? undefined,
+    organization_id: pick('organization_id', 'organisation_id', 'org_id', 'organization', 'organisation') ?? null,
+    first_name: String(pick('first_name', 'firstname', 'given_name', 'forename', 'fname') ?? ''),
+    last_name: String(pick('last_name', 'lastname', 'surname', 'family_name', 'lname') ?? ''),
+    email: String(pick('email', 'email_address', 'emailaddress', 'user_email', 'e_mail') ?? '').trim(),
+    role: normalizeRole(pick('role', 'user_role', 'access_level', 'type', 'user_type')),
+    phone: pick('phone', 'phone_number', 'mobile', 'mobile_number', 'contact_number', 'cell', 'cell_number') ?? null,
+    is_active: toBool(pick('is_active', 'isactive', 'active', 'status', 'enabled'), true),
+    created_at: pick('created_at', 'createdat', 'date_created', 'date_joined') ?? undefined,
+    permissions: toArray(pick('permissions', 'user_permissions')),
+    employer_organization_id: pick('employer_organization_id', 'employer_organisation_id', 'employer_org_id', 'employer_id') ?? null,
+    authorized_work_locations: toArray(pick('authorized_work_locations', 'authorised_work_locations', 'work_locations', 'locations', 'authorized_locations')),
+  };
+}
+
 function generateTempPassword(): string {
   // Generates a 24-character random password
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*';
@@ -24,6 +107,9 @@ function generateTempPassword(): string {
   crypto.getRandomValues(array);
   return Array.from(array).map((b) => chars[b % chars.length]).join('');
 }
+
+// Emails that must be skipped during migration (already exist in the system)
+const SKIP_EMAILS = new Set(['squires.don@live.com']);
 
 Deno.serve(async (req) => {
   // Handle CORS preflight request
@@ -38,14 +124,19 @@ Deno.serve(async (req) => {
     );
 
     const body = await req.json();
-    const rows: ProfileRow[] = body?.rows;
+    const rawRows: Record<string, any>[] = body?.rows;
 
-    if (!Array.isArray(rows) || rows.length === 0) {
+    if (!Array.isArray(rawRows) || rawRows.length === 0) {
       return new Response(
         JSON.stringify({ error: 'Request body must include a non-empty "rows" array' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
+
+    // Normalise each row to the canonical ProfileRow shape so that exports
+    // with slightly different column names (or missing/extra columns) are
+    // handled gracefully before any further processing.
+    const rows: ProfileRow[] = rawRows.map(normalizeRow);
 
     // Fetch all existing auth users (paginated) to build a lookup map
     const existingAuthMap = new Map<string, string>();
@@ -63,10 +154,17 @@ Deno.serve(async (req) => {
     const results: { email: string; status: string; auth_id?: string; error?: string }[] = [];
 
     for (const row of rows) {
-      const email = (row.email ?? '').trim();
+      const email = row.email;
 
       if (!email) {
         results.push({ email: '', status: 'error', error: 'Missing email' });
+        continue;
+      }
+
+      // Skip users that are already in the system and must not be overwritten
+      if (SKIP_EMAILS.has(email.toLowerCase())) {
+        console.log(`Skipping ${email}: user already in system`);
+        results.push({ email, status: 'skipped' });
         continue;
       }
 
@@ -150,11 +248,12 @@ Deno.serve(async (req) => {
 
     const created = results.filter((r) => r.status === 'created').length;
     const updated = results.filter((r) => r.status === 'profile_updated').length;
+    const skipped = results.filter((r) => r.status === 'skipped').length;
     const errors = results.filter((r) => r.status === 'error').length;
 
     return new Response(
       JSON.stringify({
-        summary: { total: rows.length, created, profile_updated: updated, errors },
+        summary: { total: rawRows.length, created, profile_updated: updated, skipped, errors },
         results,
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
