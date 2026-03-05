@@ -2,7 +2,7 @@
 // Handles offline caching, background sync, and auto-updates
 // NOW WITH: IndexedDB sync, offline API queue, Background Sync API
 
-var CACHE_VERSION = '2.3.0'; // Updated for offline capabilities
+var CACHE_VERSION = '2.4.0'; // Bumped: postcss/tailwind CSS fix
 var CACHE_NAME = 'freedomcamp-v' + CACHE_VERSION;
 var API_CACHE = 'freedomcamp-api-v' + CACHE_VERSION;
 var STATIC_CACHE = [
@@ -61,7 +61,7 @@ self.addEventListener('activate', function(event) {
   );
 });
 
-// Fetch event - Network-first for API, cache-first for static assets
+// Fetch event - Network-first for API and navigation, cache-first for hashed static assets
 self.addEventListener('fetch', function(event) {
   // Skip for chrome-extension URLs (browser extensions)
   if (event.request.url.indexOf('chrome-extension://') !== -1) {
@@ -72,6 +72,10 @@ self.addEventListener('fetch', function(event) {
     event.request.url.indexOf('/api/') !== -1 ||
     event.request.url.indexOf('supabase.co') !== -1 ||
     event.request.url.indexOf('functions/v1') !== -1;
+
+  // Navigation requests (HTML pages) - always Network first so index.html
+  // is never served stale after a new deployment changes asset hashes.
+  var isNavigationRequest = event.request.mode === 'navigate';
 
   // API requests - Network first with offline fallback
   if (isApiRequest) {
@@ -121,7 +125,28 @@ self.addEventListener('fetch', function(event) {
     return;
   }
 
-  // Static assets - Cache first
+  // HTML navigation - Network first so deployments always deliver fresh HTML
+  if (isNavigationRequest) {
+    event.respondWith(
+      fetch(event.request)
+        .then(function(response) {
+          if (response && response.status === 200) {
+            var responseClone = response.clone();
+            caches.open(CACHE_NAME).then(function(cache) {
+              cache.put(event.request, responseClone).catch(function() {});
+            }).catch(function() {});
+          }
+          return response;
+        })
+        .catch(function() {
+          // Offline fallback: serve cached index.html
+          return caches.match('/index.html');
+        })
+    );
+    return;
+  }
+
+  // Static assets (JS/CSS/images with content hashes) - Cache first
   if (event.request.method !== 'GET') {
     return;
   }
