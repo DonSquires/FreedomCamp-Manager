@@ -7,19 +7,9 @@
 -- SECTION 1: ENABLE POSTGIS FOR GEODESIC CALCULATIONS
 -- ===========================================
 
-DO $$
-BEGIN
-  CREATE EXTENSION IF NOT EXISTS postgis;
-EXCEPTION WHEN OTHERS THEN
-  RAISE WARNING 'PostGIS not available (requires Supabase Pro). Geodesic distance calculations will be skipped. Error: %', SQLERRM;
-END $$;
+CREATE EXTENSION IF NOT EXISTS postgis;
 
-DO $$
-BEGIN
-  IF EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'postgis') THEN
-    COMMENT ON EXTENSION postgis IS 'PostGIS geometry and geography spatial types and functions';
-  END IF;
-END $$;
+COMMENT ON EXTENSION postgis IS 'PostGIS geometry and geography spatial types and functions';
 
 -- ===========================================
 -- SECTION 2: VEHICLE OBSERVATIONS - EVIDENCE INTEGRITY

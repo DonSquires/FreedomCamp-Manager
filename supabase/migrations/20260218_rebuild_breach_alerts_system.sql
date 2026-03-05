@@ -23,7 +23,7 @@ CREATE TABLE breach_alerts (
   zone_id UUID NOT NULL REFERENCES zones(id) ON DELETE CASCADE,
   plate_number TEXT REFERENCES canonical_vehicles(plate_number) ON DELETE SET NULL,
   observation_id UUID REFERENCES vehicle_observations_v2(observation_id) ON DELETE CASCADE,
-  vehicle_record_id UUID, -- legacy reference (vehicle_records was renamed/dropped before this migration)
+  vehicle_record_id UUID REFERENCES vehicle_records(id) ON DELETE CASCADE,
   patrol_id UUID REFERENCES patrols(id) ON DELETE SET NULL,
   
   -- Breach Information

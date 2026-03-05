@@ -20,7 +20,6 @@ import { ZoneGeofenceEditor } from '@/components/features/ZoneGeofenceEditor'
 interface Zone {
   id: string
   name: string
-  description: string | null
   organization_id: string
   parent_zone_id: string | null
   zone_type: string
@@ -33,10 +32,6 @@ interface Zone {
   nights_per_month: number
   max_consecutive_nights: number
   self_contained_required: boolean
-  land_manager: string | null
-  enforcement_authority: string | null
-  bylaw_clause: string | null
-  bylaw_source_url: string | null
   created_at: string
   organization?: {
     id: string
@@ -112,7 +107,7 @@ export default function ZoneManagement() {
   const { data: zones, isLoading } = useQuery({
     queryKey: ['zones', organizationId, showInactive, searchQuery],
     queryFn: async () => {
-      let query = (supabase as any)
+      let query = supabase
         .from('zones')
         .select(`
           *,
@@ -150,8 +145,8 @@ export default function ZoneManagement() {
       const zonesWithCounts = await Promise.all(
         (data || []).map(async (zone) => {
           const [obsCount, breachCount] = await Promise.all([
-            (supabase as any).from('observations').select('id', { count: 'exact', head: true }).eq('zone_id', zone.id),
-            (supabase as any).from('breach_alerts').select('id', { count: 'exact', head: true }).eq('zone_id', zone.id),
+            supabase.from('observations').select('id', { count: 'exact', head: true }).eq('zone_id', zone.id),
+            supabase.from('breach_alerts').select('id', { count: 'exact', head: true }).eq('zone_id', zone.id),
           ])
 
           return {
@@ -169,7 +164,7 @@ export default function ZoneManagement() {
   // Toggle zone active status
   const toggleActiveMutation = useMutation({
     mutationFn: async ({ zoneId, isActive }: { zoneId: string; isActive: boolean }) => {
-      const { error } = await (supabase as any)
+      const { error } = await supabase
         .from('zones')
         .update({ is_active: !isActive })
         .eq('id', zoneId)
@@ -190,7 +185,7 @@ export default function ZoneManagement() {
     mutationFn: async (updates: Partial<Zone>) => {
       if (!selectedZone) throw new Error('No zone selected')
       
-      const { error } = await (supabase as any)
+      const { error } = await supabase
         .from('zones')
         .update(updates)
         .eq('id', selectedZone.id)
@@ -216,7 +211,7 @@ export default function ZoneManagement() {
       const orgId = user?.role === 'master' ? createOrganizationId : user?.organization_id
       if (!orgId) throw new Error('Organization is required')
 
-      const { error } = await (supabase as any)
+      const { error } = await supabase
         .from('zones')
         .insert({
           name: createName.trim(),
@@ -744,7 +739,7 @@ export default function ZoneManagement() {
                   onSave={async (geometry) => {
                     if (!selectedZone) return
                     // Only update geometry (JSONB). geom is PostGIS and cannot be set from JSON directly.
-                    const { error } = await (supabase as any)
+                    const { error } = await supabase
                       .from('zones')
                       .update({ geometry })
                       .eq('id', selectedZone.id)
