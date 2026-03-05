@@ -5,7 +5,7 @@
 # NEW PROJECT: run `supabase link --project-ref YOUR_NEW_REF` to update this
 # field, or edit it manually to match your new project reference.
 
-project_id = "xbfnlzmpumthnjmtqufp"  # update to your new project ref
+project_id = "kxwjcupuxnnbnzcgmkoi"
 
 [api]
 enabled = true
