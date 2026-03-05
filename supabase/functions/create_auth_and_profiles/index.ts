@@ -123,6 +123,62 @@ Deno.serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
+    // --- Authorization: require valid admin/master caller ---
+    const authHeader =
+      req.headers.get('Authorization') || req.headers.get('authorization');
+
+    if (!authHeader || !authHeader.toLowerCase().startsWith('bearer ')) {
+      return new Response(
+        JSON.stringify({ error: 'Missing or invalid Authorization header' }),
+        {
+          status: 401,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      );
+    }
+
+    const accessToken = authHeader.slice(7).trim();
+
+    if (!accessToken) {
+      return new Response(
+        JSON.stringify({ error: 'Missing access token' }),
+        {
+          status: 401,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      );
+    }
+
+    const { data: authData, error: authError } =
+      await supabaseAdmin.auth.getUser(accessToken);
+
+    if (authError || !authData?.user) {
+      console.error('create_auth_and_profiles auth error:', authError);
+      return new Response(
+        JSON.stringify({ error: 'Invalid or expired access token' }),
+        {
+          status: 401,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      );
+    }
+
+    const user = authData.user;
+    const roleFromAppMetadata = user?.app_metadata?.role;
+    const roleFromUserMetadata = user?.user_metadata?.role;
+    const callerRole = roleFromAppMetadata ?? roleFromUserMetadata;
+
+    if (callerRole !== 'admin' && callerRole !== 'master') {
+      return new Response(
+        JSON.stringify({ error: 'Forbidden: insufficient permissions' }),
+        {
+          status: 403,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      );
+    }
+    // --- End authorization checks ---
+
     const body = await req.json();
     const rawRows: Record<string, any>[] = body?.rows;
 
