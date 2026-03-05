@@ -50,11 +50,11 @@ on:
         type: choice
         options: [all, android, ios]
       profile:
-        description: 'EAS build profile'
+        description: 'EAS build profile (use preview for first-time builds — production requires a pre-configured keystore)'
         required: false
-        default: 'production'
+        default: 'preview'
         type: choice
-        options: [production, preview, development]
+        options: [preview, production, development]
 
 jobs:
   build-and-publish:
@@ -134,14 +134,22 @@ jobs:
         if: steps.check-secrets.outputs.secrets_present == 'true'
         id: resolve-platform
         run: |
-          # On an automatic push, default to android (no iOS signing required).
-          # On workflow_dispatch, use the selected platform.
+          # On an automatic push, build Android APK via the 'preview' profile.
+          # The 'preview' profile uses internal distribution (APK) which does not
+          # require a pre-configured release keystore, making it safe to run in
+          # non-interactive CI without prior 'eas credentials' setup.
+          #
+          # For 'production' Android (AAB/store distribution) a release keystore
+          # must be created first by running `eas credentials` locally once, after
+          # which EAS stores it remotely and reuses it automatically.
+          #
+          # On workflow_dispatch, use the selected platform/profile.
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             echo "platform=${{ github.event.inputs.platform }}" >> "$GITHUB_OUTPUT"
             echo "profile=${{ github.event.inputs.profile }}"   >> "$GITHUB_OUTPUT"
           else
             echo "platform=android" >> "$GITHUB_OUTPUT"
-            echo "profile=production" >> "$GITHUB_OUTPUT"
+            echo "profile=preview" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Build mobile app (EAS)
@@ -150,6 +158,7 @@ jobs:
           EXPO_TOKEN:                    ${{ secrets.EXPO_TOKEN }}
           EXPO_PUBLIC_SUPABASE_URL:      ${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}
           EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_ANON_KEY }}
+          EAS_BUILD_NO_EXPO_GO_WARNING:  "true"
         run: |
           cd mobile-app
           PLATFORM="${{ steps.resolve-platform.outputs.platform }}"
@@ -170,6 +179,7 @@ jobs:
           EXPO_TOKEN:                    ${{ secrets.EXPO_TOKEN }}
           EXPO_PUBLIC_SUPABASE_URL:      ${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}
           EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_ANON_KEY }}
+          EAS_BUILD_NO_EXPO_GO_WARNING:  "true"
         run: |
           cd mobile-app
           PROFILE="${{ steps.resolve-platform.outputs.profile }}"
