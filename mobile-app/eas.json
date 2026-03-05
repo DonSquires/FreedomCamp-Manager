@@ -3,13 +3,6 @@
     "version": ">= 7.0.0",
     "appVersionSource": "local"
   },
-  "deploy": {
-    "production": {
-      "web": {
-        "distDir": "dist"
-      }
-    }
-  },
   "build": {
     "development": {
       "developmentClient": true,
