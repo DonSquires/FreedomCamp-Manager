@@ -6,3 +6,7 @@ dist/
 ios/
 android/
 web-build/
+# Local EAS credentials — never commit these
+credentials.json
+*.keystore
+*.jks
