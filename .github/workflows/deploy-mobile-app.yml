@@ -253,6 +253,10 @@ jobs:
           EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_ANON_KEY }}
         run: |
           cd mobile-app
+          # Write .env so EAS cloud build picks up the Supabase variables
+          # (eas build zips the source tree; local shell env vars are not forwarded)
+          printf 'EXPO_PUBLIC_SUPABASE_URL=%s\nEXPO_PUBLIC_SUPABASE_ANON_KEY=%s\n' \
+            "$EXPO_PUBLIC_SUPABASE_URL" "$EXPO_PUBLIC_SUPABASE_ANON_KEY" > .env
           PLATFORM="${{ steps.resolve-platform.outputs.platform }}"
           PROFILE="${{ steps.resolve-platform.outputs.profile }}"
           echo "🏗️  Building for platform: $PLATFORM (profile: $PROFILE)"
@@ -273,6 +277,9 @@ jobs:
           EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_ANON_KEY }}
         run: |
           cd mobile-app
+          # Write .env so EAS Update bundles the Supabase variables into the OTA payload
+          printf 'EXPO_PUBLIC_SUPABASE_URL=%s\nEXPO_PUBLIC_SUPABASE_ANON_KEY=%s\n' \
+            "$EXPO_PUBLIC_SUPABASE_URL" "$EXPO_PUBLIC_SUPABASE_ANON_KEY" > .env
           PROFILE="${{ steps.resolve-platform.outputs.profile }}"
           BRANCH="$PROFILE"
           echo "📡 Publishing OTA update to branch: $BRANCH"
