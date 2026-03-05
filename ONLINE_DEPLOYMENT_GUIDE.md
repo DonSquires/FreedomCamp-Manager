@@ -194,7 +194,65 @@ Vercel builds the app and gives you a URL like `https://freedomcamp-manager.verc
 
 ---
 
-## Step 9 — Update `supabase/config.toml` (optional but recommended)
+## Step 9 — Connect a custom domain (iwantmyname.com → Vercel)
+
+> **Skip if you are happy with the default `*.vercel.app` URL.**
+> Follow these steps if you have bought a domain at **iwantmyname.com** and want your app to run on it.
+
+### 9a — Add the domain in Vercel
+
+1. Open your project in **https://vercel.com** → **Settings → Domains**
+2. Type your domain in the "Add Domain" field and click **Add**
+   - Use `yourdomain.com` to point the root/apex domain
+   - Use `app.yourdomain.com` to point only a subdomain
+3. Vercel shows you the DNS records you need to add. **Leave this tab open** — you will need the values in step 9b.
+
+### 9b — Add DNS records in iwantmyname.com
+
+1. Log in to **https://iwantmyname.com**
+2. Go to **Domains → click your domain name → Manage DNS records**
+
+#### Option A — Root / apex domain (e.g. `yourdomain.com`)
+
+Add an **A record**:
+
+| Type | Host | Value (IP) | TTL |
+|---|---|---|---|
+| `A` | `@` | `76.76.21.21` | 3600 (or "1 hour") |
+
+> `@` means the root/apex of your domain. Some registrars call it "blank" or leave the Host field empty.
+
+#### Option B — Subdomain (e.g. `app.yourdomain.com`)
+
+Add a **CNAME record**:
+
+| Type | Host | Value | TTL |
+|---|---|---|---|
+| `CNAME` | `app` | `cname.vercel-dns.com.` | 3600 (or "1 hour") |
+
+> Replace `app` with whatever subdomain label you typed into Vercel.
+
+3. Click **Save / Update DNS records**
+4. DNS propagation usually takes **5–30 minutes** (up to 24 h in rare cases)
+
+### 9c — Confirm the domain in Vercel
+
+1. Go back to **Vercel → Settings → Domains**
+2. Once DNS propagates, Vercel automatically issues a free TLS certificate and shows a ✅ next to the domain
+3. If it shows "Invalid Configuration", double-check that the A/CNAME values match exactly what Vercel told you
+
+### 9d — Update Supabase Auth to use your custom domain
+
+1. **Supabase → Authentication → URL Configuration**
+2. Update **Site URL** to `https://yourdomain.com` (or your subdomain URL)
+3. Under **Redirect URLs**, add `https://yourdomain.com/**`
+4. Click **Save**
+
+> Without this step, OAuth and email-link logins will redirect back to the old Vercel URL.
+
+---
+
+## Step 10 — Update `supabase/config.toml` (optional but recommended)
 
 > This step lets future GitHub Actions workflows automatically use the right project.
 
@@ -227,10 +285,12 @@ GitHub:
 [x] Step 2: 3 secrets added (SUPABASE_PROJECT_REF, SUPABASE_DB_PASSWORD, SUPABASE_ACCESS_TOKEN)
 [x] Step 4: "Apply Supabase migrations (db push)" workflow run with fresh_install=true ✅ green
 [x] Step 7: "Deploy Supabase Edge Functions" workflow run ✅ green
-[x] Step 9: supabase/config.toml updated with new project ref
+[x] Step 10: supabase/config.toml updated with new project ref
 
 Vercel:
 [x] Step 8: Web admin portal deployed with correct env vars
+[ ] Step 9: Custom domain added in Vercel + DNS records set in iwantmyname.com (optional)
+[ ] Step 9d: Supabase Auth Site URL updated to custom domain (required if step 9 done)
 
 Edge function secrets (Supabase → Edge Functions → Manage secrets):
 [x] PLATERECOGNIZER_TOKEN
