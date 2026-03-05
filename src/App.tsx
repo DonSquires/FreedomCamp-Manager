@@ -8,7 +8,7 @@ import AdminPortal from '@/pages/AdminPortal'
 import FieldOfficerPortal from '@/pages/FieldOfficerPortal'
 import VehicleManagement from '@/pages/VehicleManagement'
 import ZoneManagement from '@/pages/ZoneManagement'
-import ComplianceDashboard from '@/pages/ComplianceDashboard'
+import CompliancePage from '@/pages/CompliancePage'
 import BreachAlerts from '@/pages/BreachAlerts'
 import DataManagement from '@/pages/DataManagement'
 import UserManagement from '@/pages/UserManagement'
@@ -191,7 +191,7 @@ export default function App() {
             path="/compliance"
             element={
               <ProtectedRoute>
-                <ComplianceDashboard />
+                <CompliancePage />
               </ProtectedRoute>
             }
           />

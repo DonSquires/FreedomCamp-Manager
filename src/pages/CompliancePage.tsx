@@ -157,10 +157,6 @@ function OverviewTab({
   const to = new Date(dateTo);
   to.setHours(23, 59, 59, 999);
 
-  const base = supabase
-    .from('observations')
-    .select('id, is_compliant', { count: 'exact' });
-
   const { data: total } = useQuery({
     queryKey: ['comp-total', dateFrom, dateTo, orgId, zoneId],
     queryFn: async () => {
@@ -695,6 +691,10 @@ export default function CompliancePage() {
     return <Navigate to="/" replace />;
   }
 
+  const today = format(new Date(), 'yyyy-MM-dd');
+  const effectiveDateFrom = dateFrom ?? format(subDays(new Date(), 30), 'yyyy-MM-dd');
+  const effectiveDateTo = dateTo ?? today;
+
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
       <AdminNavigationMenu />
@@ -722,7 +722,7 @@ export default function CompliancePage() {
         <GlobalFilterRibbon />
 
         {/* Always-visible KPI summary */}
-        <OverviewTab dateFrom={dateFrom} dateTo={dateTo} orgId={organizationId} zoneId={zoneId} />
+        <OverviewTab dateFrom={effectiveDateFrom} dateTo={effectiveDateTo} orgId={organizationId} zoneId={zoneId} />
 
         {/* Tabbed detail sections */}
         <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
@@ -746,14 +746,14 @@ export default function CompliancePage() {
           <div className="p-5">
             {activeTab === 'breaches' && (
               <BreachesTab
-                dateFrom={dateFrom}
-                dateTo={dateTo}
+                dateFrom={effectiveDateFrom}
+                dateTo={effectiveDateTo}
                 orgId={organizationId}
                 zoneId={zoneId}
               />
             )}
             {activeTab === 'zones' && (
-              <ZonesTab dateFrom={dateFrom} dateTo={dateTo} orgId={organizationId} />
+              <ZonesTab dateFrom={effectiveDateFrom} dateTo={effectiveDateTo} orgId={organizationId} />
             )}
             {activeTab === 'homeless' && <HomelessTab />}
             {activeTab === 'overview' && (
