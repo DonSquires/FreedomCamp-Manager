@@ -80,7 +80,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       email: profile.email,
       role: profile.role as AuthUser['role'],
       organization_id: profile.organization_id,
-      full_name: `${profile.first_name} ${profile.last_name}`,
+      full_name: [profile.first_name, profile.last_name].filter(Boolean).join(' ') || profile.email,
       first_name: profile.first_name,
       last_name: profile.last_name,
     }
@@ -131,7 +131,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       email: profile.email,
       role: profile.role as AuthUser['role'],
       organization_id: profile.organization_id,
-      full_name: `${profile.first_name} ${profile.last_name}`,
+      full_name: [profile.first_name, profile.last_name].filter(Boolean).join(' ') || profile.email,
       first_name: profile.first_name,
       last_name: profile.last_name,
     }

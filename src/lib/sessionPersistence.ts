@@ -203,7 +203,7 @@ export function getStorageSize(): {
   const getSize = (storage: Storage) => {
     let size = 0
     for (const key in storage) {
-      if (storage.hasOwnProperty(key)) {
+      if (Object.prototype.hasOwnProperty.call(storage, key)) {
         size += storage[key].length + key.length
       }
     }

@@ -107,7 +107,7 @@ export default function EnforcementCommandCenter() {
       }
 
       // Notices issued today
-      let noticeQuery = supabase
+      const noticeQuery = supabase
         .from('enforcement_actions')
         .select('*', { count: 'exact', head: true })
         .eq('action_type', 'notice_to_vacate')
@@ -180,7 +180,7 @@ export default function EnforcementCommandCenter() {
     queryFn: async () => {
       const today = new Date().toISOString().split('T')[0]
       
-      let query = supabase
+      const query = supabase
         .from('enforcement_actions')
         .select(`
           id,

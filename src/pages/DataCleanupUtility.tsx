@@ -43,7 +43,7 @@ export default function DataCleanupUtility() {
       const orgFilter = organizationId || (user?.role === 'master' ? null : user?.organization_id)
 
       // Duplicate observations (same plate, zone, within 5 minutes)
-      let dupQuery = (supabase as any).rpc('get_duplicate_observations', {
+      const dupQuery = (supabase as any).rpc('get_duplicate_observations', {
         org_id: orgFilter,
       })
       const { data: duplicates } = await dupQuery

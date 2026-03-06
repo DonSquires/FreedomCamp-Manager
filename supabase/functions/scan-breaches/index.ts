@@ -22,27 +22,67 @@ Deno.serve(async (req) => {
     const authHeader = req.headers.get('Authorization');
     const token = authHeader?.replace('Bearer ', '');
 
-    // Create Supabase client with service role for full access
+    if (!token) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Missing authorization token' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 401 }
+      );
+    }
+
+    // Create Supabase admin client with service role for full access
     const supabaseAdmin = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    // Get user info for audit
+    // Validate caller token — only authenticated admin/master/admin_officer users
+    // may trigger a breach scan
     const supabaseClient = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_ANON_KEY') ?? ''
     );
-    const { data: { user } } = await supabaseClient.auth.getUser(token);
+    const { data: { user }, error: authError } = await supabaseClient.auth.getUser(token);
+
+    if (authError || !user) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Invalid or expired token' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 401 }
+      );
+    }
+
+    // Verify caller role — only admins and master users may run breach scans
+    const { data: profile, error: profileError } = await supabaseAdmin
+      .from('user_profiles')
+      .select('role, organization_id')
+      .eq('id', user.id)
+      .single();
+
+    if (profileError || !profile) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'User profile not found' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 403 }
+      );
+    }
+
+    const allowedRoles = ['master', 'admin', 'admin_officer'];
+    if (!allowedRoles.includes(profile.role)) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Insufficient permissions to run breach scan' }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 403 }
+      );
+    }
 
     const { organizationId, autoCreate = true } = await req.json();
+
+    // Non-master users can only scan their own organization
+    const effectiveOrgId = profile.role === 'master' ? organizationId : profile.organization_id;
 
     console.log('🔍 Starting breach scan using centralized compliance function...');
 
     // Fetch zones
     let zonesQuery = supabaseAdmin.from('zones').select('id, name, organization_id');
-    if (organizationId) {
-      zonesQuery = zonesQuery.eq('organization_id', organizationId);
+    if (effectiveOrgId) {
+      zonesQuery = zonesQuery.eq('organization_id', effectiveOrgId);
     }
     const { data: zones, error: zonesError } = await zonesQuery;
 
@@ -54,8 +94,8 @@ Deno.serve(async (req) => {
       .select('plate_number, zone_id, observation_id, organization_id')
       .order('recorded_at', { ascending: false });
     
-    if (organizationId) {
-      observationsQuery = observationsQuery.eq('organization_id', organizationId);
+    if (effectiveOrgId) {
+      observationsQuery = observationsQuery.eq('organization_id', effectiveOrgId);
     }
 
     const { data: observations, error: observationsError } = await observationsQuery;
