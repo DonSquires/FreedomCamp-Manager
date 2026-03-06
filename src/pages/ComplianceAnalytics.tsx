@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { useGlobalFiltersStore } from '@/stores/globalFiltersStore'
+import { Database } from '@/types/database'
 import { AppLayout } from '@/components/features/AppLayout'
 import { GlobalFilterRibbon } from '@/components/features/GlobalFilterRibbon'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -35,6 +36,8 @@ import {
 } from 'lucide-react'
 import { formatDate } from '@/lib/utils'
 import { toast } from 'sonner'
+
+type Observation = Database['public']['Tables']['observations']['Row']
 
 const COLORS = ['#3b82f6', '#ef4444', '#f59e0b', '#10b981', '#8b5cf6', '#ec4899']
 
@@ -83,13 +86,14 @@ export default function ComplianceAnalytics() {
 
       if (error) throw error
 
-      const total = observations?.length || 0
-      const compliant = observations?.filter(o => o.is_compliant).length || 0
+      const obsData = observations as Observation[] | null
+      const total = obsData?.length || 0
+      const compliant = obsData?.filter(o => o.is_compliant).length || 0
       const nonCompliant = total - compliant
-      const uniqueVehicles = new Set(observations?.map(o => o.plate_number)).size
+      const uniqueVehicles = new Set(obsData?.map(o => o.plate_number)).size
 
       // Calculate average nights per vehicle
-      const vehicleNights = observations?.reduce((acc: Record<string, number>, obs) => {
+      const vehicleNights = obsData?.reduce((acc: Record<string, number>, obs) => {
         const plate = obs.plate_number
         acc[plate] = (acc[plate] || 0) + 1
         return acc
@@ -100,7 +104,7 @@ export default function ComplianceAnalytics() {
         : 0
 
       // Find repeat offenders (vehicles with multiple non-compliant observations)
-      const offenders = observations?.filter(o => !o.is_compliant) || []
+      const offenders = obsData?.filter(o => !o.is_compliant) || []
       const offenderCounts = offenders.reduce((acc: Record<string, number>, obs) => {
         const plate = obs.plate_number
         acc[plate] = (acc[plate] || 0) + 1
@@ -150,8 +154,9 @@ export default function ComplianceAnalytics() {
       const { data, error } = await query
       if (error) throw error
 
+      const breachData = data as Pick<Observation, 'breach_type'>[] | null
       // Count breach types
-      const counts = (data || []).reduce((acc: Record<string, number>, obs) => {
+      const counts = (breachData || []).reduce((acc: Record<string, number>, obs) => {
         const type = obs.breach_type || 'unknown'
         acc[type] = (acc[type] || 0) + 1
         return acc
@@ -241,8 +246,9 @@ export default function ComplianceAnalytics() {
       const { data, error } = await query
       if (error) throw error
 
+      const trendData = data as Pick<Observation, 'recorded_at' | 'is_compliant'>[] | null
       // Group by day
-      const dailyData = (data || []).reduce((acc: Record<string, any>, obs) => {
+      const dailyData = (trendData || []).reduce((acc: Record<string, any>, obs) => {
         const day = formatDate(obs.recorded_at)
         if (!acc[day]) {
           acc[day] = { date: day, total: 0, compliant: 0, breaches: 0 }
