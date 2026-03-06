@@ -1,0 +1,47 @@
+name: Data Migration (Manual Run)
+
+on:
+  workflow_dispatch:
+    inputs:
+      script_to_run:
+        description: 'Which script to run?'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - import-vehicles
+          - import-zones
+
+jobs:
+  run-migration:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: |
+          npm install csv-parse
+          npm install -g tsx
+
+      - name: Run Vehicles Migration
+        if: ${{ github.event.inputs.script_to_run == 'all' || github.event.inputs.script_to_run == 'import-vehicles' }}
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASEV2_SERVICE_ROLE_KEY }}
+        run: npx tsx scripts/import-canonical-vehicles.ts
+
+      - name: Run Zones Migration
+        if: ${{ github.event.inputs.script_to_run == 'all' || github.event.inputs.script_to_run == 'import-zones' }}
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASEV2_SERVICE_ROLE_KEY }}
+        run: npx tsx scripts/import-zones.ts
