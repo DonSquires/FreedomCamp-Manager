@@ -437,9 +437,6 @@ export interface Database {
           movement_background_similarity: number | null
           movement_vehicle_bbox_iou: number | null
           movement_decision: string | null
-          retention_pending: boolean
-          retention_reason: string | null
-          retention_marked_at: string | null
           deleted_at: string | null
           processing_status: string | null
           processing_started_at: string | null
@@ -495,9 +492,6 @@ export interface Database {
           movement_background_similarity?: number | null
           movement_vehicle_bbox_iou?: number | null
           movement_decision?: string | null
-          retention_pending?: boolean
-          retention_reason?: string | null
-          retention_marked_at?: string | null
           deleted_at?: string | null
           processing_status?: string | null
           processing_started_at?: string | null
@@ -553,9 +547,6 @@ export interface Database {
           movement_background_similarity?: number | null
           movement_vehicle_bbox_iou?: number | null
           movement_decision?: string | null
-          retention_pending?: boolean
-          retention_reason?: string | null
-          retention_marked_at?: string | null
           deleted_at?: string | null
           processing_status?: string | null
           processing_started_at?: string | null

@@ -1,6 +1,11 @@
 /**
  * Custom Hook: useVehicleCompliance
  * Real-time compliance checks and compliance history
+ *
+ * NOTE: The compliance_results table was dropped in migration
+ * 20260221_rebuild_observations_clean.sql. Compliance state is now
+ * stored directly on the observations table (is_compliant, breach_type,
+ * breach_reason, nights_stayed_this_month, consecutive_nights).
  */
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
@@ -39,6 +44,19 @@ interface ComplianceSummary {
   current_status: 'compliant' | 'non_compliant' | 'warning'
 }
 
+interface ObservationComplianceRow {
+  id: string
+  plate_number: string
+  zone_id: string
+  is_compliant: boolean
+  breach_type: string | null
+  breach_reason: string | null
+  nights_stayed_this_month: number
+  recorded_at: string
+  created_at: string
+  zone: { name: string } | null
+}
+
 export function useVehicleCompliance(plateNumber?: string, options?: {
   zoneId?: string
   dateFrom?: string
@@ -47,39 +65,44 @@ export function useVehicleCompliance(plateNumber?: string, options?: {
   const { user } = useAuthStore()
   const queryClient = useQueryClient()
 
-  // Fetch compliance results for vehicle
+  // Fetch compliance history for vehicle — query observations directly
+  // (compliance_results was dropped in 20260221_rebuild_observations_clean.sql)
   const complianceQuery = useQuery({
     queryKey: ['vehicle-compliance', plateNumber, options],
     queryFn: async () => {
       if (!plateNumber) return []
 
-      let query = (supabase.from('compliance_results') as any)
+      let query = supabase
+        .from('observations')
         .select(`
-          *,
-          observation:observations(
-            plate_number,
-            recorded_at,
-            zone:zones(name)
-          )
+          id,
+          plate_number,
+          zone_id,
+          is_compliant,
+          breach_type,
+          breach_reason,
+          nights_stayed_this_month,
+          recorded_at,
+          created_at,
+          zone:zones(name)
         `)
-        .order('created_at', { ascending: false })
-
-      // Filter by plate via observation join
-      const { data: observations, error: obsError } = await (supabase.from('observations') as any)
-        .select('id')
         .eq('plate_number', plateNumber)
         .is('deleted_at', null)
+        .order('recorded_at', { ascending: false })
 
-      if (obsError) throw obsError
+      // Organization scoping
+      if (user?.role !== 'master' && user?.organization_id) {
+        query = query.eq('organization_id', user.organization_id)
+      }
 
-      const observationIds = observations.map(o => o.id)
-      query = query.in('observation_id', observationIds)
-
+      if (options?.zoneId) {
+        query = query.eq('zone_id', options.zoneId)
+      }
       if (options?.dateFrom) {
-        query = query.gte('created_at', options.dateFrom)
+        query = query.gte('recorded_at', options.dateFrom)
       }
       if (options?.dateTo) {
-        query = query.lte('created_at', options.dateTo)
+        query = query.lte('recorded_at', options.dateTo)
       }
 
       const { data, error } = await query
@@ -89,7 +112,23 @@ export function useVehicleCompliance(plateNumber?: string, options?: {
         throw error
       }
 
-      return data as ComplianceResult[]
+      // Map observations to the ComplianceResult shape expected by consumers
+      return (data as unknown as ObservationComplianceRow[]).map((obs): ComplianceResult => ({
+        id: obs.id,
+        observation_id: obs.id,
+        vehicle_id: null,
+        zone_id: obs.zone_id,
+        status: obs.is_compliant ? 'compliant' : 'non_compliant',
+        rule_applied: obs.breach_type || 'nightly_limit',
+        current_stay_count: obs.nights_stayed_this_month || 0,
+        rule_snapshot: null,
+        created_at: obs.recorded_at,
+        observation: {
+          plate_number: obs.plate_number,
+          recorded_at: obs.recorded_at,
+          zone: { name: obs.zone?.name || '' },
+        },
+      }))
     },
     enabled: !!plateNumber,
   })

@@ -24,17 +24,45 @@ import {
   Archive,
 } from 'lucide-react'
 
-// Type for import history records (table may not be in generated types)
+// Type for import history records mapped from import_batches table
+// NOTE: The `import_history` table never existed; `import_batches` is the canonical table.
 interface ImportHistoryRecord {
   id: string
   organization_id: string
   import_type: string
-  file_name: string
+  file_name: string | null
   status: string
   records_imported: number
   duplicates_skipped: number
   failed_records: number
   created_at: string
+}
+
+// Raw row from import_batches (not in generated types)
+interface ImportBatchRow {
+  id: string
+  organization_id: string
+  import_config: Record<string, string> | null
+  file_name: string | null
+  status: string
+  successful_records: number
+  failed_records: number
+  created_at: string
+}
+
+// Map an import_batches row to ImportHistoryRecord
+function mapBatchRow(row: ImportBatchRow): ImportHistoryRecord {
+  return {
+    id: row.id,
+    organization_id: row.organization_id,
+    import_type: row.import_config?.import_type || 'historical',
+    file_name: row.file_name,
+    status: row.status,
+    records_imported: row.successful_records || 0,
+    duplicates_skipped: 0,
+    failed_records: row.failed_records || 0,
+    created_at: row.created_at,
+  }
 }
 
 export default function DataManagementHub() {
@@ -95,12 +123,11 @@ export default function DataManagementHub() {
     enabled: !!user,
   })
 
-  // Fetch import history
+  // Fetch import history from import_batches (import_history table does not exist)
   const { data: importHistory } = useQuery({
     queryKey: ['import-history', organizationId],
     queryFn: async () => {
-      let query = supabase
-        .from('import_history')
+      let query = (supabase.from('import_batches') as any)
         .select('*')
         .order('created_at', { ascending: false })
         .limit(5)
@@ -116,7 +143,7 @@ export default function DataManagementHub() {
         throw error
       }
 
-      return (data as ImportHistoryRecord[]) || []
+      return (data as ImportBatchRow[] || []).map(mapBatchRow)
     },
     enabled: !!user,
   })
