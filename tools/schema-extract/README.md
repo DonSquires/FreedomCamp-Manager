@@ -1,106 +1,59 @@
-# Schema Extract Tools
+# Schema Extract Tooling
 
-These tools extract the Supabase/PostgreSQL schema from a running database instance.
-They produce SQL DDL files and structured query output that can be committed to a branch,
-reviewed offline, or shared with team members and reviewers.
+## Purpose
 
----
+Provide safe, idempotent scripts to extract the Postgres / Supabase schema and definitions (tables, columns, functions, triggers, policies, indexes, views).
 
-## Modes of operation
+Designed to be run locally (recommended) or via an opt-in GitHub Action that runs only when you manually dispatch it and add DB secrets.
 
-### 1. Local run
+## Important safety notes
 
-Run `run_extract.sh` on any machine that has `psql` (and optionally `pg_dump`) installed.
+- This tooling never writes to your database. It only reads schema and writes output into `tools/schema-extract/output/`.
+- Do NOT commit DB credentials to the repo. Use environment variables or repository secrets for the Action.
+- Use a read-only, least-privileged DB user when possible.
+- After using any temporary credentials, rotate them.
 
-#### Required environment variables
+## Modes
 
-| Variable      | Description                              |
-|---------------|------------------------------------------|
-| `PGHOST`      | Database host (e.g. `db.xxxx.supabase.co`) |
-| `PGPORT`      | Database port (default `5432`)           |
-| `PGUSER`      | Database user (use a **read-only** user; see note below) |
-| `PGPASSWORD`  | Password for `PGUSER`                    |
-| `PGDATABASE`  | Database name (usually `postgres`)       |
+- **Local run (recommended):** Run the extraction script locally with environment variables:
+  - `PGHOST`, `PGPORT`, `PGUSER`, `PGPASSWORD`, `PGDATABASE`
+  - Optional: `SUPABASE_URL` (for reference only) — not required for extraction.
+- **GitHub Action (opt-in):** Add secrets `PGHOST`, `PGPORT`, `PGUSER`, `PGPASSWORD`, `PGDATABASE` to repository settings and manually dispatch the workflow.
+  - Workflow file: `.github/workflows/schema-extract.yml`
+  - Trigger type: `workflow_dispatch` only
 
-#### Optional environment variables
+## How to run locally
 
-| Variable        | Description                                                  |
-|-----------------|--------------------------------------------------------------|
-| `SUPABASE_URL`  | Base URL of the Supabase project (for documentation only; not used by the script) |
-| `OUTPUT_DIR`    | Override output directory (default: `tools/schema-extract/output`) |
+1. Ensure `psql` is installed and in your `PATH`. `pg_dump` is optional but recommended for a full schema dump.
+2. Make the script executable:
 
-> **Security note:** Always use a dedicated **read-only** database role for these
-> extractions.  Never run the script with `postgres` or a role that has write
-> privileges.  Create a read-only role in Supabase Dashboard → Database → Roles, or
-> via:
-> ```sql
-> CREATE ROLE schema_reader WITH LOGIN PASSWORD 'strong-password';
-> GRANT USAGE ON SCHEMA public TO schema_reader;
-> GRANT SELECT ON ALL TABLES IN SCHEMA public TO schema_reader;
-> ```
+   ```bash
+   chmod +x tools/schema-extract/run_extract.sh
+   ```
 
-#### Example local run
+3. Run:
 
-```bash
-export PGHOST=db.xxxx.supabase.co
-export PGPORT=5432
-export PGUSER=schema_reader
-export PGPASSWORD='your-password-here'   # or use a ~/.pgpass entry
-export PGDATABASE=postgres
+   ```bash
+   PGHOST=<host> PGPORT=5432 PGUSER=<user> PGPASSWORD=<password> PGDATABASE=<db> ./tools/schema-extract/run_extract.sh
+   ```
 
-cd tools/schema-extract
-chmod +x run_extract.sh
-./run_extract.sh
-```
+## Outputs
 
-Output files are written to `tools/schema-extract/output/` with a timestamp prefix.
+- `tools/schema-extract/output/<timestamp>/schema_dump.sql` (if `pg_dump` available)
+- `tools/schema-extract/output/<timestamp>/tables.txt`
+- `tools/schema-extract/output/<timestamp>/functions.sql`
+- `tools/schema-extract/output/<timestamp>/triggers.sql`
+- `tools/schema-extract/output/<timestamp>/policies.sql`
+- `tools/schema-extract/output/<timestamp>/indexes.sql`
+- `tools/schema-extract/output/<timestamp>/views.sql`
+- `tools/schema-extract/output/<timestamp>/all_combined.txt` (combined run output)
 
-#### Pushing results to a branch
+## If you want results attached to a PR
 
-```bash
-git checkout -b schema-extract/$(date +%Y%m%d)
-git add tools/schema-extract/output/
-git commit -m "chore: schema extract $(date -u +%Y-%m-%dT%H:%M:%SZ)"
-git push origin HEAD
-```
+- Run locally and attach the `output/<timestamp>/` directory to the PR as files, or
+- Enable the Action and manually dispatch it with secrets; the workflow uploads an artifact, and can optionally push results to a branch for review.
 
----
+## Troubleshooting
 
-### 2. GitHub Action (optional, manual dispatch)
-
-The workflow at `.github/workflows/extract-schema.yml` is triggered **only** via
-manual dispatch (`workflow_dispatch`) and **only** runs when the following repository
-secrets are configured:
-
-| Secret        | Corresponds to env var |
-|---------------|------------------------|
-| `PGHOST`      | `PGHOST`               |
-| `PGPORT`      | `PGPORT`               |
-| `PGUSER`      | `PGUSER`               |
-| `PGPASSWORD`  | `PGPASSWORD`           |
-| `PGDATABASE`  | `PGDATABASE`           |
-
-The workflow checks for the presence of these secrets before attempting a connection.
-If any are absent the job exits gracefully with an explanatory message rather than
-failing loudly.
-
-After the extraction step the workflow commits the output files to the branch name
-supplied as a workflow input (default: `schema-extract/YYYYMMDD`).
-
----
-
-## Output files
-
-| File                     | Contents                                    |
-|--------------------------|---------------------------------------------|
-| `schema_dump.sql`        | Full DDL from `pg_dump --schema-only`       |
-| `tables.sql`             | Table & column definitions                  |
-| `views.sql`              | View definitions                            |
-| `functions.sql`          | Function DDL (`pg_get_functiondef`)         |
-| `triggers.sql`           | Trigger DDL (`pg_get_triggerdef`)           |
-| `policies.sql`           | Row-level security policies (`pg_policies`) |
-| `indexes.sql`            | Index definitions (`pg_indexes`)            |
-
-All files are placed in `tools/schema-extract/output/` which is listed in
-`.gitignore` by default.  Remove or adjust that entry when you want to commit the
-results.
+- If `psql`/`pg_dump` are unavailable, install PostgreSQL client tools (`apt`, `brew`, etc.).
+- The script uses `PGPASSWORD` or `.pgpass` (if present) and never echoes the password.

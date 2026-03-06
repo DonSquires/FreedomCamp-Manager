@@ -23,18 +23,26 @@ dist-ssr
 *.sln
 *.sw?
 
-# Schema / analysis extraction output (remove these lines to commit results)
-tools/schema-extract/output/
+# Schema extraction outputs (keep placeholder only)
+tools/schema-extract/output/*
+!tools/schema-extract/output/.gitkeep
+
+# Additional analysis outputs
 tools/onspace-analysis/output/
 
 # Root-level package-lock.json (no root package.json - project uses bun.lock)
 /package-lock.json
 *.tsbuildinfo
 
-# Environment files — NEVER commit credentials
+# Environment files - NEVER commit credentials
 .env
 .env.*
 !.env.example
 proxy-server/.env
 proxy-server/.env.*
 !proxy-server/.env.example
+
+# Local/sensitive artifacts
+*.keystore
+base64.txt
+grep_requested_output.txt

@@ -1,52 +1,107 @@
-# 🚀 **DEPLOY PHASE 1 NOW**
+# Deploy Now (CLI + GitHub Actions)
 
-## **Command to Execute**
+This runbook is the current fastest path for deployment in this repo.
 
-Open your terminal in the project root and run:
+## 1) Preflight
+
+From repo root:
 
 ```bash
-supabase db push
+vercel --version
+"$HOME/.local/bin/supabase" --version
+GH_FORCE_TTY=0 gh auth status
 ```
 
-## **Expected Output**
+If `gh auth status` is not logged in, run `gh auth login` first.
 
-```
-Remote database is up to date.
-Applying migration 20260220_phase1_orc_ai_vector_support.sql...
-✅ Successfully applied migration 20260220_phase1_orc_ai_vector_support.sql
+## 2) Required GitHub Secrets
 
-Database migrations complete.
-```
+The workflows in `.github/workflows/` require these secrets:
 
----
+- `SUPABASE_ACCESS_TOKEN`
+- `SUPABASE_DB_PASSWORD`
+- `SUPABASE_PROJECT_REF`
+- `PGHOST`
+- `PGPORT`
+- `PGUSER`
+- `PGPASSWORD`
+- `PGDATABASE`
 
-## **After Deployment, Run Verification**
+You can set them from terminal:
 
-Copy and paste these queries into **Supabase SQL Editor**:
+```bash
+GH_FORCE_TTY=0 gh secret set SUPABASE_ACCESS_TOKEN
+GH_FORCE_TTY=0 gh secret set SUPABASE_DB_PASSWORD
+GH_FORCE_TTY=0 gh secret set SUPABASE_PROJECT_REF
 
-```sql
--- 1. Check pgvector
-select * from pg_extension where extname = 'vector';
-
--- 2. Check new columns
-\d vehicle_observations_v2
-
--- 3. Check readiness
-select * from check_embedding_readiness();
-
--- 4. Test match function
-select * from match_vehicle(
-  p_obs_id := (select observation_id from vehicle_observations_v2 limit 1),
-  p_k := 5
-);
+GH_FORCE_TTY=0 gh secret set PGHOST
+GH_FORCE_TTY=0 gh secret set PGPORT
+GH_FORCE_TTY=0 gh secret set PGUSER
+GH_FORCE_TTY=0 gh secret set PGPASSWORD
+GH_FORCE_TTY=0 gh secret set PGDATABASE
 ```
 
----
+Each command prompts for the value securely.
 
-## **Success Confirmation**
+## 3) Push This Branch First
 
-Reply with:
-- ✅ **"Phase 1 deployed successfully"** if all checks pass
-- ❌ **"Error: [paste error message]"** if deployment fails
+The new workflows only exist after these files are committed and pushed:
 
-Then I'll guide you to Phase 2! 🎯
+- `.github/workflows/supabase-db-push.yml`
+- `.github/workflows/schema-extract.yml`
+- `tools/schema-extract/*`
+
+## 4) Run Supabase Migration Workflow
+
+Dispatch:
+
+```bash
+GH_FORCE_TTY=0 gh workflow run supabase-db-push.yml
+```
+
+Monitor latest run:
+
+```bash
+GH_FORCE_TTY=0 gh run list --workflow supabase-db-push.yml --limit 1
+GH_FORCE_TTY=0 gh run watch
+```
+
+## 5) Run Schema Extract Workflow
+
+Artifact only (recommended):
+
+```bash
+GH_FORCE_TTY=0 gh workflow run schema-extract.yml
+```
+
+Optional: push generated output to a branch:
+
+```bash
+GH_FORCE_TTY=0 gh workflow run schema-extract.yml -f push_results=true
+```
+
+Monitor latest run:
+
+```bash
+GH_FORCE_TTY=0 gh run list --workflow schema-extract.yml --limit 1
+GH_FORCE_TTY=0 gh run watch
+```
+
+## 6) Optional Local Supabase Push (Manual)
+
+Use this only when secrets/env are loaded locally:
+
+```bash
+"$HOME/.local/bin/supabase" link --project-ref "$SUPABASE_PROJECT_REF" --password "$SUPABASE_DB_PASSWORD"
+"$HOME/.local/bin/supabase" db push
+```
+
+## 7) Vercel Deployment (Token-Based)
+
+Set token in environment, then deploy non-interactively:
+
+```bash
+export VERCEL_TOKEN="<token>"
+vercel pull --yes --environment=production --token "$VERCEL_TOKEN"
+vercel deploy --prod --yes --token "$VERCEL_TOKEN"
+```

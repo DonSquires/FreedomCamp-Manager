@@ -1,0 +1,90 @@
+name: Schema Extract
+
+on:
+  workflow_dispatch:
+    inputs:
+      push_results:
+        description: "Push generated output to a new branch"
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+
+jobs:
+  extract:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+
+      - name: Validate required secrets
+        env:
+          PGHOST: ${{ secrets.PGHOST }}
+          PGPORT: ${{ secrets.PGPORT }}
+          PGUSER: ${{ secrets.PGUSER }}
+          PGPASSWORD: ${{ secrets.PGPASSWORD }}
+          PGDATABASE: ${{ secrets.PGDATABASE }}
+        run: |
+          set -euo pipefail
+          missing=0
+          for var in PGHOST PGPORT PGUSER PGPASSWORD PGDATABASE; do
+            if [ -z "${!var:-}" ]; then
+              echo "::error::Missing required secret: $var"
+              missing=1
+            fi
+          done
+          if [ "$missing" -ne 0 ]; then
+            exit 1
+          fi
+
+      - name: Run schema extraction
+        env:
+          PGHOST: ${{ secrets.PGHOST }}
+          PGPORT: ${{ secrets.PGPORT }}
+          PGUSER: ${{ secrets.PGUSER }}
+          PGPASSWORD: ${{ secrets.PGPASSWORD }}
+          PGDATABASE: ${{ secrets.PGDATABASE }}
+        run: |
+          set -euo pipefail
+          chmod +x tools/schema-extract/run_extract.sh
+          ./tools/schema-extract/run_extract.sh
+          LATEST_DIR="$(ls -1dt tools/schema-extract/output/*/ | head -n 1)"
+          echo "latest_dir=${LATEST_DIR%/}" >> "$GITHUB_OUTPUT"
+        id: extract
+
+      - name: Upload extraction artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: schema-extract-${{ github.run_id }}
+          path: ${{ steps.extract.outputs.latest_dir }}
+          if-no-files-found: error
+
+      - name: Push output branch (optional)
+        if: ${{ inputs.push_results }}
+        run: |
+          set -euo pipefail
+          branch="schema-extract/${{ github.run_id }}"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git checkout -b "$branch"
+          git add -f tools/schema-extract/output
+
+          if git diff --cached --quiet; then
+            echo "No output changes to commit."
+            exit 0
+          fi
+
+          git commit -m "chore: add schema extract output (${{ github.run_id }})"
+          git push --set-upstream origin "$branch"

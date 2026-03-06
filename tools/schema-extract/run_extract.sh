@@ -1,131 +1,86 @@
-#!/bin/sh
-# =============================================================================
-# run_extract.sh – Extract schema from a Supabase/PostgreSQL database
-#
-# Usage:
-#   export PGHOST=db.xxxx.supabase.co
-#   export PGPORT=5432
-#   export PGUSER=schema_reader
-#   export PGPASSWORD='secret'   # or use ~/.pgpass
-#   export PGDATABASE=postgres
-#   ./run_extract.sh
-#
-# Optional:
-#   OUTPUT_DIR=/path/to/dir ./run_extract.sh   # override output location
-#
-# The script exits with a non-zero status on any error.
-# It never echoes PGPASSWORD to stdout/stderr.
-# =============================================================================
-set -eu
+#!/usr/bin/env bash
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-info()  { printf '[INFO]  %s\n' "$*"; }
-warn()  { printf '[WARN]  %s\n' "$*" >&2; }
-die()   { printf '[ERROR] %s\n' "$*" >&2; exit 1; }
+set -euo pipefail
 
-# ---------------------------------------------------------------------------
-# Validate required environment variables
-# ---------------------------------------------------------------------------
-for var in PGHOST PGPORT PGUSER PGPASSWORD PGDATABASE; do
-    eval "val=\${${var}:-}"
-    [ -n "$val" ] || die "Required environment variable \$$var is not set."
-done
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SQL_DIR="$SCRIPT_DIR/sql"
+OUTPUT_BASE="$SCRIPT_DIR/output"
+TIMESTAMP="$(date +"%Y%m%d_%H%M%S")"
+RUN_DIR="$OUTPUT_BASE/$TIMESTAMP"
+COMBINED_OUT="$RUN_DIR/all_combined.txt"
 
-# ---------------------------------------------------------------------------
-# Resolve paths
-# ---------------------------------------------------------------------------
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-TIMESTAMP="$(date -u +%Y%m%dT%H%M%SZ)"
-OUTPUT_DIR="${OUTPUT_DIR:-${SCRIPT_DIR}/output}"
+require_env() {
+  local var_name="$1"
+  if [[ -z "${!var_name:-}" ]]; then
+    echo "Error: required environment variable '$var_name' is not set." >&2
+    exit 1
+  fi
+}
 
-mkdir -p "$OUTPUT_DIR"
-info "Output directory: $OUTPUT_DIR"
-info "Timestamp:        $TIMESTAMP"
+run_query() {
+  local sql_file="$1"
+  local output_file="$2"
+  local title="$3"
 
-# Export connection variables so psql/pg_dump pick them up automatically.
-# PGPASSWORD is already exported; we just ensure the others are too.
-export PGHOST PGPORT PGUSER PGDATABASE
-# PGPASSWORD must already be in the environment; we do NOT echo it.
+  echo "[$(date -Iseconds)] Running: $title" | tee -a "$COMBINED_OUT"
+  psql \
+    --no-psqlrc \
+    --set ON_ERROR_STOP=1 \
+    --file "$sql_file" >"$output_file" 2>>"$COMBINED_OUT"
 
-PSQL_OPTS="-v ON_ERROR_STOP=1 --no-psqlrc --tuples-only --no-align -F$'\t'"
+  {
+    echo
+    echo "==== $title ===="
+    cat "$output_file"
+  } >>"$COMBINED_OUT"
+}
 
-# ---------------------------------------------------------------------------
-# 1. Full schema dump via pg_dump (optional but preferred)
-# ---------------------------------------------------------------------------
-DUMP_FILE="${OUTPUT_DIR}/${TIMESTAMP}_schema_dump.sql"
-if command -v pg_dump >/dev/null 2>&1; then
-    info "Running pg_dump …"
-    pg_dump \
-        --schema-only \
-        --no-owner \
-        --no-privileges \
-        -h "$PGHOST" \
-        -p "$PGPORT" \
-        -U "$PGUSER" \
-        -d "$PGDATABASE" \
-        -f "$DUMP_FILE" \
-        || die "pg_dump failed."
-    info "Wrote $DUMP_FILE"
-else
-    warn "pg_dump not found – skipping full DDL dump."
+require_env "PGHOST"
+require_env "PGUSER"
+require_env "PGPASSWORD"
+require_env "PGDATABASE"
+
+export PGPORT="${PGPORT:-5432}"
+
+if ! command -v psql >/dev/null 2>&1; then
+  echo "Error: 'psql' is required but not found in PATH." >&2
+  exit 1
 fi
 
-# ---------------------------------------------------------------------------
-# Helper: run a named section of queries.sql and save to a file
-# ---------------------------------------------------------------------------
-run_section() {
-    section="$1"   # label used in \echo inside queries.sql, e.g. "tables"
-    out_file="${OUTPUT_DIR}/${TIMESTAMP}_${section}.txt"
+mkdir -p "$RUN_DIR"
 
-    info "Extracting ${section} …"
+{
+  echo "Schema extraction started at: $(date -Iseconds)"
+  echo "Host: ${PGHOST}"
+  echo "Port: ${PGPORT}"
+  echo "User: ${PGUSER}"
+  echo "Database: ${PGDATABASE}"
+  echo
+} >"$COMBINED_OUT"
 
-    # Build a per-section SQL file that only contains the relevant query.
-    # We rely on the section markers already present in queries.sql.
-    # Simpler approach: run the whole queries.sql and capture everything; then
-    # the caller splits by section label.  Here we run the full file and save
-    # one combined output, then individual sections are extracted below.
-    :
-}
+if command -v pg_dump >/dev/null 2>&1; then
+  echo "[$(date -Iseconds)] Running: schema_dump.sql" | tee -a "$COMBINED_OUT"
+  pg_dump \
+    --schema-only \
+    --no-owner \
+    --no-privileges \
+    --file "$RUN_DIR/schema_dump.sql" 2>>"$COMBINED_OUT"
+  {
+    echo
+    echo "==== schema_dump.sql generated ===="
+    echo "Path: $RUN_DIR/schema_dump.sql"
+  } >>"$COMBINED_OUT"
+else
+  echo "[$(date -Iseconds)] Skipping schema_dump.sql (pg_dump not found)" | tee -a "$COMBINED_OUT"
+fi
 
-# ---------------------------------------------------------------------------
-# 2. Run queries.sql and capture full output
-# ---------------------------------------------------------------------------
-FULL_OUTPUT="${OUTPUT_DIR}/${TIMESTAMP}_full_query_output.txt"
-info "Running queries.sql …"
-psql \
-    -h "$PGHOST" \
-    -p "$PGPORT" \
-    -U "$PGUSER" \
-    -d "$PGDATABASE" \
-    --no-psqlrc \
-    --no-align \
-    -F "	" \
-    -f "${SCRIPT_DIR}/queries.sql" \
-    > "$FULL_OUTPUT" 2>&1 \
-    || die "psql failed – check credentials and network access."
-info "Wrote $FULL_OUTPUT"
+run_query "$SQL_DIR/tables.sql" "$RUN_DIR/tables.txt" "tables.txt"
+run_query "$SQL_DIR/functions.sql" "$RUN_DIR/functions.sql" "functions.sql"
+run_query "$SQL_DIR/triggers.sql" "$RUN_DIR/triggers.sql" "triggers.sql"
+run_query "$SQL_DIR/policies.sql" "$RUN_DIR/policies.sql" "policies.sql"
+run_query "$SQL_DIR/indexes.sql" "$RUN_DIR/indexes.sql" "indexes.sql"
+run_query "$SQL_DIR/views.sql" "$RUN_DIR/views.sql" "views.sql"
 
-# ---------------------------------------------------------------------------
-# 3. Split output into individual section files
-# ---------------------------------------------------------------------------
-split_section() {
-    label="$1"   # matches the string printed by \echo in queries.sql
-    dest="${OUTPUT_DIR}/${TIMESTAMP}_${label}.txt"
-    # Extract lines between the section header and the next header (or EOF).
-    awk -v lbl="-- ${label} --" '
-        /^-- [a-z]+ --$/ { if (found) exit; if ($0 == lbl) { found=1; next } }
-        found { print }
-    ' "$FULL_OUTPUT" > "$dest"
-    info "Wrote $dest"
-}
-
-for section in tables views functions triggers policies indexes; do
-    split_section "$section"
-done
-
-# ---------------------------------------------------------------------------
-# Done
-# ---------------------------------------------------------------------------
-info "Schema extraction complete.  Files in: $OUTPUT_DIR"
+echo "" | tee -a "$COMBINED_OUT"
+echo "Extraction complete." | tee -a "$COMBINED_OUT"
+echo "Output directory: $RUN_DIR" | tee -a "$COMBINED_OUT"
