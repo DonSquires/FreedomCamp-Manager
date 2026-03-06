@@ -9,6 +9,8 @@ name: FreedomCamp Manager — All Workflows
 #   push to main        → deploy-admin-portal, deploy-mobile-app, deploy-railway
 #                         (each job path-filters its own area of the repo)
 #   schedule 02:00 UTC  → parkpow-sync (nightly)
+#   repository_dispatch  → API-triggered deploy-admin-portal runs via
+#                         event_type=merge-all-dispatch
 #
 # Manual trigger (workflow_dispatch):
 #   Select the job to run from the "job" dropdown, then fill in any
@@ -38,6 +40,8 @@ on:
     branches: [main]
   schedule:
     - cron: '0 2 * * *'
+  repository_dispatch:
+    types: [merge-all-dispatch]
   workflow_dispatch:
     inputs:
       job:
@@ -256,7 +260,8 @@ jobs:
       contents: read
     if: >-
       (github.event_name == 'push' && needs.changed-paths.outputs.admin-portal == 'true') ||
-      (github.event_name == 'workflow_dispatch' && github.event.inputs.job == 'deploy-admin-portal')
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.job == 'deploy-admin-portal') ||
+      (github.event_name == 'repository_dispatch' && github.event.action == 'merge-all-dispatch' && github.event.client_payload.job == 'deploy-admin-portal')
 
     steps:
       - name: Check required secrets
@@ -309,9 +314,32 @@ jobs:
         if: steps.check-secrets.outputs.secrets_present == 'true'
         run: npm install -g vercel
 
+      - name: Resolve portal environment
+        if: steps.check-secrets.outputs.secrets_present == 'true'
+        id: resolve-env
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = "push" ]; then
+            portal_env="production"
+          elif [ "$GITHUB_EVENT_NAME" = "repository_dispatch" ]; then
+            portal_env="${{ github.event.client_payload.portal_environment || 'production' }}"
+          else
+            portal_env="${{ github.event.inputs.portal_environment || 'production' }}"
+          fi
+
+          case "$portal_env" in
+            production|preview) ;;
+            *)
+              echo "::warning::Unknown portal environment '$portal_env'; defaulting to production"
+              portal_env="production"
+              ;;
+          esac
+
+          echo "portal_environment=$portal_env" >> "$GITHUB_OUTPUT"
+          echo "Resolved portal environment: $portal_env"
+
       - name: Pull Vercel project settings
         if: steps.check-secrets.outputs.secrets_present == 'true'
-        run: vercel pull --yes --environment=production --token "$VERCEL_TOKEN"
+        run: vercel pull --yes --environment="${{ steps.resolve-env.outputs.portal_environment }}" --token "$VERCEL_TOKEN"
         env:
           VERCEL_TOKEN:      ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID:     ${{ secrets.VERCEL_ORG_ID }}
@@ -327,7 +355,7 @@ jobs:
       - name: Deploy to Vercel (production)
         if: >-
           steps.check-secrets.outputs.secrets_present == 'true' &&
-          (github.event_name == 'push' || github.event.inputs.portal_environment == 'production')
+          steps.resolve-env.outputs.portal_environment == 'production'
         run: |
           vercel deploy --prebuilt --prod --token "$VERCEL_TOKEN" | tee /tmp/deploy-url.txt
           echo ""
@@ -341,7 +369,7 @@ jobs:
       - name: Deploy to Vercel (preview)
         if: >-
           steps.check-secrets.outputs.secrets_present == 'true' &&
-          github.event.inputs.portal_environment == 'preview'
+          steps.resolve-env.outputs.portal_environment == 'preview'
         run: |
           vercel deploy --prebuilt --token "$VERCEL_TOKEN" | tee /tmp/deploy-url.txt
           echo ""
