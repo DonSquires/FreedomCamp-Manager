@@ -126,7 +126,7 @@ async function seedOrganizations(): Promise<SeedResult> {
 
   // Step 1: Get or Create Iron Eagle Client
   console.log('📋 Step 1: Checking Iron Eagle client...')
-  let { data: client, error: clientError } = await supabase
+  const { data: initialClient, error: clientError } = await supabase
     .from('clients')
     .select('id')
     .eq('name', 'Iron Eagle')
@@ -136,6 +136,8 @@ async function seedOrganizations(): Promise<SeedResult> {
     result.errors.push(`Failed to query clients: ${clientError.message}`)
     return result
   }
+
+  let client = initialClient
 
   if (!client) {
     console.log('  ➕ Creating Iron Eagle client...')

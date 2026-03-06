@@ -50,14 +50,13 @@ export default function ComplianceDashboard() {
     let obsQuery = (supabase.from('observations') as any).select('*', { count: 'exact', head: true })
     let compliantQuery = (supabase.from('observations') as any).select('*', { count: 'exact', head: true }).eq('is_compliant', true)
     let breachQuery = (supabase.from('breach_alerts') as any).select('*', { count: 'exact' }).eq('status', 'pending')
-    let vehicleQuery = (supabase.from('canonical_vehicles') as any).select('*', { count: 'exact' })
+    const vehicleQuery = (supabase.from('canonical_vehicles') as any).select('*', { count: 'exact' })
     let patrolQuery = (supabase.from('patrols') as any).select('*', { count: 'exact' }).eq('status', 'in_progress')
 
     if (user?.role !== 'master' && user?.organization_id) {
       obsQuery = obsQuery.eq('organization_id', user.organization_id)
       compliantQuery = compliantQuery.eq('organization_id', user.organization_id)
       breachQuery = breachQuery.eq('organization_id', user.organization_id)
-      vehicleQuery = vehicleQuery
       patrolQuery = patrolQuery.eq('organization_id', user.organization_id)
     } else if (organizationId) {
       obsQuery = obsQuery.eq('organization_id', organizationId)

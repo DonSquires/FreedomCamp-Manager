@@ -56,7 +56,7 @@ export function ScanHistoryViewer({
             colour
           )
         `)
-        .eq('recorded_by', user?.id!)
+        .eq('recorded_by', user?.id ?? '')
         .order('recorded_at', { ascending: false })
         .limit(limit)
 

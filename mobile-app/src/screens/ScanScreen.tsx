@@ -78,8 +78,11 @@ export default function ScanScreen() {
       // 5. Upload photo
       toast.loading('Uploading photo...')
       const timestamp = Date.now()
-      const photoHash = `sha256-${timestamp}-${Math.random().toString(36).substring(7)}`
-      const filePath = `${user?.id}/${timestamp}-${photoHash}.jpg`
+      const uniqueId = Array.from(crypto.getRandomValues(new Uint8Array(8)))
+        .map((b) => b.toString(16).padStart(2, '0'))
+        .join('')
+      const photoHash = `sha256-${timestamp}-${uniqueId}`
+      const filePath = `${user?.id}/${timestamp}-${uniqueId}.jpg`
 
       const formData = new FormData()
       const fileInfo: RNFileInfo = { uri: photo.uri, name: 'scan.jpg', type: 'image/jpeg' }

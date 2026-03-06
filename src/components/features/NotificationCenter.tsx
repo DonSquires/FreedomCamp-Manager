@@ -58,8 +58,6 @@ export function NotificationCenter({
   onDismiss,
   onClearAll,
 }: NotificationCenterProps) {
-  if (!open) return null
-
   const unreadCount = notifications.filter((n) => !n.read).length
 
   const sortedNotifications = useMemo(
@@ -69,6 +67,8 @@ export function NotificationCenter({
       ),
     [notifications],
   )
+
+  if (!open) return null
 
   return (
     <div className="fixed inset-0 z-40 pointer-events-none">
