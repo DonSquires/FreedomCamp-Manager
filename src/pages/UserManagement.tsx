@@ -30,12 +30,19 @@ import {
   Calendar,
   AlertCircle,
   Award,
-  Clock
+  Clock,
+  Building2
 } from 'lucide-react'
 import { formatDateTime, formatDate } from '@/lib/utils'
 import { AppLayout } from '@/components/features/AppLayout'
 import { GlobalFilterRibbon } from '@/components/features/GlobalFilterRibbon'
 import { uploadFile } from '@/lib/fileUpload'
+
+interface Organization {
+  id: string
+  name: string
+  parent_organization_id: string | null
+}
 
 interface UserProfile {
   id: string
@@ -43,7 +50,8 @@ interface UserProfile {
   last_name: string
   email: string
   role: string
-  organization_id: string
+  organization_id: string | null
+  employer_organization_id: string | null
   is_active: boolean
   created_at: string
   phone: string | null
@@ -57,6 +65,8 @@ interface UserProfile {
   credentials_verified: boolean
   credentials_verified_at: string | null
   credentials_verified_by: string | null
+  // Joined data
+  organization?: Organization | null
 }
 
 export default function UserManagement() {
@@ -70,6 +80,7 @@ export default function UserManagement() {
   const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null)
   const [filterRole, setFilterRole] = useState<string>('all')
   const [filterCredentials, setFilterCredentials] = useState<string>('all')
+  const [filterOrg, setFilterOrg] = useState<string>('all')
   
   // Form state
   const [email, setEmail] = useState('')
@@ -77,6 +88,8 @@ export default function UserManagement() {
   const [lastName, setLastName] = useState('')
   const [role, setRole] = useState('officer')
   const [phone, setPhone] = useState('')
+  const [organizationId, setOrganizationId] = useState<string>('')
+  const [employerOrgId, setEmployerOrgId] = useState<string>('')
   
   // Credentials form state
   const [coaNumber, setCoaNumber] = useState('')
@@ -88,14 +101,48 @@ export default function UserManagement() {
 
   // Check user role
   const isAdmin = user?.role === 'admin' || user?.role === 'master'
+  const isMaster = user?.role === 'master'
+
+  // Fetch all active organizations for dropdowns
+  const { data: organizations } = useQuery({
+    queryKey: ['organizations'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('organizations')
+        .select('id, name, parent_organization_id')
+        .eq('is_active', true)
+        .order('name', { ascending: true })
+      if (error) throw error
+      return data as Organization[]
+    },
+  })
+
+  // For non-master users, fetch accessible org IDs (own org + descendants)
+  const { data: accessibleOrgIds } = useQuery({
+    queryKey: ['user-org-ids'],
+    queryFn: async () => {
+      const { data, error } = await (supabase as any).rpc('get_user_organization_ids')
+      if (error) throw error
+      return data as string[]
+    },
+    enabled: !isMaster,
+  })
+
+  // Organizations available for assignment, scoped by role
+  const availableOrgs = isMaster
+    ? (organizations || [])
+    : (organizations || []).filter((o) => accessibleOrgIds?.includes(o.id))
 
   // Fetch users
   const { data: users, isLoading } = useQuery({
-    queryKey: ['users', searchTerm, filterRole, filterCredentials],
+    queryKey: ['users', searchTerm, filterRole, filterCredentials, filterOrg],
     queryFn: async () => {
-      let query = supabase
-        .from('user_profiles')
-        .select('*')
+      let query = (supabase
+        .from('user_profiles') as any)
+        .select(`
+          *,
+          organization:organizations!organization_id(id, name)
+        `)
         .order('created_at', { ascending: false })
 
       if (searchTerm) {
@@ -104,6 +151,10 @@ export default function UserManagement() {
 
       if (filterRole !== 'all') {
         query = query.eq('role', filterRole)
+      }
+
+      if (filterOrg !== 'all') {
+        query = query.eq('organization_id', filterOrg)
       }
 
       const { data, error } = await query
@@ -137,7 +188,9 @@ export default function UserManagement() {
           role,
           first_name: firstName,
           last_name: lastName,
-          phone
+          phone,
+          organization_id: organizationId || null,
+          employer_organization_id: employerOrgId || null,
         }
       })
       if (error) throw error
@@ -205,6 +258,8 @@ export default function UserManagement() {
     setCoaExpiry('')
     setWarrantNumber('')
     setWarrantExpiry('')
+    setOrganizationId('')
+    setEmployerOrgId('')
   }
 
   const openEditDialog = (userProfile: UserProfile) => {
@@ -214,6 +269,8 @@ export default function UserManagement() {
     setEmail(userProfile.email)
     setRole(userProfile.role)
     setPhone(userProfile.phone || '')
+    setOrganizationId(userProfile.organization_id || '')
+    setEmployerOrgId(userProfile.employer_organization_id || '')
     setShowEditDialog(true)
   }
 
@@ -544,6 +601,18 @@ export default function UserManagement() {
                   <SelectItem value="missing">Missing</SelectItem>
                 </SelectContent>
               </Select>
+
+              <Select value={filterOrg || 'all'} onValueChange={setFilterOrg}>
+                <SelectTrigger className="w-52">
+                  <SelectValue placeholder="Filter by organization" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Organizations</SelectItem>
+                  {availableOrgs.map((org) => (
+                    <SelectItem key={org.id} value={org.id}>{org.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
         </CardContent>
@@ -589,6 +658,12 @@ export default function UserManagement() {
                       <Mail className="h-3 w-3 inline mr-1" />
                       {userProfile.email}
                     </div>
+                    {userProfile.organization && (
+                      <div className="text-sm text-gray-500 mt-1">
+                        <Building2 className="h-3 w-3 inline mr-1" />
+                        {userProfile.organization.name}
+                      </div>
+                    )}
                     
                     {/* Credentials Info */}
                     {(userProfile.coa_number || userProfile.warrant_number) && (
@@ -760,6 +835,34 @@ export default function UserManagement() {
                 onChange={(e) => setPhone(e.target.value)}
                 placeholder="+64 21 123 4567"
               />
+            </div>
+            <div>
+              <Label htmlFor="createOrg">Organization</Label>
+              <Select value={organizationId || 'none'} onValueChange={(v) => setOrganizationId(v === 'none' ? '' : v)}>
+                <SelectTrigger id="createOrg">
+                  <SelectValue placeholder="Select organization" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No Organization</SelectItem>
+                  {availableOrgs.map((org) => (
+                    <SelectItem key={org.id} value={org.id}>{org.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label htmlFor="createEmployerOrg">Employer Organization</Label>
+              <Select value={employerOrgId || 'none'} onValueChange={(v) => setEmployerOrgId(v === 'none' ? '' : v)}>
+                <SelectTrigger id="createEmployerOrg">
+                  <SelectValue placeholder="Select employer organization" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No Employer Organization</SelectItem>
+                  {availableOrgs.map((org) => (
+                    <SelectItem key={org.id} value={org.id}>{org.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
           <DialogFooter>
@@ -1061,6 +1164,34 @@ export default function UserManagement() {
                 onChange={(e) => setPhone(e.target.value)}
               />
             </div>
+            <div>
+              <Label htmlFor="editOrg">Organization</Label>
+              <Select value={organizationId || 'none'} onValueChange={(v) => setOrganizationId(v === 'none' ? '' : v)}>
+                <SelectTrigger id="editOrg">
+                  <SelectValue placeholder="Select organization" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No Organization</SelectItem>
+                  {availableOrgs.map((org) => (
+                    <SelectItem key={org.id} value={org.id}>{org.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label htmlFor="editEmployerOrg">Employer Organization</Label>
+              <Select value={employerOrgId || 'none'} onValueChange={(v) => setEmployerOrgId(v === 'none' ? '' : v)}>
+                <SelectTrigger id="editEmployerOrg">
+                  <SelectValue placeholder="Select employer organization" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No Employer Organization</SelectItem>
+                  {availableOrgs.map((org) => (
+                    <SelectItem key={org.id} value={org.id}>{org.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowEditDialog(false)}>
@@ -1071,7 +1202,9 @@ export default function UserManagement() {
                 first_name: firstName,
                 last_name: lastName,
                 role,
-                phone: phone || null
+                phone: phone || null,
+                organization_id: organizationId || null,
+                employer_organization_id: employerOrgId || null,
               })}
               disabled={updateUserMutation.isPending}
             >
