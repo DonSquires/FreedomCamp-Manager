@@ -307,7 +307,7 @@ jobs:
 
       - name: Install Vercel CLI
         if: steps.check-secrets.outputs.secrets_present == 'true'
-        run: npm install -g vercel@latest
+        run: npm install -g vercel
 
       - name: Pull Vercel project settings
         if: steps.check-secrets.outputs.secrets_present == 'true'
