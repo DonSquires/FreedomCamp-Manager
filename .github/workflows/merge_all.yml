@@ -311,7 +311,7 @@ jobs:
 
       - name: Pull Vercel project settings
         if: steps.check-secrets.outputs.secrets_present == 'true'
-        run: vercel pull --yes --environment=production
+        run: vercel pull --yes --environment=production --token "$VERCEL_TOKEN"
         env:
           VERCEL_TOKEN:      ${{ secrets.VERCEL_TOKEN }}
           VERCEL_ORG_ID:     ${{ secrets.VERCEL_ORG_ID }}
@@ -329,7 +329,7 @@ jobs:
           steps.check-secrets.outputs.secrets_present == 'true' &&
           (github.event_name == 'push' || github.event.inputs.portal_environment == 'production')
         run: |
-          vercel deploy --prebuilt --prod | tee /tmp/deploy-url.txt
+          vercel deploy --prebuilt --prod --token "$VERCEL_TOKEN" | tee /tmp/deploy-url.txt
           echo ""
           echo "✅ Admin portal production deployment complete!"
           echo "🌐 URL: $(tail -1 /tmp/deploy-url.txt)"
@@ -343,7 +343,7 @@ jobs:
           steps.check-secrets.outputs.secrets_present == 'true' &&
           github.event.inputs.portal_environment == 'preview'
         run: |
-          vercel deploy --prebuilt | tee /tmp/deploy-url.txt
+          vercel deploy --prebuilt --token "$VERCEL_TOKEN" | tee /tmp/deploy-url.txt
           echo ""
           echo "✅ Admin portal preview deployment complete!"
           echo "🌐 URL: $(tail -1 /tmp/deploy-url.txt)"
