@@ -344,39 +344,38 @@ export const dataVerification = {
   },
 
   /**
-   * Verify compliance results exist for all observations
+   * Verify compliance state is populated on all observations
+   * NOTE: compliance_results table was dropped in 20260221_rebuild_observations_clean.sql.
+   * Compliance state (is_compliant, breach_type) is now stored directly on observations.
    */
   async verifyComplianceResults() {
     const { data: observationsData } = await supabase
       .from('observations')
-      .select('id')
+      .select('id, is_compliant')
       .is('deleted_at', null)
       .limit(100)
 
-    const observations = observationsData as Pick<Observation, 'id'>[] | null
+    const observations = observationsData as Array<Pick<Observation, 'id'> & { is_compliant: boolean }> | null
     if (!observations) return { total: 0, missing: 0 }
 
-    const observationIds = observations.map(o => o.id)
-    
-    const { data: complianceResultsData } = await supabase
-      .from('compliance_results')
-      .select('observation_id')
-      .in('observation_id', observationIds)
+    // Compliance state is embedded directly on each observation (is_compliant column).
+    // "Missing" compliance means is_compliant is null rather than a boolean.
+    const total = observations.length
+    const withCompliance = observations.filter(o => o.is_compliant !== null && o.is_compliant !== undefined).length
+    const missingIds = observations
+      .filter(o => o.is_compliant === null || o.is_compliant === undefined)
+      .map(o => o.id)
 
-    const complianceResults = complianceResultsData as ComplianceResult[] | null
-    const complianceObsIds = new Set(complianceResults?.map(c => c.observation_id) || [])
-    const missing = observationIds.filter(id => !complianceObsIds.has(id))
-
-    console.log(`Compliance Results: ${complianceResults?.length || 0}/${observations.length} observations`)
-    if (missing.length > 0) {
-      console.warn(`Missing compliance results for ${missing.length} observations`)
+    console.log(`Compliance State: ${withCompliance}/${total} observations have is_compliant set`)
+    if (missingIds.length > 0) {
+      console.warn(`Missing compliance state for ${missingIds.length} observations`)
     }
 
     return {
-      total: observations.length,
-      withCompliance: complianceResults?.length || 0,
-      missing: missing.length,
-      missingIds: missing
+      total,
+      withCompliance,
+      missing: missingIds.length,
+      missingIds,
     }
   },
 
