@@ -208,6 +208,23 @@ export const edgeFunctions = {
   },
 
   /**
+   * Test observations against zone compliance matrix and populate
+   * observation compliance fields (is_compliant, breach_type, breach_reason).
+   */
+  testComplianceMatrix: async (params: {
+    organization_id?: string
+    zone_id?: string
+    observation_id?: string
+    limit?: number
+    offset?: number
+    apply?: boolean
+    date_from?: string
+    date_to?: string
+  }) => {
+    return callEdgeFunction('test-compliance-matrix', params)
+  },
+
+  /**
    * 3-phase cleanup: zone correction → dedup → compliance recalc
    */
   cleanupAndRecalculate: async (params: {
