@@ -30,7 +30,7 @@ serve(async (req) => {
     // Build base query
     let query = supabaseAdmin
       .from('observations')
-      .select('id, plate_number, zone_id, recorded_at', { count: 'exact' });
+      .select('*', { count: 'exact' });
 
     // Apply filters
     if (zoneIds && zoneIds.length > 0) {
@@ -80,6 +80,7 @@ serve(async (req) => {
     }
 
     const duplicatesToDelete: string[] = [];
+    let deleteKeyColumn: 'id' | 'observation_id' = 'id';
 
     // Find duplicates in each group
     for (const [plateNumber, plateObs] of plateGroups.entries()) {
@@ -109,8 +110,10 @@ serve(async (req) => {
           const hoursDiff = Math.abs(previousTime - currentTime) / (1000 * 60 * 60);
 
           if (hoursDiff <= 8) {
-            if (!duplicatesToDelete.includes(current.id)) {
-              duplicatesToDelete.push(current.id);
+            const currentId = (current as any).observation_id ?? (current as any).id;
+            if ((current as any).observation_id) deleteKeyColumn = 'observation_id';
+            if (!duplicatesToDelete.includes(currentId)) {
+              duplicatesToDelete.push(currentId);
               console.log(`🗑️ Duplicate: ${plateNumber} (${hoursDiff.toFixed(1)}h apart)`);
             }
             break;
@@ -126,7 +129,7 @@ serve(async (req) => {
       const { error: deleteError } = await supabaseAdmin
         .from('observations')
         .delete()
-        .in('id', duplicatesToDelete);
+        .in(deleteKeyColumn, duplicatesToDelete);
 
       if (deleteError) {
         console.error('❌ Delete failed:', deleteError.message);

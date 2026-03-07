@@ -26,7 +26,7 @@ Deno.serve(async (req) => {
     // Get all vehicle observations
     const { data: observations, error: observationsError } = await supabaseAdmin
       .from('observations')
-      .select('id, plate_number, zone_id, recorded_at, officer_notes')
+      .select('*')
       .order('recorded_at', { ascending: true });
 
     if (observationsError) throw observationsError;
@@ -47,6 +47,8 @@ Deno.serve(async (req) => {
     // Process each observation
     for (const observation of observations) {
       try {
+        const observationId = (observation as any).observation_id ?? (observation as any).id;
+        const observationKey = (observation as any).observation_id ? 'observation_id' : 'id';
         // Convert recorded_at to NZ timezone
         const recordedDate = new Date(observation.recorded_at);
         const nzTime = new Date(recordedDate.toLocaleString('en-US', { timeZone: 'Pacific/Auckland' }));
@@ -95,17 +97,17 @@ Deno.serve(async (req) => {
             const { error: updateError } = await supabaseAdmin
               .from('observations')
               .update({ officer_notes: updatedNotes })
-              .eq('id', observation.id);
+              .eq(observationKey, observationId);
 
             if (updateError) {
-              console.error(`Failed to update observation ${observation.id}:`, updateError);
+              console.error(`Failed to update observation ${observationId}:`, updateError);
             } else {
               updatedCount++;
             }
           }
         }
       } catch (err) {
-        console.error(`Error processing observation ${observation.id}:`, err);
+        console.error(`Error processing observation ${(observation as any).observation_id ?? (observation as any).id}:`, err);
       }
     }
 

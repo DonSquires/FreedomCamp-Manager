@@ -115,6 +115,7 @@ Deno.serve(async (req) => {
   // Tracks an observation_id that has been marked 'processing' so the catch
   // block can flip it to 'failed' if an unhandled exception aborts the pipeline.
   let processingObservationId: string | null = null;
+  let processingObservationKey: 'id' | 'observation_id' = 'id';
 
   try {
 
@@ -162,17 +163,18 @@ Deno.serve(async (req) => {
       // Check for duplicate
       const { data: existingObs } = await supabase
         .from('observations')
-        .select('id, plate_number, is_compliant')
+        .select('*')
         .eq('idempotency_key', body.idempotencyKey)
         .maybeSingle();
 
       if (existingObs) {
         console.log('⚠️ Duplicate observation detected:', body.idempotencyKey);
+        const existingObservationId = (existingObs as any).observation_id ?? (existingObs as any).id;
         return new Response(
           JSON.stringify({
             success: true,
             duplicate: true,
-            observation_id: existingObs.id,
+            observation_id: existingObservationId,
             plate: existingObs.plate_number,
             is_compliant: existingObs.is_compliant,
           }),
@@ -181,11 +183,38 @@ Deno.serve(async (req) => {
       }
     } else {
       // UPDATE mode validation
-      const { data: existingObs, error: obsError } = await supabase
-        .from('observations')
-        .select('id, processing_status')
-        .eq('id', body.observation_id)
-        .single();
+      let existingObs: any | null = null;
+      let obsError: any = null;
+      let observationKey: 'id' | 'observation_id' = 'id';
+
+      // Try observation_id first for compatibility with deployments that still expose it.
+      {
+        const r = await supabase
+          .from('observations')
+          .select('*')
+          .eq('observation_id', body.observation_id)
+          .maybeSingle();
+        if (r.data) {
+          existingObs = r.data;
+          observationKey = 'observation_id';
+        } else {
+          obsError = r.error;
+        }
+      }
+
+      if (!existingObs) {
+        const r = await supabase
+          .from('observations')
+          .select('*')
+          .eq('id', body.observation_id)
+          .maybeSingle();
+        if (r.data) {
+          existingObs = r.data;
+          observationKey = 'id';
+        } else {
+          obsError = r.error;
+        }
+      }
 
       if (obsError || !existingObs) {
         return new Response(
@@ -194,8 +223,10 @@ Deno.serve(async (req) => {
         );
       }
 
+      const existingObservationId = (existingObs as any).observation_id ?? (existingObs as any).id;
+
       if (existingObs.processing_status === 'completed') {
-        console.log('⚠️ Observation already processed:', body.observation_id);
+        console.log('⚠️ Observation already processed:', existingObservationId);
         return new Response(
           JSON.stringify({ success: true, already_processed: true }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -209,10 +240,11 @@ Deno.serve(async (req) => {
           processing_status: 'processing',
           processing_started_at: new Date().toISOString()
         })
-        .eq('id', body.observation_id);
+        .eq(observationKey, existingObservationId);
 
       // Track so the outer catch can mark it 'failed' on unexpected errors.
-      processingObservationId = body.observation_id!;
+      processingObservationId = existingObservationId;
+      processingObservationKey = observationKey;
     }
 
     const photoHash = body.photo_hash || `sha256-${Date.now()}-${Math.random().toString(36).substring(7)}`;
@@ -452,8 +484,8 @@ Deno.serve(async (req) => {
       const { data: updatedObs, error: updateError } = await supabase
         .from('observations')
         .update(updateData)
-        .eq('id', body.observation_id)
-        .select('id, plate_number, is_compliant, breach_type')
+        .eq(processingObservationKey, processingObservationId)
+        .select('*')
         .single();
 
       if (updateError) {
@@ -467,7 +499,7 @@ Deno.serve(async (req) => {
             processing_error: updateError.message,
             processing_completed_at: new Date().toISOString()
           })
-          .eq('id', body.observation_id);
+          .eq(processingObservationKey, processingObservationId);
 
         return new Response(
           JSON.stringify({
@@ -517,7 +549,7 @@ Deno.serve(async (req) => {
       const { data: newObs, error: obsError } = await supabase
         .from('observations')
         .insert(observationData)
-        .select('id, plate_number, is_compliant, breach_type')
+        .select('*')
         .single();
 
       if (obsError) {
@@ -540,7 +572,7 @@ Deno.serve(async (req) => {
     const responseTime = Date.now() - requestStartTime;
     
     console.log('✅ Observation created:', {
-      id: observation.id,
+      id: (observation as any).observation_id ?? (observation as any).id,
       plate: observation.plate_number,
       stage,
       response_time_ms: responseTime
@@ -548,7 +580,7 @@ Deno.serve(async (req) => {
 
     const response: ALPRResponse = {
       success: true,
-      observation_id: observation.id,
+      observation_id: (observation as any).observation_id ?? (observation as any).id,
       plate: plateNumber,
       confidence: plateConfidence,
       stage,
@@ -578,7 +610,7 @@ Deno.serve(async (req) => {
             processing_error: error.message || 'Pipeline failed unexpectedly',
             processing_completed_at: new Date().toISOString(),
           })
-          .eq('id', processingObservationId);
+          .eq(processingObservationKey, processingObservationId);
       } catch (cleanupErr: any) {
         console.error('❌ Failed to mark observation as failed:', cleanupErr.message);
       }

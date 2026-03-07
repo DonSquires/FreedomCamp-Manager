@@ -33,7 +33,7 @@ serve(async (req) => {
     // Build base query
     let query = supabaseAdmin
       .from('observations')
-      .select('id, plate_number, zone_id, organization_id, recorded_at, gps_latitude, gps_longitude, gps_accuracy, self_contained, self_contained_expiry, is_compliant, nights_stayed_this_month, consecutive_nights', { count: 'exact' });
+      .select('*', { count: 'exact' });
 
     // Apply filters
     if (zoneIds && zoneIds.length > 0) {
@@ -93,8 +93,11 @@ serve(async (req) => {
     if (zoneError) throw zoneError;
 
     console.log(`📍 Loaded ${zones?.length || 0} active zones for GPS matching`);
+    let observationKeyColumn: 'id' | 'observation_id' = 'id';
 
     for (const obs of observations) {
+      const obsId = (obs as any).observation_id ?? (obs as any).id;
+      if ((obs as any).observation_id) observationKeyColumn = 'observation_id';
       if (obs.gps_latitude && obs.gps_longitude && obs.gps_accuracy < 100) {
         const correctZone = findZoneByGPS(
           obs.gps_latitude,
@@ -107,7 +110,7 @@ serve(async (req) => {
           const { error: updateError } = await supabaseAdmin
             .from('observations')
             .update({ zone_id: correctZone.id })
-            .eq('id', obs.id);
+            .eq(observationKeyColumn, obsId);
 
           if (!updateError) {
             zonesCorrected++;
@@ -151,8 +154,10 @@ serve(async (req) => {
           ) / (1000 * 60 * 60);
 
           if (hoursDiff <= 8) {
-            if (!duplicatesToDelete.includes(current.id)) {
-              duplicatesToDelete.push(current.id);
+            const currentId = (current as any).observation_id ?? (current as any).id;
+            if ((current as any).observation_id) observationKeyColumn = 'observation_id';
+            if (!duplicatesToDelete.includes(currentId)) {
+              duplicatesToDelete.push(currentId);
               console.log(`🗑️ Duplicate: ${plateNumber} (${hoursDiff.toFixed(1)}h apart)`);
             }
             break;
@@ -165,7 +170,7 @@ serve(async (req) => {
       const { error: deleteError } = await supabaseAdmin
         .from('observations')
         .delete()
-        .in('id', duplicatesToDelete);
+        .in(observationKeyColumn, duplicatesToDelete);
 
       if (!deleteError) {
         duplicatesRemoved = duplicatesToDelete.length;
@@ -182,7 +187,7 @@ serve(async (req) => {
 
     // Filter out soft-deleted / duplicate observations
     const activeObservations = observations.filter(
-      obs => !duplicatesToDelete.includes(obs.id)
+      obs => !duplicatesToDelete.includes((obs as any).observation_id ?? (obs as any).id)
     );
 
     console.log(`⚖️ Starting compliance recalculation for ${activeObservations.length} observations...`);
@@ -205,6 +210,8 @@ serve(async (req) => {
 
     for (const obs of activeObservations) {
       try {
+        const obsId = (obs as any).observation_id ?? (obs as any).id;
+        if ((obs as any).observation_id) observationKeyColumn = 'observation_id';
         // Get or cache matrix for this zone
         let matrix = zoneMatrices.get(obs.zone_id);
         if (!matrix && !zonesWithoutMatrix.has(obs.zone_id)) {
@@ -297,7 +304,7 @@ serve(async (req) => {
             breach_type:   breachType,
             breach_reason: breachReason,
           })
-          .eq('id', obs.id);
+          .eq(observationKeyColumn, obsId);
 
         if (wasCompliant !== isCompliant) complianceChanged++;
 
@@ -310,7 +317,7 @@ serve(async (req) => {
             .eq('organization_id', obs.organization_id)
             .eq('zone_id', obs.zone_id)
             .eq('status', 'pending')
-            .contains('breach_details', { observation_id: obs.id })
+            .contains('breach_details', { observation_id: obsId })
             .maybeSingle();
 
           if (!existing) {
@@ -319,7 +326,7 @@ serve(async (req) => {
               zone_id:         obs.zone_id,
               plate_number:    obs.plate_number,
               breach_type:     alertType,
-              breach_details:  { observation_id: obs.id, breach_reason: breachReason },
+              breach_details:  { observation_id: obsId, breach_reason: breachReason },
               status:          'pending',
             });
             breachesCreated++;
@@ -327,7 +334,7 @@ serve(async (req) => {
         }
 
       } catch (err: any) {
-        console.error(`❌ Error processing ${obs.id}:`, err.message);
+        console.error(`❌ Error processing ${(obs as any).observation_id ?? (obs as any).id}:`, err.message);
       }
     }
 
