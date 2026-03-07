@@ -48,9 +48,10 @@ Deno.serve(async (req) => {
     }
 
     // Build query on observations table
+    let observationKeyColumn: 'id' | 'observation_id' = 'id';
     let query = supabaseAdmin
       .from('observations')
-      .select('id, plate_number, zone_id, organization_id, recorded_at, is_compliant, nights_stayed_this_month, consecutive_nights, self_contained', { count: 'exact' });
+      .select('*', { count: 'exact' });
 
     // Filter by zones
     query = query.in('zone_id', zoneIds);
@@ -124,7 +125,8 @@ Deno.serve(async (req) => {
     for (const obs of observations) {
       try {
         const plateNumber = obs.plate_number;
-        const observationId = obs.id; // Use 'id' as primary key
+        const observationId = (obs as any).observation_id ?? (obs as any).id;
+        if ((obs as any).observation_id) observationKeyColumn = 'observation_id';
         if (!plateNumber) {
           processed++;
           continue;
@@ -234,7 +236,7 @@ Deno.serve(async (req) => {
             breach_type:   breachType,
             breach_reason: breachReason,
           })
-          .eq('id', observationId);
+          .eq(observationKeyColumn, observationId);
 
         if (oldIsCompliant !== isCompliant) {
           complianceChanged++;
@@ -274,7 +276,7 @@ Deno.serve(async (req) => {
         processed++;
 
       } catch (error: any) {
-        console.error(`❌ Error processing observation ${obs.id}:`, error.message);
+        console.error(`❌ Error processing observation ${(obs as any).observation_id ?? (obs as any).id}:`, error.message);
         processed++;
       }
     }

@@ -95,55 +95,64 @@ serve(withCors(async (req) => {
     return errorResponse('Invalid date format. Use YYYY-MM-DD', req, 400);
   }
 
-  // Build query
-  let query = supabaseClient
-    .from('observations')
-    .select(`
-      id,
-      recorded_at,
-      plate_number,
-      is_compliant,
-      breach_type,
-      gps_latitude,
-      gps_longitude,
-      photo_url,
-      zone:zones(name),
-      recorded_by_user:user_profiles(first_name, last_name),
-      organization:organizations(name)
-    `)
-    .gte('recorded_at', `${date_from}T00:00:00Z`)
-    .lte('recorded_at', `${date_to}T23:59:59Z`)
-    .order('recorded_at', { ascending: false })
-    .limit(200000); // Safety limit
+  // Build query with key-column fallback for schema variants.
+  const buildQuery = (keyColumn: 'id' | 'observation_id') => {
+    let q = supabaseClient
+      .from('observations')
+      .select(`
+        ${keyColumn},
+        recorded_at,
+        plate_number,
+        is_compliant,
+        breach_type,
+        gps_latitude,
+        gps_longitude,
+        photo_url,
+        zone:zones(name),
+        recorded_by_user:user_profiles(first_name, last_name),
+        organization:organizations(name)
+      `)
+      .gte('recorded_at', `${date_from}T00:00:00Z`)
+      .lte('recorded_at', `${date_to}T23:59:59Z`)
+      .order('recorded_at', { ascending: false })
+      .limit(200000); // Safety limit
 
-  if (organization_id) {
-    query = query.eq('organization_id', organization_id);
-  }
-
-  if (zone_id) {
-    query = query.eq('zone_id', zone_id);
-  }
-
-  // Apply bbox filter if provided
-  if (bbox && typeof bbox === 'object') {
-    const { north, south, east, west } = bbox;
-    if (typeof north === 'number' && typeof south === 'number' && typeof east === 'number' && typeof west === 'number') {
-      query = query
-        .gte('gps_latitude', south)
-        .lte('gps_latitude', north)
-        .gte('gps_longitude', west)
-        .lte('gps_longitude', east)
-        .neq('gps_latitude', 0) // Exclude (0,0) "Null Island"
-        .neq('gps_longitude', 0);
+    if (organization_id) {
+      q = q.eq('organization_id', organization_id);
     }
-  }
 
-  // Apply search filter
-  if (search && search.trim()) {
-    query = query.or(`plate_number.ilike.%${search.trim()}%`);
-  }
+    if (zone_id) {
+      q = q.eq('zone_id', zone_id);
+    }
 
-  const { data, error } = await query;
+    if (bbox && typeof bbox === 'object') {
+      const { north, south, east, west } = bbox;
+      if (typeof north === 'number' && typeof south === 'number' && typeof east === 'number' && typeof west === 'number') {
+        q = q
+          .gte('gps_latitude', south)
+          .lte('gps_latitude', north)
+          .gte('gps_longitude', west)
+          .lte('gps_longitude', east)
+          .neq('gps_latitude', 0)
+          .neq('gps_longitude', 0);
+      }
+    }
+
+    if (search && search.trim()) {
+      q = q.or(`plate_number.ilike.%${search.trim()}%`);
+    }
+
+    return q;
+  };
+  let keyColumn: 'id' | 'observation_id' = 'id';
+  let { data, error } = await buildQuery(keyColumn);
+
+  if (error && /column\s+observations\.id\s+does\s+not\s+exist/i.test(error.message || '')) {
+    keyColumn = 'observation_id';
+    const retry = await buildQuery(keyColumn);
+    data = retry.data;
+    error = retry.error;
+  }
 
   if (error) {
     console.error('Database error:', error);
@@ -169,7 +178,7 @@ serve(withCors(async (req) => {
 
   const csvRows = (data || []).map((obs: any) => {
     const row = {
-      id: obs.id,
+      id: keyColumn === 'observation_id' ? obs.observation_id : obs.id,
       recorded_at_utc: obs.recorded_at,
       plate_number: obs.plate_number || 'Unknown',
       zone: obs.zone?.name || 'Unknown',
