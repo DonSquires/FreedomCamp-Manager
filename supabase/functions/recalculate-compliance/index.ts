@@ -3,14 +3,32 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { corsHeaders } from '../_shared/cors.ts';
 
 /**
- * Bulk Compliance Recalculation Edge Function
- * Recalculates compliance for multiple zones with drift detection
- * - Removes auto-added followup flags (preserves manual ones)
- * - Creates breach alerts and enforcement actions for non-compliant vehicles
+ * Bulk Compliance Recalculation Edge Function (v2 – new observations schema)
+ *
+ * Recalculates is_compliant, breach_type, breach_reason directly on the
+ * `observations` table in batches of 150.
+ *
+ * The old vehicle_observations_v2 and compliance_results tables were dropped in
+ * 20260221_rebuild_observations_clean.sql. This function operates solely on the
+ * new `observations` table and reads zone rules from `zone_compliance_matrix`
+ * (falling back to the `zones` table when no matrix row exists).
+ *
+ * Accepts both the legacy frontend parameter format and the structured format:
+ *   Legacy:     { organization_id?, zone_id?, date_from?, date_to? }
+ *   Structured: { scope_type?, zone_ids?, organization_ids?,
+ *                 date_range_start?, date_range_end? }
  */
 
+const BATCH_SIZE = 150;
+
 interface RecalculationRequest {
-  scope_type: 'ZONE' | 'ORG' | 'BUILD';
+  // Legacy frontend params (ComplianceRecalculation.tsx)
+  organization_id?: string;
+  zone_id?: string;
+  date_from?: string;
+  date_to?: string;
+  // Structured params
+  scope_type?: 'ZONE' | 'ORG' | 'BUILD';
   zone_ids?: string[];
   organization_ids?: string[];
   date_range_start?: string;
@@ -18,7 +36,7 @@ interface RecalculationRequest {
 }
 
 interface RecalculationResult {
-  action_id: string;
+  action_id: string | null;
   observations_processed: number;
   compliance_changed: number;
   drift_events_created: number;
@@ -57,14 +75,14 @@ serve(async (req) => {
       );
     }
 
-    // Verify admin/master permissions
+    // Verify admin/master/admin_officer permissions
     const { data: profile } = await supabaseAdmin
       .from('user_profiles')
       .select('role, organization_id')
       .eq('id', user.id)
       .single();
 
-    if (!profile || !['admin', 'master'].includes(profile.role)) {
+    if (!profile || !['admin', 'master', 'admin_officer'].includes(profile.role)) {
       return new Response(
         JSON.stringify({ error: 'Insufficient permissions' }),
         { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -72,389 +90,253 @@ serve(async (req) => {
     }
 
     const request = await req.json() as RecalculationRequest;
-
-    // Validate request
-    if (!request.scope_type) {
-      return new Response(
-        JSON.stringify({ error: 'scope_type is required' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
     const startTime = Date.now();
 
-    // Create audit record
-    const { data: action, error: actionError } = await supabaseAdmin
-      .from('admin_recalculation_actions')
-      .insert({
-        scope_type: request.scope_type,
-        target_zone_ids: request.zone_ids || [],
-        target_org_ids: request.organization_ids || [],
-        date_range_start: request.date_range_start,
-        date_range_end: request.date_range_end,
-        performed_by: user.id,
-        status: 'running',
-      })
-      .select()
-      .single();
+    // ── Normalise parameters (support legacy and structured formats) ──────────
 
-    if (actionError) throw actionError;
+    // Date range
+    const dateStart = request.date_from || request.date_range_start;
+    const dateEnd   = request.date_to   || request.date_range_end;
+
+    // Zone filter
+    let zoneIdFilter: string[] = [];
+    if (request.zone_id) {
+      zoneIdFilter = [request.zone_id];
+    } else if (request.zone_ids && request.zone_ids.length > 0) {
+      zoneIdFilter = request.zone_ids;
+    }
+
+    // Organisation filter
+    let orgIdFilter: string | null = null;
+    if (request.organization_id) {
+      orgIdFilter = request.organization_id;
+    } else if (request.organization_ids && request.organization_ids.length > 0) {
+      orgIdFilter = request.organization_ids[0];
+    }
+
+    // Non-master admins are always restricted to their own org
+    if (profile.role !== 'master' && !orgIdFilter) {
+      orgIdFilter = profile.organization_id;
+    }
+
+    // ── Create audit record (table may not exist in older deployments) ────────
+    let actionId: string | null = null;
+    try {
+      const scopeType = request.scope_type
+        || (zoneIdFilter.length > 0 ? 'ZONE' : orgIdFilter ? 'ORG' : 'BUILD');
+
+      const { data: action } = await supabaseAdmin
+        .from('admin_recalculation_actions')
+        .insert({
+          scope_type: scopeType,
+          target_zone_ids: zoneIdFilter,
+          target_org_ids: orgIdFilter ? [orgIdFilter] : [],
+          date_range_start: dateStart || null,
+          date_range_end: dateEnd || null,
+          performed_by: user.id,
+          status: 'running',
+        })
+        .select('id')
+        .single();
+
+      if (action) actionId = action.id;
+    } catch (_auditErr) {
+      // audit table may not exist in older deployments – proceed without it
+      console.warn('admin_recalculation_actions table unavailable; running without audit record');
+    }
+
+    let observationsProcessed = 0;
+    let complianceChanged     = 0;
 
     try {
-      // Determine zones to recalculate
-      let zoneIds: string[] = [];
+      // ── Pre-load zone compliance matrices (avoid N+1 per observation) ───────
+      const { data: matrices } = await supabaseAdmin
+        .from('zone_compliance_matrix')
+        .select('zone_id, version, self_contained_required, requires_csc, nights_per_month, max_consecutive_nights, day_visit_only, allowed_days, homeless_exemption')
+        .is('effective_to', null); // active versions only
 
-      if (request.scope_type === 'ZONE') {
-        zoneIds = request.zone_ids || [];
-      } else if (request.scope_type === 'ORG') {
-        const { data: zones } = await supabaseAdmin
-          .from('zones')
-          .select('id')
-          .in('organization_id', request.organization_ids || []);
-        
-        zoneIds = zones?.map(z => z.id) || [];
-      } else if (request.scope_type === 'BUILD') {
-        const { data: zones } = await supabaseAdmin
-          .from('zones')
-          .select('id');
-        
-        zoneIds = zones?.map(z => z.id) || [];
-      }
-
-      if (zoneIds.length === 0) {
-        throw new Error('No zones found for recalculation');
-      }
-
-      console.log(`Recalculating compliance for ${zoneIds.length} zones...`);
-
-      // CLEANUP - Delete orphaned compliance results from zone corrections
-      console.log('🧹 Cleaning up orphaned compliance results from zone corrections...');
-      
-      const { data: orphanedResults, error: orphanedError } = await supabaseAdmin
-        .from('compliance_results')
-        .select(`
-          id,
-          observation_id,
-          zone_id,
-          vehicle_observations_v2!inner(zone_id)
-        `);
-      
-      if (!orphanedError && orphanedResults) {
-        const orphanedIds = orphanedResults
-          .filter(cr => cr.zone_id !== (cr.vehicle_observations_v2 as any).zone_id)
-          .map(cr => cr.id);
-        
-        if (orphanedIds.length > 0) {
-          console.log(`🗑️ Deleting ${orphanedIds.length} orphaned compliance results...`);
-          
-          const { error: deleteError } = await supabaseAdmin
-            .from('compliance_results')
-            .delete()
-            .in('id', orphanedIds);
-          
-          if (deleteError) {
-            console.warn('⚠️ Failed to delete some orphaned results:', deleteError.message);
-          } else {
-            console.log(`✅ Cleaned up ${orphanedIds.length} orphaned compliance results`);
-          }
-        } else {
-          console.log('✅ No orphaned compliance results found');
+      const matrixByZone: Record<string, any> = {};
+      for (const m of (matrices ?? [])) {
+        // Keep the highest version per zone
+        if (!matrixByZone[m.zone_id] || m.version > matrixByZone[m.zone_id].version) {
+          matrixByZone[m.zone_id] = m;
         }
       }
 
-      let observationsProcessed = 0;
-      let complianceChanged = 0;
-      let driftEventsCreated = 0;
+      // Fallback: load zone rules directly for zones that have no matrix row
+      const { data: zones } = await supabaseAdmin
+        .from('zones')
+        .select('id, nights_per_month, max_consecutive_nights, self_contained_required, day_visit_only, allowed_days');
 
-      // Process each zone
-      for (const zoneId of zoneIds) {
-        console.log(`Processing zone ${zoneId}...`);
+      const zoneById: Record<string, any> = {};
+      for (const z of (zones ?? [])) {
+        zoneById[z.id] = z;
+      }
 
-        // Get current active matrix
-        const { data: currentMatrix } = await supabaseAdmin
-          .rpc('get_active_matrix', { p_zone_id: zoneId });
+      // ── Pre-load homeless vehicles for exemption checks ───────────────────
+      const { data: homelessVehicles } = await supabaseAdmin
+        .from('canonical_vehicles')
+        .select('plate_number')
+        .eq('homeless_status', 'confirmed');
 
-        if (!currentMatrix) {
-          console.log(`No active matrix for zone ${zoneId}, skipping`);
-          continue;
+      const homelessPlates = new Set((homelessVehicles ?? []).map((v: any) => v.plate_number));
+
+      // ── Build base observation filter ─────────────────────────────────────
+      const buildQuery = () => {
+        let q = supabaseAdmin
+          .from('observations')
+          .select('id, zone_id, organization_id, plate_number, recorded_at, is_compliant, breach_type, nights_stayed_this_month, consecutive_nights, self_contained')
+          .is('deleted_at', null);
+
+        if (zoneIdFilter.length > 0) q = q.in('zone_id', zoneIdFilter);
+        if (orgIdFilter)            q = q.eq('organization_id', orgIdFilter);
+        if (dateStart)              q = q.gte('recorded_at', dateStart);
+        if (dateEnd)                q = q.lte('recorded_at', dateEnd);
+
+        return q;
+      };
+
+      // ── Process in batches of BATCH_SIZE ──────────────────────────────────
+      let offset = 0;
+
+      while (true) {
+        const { data: batch, error: batchError } = await buildQuery()
+          .order('recorded_at', { ascending: true })
+          .range(offset, offset + BATCH_SIZE - 1);
+
+        if (batchError) {
+          console.error('Error fetching batch:', batchError.message);
+          break;
         }
+        if (!batch || batch.length === 0) break;
 
-        // Get observations for this zone
-        let query = supabaseAdmin
-          .from('vehicle_observations_v2')
-          .select('observation_id, plate_number, organization_id, zone_id, recorded_at')
-          .eq('zone_id', zoneId);
+        console.log(`Processing batch offset=${offset}, size=${batch.length}`);
 
-        if (request.date_range_start) {
-          query = query.gte('recorded_at', request.date_range_start);
-        }
-        if (request.date_range_end) {
-          query = query.lte('recorded_at', request.date_range_end);
-        }
-
-        const { data: observations } = await query;
-
-        if (!observations || observations.length === 0) {
-          console.log(`No observations for zone ${zoneId}`);
-          continue;
-        }
-
-        console.log(`Found ${observations.length} observations for zone ${zoneId}`);
-
-        // Recalculate compliance for each observation
-        for (const obs of observations) {
+        for (const obs of batch) {
           try {
-            // Get matrix active at observation time
-            const { data: matrixAtTime } = await supabaseAdmin
-              .rpc('get_active_matrix', {
-                p_zone_id: obs.zone_id,
-                p_timestamp: obs.recorded_at
-              });
+            const rules = matrixByZone[obs.zone_id] ?? zoneById[obs.zone_id];
 
-            if (!matrixAtTime) {
-              console.log(`No matrix for observation ${obs.observation_id} at ${obs.recorded_at}`);
+            if (!rules) {
+              console.log(`No compliance rules for zone ${obs.zone_id}, skipping ${obs.id}`);
               continue;
             }
 
-            // Calculate compliance using matrix
-            const { data: complianceResult } = await supabaseAdmin
-              .rpc('check_vehicle_compliance_v3', {
-                p_plate_number: obs.plate_number,
-                p_zone_id: obs.zone_id,
-                p_observation_time: obs.recorded_at
-              });
+            const isHomeless = homelessPlates.has(obs.plate_number);
 
-            // Get old compliance result if exists
-            const { data: oldResult } = await supabaseAdmin
-              .from('compliance_results')
-              .select('is_compliant')
-              .eq('observation_id', obs.observation_id)
-              .single();
+            let isCompliant  = true;
+            let breachType: string | null  = null;
+            let breachReason: string | null = null;
 
-            // Create/update compliance result with matrix reference
-            const { error: upsertError } = await supabaseAdmin
-              .from('compliance_results')
-              .upsert({
-                observation_id: obs.observation_id,
-                vehicle_id: obs.plate_number,
-                zone_id: obs.zone_id,
-                organization_id: obs.organization_id,
-                matrix_id: matrixAtTime.id,
-                matrix_version: matrixAtTime.version,
-                is_compliant: complianceResult?.is_compliant ?? true,
-                violation_reasons: complianceResult?.violations || [],
-                metrics_json: complianceResult || {},
-                matrix_snapshot: {
-                  matrix_id: matrixAtTime.id,
-                  version: matrixAtTime.version,
-                  effective_from: matrixAtTime.effective_from,
-                  effective_to: matrixAtTime.effective_to,
-                  self_contained_required: matrixAtTime.self_contained_required,
-                  nights_per_month: matrixAtTime.nights_per_month,
-                  max_consecutive_nights: matrixAtTime.max_consecutive_nights,
-                  day_visit_only: matrixAtTime.day_visit_only,
-                  allowed_days: matrixAtTime.allowed_days,
-                  homeless_exemption: matrixAtTime.homeless_exemption,
-                },
-                evaluated_at: new Date().toISOString(),
-              }, {
-                onConflict: 'observation_id,matrix_id'
-              });
+            // ── Day-visit-only zone check ─────────────────────────────────
+            if (rules.day_visit_only) {
+              const observedAt = new Date(obs.recorded_at);
+              // Convert to NZ hour (NZ = UTC+12, or UTC+13 in NZDT).
+              // Use Intl to get the accurate local hour.
+              const nzHourStr = new Intl.DateTimeFormat('en-NZ', {
+                timeZone: 'Pacific/Auckland',
+                hour: '2-digit',
+                hour12: false,
+              }).format(observedAt);
+              const nzHour = parseInt(nzHourStr, 10);
 
-            if (upsertError) {
-              console.error(`Failed to upsert compliance for ${obs.observation_id}:`, upsertError);
-              continue;
-            }
-
-            observationsProcessed++;
-
-            // Detect drift
-            if (oldResult && oldResult.is_compliant !== complianceResult?.is_compliant) {
-              complianceChanged++;
-            }
-            
-            // AUTO-CREATE BREACH AND ENFORCEMENT ACTION IF NON-COMPLIANT
-            const isCompliant = complianceResult?.is_compliant ?? true;
-            const violations = complianceResult?.violations || [];
-            
-            if (!isCompliant && violations.length > 0) {
-              // Check if vehicle is homeless
-              const { data: canonicalVehicle } = await supabaseAdmin
-                .from('canonical_vehicles')
-                .select('plate_number, homeless_status')
-                .eq('plate_number', obs.plate_number)
-                .single();
-              
-              const isHomeless = canonicalVehicle?.homeless_status === 'confirmed';
-              
-              // Get vehicle_record_id from this observation
-              const { data: vehicleRecord } = await supabaseAdmin
-                .from('vehicle_records')
-                .select('id, requires_followup, followup_reason')
-                .eq('organization_id', obs.organization_id)
-                .eq('zone_id', obs.zone_id)
-                .eq('plate_number', canonicalVehicle?.plate_number)
-                .order('recorded_at', { ascending: false })
-                .limit(1)
-                .single();
-              
-              // Remove auto-added followup flags (keep manual ones)
-              if (vehicleRecord?.requires_followup && 
-                  vehicleRecord?.followup_reason && 
-                  vehicleRecord.followup_reason.includes('Auto-created')) {
-                await supabaseAdmin
-                  .from('vehicle_records')
-                  .update({
-                    requires_followup: false,
-                    followup_reason: null,
-                    followup_priority: null,
-                  })
-                  .eq('id', vehicleRecord.id);
-                
-                console.log(`Removed auto-added followup flag from vehicle record ${vehicleRecord.id}`);
+              if (nzHour >= 20 || nzHour < 8) {
+                isCompliant  = false;
+                breachType   = 'day_visit_violation';
+                breachReason = `Night visit in day-only zone (observed at ${nzHourStr}:00 NZ time)`;
               }
-              
-              // Check if breach alert already exists for THIS SPECIFIC OBSERVATION
-              // Each observation should have its own breach alert if non-compliant
-              const { data: existingBreaches } = await supabaseAdmin
-                .from('breach_alerts')
-                .select('id, breach_details')
-                .eq('organization_id', obs.organization_id)
-                .eq('zone_id', obs.zone_id)
-                .eq('vehicle_record_id', vehicleRecord?.id);
-              
-              // Check if any existing breach matches this observation_id in breach_details
-              const existingBreach = existingBreaches?.find(breach => 
-                breach.breach_details?.observation_id === obs.observation_id
-              );
-              
-              // Create breach alert if doesn't exist for THIS OBSERVATION
-              // This ensures each non-compliant observation gets its own breach record
-              if (!existingBreach && vehicleRecord?.id) {
-                console.log(`Creating breach alert for observation ${obs.observation_id}...`);
-                const { data: newBreach, error: breachError } = await supabaseAdmin
-                  .from('breach_alerts')
-                  .insert({
-                    organization_id: obs.organization_id,
-                    zone_id: obs.zone_id,
-                    vehicle_record_id: vehicleRecord.id,
-                    breach_type: violations[0] || 'compliance_violation',
-                    breach_details: {
-                      violations: violations,
-                      observation_id: obs.observation_id,
-                      detected_at: obs.recorded_at,
-                      is_homeless: isHomeless,
-                      auto_created_by_recalculation: true,
-                    },
-                    status: 'pending',
-                  })
-                  .select()
-                  .single();
-                
-                if (breachError) {
-                  console.error(`Failed to create breach alert:`, breachError.message);
-                } else {
-                  // Create enforcement action with "no action taken"
-                  const enforcementReason = isHomeless 
-                    ? 'This is under the Freedom Camping Act' 
-                    : 'Education phase';
-                  
-                  await supabaseAdmin
-                    .from('enforcement_actions')
-                    .insert({
-                      organization_id: obs.organization_id,
-                      user_id: user.id,
-                      vehicle_record_id: vehicleRecord.id,
-                      zone_id: obs.zone_id,
-                      action_type: 'no_action',
-                      delivery_method: 'none',
-                      notes: enforcementReason,
-                      status: 'completed',
-                      recorded_at: new Date().toISOString(),
-                    });
-                  
-                  console.log(`Created breach alert and enforcement action (${enforcementReason}) for observation ${obs.observation_id}`);
+            }
+
+            // ── Monthly nights limit check ────────────────────────────────
+            if (isCompliant && rules.nights_per_month != null) {
+              const nightsStayed = obs.nights_stayed_this_month ?? 0;
+              if (nightsStayed > rules.nights_per_month) {
+                const exempt = isHomeless && rules.homeless_exemption;
+                if (!exempt) {
+                  isCompliant  = false;
+                  breachType   = 'monthly_limit';
+                  breachReason = `Exceeded monthly stay limit: ${nightsStayed} nights this month, limit is ${rules.nights_per_month}`;
                 }
               }
             }
 
-          } catch (obsError: any) {
-            console.error(`Error processing observation ${obs.observation_id}:`, obsError);
+            // ── Consecutive nights limit check ────────────────────────────
+            if (isCompliant && rules.max_consecutive_nights != null) {
+              const consecutive = obs.consecutive_nights ?? 0;
+              if (consecutive > rules.max_consecutive_nights) {
+                const exempt = isHomeless && rules.homeless_exemption;
+                if (!exempt) {
+                  isCompliant  = false;
+                  breachType   = 'consecutive_nights';
+                  breachReason = `Exceeded consecutive nights limit: ${consecutive} consecutive nights, limit is ${rules.max_consecutive_nights}`;
+                }
+              }
+            }
+
+            // ── Self-contained / CSC check ────────────────────────────────
+            if (isCompliant && (rules.self_contained_required || rules.requires_csc)) {
+              if (!obs.self_contained) {
+                const exempt = isHomeless && rules.homeless_exemption;
+                if (!exempt) {
+                  isCompliant  = false;
+                  breachType   = 'self_contained';
+                  breachReason = 'Zone requires a self-contained vehicle; no valid CSC on record';
+                }
+              }
+            }
+
+            // Track compliance changes
+            if ((obs.is_compliant ?? true) !== isCompliant) {
+              complianceChanged++;
+            }
+
+            // Update the observation
+            const { error: updateError } = await supabaseAdmin
+              .from('observations')
+              .update({
+                is_compliant:  isCompliant,
+                breach_type:   breachType,
+                breach_reason: breachReason,
+              })
+              .eq('id', obs.id);
+
+            if (updateError) {
+              console.error(`Failed to update observation ${obs.id}:`, updateError.message);
+            } else {
+              observationsProcessed++;
+            }
+          } catch (obsErr: any) {
+            console.error(`Error processing observation ${obs.id}:`, obsErr.message ?? obsErr);
           }
         }
 
-        // Check for drift in this zone
-        const { data: matrixHistory } = await supabaseAdmin
-          .from('zone_compliance_matrix')
-          .select('*')
-          .eq('zone_id', zoneId)
-          .order('version', { ascending: false })
-          .limit(2);
-
-        if (matrixHistory && matrixHistory.length >= 2) {
-          const latestMatrix = matrixHistory[0];
-          const previousMatrix = matrixHistory[1];
-
-          // Detect criteria changes
-          const criteriaChanged: any = {};
-          const fields = ['self_contained_required', 'nights_per_month', 'max_consecutive_nights', 'day_visit_only', 'allowed_days', 'homeless_exemption'];
-          
-          for (const field of fields) {
-            if (JSON.stringify(latestMatrix[field]) !== JSON.stringify(previousMatrix[field])) {
-              criteriaChanged[field] = {
-                from: previousMatrix[field],
-                to: latestMatrix[field],
-              };
-            }
-          }
-
-          // Create drift event if changes detected
-          if (Object.keys(criteriaChanged).length > 0) {
-            const { error: driftError } = await supabaseAdmin
-              .from('drift_events')
-              .insert({
-                zone_id: zoneId,
-                organization_id: latestMatrix.organization_id,
-                matrix_version_from: previousMatrix.version,
-                matrix_version_to: latestMatrix.version,
-                matrix_id_from: previousMatrix.id,
-                matrix_id_to: latestMatrix.id,
-                observations_affected: observationsProcessed,
-                compliance_changed: complianceChanged,
-                criteria_changed: criteriaChanged,
-                detected_by: user.id,
-                status: 'pending',
-              });
-
-            if (!driftError) {
-              driftEventsCreated++;
-            }
-          }
-        }
+        if (batch.length < BATCH_SIZE) break;
+        offset += BATCH_SIZE;
       }
 
       const duration = Math.round((Date.now() - startTime) / 1000);
 
-      // Update action record
-      await supabaseAdmin
-        .from('admin_recalculation_actions')
-        .update({
-          observations_processed: observationsProcessed,
-          compliance_changed: complianceChanged,
-          drift_events_created: driftEventsCreated,
-          status: 'completed',
-          completed_at: new Date().toISOString(),
-          duration_seconds: duration,
-        })
-        .eq('id', action.id);
+      // ── Update audit record ───────────────────────────────────────────────
+      if (actionId) {
+        await supabaseAdmin
+          .from('admin_recalculation_actions')
+          .update({
+            observations_processed: observationsProcessed,
+            compliance_changed:     complianceChanged,
+            drift_events_created:   0,
+            status:                 'completed',
+            completed_at:           new Date().toISOString(),
+            duration_seconds:       duration,
+          })
+          .eq('id', actionId);
+      }
 
       const result: RecalculationResult = {
-        action_id: action.id,
+        action_id:              actionId,
         observations_processed: observationsProcessed,
-        compliance_changed: complianceChanged,
-        drift_events_created: driftEventsCreated,
-        duration_seconds: duration,
-        status: 'completed',
+        compliance_changed:     complianceChanged,
+        drift_events_created:   0,
+        duration_seconds:       duration,
+        status:                 'completed',
       };
 
       return new Response(
@@ -465,16 +347,17 @@ serve(async (req) => {
     } catch (error: any) {
       const duration = Math.round((Date.now() - startTime) / 1000);
 
-      // Update action record with error
-      await supabaseAdmin
-        .from('admin_recalculation_actions')
-        .update({
-          status: 'failed',
-          error_message: error.message,
-          completed_at: new Date().toISOString(),
-          duration_seconds: duration,
-        })
-        .eq('id', action.id);
+      if (actionId) {
+        await supabaseAdmin
+          .from('admin_recalculation_actions')
+          .update({
+            status:          'failed',
+            error_message:   error.message,
+            completed_at:    new Date().toISOString(),
+            duration_seconds: duration,
+          })
+          .eq('id', actionId);
+      }
 
       throw error;
     }

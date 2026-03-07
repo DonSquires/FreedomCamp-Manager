@@ -47,8 +47,8 @@ export default function ComplianceDashboard() {
 
   // Stats calculation
   const calculateStatsManually = async () => {
-    let obsQuery = (supabase.from('observations') as any).select('*', { count: 'exact', head: true })
-    let compliantQuery = (supabase.from('observations') as any).select('*', { count: 'exact', head: true }).eq('is_compliant', true)
+    let obsQuery = (supabase.from('observations') as any).select('*', { count: 'exact', head: true }).is('deleted_at', null)
+    let compliantQuery = (supabase.from('observations') as any).select('*', { count: 'exact', head: true }).is('deleted_at', null).eq('is_compliant', true)
     let breachQuery = (supabase.from('breach_alerts') as any).select('*', { count: 'exact' }).eq('status', 'pending')
     const vehicleQuery = (supabase.from('canonical_vehicles') as any).select('*', { count: 'exact' })
     let patrolQuery = (supabase.from('patrols') as any).select('*', { count: 'exact' }).eq('status', 'in_progress')
