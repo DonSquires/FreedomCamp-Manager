@@ -166,15 +166,23 @@ export const edgeFunctions = {
   },
 
   /**
-   * Bulk compliance recalculation with drift detection
+   * Bulk compliance recalculation (v2 schema – observations table, BATCH_SIZE=150).
+   * Accepts both legacy and structured parameter formats.
    */
   recalculateCompliance: async (params: {
+    // Legacy params
     organization_id?: string
     zone_id?: string
     observation_id?: string
     observation_ids?: string[]
     date_from?: string
     date_to?: string
+    // Structured params
+    scope_type?: 'ZONE' | 'ORG' | 'BUILD'
+    zone_ids?: string[]
+    organization_ids?: string[]
+    date_range_start?: string
+    date_range_end?: string
   }) => {
     return callEdgeFunction('recalculate-compliance', params)
   },

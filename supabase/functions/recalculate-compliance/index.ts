@@ -163,7 +163,7 @@ serve(async (req) => {
           target_zone_ids: zoneIdFilter,
           target_org_ids: orgIdFilter ? [orgIdFilter] : [],
           date_range_start: dateStart || null,
-          date_range_end: dateEnd || null,
+          date_range_end: dateEndExclusive || dateEndInclusive || null,
           performed_by: user.id,
           status: 'running',
         })

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { useMutation } from '@tanstack/react-query'
+import { useMutation, useQuery } from '@tanstack/react-query'
+import { supabase } from '@/lib/supabase'
 import { AppLayout } from '@/components/features/AppLayout'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -12,6 +13,7 @@ import { useZones } from '@/hooks/useZones'
 import { edgeFunctions } from '@/lib/edgeFunctions'
 import { useAuthStore } from '@/stores/authStore'
 import { toast } from 'sonner'
+import { format } from 'date-fns'
 import { 
   RefreshCw, 
   AlertTriangle, 
@@ -19,10 +21,13 @@ import {
   Clock, 
   Database,
   TrendingUp,
-  Info
+  Info,
+  History,
+  XCircle,
 } from 'lucide-react'
 
 interface RecalculationResult {
+  action_id?: string | null
   observations_processed: number
   compliance_changed: number
   drift_events_created: number
@@ -30,6 +35,20 @@ interface RecalculationResult {
   status: 'completed' | 'failed'
   error_message?: string
 }
+
+interface RecalcAction {
+  id: string
+  scope_type: string
+  observations_processed: number | null
+  compliance_changed: number | null
+  status: string
+  started_at: string
+  completed_at: string | null
+  duration_seconds: number | null
+  error_message: string | null
+}
+
+const BATCH_SIZE = 150
 
 export default function ComplianceRecalculation() {
   const { user } = useAuthStore()
@@ -50,114 +69,52 @@ export default function ComplianceRecalculation() {
     showInactive: true,
   })
 
+  // Recent recalculation actions log
+  const { data: recentActions, refetch: refetchActions } = useQuery<RecalcAction[]>({
+    queryKey: ['recalculation-actions'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('admin_recalculation_actions' as any)
+        .select('id, scope_type, observations_processed, compliance_changed, status, started_at, completed_at, duration_seconds, error_message')
+        .order('started_at', { ascending: false })
+        .limit(10)
+      if (error) throw error
+      return (data ?? []) as RecalcAction[]
+    },
+  })
+
   useEffect(() => {
     if (!selectedOrgId && user?.role !== 'master' && user?.organization_id) {
       setSelectedOrgId(user.organization_id)
     }
   }, [selectedOrgId, user?.organization_id, user?.role])
 
-  const runRecalculateV2Batched = async (params: {
-    zone_ids: string[]
-    date_from?: string
-    date_to?: string
-  }): Promise<RecalculationResult> => {
-    const startedAt = Date.now()
-
-    const { data: totalData, error: totalError } = await edgeFunctions.recalculateComplianceV2({
-      zone_ids: params.zone_ids,
-      date_from: params.date_from,
-      date_to: params.date_to,
-      get_total: true,
-    })
-
-    if (totalError) throw new Error(totalError)
-
-    const total = Number((totalData as any)?.total ?? 0)
-    const warning = (totalData as any)?.warning as string | undefined
-    if (warning) {
-      toast.warning(warning)
-    }
-
-    if (total <= 0) {
-      return {
-        observations_processed: 0,
-        compliance_changed: 0,
-        drift_events_created: 0,
-        duration_seconds: Math.round((Date.now() - startedAt) / 1000),
-        status: 'completed',
-      }
-    }
-
-    let offset = 0
-    const batchSize = 50
-    let processedTotal = 0
-    let changedTotal = 0
-
-    while (offset < total) {
-      const { data: batchData, error: batchError } = await edgeFunctions.recalculateComplianceV2({
-        zone_ids: params.zone_ids,
-        date_from: params.date_from,
-        date_to: params.date_to,
-        offset,
-        batch_size: batchSize,
-      })
-
-      if (batchError) throw new Error(batchError)
-
-      const processed = Number((batchData as any)?.processed ?? 0)
-      const changed = Number((batchData as any)?.complianceChanged ?? 0)
-
-      processedTotal += processed
-      changedTotal += changed
-
-      // Keep the final phase for onSuccess so users still see completion state.
-      const progressPct = total > 0 ? Math.min(90, Math.round((processedTotal / total) * 90)) : 0
-      setProgress(progressPct)
-
-      if (processed <= 0) break
-      offset += processed
-    }
-
-    return {
-      observations_processed: processedTotal,
-      compliance_changed: changedTotal,
-      // v2 does not currently return drift event counts.
-      drift_events_created: 0,
-      duration_seconds: Math.round((Date.now() - startedAt) / 1000),
-      status: 'completed',
-    }
-  }
-
   const recalculateMutation = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (): Promise<RecalculationResult> => {
+      const params: Parameters<typeof edgeFunctions.recalculateCompliance>[0] = {}
+
       if (scope === 'zone' && selectedZoneId) {
-        return runRecalculateV2Batched({
-          zone_ids: [selectedZoneId],
-          date_from: dateFrom || undefined,
-          date_to: dateTo || undefined,
-        })
+        params.zone_id = selectedZoneId
+      } else {
+        // organization or date_range scope — restrict to the selected org
+        if (effectiveOrgId) params.organization_id = effectiveOrgId
       }
 
-      const zoneIds = (zones ?? []).map((z) => z.id)
-      if (zoneIds.length === 0) {
-        throw new Error('No zones available for recalculation in the selected scope')
-      }
+      if (dateFrom) params.date_from = dateFrom
+      if (dateTo)   params.date_to   = dateTo
 
-      return runRecalculateV2Batched({
-        zone_ids: zoneIds,
-        date_from: scope === 'date_range' ? dateFrom : undefined,
-        date_to: scope === 'date_range' ? dateTo : undefined,
-      })
+      const { data, error } = await edgeFunctions.recalculateCompliance(params)
+      if (error) throw new Error(error)
+      return data as RecalculationResult
     },
     onMutate: () => {
       setIsRunning(true)
       setProgress(0)
       setResult(null)
       
-      // Simulate progress (since we don't have real-time updates yet)
       const interval = setInterval(() => {
-        setProgress(prev => Math.min(prev + 5, 90))
-      }, 1000)
+        setProgress(prev => Math.min(prev + 3, 85))
+      }, 800)
       
       return { interval }
     },
@@ -165,10 +122,12 @@ export default function ComplianceRecalculation() {
       setProgress(100)
       setResult(data)
       toast.success('Compliance recalculation completed successfully')
+      refetchActions()
     },
     onError: (error: any) => {
       setProgress(0)
       toast.error(error.message || 'Recalculation failed')
+      refetchActions()
     },
     onSettled: (_, __, context: any) => {
       setIsRunning(false)
@@ -192,7 +151,7 @@ export default function ComplianceRecalculation() {
       return
     }
 
-    toast.info('Starting compliance recalculation (50 records per batch)')
+    toast.info(`Starting compliance recalculation (server processes in batches of ${BATCH_SIZE})`)
     recalculateMutation.mutate(undefined as any)
   }
 
@@ -205,7 +164,7 @@ export default function ComplianceRecalculation() {
       <div className="max-w-4xl mx-auto space-y-6">
         <div className="flex items-center justify-center">
           <Badge variant="secondary" className="text-xs">
-            Active Engine: recalculate-compliance-v2 (strict zone-based)
+            Active Engine: recalculate-compliance (observations table · batch {BATCH_SIZE})
           </Badge>
         </div>
 
@@ -353,28 +312,47 @@ export default function ComplianceRecalculation() {
 
             {/* Date Range Selection */}
             {scope === 'date_range' && (
-              <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-4">
                 <div>
-                  <Label htmlFor="date-from">Start Date</Label>
-                  <Input
-                    id="date-from"
-                    type="date"
-                    value={dateFrom}
-                    onChange={(e) => setDateFrom(e.target.value)}
+                  <Label htmlFor="org-for-date">Organization</Label>
+                  <select
+                    id="org-for-date"
+                    value={selectedOrgId}
+                    onChange={(e) => setSelectedOrgId(e.target.value)}
                     disabled={isRunning}
-                    className="mt-2"
-                  />
+                    className="w-full mt-2 px-3 py-2 border rounded-md"
+                  >
+                    <option value="">All organizations (master only)</option>
+                    {organizations?.map((org) => (
+                      <option key={org.id} value={org.id}>
+                        {org.name}
+                      </option>
+                    ))}
+                  </select>
                 </div>
-                <div>
-                  <Label htmlFor="date-to">End Date</Label>
-                  <Input
-                    id="date-to"
-                    type="date"
-                    value={dateTo}
-                    onChange={(e) => setDateTo(e.target.value)}
-                    disabled={isRunning}
-                    className="mt-2"
-                  />
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="date-from">Start Date</Label>
+                    <Input
+                      id="date-from"
+                      type="date"
+                      value={dateFrom}
+                      onChange={(e) => setDateFrom(e.target.value)}
+                      disabled={isRunning}
+                      className="mt-2"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="date-to">End Date</Label>
+                    <Input
+                      id="date-to"
+                      type="date"
+                      value={dateTo}
+                      onChange={(e) => setDateTo(e.target.value)}
+                      disabled={isRunning}
+                      className="mt-2"
+                    />
+                  </div>
                 </div>
               </div>
             )}
@@ -400,7 +378,7 @@ export default function ComplianceRecalculation() {
                 )}
               </Button>
               <p className="mt-2 text-xs text-muted-foreground text-center">
-                Uses strict zone-based compliance engine: <code>recalculate-compliance-v2</code>
+                Uses <code>recalculate-compliance</code> edge function · processes {BATCH_SIZE} records per server batch · each run is logged in Admin Actions
               </p>
             </div>
           </CardContent>
@@ -420,8 +398,8 @@ export default function ComplianceRecalculation() {
               <p className="text-sm text-gray-600 text-center">
                 {progress < 30 && "Loading observations..."}
                 {progress >= 30 && progress < 60 && "Evaluating compliance rules..."}
-                {progress >= 60 && progress < 90 && "Detecting breaches..."}
-                {progress >= 90 && "Finalizing results..."}
+                {progress >= 60 && progress < 85 && "Detecting breaches..."}
+                {progress >= 85 && "Finalizing results..."}
               </p>
             </CardContent>
           </Card>
@@ -435,6 +413,11 @@ export default function ComplianceRecalculation() {
                 <CheckCircle className="h-5 w-5" />
                 Recalculation Complete
               </CardTitle>
+              {result.action_id && (
+                <CardDescription className="text-xs font-mono text-green-700 dark:text-green-300">
+                  Action ID: {result.action_id}
+                </CardDescription>
+              )}
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -495,6 +478,82 @@ export default function ComplianceRecalculation() {
             </CardContent>
           </Card>
         )}
+
+        {/* Recent Recalculation Actions Log */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <History className="h-5 w-5" />
+              Recent Recalculation Actions
+            </CardTitle>
+            <CardDescription>
+              Admin audit log for the last 10 recalculation jobs
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {!recentActions || recentActions.length === 0 ? (
+              <p className="text-sm text-muted-foreground text-center py-4">
+                No recalculation actions recorded yet.
+              </p>
+            ) : (
+              <div className="space-y-3">
+                {recentActions.map((action) => (
+                  <div
+                    key={action.id}
+                    className="flex items-start justify-between gap-3 p-3 rounded-lg border bg-muted/30"
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      {action.status === 'completed' ? (
+                        <CheckCircle className="h-4 w-4 text-green-600 shrink-0" />
+                      ) : action.status === 'failed' ? (
+                        <XCircle className="h-4 w-4 text-red-600 shrink-0" />
+                      ) : (
+                        <RefreshCw className="h-4 w-4 text-blue-600 animate-spin shrink-0" />
+                      )}
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-sm font-medium">
+                            {action.scope_type} scope
+                          </span>
+                          <Badge
+                            variant={
+                              action.status === 'completed' ? 'default' :
+                              action.status === 'failed' ? 'destructive' : 'secondary'
+                            }
+                            className="text-xs"
+                          >
+                            {action.status}
+                          </Badge>
+                        </div>
+                        <div className="text-xs text-muted-foreground mt-0.5">
+                          {format(new Date(action.started_at), 'PPp')}
+                          {action.duration_seconds != null && ` · ${action.duration_seconds}s`}
+                        </div>
+                        {action.error_message && (
+                          <div className="text-xs text-red-600 mt-1 truncate max-w-xs">
+                            {action.error_message}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <div className="text-right shrink-0 text-sm">
+                      {action.observations_processed != null && (
+                        <div className="font-semibold">
+                          {action.observations_processed.toLocaleString()} obs
+                        </div>
+                      )}
+                      {action.compliance_changed != null && (
+                        <div className="text-xs text-muted-foreground">
+                          {action.compliance_changed.toLocaleString()} changed
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </div>
     </AppLayout>
   )
