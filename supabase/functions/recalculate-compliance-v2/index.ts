@@ -1,5 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
 import { corsHeaders } from '../_shared/cors.ts';
+import { nzHour, toValidBreachType } from '../_shared/compliance.ts';
 
 /**
  * STRICT ZONE-BASED COMPLIANCE RECALCULATION
@@ -49,7 +50,7 @@ Deno.serve(async (req) => {
     // Build query on observations table
     let query = supabaseAdmin
       .from('observations')
-      .select('id, plate_number, zone_id, organization_id, recorded_at', { count: 'exact' });
+      .select('id, plate_number, zone_id, organization_id, recorded_at, is_compliant, nights_stayed_this_month, consecutive_nights, self_contained', { count: 'exact' });
 
     // Filter by zones
     query = query.in('zone_id', zoneIds);
@@ -169,87 +170,104 @@ Deno.serve(async (req) => {
           continue;
         }
 
-        // Test against calculate_vehicle_compliance (ZONE-SPECIFIC ONLY)
-        const checkDate = obs.recorded_at.split('T')[0];
-        const { data: complianceResult, error: calcError } = await supabaseAdmin.rpc(
-          'calculate_vehicle_compliance',
-          {
-            p_plate_number: plateNumber,
-            p_zone_id: obs.zone_id,  // ✅ ZONE-SPECIFIC
-            p_check_date: checkDate,
-          }
-        );
+        // ── Re-evaluate compliance using matrix rules ─────────────────────
+        // compliance state is stored directly on observations (compliance_results dropped)
+        const oldIsCompliant = obs.is_compliant;
 
-        if (calcError) {
-          console.error(`❌ Compliance calc error for ${plateNumber}:`, calcError.message);
-          processed++;
-          continue;
-        }
+        let isCompliant = true;
+        let breachType: string | null = null;
+        let breachReason: string | null = null;
 
-        if (!complianceResult || complianceResult.length === 0) {
-          console.warn(`⚠️ No compliance result for ${plateNumber} in zone ${obs.zone_id}`);
-          processed++;
-          continue;
-        }
-
-        const compliance = complianceResult[0];
-
-        // Check if compliance changed
-        const { data: currentResult } = await supabaseAdmin
-          .from('compliance_results')
-          .select('is_compliant')
-          .eq('observation_id', observationId)
+        // Check homeless exemption
+        const { data: cv } = await supabaseAdmin
+          .from('canonical_vehicles')
+          .select('homeless_status')
+          .eq('plate_number', plateNumber)
           .maybeSingle();
+        const isHomeless = cv?.homeless_status === 'confirmed';
 
-        // Save compliance result
-        await supabaseAdmin.from('compliance_results').upsert({
-          observation_id: observationId,
-          vehicle_id: null,
-          zone_id: obs.zone_id,
-          organization_id: obs.organization_id,
-          matrix_id: matrix.id,
-          matrix_version: matrix.version,
-          is_compliant: compliance.is_compliant,
-          violation_reasons: compliance.violation_type ? [compliance.violation_type] : [],
-          metrics_json: compliance,
-          matrix_snapshot: {
-            matrix_id: matrix.id,
-            version: matrix.version,
-            self_contained_required: matrix.self_contained_required,
-            nights_per_month: matrix.nights_per_month,
-            max_consecutive_nights: matrix.max_consecutive_nights,
-          },
-          evaluated_at: new Date().toISOString(),
-        }, { onConflict: 'observation_id,matrix_id' });
+        // Day-visit-only
+        if (matrix.day_visit_only) {
+          const hour = nzHour(obs.recorded_at);
+          if (hour >= 20 || hour < 8) {
+            isCompliant  = false;
+            breachType   = 'day_visit_violation';
+            breachReason = `Night visit in day-only zone (observed at ${hour}:00 NZ time)`;
+          }
+        }
+        // Monthly limit
+        if (isCompliant && matrix.nights_per_month != null) {
+          if ((obs.nights_stayed_this_month ?? 0) > matrix.nights_per_month) {
+            if (!(isHomeless && matrix.homeless_exemption !== false)) {
+              isCompliant  = false;
+              breachType   = 'monthly_limit';
+              breachReason = `Exceeded monthly stay limit: ${obs.nights_stayed_this_month} nights stayed, limit is ${matrix.nights_per_month}`;
+            }
+          }
+        }
+        // Consecutive nights
+        if (isCompliant && matrix.max_consecutive_nights != null) {
+          if ((obs.consecutive_nights ?? 0) > matrix.max_consecutive_nights) {
+            if (!(isHomeless && matrix.homeless_exemption !== false)) {
+              isCompliant  = false;
+              breachType   = 'consecutive_nights';
+              breachReason = `Exceeded consecutive nights limit: ${obs.consecutive_nights} consecutive nights, limit is ${matrix.max_consecutive_nights}`;
+            }
+          }
+        }
+        // Self-contained
+        if (isCompliant && (matrix.self_contained_required || matrix.requires_csc)) {
+          if (!obs.self_contained) {
+            if (!(isHomeless && matrix.homeless_exemption !== false)) {
+              isCompliant  = false;
+              breachType   = 'self_contained';
+              breachReason = 'Zone requires a self-contained vehicle; no valid CSC on record';
+            }
+          }
+        }
 
-        if (!currentResult || currentResult.is_compliant !== compliance.is_compliant) {
+        // Update the observation with new compliance state
+        await supabaseAdmin
+          .from('observations')
+          .update({
+            is_compliant:  isCompliant,
+            breach_type:   breachType,
+            breach_reason: breachReason,
+          })
+          .eq('id', observationId);
+
+        if (oldIsCompliant !== isCompliant) {
           complianceChanged++;
         }
 
-        // Create breach alert if non-compliant
-        if (!compliance.is_compliant) {
+        // Create breach alert if non-compliant and one doesn't already exist
+        if (!isCompliant && breachType) {
           const { data: existingBreach } = await supabaseAdmin
             .from('breach_alerts')
             .select('id')
-            .eq('observation_id', observationId)
+            .eq('organization_id', obs.organization_id)
+            .eq('zone_id', obs.zone_id)
+            .eq('status', 'pending')
+            .contains('breach_details', { observation_id: observationId })
             .maybeSingle();
 
           if (!existingBreach) {
+            const alertBreachType = toValidBreachType(breachType);
+
             await supabaseAdmin.from('breach_alerts').insert({
               organization_id: obs.organization_id,
-              zone_id: obs.zone_id,
-              observation_id: observationId,
-              breach_type: compliance.violation_type || 'compliance_violation',
-              breach_details: {
-                violation_message: compliance.violation_message,
-                consecutive_nights: compliance.consecutive_nights,
-                month_nights: compliance.month_nights,
+              zone_id:         obs.zone_id,
+              plate_number:    plateNumber,
+              breach_type:     alertBreachType,
+              breach_details:  {
+                observation_id: observationId,
+                breach_reason:  breachReason,
               },
               status: 'pending',
             });
 
             breachesCreated++;
-            console.log(`🚨 BREACH: ${plateNumber} - ${compliance.violation_message}`);
+            console.log(`🚨 BREACH: ${plateNumber} – ${breachReason}`);
           }
         }
 

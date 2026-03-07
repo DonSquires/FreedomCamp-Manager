@@ -26,7 +26,7 @@
 3. **Configure Variables**
    - `PORT` = `3000`
    - `NODE_ENV` = `production`
-   - `ALLOWED_ORIGINS` = `https://xbfnlzmpumthnjmtqufp.supabase.co`
+   - `ALLOWED_ORIGINS` = `https://kxwjcupuxnnbnzcgmkoi.supabase.co`
 
 4. **Deploy**
    - Click Deploy button

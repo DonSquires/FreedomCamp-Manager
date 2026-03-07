@@ -24,7 +24,7 @@ In Railway dashboard:
 2. Add these variables:
    - `PORT` = `3000`
    - `NODE_ENV` = `production`
-   - `ALLOWED_ORIGINS` = `https://xbfnlzmpumthnjmtqufp.supabase.co`
+   - `ALLOWED_ORIGINS` = `https://kxwjcupuxnnbnzcgmkoi.supabase.co`
 
 3. Click **Settings** tab
 4. Set **Health Check Path** to `/health`

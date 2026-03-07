@@ -380,28 +380,45 @@ export const dataVerification = {
   },
 
   /**
-   * Verify monthly stays are up to date
+   * Verify monthly stay counts are populated on observations for the current month.
+   * NOTE: vehicle_monthly_stays is no longer auto-updated by the new observations pipeline.
+   * nights_stayed_this_month and consecutive_nights are stored as snapshots directly
+   * on each observation row. This function checks those fields instead.
    */
   async verifyMonthlyStays() {
-    const currentMonth = new Date().toISOString().slice(0, 7) + '-01' // YYYY-MM-01
-    
-    const { data: staysData, error } = await supabase
-      .from('vehicle_monthly_stays')
-      .select('plate_number, nights_stayed, consecutive_nights')
-      .eq('calendar_month', currentMonth)
+    const now = new Date()
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
+
+    const { data: obsData, error } = await (supabase as any)
+      .from('observations')
+      .select('plate_number, nights_stayed_this_month, consecutive_nights')
+      .is('deleted_at', null)
+      .gte('recorded_at', monthStart)
+      .limit(500)
 
     if (error) {
       console.error('Monthly stays check failed:', error)
       return null
     }
 
-    const stays = staysData as VehicleMonthlyStay[] | null
-    console.log(`Monthly Stays (${currentMonth}): ${stays?.length || 0} vehicles tracked`)
-    
+    const obs = (obsData as Array<{ plate_number: string; nights_stayed_this_month: number | null; consecutive_nights: number | null }>) ?? []
+
+    // Deduplicate: most recent per plate (simplified count)
+    const seen = new Set<string>()
+    let totalNights = 0
+    for (const o of obs) {
+      if (!seen.has(o.plate_number)) {
+        seen.add(o.plate_number)
+        totalNights += o.nights_stayed_this_month ?? 0
+      }
+    }
+
+    console.log(`Monthly Stay Snapshots (${monthStart.slice(0, 7)}): ${seen.size} unique vehicles tracked`)
+
     return {
-      month: currentMonth,
-      vehicleCount: stays?.length || 0,
-      totalNights: stays?.reduce((sum, s) => sum + s.nights_stayed, 0) || 0
+      month: monthStart.slice(0, 7) + '-01',
+      vehicleCount: seen.size,
+      totalNights,
     }
   }
 }

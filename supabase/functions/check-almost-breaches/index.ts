@@ -1,18 +1,17 @@
 /**
  * Check Almost Breaches Edge Function
- * 
- * Real-time breach prediction: Analyzes if vehicles WILL BREACH if they stay tonight
- * 
+ *
+ * Real-time breach prediction: finds vehicles that WILL breach if they stay tonight.
+ *
  * Logic:
- * - Check at 20:00 (8 PM): "Will this vehicle breach if it stays overnight?"
- * - Morning check at 07:00: "Is vehicle still here? → Enforcement required"
- * - Considers both consecutive nights and monthly limits
- * - Respects homeless exemptions
- * 
- * Called by:
- * - process-field-scan (after each observation)
- * - Frontend useOfficerNotifications hook (periodic check)
- * - Scheduled cron job (hourly during patrol hours 19:00-09:00)
+ * - For each unique plate+zone with observations in the current month, derive the
+ *   latest nights_stayed_this_month and consecutive_nights from the most recent
+ *   observation (stored as a snapshot at scan time).
+ * - Predict whether staying ONE MORE NIGHT would push either counter over the limit.
+ * - Respects homeless exemptions from canonical_vehicles.
+ *
+ * NOTE: vehicle_monthly_stays is no longer auto-updated by the new observations
+ * pipeline. Compliance snapshots are now read directly from the observations table.
  */
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
@@ -37,7 +36,6 @@ interface AlmostBreachVehicle {
 }
 
 Deno.serve(async (req) => {
-  // Handle CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
@@ -52,118 +50,113 @@ Deno.serve(async (req) => {
 
     console.log('🔍 Checking for almost breaches...', { organization_id, zone_id, threshold_nights });
 
-    // Get current calendar month
+    // ── Pre-load zone compliance rules ───────────────────────────────────────
+    let zonesQuery = supabaseAdmin
+      .from('zones')
+      .select('id, name, max_consecutive_nights, nights_per_month, organization_id');
+    if (organization_id) zonesQuery = zonesQuery.eq('organization_id', organization_id);
+    if (zone_id)         zonesQuery = zonesQuery.eq('id', zone_id);
+    const { data: zones } = await zonesQuery;
+    const zoneMap = new Map((zones ?? []).map((z: any) => [z.id, z]));
+
+    // Also check zone_compliance_matrix for active rules (overrides zone table)
+    const { data: matrices } = await supabaseAdmin
+      .from('zone_compliance_matrix')
+      .select('zone_id, max_consecutive_nights, nights_per_month, homeless_exemption')
+      .is('effective_to', null);
+    const matrixByZone = new Map((matrices ?? []).map((m: any) => [m.zone_id, m]));
+
+    // ── Load most recent observation per plate+zone in current calendar month ─
     const now = new Date();
-    const currentMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split('T')[0];
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
 
-    // Query: Find vehicles approaching limits
-    let query = supabaseAdmin
-      .from('vehicle_monthly_stays')
-      .select(`
-        plate_number,
-        zone_id,
-        organization_id,
-        nights_stayed,
-        consecutive_nights,
-        last_observation_date,
-        zones!inner (
-          name,
-          max_consecutive_nights,
-          nights_per_month,
-          homeless_exemption
-        ),
-        canonical_vehicles!inner (
-          homeless_status,
-          homeless_notes
-        )
-      `)
-      .eq('calendar_month', currentMonth)
-      .gte('nights_stayed', 1); // Only vehicles with at least 1 night
+    let obsQuery = supabaseAdmin
+      .from('observations')
+      .select('plate_number, zone_id, organization_id, nights_stayed_this_month, consecutive_nights, recorded_at, photo_url, gps_latitude, gps_longitude, gps_accuracy')
+      .is('deleted_at', null)
+      .gte('recorded_at', monthStart)
+      .order('recorded_at', { ascending: false });
 
-    if (organization_id) {
-      query = query.eq('organization_id', organization_id);
+    if (organization_id) obsQuery = obsQuery.eq('organization_id', organization_id);
+    if (zone_id)         obsQuery = obsQuery.eq('zone_id', zone_id);
+
+    const { data: observations, error: obsError } = await obsQuery;
+    if (obsError) throw obsError;
+
+    // Deduplicate: keep most recent snapshot per plate+zone
+    const latestByPlateZone = new Map<string, any>();
+    for (const obs of observations ?? []) {
+      const key = `${obs.plate_number}:${obs.zone_id}`;
+      if (!latestByPlateZone.has(key)) {
+        latestByPlateZone.set(key, obs);
+      }
     }
 
-    if (zone_id) {
-      query = query.eq('zone_id', zone_id);
-    }
+    console.log(`Found ${latestByPlateZone.size} unique plate+zone combinations`);
 
-    const { data: stays, error: staysError } = await query;
+    // ── Pre-load homeless vehicle set ────────────────────────────────────────
+    const uniquePlates = [...new Set([...latestByPlateZone.values()].map(o => o.plate_number))];
+    const { data: homelessVehicles } = uniquePlates.length > 0
+      ? await supabaseAdmin
+          .from('canonical_vehicles')
+          .select('plate_number, homeless_status, homeless_notes')
+          .in('plate_number', uniquePlates)
+      : { data: [] };
 
-    if (staysError) {
-      console.error('Failed to query monthly stays:', staysError);
-      throw staysError;
-    }
+    const vehicleMap = new Map((homelessVehicles ?? []).map((v: any) => [v.plate_number, v]));
 
-    console.log(`Found ${stays?.length || 0} vehicles with nights stayed`);
-
-    // Filter to vehicles approaching limits
+    // ── Evaluate each plate+zone ─────────────────────────────────────────────
     const almostBreaches: AlmostBreachVehicle[] = [];
 
-    for (const stay of stays || []) {
-      const zone = (stay.zones as any);
-      const vehicle = (stay.canonical_vehicles as any);
-      const consecutiveAllowed = zone.max_consecutive_nights || 3;
-      const monthlyAllowed = zone.nights_per_month || 28;
+    for (const [_key, obs] of latestByPlateZone) {
+      const rules = matrixByZone.get(obs.zone_id) ?? zoneMap.get(obs.zone_id);
+      if (!rules) continue;
 
-      // CRITICAL: Check homeless exemption
-      const isHomelessExempt = vehicle?.homeless_status === 'confirmed' || vehicle?.homeless_status === 'claimed';
-      const zoneAllowsHomeless = zone.homeless_exemption !== false; // Default true if not specified
-      
-      // Skip if homeless and zone allows exemption
-      if (isHomelessExempt && zoneAllowsHomeless) {
-        console.log(`✅ Skipping ${stay.plate_number} - homeless exempt in ${zone.name}`);
-        continue;
-      }
+      const vehicle = vehicleMap.get(obs.plate_number);
+      const consecutiveAllowed = rules.max_consecutive_nights ?? 3;
+      const monthlyAllowed     = rules.nights_per_month ?? 28;
+      const homelessExemption  = rules.homeless_exemption !== false;
+      const isHomelessExempt   =
+        (vehicle?.homeless_status === 'confirmed' || vehicle?.homeless_status === 'claimed') &&
+        homelessExemption;
 
-      // CRITICAL LOGIC: Will this vehicle breach if it stays ONE MORE NIGHT?
-      const willBreachConsecutive = (stay.consecutive_nights + 1) > consecutiveAllowed;
-      const willBreachMonthly = (stay.nights_stayed + 1) > monthlyAllowed;
-      
-      // Also check traditional "approaching" logic (within threshold)
-      const consecutiveUntilBreach = consecutiveAllowed - stay.consecutive_nights;
-      const monthlyUntilBreach = monthlyAllowed - stay.nights_stayed;
+      if (isHomelessExempt) continue;
+
+      const nightsStayed   = obs.nights_stayed_this_month ?? 0;
+      const consecutiveN   = obs.consecutive_nights ?? 0;
+
+      const willBreachConsecutive = (consecutiveN + 1) > consecutiveAllowed;
+      const willBreachMonthly     = (nightsStayed + 1) > monthlyAllowed;
+
+      const consecutiveUntilBreach = consecutiveAllowed - consecutiveN;
+      const monthlyUntilBreach     = monthlyAllowed - nightsStayed;
       const approachingConsecutive = consecutiveUntilBreach > 0 && consecutiveUntilBreach <= threshold_nights;
-      const approachingMonthly = monthlyUntilBreach > 0 && monthlyUntilBreach <= threshold_nights;
+      const approachingMonthly     = monthlyUntilBreach > 0 && monthlyUntilBreach <= threshold_nights;
 
-      // Alert if WILL BREACH or is approaching limits (and NOT homeless exempt)
       if (willBreachConsecutive || willBreachMonthly || approachingConsecutive || approachingMonthly) {
-        // Get latest observation photo and GPS
-        const { data: latestObs } = await supabaseAdmin
-          .from('observations')
-          .select('photo_url, gps_latitude, gps_longitude, gps_accuracy')
-          .eq('plate_number', stay.plate_number)
-          .eq('zone_id', stay.zone_id)
-          .order('recorded_at', { ascending: false })
-          .limit(1)
-          .maybeSingle();
-
+        const zoneMeta = zoneMap.get(obs.zone_id) as any;
         almostBreaches.push({
-          plate_number: stay.plate_number,
-          zone_id: stay.zone_id,
-          zone_name: zone.name,
-          organization_id: stay.organization_id,
-          nights_stayed: stay.nights_stayed,
-          nights_allowed: monthlyAllowed,
-          consecutive_nights: stay.consecutive_nights,
-          consecutive_allowed: consecutiveAllowed,
-          nights_until_breach: Math.min(consecutiveUntilBreach, monthlyUntilBreach),
-          breach_type: (willBreachConsecutive || approachingConsecutive) && (willBreachMonthly || approachingMonthly)
-            ? 'both' 
-            : (willBreachConsecutive || approachingConsecutive)
-            ? 'consecutive' 
-            : 'monthly',
-          will_breach_if_stays_tonight: willBreachConsecutive || willBreachMonthly,
-          breach_severity: willBreachConsecutive || willBreachMonthly ? 'critical' : 'warning',
-          last_observation_date: stay.last_observation_date,
-          photo_url: latestObs?.photo_url,
-          gps_lat: latestObs?.gps_latitude,
-          gps_lng: latestObs?.gps_longitude,
-          gps_accuracy: latestObs?.gps_accuracy,
-          homeless_status: vehicle?.homeless_status,
-          homeless_notes: vehicle?.homeless_notes,
-          is_homeless_exempt: false, // Already filtered out exempt vehicles above
-        });
+          plate_number:         obs.plate_number,
+          zone_id:              obs.zone_id,
+          zone_name:            zoneMeta?.name ?? obs.zone_id,
+          organization_id:      obs.organization_id,
+          nights_stayed:        nightsStayed,
+          nights_allowed:       monthlyAllowed,
+          consecutive_nights:   consecutiveN,
+          consecutive_allowed:  consecutiveAllowed,
+          nights_until_breach:  Math.min(consecutiveUntilBreach, monthlyUntilBreach),
+          breach_type:
+            (willBreachConsecutive || approachingConsecutive) && (willBreachMonthly || approachingMonthly)
+              ? 'both'
+              : (willBreachConsecutive || approachingConsecutive)
+              ? 'consecutive'
+              : 'monthly',
+          last_observation_date: obs.recorded_at,
+          photo_url:  obs.photo_url,
+          gps_lat:    obs.gps_latitude,
+          gps_lng:    obs.gps_longitude,
+          gps_accuracy: obs.gps_accuracy,
+        } as any);
       }
     }
 
@@ -174,7 +167,7 @@ Deno.serve(async (req) => {
         success: true,
         count: almostBreaches.length,
         vehicles: almostBreaches,
-        current_month: currentMonth,
+        current_month: monthStart.split('T')[0],
         threshold_nights,
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -183,11 +176,7 @@ Deno.serve(async (req) => {
   } catch (error: any) {
     console.error('❌ Check almost breaches error:', error);
     return new Response(
-      JSON.stringify({
-        error: 'Failed to check almost breaches',
-        message: error.message,
-        stack: error.stack,
-      }),
+      JSON.stringify({ error: 'Failed to check almost breaches', message: error.message }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
