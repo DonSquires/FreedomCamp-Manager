@@ -1,7 +1,8 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { supabase } from '@/lib/supabase'
-import type { User } from '@supabase/supabase-js'
+
+let authListenerInitialized = false
 
 interface AuthUser {
   id: string
@@ -18,6 +19,7 @@ interface AuthState {
   login: (email: string, password: string) => Promise<void>
   logout: () => Promise<void>
   checkSession: () => Promise<void>
+  initializeAuth: () => void
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -27,6 +29,41 @@ export const useAuthStore = create<AuthState>()(
       isAuthenticated: false,
       loading: true,
 
+      initializeAuth: () => {
+        if (authListenerInitialized) {
+          return
+        }
+
+        authListenerInitialized = true
+
+        supabase.auth.onAuthStateChange(async (_event, session) => {
+          if (!session) {
+            set({ user: null, isAuthenticated: false, loading: false })
+            return
+          }
+
+          const { data: profile } = await (supabase.from('user_profiles') as any)
+            .select('id, email, role, organization_id, first_name, last_name')
+            .eq('id', session.user.id)
+            .single()
+
+          if (!profile) {
+            set({ user: null, isAuthenticated: false, loading: false })
+            return
+          }
+
+          const authUser: AuthUser = {
+            id: profile.id,
+            email: profile.email,
+            role: profile.role as AuthUser['role'],
+            organization_id: profile.organization_id,
+            full_name: `${profile.first_name} ${profile.last_name}`,
+          }
+
+          set({ user: authUser, isAuthenticated: true, loading: false })
+        })
+      },
+
       login: async (email: string, password: string) => {
         set({ loading: true })
         
@@ -35,7 +72,10 @@ export const useAuthStore = create<AuthState>()(
           password,
         })
 
-        if (error) throw error
+        if (error) {
+          set({ loading: false })
+          throw error
+        }
 
         // Fetch user profile
         const { data: profile, error: profileError } = await supabase
@@ -44,7 +84,10 @@ export const useAuthStore = create<AuthState>()(
           .eq('id', data.user.id)
           .single()
 
-        if (profileError) throw profileError
+        if (profileError) {
+          set({ loading: false })
+          throw profileError
+        }
 
         const p = profile as any
         const authUser: AuthUser = {
@@ -64,7 +107,12 @@ export const useAuthStore = create<AuthState>()(
       },
 
       checkSession: async () => {
-        const { data: { session } } = await supabase.auth.getSession()
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+
+        if (sessionError) {
+          set({ user: null, isAuthenticated: false, loading: false })
+          return
+        }
         
         if (!session) {
           set({ user: null, isAuthenticated: false, loading: false })
@@ -93,7 +141,8 @@ export const useAuthStore = create<AuthState>()(
     }),
     {
       name: 'auth-storage',
-      partialize: (state) => ({ user: state.user, isAuthenticated: state.isAuthenticated }),
+      // Persist only user profile details; auth truth comes from Supabase session.
+      partialize: (state) => ({ user: state.user }),
     }
   )
 )

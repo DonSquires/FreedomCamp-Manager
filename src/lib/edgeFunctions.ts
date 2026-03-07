@@ -50,6 +50,7 @@ async function getErrorMessage(error: any): Promise<string> {
         try {
           const parsed = JSON.parse(textContent)
           if (parsed?.message === 'Invalid JWT') {
+            await supabase.auth.signOut()
             return 'Session expired or invalid. Please sign in again and retry.'
           }
         } catch {
@@ -76,6 +77,7 @@ async function callEdgeFunction<T = any>(
   try {
     const accessToken = await getValidAccessToken()
     if (!accessToken) {
+      await supabase.auth.signOut()
       const errorMessage = 'No active session found. Please sign in again and retry.'
       if (options.showToast) {
         toast.error(errorMessage)

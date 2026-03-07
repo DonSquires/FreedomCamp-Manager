@@ -105,12 +105,13 @@ function RoleRoute({
 }
 
 export default function App() {
-  const { user, loading, checkSession } = useAuthStore()
+  const { user, loading, checkSession, initializeAuth } = useAuthStore()
 
   // Check session on app load
   useEffect(() => {
+    initializeAuth()
     checkSession()
-  }, [])
+  }, [checkSession, initializeAuth])
 
   // Show loading state while checking session
   if (loading) {
