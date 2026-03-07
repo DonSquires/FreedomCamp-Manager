@@ -31,191 +31,110 @@
 
 ## 🔄 **COMPLETE SCAN FLOW (End-to-End)**
 
-### **PHASE 1: CAMERA CAPTURE & ALPR PROCESSING**
+### **PHASE 1: CAMERA CAPTURE & PRE-DETECTION**
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│  STEP 1: Officer Opens Camera (PlateCapture Component)          │
+│  STEP 1: Officer Opens Camera (CameraCapture / ScanScreen)      │
 └─────────────────────────────────────────────────────────────────┘
                               │
                               ↓
 ┌─────────────────────────────────────────────────────────────────┐
 │  STEP 2: Photo Capture                                           │
-│  • expo-camera API captures high-res photo                      │
-│  • GPS coordinates captured (expo-location)                     │
-│  • Photo compressed via expo-image-manipulator                  │
-│  • Base64 encoding for transmission                             │
+│  • Camera captures high-res photo                               │
+│  • GPS coordinates captured                                     │
+│  • Photo converted to data URL for ingest payload               │
 └─────────────────────────────────────────────────────────────────┘
                               │
                               ↓
 ┌─────────────────────────────────────────────────────────────────┐
-│  STEP 3: Call recognize-plate Edge Function                     │
-│  POST /functions/v1/recognize-plate                             │
+│  STEP 3: Upload Image to Storage                                │
+│  Bucket: scans                                                   │
 │  {                                                               │
-│    image: "data:image/jpeg;base64,..."                          │
+│    path: {userId}/{timestamp}-{uniqueId}.jpg                    │
 │  }                                                               │
 └─────────────────────────────────────────────────────────────────┘
                               │
                               ↓
 ┌─────────────────────────────────────────────────────────────────┐
-│  STEP 4: ALPR Processing (recognize-plate function)             │
+│  STEP 4: Optional ALPR Pre-Detection (alpr-process)             │
 │  ┌────────────────────────────────────────────────────────┐    │
-│  │ 1. Send photo to Plate Recognizer API                 │    │
-│  │    • Region: NZ                                        │    │
-│  │    • Returns: plate, confidence, vehicle details      │    │
+│  │ 1. Call /functions/v1/alpr-process with photo_url     │    │
+│  │    • Best-effort hint only                             │    │
+│  │    • Failure does not block save                       │    │
 │  │                                                        │    │
-│  │ 2. OnSpace AI Sticker Detection (parallel)            │    │
-│  │    • Model: google/gemini-3-flash-preview             │    │
-│  │    • Prompt: "Search ENTIRE vehicle for stickers"    │    │
-│  │    • Returns: has_green_sticker, has_blue_sticker    │    │
+│  │ 2. Extract detected plate + confidence when available  │    │
 │  │                                                        │    │
-│  │ 3. Merge Results                                       │    │
+│  │ 3. Prepare ingest payload                              │    │
 │  │    {                                                   │    │
-│  │      plate_number: "ABC123",                          │    │
+│  │      plate: "ABC123" | null,                          │    │
 │  │      confidence: 0.98,                                │    │
-│  │      has_green_sticker: false,                        │    │
-│  │      has_blue_sticker: true,                          │    │
-│  │      vehicle_make: "Toyota",                          │    │
-│  │      vehicle_model: "Hiace",                          │    │
-│  │      vehicle_color: "White"                           │    │
+│  │      requires_manual_entry: false                      │    │
 │  │    }                                                   │    │
 │  └────────────────────────────────────────────────────────┘    │
 └─────────────────────────────────────────────────────────────────┘
                               │
                               ↓
 ┌─────────────────────────────────────────────────────────────────┐
-│  STEP 5: Confidence Check                                        │
-│  • IF confidence >= 0.8: Auto-accept plate                      │
-│  • IF confidence < 0.8: Show OCR overlay for manual correction  │
+│  STEP 5: Continue to Ingest                                     │
+│  • ALPR success: pass detected plate/confidence                 │
+│  • ALPR failure: save with requires_manual_entry=true           │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-### **PHASE 2: PHOTO UPLOAD & DATA ENRICHMENT**
+### **PHASE 2: UNIFIED OBSERVATION INGEST**
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│  STEP 6: Upload Evidence Photo to Supabase Storage              │
+│  STEP 6: Call vehicle-ingest Edge Function                      │
 │  ┌────────────────────────────────────────────────────────┐    │
-│  │ 1. Convert base64 → blob                               │    │
-│  │ 2. Upload to 'evidence' bucket                         │    │
-│  │    Path: {userId}/{timestamp}-{plateNumber}.jpg       │    │
-│  │ 3. Generate public URL                                 │    │
-│  │ 4. Calculate SHA256 hash (court evidence integrity)   │    │
+│  │ POST /functions/v1/vehicle-ingest                      │    │
+│  │ {                                                       │    │
+│  │   image: "data:image/jpeg;base64,...",                │    │
+│  │   gpsLatitude, gpsLongitude, gpsAccuracy,              │    │
+│  │   recordedAt, officerId, organizationId, zoneId,       │    │
+│  │   idempotencyKey, weather,                             │    │
+│  │   plate, confidence, requires_manual_entry             │    │
+│  │ }                                                       │    │
 │  └────────────────────────────────────────────────────────┘    │
 └─────────────────────────────────────────────────────────────────┘
                               │
                               ↓
 ┌─────────────────────────────────────────────────────────────────┐
-│  STEP 7: Call process-field-scan Edge Function                  │
-│  POST /functions/v1/process-field-scan                          │
-│  {                                                               │
-│    plateNumber: "ABC123",                                       │
-│    zoneId: "uuid",                                              │
-│    organizationId: "uuid",                                      │
-│    imageUrl: "https://...evidence/photo.jpg",                  │
-│    gpsLocation: { lat: -41.27, lng: 173.28, accuracy: 10 },   │
-│    vehicleDetails: { make: "Toyota", model: "Hiace", ... },    │
-│    detectionMethod: "alpr",                                     │
-│    confidence: 0.98,                                            │
-│    isSelfContained: false,                                      │
-│    hasGreenSticker: false,                                      │
-│    hasBlueSticker: true                                         │
-│  }                                                               │
+│  STEP 7: Ingest Validation + Insert                              │
+│  • Auth/JWT checked                                              │
+│  • GPS/zone/organization/idempotency required                    │
+│  • Image uploaded (storage) + SHA-256 hash generated             │
+│  • Observation inserted into observations table                  │
+│  • Canonical vehicle created/updated as needed                   │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-### **PHASE 3: BACKEND PROCESSING (process-field-scan)**
+### **PHASE 3: RESPONSE & OFFICER UX**
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│  STEP 8: Backend Processing Pipeline                            │
+│  STEP 8: Response to Client                                      │
 │  ┌────────────────────────────────────────────────────────┐    │
-│  │ 1. GPS VALIDATION                                      │    │
-│  │    • Check accuracy ≤ 100m (court-ready requirement)  │    │
-│  │    • Reject if > 100m with error message              │    │
-│  │                                                        │    │
-│  │ 2. GET/CREATE CANONICAL VEHICLE                       │    │
-│  │    • Normalize plate: ABC123 → ABC123                │    │
-│  │    • Check canonical_vehicles table                   │    │
-│  │    • If exists: Use existing data, update last_seen  │    │
-│  │    • If new: Create new canonical_vehicles record    │    │
-│  │                                                        │    │
-│  │ 3. DATA ENRICHMENT FROM HISTORY                       │    │
-│  │    • Pull make/model/color from previous observations │    │
-│  │    • Populate missing fields from scan                │    │
-│  │    • Use best available data (history > current)      │    │
-│  │                                                        │    │
-│  │ 4. CHECK FLAGGED VEHICLES                             │    │
-│  │    • Query flagged_vehicles table                     │    │
-│  │    • Get flag reason, priority, notes                 │    │
-│  │                                                        │    │
-│  │ 5. CREATE VEHICLE OBSERVATION                         │    │
-│  │    INSERT INTO vehicle_observations {                 │    │
-│  │      vehicle_id,                                      │    │
-│  │      zone_id,                                         │    │
-│  │      organization_id,                                 │    │
-│  │      recorded_by,                                     │    │
-│  │      is_self_contained,                               │    │
-│  │      gps_latitude,                                    │    │
-│  │      gps_longitude,                                   │    │
-│  │      gps_accuracy,                                    │    │
-│  │      evidence_photos,                                 │    │
-│  │      notes                                            │    │
-│  │    }                                                   │    │
-│  │                                                        │    │
-│  │ 6. RUN COMPLIANCE CHECK                               │    │
-│  │    • Get active zone_compliance_matrix                │    │
-│  │    • Call calculate_vehicle_compliance()              │    │
-│  │    • Check:                                           │    │
-│  │      - Self-contained requirement                     │    │
-│  │      - Nights per month limit                         │    │
-│  │      - Consecutive nights limit                       │    │
-│  │      - Day visit only zones                           │    │
-│  │      - Allowed days                                   │    │
-│  │    • Create compliance_results record                 │    │
-│  │                                                        │    │
-│  │ 7. DUPLICATE DETECTION                                │    │
-│  │    • Check for same vehicle in last 8 hours           │    │
-│  │    • Return duplicate info if found                   │    │
-│  │                                                        │    │
-│  │ 8. BUILD RESPONSE WITH ALERTS                         │    │
-│  │    • "New vehicle" if first observation               │    │
-│  │    • "FLAGGED VEHICLE" if on watch list               │    │
-│  │    • "Non-compliant" if violations detected           │    │
-│  │    • "Self-contained certified" if sticker found      │    │
-│  │    • "X prior observations"                           │    │
+│  │ success: true                                          │    │
+│  │ observation_id: "uuid"                                │    │
+│  │ source: "onspace_fallback" | "railway_inference"       │    │
+│  │ plate: "ABC123" | null                                │    │
+│  │ confidence: 0.87 | null                                │    │
+│  │ requires_manual_entry: boolean                         │    │
 │  └────────────────────────────────────────────────────────┘    │
 └─────────────────────────────────────────────────────────────────┘
                               │
                               ↓
 ┌─────────────────────────────────────────────────────────────────┐
-│  STEP 9: Response to Mobile App                                 │
-│  {                                                               │
-│    success: true,                                               │
-│    vehicle_id: "uuid",                                          │
-│    observation_id: "uuid",                                      │
-│    plate_number: "ABC123",                                      │
-│    is_new_vehicle: false,                                       │
-│    is_flagged: false,                                           │
-│    is_compliant: true,                                          │
-│    is_duplicate: false,                                         │
-│    prior_observations_count: 5,                                 │
-│    alerts: [                                                    │
-│      "✅ Self-contained certification detected",                │
-│      "📊 5 prior observations in system"                        │
-│    ],                                                            │
-│    vehicle_details: {                                           │
-│      make: "Toyota",                                            │
-│      model: "Hiace",                                            │
-│      color: "White",                                            │
-│      year: "2018"                                               │
-│    },                                                            │
-│    data_source: "database_history"                             │
-│  }                                                               │
+│  STEP 9: Officer UX Outcome                                      │
+│  • Success toast shown immediately                               │
+│  • Scan appears in recent observations                           │
+│  • Manual review required if no reliable plate detected          │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -265,28 +184,26 @@
        │ Photo + GPS
        ↓
 ┌──────────────────────┐
-│ recognize-plate      │ → Plate Recognizer API (ALPR)
-│ Edge Function        │ → OnSpace AI (Sticker Detection)
+│ alpr-process (hint)  │ → Best-effort pre-detection from photo_url
+│ Edge Function        │ → Non-blocking, may return null plate
 └──────┬───────────────┘
        │ Plate + Confidence + Stickers
        ↓
 ┌──────────────────────┐
-│ Upload to Storage    │ → Supabase Storage (evidence bucket)
+│ Upload to Storage    │ → Supabase Storage (scans bucket)
 │ (Photo Evidence)     │
 └──────┬───────────────┘
-       │ Photo URL + Hash
+   │ Photo URL
        ↓
 ┌──────────────────────┐
-│ process-field-scan   │
+│ vehicle-ingest       │
 │ Edge Function        │
 └──────┬───────────────┘
        │
-       ├─→ Get/Create canonical_vehicles
-       ├─→ Create vehicle_observations
-       ├─→ Run calculate_vehicle_compliance()
-       ├─→ Create compliance_results
-       ├─→ Check flagged_vehicles
-       ├─→ Detect duplicates
+   ├─→ Validate payload/auth
+   ├─→ Upload/hash image internally
+   ├─→ Get/Create canonical_vehicles
+   ├─→ Create observations record
        │
        ↓
 ┌──────────────────────┐
@@ -296,14 +213,13 @@
        │
        ↓
 ┌──────────────────────┐
-│ Scan Result Modal    │
-│ (User Reviews)       │
+│ Field Portal UI      │
+│ (Success + History)  │
 └──────┬───────────────┘
        │
-       ├─→ [Option] Edit Details → Update observation
-       ├─→ [Option] Create Incident → Incident report
-       ├─→ [Option] Report H&S → Health & Safety report
-       └─→ [Close] → Return to scanning or dashboard
+   ├─→ [Option] Create Incident → Incident report
+   ├─→ [Option] Report H&S → Health & Safety report
+   └─→ [Close] → Return to scanning/dashboard
 ```
 
 ---
@@ -319,7 +235,7 @@ ONSPACE_AI_BASE_URL=https://api.onspace.ai/v1
 
 ### **2. Database Tables Involved**
 - `canonical_vehicles` - One record per plate globally
-- `vehicle_observations` - Every scan/sighting
+- `observations` - Every scan/sighting
 - `compliance_results` - Compliance evaluation per observation
 - `zone_compliance_matrix` - Zone rules (versioned)
 - `flagged_vehicles` - Watch list
@@ -328,12 +244,13 @@ ONSPACE_AI_BASE_URL=https://api.onspace.ai/v1
 - `organizations` - Client organizations
 
 ### **3. Storage Buckets**
-- `evidence` bucket (public: true, 10MB limit, .jpg/.jpeg/.png/.webp)
+- `scans` bucket (web/mobile capture uploads)
+- `evidence` bucket (used by ingest/internal evidence pipeline)
 
 ### **4. Edge Functions Deployed**
-- `recognize-plate` - ALPR + sticker detection
-- `process-field-scan` - Full scan processing pipeline
-- `analyze-vehicle-photo` - Optional AI enrichment (make/model/color)
+- `alpr-process` - ALPR pipeline + enrichment (best-effort pre-detection)
+- `vehicle-ingest` - Canonical observation ingest pipeline
+- `get-weather` - Optional weather enrichment
 
 ---
 

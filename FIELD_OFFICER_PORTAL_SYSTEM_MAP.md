@@ -59,9 +59,9 @@ FieldOfficerPortal.tsx (useEffect)
 
 ### **⚠️ Edge Cases**
 - "Other Location" zone uses UUID `'other-location'` (not valid UUID)
-  - **Impact:** process-field-scan throws `invalid input syntax for type uuid` error
-  - **Current Handling:** Error caught and silently logged (no toast shown)
-  - **Recommendation:** Create actual "Other Location" zone with proper UUID OR handle virtual zone differently
+   - **Impact:** ingest fails before observation save because `zoneId` must be a valid UUID
+   - **Current Handling:** app resolves/creates a real zone via `ensure_other_location_zone`
+   - **Recommendation:** keep zone bootstrap RPC available for all officer clients
 
 ---
 
@@ -69,18 +69,15 @@ FieldOfficerPortal.tsx (useEffect)
 
 ### **Data Flow**
 ```
-PlateCapture.tsx (capturePhoto/manualEntry)
-  ↓ ALPR: supabase.functions.invoke('recognize-plate')
-  ↓ [IF ALPR fails] OCR: supabase.functions.invoke('extract-plate')
-  ↓ uploadToStorage() → evidence bucket
-  ↓ processFieldScan()
-     ↓ supabase.functions.invoke('process-field-scan')
-        ↓ get_or_create_canonical_vehicle() [SQL function]
-        ↓ INSERT vehicle_observations (with all metadata)
-        ↓ calculate_vehicle_compliance() [SQL function]
-        ↓ INSERT compliance_results
-        ↓ [IF non-compliant] INSERT breach_alerts
-        ↓ RETURN {vehicle_id, observation_id, is_compliant, is_duplicate, alerts}
+FieldOfficerPortal.tsx / ScanScreen.tsx (capture)
+  ↓ Upload photo to storage bucket: scans
+  ↓ [OPTIONAL] supabase.functions.invoke('alpr-process') for plate hint
+  ↓ supabase.functions.invoke('vehicle-ingest')
+     ↓ Validate auth + required GPS/zone/org/idempotency
+     ↓ Upload/hash evidence internally
+     ↓ get/create canonical_vehicles
+     ↓ INSERT observations
+     ↓ RETURN {success, observation_id, plate, confidence, requires_manual_entry}
 ```
 
 ### **Key Tables**
@@ -91,42 +88,38 @@ PlateCapture.tsx (capturePhoto/manualEntry)
    - `is_flagged, is_homeless`
    - `total_observations` (auto-incremented)
 
-2. **vehicle_observations**
-   - `observation_id` (UUID, PK)
-   - `vehicle_id` (FK → canonical_vehicles)
+2. **observations**
+   - `id` (UUID, PK)
    - `zone_id, organization_id, recorded_by`
-   - `is_self_contained, is_compliant`
+   - `plate_number, plate_confidence, is_compliant`
    - `gps_latitude, gps_longitude, gps_accuracy`
-   - `evidence_photos` (JSONB array)
-   - `source_type, recorded_at`
+   - `photo_url, photo_hash`
+   - `recorded_at, idempotency_key`
 
 3. **compliance_results**
-   - `observation_id` (FK → vehicle_observations, UNIQUE with matrix_id)
+   - `observation_id` (FK → observations, UNIQUE with matrix_id)
    - `vehicle_id, zone_id, organization_id`
    - `matrix_id` (FK → zone_compliance_matrix)
    - `is_compliant, violation_reasons`
    - `metrics_json, matrix_snapshot`
 
 4. **breach_alerts**
-   - `observation_id` (FK → vehicle_observations, UNIQUE)
+   - `observation_id` (FK → observations, UNIQUE)
    - `vehicle_id, zone_id, organization_id`
    - `breach_type, recommended_action`
    - `notification_sent, status`
 
 ### **Files Involved**
-- `src/components/features/PlateCapture.tsx` (Lines 800-950)
-- `supabase/functions/process-field-scan/index.ts`
-- `supabase/functions/recognize-plate/index.ts`
-- `supabase/functions/extract-plate/index.ts`
-- SQL Functions: `get_or_create_canonical_vehicle`, `calculate_vehicle_compliance`
+- `src/pages/FieldOfficerPortal.tsx`
+- `mobile-app/src/screens/ScanScreen.tsx`
+- `supabase/functions/alpr-process/index.ts`
+- `supabase/functions/vehicle-ingest/index.ts`
 
 ### **✅ Verified Working**
-- Plate recognition via ALPR → OCR fallback
-- Canonical vehicle creation/update
-- Observation creation with full metadata
-- Compliance evaluation per observation
-- Breach alert generation (one per observation)
-- Duplicate detection (24h window, per officer)
+- Plate pre-detection via ALPR (best-effort)
+- Canonical vehicle creation/update during ingest
+- Observation creation through unified `vehicle-ingest`
+- Manual-entry fallback when ALPR cannot detect a reliable plate
 
 ### **⚠️ Edge Cases**
 - **Duplicate Scans:** Properly handled with DuplicateScanModal
@@ -197,8 +190,8 @@ useOfficerWelfareMonitor.ts
 
 ### **Detection Flow**
 ```
-process-field-scan Edge Function
-  ↓ calculate_vehicle_compliance() [SQL]
+vehicle-ingest / observations pipeline
+   ↓ calculate_vehicle_compliance() [SQL trigger/function]
      ↓ Evaluate zone rules (self-contained, nights_per_month, max_consecutive_nights, day_visit_only)
      ↓ Check homeless exemption
      ↓ [IF non-compliant] INSERT compliance_results (is_compliant = false)
@@ -296,54 +289,43 @@ FieldOfficerPortal.tsx
 
 ### **Plate Recognition**
 ```
-PlateCapture.tsx
-  ↓ [PRIMARY] recognize-plate (ALPR via Plate Recognizer API)
-     ↓ Returns: plate_number, confidence, vehicle_make/model/color, has_stickers
-     ↓ [IF confidence >0.6] Success
-  ↓ [FALLBACK] extract-plate (OCR via OnSpace AI)
-     ↓ Returns: plate_number, confidence_score, vehicle_details
-     ↓ [IF confidence >0.5] Success
-  ↓ [FAIL] Both methods failed - show error bubble
+FieldOfficerPortal.tsx / ScanScreen.tsx
+  ↓ [OPTIONAL] alpr-process pre-detection from photo_url
+     ↓ Returns: plate (nullable), confidence (nullable)
+  ↓ vehicle-ingest persists scan regardless of ALPR outcome
+     ↓ requires_manual_entry=true when no reliable plate
 ```
 
 ### **Vehicle Analysis**
 ```
-PlateCapture.tsx
-  ↓ [BACKGROUND] triggerBackgroundAIAnalysis()
-     ↓ analyze-vehicle-photo (OnSpace AI Vision)
-        ↓ Detects: make, model, color, year
-        ↓ Detects: has_green_sticker, has_blue_sticker, is_self_contained
-        ↓ Updates canonical_vehicles with enriched data
-        ↓ Non-blocking, runs in background
+alpr-process
+   ↓ Runs Plate Recognizer stage
+   ↓ Runs inference stage when configured
+   ↓ Returns plate/confidence hint for ingest payload
 ```
 
-### **Deduplication Strategy**
+### **Idempotency Strategy**
 ```typescript
-// In PlateCapture.tsx
-const analyzingVehicles = useRef<Set<string>>(new Set());
+const idempotencyKey = `scan-${user.id}-${timestamp}`
 
-const triggerBackgroundAIAnalysis = async (plateNumber, vehicleId, photoUrl) => {
-  const vehicleKey = `${plateNumber}-${vehicleId}`;
-  if (analyzingVehicles.current.has(vehicleKey)) {
-    console.log('AI analysis already in progress, skipping...');
-    return;
-  }
-  analyzingVehicles.current.add(vehicleKey);
-  // ... invoke Edge Function
-  analyzingVehicles.current.delete(vehicleKey);
-};
+await supabase.functions.invoke('vehicle-ingest', {
+   body: {
+      // ...payload
+      idempotencyKey,
+   },
+})
 ```
 
 ### **Files Involved**
-- `supabase/functions/recognize-plate/index.ts` (ALPR)
-- `supabase/functions/extract-plate/index.ts` (OCR)
-- `supabase/functions/analyze-vehicle-photo/index.ts` (AI Vision)
-- `src/components/features/PlateCapture.tsx` (Lines 600-750)
+- `supabase/functions/alpr-process/index.ts`
+- `supabase/functions/vehicle-ingest/index.ts`
+- `src/pages/FieldOfficerPortal.tsx`
+- `mobile-app/src/screens/ScanScreen.tsx`
 
 ### **✅ Verified Working**
-- ALPR primary, OCR fallback
-- Background AI analysis (non-blocking)
-- Self-contained sticker detection
+- ALPR pre-detection feeding ingest payload
+- Unified ingest path across web and mobile
+- Manual-required fallback when plate detection fails
 - Vehicle enrichment
 - Deduplication within session
 
@@ -443,14 +425,12 @@ useOfficerWelfareMonitor.ts
 3. Clicks "Start Scanning"
 4. Camera initializes (back camera selected)
 5. Captures photo
-6. ALPR detects plate "ABC123"
-7. process-field-scan creates canonical vehicle + observation
-8. calculate_vehicle_compliance runs
-9. [IF non-compliant] breach_alert created
-10. AlertAcknowledgementModal shows (if critical)
-11. Officer acknowledges
-12. Observation added to session history
-13. GPS ping recorded (welfare monitoring)
+6. Upload to `scans` storage completes
+7. Optional ALPR pre-detection runs
+8. `vehicle-ingest` creates observation
+9. Success toast shown (manual review message if needed)
+10. Observation added to session history
+11. GPS ping recorded (welfare monitoring)
 ```
 
 #### ✅ Scenario 2: Driving Mode Auto-Capture
@@ -478,11 +458,9 @@ useOfficerWelfareMonitor.ts
 #### ✅ Scenario 4: Duplicate Vehicle Scan
 ```
 1. Officer scans vehicle already scanned today
-2. process-field-scan detects duplicate (24h window)
-3. DuplicateScanModal shows
-4. Officer chooses "Continue Update" → Opens VehicleEditDrawer
-5. MUST add H&S or Incident to proceed
-6. Observation created with updated details
+2. `vehicle-ingest` reuses idempotency key protection for replays
+3. Duplicate network retry returns existing observation_id
+4. Officer continues with incident/H&S workflow if needed
 ```
 
 ---

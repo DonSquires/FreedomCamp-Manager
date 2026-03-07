@@ -17,12 +17,6 @@ import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
 import { formatDateTime } from '@/lib/utils'
 
-// ============================================================================
-// FALLBACK ZONE: Use NULL for scans outside geofences
-// Database will handle missing zones via default constraints
-// ============================================================================
-const OTHER_LOCATION_ZONE_ID = null;
-
 // Enforcement workflow mode labels shown in the status card
 const WORKFLOW_LABELS: Record<string, string> = {
   admin_first:    'Admin First',
@@ -138,13 +132,20 @@ export default function FieldOfficerPortal() {
     return () => clearInterval(interval)
   }, [user, currentPatrolZone])
 
-  /**
-   * OPTIMIZED SCAN LOGIC - PHOTO FIRST, THEN ANALYZE
-   * 1. Upload photo to /scans/{user_id}/ and get public URL
-   * 2. Call alpr-process with photo URL + metadata
-   * 3. Edge Function downloads photo and sends to ALPR service
-   * 4. Handle success/failure gracefully
-   */
+  const fileToDataUrl = (file: File) =>
+    new Promise<string>((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => {
+        if (typeof reader.result === 'string') {
+          resolve(reader.result)
+          return
+        }
+        reject(new Error('Failed to convert photo to data URL'))
+      }
+      reader.onerror = () => reject(new Error('Failed to read captured photo'))
+      reader.readAsDataURL(file)
+    })
+
   const handleCapture = async (file: File) => {
     setIsProcessing(true)
     try {
@@ -213,16 +214,19 @@ export default function FieldOfficerPortal() {
       }
 
       // ============================================================================
-      // STEP 4: GENERATE METADATA
+      // STEP 4: GENERATE METADATA + IMAGE DATA URL
       // ============================================================================
       const timestamp = Date.now()
-      const photoHash = `sha256-${timestamp}-${Math.random().toString(36).substring(7)}`
+      const uniqueId = Array.from(crypto.getRandomValues(new Uint8Array(8)))
+        .map((b) => b.toString(16).padStart(2, '0'))
+        .join('')
       const idempotencyKey = `scan-${user.id}-${timestamp}`
+      const imageDataUrl = await fileToDataUrl(file)
 
       console.log('📸 Photo Metadata:', {
         size_bytes: file.size,
         type: file.type,
-        photo_hash: photoHash,
+        image_data_url_length: imageDataUrl.length,
         idempotency_key: idempotencyKey,
         weather: weatherConditions
       })
@@ -231,7 +235,7 @@ export default function FieldOfficerPortal() {
       // STEP 5: UPLOAD PHOTO TO STORAGE (Evidence preservation) - FAST PATH
       // ============================================================================
       toast.info('Uploading photo...')
-      const filePath = `${user.id}/${timestamp}-${photoHash}.jpg`
+      const filePath = `${user.id}/${timestamp}-${uniqueId}.jpg`
       
       const { error: uploadError } = await supabase.storage
         .from('scans')
@@ -267,83 +271,75 @@ export default function FieldOfficerPortal() {
         console.log('✅ Using Other Location zone:', finalZoneId);
       }
 
-      // ============================================================================
-      // STEP 7: CREATE OBSERVATION (FAST SAVE - No AI, Status='pending')
-      // ============================================================================
-      toast.info('Saving observation...')
-      
-      const { data: observation, error: obsError } = await (supabase
-        .from('observations') as any)
-        .insert({
-          // CRITICAL: Identity
-          idempotency_key: idempotencyKey,
-          recorded_by: user.id,
-          organization_id: user.organization_id,
-          zone_id: finalZoneId,
-          
-          // CRITICAL: Photo evidence
-          photo_url: photoUrl,
-          photo_hash: photoHash,
-          
-          // CRITICAL: GPS
-          gps_latitude: position.coords.latitude,
-          gps_longitude: position.coords.longitude,
-          gps_accuracy: position.coords.accuracy,
-          
-          // CRITICAL: Timestamp
-          recorded_at: new Date().toISOString(),
-          
-          // PROCESSING: Will be populated by background job
-          plate_number: 'PROCESSING...',
-          processing_status: 'pending',
-          
-          // Optional metadata
-          is_compliant: true,
-          weather_conditions: weatherConditions,
-        })
-        .select('id, plate_number, processing_status')
-        .single()
-
-      if (obsError) {
-        console.error('❌ Database error:', obsError)
-        throw new Error(`Save failed: ${obsError.message}`)
+      if (!finalZoneId) {
+        throw new Error('Could not resolve zone for observation')
       }
 
-      console.log('✅ Observation saved (pending AI):', {
-        observation_id: observation?.id,
-        zone_id: finalZoneId,
-        status: observation?.processing_status,
-        weather: weatherConditions
+      // ============================================================================
+      // STEP 7: PRE-DETECT PLATE (Non-blocking hint for ingest)
+      // ============================================================================
+      toast.info('Running plate detection...')
+      const { data: alprData, error: alprError } = await supabase.functions.invoke('alpr-process', {
+        body: {
+          photo_url: photoUrl,
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+          accuracy: position.coords.accuracy,
+        },
       })
 
+      if (alprError) {
+        console.warn('⚠️ ALPR pre-detection failed, continuing with manual flow:', alprError.message)
+      }
+
+      const detectedPlate = alprData?.plate || alprData?.plate_number || null
+      const detectedConfidence = alprData?.confidence || null
+
       // ============================================================================
-      // STEP 8: FIRE-AND-FORGET BACKGROUND AI PROCESSING
+      // STEP 8: CREATE OBSERVATION VIA UNIFIED INGEST PIPELINE
       // ============================================================================
-      // Call Edge Function asynchronously (don't wait for it)
-      supabase.functions.invoke('alpr-process', {
+      toast.info('Saving observation...')
+      const { data: ingestData, error: ingestError } = await supabase.functions.invoke('vehicle-ingest', {
         body: {
-          observation_id: observation?.id,
-          photo_url: photoUrl,
-          regions: ['nz'],
-          mmc: true,
-        }
-      }).then(({ data, error }) => {
-        if (error) {
-          console.error('❌ Background AI failed:', error)
-        } else {
-          console.log('✅ Background AI completed:', data)
-        }
+          image: imageDataUrl,
+          gpsLatitude: position.coords.latitude,
+          gpsLongitude: position.coords.longitude,
+          gpsAccuracy: position.coords.accuracy,
+          recordedAt: new Date().toISOString(),
+          officerId: user.id,
+          organizationId: user.organization_id,
+          zoneId: finalZoneId,
+          idempotencyKey,
+          weather: weatherConditions,
+          plate: detectedPlate,
+          confidence: detectedConfidence,
+          requires_manual_entry: !detectedPlate,
+        },
+      })
+
+      if (ingestError) {
+        throw new Error(`Save failed: ${ingestError.message}`)
+      }
+
+      console.log('✅ Observation created via vehicle-ingest:', {
+        observation_id: ingestData?.observation_id,
+        source: ingestData?.source,
+        plate: ingestData?.plate,
+        requires_manual_entry: ingestData?.requires_manual_entry,
       })
 
       // ============================================================================
       // STEP 9: IMMEDIATE SUCCESS (User can scan next vehicle)
       // ============================================================================
-      toast.success('✅ Evidence Secured', { 
+      toast.success('✅ Observation captured and processed', {
         duration: 5000,
-        description: 'AI is analyzing plate number...'
+        description: ingestData?.requires_manual_entry
+          ? 'Manual plate entry required for this scan.'
+          : `Plate detected: ${ingestData?.plate ?? 'Unknown'}`,
       })
 
       setShowScanner(false)
+      refetchScans()
 
     } catch (error: any) {
       console.error('❌ Scan Pipeline Failed:', error)
