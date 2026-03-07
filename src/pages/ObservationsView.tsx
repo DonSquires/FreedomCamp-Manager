@@ -70,7 +70,7 @@ export default function ObservationsView() {
       let q = supabase
         .from('observations')
         .select(`
-          id,
+          id:observation_id,
           plate_number,
           recorded_at,
           gps_latitude,
@@ -81,7 +81,7 @@ export default function ObservationsView() {
           zone:zones!zone_id(name),
           recorded_by_profile:user_profiles!recorded_by(first_name, last_name)
         `)
-        .is('deleted_at', null)
+        
         .order('recorded_at', { ascending: false })
         .limit(500)
 

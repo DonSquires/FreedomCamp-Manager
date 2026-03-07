@@ -64,7 +64,7 @@ export default function Reports() {
       // Get observation count
       let obsQuery = (supabase.from('observations') as any)
         .select('observation_id, is_compliant', { count: 'exact' })
-        .is('deleted_at', null)
+        
 
       if (effectiveOrganizationId) {
         obsQuery = obsQuery.eq('organization_id', effectiveOrganizationId)

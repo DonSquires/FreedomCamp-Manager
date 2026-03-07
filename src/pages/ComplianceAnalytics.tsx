@@ -67,7 +67,7 @@ export default function ComplianceAnalytics() {
       let query = supabase
         .from('observations')
         .select('*')
-        .is('deleted_at', null)
+        
 
       if (effectiveOrganizationId) {
         query = query.eq('organization_id', effectiveOrganizationId)
@@ -134,7 +134,7 @@ export default function ComplianceAnalytics() {
         .from('observations')
         .select('breach_type')
         .eq('is_compliant', false)
-        .is('deleted_at', null)
+        
 
       if (effectiveOrganizationId) {
         query = query.eq('organization_id', effectiveOrganizationId)
@@ -176,7 +176,7 @@ export default function ComplianceAnalytics() {
       let query = supabase
         .from('observations')
         .select('zone_id, is_compliant, zones(name)')
-        .is('deleted_at', null)
+        
 
       if (effectiveOrganizationId) {
         query = query.eq('organization_id', effectiveOrganizationId)
@@ -221,7 +221,7 @@ export default function ComplianceAnalytics() {
       let query = supabase
         .from('observations')
         .select('recorded_at, is_compliant')
-        .is('deleted_at', null)
+        
         .order('recorded_at', { ascending: true })
 
       if (effectiveOrganizationId) {

@@ -84,10 +84,10 @@ Deno.serve(async (req) => {
 
     const { data: observations, error: obsError } = await supabaseAdmin
       .from('observations')
-      .select('id, plate_number, zone_id, organization_id, gps_latitude, gps_longitude, recorded_at')
+      .select('observation_id, plate_number, zone_id, organization_id, gps_latitude, gps_longitude, recorded_at')
       .not('gps_latitude', 'is', null)
       .not('gps_longitude', 'is', null)
-      .is('deleted_at', null)
+      
       .gte('recorded_at', cutoffTime.toISOString())
       .order('recorded_at', { ascending: false });
 
@@ -145,18 +145,18 @@ Deno.serve(async (req) => {
         const { error: updateError } = await supabaseAdmin
           .from('observations')
           .update({ zone_id: correctZone.id })
-          .eq('id', obs.id);
+          .eq('observation_id', obs.observation_id);
 
         if (!updateError) {
           corrected++;
           corrections.push({
-            observation_id: obs.id,
+            observation_id: obs.observation_id,
             plate_number: obs.plate_number || 'Unknown',
             old_zone: currentZone?.name || 'Unknown',
             new_zone: correctZone.name,
             recorded_at: obs.recorded_at,
           });
-          console.log(`✅ Corrected observation ${obs.id}: ${currentZone?.name} -> ${correctZone.name}`);
+          console.log(`✅ Corrected observation ${obs.observation_id}: ${currentZone?.name} -> ${correctZone.name}`);
         }
       }
     }

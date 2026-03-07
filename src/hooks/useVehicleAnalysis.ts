@@ -49,7 +49,7 @@ export function useVehicleAnalysis(plateNumber?: string) {
           recorded_at
         `)
         .eq('plate_number', plateNumber)
-        .is('deleted_at', null)
+        
         .not('photo_url', 'is', null)
         .order('recorded_at', { ascending: false })
 

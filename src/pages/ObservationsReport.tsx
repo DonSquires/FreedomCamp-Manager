@@ -57,12 +57,12 @@ export default function ObservationsReport() {
       let q = supabase
         .from('observations')
         .select(`
-          id, plate_number, recorded_at, is_compliant, nights_in_zone,
+          id:observation_id, plate_number, recorded_at, is_compliant, nights_in_zone,
           processing_status, gps_latitude, gps_longitude, photo_url,
           zone:zones!zone_id(name),
           recorded_by_user:user_profiles!recorded_by(first_name, last_name)
         `)
-        .is('deleted_at', null)
+        
         .order('recorded_at', { ascending: false })
         .limit(500)
 

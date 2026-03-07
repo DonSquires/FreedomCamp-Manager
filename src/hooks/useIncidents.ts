@@ -88,7 +88,7 @@ export function useIncidents(options?: {
           zone:zones(name),
           user_profile:user_profiles(first_name, last_name)
         `)
-        .is('deleted_at', null)
+        
         .order('created_at', { ascending: false })
 
       // Organization scoping

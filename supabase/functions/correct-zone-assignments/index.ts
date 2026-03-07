@@ -19,7 +19,7 @@ interface Zone {
 }
 
 interface ObservationRow {
-  id: string;
+  observation_id: string;
   plate_number: string;
   zone_id: string;
   organization_id: string;
@@ -207,8 +207,8 @@ Deno.serve(async (req) => {
     // Build query on observations (active observations table)
     let query = supabaseAdmin
       .from('observations')
-      .select('id, plate_number, zone_id, organization_id, recorded_at, gps_latitude, gps_longitude', { count: 'exact' })
-      .is('deleted_at', null);
+      .select('observation_id, plate_number, zone_id, organization_id, recorded_at, gps_latitude, gps_longitude', { count: 'exact' })
+      ;
 
     // GET TOTAL MODE
     if (get_total) {
@@ -314,7 +314,7 @@ Deno.serve(async (req) => {
           await supabaseAdmin
             .from('observations')
             .update(payload)
-            .eq('id', obs.id);
+            .eq('observation_id', obs.observation_id);
 
           const zoneChanged = payload.zone_id != null;
           const gpsChanged = payload.gps_latitude != null;
@@ -323,7 +323,7 @@ Deno.serve(async (req) => {
           else if (gpsChanged) backfilledGps++;
 
           corrections.push({
-            observation_id: obs.id,
+            observation_id: obs.observation_id,
             plate_number: obs.plate_number,
             old_zone_name: currentZone?.name || 'Unknown',
             new_zone_name: correctZone?.name || currentZone?.name || 'Unknown',
@@ -335,7 +335,7 @@ Deno.serve(async (req) => {
         processed++;
 
       } catch (error: any) {
-        console.error(`Error processing ${obs.id}:`, error.message);
+        console.error(`Error processing ${obs.observation_id}:`, error.message);
         processed++;
       }
     }

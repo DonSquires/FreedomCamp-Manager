@@ -49,7 +49,7 @@ export default function HotspotsMap() {
       let query = supabase
         .from('observations')
         .select('zone_id, gps_latitude, gps_longitude, is_compliant, plate_number, zones(name)')
-        .is('deleted_at', null)
+        
 
       if (effectiveOrganizationId) {
         query = query.eq('organization_id', effectiveOrganizationId)

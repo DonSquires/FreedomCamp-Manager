@@ -195,7 +195,7 @@ export default function BreachAlerts() {
         .select('id:observation_id, photo_url, recorded_at, gps_latitude, gps_longitude, zones!observations_zone_id_fkey(name)')
         .eq('plate_number', activeBreach.plate_number)
         .eq('organization_id', activeBreach.organization_id)
-        .is('deleted_at', null)
+        
         .gte('recorded_at', activeBreach.created_at)
         .not('photo_url', 'is', null)
         .order('recorded_at', { ascending: false })

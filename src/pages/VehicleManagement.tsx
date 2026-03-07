@@ -66,7 +66,7 @@ export default function VehicleManagement() {
         let matchingObservationsQuery = supabase
           .from('observations')
           .select('plate_number')
-          .is('deleted_at', null)
+          
 
         if (effectiveOrganizationId) {
           matchingObservationsQuery = matchingObservationsQuery.eq('organization_id', effectiveOrganizationId)

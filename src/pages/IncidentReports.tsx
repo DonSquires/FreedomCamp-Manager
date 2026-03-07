@@ -89,7 +89,7 @@ export default function IncidentReports() {
           photos,
           photo_metadata_ids
         `)
-        .is('deleted_at', null)
+        
         .order('created_at', { ascending: false })
 
       // Organization scoping

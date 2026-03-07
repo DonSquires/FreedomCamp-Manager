@@ -352,7 +352,7 @@ export const dataVerification = {
     const { data: observationsData } = await supabase
       .from('observations')
       .select('id:observation_id, is_compliant')
-      .is('deleted_at', null)
+      
       .limit(100)
 
     const observations = observationsData as Array<Pick<Observation, 'id'> & { is_compliant: boolean }> | null
@@ -392,7 +392,7 @@ export const dataVerification = {
     const { data: obsData, error } = await (supabase as any)
       .from('observations')
       .select('plate_number, nights_stayed_this_month, consecutive_nights')
-      .is('deleted_at', null)
+      
       .gte('recorded_at', monthStart)
       .limit(500)
 

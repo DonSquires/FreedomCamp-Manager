@@ -120,13 +120,13 @@ export default function VehicleDetailPage() {
       let query = supabase
         .from('observations')
         .select(`
-          id, recorded_at, gps_latitude, gps_longitude, photo_url, is_compliant,
+          id:observation_id, recorded_at, gps_latitude, gps_longitude, photo_url, is_compliant,
           sticker_presence, plate_confidence, processing_status, nights_in_zone,
           zone:zones!zone_id(name),
           recorded_by_user:user_profiles!recorded_by(first_name, last_name)
         `)
         .eq('plate_number', vehicle!.plate_number)
-        .is('deleted_at', null)
+        
         .order('recorded_at', { ascending: false })
 
       if (effectiveOrganizationId) {

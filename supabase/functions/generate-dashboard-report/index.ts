@@ -86,7 +86,7 @@ serve(async (req) => {
       .from('observations')
       .select('plate_number, zone_id, nights_stayed_this_month, consecutive_nights, zones(name)')
       .in('plate_number', uniquePlates)
-      .is('deleted_at', null)
+      
       .gte('recorded_at', date_from)
       .lte('recorded_at', date_to)
       .order('recorded_at', { ascending: false });

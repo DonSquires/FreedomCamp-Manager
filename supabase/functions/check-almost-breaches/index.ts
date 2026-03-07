@@ -73,7 +73,7 @@ Deno.serve(async (req) => {
     let obsQuery = supabaseAdmin
       .from('observations')
       .select('plate_number, zone_id, organization_id, nights_stayed_this_month, consecutive_nights, recorded_at, photo_url, gps_latitude, gps_longitude, gps_accuracy')
-      .is('deleted_at', null)
+      
       .gte('recorded_at', monthStart)
       .order('recorded_at', { ascending: false });
 

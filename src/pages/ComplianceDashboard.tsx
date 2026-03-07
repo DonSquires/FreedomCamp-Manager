@@ -52,11 +52,11 @@ export default function ComplianceDashboard() {
     const startDate = dateFrom ? `${dateFrom}T00:00:00Z` : null
     const endDate = dateTo ? `${dateTo}T23:59:59Z` : null
 
-    let obsQuery = (supabase.from('observations') as any).select('*', { count: 'exact', head: true }).is('deleted_at', null)
-    let compliantQuery = (supabase.from('observations') as any).select('*', { count: 'exact', head: true }).is('deleted_at', null).eq('is_compliant', true)
+    let obsQuery = (supabase.from('observations') as any).select('*', { count: 'exact', head: true })
+    let compliantQuery = (supabase.from('observations') as any).select('*', { count: 'exact', head: true }).eq('is_compliant', true)
     let breachQuery = (supabase.from('breach_alerts') as any).select('*', { count: 'exact', head: true }).eq('status', 'pending')
     let patrolQuery = (supabase.from('patrols') as any).select('*', { count: 'exact' }).eq('status', 'in_progress')
-    let vehicleObsQuery = (supabase.from('observations') as any).select('plate_number').is('deleted_at', null)
+    let vehicleObsQuery = (supabase.from('observations') as any).select('plate_number')
 
     if (effectiveOrganizationId) {
       obsQuery = obsQuery.eq('organization_id', effectiveOrganizationId)
@@ -136,7 +136,7 @@ export default function ComplianceDashboard() {
           recorded_at,
           zones:zone_id(name)
         `)
-        .is('deleted_at', null)
+        
         .order('recorded_at', { ascending: false })
         .limit(5)
 

@@ -52,7 +52,7 @@ export function useVehicleProfilePhoto(plateNumber?: string) {
         .select('*', { count: 'exact', head: true })
         .eq('plate_number', plateNumber)
         .not('photo_url', 'is', null)
-        .is('deleted_at', null)
+        
 
       const d = data as any
       return {
@@ -124,7 +124,7 @@ export function useVehicleProfilePhoto(plateNumber?: string) {
         .select('photo_url, recorded_at, embedding_quality, gps_accuracy')
         .eq('plate_number', plateNumber)
         .not('photo_url', 'is', null)
-        .is('deleted_at', null)
+        
         .order('recorded_at', { ascending: false })
 
       if (error) throw error

@@ -65,7 +65,7 @@ export default function UniversalSearch() {
             let obsQuery = supabase
               .from('observations')
               .select('id:observation_id, notes, location_name, recorded_at, is_compliant, plate_number')
-              .is('deleted_at', null)
+              
               .or(`notes.ilike.%${q}%,location_name.ilike.%${q}%,plate_number.ilike.%${q}%`)
               .order('recorded_at', { ascending: false })
               .limit(20)
