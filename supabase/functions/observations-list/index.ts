@@ -112,7 +112,7 @@ serve(withCors(async (req) => {
   let query = supabaseClient
     .from('observations')
     .select(`
-      id,
+      id:observation_id,
       created_at,
       recorded_at,
       plate_number,
@@ -158,7 +158,8 @@ serve(withCors(async (req) => {
   }
 
   // Apply sorting
-  const sortField = sort[0]?.field || 'recorded_at';
+  const requestedSortField = sort[0]?.field || 'recorded_at';
+  const sortField = requestedSortField === 'id' ? 'observation_id' : requestedSortField;
   const sortDir = sort[0]?.dir || 'desc';
   query = query.order(sortField, { ascending: sortDir === 'asc' });
 

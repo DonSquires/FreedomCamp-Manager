@@ -14,7 +14,7 @@
  *   4. Homeless/exempt vehicles
  */
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { format, formatDistanceToNow, startOfDay, subDays } from 'date-fns';
 import {
@@ -163,7 +163,6 @@ function OverviewTab({
       let q = supabase
         .from('observations')
         .select('*', { count: 'exact', head: true })
-        .is('deleted_at', null)
         .gte('recorded_at', from.toISOString())
         .lte('recorded_at', to.toISOString());
       if (orgId) q = q.eq('organization_id', orgId);
@@ -180,7 +179,6 @@ function OverviewTab({
       let q = supabase
         .from('observations')
         .select('*', { count: 'exact', head: true })
-        .is('deleted_at', null)
         .eq('is_compliant', false)
         .gte('recorded_at', from.toISOString())
         .lte('recorded_at', to.toISOString());
@@ -277,6 +275,11 @@ function BreachesTab({
   const [page, setPage] = useState(0);
   const [search, setSearch] = useState('');
 
+  // Keep pagination valid when global filters change.
+  useEffect(() => {
+    setPage(0);
+  }, [dateFrom, dateTo, orgId, zoneId]);
+
   const from = new Date(dateFrom);
   from.setHours(0, 0, 0, 0);
   const to = new Date(dateTo);
@@ -291,7 +294,6 @@ function BreachesTab({
           'id:observation_id, plate_number, recorded_at, breach_type, breach_reason, nights_stayed_this_month, consecutive_nights, vehicle_make, vehicle_model, vehicle_color, self_contained, photo_url, zones(name), organizations(name), user_profiles(first_name, last_name)',
           { count: 'exact' }
         )
-        .is('deleted_at', null)
         .eq('is_compliant', false)
         .gte('recorded_at', from.toISOString())
         .lte('recorded_at', to.toISOString())
@@ -480,7 +482,6 @@ function ZonesTab({
     queryFn: async () => {
       let q = (supabase.from('observations') as any)
         .select('zone_id, is_compliant')
-        .is('deleted_at', null)
         .gte('recorded_at', from.toISOString())
         .lte('recorded_at', to.toISOString());
       if (orgId) q = q.eq('organization_id', orgId);
