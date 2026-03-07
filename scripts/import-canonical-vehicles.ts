@@ -59,7 +59,9 @@ async function runImport() {
     // Safely parse metadata JSON if it exists
     let photoMetadata = null
     if (row.profile_photo_metadata && row.profile_photo_metadata.trim() !== '') {
-      try { photoMetadata = JSON.parse(row.profile_photo_metadata) } catch (e) { }
+      try { photoMetadata = JSON.parse(row.profile_photo_metadata) } catch (error) {
+        photoMetadata = null
+      }
     }
 
     return {

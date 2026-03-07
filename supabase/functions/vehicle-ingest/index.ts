@@ -15,7 +15,6 @@
 // ============================================================================
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.7";
-import { corsHeaders } from "../_shared/cors.ts";
 
 // ============================================================================
 // DEPLOYMENT MODE FLAG
@@ -129,7 +128,47 @@ Deno.serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
+    const authClient = createClient(supabaseUrl, supabaseAnonKey, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+
+    // Resolve authenticated user from token and enforce server-side identity/org.
+    const { data: authData, error: authError } = await authClient.auth.getUser(jwt);
+    if (authError || !authData?.user) {
+      return new Response(
+        JSON.stringify({
+          error: "Session expired or invalid. Please log out and log back in.",
+          auth_error: "INVALID_AUTH_SESSION",
+        }),
+        {
+          status: 401,
+          headers: { ...getCorsHeaders(req), "content-type": "application/json" },
+        }
+      );
+    }
+
+    const authUserId = authData.user.id;
+
+    const { data: profile, error: profileError } = await supabase
+      .from("user_profiles")
+      .select("id, role, organization_id")
+      .eq("id", authUserId)
+      .maybeSingle();
+
+    if (profileError || !profile) {
+      return new Response(
+        JSON.stringify({
+          error: "User profile not found. Please contact support.",
+          auth_error: "PROFILE_NOT_FOUND",
+        }),
+        {
+          status: 403,
+          headers: { ...getCorsHeaders(req), "content-type": "application/json" },
+        }
+      );
+    }
 
     // Log all incoming request headers for debugging
     console.log('📥 Incoming request headers:', Object.fromEntries(req.headers.entries()));
@@ -236,13 +275,6 @@ Deno.serve(async (req) => {
       });
     }
 
-    if (!officerId) {
-      return new Response(JSON.stringify({ error: "Missing officerId/recorded_by" }), {
-        status: 400,
-        headers: { ...getCorsHeaders(req), "content-type": "application/json" },
-      });
-    }
-
     if (!organizationId || !zoneId) {
       return new Response(JSON.stringify({ error: "Missing organizationId or zoneId" }), {
         status: 400,
@@ -263,6 +295,43 @@ Deno.serve(async (req) => {
         headers: { ...getCorsHeaders(req), "content-type": "application/json" },
       });
     }
+
+    // Enforce recorded_by from authenticated session (never trust client-provided officerId).
+    officerId = profile.id;
+
+    // Validate zone and derive its organization server-side.
+    const { data: zoneRow, error: zoneError } = await supabase
+      .from("zones")
+      .select("id, organization_id")
+      .eq("id", zoneId)
+      .maybeSingle();
+
+    if (zoneError || !zoneRow) {
+      return new Response(JSON.stringify({ error: "Invalid zoneId" }), {
+        status: 400,
+        headers: { ...getCorsHeaders(req), "content-type": "application/json" },
+      });
+    }
+
+    // Non-master users must only write observations in their own organization.
+    if (profile.role !== "master") {
+      if (!profile.organization_id) {
+        return new Response(JSON.stringify({ error: "User profile is missing organization assignment" }), {
+          status: 403,
+          headers: { ...getCorsHeaders(req), "content-type": "application/json" },
+        });
+      }
+
+      if (zoneRow.organization_id !== profile.organization_id) {
+        return new Response(JSON.stringify({ error: "Zone does not belong to your organization" }), {
+          status: 403,
+          headers: { ...getCorsHeaders(req), "content-type": "application/json" },
+        });
+      }
+    }
+
+    // Canonical source of truth: observations.organization_id comes from zone ownership.
+    organizationId = zoneRow.organization_id;
 
     console.log("📥 Received vehicle scan", {
       officerId,

@@ -89,11 +89,19 @@ serve(withCors(async (req) => {
   const validatedPageSize = Math.min(1000, Math.max(1, parseInt(String(page_size))));
 
   // Determine role/org scope from profile to enforce safe defaults.
-  const { data: profile } = await supabaseClient
+  const { data: profile, error: profileError } = await supabaseClient
     .from('user_profiles')
     .select('role, organization_id')
     .eq('id', user.id)
     .single();
+
+  if (profileError || !profile) {
+    return errorResponse('User profile not found', req, 403);
+  }
+
+  if (profile.role !== 'master' && !profile.organization_id) {
+    return errorResponse('User organization is not configured', req, 403);
+  }
 
   const isMaster = profile?.role === 'master';
   const effectiveOrganizationId = isMaster
