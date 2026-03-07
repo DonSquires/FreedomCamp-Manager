@@ -395,7 +395,8 @@ jobs:
           steps.check-secrets.outputs.secrets_present == 'true' &&
           steps.resolve-env.outputs.portal_environment == 'production'
         run: |
-          vercel deploy --prebuilt --prod --token "$VERCEL_TOKEN" | tee /tmp/deploy-url.txt
+          set -euo pipefail
+          vercel deploy --prod --token "$VERCEL_TOKEN" | tee /tmp/deploy-url.txt
           echo ""
           echo "✅ Admin portal production deployment complete!"
           echo "🌐 URL: $(tail -1 /tmp/deploy-url.txt)"
@@ -409,7 +410,8 @@ jobs:
           steps.check-secrets.outputs.secrets_present == 'true' &&
           steps.resolve-env.outputs.portal_environment == 'preview'
         run: |
-          vercel deploy --prebuilt --token "$VERCEL_TOKEN" | tee /tmp/deploy-url.txt
+          set -euo pipefail
+          vercel deploy --token "$VERCEL_TOKEN" | tee /tmp/deploy-url.txt
           echo ""
           echo "✅ Admin portal preview deployment complete!"
           echo "🌐 URL: $(tail -1 /tmp/deploy-url.txt)"
