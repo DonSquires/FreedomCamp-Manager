@@ -57,7 +57,7 @@ async function callEdgeFunction<T = any>(
 }
 
 // ============================================================================
-// COMPLIANCE & BREACH MANAGEMENT (8 functions)
+// COMPLIANCE & BREACH MANAGEMENT (9 functions)
 // ============================================================================
 
 export const edgeFunctions = {
@@ -158,6 +158,22 @@ export const edgeFunctions = {
     organization_id?: string
   }) => {
     return callEdgeFunction('cleanup-and-recalculate', params)
+  },
+
+  /**
+   * Match observations with ParkPow sessions and sync photos into storage.
+   */
+  syncParkPowPhotos: async (params: {
+    date_from?: string
+    date_to?: string
+    window_minutes?: number
+    limit?: number
+    apply?: boolean
+    require_empty_photo?: boolean
+    target_bucket?: string
+    parkpow_base_url?: string
+  }) => {
+    return callEdgeFunction('parkpow-photo-sync', params)
   },
 
   /**
