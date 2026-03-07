@@ -33,7 +33,7 @@ interface DashboardStats {
 
 export default function ComplianceDashboard() {
   const { user } = useAuthStore()
-  const { organizationId, dateFrom, dateTo } = useGlobalFiltersStore()
+  const { organizationId, zoneId, dateFrom, dateTo } = useGlobalFiltersStore()
   const [analyzingPhotos, setAnalyzingPhotos] = useState(false)
   const [analysisResults, setAnalysisResults] = useState<any>(null)
 
@@ -47,40 +47,63 @@ export default function ComplianceDashboard() {
 
   // Stats calculation
   const calculateStatsManually = async () => {
+    const effectiveOrganizationId =
+      user?.role !== 'master' ? user?.organization_id || null : organizationId || null
+    const startDate = dateFrom ? `${dateFrom}T00:00:00Z` : null
+    const endDate = dateTo ? `${dateTo}T23:59:59Z` : null
+
     let obsQuery = (supabase.from('observations') as any).select('*', { count: 'exact', head: true }).is('deleted_at', null)
     let compliantQuery = (supabase.from('observations') as any).select('*', { count: 'exact', head: true }).is('deleted_at', null).eq('is_compliant', true)
-    let breachQuery = (supabase.from('breach_alerts') as any).select('*', { count: 'exact' }).eq('status', 'pending')
-    const vehicleQuery = (supabase.from('canonical_vehicles') as any).select('*', { count: 'exact' })
+    let breachQuery = (supabase.from('breach_alerts') as any).select('*', { count: 'exact', head: true }).eq('status', 'pending')
     let patrolQuery = (supabase.from('patrols') as any).select('*', { count: 'exact' }).eq('status', 'in_progress')
+    let vehicleObsQuery = (supabase.from('observations') as any).select('plate_number').is('deleted_at', null)
 
-    if (user?.role !== 'master' && user?.organization_id) {
-      obsQuery = obsQuery.eq('organization_id', user.organization_id)
-      compliantQuery = compliantQuery.eq('organization_id', user.organization_id)
-      breachQuery = breachQuery.eq('organization_id', user.organization_id)
-      patrolQuery = patrolQuery.eq('organization_id', user.organization_id)
-    } else if (organizationId) {
-      obsQuery = obsQuery.eq('organization_id', organizationId)
-      compliantQuery = compliantQuery.eq('organization_id', organizationId)
-      breachQuery = breachQuery.eq('organization_id', organizationId)
-      patrolQuery = patrolQuery.eq('organization_id', organizationId)
+    if (effectiveOrganizationId) {
+      obsQuery = obsQuery.eq('organization_id', effectiveOrganizationId)
+      compliantQuery = compliantQuery.eq('organization_id', effectiveOrganizationId)
+      breachQuery = breachQuery.eq('organization_id', effectiveOrganizationId)
+      patrolQuery = patrolQuery.eq('organization_id', effectiveOrganizationId)
+      vehicleObsQuery = vehicleObsQuery.eq('organization_id', effectiveOrganizationId)
     }
 
-    if (dateFrom) {
-      obsQuery = obsQuery.gte('recorded_at', dateFrom)
-      compliantQuery = compliantQuery.gte('recorded_at', dateFrom)
-    }
-    if (dateTo) {
-      obsQuery = obsQuery.lte('recorded_at', dateTo)
-      compliantQuery = compliantQuery.lte('recorded_at', dateTo)
+    if (zoneId) {
+      obsQuery = obsQuery.eq('zone_id', zoneId)
+      compliantQuery = compliantQuery.eq('zone_id', zoneId)
+      breachQuery = breachQuery.eq('zone_id', zoneId)
+      vehicleObsQuery = vehicleObsQuery.eq('zone_id', zoneId)
     }
 
-    const [obsResult, compliantResult, breachResult, vehicleResult, patrolResult] = await Promise.all([
+    if (startDate) {
+      obsQuery = obsQuery.gte('recorded_at', startDate)
+      compliantQuery = compliantQuery.gte('recorded_at', startDate)
+      vehicleObsQuery = vehicleObsQuery.gte('recorded_at', startDate)
+    }
+    if (endDate) {
+      obsQuery = obsQuery.lte('recorded_at', endDate)
+      compliantQuery = compliantQuery.lte('recorded_at', endDate)
+      vehicleObsQuery = vehicleObsQuery.lte('recorded_at', endDate)
+    }
+
+    if (startDate) {
+      breachQuery = breachQuery.gte('created_at', startDate)
+    }
+    if (endDate) {
+      breachQuery = breachQuery.lte('created_at', endDate)
+    }
+
+    const [obsResult, compliantResult, breachResult, patrolResult, vehicleObsResult] = await Promise.all([
       obsQuery,
       compliantQuery,
       breachQuery,
-      vehicleQuery,
       patrolQuery,
+      vehicleObsQuery,
     ])
+
+    const uniqueVehiclePlates = new Set(
+      ((vehicleObsResult.data || []) as Array<{ plate_number: string | null }>)
+        .map((row) => row.plate_number)
+        .filter(Boolean) as string[]
+    )
 
     const totalObs = obsResult.count || 0
     const compliantObs = compliantResult.count || 0
@@ -91,7 +114,7 @@ export default function ComplianceDashboard() {
       compliant_observations: compliantObs,
       non_compliant_observations: totalObs - compliantObs,
       active_breaches: breachResult.count || 0,
-      total_vehicles: vehicleResult.count || 0,
+      total_vehicles: uniqueVehiclePlates.size,
       active_patrols: patrolResult.count || 0,
       compliance_rate: complianceRate,
     }
@@ -99,8 +122,13 @@ export default function ComplianceDashboard() {
 
   // Fetch recent activity
   const { data: recentActivity } = useQuery({
-    queryKey: ['recent-activity', organizationId, user?.organization_id],
+    queryKey: ['recent-activity', organizationId, zoneId, dateFrom, dateTo, user?.organization_id, user?.role],
     queryFn: async () => {
+      const effectiveOrganizationId =
+        user?.role !== 'master' ? user?.organization_id || null : organizationId || null
+      const startDate = dateFrom ? `${dateFrom}T00:00:00Z` : null
+      const endDate = dateTo ? `${dateTo}T23:59:59Z` : null
+
       let query = (supabase.from('observations') as any)
         .select(`
           id,
@@ -108,13 +136,21 @@ export default function ComplianceDashboard() {
           recorded_at,
           zones:zone_id(name)
         `)
+        .is('deleted_at', null)
         .order('recorded_at', { ascending: false })
         .limit(5)
 
-      if (user?.role !== 'master' && user?.organization_id) {
-        query = query.eq('organization_id', user.organization_id)
-      } else if (organizationId) {
-        query = query.eq('organization_id', organizationId)
+      if (effectiveOrganizationId) {
+        query = query.eq('organization_id', effectiveOrganizationId)
+      }
+      if (zoneId) {
+        query = query.eq('zone_id', zoneId)
+      }
+      if (startDate) {
+        query = query.gte('recorded_at', startDate)
+      }
+      if (endDate) {
+        query = query.lte('recorded_at', endDate)
       }
 
       const { data } = await query

@@ -93,6 +93,10 @@ export default function VehicleDetailPage() {
   const { user } = useAuthStore()
   const { organizationId, zoneId, dateFrom, dateTo } = useGlobalFiltersStore()
   const queryClient = useQueryClient()
+  const effectiveOrganizationId =
+    organizationId || (user?.role !== 'master' ? user?.organization_id || null : null)
+  const startDate = dateFrom ? `${dateFrom}T00:00:00Z` : null
+  const endDate = dateTo ? `${dateTo}T23:59:59Z` : null
 
   // Fetch vehicle
   const { data: vehicle, isLoading: loadingVehicle } = useQuery({
@@ -113,9 +117,6 @@ export default function VehicleDetailPage() {
   const { data: observations = [], isLoading: loadingObs } = useQuery({
     queryKey: ['vehicle-observations', vehicle?.plate_number, organizationId, zoneId, dateFrom, dateTo, user?.role, user?.organization_id],
     queryFn: async () => {
-      const effectiveOrganizationId =
-        organizationId || (user?.role !== 'master' ? user?.organization_id || null : null)
-
       let query = supabase
         .from('observations')
         .select(`
@@ -134,11 +135,11 @@ export default function VehicleDetailPage() {
       if (zoneId) {
         query = query.eq('zone_id', zoneId)
       }
-      if (dateFrom) {
-        query = query.gte('recorded_at', `${dateFrom}T00:00:00Z`)
+      if (startDate) {
+        query = query.gte('recorded_at', startDate)
       }
-      if (dateTo) {
-        query = query.lte('recorded_at', `${dateTo}T23:59:59Z`)
+      if (endDate) {
+        query = query.lte('recorded_at', endDate)
       }
 
       const { data, error } = await query
@@ -152,7 +153,7 @@ export default function VehicleDetailPage() {
   const { data: breaches = [], isLoading: loadingBreaches } = useQuery({
     queryKey: ['vehicle-breaches', vehicle?.plate_number],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from('breach_alerts')
         .select(`
           id, breach_type, status, created_at, resolved_at,
@@ -161,6 +162,21 @@ export default function VehicleDetailPage() {
         .eq('plate_number', vehicle!.plate_number)
         .order('created_at', { ascending: false })
         .limit(50)
+
+      if (effectiveOrganizationId) {
+        query = query.eq('organization_id', effectiveOrganizationId)
+      }
+      if (zoneId) {
+        query = query.eq('zone_id', zoneId)
+      }
+      if (startDate) {
+        query = query.gte('created_at', startDate)
+      }
+      if (endDate) {
+        query = query.lte('created_at', endDate)
+      }
+
+      const { data, error } = await query
       if (error) throw error
       return (data || []) as unknown as BreachAlert[]
     },
@@ -169,21 +185,36 @@ export default function VehicleDetailPage() {
 
   // Fetch enforcement actions
   const { data: actions = [], isLoading: loadingActions } = useQuery({
-    queryKey: ['vehicle-actions', id],
+    queryKey: ['vehicle-actions', vehicle?.plate_number, effectiveOrganizationId, zoneId, dateFrom, dateTo],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from('enforcement_actions')
         .select(`
           id, action_type, status, notes, created_at,
           user_profile:user_profiles!user_id(first_name, last_name)
         `)
-        .eq('vehicle_record_id', id!)
+        .eq('plate_number', vehicle!.plate_number)
         .order('created_at', { ascending: false })
         .limit(50)
+
+      if (effectiveOrganizationId) {
+        query = query.eq('organization_id', effectiveOrganizationId)
+      }
+      if (zoneId) {
+        query = query.eq('zone_id', zoneId)
+      }
+      if (startDate) {
+        query = query.gte('created_at', startDate)
+      }
+      if (endDate) {
+        query = query.lte('created_at', endDate)
+      }
+
+      const { data, error } = await query
       if (error) throw error
       return (data || []) as unknown as EnforcementAction[]
     },
-    enabled: !!id,
+    enabled: !!vehicle?.plate_number,
   })
 
   // Toggle flagged
