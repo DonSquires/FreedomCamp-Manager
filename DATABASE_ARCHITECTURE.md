@@ -3,7 +3,7 @@
 **Version:** 1.0  
 **Last Updated:** January 26, 2026  
 **Database Provider:** Supabase PostgreSQL  
-**Project ID:** xbfnlzmpumthnjmtqufp
+**Project ID:** kxwjcupuxnnbnzcgmkoi
 
 ---
 
@@ -1187,7 +1187,7 @@ USING (
 ## Deployment & Environment
 
 **Production:**
-- **URL:** https://xbfnlzmpumthnjmtqufp.supabase.co
+- **URL:** https://kxwjcupuxnnbnzcgmkoi.supabase.co
 - **Status:** ACTIVE_HEALTHY
 - **Region:** Auto-selected by Supabase
 
