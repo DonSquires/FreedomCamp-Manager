@@ -20,30 +20,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
 import { withCors, jsonResponse, errorResponse } from '../_shared/withCors.ts';
 
-// Verify admin authorization
-function verifyAdmin(jwt: string): { userId: string; role: string } | null {
-  try {
-    const parts = jwt.split('.');
-    if (parts.length !== 3) return null;
-    
-    const payload = JSON.parse(atob(parts[1]));
-    const role = payload.user_role || payload.role;
-    
-    if (role !== 'admin' && role !== 'master') {
-      return null;
-    }
-    
-    return {
-      userId: payload.sub || payload.user_id,
-      role,
-    };
-  } catch (err) {
-    console.error('JWT decode error:', err);
-    return null;
-  }
-}
-
-serve(withCors(async (req) => {
+Deno.serve(withCors(async (req) => {
   // Validate auth
   const authHeader = req.headers.get('Authorization');
   if (!authHeader) {
@@ -51,10 +28,16 @@ serve(withCors(async (req) => {
   }
 
   const jwt = authHeader.replace('Bearer ', '');
-  const auth = verifyAdmin(jwt);
-  
-  if (!auth) {
-    return errorResponse('Forbidden: Admin role required', req, 403);
+
+  const supabaseAuth = createClient(
+    Deno.env.get('SUPABASE_URL') ?? '',
+    Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+    { auth: { autoRefreshToken: false, persistSession: false } }
+  );
+
+  const { data: { user }, error: userError } = await supabaseAuth.auth.getUser(jwt);
+  if (userError || !user) {
+    return errorResponse('Unauthorized', req, 401);
   }
 
   // Parse request
@@ -82,6 +65,16 @@ serve(withCors(async (req) => {
       },
     }
   );
+
+  const { data: callerProfile } = await supabase
+    .from('user_profiles')
+    .select('id, role')
+    .eq('id', user.id)
+    .single();
+
+  if (!callerProfile || !['admin', 'master'].includes(callerProfile.role)) {
+    return errorResponse('Forbidden: Admin role required', req, 403);
+  }
 
   // ============================================================================
   // Action: Set Legal Hold
@@ -136,7 +129,7 @@ serve(withCors(async (req) => {
       );
     }
 
-    console.log(`✅ Legal hold ${retention_hold ? 'enabled' : 'disabled'} for incident ${incident_id} by ${auth.userId}`);
+    console.log(`✅ Legal hold ${retention_hold ? 'enabled' : 'disabled'} for incident ${incident_id} by ${user.id}`);
 
     return jsonResponse(
       {
@@ -180,7 +173,7 @@ serve(withCors(async (req) => {
       return errorResponse(`Bulk update failed: ${bulkError.message}`, req, 500);
     }
 
-    console.log(`✅ Bulk updated ${incident_ids.length} incidents by ${auth.userId}`);
+    console.log(`✅ Bulk updated ${incident_ids.length} incidents by ${user.id}`);
 
     return jsonResponse(
       {

@@ -28,6 +28,22 @@ Deno.serve(async (req) => {
       throw new Error('Unauthorized');
     }
 
+    const { data: callerProfile } = await supabaseAdmin
+      .from('user_profiles')
+      .select('role, organization_id')
+      .eq('id', user.id)
+      .single();
+
+    if (!callerProfile || !['master', 'admin'].includes(callerProfile.role)) {
+      return new Response(
+        JSON.stringify({ error: 'Insufficient permissions' }),
+        {
+          status: 403,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      );
+    }
+
     // Get request body
     const { userId, newPassword } = await req.json();
 
@@ -37,6 +53,45 @@ Deno.serve(async (req) => {
 
     if (newPassword.length < 6) {
       throw new Error('Password must be at least 6 characters');
+    }
+
+    const { data: targetProfile } = await supabaseAdmin
+      .from('user_profiles')
+      .select('id, role, organization_id')
+      .eq('id', userId)
+      .single();
+
+    if (!targetProfile) {
+      return new Response(
+        JSON.stringify({ error: 'Target user profile not found' }),
+        {
+          status: 404,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        }
+      );
+    }
+
+    if (callerProfile.role !== 'master') {
+      const sameOrg = callerProfile.organization_id && callerProfile.organization_id === targetProfile.organization_id;
+      if (!sameOrg) {
+        return new Response(
+          JSON.stringify({ error: 'Admins can only update users in their organization' }),
+          {
+            status: 403,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          }
+        );
+      }
+
+      if (targetProfile.role === 'master') {
+        return new Response(
+          JSON.stringify({ error: 'Admins cannot update master accounts' }),
+          {
+            status: 403,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          }
+        );
+      }
     }
 
     console.log(`🔑 Updating password for user: ${userId}`);

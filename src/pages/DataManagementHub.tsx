@@ -151,9 +151,16 @@ export default function DataManagementHub() {
   const handleExportData = async () => {
     setIsExporting(true)
     try {
+      const dateTo = new Date().toISOString().slice(0, 10)
+      const dateFrom = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+
       // Call export edge function
       const { data, error } = await supabase.functions.invoke('generate-dashboard-report', {
-        body: { organizationId: organizationId || user?.organization_id },
+        body: {
+          organization_id: organizationId || user?.organization_id,
+          date_from: dateFrom,
+          date_to: dateTo,
+        },
       })
 
       if (error) throw error

@@ -41,6 +41,15 @@ Deno.serve(async (req) => {
   }
 
   try {
+    const authHeader = req.headers.get('Authorization');
+    const token = authHeader?.replace('Bearer ', '');
+    if (!token) {
+      return new Response(
+        JSON.stringify({ error: 'Missing authorization token' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     const { organization_id, zone_id, threshold_nights = 2 } = await req.json();
 
     const supabaseAdmin = createClient(
@@ -48,13 +57,50 @@ Deno.serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    console.log('🔍 Checking for almost breaches...', { organization_id, zone_id, threshold_nights });
+    const supabaseAuth = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+      { auth: { autoRefreshToken: false, persistSession: false } }
+    );
+
+    const { data: { user }, error: userError } = await supabaseAuth.auth.getUser(token);
+    if (userError || !user) {
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const { data: profile } = await supabaseAdmin
+      .from('user_profiles')
+      .select('role, organization_id')
+      .eq('id', user.id)
+      .single();
+
+    if (!profile || !['master', 'admin', 'admin_officer'].includes(profile.role)) {
+      return new Response(
+        JSON.stringify({ error: 'Insufficient permissions' }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Non-master users are always restricted to their own organization.
+    const effectiveOrganizationId = profile.role === 'master'
+      ? organization_id
+      : (profile.organization_id || organization_id);
+
+    console.log('🔍 Checking for almost breaches...', {
+      organization_id: effectiveOrganizationId,
+      zone_id,
+      threshold_nights,
+      requested_by: user.id,
+    });
 
     // ── Pre-load zone compliance rules ───────────────────────────────────────
     let zonesQuery = supabaseAdmin
       .from('zones')
       .select('id, name, max_consecutive_nights, nights_per_month, organization_id');
-    if (organization_id) zonesQuery = zonesQuery.eq('organization_id', organization_id);
+    if (effectiveOrganizationId) zonesQuery = zonesQuery.eq('organization_id', effectiveOrganizationId);
     if (zone_id)         zonesQuery = zonesQuery.eq('id', zone_id);
     const { data: zones } = await zonesQuery;
     const zoneMap = new Map((zones ?? []).map((z: any) => [z.id, z]));
@@ -77,7 +123,7 @@ Deno.serve(async (req) => {
       .gte('recorded_at', monthStart)
       .order('recorded_at', { ascending: false });
 
-    if (organization_id) obsQuery = obsQuery.eq('organization_id', organization_id);
+    if (effectiveOrganizationId) obsQuery = obsQuery.eq('organization_id', effectiveOrganizationId);
     if (zone_id)         obsQuery = obsQuery.eq('zone_id', zone_id);
 
     const { data: observations, error: obsError } = await obsQuery;

@@ -85,13 +85,16 @@ export default function ObservationsReport() {
   const handleExport = async () => {
     setExporting(true)
     try {
+      const today = new Date().toISOString().slice(0, 10)
+      const defaultFrom = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+
       const { data, error } = await supabase.functions.invoke('observations-export', {
         body: {
-          organizationId: orgId,
-          zoneId: zoneId || undefined,
-          dateFrom: dateFrom || undefined,
-          dateTo: dateTo || undefined,
-          complianceFilter: complianceFilter !== 'all' ? complianceFilter : undefined,
+          organization_id: orgId,
+          zone_id: zoneId || undefined,
+          date_from: dateFrom || defaultFrom,
+          date_to: dateTo || today,
+          search: search || undefined,
         },
       })
       if (error) throw new Error(error.message)

@@ -253,13 +253,14 @@ export function useValidateImport() {
 
   return useMutation({
     mutationFn: async (file: File) => {
-      // Preview import file without committing
-      const formData = new FormData()
-      formData.append('file', file)
-      formData.append('validate_only', 'true')
+      const fileContent = await file.text()
 
       const { data, error } = await supabase.functions.invoke('import-data', {
-        body: formData,
+        body: {
+          fileContent,
+          fileName: file.name,
+          isImage: file.type.startsWith('image/'),
+        },
       })
 
       if (error) {
@@ -292,13 +293,16 @@ export function useImportData() {
       file: File
       importType: 'observations' | 'vehicles' | 'zones' | 'users' | 'historical'
     }) => {
-      const formData = new FormData()
-      formData.append('file', file)
-      formData.append('import_type', importType)
-      formData.append('organization_id', user?.organization_id || '')
+      const fileContent = await file.text()
 
       const { data, error } = await supabase.functions.invoke('import-data', {
-        body: formData,
+        body: {
+          fileContent,
+          fileName: file.name,
+          isImage: file.type.startsWith('image/'),
+          importType,
+          organizationId: user?.organization_id || undefined,
+        },
       })
 
       if (error) {
