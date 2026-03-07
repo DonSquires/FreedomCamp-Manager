@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
 import { AppLayout } from '@/components/features/AppLayout'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -11,6 +11,7 @@ import { Progress } from '@/components/ui/progress'
 import { useOrganizations } from '@/hooks/useOrganizations'
 import { useZones } from '@/hooks/useZones'
 import { edgeFunctions } from '@/lib/edgeFunctions'
+import { useAuthStore } from '@/stores/authStore'
 import { toast } from 'sonner'
 import { 
   RefreshCw, 
@@ -32,6 +33,7 @@ interface RecalculationResult {
 }
 
 export default function ComplianceRecalculation() {
+  const { user } = useAuthStore()
   const [scope, setScope] = useState<'organization' | 'zone' | 'date_range'>('organization')
   const [selectedOrgId, setSelectedOrgId] = useState<string>('')
   const [selectedZoneId, setSelectedZoneId] = useState<string>('')
@@ -41,17 +43,25 @@ export default function ComplianceRecalculation() {
   const [isRunning, setIsRunning] = useState(false)
   const [progress, setProgress] = useState(0)
 
+  const effectiveOrgId = selectedOrgId || (user?.role !== 'master' ? user?.organization_id || '' : '')
+
   const { data: organizations } = useOrganizations()
   const { data: zones } = useZones({ 
-    organizationId: selectedOrgId || undefined 
+    organizationId: effectiveOrgId || undefined 
   })
+
+  useEffect(() => {
+    if (!selectedOrgId && user?.role !== 'master' && user?.organization_id) {
+      setSelectedOrgId(user.organization_id)
+    }
+  }, [selectedOrgId, user?.organization_id, user?.role])
 
   const recalculateMutation = useMutation({
     mutationFn: async () => {
       const params: any = {}
 
-      if (scope === 'organization' && selectedOrgId) {
-        params.organization_id = selectedOrgId
+      if (scope === 'organization' && effectiveOrgId) {
+        params.organization_id = effectiveOrgId
       } else if (scope === 'zone' && selectedZoneId) {
         params.zone_id = selectedZoneId
       } else if (scope === 'date_range') {
@@ -95,7 +105,7 @@ export default function ComplianceRecalculation() {
   })
 
   const handleRecalculate = () => {
-    if (scope === 'organization' && !selectedOrgId) {
+    if (scope === 'organization' && !effectiveOrgId) {
       toast.error('Please select an organization')
       return
     }

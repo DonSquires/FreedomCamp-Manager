@@ -127,11 +127,28 @@ export const edgeFunctions = {
    * Strict zone-based compliance recalculation
    */
   recalculateComplianceV2: async (params: {
-    zone_id: string
+    zone_id?: string
+    zone_ids?: string[]
     date_from?: string
     date_to?: string
+    get_total?: boolean
+    offset?: number
+    batch_size?: number
   }) => {
-    return callEdgeFunction('recalculate-compliance-v2', params)
+    const zoneIds = params.zone_ids && params.zone_ids.length > 0
+      ? params.zone_ids
+      : params.zone_id
+        ? [params.zone_id]
+        : []
+
+    return callEdgeFunction('recalculate-compliance-v2', {
+      zoneIds,
+      dateRangeStart: params.date_from,
+      dateRangeEnd: params.date_to,
+      get_total: params.get_total,
+      offset: params.offset,
+      batch_size: params.batch_size,
+    })
   },
 
   /**
