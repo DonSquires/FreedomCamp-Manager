@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { MapContainer, TileLayer, Circle, Polygon, CircleMarker, useMapEvents } from 'react-leaflet'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -6,7 +7,7 @@ import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { 
   MapPin, 
-  Circle, 
+  Circle as CircleIcon, 
   Square, 
   Save, 
   Trash2, 
@@ -24,14 +25,103 @@ interface Coordinate {
 
 interface ZoneGeofenceEditorProps {
   zoneId?: string
-  initialGeometry?: {
-    type: 'circle' | 'polygon'
-    coordinates?: Coordinate[]
-    radius?: number
-    center?: Coordinate
-  }
+  initialGeometry?: any
   onSave: (geometry: any) => Promise<void>
   onCancel?: () => void
+}
+
+function MapClickHandler({ onClick }: { onClick: (lat: number, lng: number) => void }) {
+  useMapEvents({
+    click: (event) => {
+      onClick(event.latlng.lat, event.latlng.lng)
+    },
+  })
+  return null
+}
+
+function parseInitialGeometry(initialGeometry?: any): {
+  geometryType: 'circle' | 'polygon'
+  center: Coordinate
+  radius: number
+  points: Coordinate[]
+} {
+  const defaultCenter = { lat: -36.8485, lng: 174.7633 }
+  const defaultState = {
+    geometryType: 'circle' as const,
+    center: defaultCenter,
+    radius: 100,
+    points: [] as Coordinate[],
+  }
+
+  if (!initialGeometry) {
+    return defaultState
+  }
+
+  const geometry = initialGeometry.type === 'Feature' ? initialGeometry.geometry : initialGeometry
+  if (!geometry || !geometry.type) {
+    return defaultState
+  }
+
+  // Legacy custom format support.
+  if (geometry.type === 'circle' && geometry.center) {
+    return {
+      geometryType: 'circle',
+      center: {
+        lat: Number(geometry.center.lat) || defaultCenter.lat,
+        lng: Number(geometry.center.lng) || defaultCenter.lng,
+      },
+      radius: Number(geometry.radius) || 100,
+      points: [],
+    }
+  }
+
+  if (geometry.type === 'polygon' && Array.isArray(geometry.coordinates)) {
+    return {
+      geometryType: 'polygon',
+      center: defaultCenter,
+      radius: 100,
+      points: geometry.coordinates
+        .map((p: any) => ({ lat: Number(p.lat), lng: Number(p.lng) }))
+        .filter((p: Coordinate) => Number.isFinite(p.lat) && Number.isFinite(p.lng)),
+    }
+  }
+
+  // GeoJSON Point + radius (used by check_location_in_org for circular zones).
+  if (geometry.type === 'Point' && Array.isArray(geometry.coordinates) && geometry.coordinates.length >= 2) {
+    return {
+      geometryType: 'circle',
+      center: {
+        lat: Number(geometry.coordinates[1]) || defaultCenter.lat,
+        lng: Number(geometry.coordinates[0]) || defaultCenter.lng,
+      },
+      radius: Number(geometry.radius) || 100,
+      points: [],
+    }
+  }
+
+  // GeoJSON Polygon.
+  if (geometry.type === 'Polygon' && Array.isArray(geometry.coordinates?.[0])) {
+    const ring = geometry.coordinates[0] as any[]
+    const points = ring
+      .map((coord: any) => ({ lat: Number(coord?.[1]), lng: Number(coord?.[0]) }))
+      .filter((p: Coordinate) => Number.isFinite(p.lat) && Number.isFinite(p.lng))
+
+    // Remove duplicated closing vertex for editing convenience.
+    const normalizedPoints = points.length > 1
+      && points[0].lat === points[points.length - 1].lat
+      && points[0].lng === points[points.length - 1].lng
+      ? points.slice(0, -1)
+      : points
+
+    return {
+      geometryType: 'polygon',
+      center: normalizedPoints[0] || defaultCenter,
+      radius: 100,
+      points: normalizedPoints,
+    }
+  }
+
+  return defaultState
 }
 
 export function ZoneGeofenceEditor({ 
@@ -40,20 +130,21 @@ export function ZoneGeofenceEditor({
   onSave, 
   onCancel 
 }: ZoneGeofenceEditorProps) {
+  const parsedInitial = parseInitialGeometry(initialGeometry)
   const [geometryType, setGeometryType] = useState<'circle' | 'polygon'>(
-    initialGeometry?.type || 'circle'
+    parsedInitial.geometryType
   )
   const [centerLat, setCenterLat] = useState<number>(
-    initialGeometry?.center?.lat || -36.8485
+    parsedInitial.center.lat
   )
   const [centerLng, setCenterLng] = useState<number>(
-    initialGeometry?.center?.lng || 174.7633
+    parsedInitial.center.lng
   )
   const [radius, setRadius] = useState<number>(
-    initialGeometry?.radius || 100
+    parsedInitial.radius
   )
   const [polygonPoints, setPolygonPoints] = useState<Coordinate[]>(
-    initialGeometry?.coordinates || []
+    parsedInitial.points
   )
   const [isSaving, setIsSaving] = useState(false)
   const [useCurrentLocation, setUseCurrentLocation] = useState(false)
@@ -87,6 +178,16 @@ export function ZoneGeofenceEditor({
     setPolygonPoints([...polygonPoints, { lat: centerLat, lng: centerLng }])
   }
 
+  const handleMapClick = (lat: number, lng: number) => {
+    if (geometryType === 'circle') {
+      setCenterLat(lat)
+      setCenterLng(lng)
+      return
+    }
+
+    setPolygonPoints((prev) => [...prev, { lat, lng }])
+  }
+
   // Remove polygon point
   const removePolygonPoint = (index: number) => {
     setPolygonPoints(polygonPoints.filter((_, i) => i !== index))
@@ -114,9 +215,9 @@ export function ZoneGeofenceEditor({
         }
 
         geometry = {
-          type: 'circle',
-          center: { lat: centerLat, lng: centerLng },
-          radius: radius,
+          type: 'Point',
+          coordinates: [centerLng, centerLat],
+          radius,
         }
       } else {
         if (polygonPoints.length < 3) {
@@ -125,9 +226,12 @@ export function ZoneGeofenceEditor({
           return
         }
 
+        const ring = polygonPoints.map((p) => [p.lng, p.lat])
+        ring.push([polygonPoints[0].lng, polygonPoints[0].lat])
+
         geometry = {
-          type: 'polygon',
-          coordinates: polygonPoints,
+          type: 'Polygon',
+          coordinates: [ring],
         }
       }
 
@@ -174,7 +278,7 @@ export function ZoneGeofenceEditor({
               className="h-auto py-4"
             >
               <div className="flex flex-col items-center gap-2">
-                <Circle className="h-8 w-8" />
+                <CircleIcon className="h-8 w-8" />
                 <div>
                   <div className="font-semibold">Circle</div>
                   <div className="text-xs opacity-70">Center + radius</div>
@@ -195,6 +299,76 @@ export function ZoneGeofenceEditor({
                 </div>
               </div>
             </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Interactive map editor */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Map Editor</CardTitle>
+          <CardDescription>
+            {geometryType === 'circle'
+              ? 'Click map to set circle center, then adjust radius.'
+              : 'Click map to add polygon vertices. Use reset to clear and redraw.'}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="h-[420px] rounded-md overflow-hidden border">
+            <MapContainer
+              center={[centerLat, centerLng]}
+              zoom={14}
+              style={{ height: '100%', width: '100%' }}
+            >
+              <TileLayer
+                attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+              />
+              <MapClickHandler onClick={handleMapClick} />
+
+              {geometryType === 'circle' ? (
+                <>
+                  <Circle center={[centerLat, centerLng]} radius={radius} pathOptions={{ color: '#2563eb', fillOpacity: 0.15 }} />
+                  <CircleMarker center={[centerLat, centerLng]} radius={7} pathOptions={{ color: '#1d4ed8', fillColor: '#1d4ed8', fillOpacity: 0.9 }} />
+                </>
+              ) : (
+                <>
+                  {polygonPoints.map((point, index) => (
+                    <CircleMarker
+                      key={`${point.lat}-${point.lng}-${index}`}
+                      center={[point.lat, point.lng]}
+                      radius={6}
+                      pathOptions={{ color: '#0f766e', fillColor: '#0f766e', fillOpacity: 0.9 }}
+                    />
+                  ))}
+                  {polygonPoints.length >= 3 && (
+                    <Polygon
+                      positions={polygonPoints.map((point) => [point.lat, point.lng])}
+                      pathOptions={{ color: '#0f766e', fillColor: '#14b8a6', fillOpacity: 0.2 }}
+                    />
+                  )}
+                </>
+              )}
+            </MapContainer>
+          </div>
+
+          <div className="flex gap-2">
+            {geometryType === 'polygon' && (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setPolygonPoints([])}
+                className="flex-1"
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Reset Polygon
+              </Button>
+            )}
+            <Badge variant="outline" className="flex-1 justify-center py-2">
+              {geometryType === 'circle'
+                ? `Center: ${centerLat.toFixed(5)}, ${centerLng.toFixed(5)}`
+                : `Vertices: ${polygonPoints.length}`}
+            </Badge>
           </div>
         </CardContent>
       </Card>
@@ -317,12 +491,8 @@ export function ZoneGeofenceEditor({
               </div>
             )}
 
-            <Button
-              variant="outline"
-              onClick={addPolygonPoint}
-              className="w-full"
-            >
-              Add Point
+            <Button variant="outline" onClick={addPolygonPoint} className="w-full">
+              Add Point From Center
             </Button>
 
             {polygonPoints.length < 3 && polygonPoints.length > 0 && (
