@@ -184,24 +184,20 @@ OFFICER (phone)
      │        │  6. allowed_days (wrong day of week)?                     │
      │        │  7. homeless / fc_act_exempt? → override to COMPLIANT     │
      │        │                                                            │
-     │        │  Writes: [compliance_results]                             │
-     │        │    is_compliant, violation_types[], violation_reasons[]   │
-     │        │    requirement_details (per-rule breakdown)               │
-     │        │    matrix_version (which version of rules was used)       │
+           │        │  Writes: [observations]                                   │
+           │        │    is_compliant, breach_type, breach_reason               │
+           │        │    nights_stayed_this_month, consecutive_nights           │
+           │        │    (compliance state stored on the observation row)        │
      │        └────────────────────────────────────────────────────────────┘
      │
-     ═► TRIGGER: trigger_create_breach_alert_from_compliance
-     │      (fires AFTER compliance_results INSERT)
-     │      → IF NOT is_compliant AND NOT analytics_only:
+           ═► TRIGGER/FUNCTION: breach evaluation path
+           │      (fires from observations compliance state)
+           │      → IF observations.is_compliant = false:
      │           INSERT [breach_alerts]
      │             breach_type = <violation type>
      │             status = 'pending'
      │             organization_id, zone_id, plate_number
      │             breach_details JSONB (nights, limits, enforcement_workflow)
-     │
-     ═► TRIGGER: trigger_sync_observation_compliance
-            → Copies is_compliant from [compliance_results]
-              back to [observations].is_compliant
 ```
 
 ---
@@ -330,7 +326,7 @@ On-demand admin-triggered jobs (called from frontend via Edge Function):
      ├─ {recalculate-compliance}
      │     Loops through all observations in date range
      │     Re-runs calculate_vehicle_compliance_v3() for each
-     │     Overwrites [compliance_results] with fresh data
+     │     Updates compliance fields on [observations] with fresh data
      │     Used when zone rules change retroactively
      │
      ├─ {scan-breaches}
@@ -381,7 +377,7 @@ Admin triggers from ReportsHub / BreachAlerts page
      │
      ├─ Generate Leadership Pack
      │     {generate-leadership-pack}
-     │       Reads [compliance_results], [breach_alerts], [drift_events]
+     │       Reads [observations], [breach_alerts], [drift_events]
      │       Produces executive summary with:
      │         - Compliance rate by zone (%)
      │         - Daily breach trend chart
@@ -669,25 +665,22 @@ OFFICER taps "Scan"                                    t=0ms
           │
           ═► trigger_update_monthly_stays              ← UPSERT vehicle_monthly_stays
           ═► trigger_populate_compliance_summary       ← builds compliance_summary JSONB
-          ═► trigger_auto_create_compliance_result     ← runs compliance engine
-          │     └─ INSERT compliance_results
-          │           is_compliant = false
-          │           violation_types = ['consecutive_nights']
-          │           matrix_version = 4
-          │
-          ═► trigger_create_breach_alert_from_compliance  ← fires on compliance_results
+              ═► trigger_auto_evaluate_compliance          ← runs compliance engine
+              │     └─ UPDATE observations
+              │           is_compliant = false
+              │           breach_type = 'consecutive_nights'
+              │           breach_reason = '<computed reason>'
+              │
+              ═► breach-alert creation path                ← reads observations.is_compliant
           │     └─ INSERT breach_alerts
           │           status = 'pending'
           │           breach_type = 'consecutive_nights'
           │           enforcement_workflow = 'officer_direct' (from org)
-          │
-          ═► trigger_sync_observation_compliance       ← copies is_compliant back
-                └─ UPDATE observations.is_compliant = false
 
 RESULT at t~8s:
      [observations] complete + plate identified
      [vehicle_monthly_stays] updated
-     [compliance_results] written with per-rule breakdown
+     [observations] compliance fields updated with per-rule breakdown
      [breach_alerts] created (status=pending)
      Officer's "Recent Scans" section auto-refreshes (TanStack Query)
      Officer sees: ABC123 — 🔴 IN BREACH — consecutive_nights

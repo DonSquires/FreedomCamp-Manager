@@ -286,7 +286,7 @@ ORDER BY changed_at DESC;
 **Expected Results:**
 - ✅ New zone_compliance_matrix version created
 - ✅ All observations re-evaluated against new rules
-- ✅ compliance_results updated
+- ✅ observations compliance fields updated (`is_compliant`, `breach_type`, `breach_reason`)
 - ✅ New breach_alerts created for new violations
 - ✅ drift_events table logs criteria change
 - ✅ Compliance dashboard reflects new status
@@ -327,10 +327,8 @@ WHERE zone_id = 'zone-uuid'
 3. Check if breach alert created (if non-compliant)
 
 **Expected Results:**
-- ✅ Trigger: `tr_evaluate_compliance` fires on insert
-- ✅ Function: `obs_evaluate_compliance()` called
+- ✅ Trigger/function: compliance evaluation path fires on insert
 - ✅ observations.is_compliant set correctly
-- ✅ compliance_results row created
 - ✅ breach_alert created if non-compliant
 - ✅ All happens in <1 second
 
@@ -343,14 +341,6 @@ SELECT
   breach_type,
   breach_reason
 FROM observations 
-WHERE id = 'obs-uuid';
-
--- Check compliance result
-SELECT 
-  status,
-  rule_applied,
-  current_stay_count
-FROM compliance_results 
 WHERE observation_id = 'obs-uuid';
 ```
 

@@ -113,7 +113,7 @@ This document defines all feature flags for the phased rollout of the Core Pipel
 
 #### `FEATURE_KPI_RECOMPUTE`
 - **Purpose**: Enable historical compliance recomputation job
-- **Impact**: Backfills `compliance_results` for all observations since effective date; stabilizes KPI tiles
+- **Impact**: Recomputes compliance fields on `observations` for all rows since effective date; stabilizes KPI tiles
 - **Dependencies**: Layer 3 compliance engine, `recompute_all_compliance_since_effective_date()` RPC
 - **Default States**:
   - Development: `false` (run manually)
@@ -121,14 +121,8 @@ This document defines all feature flags for the phased rollout of the Core Pipel
   - Production: `false` (run once in maintenance window)
 - **Execution**:
   ```sql
-  -- Disable alert trigger
-  ALTER TABLE compliance_results DISABLE TRIGGER trigger_auto_create_breach_alert;
-  
   -- Run recompute (batched)
   SELECT recompute_all_compliance_since_effective_date('2025-12-01'::date);
-  
-  -- Re-enable alert trigger
-  ALTER TABLE compliance_results ENABLE TRIGGER trigger_auto_create_breach_alert;
   ```
 
 ---

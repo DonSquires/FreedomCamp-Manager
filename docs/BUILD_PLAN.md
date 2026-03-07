@@ -225,7 +225,7 @@ complete catalogue of outputs.
 | Output | Description | Where Stored |
 |---|---|---|
 | **Observation record** | Vehicle seen at location: plate, GPS, photo, time, compliance result | `observations` table |
-| **Compliance result** | Per-requirement breakdown: pass/fail for each zone rule | `compliance_results` table |
+| **Compliance state** | Compliance status and breach reason written directly on each observation | `observations` table (`is_compliant`, `breach_type`, `breach_reason`) |
 | **Breach alert** | Auto-created when a vehicle is non-compliant; tracks workflow | `breach_alerts` table |
 | **Enforcement action** | What the officer did about a breach (warning, notice, etc.) | `enforcement_actions` table |
 | **Patrol record** | Start/end time, vehicles checked, GPS track | `patrols` table |
@@ -689,23 +689,16 @@ Kept in sync with the `zones` table via the `sync_zone_to_matrix` trigger (resil
 | change_reason | text | e.g. `auto_created_with_zone` |
 | change_notes | text | |
 
-#### `compliance_results`
-Per-observation compliance evaluation.
+#### Compliance fields on `observations`
+Per-observation compliance is stored directly on the `observations` row.
 
 | Column | Type | Description |
 |---|---|---|
-| id | uuid PK | |
-| observation_id | uuid FK | |
-| plate_number | text | |
-| zone_id | uuid FK | |
-| is_compliant | boolean | |
-| violation_types | text[] | Array of breach types |
-| violation_reasons | text[] | Human-readable reasons |
-| requirement_details | jsonb | Per-requirement breakdown (YES/NO/BREACH) |
-| matrix_version | integer | Which matrix version used |
-| is_homeless_exempt | boolean | Freedom Camping Act exemption |
-| evidence_observations | jsonb | Sequential evidence trail |
-| analytics_only | boolean | TRUE = historical backfill, no enforcement |
+| is_compliant | boolean | Final compliance verdict |
+| breach_type | text | Primary breach category |
+| breach_reason | text | Human-readable explanation |
+| nights_stayed_this_month | integer | Monthly nights counter used by rules |
+| consecutive_nights | integer | Consecutive nights counter used by rules |
 
 #### `breach_alerts`
 Non-compliant observations escalated for enforcement.
@@ -993,10 +986,9 @@ zones (1) ──→ (N) patrol_checkpoints
 canonical_vehicles (1) ──→ (N) observations (via plate_number)
 canonical_vehicles (1) ──→ (N) vehicle_monthly_stays
 
-observations (1) ──→ (1) compliance_results
+observations (1) ──→ (0..1) breach_alerts (if non-compliant)
 observations (N) ──→ (1) incidents (via incident_id)
 observations (1) ──→ (1) previous_observation (via previous_observation_id)
-compliance_results ──→ (1) breach_alerts (if non-compliant)
 breach_alerts (1) ──→ (N) enforcement_actions
 breach_alerts (1) ──→ (N) notices_to_vacate
 
@@ -1678,7 +1670,7 @@ Deploy the `dist/` folder to any static host:
    70+ SQL files under `supabase/migrations/`). Use `supabase db push` to apply
    all migrations in order, or run them manually sorted by filename.
    - Start with core tables: organizations, user_profiles, zones
-   - Then: canonical_vehicles, observations, compliance_results
+   - Then: canonical_vehicles, observations, zone_compliance_matrix
    - Then: breach_alerts, enforcement_actions, notices_to_vacate
    - Then: patrols, incidents, health_safety_reports
    - Then: supporting tables (audit_log, bug_reports, etc.)

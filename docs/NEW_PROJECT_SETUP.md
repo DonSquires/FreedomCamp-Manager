@@ -423,7 +423,7 @@ Run through this checklist:
 
 ### Database
 - [ ] All tables exist (observations, breach_alerts, zones, organizations, etc.)
-- [ ] Compliance trigger fires: insert a test observation, check compliance_results is populated
+- [ ] Compliance trigger fires: insert a test observation, check `observations.is_compliant` / `breach_type` are populated
 - [ ] Breach trigger fires: insert non-compliant observation, check breach_alerts is created
 
 ### Web Portal
