@@ -89,21 +89,14 @@ FieldOfficerPortal.tsx / ScanScreen.tsx (capture)
    - `total_observations` (auto-incremented)
 
 2. **observations**
-   - `id` (UUID, PK)
+   - `observation_id` (UUID, PK)
    - `zone_id, organization_id, recorded_by`
    - `plate_number, plate_confidence, is_compliant`
    - `gps_latitude, gps_longitude, gps_accuracy`
    - `photo_url, photo_hash`
-   - `recorded_at, idempotency_key`
+   - `recorded_at, idempotency_key, breach_type, breach_reason`
 
-3. **compliance_results**
-   - `observation_id` (FK → observations, UNIQUE with matrix_id)
-   - `vehicle_id, zone_id, organization_id`
-   - `matrix_id` (FK → zone_compliance_matrix)
-   - `is_compliant, violation_reasons`
-   - `metrics_json, matrix_snapshot`
-
-4. **breach_alerts**
+3. **breach_alerts**
    - `observation_id` (FK → observations, UNIQUE)
    - `vehicle_id, zone_id, organization_id`
    - `breach_type, recommended_action`
@@ -194,15 +187,15 @@ vehicle-ingest / observations pipeline
    ↓ calculate_vehicle_compliance() [SQL trigger/function]
      ↓ Evaluate zone rules (self-contained, nights_per_month, max_consecutive_nights, day_visit_only)
      ↓ Check homeless exemption
-     ↓ [IF non-compliant] INSERT compliance_results (is_compliant = false)
-        ↓ INSERT breach_alerts (one per observation)
-           ↓ TRIGGER: breach_alerts_created (realtime)
-              ↓ Client: checkPlateNotifications()
-                 ↓ [IF flagged_vehicle] Show AlertAcknowledgementModal (priority 1)
-                 ↓ [IF hs_issue] Show AlertAcknowledgementModal (priority 2)
-                 ↓ [IF breach] Show AlertAcknowledgementModal (priority 3)
-                 ↓ [IF homeless] Show AlertAcknowledgementModal (priority 4)
-                 ↓ [ELSE] Show NotificationCenter (green bubble)
+     ↓ writes observations.is_compliant + breach_type + breach_reason
+     ↓ [IF non-compliant] INSERT breach_alerts (one per observation)
+        ↓ TRIGGER: breach_alerts_created (realtime)
+           ↓ Client: checkPlateNotifications()
+              ↓ [IF flagged_vehicle] Show AlertAcknowledgementModal (priority 1)
+              ↓ [IF hs_issue] Show AlertAcknowledgementModal (priority 2)
+              ↓ [IF breach] Show AlertAcknowledgementModal (priority 3)
+              ↓ [IF homeless] Show AlertAcknowledgementModal (priority 4)
+              ↓ [ELSE] Show NotificationCenter (green bubble)
 ```
 
 ### **Notification Types**

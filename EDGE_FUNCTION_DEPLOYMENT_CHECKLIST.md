@@ -117,7 +117,7 @@ ls supabase/migrations/
 # Expected to see migration files creating:
 # - calculate_vehicle_compliance()
 # - zone_compliance_matrix table
-# - compliance_results table
+# - observations compliance fields / triggers
 ```
 
 ---
@@ -159,30 +159,34 @@ console.log('Session:', session);
 
 ---
 
-## Step 6: Check Compliance Results Table
+## Step 6: Check Observations Compliance Fields
 
-After running recalculation, verify data was written:
+After running recalculation, verify compliance fields were written on observations:
 
 ```sql
--- Check if compliance_results table has data
-SELECT COUNT(*) FROM compliance_results;
+-- Check if observations include compliance states
+SELECT
+  COUNT(*) AS total_observations,
+  COUNT(*) FILTER (WHERE is_compliant = false) AS non_compliant_observations
+FROM observations;
 
--- Check recent compliance results
+-- Check recent evaluated observations
 SELECT 
-  cr.observation_id,
-  cr.is_compliant,
-  cr.evaluated_at,
-  cv.plate_number,
-  z.name as zone_name
-FROM compliance_results cr
-JOIN canonical_vehicles cv ON cv.vehicle_id = cr.vehicle_id
-JOIN zones z ON z.id = cr.zone_id
-ORDER BY cr.evaluated_at DESC
+  o.observation_id,
+  o.is_compliant,
+  o.recorded_at,
+  o.plate_number,
+  z.name as zone_name,
+  o.breach_type,
+  o.breach_reason
+FROM observations o
+LEFT JOIN zones z ON z.id = o.zone_id
+ORDER BY o.recorded_at DESC
 LIMIT 10;
 ```
 
 **If Zero Records:**
-1. Check if `vehicle_observations` table has data
+1. Check if `observations` table has data
 2. Check if `zone_compliance_matrix` has active matrices
 3. Check Edge Function logs for processing errors
 
@@ -193,26 +197,25 @@ LIMIT 10;
 **Symptom:** Stats page shows "Total observations: 0" despite recorded field data.
 
 **Possible Causes:**
-1. **No compliance_results created** → Edge function `process-field-scan` not calling `calculate_vehicle_compliance()`
+1. **No non-compliant observations found** → Ingest/compliance path may not be setting `is_compliant` and breach fields
 2. **Matrix created after observations** → Observations recorded before matrix existed
 3. **Query filtering out results** → Date range or zone filter too restrictive
 
 **Debug Query:**
 ```sql
--- Check vehicle_observations count for a zone
+-- Check observations count for a zone
 SELECT 
   z.name as zone_name,
-  COUNT(vo.observation_id) as total_observations,
-  COUNT(cr.id) as total_compliance_results
+  COUNT(o.observation_id) as total_observations,
+  COUNT(*) FILTER (WHERE o.is_compliant = false) as total_non_compliant
 FROM zones z
-LEFT JOIN vehicle_observations vo ON vo.zone_id = z.id
-LEFT JOIN compliance_results cr ON cr.observation_id = vo.observation_id
+LEFT JOIN observations o ON o.zone_id = z.id
 WHERE z.is_active = true
 GROUP BY z.id, z.name
 ORDER BY total_observations DESC;
 ```
 
-**Fix:** Run recalculation for affected zones to create missing compliance_results records.
+**Fix:** Run recalculation for affected zones to populate missing observations compliance fields.
 
 ---
 
@@ -274,7 +277,7 @@ WHERE id = 'test-action-id';
 
 ### If everything works but results are zero
 → Issue is with data or logic
-- Run recalculation with BUILD scope to populate all compliance_results
+- Run recalculation with BUILD scope to populate observations compliance fields
 - Check zone compliance matrix has active versions
 - Verify observations exist for the date range
 

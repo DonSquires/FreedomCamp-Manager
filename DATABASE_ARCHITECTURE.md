@@ -5,6 +5,11 @@
 **Database Provider:** Supabase PostgreSQL  
 **Project ID:** kxwjcupuxnnbnzcgmkoi
 
+> NOTE: This document contains legacy terminology in some sections.
+> Current production architecture stores compliance state directly on
+> `observations` (`is_compliant`, `breach_type`, `breach_reason`), and
+> `compliance_results` is no longer an operational runtime table.
+
 ---
 
 ## Table of Contents
@@ -219,7 +224,7 @@ FreedomCamp Manager is a comprehensive vehicle tracking and compliance managemen
 - `recorded_at` (TIMESTAMPTZ) - Sighting timestamp
 - `source_type` (TEXT) - 'patrol', 'driving_scan', 'manual'
 - `is_self_contained` (BOOLEAN)
-- `is_compliant` (BOOLEAN) - Deprecated (use compliance_results)
+- `is_compliant` (BOOLEAN) - Current compliance verdict on the observation row
 - `gps_latitude`, `gps_longitude`, `gps_accuracy` (NUMERIC)
 - `evidence_photos` (JSONB) - Array of photo URLs
 - `notes` (TEXT)
@@ -241,7 +246,7 @@ FreedomCamp Manager is a comprehensive vehicle tracking and compliance managemen
 
 ---
 
-##### `compliance_results`
+##### `compliance_results` (Legacy/Archived)
 **Purpose:** Compliance evaluations linked to matrix versions  
 **Primary Key:** `id` (UUID)  
 **Key Columns:**

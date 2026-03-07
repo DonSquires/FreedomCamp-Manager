@@ -69,10 +69,10 @@
 3. Date Range: **Custom** → Set to the week when the bug occurred
 4. Run recalculation → This recalculates only affected observations
 
-### Scenario 4: Populate Missing Compliance Results
+### Scenario 4: Populate Missing Compliance Status
 **Problem:** ComplianceMatrixManagement shows "Total observations: 0" despite scans being recorded.
 
-**Root Cause:** The `compliance_results` table is empty because:
+**Root Cause:** Observation compliance fields are missing/incorrect because:
 - Zone matrix was created **after** observations were recorded
 - `process-field-scan` Edge Function failed silently during historical scans
 - Database function `calculate_vehicle_compliance()` wasn't called
@@ -80,7 +80,7 @@
 **Solution (RECOMMENDED FOR CURRENT ISSUE):**
 1. Scope: **Entire System** (or specific zones if known)
 2. Date Range: **All Time**
-3. Run recalculation → This populates `compliance_results` for all existing observations
+3. Run recalculation → This updates compliance fields for all existing observations
 4. Expected outcome: ComplianceMatrixManagement stats should now show correct counts
 
 ---
@@ -96,13 +96,13 @@
 3. Check browser console for detailed error message
 
 ### Error: "No observations found to process"
-**Cause:** No vehicle_observations match the selected scope/date range.
+**Cause:** No observations match the selected scope/date range.
 
 **Fix:**
 1. Expand date range to "All Time"
 2. Check if zone actually has observations in database:
    ```sql
-   SELECT COUNT(*) FROM vehicle_observations WHERE zone_id = 'zone-uuid-here';
+   SELECT COUNT(*) FROM observations WHERE zone_id = 'zone-uuid-here';
    ```
 
 ### Error: "Insufficient permissions"
@@ -117,18 +117,17 @@
 
 **Diagnosis:**
 ```sql
--- Check if compliance_results were created
+-- Check observations compliance fields
 SELECT 
   z.name,
-  COUNT(cr.id) as compliance_results_count,
-  COUNT(vo.observation_id) as observations_count
+   COUNT(o.observation_id) as observations_count,
+   COUNT(*) FILTER (WHERE o.is_compliant = false) as non_compliant_count
 FROM zones z
-LEFT JOIN vehicle_observations vo ON vo.zone_id = z.id
-LEFT JOIN compliance_results cr ON cr.observation_id = vo.observation_id
+LEFT JOIN observations o ON o.zone_id = z.id
 GROUP BY z.id, z.name;
 ```
 
-**If compliance_results_count is still 0:**
+**If non_compliant_count is unexpectedly 0:**
 1. Check Edge Function logs for errors during processing
 2. Verify `calculate_vehicle_compliance()` function exists
 3. Run recalculation again with logging enabled
@@ -202,23 +201,21 @@ Before running system-wide recalculation:
 
 If you need to export recalculation results for reporting:
 ```sql
--- Export compliance results to CSV
+-- Export observation compliance status to CSV
 COPY (
   SELECT 
-    cr.observation_id,
-    cv.plate_number,
+      o.observation_id,
+      o.plate_number,
     z.name as zone_name,
-    cr.is_compliant,
-    cr.violation_reasons,
-    cr.evaluated_at,
-    zcm.version as matrix_version
-  FROM compliance_results cr
-  JOIN canonical_vehicles cv ON cv.vehicle_id = cr.vehicle_id
-  JOIN zones z ON z.id = cr.zone_id
-  JOIN zone_compliance_matrix zcm ON zcm.id = cr.matrix_id
-  WHERE cr.evaluated_at >= '2025-01-01'
-  ORDER BY cr.evaluated_at DESC
-) TO '/tmp/compliance_results.csv' WITH CSV HEADER;
+      o.is_compliant,
+      o.breach_type,
+      o.breach_reason,
+      o.recorded_at
+   FROM observations o
+   LEFT JOIN zones z ON z.id = o.zone_id
+   WHERE o.recorded_at >= '2025-01-01'
+   ORDER BY o.recorded_at DESC
+) TO '/tmp/observations_compliance.csv' WITH CSV HEADER;
 ```
 
 ---

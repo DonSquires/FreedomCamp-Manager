@@ -79,14 +79,14 @@ ALPR/OCR/Manual Entry Success
    - If duplicate found: Return 409 error with duplicate info
    - If unique: Proceed
     ↓
-5. Edge Function creates vehicle_observations_v2 record:
+5. Edge Function creates observations record:
    - Links to canonical vehicle via plate_number
    - Auto-populated with canonical data (trigger)
    - Stores event-specific data (GPS, photo, notes)
     ↓
 6. Edge Function calculates compliance:
-   - Calls calculate_vehicle_compliance_with_results()
-   - Creates compliance_results record
+   - Calls compliance evaluation path
+   - Writes compliance fields on observations (`is_compliant`, `breach_type`, `breach_reason`)
    - Returns is_compliant status
     ↓
 7. Edge Function returns response with:
@@ -100,7 +100,7 @@ ALPR/OCR/Manual Entry Success
 - ✅ **Canonical vehicles as master data** - ALPR data goes directly to canonical record
 - ✅ **Duplicate detection** - Prevents same-day re-scans
 - ✅ **Automatic population** - Observations inherit from canonical vehicle
-- ✅ **Compliance evaluation** - Results stored in compliance_results table
+- ✅ **Compliance evaluation** - Results stored on observations row
 - ✅ **GPS validation** - Server-side enforcement of 100m accuracy limit
 
 ---
@@ -200,12 +200,12 @@ process-field-scan returns success
 │                                                             │
 │   2. Check for duplicates (same day/zone)                  │
 │                                                             │
-│   3. Create vehicle_observations_v2                        │
+│   3. Create observations                                   │
 │      - Auto-populated from canonical (trigger)             │
 │      - Event data: GPS, photo, notes                       │
 │                                                             │
 │   4. Calculate compliance                                   │
-│      - Save to compliance_results table                    │
+│      - Save compliance state on observations row           │
 │      - Return is_compliant status                          │
 │                                                             │
 │   5. Return alerts (flagged, breach, etc)                  │
@@ -253,7 +253,7 @@ process-field-scan returns success
 - `update_canonical_stats_v2` - Increments totals after observation
 - `update_canonical_notes` - Tracks note count/preview
 
-### **vehicle_observations_v2 (Time-Series Events)**
+### **observations (Time-Series Events)**
 **Primary Key:** `observation_id` (UUID)  
 **Foreign Key:** `plate_number → canonical_vehicles.plate_number`
 
@@ -270,19 +270,15 @@ process-field-scan returns success
 **Auto-populated by triggers:**
 - `trigger_populate_observation_from_canonical` - Copies vehicle attrs from canonical
 
-### **compliance_results (Evaluation History)**
-**Primary Key:** `id` (UUID)  
-**Foreign Keys:** `observation_id`, `vehicle_id`, `matrix_id`
-
-**Compliance Evaluation:**
+### **Compliance State (on observations)**
+**Stored directly on each observation row:**
 - is_compliant (boolean)
-- violation_reasons (text array)
-- matrix_snapshot (JSONB - rules used)
-- metrics_json (JSONB - nights_stayed, consecutive_nights, etc)
-- evaluated_at (timestamp)
+- breach_type (text)
+- breach_reason (text)
+- nights_stayed_this_month, consecutive_nights (metrics)
 
 **Ensures:**
-- Audit trail of compliance evaluations
+- Compliance verdict is available without joining a separate table
 - Historical matrix version tracking
 - Drift detection when rules change
 
@@ -395,7 +391,7 @@ process-field-scan returns success
 #### **calculate_vehicle_compliance_with_results()**
 ```sql
 -- Evaluates compliance against zone matrix
--- Stores result in compliance_results table
+-- Stores result on observations row (is_compliant, breach_type, breach_reason)
 -- Returns: compliance evaluation
 -- Called by: process-field-scan
 ```
