@@ -115,7 +115,7 @@ export default function VehicleDetailPage() {
 
   // Fetch observations
   const { data: observations = [], isLoading: loadingObs } = useQuery({
-    queryKey: ['vehicle-observations', vehicle?.plate_number, organizationId, zoneId, dateFrom, dateTo, user?.role, user?.organization_id],
+    queryKey: ['vehicle-observations', vehicle?.plate_number, organizationId, user?.role, user?.organization_id],
     queryFn: async () => {
       let query = supabase
         .from('observations')
@@ -131,15 +131,6 @@ export default function VehicleDetailPage() {
 
       if (effectiveOrganizationId) {
         query = query.eq('organization_id', effectiveOrganizationId)
-      }
-      if (zoneId) {
-        query = query.eq('zone_id', zoneId)
-      }
-      if (startDate) {
-        query = query.gte('recorded_at', startDate)
-      }
-      if (endDate) {
-        query = query.lte('recorded_at', endDate)
       }
 
       const { data, error } = await query
@@ -459,6 +450,9 @@ export default function VehicleDetailPage() {
 
         {/* Observations */}
         <TabsContent value="observations" className="mt-4 space-y-2">
+          <p className="text-xs text-muted-foreground">
+            Showing all recorded observations for this vehicle.
+          </p>
           {loadingObs ? (
             <div className="text-center py-8 text-muted-foreground">Loading…</div>
           ) : observations.length === 0 ? (

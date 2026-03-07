@@ -356,7 +356,11 @@ export default function VehicleManagement() {
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {vehicles?.map((vehicle) => (
-            <Card key={vehicle.id} className="hover:shadow-lg transition-shadow overflow-hidden">
+            <Card
+              key={vehicle.id}
+              className="hover:shadow-lg transition-shadow overflow-hidden cursor-pointer"
+              onClick={() => navigate(`/vehicles/${vehicle.id}`)}
+            >
               {/* Vehicle Photo */}
               {vehicle.profile_photo ? (
                 <div className="w-full h-40 bg-gray-100 dark:bg-gray-800 overflow-hidden">
@@ -430,17 +434,23 @@ export default function VehicleManagement() {
                       variant="outline" 
                       size="sm" 
                       className="flex-1"
-                      onClick={() => openDetails(vehicle)}
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        openDetails(vehicle)
+                      }}
                     >
-                      Quick View
+                      Quick Tools
                     </Button>
                     <Button
                       variant="default"
                       size="sm"
                       className="flex-1"
-                      onClick={() => navigate(`/vehicles/${vehicle.id}`)}
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        navigate(`/vehicles/${vehicle.id}`)
+                      }}
                     >
-                      Full Profile
+                      Drill Down
                     </Button>
                   </div>
                 </div>
