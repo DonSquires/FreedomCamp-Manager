@@ -8,6 +8,7 @@ import { GlobalFilterRibbon } from '@/components/features/GlobalFilterRibbon'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { MapContainer, TileLayer, CircleMarker, Popup } from 'react-leaflet'
 import { 
   MapPin, 
   TrendingUp,
@@ -151,6 +152,28 @@ export default function HotspotsMap() {
     return 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
   }
 
+  const mappedHotspots = (hotspots || []).filter(
+    (h) => Number.isFinite(h.center_lat) && Number.isFinite(h.center_lng) && h.center_lat !== 0 && h.center_lng !== 0
+  )
+
+  const defaultCenter: [number, number] = mappedHotspots.length > 0
+    ? [mappedHotspots[0].center_lat, mappedHotspots[0].center_lng]
+    : [-36.848, 174.763]
+
+  const hotspotRadius = (count: number) => {
+    if (count > 100) return 20
+    if (count > 50) return 16
+    if (count > 20) return 12
+    return 9
+  }
+
+  const hotspotColor = (count: number) => {
+    if (count > 100) return '#dc2626'
+    if (count > 50) return '#ea580c'
+    if (count > 20) return '#ca8a04'
+    return '#16a34a'
+  }
+
   return (
     <AppLayout
       title="Hotspots Heatmap"
@@ -232,49 +255,44 @@ export default function HotspotsMap() {
         {/* Map Placeholder - Left 2 columns */}
         <Card className="lg:col-span-2">
           <CardContent className="p-0">
-            <div className="relative bg-gradient-to-br from-blue-100 via-blue-50 to-green-100 dark:from-gray-800 dark:via-gray-900 dark:to-gray-800 h-[600px] flex items-center justify-center">
-              <div className="text-center">
-                <MapPin className="h-16 w-16 text-blue-400 mx-auto mb-4" />
-                <h3 className="text-xl font-bold text-gray-700 dark:text-gray-300 mb-2">
-                  Interactive Heatmap Visualization
-                </h3>
-                <p className="text-sm text-gray-600 dark:text-gray-400 max-w-md mx-auto mb-4">
-                  GPS heatmap overlay showing observation density and breach concentration.
-                  Requires Leaflet or Mapbox GL integration with Leaflet.heat plugin.
-                </p>
-                <div className="flex gap-3 justify-center mt-4">
-                  <div className="flex items-center gap-2">
-                    <div className="w-4 h-4 bg-green-600 rounded"></div>
-                    <span className="text-xs text-gray-600 dark:text-gray-400">Low Activity</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-4 h-4 bg-yellow-600 rounded"></div>
-                    <span className="text-xs text-gray-600 dark:text-gray-400">Medium</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-4 h-4 bg-orange-600 rounded"></div>
-                    <span className="text-xs text-gray-600 dark:text-gray-400">High</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-4 h-4 bg-red-600 rounded"></div>
-                    <span className="text-xs text-gray-600 dark:text-gray-400">Critical</span>
-                  </div>
-                </div>
-              </div>
+            <div className="h-[600px]">
+              <MapContainer
+                center={defaultCenter}
+                zoom={11}
+                style={{ height: '100%', width: '100%' }}
+              >
+                <TileLayer
+                  attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                />
 
-              {/* Mock GPS markers */}
-              {hotspots && hotspots.slice(0, 5).map((hotspot, idx) => (
-                <div
-                  key={hotspot.zone_id}
-                  className="absolute"
-                  style={{
-                    left: `${15 + idx * 15}%`,
-                    top: `${20 + idx * 10}%`,
-                  }}
-                >
-                  <div className={`w-8 h-8 ${getActivityColor(hotspot.total_observations)} rounded-full opacity-60 animate-pulse`}></div>
-                </div>
-              ))}
+                {mappedHotspots.map((hotspot) => (
+                  <CircleMarker
+                    key={hotspot.zone_id}
+                    center={[hotspot.center_lat, hotspot.center_lng]}
+                    radius={hotspotRadius(hotspot.total_observations)}
+                    pathOptions={{
+                      color: hotspotColor(hotspot.total_observations),
+                      fillColor: hotspotColor(hotspot.total_observations),
+                      fillOpacity: selectedZone === hotspot.zone_id ? 0.75 : 0.5,
+                      weight: selectedZone === hotspot.zone_id ? 3 : 1,
+                    }}
+                    eventHandlers={{
+                      click: () => setSelectedZone(selectedZone === hotspot.zone_id ? null : hotspot.zone_id),
+                    }}
+                  >
+                    <Popup>
+                      <div className="text-sm">
+                        <p className="font-semibold">{hotspot.zone_name}</p>
+                        <p>Observations: {hotspot.total_observations}</p>
+                        <p>Breaches: {hotspot.breach_count}</p>
+                        <p>Breach rate: {hotspot.breach_rate.toFixed(1)}%</p>
+                        <p>Vehicles: {hotspot.unique_vehicles}</p>
+                      </div>
+                    </Popup>
+                  </CircleMarker>
+                ))}
+              </MapContainer>
             </div>
           </CardContent>
         </Card>
