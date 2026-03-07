@@ -66,7 +66,7 @@ export default function DataCleanupUtility() {
       // Observations without photos
       const { count: observationsWithoutPhotos } = await supabase
         .from('observations')
-        .select('id', { count: 'exact', head: true })
+        .select('observation_id', { count: 'exact', head: true })
         .or('photo_url.is.null,photo_hash.is.null')
 
       // Old resolved breaches (>90 days)
@@ -183,7 +183,7 @@ export default function DataCleanupUtility() {
       action: async () => {
         const { count } = await supabase
           .from('observations')
-          .select('id', { count: 'exact', head: true })
+          .select('observation_id', { count: 'exact', head: true })
           .or('photo_url.is.null,photo_hash.is.null')
 
         return {

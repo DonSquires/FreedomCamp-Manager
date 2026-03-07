@@ -31,7 +31,7 @@ export default function HomeScreen({ navigation }: any) {
     const [scansRes, breachesRes] = await Promise.all([
       supabase
         .from('observations')
-        .select('id', { count: 'exact', head: true })
+        .select('observation_id', { count: 'exact', head: true })
         .eq('recorded_by', user.id)
         .gte('recorded_at', today),
       supabase

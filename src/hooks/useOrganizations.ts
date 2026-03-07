@@ -150,7 +150,7 @@ export function useOrganizationStats(orgId?: string | null) {
         // Count observations
         supabase
           .from('observations')
-          .select('id', { count: 'exact', head: true })
+          .select('observation_id', { count: 'exact', head: true })
           .eq('organization_id', orgId || ''),
         
         // Count breaches

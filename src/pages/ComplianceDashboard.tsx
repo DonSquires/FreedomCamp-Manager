@@ -172,7 +172,7 @@ export default function ComplianceDashboard() {
     try {
       // Get recent observations with photos
       let query = (supabase.from('observations') as any)
-        .select('id, photo_url, plate_number')
+        .select('id:observation_id, photo_url, plate_number')
         .not('photo_url', 'is', null)
         .order('recorded_at', { ascending: false })
         .limit(5)

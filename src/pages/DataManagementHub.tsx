@@ -79,7 +79,7 @@ export default function DataManagementHub() {
       // Total observations
       let obsQuery = supabase
         .from('observations')
-        .select('id', { count: 'exact', head: true })
+        .select('observation_id', { count: 'exact', head: true })
       
       if (orgFilter) obsQuery = obsQuery.eq('organization_id', orgFilter)
       const { count: totalObservations } = await obsQuery

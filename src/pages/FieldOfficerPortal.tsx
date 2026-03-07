@@ -65,7 +65,7 @@ export default function FieldOfficerPortal() {
       if (!user?.id) return []
       const { data, error } = await supabase
         .from('observations')
-        .select('id, plate_number, recorded_at, is_compliant, processing_status, photo_url, zone_id, zone:zones!zone_id(name)')
+        .select('id:observation_id, plate_number, recorded_at, is_compliant, processing_status, photo_url, zone_id, zone:zones!zone_id(name)')
         .eq('recorded_by', user.id)
         .order('recorded_at', { ascending: false })
         .limit(10)

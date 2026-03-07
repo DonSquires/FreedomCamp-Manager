@@ -43,7 +43,7 @@ export default function DataIntegrityDashboard() {
       // 1. Observations without photos
       let obsQuery = supabase
         .from('observations')
-        .select('id', { count: 'exact', head: true })
+        .select('observation_id', { count: 'exact', head: true })
         .or('photo_url.is.null,photo_hash.is.null')
 
       if (orgFilter) obsQuery = obsQuery.eq('organization_id', orgFilter)
@@ -51,7 +51,7 @@ export default function DataIntegrityDashboard() {
 
       let totalObsQuery = supabase
         .from('observations')
-        .select('id', { count: 'exact', head: true })
+        .select('observation_id', { count: 'exact', head: true })
 
       if (orgFilter) totalObsQuery = totalObsQuery.eq('organization_id', orgFilter)
       const { count: totalObs } = await totalObsQuery
@@ -69,7 +69,7 @@ export default function DataIntegrityDashboard() {
       // 2. Observations with GPS
       const { count: obsWithoutGPS } = await supabase
         .from('observations')
-        .select('id', { count: 'exact', head: true })
+        .select('observation_id', { count: 'exact', head: true })
         .or('gps_latitude.is.null,gps_longitude.is.null')
 
       checks.push({

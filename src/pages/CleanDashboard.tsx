@@ -246,7 +246,7 @@ function OverviewTab() {
       const { data } = await supabase
         .from('observations')
         .select(
-          'id, plate_number, recorded_at, is_compliant, breach_type, vehicle_make, vehicle_model, vehicle_color, zones(name), organizations(name)'
+          'id:observation_id, plate_number, recorded_at, is_compliant, breach_type, vehicle_make, vehicle_model, vehicle_color, zones(name), organizations(name)'
         )
         .order('recorded_at', { ascending: false })
         .limit(10);
@@ -345,7 +345,7 @@ function ObservationsTab() {
       let q = supabase
         .from('observations')
         .select(
-          'id, plate_number, recorded_at, is_compliant, breach_type, breach_reason, vehicle_make, vehicle_model, vehicle_color, self_contained, nights_stayed_this_month, consecutive_nights, officer_notes, weather_conditions, gps_latitude, gps_longitude, photo_url, zones(name), organizations(name), user_profiles(first_name, last_name)',
+          'id:observation_id, plate_number, recorded_at, is_compliant, breach_type, breach_reason, vehicle_make, vehicle_model, vehicle_color, self_contained, nights_stayed_this_month, consecutive_nights, officer_notes, weather_conditions, gps_latitude, gps_longitude, photo_url, zones(name), organizations(name), user_profiles(first_name, last_name)',
           { count: 'exact' }
         )
         .order('recorded_at', { ascending: false })
