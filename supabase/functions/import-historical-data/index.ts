@@ -39,7 +39,8 @@ interface ImportProgress {
 }
 
 interface ParsedRecord {
-  id: string;
+  id: string;         // Excel row identifier (NOT a database UUID)
+  sourceId?: string;  // Optional: old UUID from source system (stored in source_observation_id)
   zone: string;
   date: string;
   plate: string;
@@ -50,6 +51,7 @@ interface ParsedRecord {
 interface ProcessedRecord extends ParsedRecord {
   zoneId: string | null;
   zoneName: string | null;
+  matchedOrgId: string | null;  // org that owns the matched zone (may differ from targetOrganizationId)
   isNewZone: boolean;
   errors: string[];
   status: 'pending' | 'success' | 'error';
@@ -438,8 +440,12 @@ Return ONLY a JSON object with this structure:
         continue;
       }
 
+      const rawId = String(row[0] || '');
+      // Detect if the first column is a UUID from the old system
+      const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
       const record: ParsedRecord = {
-        id: String(row[0] || ''),
+        id: rawId,
+        sourceId: UUID_PATTERN.test(rawId) ? rawId : undefined, // store old UUID for audit trail
         zone: String(row[1] || '').trim(), // Column B: Title (zone name)
         date: parsedDate, // Column C: RecordedDate (properly parsed)
         plate: String(row[3] || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, ''), // Column D: REGO
@@ -491,78 +497,109 @@ Return ONLY a JSON object with this structure:
       })
       .eq('id', importHistoryId);
 
-    // Load existing zones for target organization
-    console.log('📥 [IMPORT] Loading existing zones for org:', targetOrganizationId);
+    // Load zones across ALL organisations.
+    // The import function was previously scoped to targetOrganizationId only,
+    // which caused it to miss zones that exist under a different council org
+    // and instead create duplicate zones under the wrong (importer's) org.
+    //
+    // Strategy:
+    //   • Load ALL active zones across every org.
+    //   • When fuzzy-matching, prefer (in order):
+    //       1. An existing zone in targetOrganizationId (user's org) – exact/fuzzy.
+    //       2. An existing zone in ANY other org              – exact/fuzzy.
+    //       3. Create a new zone under targetOrganizationId   – last resort.
+    //   • Store zone.organization_id on the observation so ownership is correct.
+    console.log('📥 [IMPORT] Loading active zones across all organisations…');
     const { data: existingZones, error: zonesError } = await supabaseAdmin
       .from('zones')
       .select('id, name, organization_id')
-      .eq('organization_id', targetOrganizationId)
       .eq('is_active', true);
 
     if (zonesError) {
       throw zonesError;
     }
 
-    console.log(`✅ [IMPORT] Loaded ${existingZones?.length || 0} existing zones`);
+    // Partition zones: target-org first, then others
+    const targetOrgZones = (existingZones || []).filter(z => z.organization_id === targetOrganizationId);
+    const otherOrgZones  = (existingZones || []).filter(z => z.organization_id !== targetOrganizationId);
 
-    // Enhanced fuzzy zone matching function
-    // Matches "Bendigo" with "LINZ - Bendigo", "Lowburn" with "LINZ - Lowburn", etc.
-    const findMatchingZone = (zoneName: string, zones: any[]) => {
+    console.log(
+      `✅ [IMPORT] Loaded ${existingZones?.length || 0} zones ` +
+      `(${targetOrgZones.length} in target org, ${otherOrgZones.length} in other orgs)`
+    );
+
+    // ─── Zone-matching helpers ──────────────────────────────────────────────
+    //
+    // Run the same fuzzy algorithm against a pool of zones, returning the
+    // first match found or null.
+    const fuzzyMatch = (zoneName: string, pool: any[]): any | null => {
       const normalized = zoneName.toLowerCase().trim();
-      
-      // Exact match
-      const exact = zones.find(z => z.name.toLowerCase() === normalized);
-      if (exact) {
-        console.log(`  ✅ Exact match: "${zoneName}" → "${exact.name}"`);
-        return exact;
-      }
 
-      // Contains match (handles "Bendigo" → "LINZ - Bendigo")
-      const contains = zones.find(z => {
-        const zoneLower = z.name.toLowerCase();
-        return zoneLower.includes(normalized) || normalized.includes(zoneLower);
+      // 1. Exact match
+      const exact = pool.find(z => z.name.toLowerCase() === normalized);
+      if (exact) return exact;
+
+      // 2. Contains match ("Bendigo" ↔ "LINZ - Bendigo")
+      const contains = pool.find(z => {
+        const zl = z.name.toLowerCase();
+        return zl.includes(normalized) || normalized.includes(zl);
       });
-      if (contains) {
-        console.log(`  ✅ Contains match: "${zoneName}" → "${contains.name}"`);
-        return contains;
-      }
+      if (contains) return contains;
 
-      // Suffix match (handles "LINZ - Bendigo" where zoneName = "Bendigo")
-      const suffix = zones.find(z => {
+      // 3. Suffix / word match ("LINZ - Bendigo" word "Bendigo")
+      const suffix = pool.find(z => {
         const parts = z.name.toLowerCase().split(/[-\s]+/);
-        return parts.some(part => part === normalized);
+        return parts.some((p: string) => p === normalized);
       });
-      if (suffix) {
-        console.log(`  ✅ Suffix match: "${zoneName}" → "${suffix.name}"`);
-        return suffix;
+      if (suffix) return suffix;
+
+      // 4. Cleaned common-word match
+      const stopWords = /\b(area|zone|street|road|avenue|place|bay|beach|inlet|gully|linz|downer|ncc)\b/g;
+      const cleaned = normalized.replace(stopWords, '').trim();
+      if (cleaned.length > 2) {
+        const cleanedMatch = pool.find(z => {
+          const cz = z.name.toLowerCase().replace(stopWords, '').trim();
+          return cz === cleaned || cz.includes(cleaned) || cleaned.includes(cz);
+        });
+        if (cleanedMatch) return cleanedMatch;
       }
 
-      // Clean common words and match
-      const cleaned = normalized.replace(/\b(area|zone|street|road|avenue|place|bay|beach|inlet|gully|linz|downer|ncc)\b/g, '').trim();
-      const cleanedMatch = zones.find(z => {
-        const cleanedZone = z.name.toLowerCase().replace(/\b(area|zone|street|road|avenue|place|bay|beach|inlet|gully|linz|downer|ncc)\b/g, '').trim();
-        return cleanedZone === cleaned || 
-               cleanedZone.includes(cleaned) || 
-               cleaned.includes(cleanedZone);
-      });
-      
-      if (cleanedMatch) {
-        console.log(`  ✅ Cleaned match: "${zoneName}" → "${cleanedMatch.name}"`);
-        return cleanedMatch;
+      return null;
+    };
+
+    // Find the best zone for a name: check target org first, then other orgs.
+    const findMatchingZone = (zoneName: string): { zone: any; fromTargetOrg: boolean } | null => {
+      // Priority 1 – target organisation (most specific, user-chosen)
+      const inTarget = fuzzyMatch(zoneName, targetOrgZones);
+      if (inTarget) {
+        console.log(`  ✅ Matched in target org: "${zoneName}" → "${inTarget.name}"`);
+        return { zone: inTarget, fromTargetOrg: true };
       }
 
-      console.log(`  ⚠️ No match found for: "${zoneName}"`);
+      // Priority 2 – any other organisation (canonical council zone)
+      const inOther = fuzzyMatch(zoneName, otherOrgZones);
+      if (inOther) {
+        console.log(`  🔀 Matched in other org (${inOther.organization_id}): "${zoneName}" → "${inOther.name}"`);
+        return { zone: inOther, fromTargetOrg: false };
+      }
+
+      console.log(`  ⚠️ No match found for: "${zoneName}" – will create in target org`);
       return null;
     };
 
     // Match zones and identify new zones needed
     console.log('🔍 [IMPORT] Matching zones...');
     const processedRecords: ProcessedRecord[] = parsedRecords.map(record => {
-      const matched = findMatchingZone(record.zone, existingZones || []);
+      const result = findMatchingZone(record.zone);
+      const matched = result?.zone ?? null;
       return {
         ...record,
-        zoneId: matched?.id || null,
+        // Use matched zone's org when it belongs to a different org so that
+        // the observation.organization_id always equals zone.organization_id.
+        zoneId:   matched?.id   || null,
         zoneName: matched?.name || null,
+        // Store the matched zone's org so we can set observation.organization_id correctly
+        matchedOrgId: matched?.organization_id ?? null,
         isNewZone: !matched,
         errors: [],
         status: 'pending' as const,
@@ -600,21 +637,22 @@ Return ONLY a JSON object with this structure:
         throw zoneCreateError;
       }
 
-      // Map zone names to IDs
+      // Map zone names to IDs (new zones always belong to targetOrganizationId)
       (newZones || []).forEach(zone => {
         createdZonesMap.set(zone.name, zone.id);
       });
 
       zonesCreated = newZones?.length || 0;
-      console.log(`✅ [IMPORT] Created ${zonesCreated} new zones`);
+      console.log(`✅ [IMPORT] Created ${zonesCreated} new zones under target org`);
 
-      // Update processed records with new zone IDs
+      // Update processed records with new zone IDs and org
       processedRecords.forEach(record => {
         if (record.isNewZone) {
           const newZoneId = createdZonesMap.get(record.zone);
           if (newZoneId) {
             record.zoneId = newZoneId;
             record.zoneName = record.zone;
+            record.matchedOrgId = targetOrganizationId; // new zone is in target org
           }
         }
       });
@@ -687,14 +725,47 @@ Return ONLY a JSON object with this structure:
             hasNotes = true;
           }
 
+          // ============================================================
+          // IDEMPOTENCY KEY
+          // Live scans use "deviceId:captureId".  Legacy imports use a
+          // deterministic key so the same file can be re-imported safely
+          // without creating duplicates:
+          //   import:<importHistoryId>:<plate>:<date>
+          // ============================================================
+          const idempotencyKey = `import:${importHistoryId}:${record.plate}:${record.date}`;
+
+          // Check whether this record was already imported (idempotency guard)
+          const { data: existing } = await supabaseAdmin
+            .from('observations')
+            .select('id')
+            .eq('idempotency_key', idempotencyKey)
+            .maybeSingle();
+
+          if (existing) {
+            console.log(`⏭️ [IMPORT] Skipping duplicate – already imported: ${record.plate} ${record.date} (obs ${existing.id})`);
+            record.status = 'success';
+            successful++;
+            continue;
+          }
+
           // Create observation with proper NZ timezone handling
           // LEGACY IMPORT: No photo available - use placeholder and set legacy flags
           // ⚠️ NO COMPLIANCE CALCULATION DURING IMPORT - run recalculation afterward
           const { data: observation, error: obsError } = await supabaseAdmin
             .from('observations')
             .insert({
+              // ── Identity ──────────────────────────────────────────────
+              // observations.id is always gen_random_uuid() (PostgreSQL default).
+              // Old UUIDs from the source system (if present in row[0]) are
+              // stored in source_observation_id for audit purposes only.
+              idempotency_key: idempotencyKey,
+              source_observation_id: record.sourceId ?? null,
+
+              // ── Core fields ───────────────────────────────────────────
               plate_number: record.plate,
-              organization_id: targetOrganizationId,
+              // Use the zone's owning org (may differ from the importer's target org
+              // when the zone was found in a different council's org).
+              organization_id: record.matchedOrgId ?? targetOrganizationId,
               zone_id: record.zoneId,
               recorded_by: user.id,
               // Use +13:00 for NZDT (Oct-Apr) - PostgreSQL converts to UTC automatically
@@ -703,35 +774,32 @@ Return ONLY a JSON object with this structure:
               officer_notes: officerNotes,
               has_notes: hasNotes,
               
-              // ============================================================
-              // MINIMAL IMPORT - DEFAULTS PER USER REQUIREMENT
+              // ── Minimal import defaults ───────────────────────────────
               // All fields will be populated during recalculation phase
-              // ============================================================
-              // DEFAULT: NOT self-contained (will be updated from canonical/NZSCV)
-              self_contained: false,
-              
-              // DEFAULT: NO homeless claim (will be updated if canonical has confirmed status)
-              has_homeless_claim: false,
+              self_contained: false,           // Will be updated from canonical/NZSCV
+              has_homeless_claim: false,        // Will be updated if canonical has confirmed status
               homeless_claim_notes: null,
               
               // Vehicle details unknown from historical data
-              vehicle_make: null, // Unknown - will be enriched during recalculation
-              vehicle_model: null, // Unknown - will be enriched during recalculation
-              vehicle_year: null, // Unknown - will be enriched during recalculation
-              vehicle_color: null, // Unknown - will be enriched during recalculation
+              vehicle_make: null,  // Will be enriched during recalculation
+              vehicle_model: null, // Will be enriched during recalculation
+              vehicle_year: null,  // Will be enriched during recalculation
+              vehicle_color: null, // Will be enriched during recalculation
               
-              // Skip compliance fields - will be calculated during recalculation
-              is_compliant: null, // Will be set during recalculation
+              // Compliance will be set during recalculation
+              is_compliant: null,
               
-              // ============================================================
-              // LEGACY IMPORT FLAGS - Evidence Act 2006 Compliance
-              // ============================================================
-              is_legacy_import: true, // Mark as historical data import
-              evidence_state: 'legacy_no_photo', // No original photo available
-              legacy_source_tag: 'excel_import', // Source of import
+              // ── GPS placeholders (required NOT NULL in schema) ────────
+              gps_latitude: 0,
+              gps_longitude: 0,
+
+              // ── Legacy import flags (Evidence Act 2006 Compliance) ────
+              is_legacy_import: true,
+              evidence_state: 'legacy_no_photo',
+              legacy_source_tag: 'excel_import',
               legacy_note: `Imported from Excel file: ${file_path.split('/').pop()} on ${new Date().toISOString().split('T')[0]}`,
-              photo_url: `legacy/placeholder_${record.plate}_${record.date}.jpg`, // Placeholder
-              photo_hash: 'LEGACY_IMPORT_NO_PHOTO', // Placeholder hash
+              photo_url: `legacy/placeholder_${record.plate}_${record.date}.jpg`,
+              photo_hash: 'LEGACY_IMPORT_NO_PHOTO',
               review_blocked: true, // Block from enforcement until recalculation completes
             })
             .select('id')
@@ -750,7 +818,7 @@ Return ONLY a JSON object with this structure:
           // 3. Calculate compliance based on zone rules
           // 4. Unblock observations for enforcement
           // ============================================================
-          console.log(`✅ [IMPORT] Observation created for ${record.plate}, recalculation needed`);
+          console.log(`✅ [IMPORT] Observation created for ${record.plate} (id=${observation.id}), recalculation needed`);
 
           record.status = 'success';
           successful++;

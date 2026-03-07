@@ -699,13 +699,19 @@ export default function CompliancePage() {
   const { dateFrom, dateTo, organizationId, zoneId } = useGlobalFilters();
 
   if (!isAuthenticated || !user) return <Navigate to="/login" replace />;
-  if (user.role !== 'admin' && user.role !== 'master' && user.role !== 'admin_officer') {
-    return <Navigate to="/" replace />;
-  }
 
   const today = format(new Date(), 'yyyy-MM-dd');
   const effectiveDateFrom = dateFrom ?? format(subDays(new Date(), 30), 'yyyy-MM-dd');
   const effectiveDateTo = dateTo ?? today;
+
+  // For non-master users the global org picker is disabled (only masters can
+  // switch orgs).  Fall back to the user's own organization_id so queries
+  // are always scoped and not reliant solely on RLS.
+  const effectiveOrgId: string | null =
+    organizationId ?? (user.role !== 'master' ? user.organization_id : null);
+
+  // Officers see a read-only view of their own organization's compliance data.
+  const isOfficer = user.role === 'officer';
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
@@ -733,8 +739,16 @@ export default function CompliancePage() {
         {/* Global filters */}
         <GlobalFilterRibbon />
 
+        {/* Officer read-only notice */}
+        {isOfficer && (
+          <div className="flex items-center gap-2 px-4 py-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg text-sm text-blue-700 dark:text-blue-300">
+            <Shield className="w-4 h-4 flex-shrink-0" />
+            Showing compliance data for your organisation (read-only view).
+          </div>
+        )}
+
         {/* Always-visible KPI summary */}
-        <OverviewTab dateFrom={effectiveDateFrom} dateTo={effectiveDateTo} orgId={organizationId} zoneId={zoneId} />
+        <OverviewTab dateFrom={effectiveDateFrom} dateTo={effectiveDateTo} orgId={effectiveOrgId} zoneId={zoneId} />
 
         {/* Tabbed detail sections */}
         <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm">
@@ -760,12 +774,12 @@ export default function CompliancePage() {
               <BreachesTab
                 dateFrom={effectiveDateFrom}
                 dateTo={effectiveDateTo}
-                orgId={organizationId}
+                orgId={effectiveOrgId}
                 zoneId={zoneId}
               />
             )}
             {activeTab === 'zones' && (
-              <ZonesTab dateFrom={effectiveDateFrom} dateTo={effectiveDateTo} orgId={organizationId} />
+              <ZonesTab dateFrom={effectiveDateFrom} dateTo={effectiveDateTo} orgId={effectiveOrgId} />
             )}
             {activeTab === 'homeless' && <HomelessTab />}
             {activeTab === 'overview' && (
