@@ -5,7 +5,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Select } from '@/components/ui/select'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import { useOrganizations } from '@/hooks/useOrganizations'
@@ -47,7 +46,8 @@ export default function ComplianceRecalculation() {
 
   const { data: organizations } = useOrganizations()
   const { data: zones } = useZones({ 
-    organizationId: effectiveOrgId || undefined 
+    organizationId: effectiveOrgId || undefined,
+    showInactive: true,
   })
 
   useEffect(() => {
@@ -89,7 +89,7 @@ export default function ComplianceRecalculation() {
     }
 
     let offset = 0
-    const batchSize = 200
+    const batchSize = 50
     let processedTotal = 0
     let changedTotal = 0
 
@@ -192,6 +192,7 @@ export default function ComplianceRecalculation() {
       return
     }
 
+    toast.info('Starting compliance recalculation (50 records per batch)')
     recalculateMutation.mutate(undefined as any)
   }
 
