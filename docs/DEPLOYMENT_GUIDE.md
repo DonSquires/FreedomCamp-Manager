@@ -9,7 +9,7 @@ This guide provides step-by-step instructions for deploying the rebuilt FreedomC
 Before deploying, ensure all requirements are met:
 
 ### 1. Code Quality
-- [ ] All TypeScript errors resolved (`npm run build` succeeds)
+- [ ] All TypeScript errors resolved (`bun run build` succeeds)
 - [ ] No console errors in development mode
 - [ ] ESLint passes with no warnings
 - [ ] All unused imports removed
@@ -17,8 +17,8 @@ Before deploying, ensure all requirements are met:
 
 ### 2. Environment Setup
 - [ ] Production Supabase project created/configured
-- [ ] All 75+ database migrations applied
-- [ ] All 47 Edge Functions deployed
+- [ ] All current database migrations applied (check `supabase/migrations/`)
+- [ ] All current Edge Functions deployed (check `supabase/functions/`)
 - [ ] Storage buckets created (evidence, incident-evidence)
 - [ ] RLS policies enabled on all tables
 - [ ] Test user accounts created (admin, officer, master)
@@ -60,7 +60,7 @@ Before deploying, ensure all requirements are met:
    ```
    - Select your project directory
    - Link to existing project or create new one
-   - Set build command: `npm run build`
+   - Set build command: `bun run build`
    - Set output directory: `dist`
 
 4. **Set Environment Variables**
@@ -97,7 +97,7 @@ Before deploying, ensure all requirements are met:
 
 1. **Build Production Bundle**
    ```bash
-   npm run build
+   bun run build
    ```
 
 2. **Install Netlify CLI**
@@ -139,7 +139,7 @@ Before deploying, ensure all requirements are met:
 
 1. **Build Production Bundle**
    ```bash
-   npm run build
+   bun run build
    ```
 
 2. **Serve with Nginx**

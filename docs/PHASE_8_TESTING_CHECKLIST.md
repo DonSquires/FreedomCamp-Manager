@@ -22,14 +22,14 @@ This document provides a comprehensive testing checklist for the rebuilt Freedom
 - [ ] Railway services are deployed and healthy
 
 ### 2. Build Verification
-- [ ] `npm install` completes without errors
-- [ ] `npm run build` completes without TypeScript errors
+- [ ] `bun install` completes without errors
+- [ ] `bun run build` completes without TypeScript errors
 - [ ] No unused imports or dead code warnings
 - [ ] Bundle size is reasonable (<5MB)
 
 ### 3. Database Verification
-- [ ] All 75+ migrations are applied
-- [ ] All 47 Edge Functions are deployed
+- [ ] All current migrations are applied
+- [ ] All current Edge Functions are deployed
 - [ ] RLS policies are enabled on all tables
 - [ ] Storage buckets (evidence, incident-evidence) are accessible
 - [ ] Test user accounts exist with proper roles (admin, officer, master)

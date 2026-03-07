@@ -170,7 +170,7 @@ To get API keys:
 - **ParkPow**: https://parkpow.com — optional, for parking enforcement platform sync
 - **Expo**: https://expo.dev/accounts/YOUR_USERNAME/settings/access-tokens
 
-### 2.2 Deploy all 47 edge functions
+### 2.2 Deploy all edge functions
 
 ```bash
 supabase functions deploy
@@ -178,7 +178,7 @@ supabase functions deploy
 
 This deploys all functions in `supabase/functions/` in one command.
 
-Verify by checking **Supabase Dashboard → Edge Functions** — all 47 should show as "Active".
+Verify by checking **Supabase Dashboard → Edge Functions** — all functions should show as "Active".
 
 ### 2.3 Test the key functions
 
@@ -268,7 +268,7 @@ Open http://localhost:5173 → login with the master user credentials from Part 
 
 The repo includes a `vercel.json` that configures Vercel automatically:
 
-- **Build command**: `npm run build` (runs `tsc -b && vite build` from `package.json`)
+- **Build command**: `bun run build` (runs `tsc -b && vite build` from `package.json`)
 - **Output directory**: `dist`
 - **SPA rewrite**: all routes rewrite to `/index.html` for client-side routing
 
@@ -294,7 +294,7 @@ VITE_SUPABASE_ANON_KEY = eyJhbGci...
 the build step shows:
 
 ```
-Running build command: npm run build
+Running build command: bun run build
 ```
 
 If you see `node_modules/.bin/vite build` or any other command, the `vercel.json`

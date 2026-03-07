@@ -388,7 +388,7 @@ of accumulated bugs:
 │       ├── database.ts            # Generated Supabase types
 │       └── index.ts               # App-level type definitions
 ├── supabase/
-│   ├── functions/                 # 47 Edge Functions (Deno/TypeScript)
+│   ├── functions/                 # 50+ Edge Functions (Deno/TypeScript)
 │   │   └── _shared/               # CORS helpers (cors.ts, withCors.ts)
 │   └── migrations/                # 105+ SQL migration files (YYYYMMDD_ prefix)
 ├── proxy-server/                  # Railway: NZSCV/MotorWeb proxy
