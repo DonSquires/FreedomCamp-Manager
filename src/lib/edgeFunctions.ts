@@ -9,6 +9,34 @@ import { supabase } from './supabase'
 import { toast } from 'sonner'
 import { FunctionsHttpError } from '@supabase/supabase-js'
 
+const ACCESS_TOKEN_REFRESH_BUFFER_MS = 60_000
+
+async function getValidAccessToken(): Promise<string | null> {
+  const { data: sessionData, error: sessionError } = await supabase.auth.getSession()
+
+  if (sessionError) {
+    throw new Error(sessionError.message || 'Unable to read current session')
+  }
+
+  if (!sessionData.session) {
+    return null
+  }
+
+  let session = sessionData.session
+  const expiresAtMs = session.expires_at ? session.expires_at * 1000 : 0
+  const shouldRefresh = expiresAtMs > 0 && (expiresAtMs - Date.now()) < ACCESS_TOKEN_REFRESH_BUFFER_MS
+
+  if (shouldRefresh) {
+    const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession()
+    if (refreshError || !refreshData.session) {
+      throw new Error(refreshError?.message || 'Session has expired. Please sign in again.')
+    }
+    session = refreshData.session
+  }
+
+  return session.access_token
+}
+
 /**
  * Helper to extract error message from FunctionsHttpError
  */
@@ -17,6 +45,18 @@ async function getErrorMessage(error: any): Promise<string> {
     try {
       const statusCode = error.context?.status ?? 500
       const textContent = await error.context?.text()
+
+      if (statusCode === 401 && textContent) {
+        try {
+          const parsed = JSON.parse(textContent)
+          if (parsed?.message === 'Invalid JWT') {
+            return 'Session expired or invalid. Please sign in again and retry.'
+          }
+        } catch {
+          // Keep raw response when body is not JSON.
+        }
+      }
+
       return `[Code: ${statusCode}] ${textContent || error.message || 'Unknown error'}`
     } catch {
       return error.message || 'Failed to read response'
@@ -34,8 +74,20 @@ async function callEdgeFunction<T = any>(
   options: { showToast?: boolean } = { showToast: true }
 ): Promise<{ data: T | null; error: string | null }> {
   try {
+    const accessToken = await getValidAccessToken()
+    if (!accessToken) {
+      const errorMessage = 'No active session found. Please sign in again and retry.'
+      if (options.showToast) {
+        toast.error(errorMessage)
+      }
+      return { data: null, error: errorMessage }
+    }
+
     const { data, error } = await supabase.functions.invoke(functionName, {
       body: body || {},
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
     })
 
     if (error) {
@@ -117,6 +169,8 @@ export const edgeFunctions = {
   recalculateCompliance: async (params: {
     organization_id?: string
     zone_id?: string
+    observation_id?: string
+    observation_ids?: string[]
     date_from?: string
     date_to?: string
   }) => {

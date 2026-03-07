@@ -10,6 +10,7 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
+import { edgeFunctions } from '@/lib/edgeFunctions'
 import { useAuthStore } from '@/stores/authStore'
 import { toast } from 'sonner'
 
@@ -183,13 +184,13 @@ export function useVehicleCompliance(plateNumber?: string, options?: {
   // Recalculate compliance mutation
   const recalculateCompliance = useMutation({
     mutationFn: async (observationId: string) => {
-      const { data, error } = await supabase.functions.invoke('recalculate-compliance', {
-        body: { observation_id: observationId },
+      const { data, error } = await edgeFunctions.recalculateCompliance({
+        observation_id: observationId,
       })
 
       if (error) {
-        toast.error('Failed to recalculate compliance')
-        throw error
+        toast.error(error)
+        throw new Error(error)
       }
 
       return data
