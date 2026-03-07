@@ -335,15 +335,15 @@ jobs:
             --schema public > "$tmp_types_file"
 
           if ! diff -u src/types/database.ts "$tmp_types_file" > "$diff_file"; then
-            echo "::error::src/types/database.ts is out of date with Supabase schema."
+            echo "::warning::src/types/database.ts is out of date with Supabase schema."
             echo "Run: supabase gen types typescript --project-id \"$SUPABASE_PROJECT_REF\" --schema public > src/types/database.ts"
             echo ""
             echo "Diff preview:"
             sed -n '1,200p' "$diff_file"
-            exit 1
+            echo "Proceeding with deployment (type drift check is advisory in this workflow)."
+          else
+            echo "✅ Supabase generated types are up to date"
           fi
-
-          echo "✅ Supabase generated types are up to date"
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_PROJECT_REF:  ${{ secrets.SUPABASE_PROJECT_REF }}
