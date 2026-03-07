@@ -4,7 +4,9 @@ import { corsHeaders } from '../_shared/cors.ts';
 /**
  * SIMPLE ZONE CORRECTION
  * 
- * Query v2 with GPS → Test against zone geofences → Process 80 at a time
+ * vehicle_observations_v2 reconciliation
+ * - GPS rows: verify zone geofence / proximity and correct zone_id if needed
+ * - Missing GPS rows: derive logical GPS from assigned zone geometry/name point
  */
 
 interface Zone {
@@ -12,6 +14,18 @@ interface Zone {
   name: string;
   geometry: any;
   organization_id: string;
+  location_lat?: number | null;
+  location_lng?: number | null;
+}
+
+interface ObservationV2 {
+  observation_id: string;
+  plate_number: string;
+  zone_id: string;
+  organization_id: string;
+  recorded_at: string;
+  gps_latitude: number | null;
+  gps_longitude: number | null;
 }
 
 // Point-in-polygon ray-casting algorithm
@@ -105,6 +119,58 @@ function findClosestZone(lat: number, lng: number, zones: Zone[]): Zone | null {
   return closestZone;
 }
 
+function ringCentroid(ring: number[][]): { lat: number; lng: number } | null {
+  if (!Array.isArray(ring) || ring.length === 0) return null;
+
+  let sumLng = 0;
+  let sumLat = 0;
+  let count = 0;
+
+  for (const p of ring) {
+    if (!Array.isArray(p) || p.length < 2) continue;
+    sumLng += Number(p[0]);
+    sumLat += Number(p[1]);
+    count++;
+  }
+
+  if (count === 0) return null;
+  return { lat: sumLat / count, lng: sumLng / count };
+}
+
+function geometryCentroid(geometry: any): { lat: number; lng: number } | null {
+  if (!geometry) return null;
+
+  if (geometry.type === 'Point' && Array.isArray(geometry.coordinates)) {
+    return {
+      lng: Number(geometry.coordinates[0]),
+      lat: Number(geometry.coordinates[1]),
+    };
+  }
+
+  if (geometry.type === 'Polygon' && Array.isArray(geometry.coordinates?.[0])) {
+    return ringCentroid(geometry.coordinates[0]);
+  }
+
+  if (geometry.type === 'MultiPolygon' && Array.isArray(geometry.coordinates?.[0]?.[0])) {
+    return ringCentroid(geometry.coordinates[0][0]);
+  }
+
+  return null;
+}
+
+function zoneLogicalPoint(zone: Zone | undefined): { lat: number; lng: number } | null {
+  if (!zone) return null;
+
+  const centroid = geometryCentroid(zone.geometry);
+  if (centroid) return centroid;
+
+  if (zone.location_lat != null && zone.location_lng != null) {
+    return { lat: Number(zone.location_lat), lng: Number(zone.location_lng) };
+  }
+
+  return null;
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
@@ -138,19 +204,17 @@ Deno.serve(async (req) => {
 
     console.log('📥 Request:', { get_total, offset, batch_size });
 
-    // Build query on observations with GPS coordinates
+    // Build query on vehicle_observations_v2 (active observations table)
     let query = supabaseAdmin
-      .from('observations')
-      .select('id, plate_number, zone_id, organization_id, recorded_at, gps_latitude, gps_longitude', { count: 'exact' })
-      .not('gps_latitude', 'is', null)
-      .not('gps_longitude', 'is', null);
+      .from('vehicle_observations_v2')
+      .select('observation_id, plate_number, zone_id, organization_id, recorded_at, gps_latitude, gps_longitude', { count: 'exact' });
 
     // GET TOTAL MODE
     if (get_total) {
       const { count, error } = await query.select('*', { count: 'exact', head: true });
       if (error) throw error;
 
-      console.log(`📊 Total observations with GPS: ${count}`);
+      console.log(`📊 Total observations checked: ${count}`);
 
       return new Response(
         JSON.stringify({ total: count || 0 }),
@@ -161,44 +225,12 @@ Deno.serve(async (req) => {
     // Load all active zones (needed for zone matching)
     const { data: allZones, error: zonesError } = await supabaseAdmin
       .from('zones')
-      .select('id, name, geometry, organization_id')
+      .select('id, name, geometry, organization_id, location_lat, location_lng')
       .eq('is_active', true);
 
     if (zonesError) throw zonesError;
 
     // Get or create "Other" zones for each organization
-    const { data: orgs } = await supabaseAdmin
-      .from('organizations')
-      .select('id, name')
-      .eq('is_active', true);
-
-    const otherZonesByOrg = new Map<string, { id: string; name: string }>();
-
-    for (const org of orgs || []) {
-      let otherZone = allZones?.find(z => z.name.toLowerCase() === 'other' && z.organization_id === org.id);
-      
-      if (!otherZone) {
-        const { data: newZone } = await supabaseAdmin
-          .from('zones')
-          .insert({
-            organization_id: org.id,
-            name: 'Other',
-            description: 'GPS locations outside defined zones',
-            self_contained_required: false,
-            geometry: null,
-            is_active: true,
-          })
-          .select('id, name')
-          .single();
-
-        if (newZone) {
-          otherZonesByOrg.set(org.id, { id: newZone.id, name: 'Other' });
-        }
-      } else {
-        otherZonesByOrg.set(org.id, { id: otherZone.id, name: otherZone.name });
-      }
-    }
-
     // PROCESS BATCH MODE
     const { data: observations, error: obsError } = await query
       .order('recorded_at', { ascending: true })
@@ -217,36 +249,47 @@ Deno.serve(async (req) => {
 
     let processed = 0;
     let corrected = 0;
-    let movedToOther = 0;
+    let backfilledGps = 0;
+    let correctedAndBackfilled = 0;
+    let skippedNoLogicalPoint = 0;
     const corrections: any[] = [];
+    const zonesById = new Map((allZones || []).map((z) => [z.id, z]));
 
-    for (const obs of observations) {
+    for (const obs of observations as ObservationV2[]) {
       try {
-        const lat = parseFloat(obs.gps_latitude);
-        const lng = parseFloat(obs.gps_longitude);
+        let lat = obs.gps_latitude != null ? Number(obs.gps_latitude) : null;
+        let lng = obs.gps_longitude != null ? Number(obs.gps_longitude) : null;
         const currentZoneId = obs.zone_id;
         const orgId = obs.organization_id;
+        const currentZone = zonesById.get(currentZoneId);
+        let gpsDerived = false;
+
+        if (lat == null || lng == null) {
+          const logicalPoint = zoneLogicalPoint(currentZone);
+          if (!logicalPoint) {
+            skippedNoLogicalPoint++;
+            processed++;
+            continue;
+          }
+          lat = logicalPoint.lat;
+          lng = logicalPoint.lng;
+          gpsDerived = true;
+        }
 
         // Get zones for this organization (excluding "Other")
         const orgZones = allZones?.filter(z => z.organization_id === orgId && z.name.toLowerCase() !== 'other') || [];
 
         // Check if in current zone
-        const currentZone = allZones?.find(z => z.id === currentZoneId);
         const isInCurrentZone = currentZone ? isPointInZone(lat, lng, currentZone) : false;
+        let correctZone: Zone | null = isInCurrentZone ? currentZone : null;
 
-        if (isInCurrentZone) {
-          processed++;
-          continue; // Already correct
-        }
-
-        // Find correct zone
-        let correctZone: Zone | null = null;
-
-        // Check if point is inside any zone
-        for (const zone of orgZones) {
-          if (isPointInZone(lat, lng, zone)) {
-            correctZone = zone;
-            break;
+        if (!correctZone) {
+          // Check if point is inside any zone
+          for (const zone of orgZones) {
+            if (isPointInZone(lat, lng, zone)) {
+              correctZone = zone;
+              break;
+            }
           }
         }
 
@@ -255,41 +298,35 @@ Deno.serve(async (req) => {
           correctZone = findClosestZone(lat, lng, orgZones);
         }
 
-        // If still no match, assign to "Other"
-        if (!correctZone) {
-          const otherZone = otherZonesByOrg.get(orgId);
-          if (otherZone && otherZone.id !== currentZoneId) {
-            await supabaseAdmin
-              .from('observations')
-              .update({ zone_id: otherZone.id })
-              .eq('id', obs.id);
-
-            movedToOther++;
-            corrections.push({
-              observation_id: obs.id,
-              plate_number: obs.plate_number,
-              old_zone_name: currentZone?.name || 'Unknown',
-              new_zone_name: otherZone.name,
-              recorded_at: obs.recorded_at,
-            });
-          }
-          processed++;
-          continue;
+        const payload: Record<string, any> = {};
+        if (gpsDerived) {
+          payload.gps_latitude = lat;
+          payload.gps_longitude = lng;
         }
 
-        // Update zone if different
-        if (correctZone.id !== currentZoneId) {
-          await supabaseAdmin
-            .from('observations')
-            .update({ zone_id: correctZone.id })
-            .eq('id', obs.id);
+        // Update zone if different and a new zone is identified
+        if (correctZone && correctZone.id !== currentZoneId) {
+          payload.zone_id = correctZone.id;
+        }
 
-          corrected++;
+        if (Object.keys(payload).length > 0) {
+          await supabaseAdmin
+            .from('vehicle_observations_v2')
+            .update(payload)
+            .eq('observation_id', obs.observation_id);
+
+          const zoneChanged = payload.zone_id != null;
+          const gpsChanged = payload.gps_latitude != null;
+          if (zoneChanged && gpsChanged) correctedAndBackfilled++;
+          else if (zoneChanged) corrected++;
+          else if (gpsChanged) backfilledGps++;
+
           corrections.push({
-            observation_id: obs.id,
+            observation_id: obs.observation_id,
             plate_number: obs.plate_number,
             old_zone_name: currentZone?.name || 'Unknown',
-            new_zone_name: correctZone.name,
+            new_zone_name: correctZone?.name || currentZone?.name || 'Unknown',
+            gps_backfilled: gpsDerived,
             recorded_at: obs.recorded_at,
           });
         }
@@ -297,15 +334,22 @@ Deno.serve(async (req) => {
         processed++;
 
       } catch (error: any) {
-        console.error(`Error processing ${obs.id}:`, error.message);
+        console.error(`Error processing ${obs.observation_id}:`, error.message);
         processed++;
       }
     }
 
-    console.log(`✅ Batch complete: ${processed} processed, ${corrected} corrected, ${movedToOther} moved to Other`);
+    console.log(`✅ Batch complete: ${processed} processed, ${corrected} corrected, ${backfilledGps} GPS-backfilled, ${correctedAndBackfilled} corrected+backfilled`);
 
     return new Response(
-      JSON.stringify({ processed, corrected, moved_to_other: movedToOther, corrections }),
+      JSON.stringify({
+        processed,
+        corrected,
+        backfilled_gps: backfilledGps,
+        corrected_and_backfilled: correctedAndBackfilled,
+        skipped_no_logical_point: skippedNoLogicalPoint,
+        corrections,
+      }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 

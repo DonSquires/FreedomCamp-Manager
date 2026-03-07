@@ -200,7 +200,6 @@ interface ZoneUpsertParams {
   lat: number;
   lng: number;
   geometry?: any;         // polygon geometry (if available)
-  boundarySource: string;
 }
 
 async function upsertZone(
@@ -217,10 +216,8 @@ async function upsertZone(
       location_lng: params.lng,
       organization_id: params.orgId,
       parent_zone_id: params.parentZoneId,
-      boundary_source: params.boundarySource,
     };
     if (params.geometry) {
-      updateData.geom = params.geometry;
       updateData.geometry = params.geometry;
     }
     const { error } = await supabase
@@ -242,11 +239,9 @@ async function upsertZone(
       parent_zone_id: params.parentZoneId,
       location_lat: params.lat,
       location_lng: params.lng,
-      boundary_source: params.boundarySource,
       is_active: true,
     };
     if (params.geometry) {
-      insertData.geom = params.geometry;
       insertData.geometry = params.geometry;
     }
     const { error } = await supabase
@@ -264,12 +259,12 @@ async function upsertZone(
 // ---------------------------------------------------------------------------
 // Pre-fetch existing zones by boundary_source to avoid N+1 queries
 // ---------------------------------------------------------------------------
-async function fetchExistingZones(boundarySource: string): Promise<Map<string, string>> {
+async function fetchExistingZones(): Promise<Map<string, string>> {
   const map = new Map<string, string>();
   const { data } = await supabase
     .from('zones')
     .select('id, name')
-    .eq('boundary_source', boundarySource);
+    .eq('zone_type', 'specific');
 
   if (data) {
     for (const z of data) {
@@ -294,7 +289,7 @@ async function importDocCampsites(orgZones: OrgZone[]) {
   const features = geojson.features || [];
   console.log(`🏕️  Downloaded ${features.length} DOC campsites.`);
 
-  const existingZones = await fetchExistingZones('doc_campsites');
+  const existingZones = await fetchExistingZones();
   console.log(`   Found ${existingZones.size} existing DOC campsite zones.`);
 
   const counters = { created: 0, updated: 0 };
@@ -329,7 +324,7 @@ async function importDocCampsites(orgZones: OrgZone[]) {
     await upsertZone({
       name, description,
       orgId: org.org_id, parentZoneId: org.zone_id,
-      lat, lng, boundarySource: 'doc_campsites',
+      lat, lng,
     }, existingZones, counters);
   }
 
@@ -355,7 +350,7 @@ async function importDocHuts(orgZones: OrgZone[]) {
   const features = geojson.features || [];
   console.log(`🛖  Downloaded ${features.length} DOC huts.`);
 
-  const existingZones = await fetchExistingZones('doc_huts');
+  const existingZones = await fetchExistingZones();
   console.log(`   Found ${existingZones.size} existing DOC hut zones.`);
 
   const counters = { created: 0, updated: 0 };
@@ -385,7 +380,7 @@ async function importDocHuts(orgZones: OrgZone[]) {
     await upsertZone({
       name, description,
       orgId: org.org_id, parentZoneId: org.zone_id,
-      lat, lng, boundarySource: 'doc_huts',
+      lat, lng,
     }, existingZones, counters);
   }
 
@@ -411,7 +406,7 @@ async function importDocFreedomCamping(orgZones: OrgZone[]) {
   const features = geojson.features || [];
   console.log(`🏕️  Downloaded ${features.length} DOC freedom camping areas.`);
 
-  const existingZones = await fetchExistingZones('doc_freedom_camping');
+  const existingZones = await fetchExistingZones();
   console.log(`   Found ${existingZones.size} existing DOC freedom camping zones.`);
 
   const counters = { created: 0, updated: 0 };
@@ -441,7 +436,6 @@ async function importDocFreedomCamping(orgZones: OrgZone[]) {
       orgId: org.org_id, parentZoneId: org.zone_id,
       lat: centroid[1], lng: centroid[0],
       geometry: feature.geometry,
-      boundarySource: 'doc_freedom_camping',
     }, existingZones, counters);
   }
 
@@ -468,7 +462,7 @@ async function importLinzCrownProperty(orgZones: OrgZone[]) {
   const features = geojson.features || [];
   console.log(`👑 Downloaded ${features.length} LINZ Crown properties.`);
 
-  const existingZones = await fetchExistingZones('linz_crown_property');
+  const existingZones = await fetchExistingZones();
   console.log(`   Found ${existingZones.size} existing LINZ Crown property zones.`);
 
   const counters = { created: 0, updated: 0 };
@@ -505,7 +499,6 @@ async function importLinzCrownProperty(orgZones: OrgZone[]) {
       orgId: org.org_id, parentZoneId: org.zone_id,
       lat: centroid[1], lng: centroid[0],
       geometry: feature.geometry,
-      boundarySource: 'linz_crown_property',
     }, existingZones, counters);
   }
 
@@ -520,7 +513,7 @@ async function importLinzCrownProperty(orgZones: OrgZone[]) {
 // Source 5: Council Freedom Camping (Waikato, Nelson, Christchurch, ...)
 // ---------------------------------------------------------------------------
 async function importCouncilFreedomCamping(orgZones: OrgZone[]) {
-  const existingZones = await fetchExistingZones('council_freedom_camping');
+  const existingZones = await fetchExistingZones();
   console.log(`\n📂 Found ${existingZones.size} existing council freedom camping zones.`);
 
   const totalCounters = { created: 0, updated: 0 };
@@ -578,7 +571,6 @@ async function importCouncilFreedomCamping(orgZones: OrgZone[]) {
         lat: centroid[1], lng: centroid[0],
       // includes('Polygon') matches both 'Polygon' and 'MultiPolygon' types
         geometry: feature.geometry?.type?.includes('Polygon') ? feature.geometry : undefined,
-        boundarySource: 'council_freedom_camping',
       }, existingZones, counters);
     }
 
@@ -615,24 +607,33 @@ async function main() {
   console.log(`   Organizations: ${orgZones.map(z => z.org_name).join(', ')}\n`);
 
   // Step 2: Import from each enabled source
+  const runSource = async (label: string, task: () => Promise<void>) => {
+    try {
+      await task();
+    } catch (err: any) {
+      console.warn(`\n⚠️  ${label} import failed: ${err?.message || err}`);
+      console.warn(`   Continuing with remaining sources...`);
+    }
+  };
+
   if (shouldImport('doc_campsites')) {
-    await importDocCampsites(orgZones);
+    await runSource('DOC campsites', () => importDocCampsites(orgZones));
   }
 
   if (shouldImport('doc_huts')) {
-    await importDocHuts(orgZones);
+    await runSource('DOC huts', () => importDocHuts(orgZones));
   }
 
   if (shouldImport('doc_freedom_camping')) {
-    await importDocFreedomCamping(orgZones);
+    await runSource('DOC freedom camping', () => importDocFreedomCamping(orgZones));
   }
 
   if (shouldImport('linz_crown')) {
-    await importLinzCrownProperty(orgZones);
+    await runSource('LINZ crown property', () => importLinzCrownProperty(orgZones));
   }
 
   if (shouldImport('council')) {
-    await importCouncilFreedomCamping(orgZones);
+    await runSource('Council freedom camping', () => importCouncilFreedomCamping(orgZones));
   }
 
   console.log("\n🎉 ALL IMPORTS COMPLETE");

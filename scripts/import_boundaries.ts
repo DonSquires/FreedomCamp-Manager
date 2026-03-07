@@ -40,6 +40,25 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
+let zoneBoundarySourceSupported: boolean | null = null;
+
+async function supportsZoneBoundarySource(): Promise<boolean> {
+  if (zoneBoundarySourceSupported !== null) return zoneBoundarySourceSupported;
+
+  const { data, error } = await supabase
+    .from('zones')
+    .select('boundary_source')
+    .limit(1);
+
+  if (error && /boundary_source/i.test(error.message || '')) {
+    zoneBoundarySourceSupported = false;
+    return zoneBoundarySourceSupported;
+  }
+
+  zoneBoundarySourceSupported = true;
+  return zoneBoundarySourceSupported;
+}
+
 function buildWfsUrl(layerId: string, bbox?: string): string | null {
   if (!STATSNZ_API_KEY) return null;
   let url = `https://datafinder.stats.govt.nz/services;key=${STATSNZ_API_KEY}/wfs`
@@ -89,7 +108,11 @@ async function importTerritorialAuthorities() {
     const rawName = feature.properties.TA2025_V1_00_NAME_ASCII
       || feature.properties.TA2025_V1_00_NAME
       || feature.properties.TA_NAME
-      || feature.properties.NAME;
+      || feature.properties.NAME
+      // NZTA ArcGIS fallback currently returns lowercase property names.
+      || feature.properties.ta2013name
+      || feature.properties.portalsearch
+      || feature.properties.name;
     if (!rawName) continue;
 
     const { data: orgs } = await supabase
@@ -103,29 +126,22 @@ async function importTerritorialAuthorities() {
     if (org) {
       console.log(`✅ MATCH: Gov '${rawName}' -> DB '${org.name}'`);
 
-      const { error: orgErr } = await supabase
-        .from('organizations')
-        .update({ geom: feature.geometry })
-        .eq('id', org.id);
+      // Some environments keep jurisdiction geometry only on zones.
 
-      if (orgErr) {
-        console.error(`   ❌ Org Update Failed: ${orgErr.message}`);
+      const { data: updatedZones, error: zoneErr } = await supabase
+        .from('zones')
+        .update({
+          geometry: feature.geometry,
+        })
+        .eq('organization_id', org.id)
+        .eq('zone_type', 'general') // Only update the top-level jurisdiction
+        .select('id');
+
+      if (zoneErr) console.error(`   ❌ Zone Update Failed: ${zoneErr.message}`);
+      else if (!updatedZones || updatedZones.length === 0) {
+        console.warn(`   ⚠️  No parent zone found for '${org.name}' - jurisdiction zone not set.`);
       } else {
-        const { data: updatedZones, error: zoneErr } = await supabase
-          .from('zones')
-          .update({
-            geom: feature.geometry,
-            geometry: feature.geometry,
-          })
-          .eq('organization_id', org.id)
-          .eq('zone_type', 'general') // Only update the top-level jurisdiction
-          .select('id');
-
-        if (zoneErr) console.error(`   ❌ Zone Update Failed: ${zoneErr.message}`);
-        else if (!updatedZones || updatedZones.length === 0) {
-          console.warn(`   ⚠️  No parent zone found for '${org.name}' - org geometry updated but zone not set.`);
-          successCount++;
-        } else successCount++;
+        successCount++;
       }
     } else {
       console.log(`   ⚠️  Skipping '${rawName}' - Not in DB.`);
@@ -213,6 +229,7 @@ async function importMeshblocks() {
   let createdCount = 0;
   let updatedCount = 0;
   let skipCount = 0;
+  const useBoundarySource = await supportsZoneBoundarySource();
 
   for (const feature of geojson.features) {
     const meshblockCode = feature.properties.MB2025_V1_00
@@ -235,13 +252,16 @@ async function importMeshblocks() {
 
     if (existingId) {
       // Update existing zone geometry
+      const updateData: Record<string, any> = {
+        geometry: feature.geometry,
+      };
+      if (useBoundarySource) {
+        updateData.boundary_source = 'stats_nz_meshblock_2025';
+      }
+
       const { error: updateErr } = await supabase
         .from('zones')
-        .update({
-          geom: feature.geometry,
-          geometry: feature.geometry,
-          boundary_source: 'stats_nz_meshblock_2025',
-        })
+        .update(updateData)
         .eq('id', existingId);
 
       if (updateErr) {
@@ -251,18 +271,21 @@ async function importMeshblocks() {
       }
     } else {
       // Create new enforcement zone
+      const insertData: Record<string, any> = {
+        name: zoneName,
+        organization_id: org.id,
+        zone_type: 'specific',
+        parent_zone_id: parentZone?.id || null,
+        geometry: feature.geometry,
+        is_active: true,
+      };
+      if (useBoundarySource) {
+        insertData.boundary_source = 'stats_nz_meshblock_2025';
+      }
+
       const { error: insertErr } = await supabase
         .from('zones')
-        .insert({
-          name: zoneName,
-          organization_id: org.id,
-          zone_type: 'specific',
-          parent_zone_id: parentZone?.id || null,
-          geom: feature.geometry,
-          geometry: feature.geometry,
-          boundary_source: 'stats_nz_meshblock_2025',
-          is_active: true,
-        });
+        .insert(insertData);
 
       if (insertErr) {
         console.error(`   ❌ Insert failed for ${zoneName}: ${insertErr.message}`);
