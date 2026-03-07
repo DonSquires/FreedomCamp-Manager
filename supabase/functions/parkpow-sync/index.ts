@@ -147,7 +147,7 @@ async function pushViolations(supabase: ReturnType<typeof createClient>) {
   // Fetch observations that are breaches and have a ParkPow session but no violation yet
   const { data: breaches, error } = await supabase
     .from("observations")
-    .select("id, plate_number, breach_type, breach_reason, parkpow_session_id, zones(parkpow_lot_id)")
+    .select("*, zones(parkpow_lot_id)")
     .eq("is_compliant", false)
     .not("parkpow_session_id", "is", null)
     .is("parkpow_violation_id", null)
@@ -159,6 +159,7 @@ async function pushViolations(supabase: ReturnType<typeof createClient>) {
   let failed = 0;
 
   for (const obs of breaches ?? []) {
+    const obsId = (obs as any).observation_id ?? (obs as any).id;
     try {
       const reason = [obs.breach_type, obs.breach_reason].filter(Boolean).join(": ")
         || "Compliance breach";
@@ -171,11 +172,11 @@ async function pushViolations(supabase: ReturnType<typeof createClient>) {
       await supabase
         .from("observations")
         .update({ parkpow_violation_id: violation.id })
-        .eq("id", obs.id);
+        .eq((obs as any).observation_id ? 'observation_id' : 'id', obsId);
 
       pushed++;
     } catch (err) {
-      console.warn(`⚠️  Failed to push violation for observation ${obs.id}:`, err);
+      console.warn(`⚠️  Failed to push violation for observation ${obsId}:`, err);
       failed++;
     }
   }

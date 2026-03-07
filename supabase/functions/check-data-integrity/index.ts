@@ -68,7 +68,7 @@ Deno.serve(async (req) => {
     // Build query on observations (new primary table)
     let query = supabaseAdmin
       .from('observations')
-      .select('id, plate_number, zone_id, recorded_at', { count: 'exact' });
+      .select('*', { count: 'exact' });
 
     // GET TOTAL MODE
     if (get_total) {
@@ -107,6 +107,7 @@ Deno.serve(async (req) => {
     const seen = new Map<string, { obs_id: string; plate: string }>();
     
     for (const obs of observations) {
+      const obsId = (obs as any).observation_id ?? (obs as any).id;
       const date = obs.recorded_at.split('T')[0];
       const key = `${obs.plate_number}_${obs.zone_id}_${date}`;
       
@@ -115,7 +116,7 @@ Deno.serve(async (req) => {
         const { error: deleteError } = await supabaseAdmin
           .from('observations')
           .delete()
-          .eq('id', obs.id);
+          .eq((obs as any).observation_id ? 'observation_id' : 'id', obsId);
 
         if (!deleteError) {
           duplicatesDeleted++;
@@ -123,25 +124,25 @@ Deno.serve(async (req) => {
             table: 'observations',
             issue_type: 'duplicate',
             severity: 'critical',
-            record_id: obs.id,
+            record_id: obsId,
             plate_number: obs.plate_number,
             description: `Duplicate observation for ${obs.plate_number} on ${date} - DELETED`,
             action_taken: 'deleted',
           });
         } else {
-          console.error('Failed to delete duplicate:', obs.id, deleteError);
+          console.error('Failed to delete duplicate:', obsId, deleteError);
           issues.push({
             table: 'observations',
             issue_type: 'duplicate',
             severity: 'critical',
-            record_id: obs.id,
+            record_id: obsId,
             plate_number: obs.plate_number,
             description: `Duplicate observation for ${obs.plate_number} on ${date} - FAILED TO DELETE`,
             action_taken: 'none',
           });
         }
       } else {
-        seen.set(key, { obs_id: obs.id, plate: obs.plate_number });
+        seen.set(key, { obs_id: (obs as any).observation_id ?? (obs as any).id, plate: obs.plate_number });
       }
     }
 
@@ -162,7 +163,7 @@ Deno.serve(async (req) => {
             table: 'observations',
             issue_type: 'orphaned',
             severity: 'critical',
-            record_id: obs.id,
+            record_id: (obs as any).observation_id ?? (obs as any).id,
             plate_number: obs.plate_number,
             description: `Orphaned observation - plate ${obs.plate_number} not in canonical_vehicles`,
             action_taken: 'none',

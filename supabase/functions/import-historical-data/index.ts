@@ -737,12 +737,13 @@ Return ONLY a JSON object with this structure:
           // Check whether this record was already imported (idempotency guard)
           const { data: existing } = await supabaseAdmin
             .from('observations')
-            .select('id')
+            .select('*')
             .eq('idempotency_key', idempotencyKey)
             .maybeSingle();
 
           if (existing) {
-            console.log(`⏭️ [IMPORT] Skipping duplicate – already imported: ${record.plate} ${record.date} (obs ${existing.id})`);
+            const existingObservationId = (existing as any).observation_id ?? (existing as any).id;
+            console.log(`⏭️ [IMPORT] Skipping duplicate – already imported: ${record.plate} ${record.date} (obs ${existingObservationId})`);
             record.status = 'success';
             successful++;
             continue;
@@ -802,7 +803,7 @@ Return ONLY a JSON object with this structure:
               photo_hash: 'LEGACY_IMPORT_NO_PHOTO',
               review_blocked: true, // Block from enforcement until recalculation completes
             })
-            .select('id')
+            .select('*')
             .single();
 
           if (obsError || !observation) {
@@ -818,7 +819,8 @@ Return ONLY a JSON object with this structure:
           // 3. Calculate compliance based on zone rules
           // 4. Unblock observations for enforcement
           // ============================================================
-          console.log(`✅ [IMPORT] Observation created for ${record.plate} (id=${observation.id}), recalculation needed`);
+          const createdObservationId = (observation as any).observation_id ?? (observation as any).id;
+          console.log(`✅ [IMPORT] Observation created for ${record.plate} (id=${createdObservationId}), recalculation needed`);
 
           record.status = 'success';
           successful++;

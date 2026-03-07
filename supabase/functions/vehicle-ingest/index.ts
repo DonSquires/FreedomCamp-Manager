@@ -346,17 +346,18 @@ Deno.serve(async (req) => {
     // Check for duplicate (idempotency)
     const { data: existing } = await supabase
       .from("observations")
-      .select("id")
+      .select("*")
       .eq("idempotency_key", idempotencyKey)
       .maybeSingle();
 
     if (existing) {
+      const existingObservationId = (existing as any).observation_id ?? (existing as any).id;
       console.log("⚠️ Duplicate observation detected:", idempotencyKey);
       return new Response(
         JSON.stringify({
           success: true,
           duplicate: true,
-          observation_id: existing.id,
+          observation_id: existingObservationId,
         }),
         {
           status: 200,
@@ -557,12 +558,13 @@ Deno.serve(async (req) => {
       });
     }
 
-    console.log("✅ Observation created:", observation.id);
+    const newObservationId = (observation as any).observation_id ?? (observation as any).id;
+    console.log("✅ Observation created:", newObservationId);
 
     return new Response(
       JSON.stringify({
         success: true,
-        observation_id: observation.id,
+        observation_id: newObservationId,
         source: inferenceResult.path,
         plate: plateNumber !== "MANUAL_REQUIRED" ? plateNumber : null,
         confidence: plateConfidence,

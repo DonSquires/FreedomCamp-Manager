@@ -102,7 +102,7 @@ Deno.serve(async (req) => {
         
         const { data: recentDuplicate } = await supabaseAdmin
           .from('observations')
-          .select('id, recorded_at')
+          .select('*')
           .eq('plate_number', plateNumber)
           .eq('zone_id', zoneId)
           .gte('recorded_at', thirtySecondsAgo)
@@ -222,7 +222,7 @@ Deno.serve(async (req) => {
             has_notes: false,
             is_compliant: true, // Will be updated by compliance check
           })
-          .select('id')
+          .select('*')
           .single();
 
         if (insertError) {
@@ -246,10 +246,11 @@ Deno.serve(async (req) => {
             compliance.violation_severity !== 'moderate';
 
           // Update observation compliance
+          const newObservationId = (newRecord as any).observation_id ?? (newRecord as any).id;
           await supabaseAdmin
             .from('observations')
             .update({ is_compliant: isCompliant })
-            .eq('id', newRecord.id);
+            .eq((newRecord as any).observation_id ? 'observation_id' : 'id', newObservationId);
 
           // Create breach alert if non-compliant
           if (!isCompliant) {
@@ -267,7 +268,7 @@ Deno.serve(async (req) => {
                   severity: compliance.violation_severity,
                   consecutiveNights: compliance.consecutive_nights,
                   monthNights: compliance.month_nights,
-                  observation_id: newRecord.id,
+                  observation_id: newObservationId,
                   plate_number: plateNumber,
                 },
                 status: 'pending',
