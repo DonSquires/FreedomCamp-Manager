@@ -118,7 +118,7 @@ export default function OrganizationProfile() {
       const [userCount, zoneCount, obsCount] = await Promise.all([
         supabase.from('user_profiles').select('id', { count: 'exact', head: true }).eq('organization_id', organizationId),
         supabase.from('zones').select('id', { count: 'exact', head: true }).eq('organization_id', organizationId).eq('is_active', true),
-        supabase.from('observations').select('id', { count: 'exact', head: true }).eq('organization_id', organizationId),
+        supabase.from('observations').select('observation_id', { count: 'exact', head: true }).eq('organization_id', organizationId),
       ])
 
       return {

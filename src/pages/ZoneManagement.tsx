@@ -149,7 +149,7 @@ export default function ZoneManagement() {
       const zonesWithCounts = await Promise.all(
         ((data || []) as Zone[]).map(async (zone) => {
           const [obsCount, breachCount] = await Promise.all([
-            supabase.from('observations').select('id', { count: 'exact', head: true }).eq('zone_id', zone.id),
+            supabase.from('observations').select('observation_id', { count: 'exact', head: true }).eq('zone_id', zone.id),
             supabase.from('breach_alerts').select('id', { count: 'exact', head: true }).eq('zone_id', zone.id),
           ])
 
