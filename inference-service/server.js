@@ -20,6 +20,7 @@ const cors = require('cors');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const YOLO_INPUT_SIZE = 640;
 
 // Configure CORS (restrict to your Supabase Edge Function)
 const corsOptions = {
@@ -105,19 +106,66 @@ async function preprocessForYOLO(imageBuffer) {
   return new ort.Tensor('float32', chw, [1, 3, 640, 640]);
 }
 
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+
+// Convert model bbox to a safe Sharp extract rectangle in source-image pixels.
+// Handles both center-based (YOLO-style) and top-left-based interpretations.
+async function resolveSafeCrop(imageBuffer, bbox) {
+  if (!bbox) return null;
+
+  const metadata = await sharp(imageBuffer).metadata();
+  const imageWidth = metadata.width || 0;
+  const imageHeight = metadata.height || 0;
+
+  if (!imageWidth || !imageHeight) return null;
+
+  const x = Number.isFinite(bbox.x) ? bbox.x : 0;
+  const y = Number.isFinite(bbox.y) ? bbox.y : 0;
+  const w = Number.isFinite(bbox.width) ? bbox.width : 0;
+  const h = Number.isFinite(bbox.height) ? bbox.height : 0;
+
+  if (w <= 1 || h <= 1) return null;
+
+  const scaleX = imageWidth / YOLO_INPUT_SIZE;
+  const scaleY = imageHeight / YOLO_INPUT_SIZE;
+
+  const candidates = [
+    // Candidate A: center-based xywh (common YOLO output)
+    { left: x - w / 2, top: y - h / 2, width: w, height: h },
+    // Candidate B: top-left-based xywh
+    { left: x, top: y, width: w, height: h },
+  ];
+
+  for (const c of candidates) {
+    const left = Math.floor(clamp(c.left * scaleX, 0, imageWidth - 1));
+    const top = Math.floor(clamp(c.top * scaleY, 0, imageHeight - 1));
+    const right = Math.ceil(clamp((c.left + c.width) * scaleX, left + 1, imageWidth));
+    const bottom = Math.ceil(clamp((c.top + c.height) * scaleY, top + 1, imageHeight));
+    const width = right - left;
+    const height = bottom - top;
+
+    if (width > 1 && height > 1 && left + width <= imageWidth && top + height <= imageHeight) {
+      return { left, top, width, height };
+    }
+  }
+
+  return null;
+}
+
 // Preprocess image for MobileNet (224x224)
 async function preprocessForEmbedding(imageBuffer, bbox = null) {
   let pipeline = sharp(imageBuffer);
 
   // Crop to detected vehicle bbox if provided
   if (bbox) {
-    const { x, y, width, height } = bbox;
-    pipeline = pipeline.extract({
-      left: Math.max(0, Math.floor(x)),
-      top: Math.max(0, Math.floor(y)),
-      width: Math.ceil(width),
-      height: Math.ceil(height)
-    });
+    const safeCrop = await resolveSafeCrop(imageBuffer, bbox);
+    if (safeCrop) {
+      pipeline = pipeline.extract(safeCrop);
+    } else {
+      console.warn('⚠️ Invalid bbox crop; falling back to full-image embedding');
+    }
   }
 
   const { data } = await pipeline
