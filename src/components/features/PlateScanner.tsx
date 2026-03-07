@@ -133,8 +133,12 @@ export function PlateScanner({ onScanComplete, onCancel }: PlateScannerProps) {
       }
 
       // Resolve a valid zone for ingest (fallback to org's Other Location zone)
-      const { data: zoneId, error: zoneError } = await supabase.rpc('ensure_other_location_zone', {
-        p_organization_id: user?.organization_id,
+      if (!user?.organization_id) {
+        throw new Error('No organization is assigned to the current user')
+      }
+
+      const { data: zoneId, error: zoneError } = await (supabase as any).rpc('ensure_other_location_zone', {
+        p_organization_id: user.organization_id,
       })
 
       if (zoneError || !zoneId) {

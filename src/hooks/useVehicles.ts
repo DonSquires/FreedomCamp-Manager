@@ -59,7 +59,8 @@ export function useVehicles(options: UseVehiclesOptions = {}) {
         const { data: matchingObservations, error: matchingObsError } = await matchingObservationsQuery
         if (matchingObsError) throw matchingObsError
 
-        const matchingPlates = [...new Set((matchingObservations || []).map(o => o.plate_number).filter(Boolean))]
+        const plateRows = (matchingObservations ?? []) as Array<{ plate_number: string | null }>
+        const matchingPlates = [...new Set(plateRows.map((o) => o.plate_number).filter(Boolean) as string[])]
         if (matchingPlates.length === 0) return [] as Vehicle[]
 
         query = query.in('plate_number', matchingPlates)
