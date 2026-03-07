@@ -163,11 +163,13 @@ function OverviewTab({
       let q = supabase
         .from('observations')
         .select('*', { count: 'exact', head: true })
+        .is('deleted_at', null)
         .gte('recorded_at', from.toISOString())
         .lte('recorded_at', to.toISOString());
       if (orgId) q = q.eq('organization_id', orgId);
       if (zoneId) q = q.eq('zone_id', zoneId);
-      const { count } = await q;
+      const { count, error } = await q;
+      if (error) throw error;
       return count ?? 0;
     },
   });
@@ -178,12 +180,14 @@ function OverviewTab({
       let q = supabase
         .from('observations')
         .select('*', { count: 'exact', head: true })
+        .is('deleted_at', null)
         .eq('is_compliant', false)
         .gte('recorded_at', from.toISOString())
         .lte('recorded_at', to.toISOString());
       if (orgId) q = q.eq('organization_id', orgId);
       if (zoneId) q = q.eq('zone_id', zoneId);
-      const { count } = await q;
+      const { count, error } = await q;
+      if (error) throw error;
       return count ?? 0;
     },
   });
@@ -191,10 +195,11 @@ function OverviewTab({
   const { data: flagged } = useQuery({
     queryKey: ['comp-flagged'],
     queryFn: async () => {
-      const { count } = await supabase
+      const { count, error } = await supabase
         .from('canonical_vehicles')
         .select('*', { count: 'exact', head: true })
         .eq('is_flagged', true);
+      if (error) throw error;
       return count ?? 0;
     },
   });
@@ -202,10 +207,11 @@ function OverviewTab({
   const { data: homeless } = useQuery({
     queryKey: ['comp-homeless'],
     queryFn: async () => {
-      const { count } = await supabase
+      const { count, error } = await supabase
         .from('canonical_vehicles')
         .select('*', { count: 'exact', head: true })
         .eq('is_homeless', true);
+      if (error) throw error;
       return count ?? 0;
     },
   });
@@ -276,7 +282,7 @@ function BreachesTab({
   const to = new Date(dateTo);
   to.setHours(23, 59, 59, 999);
 
-  const { data, isLoading, isFetching } = useQuery({
+  const { data, isLoading, isFetching, isError, error: queryError } = useQuery({
     queryKey: ['breaches-detail', page, search, dateFrom, dateTo, orgId, zoneId],
     queryFn: async () => {
       let q = supabase
@@ -285,6 +291,7 @@ function BreachesTab({
           'id, plate_number, recorded_at, breach_type, breach_reason, nights_stayed_this_month, consecutive_nights, vehicle_make, vehicle_model, vehicle_color, self_contained, photo_url, zones(name), organizations(name), user_profiles(first_name, last_name)',
           { count: 'exact' }
         )
+        .is('deleted_at', null)
         .eq('is_compliant', false)
         .gte('recorded_at', from.toISOString())
         .lte('recorded_at', to.toISOString())
@@ -334,6 +341,8 @@ function BreachesTab({
       <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden">
         {isLoading ? (
           <Spinner />
+        ) : isError ? (
+          <Empty msg={`Failed to load breaches: ${(queryError as Error)?.message ?? 'Unknown error'}`} />
         ) : !data?.rows.length ? (
           <Empty msg="No breaches found in this period" />
         ) : (
@@ -460,7 +469,8 @@ function ZonesTab({
         .select('id, name, is_active, nights_per_month, max_consecutive_nights, self_contained_required, day_visit_only, organizations(name)')
         .order('name');
       if (orgId) q = q.eq('organization_id', orgId);
-      const { data } = await q;
+      const { data, error } = await q;
+      if (error) throw error;
       return data ?? [];
     },
   });
@@ -470,10 +480,12 @@ function ZonesTab({
     queryFn: async () => {
       let q = (supabase.from('observations') as any)
         .select('zone_id, is_compliant')
+        .is('deleted_at', null)
         .gte('recorded_at', from.toISOString())
         .lte('recorded_at', to.toISOString());
       if (orgId) q = q.eq('organization_id', orgId);
-      const { data } = await q;
+      const { data, error } = await q;
+      if (error) throw error;
       const counts: Record<string, { total: number; breaches: number }> = {};
       for (const r of data ?? []) {
         if (!counts[r.zone_id]) counts[r.zone_id] = { total: 0, breaches: 0 };
