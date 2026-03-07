@@ -87,6 +87,10 @@ export default function InfringementNotices() {
   const { user } = useAuthStore()
   const { organizationId, zoneId, dateFrom, dateTo } = useGlobalFiltersStore()
   const queryClient = useQueryClient()
+  const effectiveOrganizationId =
+    user?.role === 'master' ? organizationId || null : user?.organization_id || null
+  const startDate = dateFrom ? `${dateFrom}T00:00:00Z` : null
+  const endDate = dateTo ? `${dateTo}T23:59:59Z` : null
 
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
@@ -125,14 +129,12 @@ export default function InfringementNotices() {
         .order('created_at', { ascending: false })
         .limit(200)
 
-      if (user?.role !== 'master') {
-        q = q.eq('organization_id', user?.organization_id ?? '')
-      } else if (organizationId) {
-        q = q.eq('organization_id', organizationId)
+      if (effectiveOrganizationId) {
+        q = q.eq('organization_id', effectiveOrganizationId)
       }
       if (zoneId)   q = q.eq('zone_id', zoneId)
-      if (dateFrom) q = q.gte('created_at', dateFrom)
-      if (dateTo)   q = q.lte('created_at', dateTo)
+      if (startDate) q = q.gte('created_at', startDate)
+      if (endDate)   q = q.lte('created_at', endDate)
 
       const { data, error } = await q
       if (error) throw error
@@ -142,33 +144,40 @@ export default function InfringementNotices() {
 
   // ── Fetch breach alerts for the dropdown ─────────────────────────────────
   const { data: breachOptions = [] } = useQuery({
-    queryKey: ['breach-options', user?.organization_id],
+    queryKey: ['breach-options', effectiveOrganizationId],
     queryFn: async () => {
-      const { data } = await supabase
+      let q = supabase
         .from('breach_alerts')
         .select('id, plate_number, breach_type, zone:zones!zone_id(name, id)')
-        .eq('organization_id', user?.organization_id ?? '')
         .in('status', ['pending', 'acknowledged'])
         .order('created_at', { ascending: false })
         .limit(100)
+
+      if (effectiveOrganizationId) q = q.eq('organization_id', effectiveOrganizationId)
+      if (zoneId) q = q.eq('zone_id', zoneId)
+
+      const { data } = await q
       return (data || []) as unknown as BreachAlertOption[]
     },
-    enabled: !!user?.organization_id,
+    enabled: !!effectiveOrganizationId,
   })
 
   // ── Zones for the form ────────────────────────────────────────────────────
   const { data: zones = [] } = useQuery({
-    queryKey: ['zones-simple', user?.organization_id],
+    queryKey: ['zones-simple', effectiveOrganizationId],
     queryFn: async () => {
-      const { data } = await supabase
+      let q = supabase
         .from('zones')
         .select('id, name')
-        .eq('organization_id', user?.organization_id ?? '')
         .eq('is_active', true)
         .order('name')
+
+      if (effectiveOrganizationId) q = q.eq('organization_id', effectiveOrganizationId)
+
+      const { data } = await q
       return data || []
     },
-    enabled: !!user?.organization_id,
+    enabled: !!effectiveOrganizationId,
   })
 
   // ── Status update mutation ────────────────────────────────────────────────

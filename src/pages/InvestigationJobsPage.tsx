@@ -89,6 +89,8 @@ export default function InvestigationJobsPage() {
   const { user } = useAuthStore()
   const { organizationId, zoneId, dateFrom, dateTo } = useGlobalFiltersStore()
   const queryClient = useQueryClient()
+  const startDate = dateFrom ? `${dateFrom}T00:00:00Z` : null
+  const endDate = dateTo ? `${dateTo}T23:59:59Z` : null
 
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('active')
@@ -103,7 +105,7 @@ export default function InvestigationJobsPage() {
 
   // Fetch jobs
   const { data: jobs = [], isLoading } = useQuery({
-    queryKey: ['investigation-jobs', orgId, zoneId, dateFrom, dateTo, statusFilter, priorityFilter],
+    queryKey: ['investigation-jobs', orgId, zoneId, startDate, endDate, statusFilter, priorityFilter],
     queryFn: async () => {
       let q = supabase
         .from('investigation_jobs')
@@ -119,8 +121,8 @@ export default function InvestigationJobsPage() {
 
       if (orgId) q = q.eq('organization_id', orgId)
       if (zoneId) q = q.eq('associated_zone_id', zoneId)
-      if (dateFrom) q = q.gte('created_at', dateFrom)
-      if (dateTo) q = q.lte('created_at', dateTo + 'T23:59:59')
+      if (startDate) q = q.gte('created_at', startDate)
+      if (endDate) q = q.lte('created_at', endDate)
 
       if (statusFilter === 'active') {
         q = q.in('status', ['pending', 'assigned', 'in_progress'])

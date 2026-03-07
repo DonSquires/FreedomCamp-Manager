@@ -28,6 +28,10 @@ interface Incident {
 export default function IncidentManagement() {
   const { user } = useAuthStore()
   const { dateFrom, dateTo, organizationId, zoneId } = useGlobalFiltersStore()
+  const effectiveOrganizationId =
+    user?.role === 'master' ? organizationId || null : user?.organization_id || null
+  const startDate = dateFrom ? `${dateFrom}T00:00:00Z` : null
+  const endDate = dateTo ? `${dateTo}T23:59:59Z` : null
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('all')
 
@@ -41,14 +45,14 @@ export default function IncidentManagement() {
         .order('recorded_at', { ascending: false })
 
       // Apply filters
-      if (dateFrom) {
-        query = query.gte('recorded_at', dateFrom)
+      if (startDate) {
+        query = query.gte('recorded_at', startDate)
       }
-      if (dateTo) {
-        query = query.lte('recorded_at', dateTo)
+      if (endDate) {
+        query = query.lte('recorded_at', endDate)
       }
-      if (organizationId) {
-        query = query.eq('organization_id', organizationId)
+      if (effectiveOrganizationId) {
+        query = query.eq('organization_id', effectiveOrganizationId)
       }
       if (zoneId) {
         query = query.eq('zone_id', zoneId)

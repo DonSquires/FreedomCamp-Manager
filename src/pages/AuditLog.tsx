@@ -44,6 +44,8 @@ interface AuditLogEntry {
 export default function AuditLog() {
   const { user } = useAuthStore()
   const { organizationId, dateFrom, dateTo } = useGlobalFiltersStore()
+  const startDate = dateFrom ? `${dateFrom}T00:00:00Z` : null
+  const endDate = dateTo ? `${dateTo}T23:59:59Z` : null
   const [searchQuery, setSearchQuery] = useState('')
   const [actionFilter, setActionFilter] = useState<string>('all')
   const [entityFilter, setEntityFilter] = useState<string>('all')
@@ -85,11 +87,11 @@ export default function AuditLog() {
       }
 
       // Date filters
-      if (dateFrom) {
-        query = query.gte('created_at', dateFrom)
+      if (startDate) {
+        query = query.gte('created_at', startDate)
       }
-      if (dateTo) {
-        query = query.lte('created_at', dateTo)
+      if (endDate) {
+        query = query.lte('created_at', endDate)
       }
 
       // Action filter

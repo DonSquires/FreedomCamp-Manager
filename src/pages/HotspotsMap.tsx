@@ -35,6 +35,10 @@ interface HotspotData {
 export default function HotspotsMap() {
   const { user } = useAuthStore()
   const { organizationId, zoneId, dateFrom, dateTo } = useGlobalFiltersStore()
+  const effectiveOrganizationId =
+    user?.role === 'master' ? organizationId || null : user?.organization_id || null
+  const startDate = dateFrom ? `${dateFrom}T00:00:00Z` : null
+  const endDate = dateTo ? `${dateTo}T23:59:59Z` : null
   const [showBreachesOnly, setShowBreachesOnly] = useState(false)
   const [selectedZone, setSelectedZone] = useState<string | null>(null)
 
@@ -47,21 +51,19 @@ export default function HotspotsMap() {
         .select('zone_id, gps_latitude, gps_longitude, is_compliant, plate_number, zones(name)')
         .is('deleted_at', null)
 
-      if (user?.role !== 'master' && user?.organization_id) {
-        query = query.eq('organization_id', user.organization_id)
-      } else if (organizationId) {
-        query = query.eq('organization_id', organizationId)
+      if (effectiveOrganizationId) {
+        query = query.eq('organization_id', effectiveOrganizationId)
       }
 
       if (zoneId) {
         query = query.eq('zone_id', zoneId)
       }
 
-      if (dateFrom) {
-        query = query.gte('recorded_at', dateFrom)
+      if (startDate) {
+        query = query.gte('recorded_at', startDate)
       }
-      if (dateTo) {
-        query = query.lte('recorded_at', dateTo)
+      if (endDate) {
+        query = query.lte('recorded_at', endDate)
       }
 
       if (showBreachesOnly) {

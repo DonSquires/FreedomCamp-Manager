@@ -42,6 +42,8 @@ interface ObservationRow {
 export default function ObservationsReport() {
   const { user } = useAuthStore()
   const { organizationId, zoneId, dateFrom, dateTo } = useGlobalFiltersStore()
+  const startDate = dateFrom ? `${dateFrom}T00:00:00Z` : null
+  const endDate = dateTo ? `${dateTo}T23:59:59Z` : null
 
   const [search, setSearch] = useState('')
   const [complianceFilter, setComplianceFilter] = useState('all')
@@ -66,8 +68,8 @@ export default function ObservationsReport() {
 
       if (orgId) q = q.eq('organization_id', orgId)
       if (zoneId) q = q.eq('zone_id', zoneId)
-      if (dateFrom) q = q.gte('recorded_at', dateFrom)
-      if (dateTo) q = q.lte('recorded_at', dateTo + 'T23:59:59')
+      if (startDate) q = q.gte('recorded_at', startDate)
+      if (endDate) q = q.lte('recorded_at', endDate)
 
       if (complianceFilter === 'compliant') q = q.eq('is_compliant', true)
       else if (complianceFilter === 'breach') q = q.eq('is_compliant', false)

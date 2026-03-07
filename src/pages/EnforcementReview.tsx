@@ -93,6 +93,8 @@ export default function EnforcementReview() {
   const { user } = useAuthStore()
   const { organizationId, zoneId, dateFrom, dateTo } = useGlobalFiltersStore()
   const queryClient = useQueryClient()
+  const startDate = dateFrom ? `${dateFrom}T00:00:00Z` : null
+  const endDate = dateTo ? `${dateTo}T23:59:59Z` : null
 
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('pending_review')
@@ -104,7 +106,7 @@ export default function EnforcementReview() {
   const orgId = user?.role === 'master' ? (organizationId || undefined) : user?.organization_id
 
   const { data: actions = [], isLoading } = useQuery({
-    queryKey: ['enforcement-review', orgId, zoneId, dateFrom, dateTo, statusFilter, actionTypeFilter],
+    queryKey: ['enforcement-review', orgId, zoneId, startDate, endDate, statusFilter, actionTypeFilter],
     queryFn: async () => {
       let q = supabase
         .from('enforcement_actions')
@@ -130,8 +132,8 @@ export default function EnforcementReview() {
 
       if (actionTypeFilter !== 'all') q = q.eq('action_type', actionTypeFilter)
       if (zoneId) q = q.eq('zone_id', zoneId)
-      if (dateFrom) q = q.gte('created_at', dateFrom)
-      if (dateTo) q = q.lte('created_at', dateTo + 'T23:59:59')
+      if (startDate) q = q.gte('created_at', startDate)
+      if (endDate) q = q.lte('created_at', endDate)
 
       const { data, error } = await q
       if (error) throw error

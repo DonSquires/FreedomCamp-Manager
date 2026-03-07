@@ -54,6 +54,10 @@ function heatColor(intensity: number): string {
 export default function ObservationsView() {
   const { user } = useAuthStore()
   const { organizationId, zoneId, dateFrom, dateTo } = useGlobalFiltersStore()
+  const effectiveOrganizationId =
+    user?.role === 'master' ? organizationId || null : user?.organization_id || null
+  const startDate = dateFrom ? `${dateFrom}T00:00:00Z` : null
+  const endDate = dateTo ? `${dateTo}T23:59:59Z` : null
   const [searchPlate, setSearchPlate] = useState('')
   const [activeTab, setActiveTab] = useState('list')
   const [heatmapMode, setHeatmapMode] = useState(false)
@@ -77,18 +81,17 @@ export default function ObservationsView() {
           zone:zones!zone_id(name),
           recorded_by_profile:user_profiles!recorded_by(first_name, last_name)
         `)
+        .is('deleted_at', null)
         .order('recorded_at', { ascending: false })
         .limit(500)
 
-      if (user?.role !== 'master' && user?.organization_id) {
-        q = q.eq('organization_id', user.organization_id)
-      } else if (organizationId) {
-        q = q.eq('organization_id', organizationId)
+      if (effectiveOrganizationId) {
+        q = q.eq('organization_id', effectiveOrganizationId)
       }
 
       if (zoneId) q = q.eq('zone_id', zoneId)
-      if (dateFrom) q = q.gte('recorded_at', dateFrom)
-      if (dateTo)   q = q.lte('recorded_at', dateTo)
+      if (startDate) q = q.gte('recorded_at', startDate)
+      if (endDate)   q = q.lte('recorded_at', endDate)
 
       const { data, error } = await q
       if (error) throw error

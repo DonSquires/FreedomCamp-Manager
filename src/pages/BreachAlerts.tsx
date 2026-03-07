@@ -79,6 +79,10 @@ const CANNED_REJECTION_REASONS = [
 export default function BreachAlerts() {
   const { user } = useAuthStore()
   const { organizationId, zoneId, dateFrom, dateTo } = useGlobalFiltersStore()
+  const effectiveOrganizationId =
+    user?.role === 'master' ? organizationId || null : user?.organization_id || null
+  const startDate = dateFrom ? `${dateFrom}T00:00:00Z` : null
+  const endDate = dateTo ? `${dateTo}T23:59:59Z` : null
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [enrichingVehicle, setEnrichingVehicle] = useState<string | null>(null)
@@ -103,12 +107,12 @@ export default function BreachAlerts() {
         .order('created_at', { ascending: false })
         .limit(10)
 
-      if (user?.role !== 'master' && user?.organization_id) {
-        q = q.eq('organization_id', user.organization_id)
-      } else if (organizationId) {
-        q = q.eq('organization_id', organizationId)
+      if (effectiveOrganizationId) {
+        q = q.eq('organization_id', effectiveOrganizationId)
       }
       if (zoneId) q = q.eq('zone_id', zoneId)
+      if (startDate) q = q.gte('created_at', startDate)
+      if (endDate) q = q.lte('created_at', endDate)
 
       const { data } = await q
       return data || []
@@ -126,11 +130,11 @@ export default function BreachAlerts() {
         .order('created_at', { ascending: false })
         .limit(10)
 
-      if (user?.role !== 'master' && user?.organization_id) {
-        q = q.eq('organization_id', user.organization_id)
-      } else if (organizationId) {
-        q = q.eq('organization_id', organizationId)
+      if (effectiveOrganizationId) {
+        q = q.eq('organization_id', effectiveOrganizationId)
       }
+      if (startDate) q = q.gte('created_at', startDate)
+      if (endDate) q = q.lte('created_at', endDate)
 
       const { data } = await q
       return data || []
@@ -149,15 +153,13 @@ export default function BreachAlerts() {
         `)
         .order('created_at', { ascending: false })
 
-      if (user?.role !== 'master' && user?.organization_id) {
-        query = query.eq('organization_id', user.organization_id)
-      } else if (organizationId) {
-        query = query.eq('organization_id', organizationId)
+      if (effectiveOrganizationId) {
+        query = query.eq('organization_id', effectiveOrganizationId)
       }
 
       if (zoneId) query = query.eq('zone_id', zoneId)
-      if (dateFrom) query = query.gte('created_at', dateFrom)
-      if (dateTo) query = query.lte('created_at', dateTo)
+      if (startDate) query = query.gte('created_at', startDate)
+      if (endDate) query = query.lte('created_at', endDate)
       if (statusFilter !== 'all') query = query.eq('status', statusFilter)
       if (searchQuery) query = query.ilike('plate_number', `%${searchQuery}%`)
 
@@ -192,6 +194,9 @@ export default function BreachAlerts() {
       const { data } = await (supabase.from('observations') as any)
         .select('id, photo_url, recorded_at, gps_latitude, gps_longitude, zones!observations_zone_id_fkey(name)')
         .eq('plate_number', activeBreach.plate_number)
+        .eq('organization_id', activeBreach.organization_id)
+        .is('deleted_at', null)
+        .gte('recorded_at', activeBreach.created_at)
         .not('photo_url', 'is', null)
         .order('recorded_at', { ascending: false })
         .limit(12)
@@ -207,6 +212,7 @@ export default function BreachAlerts() {
       if (!activeBreach?.plate_number) return []
       const { data } = await (supabase.from('breach_alerts') as any)
         .select('id, breach_type, status, created_at, resolved_at, zones!zone_id(name)')
+        .eq('organization_id', activeBreach.organization_id)
         .eq('plate_number', activeBreach.plate_number)
         .neq('id', activeBreach.id)
         .order('created_at', { ascending: false })
