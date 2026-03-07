@@ -75,10 +75,14 @@ export default function EnforcementCommandCenter() {
   const { user } = useAuthStore()
   const { organizationId, zoneId, dateFrom, dateTo } = useGlobalFiltersStore()
   const [selectedView, setSelectedView] = useState<'all' | 'urgent' | 'pending'>('all')
+  const effectiveOrganizationId =
+    user?.role !== 'master' ? user?.organization_id || null : organizationId || null
+  const startDate = dateFrom ? `${dateFrom}T00:00:00Z` : null
+  const endDate = dateTo ? `${dateTo}T23:59:59Z` : null
 
   // Fetch enforcement stats
   const { data: stats } = useQuery({
-    queryKey: ['enforcement-stats', organizationId, dateFrom, dateTo],
+    queryKey: ['enforcement-stats', effectiveOrganizationId, zoneId, dateFrom, dateTo],
     queryFn: async () => {
       const today = new Date().toISOString().split('T')[0]
       
@@ -88,10 +92,17 @@ export default function EnforcementCommandCenter() {
         .select('*', { count: 'exact', head: true })
         .in('status', ['pending', 'notified'])
 
-      if (user?.role !== 'master' && user?.organization_id) {
-        breachQuery = breachQuery.eq('organization_id', user.organization_id)
-      } else if (organizationId) {
-        breachQuery = breachQuery.eq('organization_id', organizationId)
+      if (effectiveOrganizationId) {
+        breachQuery = breachQuery.eq('organization_id', effectiveOrganizationId)
+      }
+      if (zoneId) {
+        breachQuery = breachQuery.eq('zone_id', zoneId)
+      }
+      if (startDate) {
+        breachQuery = breachQuery.gte('detected_at', startDate)
+      }
+      if (endDate) {
+        breachQuery = breachQuery.lte('detected_at', endDate)
       }
 
       // Active patrols
@@ -100,28 +111,59 @@ export default function EnforcementCommandCenter() {
         .select('*', { count: 'exact', head: true })
         .eq('status', 'in_progress')
 
-      if (user?.role !== 'master' && user?.organization_id) {
-        patrolQuery = patrolQuery.eq('organization_id', user.organization_id)
-      } else if (organizationId) {
-        patrolQuery = patrolQuery.eq('organization_id', organizationId)
+      if (effectiveOrganizationId) {
+        patrolQuery = patrolQuery.eq('organization_id', effectiveOrganizationId)
+      }
+      if (zoneId) {
+        patrolQuery = patrolQuery.eq('zone_id', zoneId)
+      }
+      if (startDate) {
+        patrolQuery = patrolQuery.gte('started_at', startDate)
+      }
+      if (endDate) {
+        patrolQuery = patrolQuery.lte('started_at', endDate)
       }
 
       // Notices issued today
-      const noticeQuery = supabase
+      let noticeQuery = supabase
         .from('enforcement_actions')
         .select('*', { count: 'exact', head: true })
         .eq('action_type', 'notice_to_vacate')
         .gte('created_at', today)
 
-      const [breachResult, patrolResult, noticeResult] = await Promise.all([
+      // Pending actions
+      let pendingActionQuery = supabase
+        .from('enforcement_actions')
+        .select('*', { count: 'exact', head: true })
+        .in('status', ['pending', 'assigned'])
+
+      if (effectiveOrganizationId) {
+        noticeQuery = noticeQuery.eq('organization_id', effectiveOrganizationId)
+        pendingActionQuery = pendingActionQuery.eq('organization_id', effectiveOrganizationId)
+      }
+      if (zoneId) {
+        noticeQuery = noticeQuery.eq('zone_id', zoneId)
+        pendingActionQuery = pendingActionQuery.eq('zone_id', zoneId)
+      }
+      if (startDate) {
+        noticeQuery = noticeQuery.gte('created_at', startDate)
+        pendingActionQuery = pendingActionQuery.gte('created_at', startDate)
+      }
+      if (endDate) {
+        noticeQuery = noticeQuery.lte('created_at', endDate)
+        pendingActionQuery = pendingActionQuery.lte('created_at', endDate)
+      }
+
+      const [breachResult, patrolResult, noticeResult, pendingResult] = await Promise.all([
         breachQuery,
         patrolQuery,
         noticeQuery,
+        pendingActionQuery,
       ])
 
       return {
         active_breaches: breachResult.count || 0,
-        pending_actions: breachResult.count || 0, // Simplified
+        pending_actions: pendingResult.count || 0,
         active_patrols: patrolResult.count || 0,
         officers_on_duty: patrolResult.count || 0, // Simplified
         notices_issued_today: noticeResult.count || 0,
@@ -133,7 +175,7 @@ export default function EnforcementCommandCenter() {
 
   // Fetch active breaches
   const { data: breaches, isLoading: breachesLoading } = useQuery({
-    queryKey: ['active-breaches', organizationId, zoneId, selectedView],
+    queryKey: ['active-breaches', effectiveOrganizationId, zoneId, dateFrom, dateTo, selectedView],
     queryFn: async () => {
       let query = supabase
         .from('breach_alerts')
@@ -150,14 +192,18 @@ export default function EnforcementCommandCenter() {
         .order('detected_at', { ascending: false })
         .limit(20)
 
-      if (user?.role !== 'master' && user?.organization_id) {
-        query = query.eq('organization_id', user.organization_id)
-      } else if (organizationId) {
-        query = query.eq('organization_id', organizationId)
+      if (effectiveOrganizationId) {
+        query = query.eq('organization_id', effectiveOrganizationId)
       }
 
       if (zoneId) {
         query = query.eq('zone_id', zoneId)
+      }
+      if (startDate) {
+        query = query.gte('detected_at', startDate)
+      }
+      if (endDate) {
+        query = query.lte('detected_at', endDate)
       }
 
       if (selectedView === 'urgent') {
@@ -176,11 +222,11 @@ export default function EnforcementCommandCenter() {
 
   // Fetch enforcement actions
   const { data: actions } = useQuery({
-    queryKey: ['enforcement-actions', organizationId, dateFrom],
+    queryKey: ['enforcement-actions', effectiveOrganizationId, zoneId, dateFrom, dateTo],
     queryFn: async () => {
       const today = new Date().toISOString().split('T')[0]
       
-      const query = supabase
+      let query = supabase
         .from('enforcement_actions')
         .select(`
           id,
@@ -195,9 +241,19 @@ export default function EnforcementCommandCenter() {
           ),
           user_profile:user_profiles(first_name, last_name)
         `)
-        .gte('created_at', dateFrom || today)
+        .gte('created_at', startDate || `${today}T00:00:00Z`)
         .order('created_at', { ascending: false })
         .limit(10)
+
+      if (effectiveOrganizationId) {
+        query = query.eq('organization_id', effectiveOrganizationId)
+      }
+      if (zoneId) {
+        query = query.eq('zone_id', zoneId)
+      }
+      if (endDate) {
+        query = query.lte('created_at', endDate)
+      }
 
       const { data, error } = await query
       if (error) throw error

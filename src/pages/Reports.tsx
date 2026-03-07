@@ -52,6 +52,10 @@ export default function Reports() {
   const { user } = useAuthStore()
   const { organizationId, zoneId, dateFrom, dateTo } = useGlobalFiltersStore()
   const [generatingReport, setGeneratingReport] = useState<string | null>(null)
+  const effectiveOrganizationId =
+    user?.role !== 'master' ? user?.organization_id || null : organizationId || null
+  const startDate = dateFrom ? `${dateFrom}T00:00:00Z` : null
+  const endDate = dateTo ? `${dateTo}T23:59:59Z` : null
 
   // Fetch report statistics
   const { data: stats, isLoading } = useQuery({
@@ -62,17 +66,15 @@ export default function Reports() {
         .select('id, is_compliant', { count: 'exact' })
         .is('deleted_at', null)
 
-      if (user?.role !== 'master' && user?.organization_id) {
-        obsQuery = obsQuery.eq('organization_id', user.organization_id)
-      } else if (organizationId) {
-        obsQuery = obsQuery.eq('organization_id', organizationId)
+      if (effectiveOrganizationId) {
+        obsQuery = obsQuery.eq('organization_id', effectiveOrganizationId)
       }
 
-      if (dateFrom) {
-        obsQuery = obsQuery.gte('recorded_at', dateFrom)
+      if (startDate) {
+        obsQuery = obsQuery.gte('recorded_at', startDate)
       }
-      if (dateTo) {
-        obsQuery = obsQuery.lte('recorded_at', dateTo)
+      if (endDate) {
+        obsQuery = obsQuery.lte('recorded_at', endDate)
       }
       if (zoneId) {
         obsQuery = obsQuery.eq('zone_id', zoneId)
@@ -90,17 +92,18 @@ export default function Reports() {
         .from('enforcement_actions')
         .select('id', { count: 'exact', head: true })
 
-      if (user?.role !== 'master' && user?.organization_id) {
-        enforcementQuery = enforcementQuery.eq('organization_id', user.organization_id)
-      } else if (organizationId) {
-        enforcementQuery = enforcementQuery.eq('organization_id', organizationId)
+      if (effectiveOrganizationId) {
+        enforcementQuery = enforcementQuery.eq('organization_id', effectiveOrganizationId)
+      }
+      if (zoneId) {
+        enforcementQuery = enforcementQuery.eq('zone_id', zoneId)
       }
 
-      if (dateFrom) {
-        enforcementQuery = enforcementQuery.gte('created_at', dateFrom)
+      if (startDate) {
+        enforcementQuery = enforcementQuery.gte('created_at', startDate)
       }
-      if (dateTo) {
-        enforcementQuery = enforcementQuery.lte('created_at', dateTo)
+      if (endDate) {
+        enforcementQuery = enforcementQuery.lte('created_at', endDate)
       }
 
       const { count: enforcementCount } = await enforcementQuery
@@ -111,10 +114,8 @@ export default function Reports() {
         .select('id', { count: 'exact', head: true })
         .eq('is_active', true)
 
-      if (user?.role !== 'master' && user?.organization_id) {
-        zoneQuery = zoneQuery.eq('organization_id', user.organization_id)
-      } else if (organizationId) {
-        zoneQuery = zoneQuery.eq('organization_id', organizationId)
+      if (effectiveOrganizationId) {
+        zoneQuery = zoneQuery.eq('organization_id', effectiveOrganizationId)
       }
 
       const { count: zoneCount } = await zoneQuery
@@ -137,10 +138,10 @@ export default function Reports() {
       const { data, error } = await supabase.functions.invoke('generate-dashboard-report', {
         body: {
           report_type: reportType,
-          organization_id: organizationId || user?.organization_id,
+          organization_id: effectiveOrganizationId,
           zone_id: zoneId,
-          start_date: dateFrom,
-          end_date: dateTo,
+          start_date: startDate,
+          end_date: endDate,
         },
       })
 
@@ -190,13 +191,12 @@ export default function Reports() {
         .select('id, severity, status, details, resolution_notes, created_at, updated_at, zone:zones(name), reporter:user_profiles!health_safety_reports_reported_by_fkey(first_name,last_name)')
         .order('created_at', { ascending: false })
 
-      if (user?.role !== 'master' && user?.organization_id) {
-        q = q.eq('organization_id', user.organization_id)
-      } else if (organizationId) {
-        q = q.eq('organization_id', organizationId)
+      if (effectiveOrganizationId) {
+        q = q.eq('organization_id', effectiveOrganizationId)
       }
-      if (dateFrom) q = q.gte('created_at', dateFrom)
-      if (dateTo) q = q.lte('created_at', dateTo)
+      if (zoneId) q = q.eq('zone_id', zoneId)
+      if (startDate) q = q.gte('created_at', startDate)
+      if (endDate) q = q.lte('created_at', endDate)
 
       const { data, error } = await q
       if (error) throw error
@@ -232,14 +232,12 @@ export default function Reports() {
         .select('id, action_type, plate_number, notes, outcome, created_at, zone:zones(name), officer:user_profiles!enforcement_actions_officer_id_fkey(first_name,last_name)')
         .order('created_at', { ascending: false })
 
-      if (user?.role !== 'master' && user?.organization_id) {
-        q = q.eq('organization_id', user.organization_id)
-      } else if (organizationId) {
-        q = q.eq('organization_id', organizationId)
+      if (effectiveOrganizationId) {
+        q = q.eq('organization_id', effectiveOrganizationId)
       }
       if (zoneId) q = q.eq('zone_id', zoneId)
-      if (dateFrom) q = q.gte('created_at', dateFrom)
-      if (dateTo) q = q.lte('created_at', dateTo)
+      if (startDate) q = q.gte('created_at', startDate)
+      if (endDate) q = q.lte('created_at', endDate)
 
       const { data, error } = await q
       if (error) throw error
@@ -275,14 +273,12 @@ export default function Reports() {
         .select('id, started_at, ended_at, status, notes, zone:zones(name), officer:user_profiles!patrols_officer_id_fkey(first_name,last_name)')
         .order('started_at', { ascending: false })
 
-      if (user?.role !== 'master' && user?.organization_id) {
-        q = q.eq('organization_id', user.organization_id)
-      } else if (organizationId) {
-        q = q.eq('organization_id', organizationId)
+      if (effectiveOrganizationId) {
+        q = q.eq('organization_id', effectiveOrganizationId)
       }
       if (zoneId) q = q.eq('zone_id', zoneId)
-      if (dateFrom) q = q.gte('started_at', dateFrom)
-      if (dateTo) q = q.lte('started_at', dateTo)
+      if (startDate) q = q.gte('started_at', startDate)
+      if (endDate) q = q.lte('started_at', endDate)
 
       const { data: patrols, error } = await q
       if (error) throw error

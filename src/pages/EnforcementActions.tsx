@@ -70,6 +70,10 @@ interface BreachAlert {
 export default function EnforcementActions() {
   const { user } = useAuthStore()
   const { organizationId, zoneId, dateFrom, dateTo } = useGlobalFiltersStore()
+  const effectiveOrganizationId =
+    user?.role !== 'master' ? user?.organization_id || null : organizationId || null
+  const startDate = dateFrom ? `${dateFrom}T00:00:00Z` : null
+  const endDate = dateTo ? `${dateTo}T23:59:59Z` : null
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [actionTypeFilter, setActionTypeFilter] = useState<string>('all')
@@ -110,18 +114,19 @@ export default function EnforcementActions() {
         .order('created_at', { ascending: false })
 
       // Organization scoping
-      if (user?.role !== 'master' && user?.organization_id) {
-        query = query.eq('organization_id', user.organization_id)
-      } else if (organizationId) {
-        query = query.eq('organization_id', organizationId)
+      if (effectiveOrganizationId) {
+        query = query.eq('organization_id', effectiveOrganizationId)
+      }
+      if (zoneId) {
+        query = query.eq('zone_id', zoneId)
       }
 
       // Date filters
-      if (dateFrom) {
-        query = query.gte('created_at', dateFrom)
+      if (startDate) {
+        query = query.gte('created_at', startDate)
       }
-      if (dateTo) {
-        query = query.lte('created_at', dateTo)
+      if (endDate) {
+        query = query.lte('created_at', endDate)
       }
 
       // Status filter
@@ -166,14 +171,19 @@ export default function EnforcementActions() {
         .order('detected_at', { ascending: false })
         .limit(50)
 
-      if (user?.role !== 'master' && user?.organization_id) {
-        query = query.eq('organization_id', user.organization_id)
-      } else if (organizationId) {
-        query = query.eq('organization_id', organizationId)
+      if (effectiveOrganizationId) {
+        query = query.eq('organization_id', effectiveOrganizationId)
       }
 
       if (zoneId) {
         query = query.eq('zone_id', zoneId)
+      }
+
+      if (startDate) {
+        query = query.gte('detected_at', startDate)
+      }
+      if (endDate) {
+        query = query.lte('detected_at', endDate)
       }
 
       const { data, error } = await query
