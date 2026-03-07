@@ -46,3 +46,4 @@ proxy-server/.env.*
 *.keystore
 base64.txt
 grep_requested_output.txt
+.bin/
