@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
@@ -39,6 +40,10 @@ export function GlobalFilterRibbon({
     clearFilters,
   } = useGlobalFiltersStore()
 
+  // Non-master users are fixed to their own organization scope.
+  const effectiveOrganizationId =
+    organizationId || (user?.role !== 'master' ? user?.organization_id ?? null : null)
+
   // Fetch organizations
   const { data: organizations } = useQuery({
     queryKey: ['organizations-filter'],
@@ -56,15 +61,15 @@ export function GlobalFilterRibbon({
 
   // Fetch zones
   const { data: zones } = useQuery({
-    queryKey: ['zones-filter', organizationId],
+    queryKey: ['zones-filter', effectiveOrganizationId],
     queryFn: async () => {
       let query = (supabase.from('zones') as any)
         .select('id, name')
         .eq('is_active', true)
         .order('name')
 
-      if (organizationId) {
-        query = query.eq('organization_id', organizationId)
+      if (effectiveOrganizationId) {
+        query = query.eq('organization_id', effectiveOrganizationId)
       }
 
       const { data, error } = await query
@@ -73,6 +78,15 @@ export function GlobalFilterRibbon({
     },
     enabled: showZoneFilter,
   })
+
+  // If persisted zone filter does not belong to current scoped zone list, clear it.
+  useEffect(() => {
+    if (!zoneId || !zones) return
+    const zoneStillValid = zones.some((z: any) => z.id === zoneId)
+    if (!zoneStillValid) {
+      setZone(null, null)
+    }
+  }, [zoneId, zones, setZone])
 
   const hasActiveFilters = dateFrom || dateTo || organizationId || zoneId
 
@@ -135,10 +149,12 @@ export function GlobalFilterRibbon({
                 onValueChange={(value) => {
                   if (value === '__all__' || !value) {
                     setOrganization(null, null)
+                    setZone(null, null)
                     return
                   }
                   const org = organizations?.find(o => o.id === value)
                   setOrganization(value, org?.name || null)
+                  setZone(null, null)
                 }}
               >
                 <SelectTrigger className="w-[200px] h-9">
