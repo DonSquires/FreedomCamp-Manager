@@ -1,12 +1,13 @@
 import React from 'react'
 import {
-  View, Text, FlatList, Image, StyleSheet, TouchableOpacity, RefreshControl,
+  View, Text, FlatList, Image, StyleSheet, TouchableOpacity, RefreshControl, ScrollView,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useQuery } from '@tanstack/react-query'
 import { Ionicons } from '@expo/vector-icons'
 import { useAuthStore } from '../stores/authStore'
 import { supabase } from '../lib/supabase'
+import { fetchAllObservations } from '../lib/observations'
 
 function timeAgo(iso: string): string {
   const diff = (Date.now() - new Date(iso).getTime()) / 1000
@@ -18,18 +19,58 @@ function timeAgo(iso: string): string {
 
 export default function RecentScansScreen() {
   const { user } = useAuthStore()
+  const [datePreset, setDatePreset] = React.useState<'today' | '7d' | '30d' | '90d'>('30d')
+  const [zoneId, setZoneId] = React.useState<string | null>(null)
 
-  const { data: scans = [], isLoading, refetch } = useQuery({
-    queryKey: ['my-scans-mobile', user?.id],
+  const { data: zones = [] } = useQuery({
+    queryKey: ['zones-mobile-filter', user?.organization_id],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from('observations')
-        .select('id, plate_number, recorded_at, is_compliant, processing_status, photo_url, zone:zones!zone_id(name)')
-        .eq('recorded_by', user!.id)
-        .order('recorded_at', { ascending: false })
-        .limit(50)
+        .from('zones')
+        .select('id, name')
+        .eq('organization_id', user!.organization_id)
+        .eq('is_active', true)
+        .order('name', { ascending: true })
       if (error) throw error
-      return data as any[]
+      return (data || []) as Array<{ id: string; name: string }>
+    },
+    enabled: !!user?.organization_id,
+  })
+
+  const getDateRange = React.useCallback(() => {
+    const now = new Date()
+    const to = now.toISOString().split('T')[0]
+    const fromDate = new Date(now)
+
+    if (datePreset === 'today') {
+      return { from: to, to }
+    }
+    if (datePreset === '7d') {
+      fromDate.setDate(now.getDate() - 6)
+    } else if (datePreset === '30d') {
+      fromDate.setDate(now.getDate() - 29)
+    } else {
+      fromDate.setDate(now.getDate() - 89)
+    }
+
+    return {
+      from: fromDate.toISOString().split('T')[0],
+      to,
+    }
+  }, [datePreset])
+
+  const { data: scans = [], isLoading, refetch } = useQuery({
+    queryKey: ['my-scans-mobile', user?.id, user?.organization_id, datePreset, zoneId],
+    queryFn: async () => {
+      const { from, to } = getDateRange()
+      return await fetchAllObservations({
+        dateFrom: from,
+        dateTo: to,
+        organizationId: user!.organization_id,
+        zoneId,
+        recordedBy: user!.id,
+        pageSize: 500,
+      })
     },
     enabled: !!user?.id,
     refetchInterval: 15000,
@@ -62,7 +103,7 @@ export default function RecentScansScreen() {
             )}
           </View>
           <Text style={styles.meta}>
-            {item.zone?.name || 'Unknown zone'} · {timeAgo(item.recorded_at)}
+            {item.zone_name || 'Unknown zone'} · {timeAgo(item.recorded_at)}
           </Text>
         </View>
       </View>
@@ -75,6 +116,41 @@ export default function RecentScansScreen() {
         <Text style={styles.title}>My Scans</Text>
         <Text style={styles.subtitle}>{scans.length} recent observations</Text>
       </View>
+
+      <View style={styles.filtersWrap}>
+        <View style={styles.filterRow}>
+          {(['today', '7d', '30d', '90d'] as const).map((preset) => (
+            <TouchableOpacity
+              key={preset}
+              style={[styles.filterChip, datePreset === preset && styles.filterChipActive]}
+              onPress={() => setDatePreset(preset)}
+            >
+              <Text style={[styles.filterChipText, datePreset === preset && styles.filterChipTextActive]}>
+                {preset === 'today' ? 'Today' : preset.toUpperCase()}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.zoneRow}>
+          <TouchableOpacity
+            style={[styles.zoneChip, zoneId === null && styles.zoneChipActive]}
+            onPress={() => setZoneId(null)}
+          >
+            <Text style={[styles.zoneChipText, zoneId === null && styles.zoneChipTextActive]}>All Zones</Text>
+          </TouchableOpacity>
+          {zones.map((zone) => (
+            <TouchableOpacity
+              key={zone.id}
+              style={[styles.zoneChip, zoneId === zone.id && styles.zoneChipActive]}
+              onPress={() => setZoneId(zone.id)}
+            >
+              <Text style={[styles.zoneChipText, zoneId === zone.id && styles.zoneChipTextActive]}>{zone.name}</Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      </View>
+
       <FlatList
         data={scans}
         keyExtractor={(item) => item.id}
@@ -100,6 +176,37 @@ const styles = StyleSheet.create({
   header: { padding: 20, paddingBottom: 8 },
   title: { fontSize: 22, fontWeight: '700', color: '#0f172a' },
   subtitle: { fontSize: 13, color: '#64748b', marginTop: 2 },
+  filtersWrap: { paddingHorizontal: 16, paddingBottom: 8, gap: 8 },
+  filterRow: { flexDirection: 'row', gap: 8 },
+  filterChip: {
+    borderWidth: 1,
+    borderColor: '#cbd5e1',
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    backgroundColor: '#fff',
+  },
+  filterChipActive: {
+    backgroundColor: '#dbeafe',
+    borderColor: '#60a5fa',
+  },
+  filterChipText: { color: '#475569', fontSize: 12, fontWeight: '600' },
+  filterChipTextActive: { color: '#1d4ed8' },
+  zoneRow: { gap: 8, paddingRight: 16 },
+  zoneChip: {
+    borderWidth: 1,
+    borderColor: '#cbd5e1',
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    backgroundColor: '#fff',
+  },
+  zoneChipActive: {
+    backgroundColor: '#ecfeff',
+    borderColor: '#22d3ee',
+  },
+  zoneChipText: { color: '#475569', fontSize: 12, fontWeight: '600' },
+  zoneChipTextActive: { color: '#0e7490' },
   list: { padding: 16, gap: 8 },
   card: {
     flexDirection: 'row',

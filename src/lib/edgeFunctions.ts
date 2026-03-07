@@ -160,16 +160,35 @@ export const edgeFunctions = {
    * Production vehicle observation pipeline
    */
   ingestVehicleObservation: async (params: {
-    plate_number: string
-    photo_url: string
-    latitude: number
-    longitude: number
-    accuracy?: number
+    image?: string
+    photo_base64?: string
+    photoDataUrl?: string
+    gpsLatitude?: number
+    gps_latitude?: number
+    gps?: { lat: number; lng: number; accuracy?: number }
+    gpsLongitude?: number
+    gps_longitude?: number
+    gpsAccuracy?: number
+    gps_accuracy?: number
+    recordedAt?: string
+    recorded_at?: string
+    officerId?: string
     officer_id?: string
+    recorded_by?: string
+    organizationId?: string
     organization_id?: string
+    zoneId?: string
     zone_id?: string
+    idempotencyKey?: string
+    idempotency_key?: string
+    notes?: string
     officer_notes?: string
+    weather?: string
     weather_conditions?: string
+    plate?: string | null
+    confidence?: number | null
+    requires_manual_entry?: boolean
+    raw_candidates?: string[]
   }) => {
     return callEdgeFunction('vehicle-ingest', params)
   },

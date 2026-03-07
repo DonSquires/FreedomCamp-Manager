@@ -7,6 +7,7 @@
  *   "date_to": "YYYY-MM-DD",
  *   "organization_id": "uuid|null",
  *   "zone_id": "uuid|null",
+ *   "recorded_by": "uuid|null",
  *   "page": 1,
  *   "page_size": 50,
  *   "sort": [{ "field": "created_at", "dir": "desc" }],
@@ -70,6 +71,7 @@ serve(withCors(async (req) => {
     date_to,
     organization_id,
     zone_id,
+    recorded_by,
     page = 1,
     page_size = 50,
     sort = [{ field: 'recorded_at', dir: 'desc' }],
@@ -84,7 +86,19 @@ serve(withCors(async (req) => {
 
   // Validate page/page_size
   const validatedPage = Math.max(1, parseInt(String(page)));
-  const validatedPageSize = Math.min(100, Math.max(1, parseInt(String(page_size))));
+  const validatedPageSize = Math.min(1000, Math.max(1, parseInt(String(page_size))));
+
+  // Determine role/org scope from profile to enforce safe defaults.
+  const { data: profile } = await supabaseClient
+    .from('user_profiles')
+    .select('role, organization_id')
+    .eq('id', user.id)
+    .single();
+
+  const isMaster = profile?.role === 'master';
+  const effectiveOrganizationId = isMaster
+    ? (organization_id || null)
+    : (profile?.organization_id || null);
 
   // Build query
   let query = supabaseClient
@@ -94,6 +108,7 @@ serve(withCors(async (req) => {
       created_at,
       recorded_at,
       plate_number,
+      recorded_by,
       is_compliant,
       breach_type,
       photo_url,
@@ -105,12 +120,16 @@ serve(withCors(async (req) => {
     .gte('recorded_at', `${date_from}T00:00:00Z`)
     .lte('recorded_at', `${date_to}T23:59:59Z`);
 
-  if (organization_id) {
-    query = query.eq('organization_id', organization_id);
+  if (effectiveOrganizationId) {
+    query = query.eq('organization_id', effectiveOrganizationId);
   }
 
   if (zone_id) {
     query = query.eq('zone_id', zone_id);
+  }
+
+  if (recorded_by) {
+    query = query.eq('recorded_by', recorded_by);
   }
 
   // Apply bbox filter if provided
@@ -153,6 +172,7 @@ serve(withCors(async (req) => {
     created_at: obs.created_at,
     recorded_at: obs.recorded_at,
     plate_number: obs.plate_number || 'Unknown',
+    recorded_by: obs.recorded_by,
     officer_name: obs.recorded_by_user
       ? `${obs.recorded_by_user.first_name} ${obs.recorded_by_user.last_name}`
       : 'Unknown',

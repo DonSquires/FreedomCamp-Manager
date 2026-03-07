@@ -6,6 +6,7 @@ import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
 import { edgeFunctions } from '@/lib/edgeFunctions'
 import { railwayServices } from '@/lib/railwayServices'
+import { useAuthStore } from '@/stores/authStore'
 
 interface PlateScannerProps {
   onScanComplete: (result: {
@@ -18,6 +19,7 @@ interface PlateScannerProps {
 }
 
 export function PlateScanner({ onScanComplete, onCancel }: PlateScannerProps) {
+  const { user } = useAuthStore()
   const [isScanning, setIsScanning] = useState(false)
   const [isCameraOpen, setIsCameraOpen] = useState(false)
   const [capturedImage, setCapturedImage] = useState<string | null>(null)
@@ -100,6 +102,7 @@ export function PlateScanner({ onScanComplete, onCancel }: PlateScannerProps) {
 
       const photoUrl = urlData.publicUrl
       let plateNumber: string | null = null
+      let detectedConfidence: number | null = null
 
       // Step 1: Try ALPR first
       toast.info('Detecting plate number...')
@@ -111,6 +114,7 @@ export function PlateScanner({ onScanComplete, onCancel }: PlateScannerProps) {
 
       if (!alprError && alprData?.plate_number) {
         plateNumber = alprData.plate_number
+        detectedConfidence = alprData?.confidence ?? null
         toast.success(`Plate detected: ${plateNumber}`)
       } else {
         // Step 2: Fallback to Railway inference OCR
@@ -119,6 +123,7 @@ export function PlateScanner({ onScanComplete, onCancel }: PlateScannerProps) {
         
         if (!ocrError && ocrData?.plate_number) {
           plateNumber = ocrData.plate_number
+          detectedConfidence = ocrData?.confidence ?? null
           toast.success(`OCR detected: ${plateNumber}`)
         } else {
           toast.error('No plate number detected. Please try manual entry.')
@@ -127,13 +132,30 @@ export function PlateScanner({ onScanComplete, onCancel }: PlateScannerProps) {
         }
       }
 
+      // Resolve a valid zone for ingest (fallback to org's Other Location zone)
+      const { data: zoneId, error: zoneError } = await supabase.rpc('ensure_other_location_zone', {
+        p_organization_id: user?.organization_id,
+      })
+
+      if (zoneError || !zoneId) {
+        throw new Error(zoneError?.message || 'Could not resolve zone for observation')
+      }
+
       // Step 3: Create full observation via vehicle-ingest
       toast.info('Creating observation...')
       const { data: ingestData, error: ingestError } = await edgeFunctions.ingestVehicleObservation({
-        plate_number: plateNumber,
-        photo_url: photoUrl,
-        latitude: position.coords.latitude,
-        longitude: position.coords.longitude,
+        image: capturedImage,
+        gpsLatitude: position.coords.latitude,
+        gpsLongitude: position.coords.longitude,
+        gpsAccuracy: position.coords.accuracy,
+        recordedAt: new Date().toISOString(),
+        officerId: user?.id,
+        organizationId: user?.organization_id,
+        zoneId,
+        idempotencyKey: `web-scan-${user?.id}-${Date.now()}`,
+        plate: plateNumber,
+        confidence: detectedConfidence,
+        requires_manual_entry: !plateNumber,
       })
 
       if (ingestError) {
@@ -150,23 +172,27 @@ export function PlateScanner({ onScanComplete, onCancel }: PlateScannerProps) {
       }
 
       // Step 4: Check NZSCV status (don't block on failure)
-      railwayServices.checkNZSCVCertification(plateNumber).then(({ data: nzscvData, error: nzscvError }) => {
-        if (!nzscvError && nzscvData?.is_certified) {
-          toast.success(`Self-contained verified: ${nzscvData.warrant_type}`, {
-            duration: 5000,
-            icon: <CheckCircle className="h-4 w-4" />,
-          })
-        }
-      })
+      if (plateNumber) {
+        railwayServices.checkNZSCVCertification(plateNumber).then(({ data: nzscvData, error: nzscvError }) => {
+          if (!nzscvError && nzscvData?.is_certified) {
+            toast.success(`Self-contained verified: ${nzscvData.warrant_type}`, {
+              duration: 5000,
+              icon: <CheckCircle className="h-4 w-4" />,
+            })
+          }
+        })
+      }
 
       // Step 5: Enrich from MotorWeb (don't block on failure)
-      railwayServices.enrichVehicleFromMotorWeb(plateNumber).then(({ data: motorwebData, error: motorwebError }) => {
-        if (!motorwebError && motorwebData) {
-          toast.info(`Vehicle enriched: ${motorwebData.make} ${motorwebData.model}`, {
-            duration: 3000,
-          })
-        }
-      })
+      if (plateNumber) {
+        railwayServices.enrichVehicleFromMotorWeb(plateNumber).then(({ data: motorwebData, error: motorwebError }) => {
+          if (!motorwebError && motorwebData) {
+            toast.info(`Vehicle enriched: ${motorwebData.make} ${motorwebData.model}`, {
+              duration: 3000,
+            })
+          }
+        })
+      }
 
       // Success!
       if (ingestData.breach_detected) {
