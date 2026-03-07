@@ -186,7 +186,7 @@ export function useVehicleCompliance(plateNumber?: string, options?: {
   const recalculateCompliance = useMutation({
     mutationFn: async (observationId: string) => {
       const { data, error } = await supabase.functions.invoke('recalculate-compliance', {
-        body: { observation_ids: [observationId] },
+        body: { observation_id: observationId },
       })
 
       if (error) {

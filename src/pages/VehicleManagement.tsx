@@ -37,7 +37,7 @@ interface Vehicle {
 
 export default function VehicleManagement() {
   const { user } = useAuthStore()
-  const { organizationId } = useGlobalFiltersStore()
+  const { organizationId, zoneId, dateFrom, dateTo } = useGlobalFiltersStore()
   const queryClient = useQueryClient()
   const navigate = useNavigate()
   const [searchQuery, setSearchQuery] = useState('')
@@ -51,12 +51,47 @@ export default function VehicleManagement() {
 
   // Fetch vehicles
   const { data: vehicles, isLoading } = useQuery({
-    queryKey: ['vehicles', organizationId, statusFilter, searchQuery],
+    queryKey: ['vehicles', organizationId, zoneId, dateFrom, dateTo, statusFilter, searchQuery, user?.role, user?.organization_id],
     queryFn: async () => {
+      const effectiveOrganizationId =
+        organizationId || (user?.role !== 'master' ? user?.organization_id || null : null)
+
       let query = supabase
         .from('canonical_vehicles')
         .select('*')
         .order('plate_number', { ascending: true })
+
+      // Apply global org/zone/date filters via matching observations.
+      if (effectiveOrganizationId || zoneId || dateFrom || dateTo) {
+        let matchingObservationsQuery = supabase
+          .from('observations')
+          .select('plate_number')
+          .is('deleted_at', null)
+
+        if (effectiveOrganizationId) {
+          matchingObservationsQuery = matchingObservationsQuery.eq('organization_id', effectiveOrganizationId)
+        }
+        if (zoneId) {
+          matchingObservationsQuery = matchingObservationsQuery.eq('zone_id', zoneId)
+        }
+        if (dateFrom) {
+          matchingObservationsQuery = matchingObservationsQuery.gte('recorded_at', `${dateFrom}T00:00:00Z`)
+        }
+        if (dateTo) {
+          matchingObservationsQuery = matchingObservationsQuery.lte('recorded_at', `${dateTo}T23:59:59Z`)
+        }
+
+        const { data: matchingObservations, error: matchingObsError } = await matchingObservationsQuery
+        if (matchingObsError) throw matchingObsError
+
+        const matchingPlates = [...new Set((matchingObservations || []).map(o => o.plate_number).filter(Boolean))]
+
+        if (matchingPlates.length === 0) {
+          return [] as Vehicle[]
+        }
+
+        query = query.in('plate_number', matchingPlates)
+      }
 
       if (searchQuery) {
         query = query.or(`plate_number.ilike.%${searchQuery}%,make.ilike.%${searchQuery}%,model.ilike.%${searchQuery}%`)
@@ -68,7 +103,7 @@ export default function VehicleManagement() {
         query = query.gt('total_breaches', 0)
       }
 
-      const { data, error } = await query.limit(100)
+      const { data, error } = await query
 
       if (error) throw error
       return data as Vehicle[]

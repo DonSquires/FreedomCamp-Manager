@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
+import { useGlobalFiltersStore } from '@/stores/globalFiltersStore'
 import { AppLayout } from '@/components/features/AppLayout'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -90,6 +91,7 @@ export default function VehicleDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const { user } = useAuthStore()
+  const { organizationId, zoneId, dateFrom, dateTo } = useGlobalFiltersStore()
   const queryClient = useQueryClient()
 
   // Fetch vehicle
@@ -109,9 +111,12 @@ export default function VehicleDetailPage() {
 
   // Fetch observations
   const { data: observations = [], isLoading: loadingObs } = useQuery({
-    queryKey: ['vehicle-observations', vehicle?.plate_number],
+    queryKey: ['vehicle-observations', vehicle?.plate_number, organizationId, zoneId, dateFrom, dateTo, user?.role, user?.organization_id],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const effectiveOrganizationId =
+        organizationId || (user?.role !== 'master' ? user?.organization_id || null : null)
+
+      let query = supabase
         .from('observations')
         .select(`
           id, recorded_at, gps_latitude, gps_longitude, photo_url, is_compliant,
@@ -122,7 +127,21 @@ export default function VehicleDetailPage() {
         .eq('plate_number', vehicle!.plate_number)
         .is('deleted_at', null)
         .order('recorded_at', { ascending: false })
-        .limit(100)
+
+      if (effectiveOrganizationId) {
+        query = query.eq('organization_id', effectiveOrganizationId)
+      }
+      if (zoneId) {
+        query = query.eq('zone_id', zoneId)
+      }
+      if (dateFrom) {
+        query = query.gte('recorded_at', `${dateFrom}T00:00:00Z`)
+      }
+      if (dateTo) {
+        query = query.lte('recorded_at', `${dateTo}T23:59:59Z`)
+      }
+
+      const { data, error } = await query
       if (error) throw error
       return (data || []) as unknown as Observation[]
     },

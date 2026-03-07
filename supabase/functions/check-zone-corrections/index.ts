@@ -78,15 +78,16 @@ Deno.serve(async (req) => {
 
     console.log('🔍 Checking recent observations for zone mismatches...');
 
-    // Get recent v2 observations from last 24 hours with GPS coordinates
+    // Get recent observations from last 24 hours with GPS coordinates
     const cutoffTime = new Date();
     cutoffTime.setHours(cutoffTime.getHours() - 24);
 
     const { data: observations, error: obsError } = await supabaseAdmin
-      .from('vehicle_observations_v2')
-      .select('observation_id, plate_number, zone_id, organization_id, gps_latitude, gps_longitude, recorded_at')
+      .from('observations')
+      .select('id, plate_number, zone_id, organization_id, gps_latitude, gps_longitude, recorded_at')
       .not('gps_latitude', 'is', null)
       .not('gps_longitude', 'is', null)
+      .is('deleted_at', null)
       .gte('recorded_at', cutoffTime.toISOString())
       .order('recorded_at', { ascending: false });
 
@@ -142,20 +143,20 @@ Deno.serve(async (req) => {
       // If correct zone found and different from current
       if (correctZone && correctZone.id !== currentZoneId) {
         const { error: updateError } = await supabaseAdmin
-          .from('vehicle_observations_v2')
+          .from('observations')
           .update({ zone_id: correctZone.id })
-          .eq('observation_id', obs.observation_id);
+          .eq('id', obs.id);
 
         if (!updateError) {
           corrected++;
           corrections.push({
-            observation_id: obs.observation_id,
+            observation_id: obs.id,
             plate_number: obs.plate_number || 'Unknown',
             old_zone: currentZone?.name || 'Unknown',
             new_zone: correctZone.name,
             recorded_at: obs.recorded_at,
           });
-          console.log(`✅ Corrected observation ${obs.observation_id}: ${currentZone?.name} → ${correctZone.name}`);
+          console.log(`✅ Corrected observation ${obs.id}: ${currentZone?.name} -> ${correctZone.name}`);
         }
       }
     }

@@ -25,6 +25,8 @@ interface RecalculationRequest {
   // Legacy frontend params (ComplianceRecalculation.tsx)
   organization_id?: string;
   zone_id?: string;
+  observation_id?: string;
+  observation_ids?: string[];
   date_from?: string;
   date_to?: string;
   // Structured params
@@ -33,6 +35,18 @@ interface RecalculationRequest {
   organization_ids?: string[];
   date_range_start?: string;
   date_range_end?: string;
+}
+
+const DATE_ONLY_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+function toDayStartUtc(raw: string): string {
+  return `${raw}T00:00:00.000Z`;
+}
+
+function toNextDayStartUtc(raw: string): string {
+  const d = new Date(`${raw}T00:00:00.000Z`);
+  d.setUTCDate(d.getUTCDate() + 1);
+  return d.toISOString();
 }
 
 interface RecalculationResult {
@@ -95,8 +109,17 @@ serve(async (req) => {
     // ── Normalise parameters (support legacy and structured formats) ──────────
 
     // Date range
-    const dateStart = request.date_from || request.date_range_start;
-    const dateEnd   = request.date_to   || request.date_range_end;
+    const dateStartRaw = request.date_from || request.date_range_start;
+    const dateEndRaw   = request.date_to   || request.date_range_end;
+    const dateStart = dateStartRaw && DATE_ONLY_RE.test(dateStartRaw)
+      ? toDayStartUtc(dateStartRaw)
+      : dateStartRaw;
+    const dateEndExclusive = dateEndRaw && DATE_ONLY_RE.test(dateEndRaw)
+      ? toNextDayStartUtc(dateEndRaw)
+      : null;
+    const dateEndInclusive = dateEndRaw && !DATE_ONLY_RE.test(dateEndRaw)
+      ? dateEndRaw
+      : null;
 
     // Zone filter
     let zoneIdFilter: string[] = [];
@@ -104,6 +127,14 @@ serve(async (req) => {
       zoneIdFilter = [request.zone_id];
     } else if (request.zone_ids && request.zone_ids.length > 0) {
       zoneIdFilter = request.zone_ids;
+    }
+
+    // Direct observation filter
+    let observationIdFilter: string[] = [];
+    if (request.observation_id) {
+      observationIdFilter = [request.observation_id];
+    } else if (request.observation_ids && request.observation_ids.length > 0) {
+      observationIdFilter = request.observation_ids;
     }
 
     // Organisation filter
@@ -147,6 +178,7 @@ serve(async (req) => {
 
     let observationsProcessed = 0;
     let complianceChanged     = 0;
+    let updateErrors          = 0;
 
     try {
       // ── Pre-load zone compliance matrices (avoid N+1 per observation) ───────
@@ -189,9 +221,11 @@ serve(async (req) => {
           .is('deleted_at', null);
 
         if (zoneIdFilter.length > 0) q = q.in('zone_id', zoneIdFilter);
+        if (observationIdFilter.length > 0) q = q.in('id', observationIdFilter);
         if (orgIdFilter)            q = q.eq('organization_id', orgIdFilter);
         if (dateStart)              q = q.gte('recorded_at', dateStart);
-        if (dateEnd)                q = q.lte('recorded_at', dateEnd);
+        if (dateEndExclusive)       q = q.lt('recorded_at', dateEndExclusive);
+        if (dateEndInclusive)       q = q.lte('recorded_at', dateEndInclusive);
 
         return q;
       };
@@ -211,8 +245,7 @@ serve(async (req) => {
           .range(offset, offset + BATCH_SIZE - 1);
 
         if (batchError) {
-          console.error('Error fetching batch:', batchError.message);
-          break;
+          throw new Error(`Failed to fetch observation batch: ${batchError.message}`);
         }
         if (!batch || batch.length === 0) break;
 
@@ -285,10 +318,7 @@ serve(async (req) => {
               }
             }
 
-            // Track compliance changes
-            if ((obs.is_compliant ?? true) !== isCompliant) {
-              complianceChanged++;
-            }
+            const complianceWouldChange = (obs.is_compliant ?? true) !== isCompliant;
 
             // Update the observation
             const { error: updateError } = await supabaseAdmin
@@ -301,9 +331,13 @@ serve(async (req) => {
               .eq('id', obs.id);
 
             if (updateError) {
+              updateErrors++;
               console.error(`Failed to update observation ${obs.id}:`, updateError.message);
             } else {
               observationsProcessed++;
+              if (complianceWouldChange) {
+                complianceChanged++;
+              }
             }
           } catch (obsErr: any) {
             console.error(`Error processing observation ${obs.id}:`, obsErr.message ?? obsErr);
@@ -312,6 +346,10 @@ serve(async (req) => {
 
         if (batch.length < BATCH_SIZE) break;
         offset += BATCH_SIZE;
+      }
+
+      if (updateErrors > 0) {
+        throw new Error(`Recalculation completed with ${updateErrors} observation update errors`);
       }
 
       const duration = Math.round((Date.now() - startTime) / 1000);

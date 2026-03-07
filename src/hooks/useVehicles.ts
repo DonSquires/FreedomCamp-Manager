@@ -6,23 +6,63 @@ import type { Vehicle } from '@/types'
 interface UseVehiclesOptions {
   organizationId?: string | null
   zoneId?: string | null
+  dateFrom?: string | null
+  dateTo?: string | null
+  userRole?: 'admin' | 'master' | 'officer' | 'admin_officer' | null
+  userOrganizationId?: string | null
   searchQuery?: string
   statusFilter?: 'all' | 'compliant' | 'breaches'
 }
 
 export function useVehicles(options: UseVehiclesOptions = {}) {
-  const { organizationId, searchQuery = '', statusFilter = 'all' } = options
+  const {
+    organizationId,
+    zoneId,
+    dateFrom,
+    dateTo,
+    userRole,
+    userOrganizationId,
+    searchQuery = '',
+    statusFilter = 'all',
+  } = options
 
   return useQuery({
-    queryKey: ['vehicles', organizationId, statusFilter, searchQuery],
+    queryKey: ['vehicles', organizationId, zoneId, dateFrom, dateTo, userRole, userOrganizationId, statusFilter, searchQuery],
     queryFn: async () => {
+      const effectiveOrganizationId =
+        organizationId || (userRole !== 'master' ? userOrganizationId || null : null)
+
       let query = supabase
         .from('canonical_vehicles')
         .select('*')
         .order('plate_number', { ascending: true })
 
-      if (organizationId) {
-        query = query.eq('organization_id', organizationId)
+      if (effectiveOrganizationId || zoneId || dateFrom || dateTo) {
+        let matchingObservationsQuery = supabase
+          .from('observations')
+          .select('plate_number')
+          .is('deleted_at', null)
+
+        if (effectiveOrganizationId) {
+          matchingObservationsQuery = matchingObservationsQuery.eq('organization_id', effectiveOrganizationId)
+        }
+        if (zoneId) {
+          matchingObservationsQuery = matchingObservationsQuery.eq('zone_id', zoneId)
+        }
+        if (dateFrom) {
+          matchingObservationsQuery = matchingObservationsQuery.gte('recorded_at', `${dateFrom}T00:00:00Z`)
+        }
+        if (dateTo) {
+          matchingObservationsQuery = matchingObservationsQuery.lte('recorded_at', `${dateTo}T23:59:59Z`)
+        }
+
+        const { data: matchingObservations, error: matchingObsError } = await matchingObservationsQuery
+        if (matchingObsError) throw matchingObsError
+
+        const matchingPlates = [...new Set((matchingObservations || []).map(o => o.plate_number).filter(Boolean))]
+        if (matchingPlates.length === 0) return [] as Vehicle[]
+
+        query = query.in('plate_number', matchingPlates)
       }
 
       if (searchQuery) {
@@ -35,7 +75,7 @@ export function useVehicles(options: UseVehiclesOptions = {}) {
         query = query.gt('total_breaches', 0)
       }
 
-      const { data, error } = await query.limit(100)
+      const { data, error } = await query
       
       if (error) throw error
       return data as Vehicle[]

@@ -4,7 +4,7 @@ import { corsHeaders } from '../_shared/cors.ts';
 /**
  * SIMPLE ZONE CORRECTION
  * 
- * vehicle_observations_v2 reconciliation
+ * observations reconciliation
  * - GPS rows: verify zone geofence / proximity and correct zone_id if needed
  * - Missing GPS rows: derive logical GPS from assigned zone geometry/name point
  */
@@ -18,8 +18,8 @@ interface Zone {
   location_lng?: number | null;
 }
 
-interface ObservationV2 {
-  observation_id: string;
+interface ObservationRow {
+  id: string;
   plate_number: string;
   zone_id: string;
   organization_id: string;
@@ -204,10 +204,11 @@ Deno.serve(async (req) => {
 
     console.log('📥 Request:', { get_total, offset, batch_size });
 
-    // Build query on vehicle_observations_v2 (active observations table)
+    // Build query on observations (active observations table)
     let query = supabaseAdmin
-      .from('vehicle_observations_v2')
-      .select('observation_id, plate_number, zone_id, organization_id, recorded_at, gps_latitude, gps_longitude', { count: 'exact' });
+      .from('observations')
+      .select('id, plate_number, zone_id, organization_id, recorded_at, gps_latitude, gps_longitude', { count: 'exact' })
+      .is('deleted_at', null);
 
     // GET TOTAL MODE
     if (get_total) {
@@ -255,7 +256,7 @@ Deno.serve(async (req) => {
     const corrections: any[] = [];
     const zonesById = new Map((allZones || []).map((z) => [z.id, z]));
 
-    for (const obs of observations as ObservationV2[]) {
+    for (const obs of observations as ObservationRow[]) {
       try {
         let lat = obs.gps_latitude != null ? Number(obs.gps_latitude) : null;
         let lng = obs.gps_longitude != null ? Number(obs.gps_longitude) : null;
@@ -311,9 +312,9 @@ Deno.serve(async (req) => {
 
         if (Object.keys(payload).length > 0) {
           await supabaseAdmin
-            .from('vehicle_observations_v2')
+            .from('observations')
             .update(payload)
-            .eq('observation_id', obs.observation_id);
+            .eq('id', obs.id);
 
           const zoneChanged = payload.zone_id != null;
           const gpsChanged = payload.gps_latitude != null;
@@ -322,7 +323,7 @@ Deno.serve(async (req) => {
           else if (gpsChanged) backfilledGps++;
 
           corrections.push({
-            observation_id: obs.observation_id,
+            observation_id: obs.id,
             plate_number: obs.plate_number,
             old_zone_name: currentZone?.name || 'Unknown',
             new_zone_name: correctZone?.name || currentZone?.name || 'Unknown',
@@ -334,7 +335,7 @@ Deno.serve(async (req) => {
         processed++;
 
       } catch (error: any) {
-        console.error(`Error processing ${obs.observation_id}:`, error.message);
+        console.error(`Error processing ${obs.id}:`, error.message);
         processed++;
       }
     }

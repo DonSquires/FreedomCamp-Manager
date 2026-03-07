@@ -5,6 +5,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { CameraView, CameraType, useCameraPermissions } from 'expo-camera'
 import * as Location from 'expo-location'
+import * as FileSystem from 'expo-file-system'
 import { Ionicons } from '@expo/vector-icons'
 import { toast } from 'sonner-native'
 import { useAuthStore } from '../stores/authStore'
@@ -75,6 +76,14 @@ export default function ScanScreen() {
         p_organization_id: user?.organization_id,
       })
 
+      if (!zoneId) throw new Error('Could not resolve zone for observation')
+
+      // Convert to base64 data URL for vehicle-ingest
+      const imageBase64 = await FileSystem.readAsStringAsync(photo.uri, {
+        encoding: FileSystem.EncodingType.Base64,
+      })
+      const imageDataUrl = `data:image/jpeg;base64,${imageBase64}`
+
       // 5. Upload photo
       toast.loading('Uploading photo...')
       const timestamp = Date.now()
@@ -96,42 +105,50 @@ export default function ScanScreen() {
       const { data: urlData } = supabase.storage.from('scans').getPublicUrl(filePath)
       const photoUrl = urlData.publicUrl
 
-      // 6. Create observation
-      toast.loading('Saving...')
-      const idempotencyKey = `scan-${user?.id}-${timestamp}`
-      const { data: obs, error: obsError } = await supabase
-        .from('observations')
-        .insert({
-          idempotency_key: idempotencyKey,
-          recorded_by: user?.id,
-          organization_id: user?.organization_id,
-          zone_id: zoneId,
+      // 6. Detect plate via ALPR
+      toast.loading('Running plate detection...')
+      const { data: alprData, error: alprError } = await supabase.functions.invoke('alpr-process', {
+        body: {
           photo_url: photoUrl,
-          photo_hash: photoHash,
-          gps_latitude: loc.coords.latitude,
-          gps_longitude: loc.coords.longitude,
-          gps_accuracy: loc.coords.accuracy,
-          recorded_at: new Date().toISOString(),
-          plate_number: 'PROCESSING...',
-          processing_status: 'pending',
-          is_compliant: true,
-          weather_conditions: weatherConditions,
-        })
-        .select('id, plate_number, processing_status')
-        .single()
-
-      if (obsError) throw new Error(`Save failed: ${obsError.message}`)
-
-      // 7. Fire-and-forget AI
-      supabase.functions.invoke('alpr-process', {
-        body: { observation_id: obs.id, photo_url: photoUrl, regions: ['nz'], mmc: true },
-      }).then(({ error }) => {
-        if (error) console.warn('ALPR background error:', error)
+          latitude: loc.coords.latitude,
+          longitude: loc.coords.longitude,
+          accuracy: loc.coords.accuracy,
+        },
       })
 
+      if (alprError) {
+        console.warn('ALPR failed; continuing with manual-required flow:', alprError.message)
+      }
+
+      const detectedPlate = alprData?.plate || alprData?.plate_number || null
+      const detectedConfidence = alprData?.confidence || null
+
+      // 7. Create observation via unified ingest pipeline
+      toast.loading('Saving...')
+      const idempotencyKey = `scan-${user?.id}-${timestamp}`
+      const { data: ingestData, error: ingestError } = await supabase.functions.invoke('vehicle-ingest', {
+        body: {
+          image: imageDataUrl,
+          gpsLatitude: loc.coords.latitude,
+          gpsLongitude: loc.coords.longitude,
+          gpsAccuracy: loc.coords.accuracy,
+          recordedAt: new Date().toISOString(),
+          officerId: user?.id,
+          organizationId: user?.organization_id,
+          zoneId,
+          idempotencyKey,
+          weather: weatherConditions,
+          plate: detectedPlate,
+          confidence: detectedConfidence,
+          requires_manual_entry: !detectedPlate,
+        },
+      })
+
+      if (ingestError) throw new Error(`Save failed: ${ingestError.message}`)
+
       toast.dismiss()
-      toast.success('✅ Evidence secured — AI processing...')
-      setLastResult({ plate: obs.plate_number, compliant: true })
+      toast.success('✅ Observation captured and processed')
+      setLastResult({ plate: ingestData?.plate || 'MANUAL_REQUIRED', compliant: true })
     } catch (err: any) {
       toast.dismiss()
       toast.error(err.message || 'Scan failed')
