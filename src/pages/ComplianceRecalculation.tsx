@@ -56,24 +56,98 @@ export default function ComplianceRecalculation() {
     }
   }, [selectedOrgId, user?.organization_id, user?.role])
 
+  const runRecalculateV2Batched = async (params: {
+    zone_ids: string[]
+    date_from?: string
+    date_to?: string
+  }): Promise<RecalculationResult> => {
+    const startedAt = Date.now()
+
+    const { data: totalData, error: totalError } = await edgeFunctions.recalculateComplianceV2({
+      zone_ids: params.zone_ids,
+      date_from: params.date_from,
+      date_to: params.date_to,
+      get_total: true,
+    })
+
+    if (totalError) throw new Error(totalError)
+
+    const total = Number((totalData as any)?.total ?? 0)
+    const warning = (totalData as any)?.warning as string | undefined
+    if (warning) {
+      toast.warning(warning)
+    }
+
+    if (total <= 0) {
+      return {
+        observations_processed: 0,
+        compliance_changed: 0,
+        drift_events_created: 0,
+        duration_seconds: Math.round((Date.now() - startedAt) / 1000),
+        status: 'completed',
+      }
+    }
+
+    let offset = 0
+    const batchSize = 200
+    let processedTotal = 0
+    let changedTotal = 0
+
+    while (offset < total) {
+      const { data: batchData, error: batchError } = await edgeFunctions.recalculateComplianceV2({
+        zone_ids: params.zone_ids,
+        date_from: params.date_from,
+        date_to: params.date_to,
+        offset,
+        batch_size: batchSize,
+      })
+
+      if (batchError) throw new Error(batchError)
+
+      const processed = Number((batchData as any)?.processed ?? 0)
+      const changed = Number((batchData as any)?.complianceChanged ?? 0)
+
+      processedTotal += processed
+      changedTotal += changed
+
+      // Keep the final phase for onSuccess so users still see completion state.
+      const progressPct = total > 0 ? Math.min(90, Math.round((processedTotal / total) * 90)) : 0
+      setProgress(progressPct)
+
+      if (processed <= 0) break
+      offset += processed
+    }
+
+    return {
+      observations_processed: processedTotal,
+      compliance_changed: changedTotal,
+      // v2 does not currently return drift event counts.
+      drift_events_created: 0,
+      duration_seconds: Math.round((Date.now() - startedAt) / 1000),
+      status: 'completed',
+    }
+  }
+
   const recalculateMutation = useMutation({
     mutationFn: async () => {
-      const params: any = {}
-
-      if (scope === 'organization' && effectiveOrgId) {
-        params.organization_id = effectiveOrgId
-      } else if (scope === 'zone' && selectedZoneId) {
-        params.zone_id = selectedZoneId
-      } else if (scope === 'date_range') {
-        params.date_from = dateFrom
-        params.date_to = dateTo
+      if (scope === 'zone' && selectedZoneId) {
+        return runRecalculateV2Batched({
+          zone_ids: [selectedZoneId],
+          date_from: dateFrom || undefined,
+          date_to: dateTo || undefined,
+        })
       }
 
-      // Use the comprehensive recalculation function
-      const { data, error } = await edgeFunctions.recalculateCompliance(params)
-      
-      if (error) throw new Error(error)
-      return data as RecalculationResult
+      const zoneIds = (zones ?? []).map((z) => z.id)
+      if (zoneIds.length === 0) {
+        throw new Error('No zones available for recalculation in the selected scope')
+      }
+
+      return runRecalculateV2Batched({
+        zone_ids: zoneIds,
+        date_from: scope === 'date_range' ? dateFrom : undefined,
+        date_to: scope === 'date_range' ? dateTo : undefined,
+      })
     },
     onMutate: () => {
       setIsRunning(true)
@@ -128,6 +202,12 @@ export default function ComplianceRecalculation() {
       showBackButton
     >
       <div className="max-w-4xl mx-auto space-y-6">
+        <div className="flex items-center justify-center">
+          <Badge variant="secondary" className="text-xs">
+            Active Engine: recalculate-compliance-v2 (strict zone-based)
+          </Badge>
+        </div>
+
         {/* Warning Banner */}
         <Card className="border-orange-200 bg-orange-50 dark:bg-orange-900/10">
           <CardContent className="pt-6">
@@ -318,6 +398,9 @@ export default function ComplianceRecalculation() {
                   </>
                 )}
               </Button>
+              <p className="mt-2 text-xs text-muted-foreground text-center">
+                Uses strict zone-based compliance engine: <code>recalculate-compliance-v2</code>
+              </p>
             </div>
           </CardContent>
         </Card>
