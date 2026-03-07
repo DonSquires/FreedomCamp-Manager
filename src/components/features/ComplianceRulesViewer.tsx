@@ -29,14 +29,55 @@ export function ComplianceRulesViewer({
   showVersion = true,
   compact = false,
 }: ComplianceRulesViewerProps) {
-  // Fetch current compliance matrix
+  // Fetch current active compliance matrix directly from zone_compliance_matrix
+  // (get_active_matrix RPC was replaced in 20260318_fix_schema_functions.sql)
   const { data: matrix, isLoading } = useQuery({
     queryKey: ['compliance-matrix', zoneId],
     queryFn: async () => {
-      const { data, error } = await (supabase as any).rpc('get_active_matrix', { p_zone_id: zoneId })
+      // Try zone_compliance_matrix first (highest version, no effective_to)
+      const { data: matrixRows, error: matrixError } = await supabase
+        .from('zone_compliance_matrix' as any)
+        .select('*')
+        .eq('zone_id', zoneId)
+        .is('effective_to', null)
+        .order('version', { ascending: false })
+        .limit(1)
 
-      if (error) throw error
-      return (data as any)?.[0] || null
+      if (!matrixError && matrixRows && matrixRows.length > 0) {
+        return matrixRows[0]
+      }
+
+      // Fallback: read compliance rules directly from zones table
+      const { data: zone, error: zoneError } = await (supabase as any)
+        .from('zones')
+        .select('id, nights_per_month, max_consecutive_nights, self_contained_required, day_visit_only, allowed_days')
+        .eq('id', zoneId)
+        .single()
+
+      if (zoneError) throw zoneError
+      if (!zone) return null
+
+      return {
+        zone_id:                (zone as any).id,
+        version:                1,
+        nights_per_month:       (zone as any).nights_per_month,
+        max_consecutive_nights: (zone as any).max_consecutive_nights,
+        self_contained_required: (zone as any).self_contained_required,
+        requires_csc:           (zone as any).self_contained_required,
+        day_visit_only:         (zone as any).day_visit_only,
+        allowed_days:           (zone as any).allowed_days,
+        homeless_exemption:     true,
+        // Fields only on zone_compliance_matrix rows – absent in fallback
+        accepted_warrant:                null,
+        accepted_warrant_effective_from: null,
+        accepted_warrant_effective_to:   null,
+        allows_overnight:                !((zone as any).day_visit_only),
+        enforcement_basis:               null,
+        csc_register_uri:                null,
+        effective_from:                  null,
+        effective_to:                    null,
+        change_reason:                   null,
+      } as any
     },
   })
 

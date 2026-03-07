@@ -80,21 +80,38 @@ serve(async (req) => {
 
     const vehicleMap = new Map(vehicleData.map((v: any) => [v.plate_number, v]));
 
-    // Load monthly stays for overstay calculation
-    const fromMonth = new Date(date_from).toISOString().split('T')[0].slice(0, 7) + '-01';
-    const toMonth = new Date(date_to).toISOString().split('T')[0].slice(0, 7) + '-01';
-
-    let staysQuery = supabase
-      .from('vehicle_monthly_stays')
-      .select('plate_number, zone_id, consecutive_nights, nights_stayed, zones(name)')
+    // Load latest compliance snapshot per plate+zone from observations
+    // (vehicle_monthly_stays is no longer auto-updated by the new observations pipeline)
+    let latestObsQuery = supabase
+      .from('observations')
+      .select('plate_number, zone_id, nights_stayed_this_month, consecutive_nights, zones(name)')
       .in('plate_number', uniquePlates)
-      .gte('calendar_month', fromMonth)
-      .lte('calendar_month', toMonth);
+      .is('deleted_at', null)
+      .gte('recorded_at', date_from)
+      .lte('recorded_at', date_to)
+      .order('recorded_at', { ascending: false });
 
-    if (organization_id) staysQuery = staysQuery.eq('organization_id', organization_id);
-    if (zone_id) staysQuery = staysQuery.eq('zone_id', zone_id);
+    if (organization_id) latestObsQuery = latestObsQuery.eq('organization_id', organization_id);
+    if (zone_id) latestObsQuery = latestObsQuery.eq('zone_id', zone_id);
 
-    const { data: stays } = await staysQuery;
+    const { data: latestObs } = await latestObsQuery;
+
+    // Deduplicate: keep the most recent snapshot per plate+zone (highest nights_stayed)
+    const staysByPlateZone = new Map<string, any>();
+    for (const o of (latestObs ?? [])) {
+      const key = `${o.plate_number}:${o.zone_id}`;
+      const existing = staysByPlateZone.get(key);
+      if (!existing || (o.nights_stayed_this_month ?? 0) > (existing.nights_stayed ?? 0)) {
+        staysByPlateZone.set(key, {
+          plate_number:      o.plate_number,
+          zone_id:           o.zone_id,
+          nights_stayed:     o.nights_stayed_this_month ?? 0,
+          consecutive_nights: o.consecutive_nights ?? 0,
+          zones:             o.zones,
+        });
+      }
+    }
+    const stays = [...staysByPlateZone.values()];
 
     // Get compliance matrix
     let matrixQuery = supabase

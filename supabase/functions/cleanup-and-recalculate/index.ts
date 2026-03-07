@@ -12,6 +12,7 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
 import { corsHeaders } from '../_shared/cors.ts';
+import { nzHour, toValidBreachType } from '../_shared/compliance.ts';
 
 serve(async (req) => {
   // Handle CORS preflight
@@ -32,7 +33,7 @@ serve(async (req) => {
     // Build base query
     let query = supabaseAdmin
       .from('observations')
-      .select('id, plate_number, zone_id, organization_id, recorded_at, gps_latitude, gps_longitude, gps_accuracy, self_contained, self_contained_expiry', { count: 'exact' });
+      .select('id, plate_number, zone_id, organization_id, recorded_at, gps_latitude, gps_longitude, gps_accuracy, self_contained, self_contained_expiry, is_compliant, nights_stayed_this_month, consecutive_nights', { count: 'exact' });
 
     // Apply filters
     if (zoneIds && zoneIds.length > 0) {
@@ -172,188 +173,157 @@ serve(async (req) => {
     }
 
     // PHASE 3: COMPLIANCE RECALCULATION
-    // Strategy: Delete old compliance_results, then re-insert observation to trigger cascade
-    // This ensures monthly_stays are updated, compliance is evaluated, and breach_alerts are created
+    // compliance_results and vehicle_monthly_stays are no longer part of the pipeline
+    // (dropped in 20260221_rebuild_observations_clean.sql).
+    // Compliance state lives directly on observations: is_compliant, breach_type, breach_reason.
     let complianceChanged = 0;
     let breachesCreated = 0;
     let skippedNoMatrix = 0;
 
-    // Filter out deleted observations
+    // Filter out soft-deleted / duplicate observations
     const activeObservations = observations.filter(
       obs => !duplicatesToDelete.includes(obs.id)
     );
 
     console.log(`⚖️ Starting compliance recalculation for ${activeObservations.length} observations...`);
 
+    // Pre-load zone matrices (cache to avoid per-row queries)
+    const zoneMatrices = new Map<string, any>();
+    const zonesWithoutMatrix = new Set<string>();
+
+    // Pre-load homeless plates
+    const uniquePlates = [...new Set(activeObservations.map(o => o.plate_number))];
+    const homelessSet = new Set<string>();
+    if (uniquePlates.length > 0) {
+      const { data: homelessVehicles } = await supabaseAdmin
+        .from('canonical_vehicles')
+        .select('plate_number')
+        .in('plate_number', uniquePlates)
+        .eq('homeless_status', 'confirmed');
+      for (const v of (homelessVehicles ?? [])) homelessSet.add(v.plate_number);
+    }
+
     for (const obs of activeObservations) {
       try {
-        // STEP 1: Get current compliance state
-        const { data: currentCompliance } = await supabaseAdmin
-          .from('compliance_results')
-          .select('is_compliant')
-          .eq('observation_id', obs.id)
-          .single();
+        // Get or cache matrix for this zone
+        let matrix = zoneMatrices.get(obs.zone_id);
+        if (!matrix && !zonesWithoutMatrix.has(obs.zone_id)) {
+          const { data: found } = await supabaseAdmin
+            .from('zone_compliance_matrix')
+            .select('*')
+            .eq('zone_id', obs.zone_id)
+            .is('effective_to', null)
+            .order('version', { ascending: false })
+            .limit(1)
+            .maybeSingle();
 
-        const wasCompliant = currentCompliance?.is_compliant;
-
-        // STEP 2: Delete old compliance result and breach alert
-        // This allows the triggers to recreate them fresh
-        await supabaseAdmin
-          .from('compliance_results')
-          .delete()
-          .eq('observation_id', obs.id);
-
-        await supabaseAdmin
-          .from('breach_alerts')
-          .delete()
-          .eq('observation_id', obs.id);
-
-        // STEP 3: Delete and re-insert monthly_stays to recalculate
-        const currentMonth = new Date(obs.recorded_at);
-        currentMonth.setDate(1);
-        currentMonth.setHours(0, 0, 0, 0);
-        const monthStart = currentMonth.toISOString().split('T')[0];
-
-        await supabaseAdmin
-          .from('vehicle_monthly_stays')
-          .delete()
-          .eq('plate_number', obs.plate_number)
-          .eq('zone_id', obs.zone_id)
-          .eq('organization_id', obs.organization_id)
-          .eq('calendar_month', monthStart);
-
-        // Get all observations for this plate/zone/month to recalculate monthly stays
-        const { data: monthObs } = await supabaseAdmin
-          .from('observations')
-          .select('id, plate_number, zone_id, organization_id, recorded_at, gps_latitude, gps_longitude, gps_accuracy')
-          .eq('plate_number', obs.plate_number)
-          .eq('zone_id', obs.zone_id)
-          .eq('organization_id', obs.organization_id)
-          .gte('recorded_at', monthStart)
-          .lt('recorded_at', new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1).toISOString())
-          .order('recorded_at');
-
-        if (monthObs && monthObs.length > 0) {
-          // Calculate nights_stayed and consecutive_nights using GPS-based logic
-          const { data: consecResult } = await supabaseAdmin.rpc(
-            'calculate_consecutive_nights',
-            {
-              p_plate_number: obs.plate_number,
-              p_zone_id: obs.zone_id,
-              p_organization_id: obs.organization_id,
-              p_calendar_month: monthStart
+          if (found) {
+            zoneMatrices.set(obs.zone_id, found);
+            matrix = found;
+          } else {
+            // Fallback: zone table
+            const { data: zone } = await supabaseAdmin
+              .from('zones')
+              .select('self_contained_required, nights_per_month, max_consecutive_nights, day_visit_only, homeless_exemption')
+              .eq('id', obs.zone_id)
+              .maybeSingle();
+            if (zone) {
+              const fallback = { ...zone, requires_csc: zone.self_contained_required };
+              zoneMatrices.set(obs.zone_id, fallback);
+              matrix = fallback;
+            } else {
+              zonesWithoutMatrix.add(obs.zone_id);
             }
-          );
-
-          const nightsStayed = consecResult?.nights_stayed || monthObs.length;
-          const consecutiveNights = consecResult?.consecutive_nights || 1;
-
-          // Insert updated monthly_stays
-          await supabaseAdmin
-            .from('vehicle_monthly_stays')
-            .upsert({
-              plate_number: obs.plate_number,
-              zone_id: obs.zone_id,
-              organization_id: obs.organization_id,
-              calendar_month: monthStart,
-              nights_stayed: nightsStayed,
-              consecutive_nights: consecutiveNights,
-              last_observation_date: obs.recorded_at.split('T')[0],
-              observation_ids: monthObs.map(o => o.id),
-            });
+          }
         }
-
-        // STEP 4: Simulate observation re-insert to trigger auto_create_compliance_result
-        // We do this by manually calling the compliance logic (same as the trigger)
-        const { data: matrix } = await supabaseAdmin
-          .from('zone_compliance_matrix')
-          .select('*')
-          .eq('zone_id', obs.zone_id)
-          .is('effective_to', null)
-          .single();
 
         if (!matrix) {
           skippedNoMatrix++;
-          console.log(`⚠️ No matrix for zone ${obs.zone_id}, skipping ${obs.id}`);
           continue;
         }
 
-        // Get homeless status for exemption check
-        const { data: canonicalVehicle } = await supabaseAdmin
-          .from('canonical_vehicles')
-          .select('homeless_status')
-          .eq('plate_number', obs.plate_number)
-          .single();
+        const isHomeless = homelessSet.has(obs.plate_number);
+        const wasCompliant = obs.is_compliant ?? true;
 
-        const homelessStatus = canonicalVehicle?.homeless_status;
-
-        // Get monthly stays (now recalculated)
-        const { data: monthlyStay } = await supabaseAdmin
-          .from('vehicle_monthly_stays')
-          .select('*')
-          .eq('plate_number', obs.plate_number)
-          .eq('zone_id', obs.zone_id)
-          .eq('organization_id', obs.organization_id)
-          .eq('calendar_month', monthStart)
-          .single();
-
-        // Evaluate compliance rules
         let isCompliant = true;
-        const violationReasons: string[] = [];
+        let breachType: string | null = null;
+        let breachReason: string | null = null;
 
-        // RULE 1: Self-contained requirement
-        if (matrix.self_contained_required && !obs.self_contained) {
-          if (!(homelessStatus === 'confirmed' && matrix.homeless_exemption)) {
-            isCompliant = false;
-            violationReasons.push('not_self_contained');
+        // Day-visit-only
+        if (matrix.day_visit_only) {
+          const hour = nzHour(obs.recorded_at);
+          if (hour >= 20 || hour < 8) {
+            isCompliant  = false;
+            breachType   = 'day_visit_violation';
+            breachReason = `Night visit in day-only zone (observed at ${hour}:00 NZ time)`;
+          }
+        }
+        // Monthly limit
+        if (isCompliant && matrix.nights_per_month != null) {
+          if ((obs.nights_stayed_this_month ?? 0) > matrix.nights_per_month) {
+            if (!(isHomeless && matrix.homeless_exemption !== false)) {
+              isCompliant  = false;
+              breachType   = 'monthly_limit';
+              breachReason = `Exceeded monthly stay limit: ${obs.nights_stayed_this_month} nights, limit ${matrix.nights_per_month}`;
+            }
+          }
+        }
+        // Consecutive nights
+        if (isCompliant && matrix.max_consecutive_nights != null) {
+          if ((obs.consecutive_nights ?? 0) > matrix.max_consecutive_nights) {
+            if (!(isHomeless && matrix.homeless_exemption !== false)) {
+              isCompliant  = false;
+              breachType   = 'consecutive_nights';
+              breachReason = `Exceeded consecutive nights limit: ${obs.consecutive_nights} nights, limit ${matrix.max_consecutive_nights}`;
+            }
+          }
+        }
+        // Self-contained
+        if (isCompliant && (matrix.self_contained_required || matrix.requires_csc)) {
+          if (!obs.self_contained) {
+            if (!(isHomeless && matrix.homeless_exemption !== false)) {
+              isCompliant  = false;
+              breachType   = 'self_contained';
+              breachReason = 'Zone requires a self-contained vehicle; no valid CSC on record';
+            }
           }
         }
 
-        // RULE 2: Consecutive nights limit
-        if (monthlyStay && monthlyStay.consecutive_nights > matrix.max_consecutive_nights) {
-          if (!(homelessStatus === 'confirmed' && matrix.homeless_exemption)) {
-            isCompliant = false;
-            violationReasons.push(`consecutive_nights_exceeded_${monthlyStay.consecutive_nights}_of_${matrix.max_consecutive_nights}`);
-          }
-        }
-
-        // RULE 3: Monthly nights limit
-        if (monthlyStay && monthlyStay.nights_stayed > matrix.nights_per_month) {
-          if (!(homelessStatus === 'confirmed' && matrix.homeless_exemption)) {
-            isCompliant = false;
-            violationReasons.push(`monthly_nights_exceeded_${monthlyStay.nights_stayed}_of_${matrix.nights_per_month}`);
-          }
-        }
-
-        // Insert compliance_results (triggers auto_create_breach_alert)
+        // Update observation
         await supabaseAdmin
-          .from('compliance_results')
-          .insert({
-            observation_id: obs.id,
-            zone_id: obs.zone_id,
-            organization_id: obs.organization_id,
-            matrix_id: matrix.id,
-            matrix_version: matrix.version,
-            is_compliant: isCompliant,
-            violation_reasons: violationReasons,
-            matrix_snapshot: {
-              self_contained_required: matrix.self_contained_required,
-              nights_per_month: matrix.nights_per_month,
-              max_consecutive_nights: matrix.max_consecutive_nights,
-              day_visit_only: matrix.day_visit_only,
-              homeless_exemption: matrix.homeless_exemption,
-            },
-            evaluated_at: new Date().toISOString(),
-          });
+          .from('observations')
+          .update({
+            is_compliant:  isCompliant,
+            breach_type:   breachType,
+            breach_reason: breachReason,
+          })
+          .eq('id', obs.id);
 
-        // Track changes
-        if (wasCompliant !== isCompliant) {
-          complianceChanged++;
-        }
+        if (wasCompliant !== isCompliant) complianceChanged++;
 
-        if (!isCompliant && violationReasons.length > 0) {
-          breachesCreated++;
-          console.log(`🚨 Breach created for ${obs.plate_number}: ${violationReasons.join(', ')}`);
+        if (!isCompliant && breachType) {
+          const alertType = toValidBreachType(breachType);
+
+          const { data: existing } = await supabaseAdmin
+            .from('breach_alerts')
+            .select('id')
+            .eq('organization_id', obs.organization_id)
+            .eq('zone_id', obs.zone_id)
+            .eq('status', 'pending')
+            .contains('breach_details', { observation_id: obs.id })
+            .maybeSingle();
+
+          if (!existing) {
+            await supabaseAdmin.from('breach_alerts').insert({
+              organization_id: obs.organization_id,
+              zone_id:         obs.zone_id,
+              plate_number:    obs.plate_number,
+              breach_type:     alertType,
+              breach_details:  { observation_id: obs.id, breach_reason: breachReason },
+              status:          'pending',
+            });
+            breachesCreated++;
+          }
         }
 
       } catch (err: any) {

@@ -198,6 +198,12 @@ serve(async (req) => {
 
       // ── Process in batches of BATCH_SIZE ──────────────────────────────────
       let offset = 0;
+      // Reuse a single Intl formatter for NZ timezone conversion (avoids re-creation per observation)
+      const nzHourFormatter = new Intl.DateTimeFormat('en-NZ', {
+        timeZone: 'Pacific/Auckland',
+        hour: '2-digit',
+        hour12: false,
+      });
 
       while (true) {
         const { data: batch, error: batchError } = await buildQuery()
@@ -230,13 +236,8 @@ serve(async (req) => {
             // ── Day-visit-only zone check ─────────────────────────────────
             if (rules.day_visit_only) {
               const observedAt = new Date(obs.recorded_at);
-              // Convert to NZ hour (NZ = UTC+12, or UTC+13 in NZDT).
-              // Use Intl to get the accurate local hour.
-              const nzHourStr = new Intl.DateTimeFormat('en-NZ', {
-                timeZone: 'Pacific/Auckland',
-                hour: '2-digit',
-                hour12: false,
-              }).format(observedAt);
+              // Accurate NZ hour via pre-built Intl formatter (handles NZDT/NZST transitions)
+              const nzHourStr = nzHourFormatter.format(observedAt);
               const nzHour = parseInt(nzHourStr, 10);
 
               if (nzHour >= 20 || nzHour < 8) {
