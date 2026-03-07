@@ -15,6 +15,7 @@ import { Building2, MapPin, Users, Settings, Mail, Phone, Layers, Plus, Edit, Ch
 import { toast } from 'sonner'
 import { AppLayout } from '@/components/features/AppLayout'
 import { ZoneGeofenceEditor } from '@/components/features/ZoneGeofenceEditor'
+import { ZoneGeofenceIndicator } from '@/components/features/ZoneGeofenceIndicator'
 import { getOrgTypeLabel } from '@/lib/utils'
 interface Organization {
   id: string
@@ -389,6 +390,7 @@ export default function OrganizationProfile() {
                           )}
                         </div>
                       </div>
+                      <ZoneGeofenceIndicator geometry={zone.geometry || zone.geom} className="mt-3" />
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-3 text-sm">
                         <div className="text-gray-600">
                           <span className="block text-xs text-gray-500">Max Nights/Month</span>
@@ -457,8 +459,10 @@ export default function OrganizationProfile() {
                             <span className="font-semibold">{zone.name}</span>
                           </div>
                           {zone.parent_zone_id && parentZones.find(p => p.id === zone.parent_zone_id) && (
-                            <div className="text-xs text-gray-600 mt-1">
-                              Parent: {parentZones.find(p => p.id === zone.parent_zone_id)?.name}
+                            <div className="mt-1">
+                              <Badge variant="outline" className="text-xs bg-purple-50 text-purple-700">
+                                Parent Zone: {parentZones.find(p => p.id === zone.parent_zone_id)?.name}
+                              </Badge>
                             </div>
                           )}
                         </div>
@@ -483,6 +487,7 @@ export default function OrganizationProfile() {
                           </Button>
                         </div>
                       </div>
+                      <ZoneGeofenceIndicator geometry={zone.geometry || zone.geom} className="mb-2" />
                       <div className="text-xs text-gray-600 space-y-0.5">
                         <div>Max nights: {zone.nights_per_month}/month, {zone.max_consecutive_nights} consecutive</div>
                         <div className="flex gap-2">

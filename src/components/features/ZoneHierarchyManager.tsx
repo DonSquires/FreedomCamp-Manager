@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { MapPin, Layers, Plus, Edit } from 'lucide-react'
+import { ZoneGeofenceIndicator } from '@/components/features/ZoneGeofenceIndicator'
 
 interface Zone {
   id: string
@@ -14,8 +15,12 @@ interface Zone {
   is_active: boolean
   total_observations: number
   total_breaches: number
+  geometry?: any
+  geom?: any
   parent_zone?: {
     name: string
+    geometry?: any
+    geom?: any
   }
 }
 
@@ -46,8 +51,12 @@ export function ZoneHierarchyManager({
           is_active,
           total_observations,
           total_breaches,
+          geometry,
+          geom,
           parent_zone:zones!parent_zone_id(
-            name
+            name,
+            geometry,
+            geom
           )
         `)
         .eq('organization_id', organizationId)
@@ -162,6 +171,9 @@ export function ZoneHierarchyManager({
                     <div className="text-xs text-gray-600 mt-1">
                       Observations: {zone.total_observations || 0} | Breaches: {zone.total_breaches || 0}
                     </div>
+                    <div className="mt-2">
+                      <ZoneGeofenceIndicator geometry={zone.geometry || zone.geom} compact />
+                    </div>
                   </div>
                   <div className="text-xs text-gray-500">
                     Auto-synced from org boundary
@@ -210,8 +222,10 @@ export function ZoneHierarchyManager({
                         <span className="font-semibold">{zone.name}</span>
                       </div>
                       {zone.parent_zone && (
-                        <div className="text-xs text-gray-600 mt-1">
-                          Parent: {zone.parent_zone.name}
+                        <div className="mt-1">
+                          <Badge variant="outline" className="text-xs bg-purple-50 text-purple-700">
+                            Parent Zone: {zone.parent_zone.name}
+                          </Badge>
                         </div>
                       )}
                     </div>
@@ -222,6 +236,9 @@ export function ZoneHierarchyManager({
                     >
                       <Edit className="h-3 w-3" />
                     </Button>
+                  </div>
+                  <div className="mt-2">
+                    <ZoneGeofenceIndicator geometry={zone.geometry || zone.geom} compact />
                   </div>
                   <div className="text-xs text-gray-600 space-y-0.5">
                     <div>Observations: {zone.total_observations || 0}</div>
@@ -234,18 +251,32 @@ export function ZoneHierarchyManager({
         </CardContent>
       </Card>
 
-      {/* Coverage Visualization Placeholder */}
+      {/* Parent Zone Representation */}
       <Card>
         <CardHeader>
-          <CardTitle>Coverage Map</CardTitle>
+          <CardTitle>Parent Zone Representation</CardTitle>
           <CardDescription>
-            Visual representation of parent boundary and child zones
+            Standard visual representation of jurisdiction geofence boundaries
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="bg-gray-100 dark:bg-gray-800 rounded-lg h-64 flex items-center justify-center text-gray-500">
-            Map visualization coming soon (requires map library integration)
-          </div>
+          {parentZones.length === 0 ? (
+            <div className="bg-gray-100 dark:bg-gray-800 rounded-lg h-32 flex items-center justify-center text-gray-500">
+              No parent zone configured
+            </div>
+          ) : (
+            <div className="grid gap-3 md:grid-cols-2">
+              {parentZones.map((zone) => (
+                <div key={zone.id} className="rounded-lg border p-3 bg-purple-50/60 dark:bg-purple-950/30">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="font-semibold text-sm">{zone.name}</div>
+                    <Badge variant="outline" className="text-xs">Jurisdiction</Badge>
+                  </div>
+                  <ZoneGeofenceIndicator geometry={zone.geometry || zone.geom} />
+                </div>
+              ))}
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

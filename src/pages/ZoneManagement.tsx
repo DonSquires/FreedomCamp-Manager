@@ -16,6 +16,7 @@ import { toast } from 'sonner'
 import { AppLayout } from '@/components/features/AppLayout'
 import { GlobalFilterRibbon } from '@/components/features/GlobalFilterRibbon'
 import { ZoneGeofenceEditor } from '@/components/features/ZoneGeofenceEditor'
+import { ZoneGeofenceIndicator } from '@/components/features/ZoneGeofenceIndicator'
 
 interface Zone {
   id: string
@@ -429,12 +430,7 @@ export default function ZoneManagement() {
                           Jurisdiction Zone
                         </Badge>
                       )}
-                      {!zone.geometry && !zone.geom && (
-                        <Badge variant="outline" className="bg-amber-50 text-amber-700 text-xs">
-                          <AlertTriangle className="h-3 w-3 mr-1" />
-                          No Boundary
-                        </Badge>
-                      )}
+                      <ZoneGeofenceIndicator geometry={zone.geometry || zone.geom} compact />
                       <div>
                         {zone.location_lat && zone.location_lng 
                           ? `${zone.location_lat.toFixed(4)}, ${zone.location_lng.toFixed(4)}`
@@ -458,6 +454,8 @@ export default function ZoneManagement() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
+                  <ZoneGeofenceIndicator geometry={zone.geometry || zone.geom} />
+
                   {/* Compliance Rules */}
                   <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3 space-y-2">
                     <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Compliance Rules</h4>
