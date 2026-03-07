@@ -612,9 +612,8 @@ jobs:
             echo "To enable Railway deployments, add the following secrets at:"
             echo "  https://github.com/${{ github.repository }}/settings/secrets/actions"
             echo ""
-            echo "  RAILWAY_TOKEN:      Railway project → Settings → Tokens → New Token"
-            echo "                      IMPORTANT: use a PROJECT token, NOT a personal account token."
-            echo "                      Personal tokens are rejected by the Railway CLI in CI/CD."
+            echo "  RAILWAY_TOKEN:      Railway token with deploy access to the target service/project"
+            echo "                      (project token recommended for CI)."
             echo "  RAILWAY_SERVICE_ID: Railway project → Service → Settings → Service ID"
             echo "secrets_present=false" >> "$GITHUB_OUTPUT"
           else
@@ -632,31 +631,40 @@ jobs:
       - name: Install Railway CLI
         if: steps.check-secrets.outputs.secrets_present == 'true'
         run: |
-          curl -fsSL https://railway.app/install.sh | sh
+          # Avoid GitHub API rate limits in install.sh by pinning a known CLI release.
+          RAILWAY_CLI_VERSION="4.31.0"
+          TARGET="x86_64-unknown-linux-gnu"
+          URL="https://github.com/railwayapp/cli/releases/download/v${RAILWAY_CLI_VERSION}/railway-v${RAILWAY_CLI_VERSION}-${TARGET}.tar.gz"
+          TMP_DIR=$(mktemp -d)
+          cd "$TMP_DIR"
+          curl -fsSL -o railway.tar.gz "$URL"
+          tar -xzf railway.tar.gz
+          mkdir -p "$HOME/.railway/bin"
+          install -m 0755 railway "$HOME/.railway/bin/railway"
           echo "$HOME/.railway/bin" >> $GITHUB_PATH
 
       - name: Validate Railway token
         if: steps.check-secrets.outputs.secrets_present == 'true'
         env:
-          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          RAILWAY_TOKEN:      ${{ secrets.RAILWAY_TOKEN }}
+          RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_SERVICE_ID }}
         run: |
           echo "🔑 Validating Railway token..."
-          if ! railway whoami > /dev/null 2>&1; then
+          # Validate real deploy access against the target service.
+          if ! railway service status --service "$RAILWAY_SERVICE_ID" --json > /dev/null 2>&1; then
             echo ""
             echo "::error::RAILWAY_TOKEN is set but invalid."
             echo ""
             echo "Common causes:"
-            echo "  1. Personal account token used instead of a project token."
-            echo "     → Railway PROJECT → Settings → Tokens → New Token"
-            echo "     → Do NOT use Account → Tokens (those are personal tokens)"
-            echo "  2. Token revoked or expired — regenerate a new project token."
-            echo "  3. Token does not have access to this service."
+            echo "  1. Token is revoked/expired."
+            echo "  2. Token does not have access to the service ID in RAILWAY_SERVICE_ID."
+            echo "  3. RAILWAY_SERVICE_ID is wrong (copied from a different project/service)."
             echo ""
-            echo "Fix: Update the RAILWAY_TOKEN secret at:"
+            echo "Fix: Update RAILWAY_TOKEN and/or RAILWAY_SERVICE_ID secrets at:"
             echo "  https://github.com/${{ github.repository }}/settings/secrets/actions"
             exit 1
           fi
-          echo "✅ Railway token is valid"
+          echo "✅ Railway token and service access are valid"
 
       - name: Deploy to Railway
         if: steps.check-secrets.outputs.secrets_present == 'true'
