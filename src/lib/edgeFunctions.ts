@@ -24,11 +24,15 @@ async function getValidAccessToken(): Promise<string | null> {
 
   let session = sessionData.session
   const expiresAtMs = session.expires_at ? session.expires_at * 1000 : 0
-  const shouldRefresh = expiresAtMs > 0 && (expiresAtMs - Date.now()) < ACCESS_TOKEN_REFRESH_BUFFER_MS
+
+  // Refresh when: expiry is unknown (0), token has already expired, or expiry is within buffer window
+  const shouldRefresh = expiresAtMs === 0 || (expiresAtMs - Date.now()) < ACCESS_TOKEN_REFRESH_BUFFER_MS
 
   if (shouldRefresh) {
     const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession()
     if (refreshError || !refreshData.session) {
+      // Sign out to clear stale session state so ProtectedRoute redirects to login
+      try { await supabase.auth.signOut() } catch { /* ignore sign-out errors */ }
       throw new Error(refreshError?.message || 'Session has expired. Please sign in again.')
     }
     session = refreshData.session
@@ -49,9 +53,11 @@ async function getErrorMessage(error: any): Promise<string> {
       if (statusCode === 401 && textContent) {
         try {
           const parsed = JSON.parse(textContent)
-          if (parsed?.message === 'Invalid JWT') {
+          // Supabase gateway returns {"message":"Invalid JWT"} or {"message":"JWT expired"}
+          const gatewayMsg: string = parsed?.message || ''
+          if (gatewayMsg === 'Invalid JWT' || gatewayMsg === 'JWT expired') {
             await supabase.auth.signOut()
-            return 'Session expired or invalid. Please sign in again and retry.'
+            return 'Session expired. Please sign in again.'
           }
         } catch {
           // Keep raw response when body is not JSON.
@@ -168,6 +174,7 @@ export const edgeFunctions = {
   /**
    * Bulk compliance recalculation (v2 schema – observations table, BATCH_SIZE=150).
    * Accepts both legacy and structured parameter formats.
+   * Toast display is suppressed here — callers are responsible for error feedback.
    */
   recalculateCompliance: async (params: {
     // Legacy params
@@ -184,7 +191,7 @@ export const edgeFunctions = {
     date_range_start?: string
     date_range_end?: string
   }) => {
-    return callEdgeFunction('recalculate-compliance', params)
+    return callEdgeFunction('recalculate-compliance', params, { showToast: false })
   },
 
   /**
