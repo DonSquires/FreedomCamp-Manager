@@ -167,7 +167,7 @@ export default function ImportData() {
                   AI-Powered Import
                 </CardTitle>
                 <CardDescription>
-                  Upload any CSV, text file, or photo. The OnSpace AI service will automatically extract zone names, plate numbers, dates and observations. Supported: .csv, .txt, .json, .xlsx (text), .jpg, .png
+                  Upload any CSV, text file, or photo. The AI service will automatically extract zone names, plate numbers, dates and observations. Supported: .csv, .txt, .json, .xlsx (text), .jpg, .png
                 </CardDescription>
               </CardHeader>
             </Card>

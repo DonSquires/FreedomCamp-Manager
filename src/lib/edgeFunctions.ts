@@ -680,7 +680,7 @@ export const edgeFunctions = {
   },
 
   /**
-   * OnSpace AI chat for bug analysis
+   * AI chat for bug analysis
    */
   onspaceAIChat: async (params: {
     message: string
