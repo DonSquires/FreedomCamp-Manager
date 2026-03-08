@@ -52,7 +52,8 @@ function toCategory(status) {
   const s = String(status || '').toLowerCase();
   if (s === 'confirmed') return 'confirmed';
   if (s === 'claimed') return 'claimed';
-  return 'declined';
+  if (s === 'declined') return 'declined';
+  return 'freedom_camper';
 }
 
 async function main() {
@@ -80,6 +81,7 @@ async function main() {
     confirmed: { total: 0, compliant: 0, non_compliant: 0 },
     claimed: { total: 0, compliant: 0, non_compliant: 0 },
     declined: { total: 0, compliant: 0, non_compliant: 0 },
+    freedom_camper: { total: 0, compliant: 0, non_compliant: 0 },
   };
 
   for (const obs of observations) {

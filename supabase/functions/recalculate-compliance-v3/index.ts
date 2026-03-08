@@ -75,6 +75,14 @@ function toEpoch(value?: string | null): number | null {
   return Number.isNaN(ts) ? null : ts;
 }
 
+function normalizeHomelessCategory(status?: string | null): 'confirmed' | 'claimed' | 'declined' | 'freedom_camper' {
+  const s = String(status ?? '').toLowerCase();
+  if (s === 'confirmed') return 'confirmed';
+  if (s === 'claimed') return 'claimed';
+  if (s === 'declined') return 'declined';
+  return 'freedom_camper';
+}
+
 async function detectObservationKeyColumn(
   supabaseAdmin: ReturnType<typeof createClient>,
 ): Promise<'observation_id' | 'id'> {
@@ -262,11 +270,10 @@ serve(async (req: Request) => {
     const { data: homelessRows } = await supabaseAdmin
       .from('canonical_vehicles')
       .select('plate_number, homeless_status')
-      .in('plate_number', plates)
-      .in('homeless_status', ['confirmed', 'claimed', 'declined']);
+      .in('plate_number', plates);
 
-    const homelessStatusByPlate = new Map(
-      (homelessRows ?? []).map((r: any) => [r.plate_number, String(r.homeless_status ?? '')]),
+    const homelessStatusByPlate = new Map<string, string>(
+      (homelessRows ?? []).map((r: any) => [String(r.plate_number), String(r.homeless_status ?? '')]),
     );
 
     const getRulesForObservation = (obs: any): RuleSet | null => {
@@ -311,10 +318,10 @@ serve(async (req: Request) => {
         continue;
       }
 
-      const homelessStatus = homelessStatusByPlate.get(obs.plate_number) ?? 'declined';
-      // Three-category model: confirmed/claimed/declined.
-      // confirmed + claimed are exempt-eligible; declined is explicitly non-exempt.
-      const isHomelessExempt = homelessStatus === 'confirmed' || homelessStatus === 'claimed';
+      const homelessCategory = normalizeHomelessCategory(homelessStatusByPlate.get(obs.plate_number));
+      // Four-category model: confirmed / claimed / declined / freedom_camper.
+      // confirmed + claimed are exempt-eligible. declined and freedom_camper are non-exempt.
+      const isHomelessExempt = homelessCategory === 'confirmed' || homelessCategory === 'claimed';
 
       let isCompliant = true;
       let breachType: string | null = null;
