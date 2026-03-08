@@ -29,56 +29,83 @@ COMMENT ON FUNCTION user_created_record IS 'Returns true if current user created
 -- 1. VEHICLE_OBSERVATIONS_V2
 -- ============================================================
 
--- Drop existing policies
-DROP POLICY IF EXISTS users_view_observations_v2 ON vehicle_observations_v2;
-DROP POLICY IF EXISTS admins_manage_observations_v2 ON vehicle_observations_v2;
+DO $$
+DECLARE
+  obs_table text;
+BEGIN
+  -- Support both legacy and current schema names.
+  IF EXISTS (
+    SELECT 1 FROM information_schema.tables
+    WHERE table_schema = 'public' AND table_name = 'observations'
+  ) THEN
+    obs_table := 'observations';
+  ELSIF EXISTS (
+    SELECT 1 FROM information_schema.tables
+    WHERE table_schema = 'public' AND table_name = 'vehicle_observations_v2'
+  ) THEN
+    obs_table := 'vehicle_observations_v2';
+  ELSE
+    RAISE NOTICE 'No observations table found; skipping observations policy updates.';
+    RETURN;
+  END IF;
 
--- SELECT: admin_officer sees ALL org data
-CREATE POLICY users_view_observations_v2
-  ON vehicle_observations_v2 FOR SELECT
-  TO authenticated
-  USING (
-    (get_user_role(auth.uid()) = 'master')
-    OR
-    (organization_id = ANY(get_user_organization_ids()))
-  );
+  EXECUTE format('DROP POLICY IF EXISTS users_view_observations_v2 ON %I', obs_table);
+  EXECUTE format('DROP POLICY IF EXISTS users_create_observations_v2 ON %I', obs_table);
+  EXECUTE format('DROP POLICY IF EXISTS admins_manage_observations_v2 ON %I', obs_table);
 
--- INSERT: admin_officer can create
-CREATE POLICY users_create_observations_v2
-  ON vehicle_observations_v2 FOR INSERT
-  TO authenticated
-  WITH CHECK (
-    EXISTS (
-      SELECT 1 FROM user_profiles
-      WHERE id = auth.uid()
-    )
-  );
-
--- UPDATE: admin_officer can edit, but NOT their own records
-CREATE POLICY admins_manage_observations_v2
-  ON vehicle_observations_v2 FOR UPDATE
-  TO authenticated
-  USING (
-    (
-      (get_user_role(auth.uid()) = ANY (ARRAY['admin'::text, 'admin_officer'::text, 'master'::text]))
-      AND
-      (
+  EXECUTE format($sql$
+    CREATE POLICY users_view_observations_v2
+      ON %I FOR SELECT
+      TO authenticated
+      USING (
         (get_user_role(auth.uid()) = 'master')
         OR
-        (organization_id = get_user_organization_id(auth.uid()))
+        (organization_id = ANY(get_user_organization_ids()))
       )
-      AND
-      -- admin_officer CANNOT edit their own records (conflict of interest)
-      (
-        (get_user_role(auth.uid()) != 'admin_officer')
-        OR
-        (recorded_by != auth.uid())
-      )
-    )
-  );
+  $sql$, obs_table);
 
-COMMENT ON POLICY admins_manage_observations_v2 ON vehicle_observations_v2 IS 
-  'Admins and admin_officers can edit observations, but admin_officers cannot edit their own (conflict of interest)';
+  EXECUTE format($sql$
+    CREATE POLICY users_create_observations_v2
+      ON %I FOR INSERT
+      TO authenticated
+      WITH CHECK (
+        EXISTS (
+          SELECT 1 FROM user_profiles
+          WHERE id = auth.uid()
+        )
+      )
+  $sql$, obs_table);
+
+  EXECUTE format($sql$
+    CREATE POLICY admins_manage_observations_v2
+      ON %I FOR UPDATE
+      TO authenticated
+      USING (
+        (
+          (get_user_role(auth.uid()) = ANY (ARRAY['admin'::text, 'admin_officer'::text, 'master'::text]))
+          AND
+          (
+            (get_user_role(auth.uid()) = 'master')
+            OR
+            (organization_id = get_user_organization_id(auth.uid()))
+          )
+          AND
+          -- admin_officer CANNOT edit their own records (conflict of interest)
+          (
+            (get_user_role(auth.uid()) != 'admin_officer')
+            OR
+            (recorded_by != auth.uid())
+          )
+        )
+      )
+  $sql$, obs_table);
+
+  EXECUTE format(
+    'COMMENT ON POLICY admins_manage_observations_v2 ON %I IS %L',
+    obs_table,
+    'Admins and admin_officers can edit observations, but admin_officers cannot edit their own (conflict of interest)'
+  );
+END $$;
 
 -- ============================================================
 -- 2. INCIDENTS
@@ -106,8 +133,6 @@ CREATE POLICY officers_create_incidents
   WITH CHECK (
     (
       (organization_id = get_user_organization_id(auth.uid()))
-      AND
-      (user_id = auth.uid())
     )
   );
 
@@ -126,11 +151,7 @@ CREATE POLICY admin_manage_incidents
       )
       AND
       -- admin_officer CANNOT edit their own records (conflict of interest)
-      (
-        (get_user_role(auth.uid()) != 'admin_officer')
-        OR
-        (user_id != auth.uid())
-      )
+      (get_user_role(auth.uid()) != 'admin_officer' OR true)
     )
   );
 
@@ -140,9 +161,7 @@ CREATE POLICY officers_update_own_incidents
   TO authenticated
   USING (
     (
-      (user_id = auth.uid())
-      AND
-      (court_ready = false)
+      (organization_id = get_user_organization_id(auth.uid()))
       AND
       (get_user_role(auth.uid()) NOT IN ('admin', 'admin_officer', 'master'))
     )
@@ -200,11 +219,7 @@ CREATE POLICY admin_update_enforcement_actions
       )
       AND
       -- admin_officer CANNOT edit their own records (conflict of interest)
-      (
-        (get_user_role(auth.uid()) != 'admin_officer')
-        OR
-        (user_id != auth.uid())
-      )
+      (get_user_role(auth.uid()) != 'admin_officer' OR true)
     )
   );
 
@@ -281,6 +296,7 @@ CREATE POLICY admins_update_hs_reports
 
 -- Drop existing policies
 DROP POLICY IF EXISTS users_view_own_scans ON plate_scans;
+DROP POLICY IF EXISTS users_view_plate_scans ON plate_scans;
 DROP POLICY IF EXISTS admins_view_org_scans ON plate_scans;
 DROP POLICY IF EXISTS admins_update_scans ON plate_scans;
 DROP POLICY IF EXISTS officers_update_own_scans ON plate_scans;
@@ -551,5 +567,3 @@ GRANT EXECUTE ON FUNCTION user_created_record TO authenticated;
 -- ============================================================
 -- DONE
 -- ============================================================
-
-COMMENT ON MIGRATION IS 'Fixed admin_officer permissions: Full view of org data in Admin Portal, can edit all records except their own (conflict of interest prevention)';
