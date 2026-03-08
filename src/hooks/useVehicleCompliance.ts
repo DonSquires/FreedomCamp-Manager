@@ -184,8 +184,9 @@ export function useVehicleCompliance(plateNumber?: string, options?: {
   // Recalculate compliance mutation
   const recalculateCompliance = useMutation({
     mutationFn: async (observationId: string) => {
-      const { data, error } = await edgeFunctions.recalculateCompliance({
+      const { data, error } = await edgeFunctions.testComplianceMatrix({
         observation_id: observationId,
+        apply: true,
       })
 
       if (error) {

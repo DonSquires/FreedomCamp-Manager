@@ -174,7 +174,7 @@ export default function ComplianceRecalculation() {
       <div className="max-w-4xl mx-auto space-y-6">
         <div className="flex items-center justify-center">
           <Badge variant="secondary" className="text-xs">
-            Active Engine: recalculate-compliance (observations table · batch {BATCH_SIZE})
+            Active Engine: recalculate-compliance-v3 (v2-compatible wrapper)
           </Badge>
         </div>
 
@@ -388,7 +388,7 @@ export default function ComplianceRecalculation() {
                 )}
               </Button>
               <p className="mt-2 text-xs text-muted-foreground text-center">
-                Uses <code>recalculate-compliance</code> edge function · processes {BATCH_SIZE} records per server batch · each run is logged in Admin Actions
+                Uses canonical compliance engine: <code>recalculate-compliance-v3</code>
               </p>
             </div>
           </CardContent>

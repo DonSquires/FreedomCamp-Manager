@@ -195,7 +195,10 @@ export const edgeFunctions = {
   },
 
   /**
-   * Strict zone-based compliance recalculation
+   * Strict zone-based compliance recalculation.
+   *
+   * Canonical runtime now routes through recalculate-compliance-v3 while
+   * preserving the v2 parameter/response shape expected by existing UI.
    */
   recalculateComplianceV2: async (params: {
     zone_id?: string
@@ -212,14 +215,57 @@ export const edgeFunctions = {
         ? [params.zone_id]
         : []
 
-    return callEdgeFunction('recalculate-compliance-v2', {
-      zoneIds,
-      dateRangeStart: params.date_from,
-      dateRangeEnd: params.date_to,
+    const v3Response = await callEdgeFunction('recalculate-compliance-v3', {
+      zone_ids: zoneIds,
+      date_from: params.date_from,
+      date_to: params.date_to,
       get_total: params.get_total,
       offset: params.offset,
-      batch_size: params.batch_size,
+      limit: params.batch_size,
+      apply: true,
     })
+
+    if (v3Response.error || !v3Response.data) {
+      return v3Response
+    }
+
+    const data: any = v3Response.data
+    if (params.get_total) {
+      return {
+        data: {
+          total: Number(data.total ?? 0),
+        },
+        error: null,
+      }
+    }
+
+    return {
+      data: {
+        processed: Number(data.processed ?? 0),
+        complianceChanged: Number(data.compliance_changed ?? 0),
+        breachesCreated: Number(data.breaches_created ?? 0),
+        skippedNoRules: Number(data.skipped_no_rules ?? 0),
+      },
+      error: null,
+    }
+  },
+
+  /**
+   * Fresh compliance recalculation path for current observations schema.
+   * This function is independent from legacy vehicle_observations_v2 logic.
+   */
+  recalculateComplianceV3: async (params: {
+    zone_id?: string
+    zone_ids?: string[]
+    organization_id?: string
+    date_from?: string
+    date_to?: string
+    limit?: number
+    offset?: number
+    apply?: boolean
+    get_total?: boolean
+  }) => {
+    return callEdgeFunction('recalculate-compliance-v3', params)
   },
 
   /**

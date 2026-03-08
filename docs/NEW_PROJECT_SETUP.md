@@ -23,6 +23,32 @@ Estimated setup time: **2–3 hours** for someone familiar with these tools.
 
 ---
 
+## Canonical Runtime Paths (Current)
+
+Use these as the single operational paths to avoid duplicated processing:
+
+- Compliance recalculation (batch and backfill): `recalculate-compliance-v3`
+- Single-observation compliance retest: `test-compliance-matrix`
+- Observation zone UUID reconciliation: RPC `reassign_observations_to_current_zones`
+
+Legacy endpoints (`recalculate-compliance`, `recalculate-compliance-v2`) may still exist for compatibility,
+but new workflows should be wired to the canonical paths above.
+
+Operational commands:
+
+```bash
+# Live batch recalculation (v3, 1000 rows per batch)
+/tmp/run_recalc_v3_full_1k.sh
+
+# Read-only verification by homeless category since effective baseline
+SUPABASE_URL="https://YOUR_REF.supabase.co" \
+SUPABASE_SERVICE_ROLE_KEY="YOUR_SERVICE_ROLE_KEY" \
+DATE_FROM="2025-12-01T00:00:00Z" \
+./.tools/bin/bun scripts/verify-homeless-categories.mjs
+```
+
+---
+
 ## Part 1 — Supabase Project
 
 ### 1.1 Create the project

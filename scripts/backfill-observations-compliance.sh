@@ -2,7 +2,7 @@
 set -eu
 
 # Backfill compliance for existing rows in public.observations
-# by invoking the recalculate-compliance edge function.
+# by invoking the recalculate-compliance-v3 edge function.
 #
 # Required env vars:
 #   SUPABASE_URL          e.g. https://<ref>.supabase.co
@@ -56,14 +56,14 @@ else
 fi
 
 echo "Starting compliance backfill..."
-echo "Endpoint: $SUPABASE_URL/functions/v1/recalculate-compliance"
+echo "Endpoint: $SUPABASE_URL/functions/v1/recalculate-compliance-v3"
 echo "Payload: $payload"
 
 tmp_resp="$(mktemp)"
 trap 'rm -f "$tmp_resp"' EXIT
 
 status="$(curl -sS -o "$tmp_resp" -w "%{http_code}" \
-  -X POST "$SUPABASE_URL/functions/v1/recalculate-compliance" \
+  -X POST "$SUPABASE_URL/functions/v1/recalculate-compliance-v3" \
   -H "Authorization: Bearer $USER_JWT" \
   -H "apikey: $SUPABASE_ANON_KEY" \
   -H "Content-Type: application/json" \
@@ -79,12 +79,13 @@ if [ "$status" -lt 200 ] || [ "$status" -ge 300 ]; then
 fi
 
 if command -v jq >/dev/null 2>&1; then
-  processed="$(jq -r '.observations_processed // "n/a"' "$tmp_resp" 2>/dev/null || echo n/a)"
+  processed="$(jq -r '.processed // .observations_processed // "n/a"' "$tmp_resp" 2>/dev/null || echo n/a)"
   changed="$(jq -r '.compliance_changed // "n/a"' "$tmp_resp" 2>/dev/null || echo n/a)"
-  duration="$(jq -r '.duration_seconds // "n/a"' "$tmp_resp" 2>/dev/null || echo n/a)"
+  created="$(jq -r '.breaches_created // "n/a"' "$tmp_resp" 2>/dev/null || echo n/a)"
+  skipped="$(jq -r '.skipped_no_rules // "n/a"' "$tmp_resp" 2>/dev/null || echo n/a)"
   status_txt="$(jq -r '.status // "unknown"' "$tmp_resp" 2>/dev/null || echo unknown)"
 
-  echo "Summary: status=$status_txt observations_processed=$processed compliance_changed=$changed duration_seconds=$duration"
+  echo "Summary: status=$status_txt processed=$processed compliance_changed=$changed breaches_created=$created skipped_no_rules=$skipped"
 fi
 
 echo "Compliance backfill complete."
