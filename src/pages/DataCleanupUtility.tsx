@@ -30,12 +30,20 @@ interface CleanupTask {
   action: () => Promise<{ deleted: number; message: string }>
 }
 
+interface TaskProgress {
+  total: number
+  processed: number
+  removed: number
+  percent: number
+}
+
 export default function DataCleanupUtility() {
   const { user } = useAuthStore()
   const { organizationId } = useGlobalFiltersStore()
   const queryClient = useQueryClient()
   const [runningTask, setRunningTask] = useState<string | null>(null)
   const [taskResults, setTaskResults] = useState<Record<string, { deleted: number; message: string }>>({})
+  const [taskProgress, setTaskProgress] = useState<Record<string, TaskProgress>>({})
 
   // Fetch cleanup candidates
   const { data: cleanupStats, isLoading } = useQuery({
@@ -103,6 +111,16 @@ export default function DataCleanupUtility() {
       icon: FileX,
       severity: 'high',
       action: async () => {
+        setTaskProgress(prev => ({
+          ...prev,
+          'duplicate-observations': {
+            total: 0,
+            processed: 0,
+            removed: 0,
+            percent: 0,
+          },
+        }))
+
         const zoneIds = organizationId
           ? ((await supabase
             .from('zones')
@@ -120,14 +138,34 @@ export default function DataCleanupUtility() {
 
         const total = Number((totalData as any)?.total ?? 0)
         if (total <= 0) {
+          setTaskProgress(prev => ({
+            ...prev,
+            'duplicate-observations': {
+              total: 0,
+              processed: 0,
+              removed: 0,
+              percent: 100,
+            },
+          }))
           return {
             deleted: 0,
             message: 'No duplicate observations found for current filter scope',
           }
         }
 
+        setTaskProgress(prev => ({
+          ...prev,
+          'duplicate-observations': {
+            total,
+            processed: 0,
+            removed: 0,
+            percent: 0,
+          },
+        }))
+
         const batchSize = 250
         let removedTotal = 0
+        let processedTotal = 0
 
         for (let offset = 0; offset < total; offset += batchSize) {
           const { data: batchData, error: batchError } = await edgeFunctions.detectDuplicates({
@@ -137,8 +175,30 @@ export default function DataCleanupUtility() {
           })
 
           if (batchError) throw new Error(batchError)
+          processedTotal += Number((batchData as any)?.processed ?? 0)
           removedTotal += Number((batchData as any)?.removed ?? 0)
+
+          const percent = total > 0 ? Math.min(100, Math.round((processedTotal / total) * 100)) : 100
+          setTaskProgress(prev => ({
+            ...prev,
+            'duplicate-observations': {
+              total,
+              processed: processedTotal,
+              removed: removedTotal,
+              percent,
+            },
+          }))
         }
+
+        setTaskProgress(prev => ({
+          ...prev,
+          'duplicate-observations': {
+            total,
+            processed: total,
+            removed: removedTotal,
+            percent: 100,
+          },
+        }))
 
         return {
           deleted: removedTotal,
@@ -259,6 +319,12 @@ export default function DataCleanupUtility() {
       toast.error(`Cleanup failed: ${error.message}`)
     } finally {
       setRunningTask(null)
+      setTaskProgress(prev => {
+        if (!(task.id in prev)) return prev
+        const clone = { ...prev }
+        delete clone[task.id]
+        return clone
+      })
     }
   }
 
@@ -374,6 +440,7 @@ export default function DataCleanupUtility() {
             const Icon = task.icon
             const isRunning = runningTask === task.id
             const result = taskResults[task.id]
+            const progress = taskProgress[task.id]
 
             return (
               <Card key={task.id}>
@@ -424,6 +491,30 @@ export default function DataCleanupUtility() {
                       </div>
                     )}
                   </div>
+
+                  {isRunning && progress && (
+                    <div className="mt-4 space-y-3">
+                      <Progress value={progress.percent} className="w-full" />
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
+                        <div className="bg-muted/40 rounded p-2">
+                          <div className="text-muted-foreground">Progress</div>
+                          <div className="font-semibold">{progress.percent}%</div>
+                        </div>
+                        <div className="bg-muted/40 rounded p-2">
+                          <div className="text-muted-foreground">Processed</div>
+                          <div className="font-semibold">{progress.processed.toLocaleString()}</div>
+                        </div>
+                        <div className="bg-muted/40 rounded p-2">
+                          <div className="text-muted-foreground">Total</div>
+                          <div className="font-semibold">{progress.total.toLocaleString()}</div>
+                        </div>
+                        <div className="bg-muted/40 rounded p-2">
+                          <div className="text-muted-foreground">Removed</div>
+                          <div className="font-semibold text-green-600">{progress.removed.toLocaleString()}</div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             )
