@@ -2,6 +2,12 @@
 # PHOTO INTEGRITY MONITORING & SLO TRACKING
 # Target SLO: ≥99.95% photo retrievability
 # ============================================
+#
+# Schema note: queries use the `observations` table (photo_url + photo_hash
+# columns). The legacy `vehicle_observations_v2` table no longer exists.
+# Views photo_integrity_health and recent_observations_photo_status are
+# created by migration 20260323_photo_recovery_infrastructure.sql.
+# ============================================
 
 ## Critical Metrics Dashboard
 
@@ -9,26 +15,26 @@
 
 ```sql
 -- Overall photo integrity health
-SELECT 
+SELECT
   organization_name,
   total_observations,
-  with_hash,
-  missing_hash,
-  hash_coverage_pct,
-  CASE 
-    WHEN hash_coverage_pct >= 99.95 THEN '✅ MEETS SLO'
-    WHEN hash_coverage_pct >= 99.00 THEN '⚠️ AT RISK'
+  with_photo,
+  missing_any,
+  photo_coverage_pct,
+  CASE
+    WHEN photo_coverage_pct >= 99.95 THEN '✅ MEETS SLO'
+    WHEN photo_coverage_pct >= 99.00 THEN '⚠️ AT RISK'
     ELSE '❌ BELOW SLO'
   END AS slo_status
 FROM photo_integrity_health
-ORDER BY hash_coverage_pct ASC;
+ORDER BY photo_coverage_pct ASC;
 ```
 
 ### 2. Recent Photo Status (Last 7 Days)
 
 ```sql
 -- Photo status for recent observations
-SELECT 
+SELECT
   status,
   COUNT(*) AS count,
   ROUND(100.0 * COUNT(*) / SUM(COUNT(*)) OVER(), 2) AS percentage
@@ -38,22 +44,25 @@ ORDER BY count DESC;
 
 -- Should show:
 -- ok: ~100% (if photo-first enforcement working)
+-- missing_url: 0%
 -- missing_hash: 0%
--- invalid_bytes: 0%
--- blocked: <0.05% (manual flags only)
+-- missing_both: 0%
 ```
 
 ### 3. Photo Upload Success Rate (Last 24 Hours)
 
 ```sql
--- Track photo upload failures
-SELECT 
+-- Track photo upload failures (observations table)
+SELECT
   DATE_TRUNC('hour', created_at) AS hour,
   COUNT(*) AS attempts,
-  COUNT(CASE WHEN photo_original_sha256 IS NOT NULL THEN 1 END) AS successful,
-  COUNT(CASE WHEN photo_original_sha256 IS NULL THEN 1 END) AS failed,
-  ROUND(100.0 * COUNT(CASE WHEN photo_original_sha256 IS NOT NULL THEN 1 END) / COUNT(*), 2) AS success_rate_pct
-FROM vehicle_observations_v2
+  COUNT(CASE WHEN photo_url  IS NOT NULL AND photo_hash IS NOT NULL THEN 1 END) AS successful,
+  COUNT(CASE WHEN photo_url  IS NULL     OR  photo_hash IS NULL     THEN 1 END) AS failed,
+  ROUND(
+    100.0 * COUNT(CASE WHEN photo_url IS NOT NULL AND photo_hash IS NOT NULL THEN 1 END) / COUNT(*),
+    2
+  ) AS success_rate_pct
+FROM observations
 WHERE created_at >= now() - INTERVAL '24 hours'
 GROUP BY hour
 ORDER BY hour DESC;
@@ -65,28 +74,30 @@ ORDER BY hour DESC;
 
 ```sql
 -- Observations created in last 15 minutes (for near-real-time monitoring)
-SELECT 
-  observation_id,
+SELECT
+  id              AS observation_id,
   organization_id,
   plate_number,
-  photo_original_sha256,
+  photo_hash,
   photo_url,
   created_at
-FROM vehicle_observations_v2
-WHERE 
+FROM observations
+WHERE
   created_at >= now() - INTERVAL '15 minutes'
-  AND photo_original_sha256 IS NOT NULL
+  AND photo_url IS NOT NULL
 ORDER BY created_at DESC;
 
--- Note: Application layer must perform HEAD check on photo_url
--- If 404 detected, trigger alert and add to missing_photo_queue
+-- Note: Application layer or daily-photo-reconciler must perform HEAD check on photo_url.
+-- If 404 detected, trigger alert and add to missing_photo_queue.
+-- Run the edge function to automate this:
+--   POST /functions/v1/daily-photo-reconciler  { "check_storage_head": true }
 ```
 
 ### 5. Missing Photo Queue Status
 
 ```sql
 -- Backfill/repair queue health
-SELECT 
+SELECT
   status,
   reason,
   COUNT(*) AS count,
@@ -102,19 +113,27 @@ ORDER BY count DESC;
 -- - manual_required not being reviewed
 ```
 
-### 6. Evidence Access Audit (Chain-of-Custody)
+### 6. Photo Recovery Audit Log (Chain-of-Custody)
 
 ```sql
--- Recent evidence access activity
-SELECT 
+-- Recent recovery actions
+SELECT
   DATE_TRUNC('day', occurred_at) AS day,
   action,
+  source,
+  success,
   COUNT(*) AS count,
-  COUNT(DISTINCT actor) AS unique_users
-FROM evidence_access_log
+  COUNT(DISTINCT actor_label) AS unique_actors
+FROM photo_recovery_audit_log
 WHERE occurred_at >= now() - INTERVAL '30 days'
-GROUP BY day, action
+GROUP BY day, action, source, success
 ORDER BY day DESC, count DESC;
+
+-- Full audit trail for a specific observation
+SELECT *
+FROM photo_recovery_audit_log
+WHERE observation_id = '{observation_id}'
+ORDER BY occurred_at ASC;
 ```
 
 ### 7. NZSCV Cache Hit Rate
@@ -140,25 +159,26 @@ ORDER BY day DESC;
 
 ```sql
 -- ALERT 1: Photo coverage below SLO
-SELECT organization_name, hash_coverage_pct
+SELECT organization_name, photo_coverage_pct
 FROM photo_integrity_health
-WHERE hash_coverage_pct < 99.95;
+WHERE photo_coverage_pct < 99.95;
 -- If ANY rows returned: PAGE ON-CALL
 
 -- ALERT 2: Recent observations without photos
 SELECT COUNT(*) AS observations_without_photos
-FROM vehicle_observations_v2
-WHERE 
+FROM observations
+WHERE
   created_at >= now() - INTERVAL '15 minutes'
-  AND photo_original_sha256 IS NULL;
+  AND (photo_url IS NULL OR photo_hash IS NULL);
 -- If count > 0: PAGE ON-CALL
 
 -- ALERT 3: Storage HEAD failures (404 rate)
--- Note: Must be checked by application layer
--- If 404 rate > 0.1% over 15 minutes: PAGE ON-CALL
+-- Automated by daily-photo-reconciler; check missing_photo_queue for reason='object_404'
+SELECT COUNT(*) FROM missing_photo_queue WHERE reason = 'object_404' AND status != 'fixed';
+-- If count > 0: PAGE ON-CALL
 
 -- ALERT 4: Hash mismatch on export
--- Note: Detected during court-ready PDF generation
+-- Detected during court-ready PDF generation
 -- If ANY hash mismatch: PAGE ON-CALL + BLOCK EXPORT
 ```
 
@@ -168,7 +188,7 @@ WHERE
 -- WARNING 1: Pending repairs aging
 SELECT COUNT(*) AS aged_repairs
 FROM missing_photo_queue
-WHERE 
+WHERE
   status = 'pending'
   AND created_at < now() - INTERVAL '24 hours';
 -- If count > 0: NOTIFY ADMIN
@@ -176,7 +196,7 @@ WHERE
 -- WARNING 2: Manual review backlog
 SELECT COUNT(*) AS manual_backlog
 FROM missing_photo_queue
-WHERE 
+WHERE
   status = 'manual_required'
   AND assigned_to IS NULL;
 -- If count > 10: NOTIFY ADMIN
@@ -184,7 +204,7 @@ WHERE
 -- WARNING 3: NZSCV cache expiring soon
 SELECT COUNT(*) AS expiring_soon
 FROM nzscv_cache
-WHERE 
+WHERE
   is_current = true
   AND cache_expires_at < now() + INTERVAL '24 hours';
 -- If count > 0: NOTIFY ADMIN (refresh cache)
@@ -195,39 +215,40 @@ WHERE
 ```sql
 -- Executive summary of photo integrity (run daily at 6am)
 WITH metrics AS (
-  SELECT 
+  SELECT
     COUNT(*) AS total_observations,
-    COUNT(photo_original_sha256) AS with_photos,
-    COUNT(*) - COUNT(photo_original_sha256) AS without_photos,
-    ROUND(100.0 * COUNT(photo_original_sha256) / COUNT(*), 4) AS coverage_pct,
-    COUNT(CASE WHEN review_blocked = true THEN 1 END) AS review_blocked_count
-  FROM vehicle_observations_v2
+    COUNT(CASE WHEN photo_url IS NOT NULL AND photo_hash IS NOT NULL THEN 1 END) AS with_photos,
+    COUNT(*) - COUNT(CASE WHEN photo_url IS NOT NULL AND photo_hash IS NOT NULL THEN 1 END) AS without_photos,
+    ROUND(
+      100.0 * COUNT(CASE WHEN photo_url IS NOT NULL AND photo_hash IS NOT NULL THEN 1 END) / NULLIF(COUNT(*),0),
+      4
+    ) AS coverage_pct
+  FROM observations
 ),
 queue_status AS (
-  SELECT 
-    COUNT(CASE WHEN status = 'pending' THEN 1 END) AS pending_repairs,
+  SELECT
+    COUNT(CASE WHEN status = 'pending'         THEN 1 END) AS pending_repairs,
     COUNT(CASE WHEN status = 'manual_required' THEN 1 END) AS manual_review,
-    COUNT(CASE WHEN status = 'abandoned' THEN 1 END) AS abandoned
+    COUNT(CASE WHEN status = 'abandoned'       THEN 1 END) AS abandoned
   FROM missing_photo_queue
 ),
 recent_activity AS (
-  SELECT 
+  SELECT
     COUNT(*) AS observations_last_24h,
-    COUNT(photo_original_sha256) AS with_photos_last_24h
-  FROM vehicle_observations_v2
+    COUNT(CASE WHEN photo_url IS NOT NULL AND photo_hash IS NOT NULL THEN 1 END) AS with_photos_last_24h
+  FROM observations
   WHERE created_at >= now() - INTERVAL '24 hours'
 )
-SELECT 
+SELECT
   m.total_observations,
   m.with_photos,
   m.without_photos,
   m.coverage_pct,
-  CASE 
+  CASE
     WHEN m.coverage_pct >= 99.95 THEN '✅ MEETS SLO'
     WHEN m.coverage_pct >= 99.00 THEN '⚠️ AT RISK'
     ELSE '❌ BELOW SLO'
   END AS slo_status,
-  m.review_blocked_count,
   q.pending_repairs,
   q.manual_review,
   q.abandoned,
@@ -240,21 +261,17 @@ FROM metrics m, queue_status q, recent_activity r;
 ## Performance Benchmarks
 
 ```sql
--- Photo upload latency (from device_time to server_received_at)
-SELECT 
+-- Photo upload latency – requires device_time column if present
+-- observations table does not currently have device_time; adapt as needed
+SELECT
   organization_id,
-  PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM (server_received_at - device_time))) AS p50_latency_seconds,
-  PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM (server_received_at - device_time))) AS p95_latency_seconds,
-  PERCENTILE_CONT(0.99) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM (server_received_at - device_time))) AS p99_latency_seconds
-FROM vehicle_observations_v2
-WHERE 
-  created_at >= now() - INTERVAL '7 days'
-  AND device_time IS NOT NULL
-  AND server_received_at IS NOT NULL
-  AND server_received_at > device_time -- Filter out clock skew outliers
+  COUNT(*) AS total,
+  COUNT(CASE WHEN photo_url IS NOT NULL THEN 1 END) AS uploaded
+FROM observations
+WHERE created_at >= now() - INTERVAL '7 days'
 GROUP BY organization_id;
 
--- Target: p95 < 60 seconds, p99 < 120 seconds
+-- Target: 100% upload rate; p95 upload latency < 60s (monitor via application layer)
 ```
 
 ## Grafana/Prometheus Queries
@@ -287,87 +304,29 @@ count(missing_photo_queue{status="$status"})
 
 ## Automated Reconciler Job
 
-```typescript
-// Edge Function: daily-photo-reconciler
-// Runs: Every day at 2am UTC+12 (NZ timezone)
+The `daily-photo-reconciler` Edge Function handles all monitoring steps automatically.
 
-export async function dailyPhotoReconciler() {
-  console.log('[RECONCILER] Starting daily photo integrity check');
-  
-  // 1. Check recent observations for storage anomalies
-  const { data: recentObs } = await supabase
-    .from('recent_observations_photo_status')
-    .select('*')
-    .eq('status', 'ok');
-  
-  let storageFailures = 0;
-  
-  for (const obs of recentObs) {
-    const photoPath = `originals/${obs.organization_id}/.../obsobs.photo_original_sha256}.jpg`;
-    
-    // HEAD check
-    const { error } = await supabase.storage
-      .from('evidence')
-      .download(photoPath);
-    
-    if (error) {
-      console.error(`[RECONCILER] Storage 404: ${obs.observation_id}`);
-      storageFailures++;
-      
-      // Add to missing_photo_queue
-      await supabase
-        .from('missing_photo_queue')
-        .insert({
-          observation_id: obs.observation_id,
-          organization_id: obs.organization_id,
-          reason: 'object_404',
-          status: 'repairing'
-        });
-    }
-  }
-  
-  // 2. Check for aged pending repairs
-  const { data: agedRepairs } = await supabase
-    .from('missing_photo_queue')
-    .select('*')
-    .eq('status', 'pending')
-    .lt('created_at', new Date(Date.now() - 24 * 60 * 60 * 1000));
-  
-  if (agedRepairs && agedRepairs.length > 0) {
-    console.warn(`[RECONCILER] ${agedRepairs.length} repairs aged > 24 hours`);
-    // Send notification to admins
-  }
-  
-  // 3. Cleanup expired idempotency keys
-  await supabase
-    .from('scan_idempotency_keys')
-    .delete()
-    .lt('expires_at', new Date().toISOString());
-  
-  // 4. Refresh expiring NZSCV cache entries
-  const { data: expiringCache } = await supabase
-    .from('nzscv_cache')
-    .select('plate_number')
-    .eq('is_current', true)
-    .lt('cache_expires_at', new Date(Date.now() + 24 * 60 * 60 * 1000));
-  
-  for (const entry of expiringCache || []) {
-    // Refresh NZSCV warrant data
-    // (Implementation depends on NZSCV API availability)
-  }
-  
-  console.log('[RECONCILER] Daily reconciliation complete', {
-    storage_failures: storageFailures,
-    aged_repairs: agedRepairs?.length || 0
-  });
-  
-  return {
-    success: true,
-    storage_failures: storageFailures,
-    aged_repairs: agedRepairs?.length || 0
-  };
-}
+```bash
+# Trigger manually (admin/master only)
+curl -X POST "$SUPABASE_URL/functions/v1/daily-photo-reconciler" \
+  -H "Authorization: Bearer $ADMIN_JWT" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "check_storage_head": true,
+    "storage_head_limit": 200,
+    "cleanup_idempotency": true
+  }'
 ```
+
+The function:
+1. Calls `detect_missing_photos()` to find new orphaned observations
+2. HEAD-checks storage for `object_404` anomalies
+3. Alerts on aged pending repairs (> 24 h)
+4. Cleans up expired `scan_idempotency_keys`
+5. Logs all findings to `photo_recovery_audit_log`
+6. Returns a health summary including `integrity_health.slo_status`
+
+Schedule via Supabase Cron (pg_cron) or an external scheduler at `02:00 NZT` daily.
 
 ## Success Criteria Summary
 
