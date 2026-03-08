@@ -3,6 +3,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Car, MapPin, Calendar, AlertTriangle, Shield, Eye } from 'lucide-react'
 import { formatDateTime } from '@/lib/utils'
+import { homelessStatusLabel, isHomelessForUi } from '@/lib/homelessStatus'
 import type { Vehicle } from '@/types'
 
 interface VehicleCardProps {
@@ -74,11 +75,11 @@ export function VehicleCard({ vehicle, onViewDetails, showActions = true }: Vehi
               </span>
             </div>
 
-            {vehicle.homeless_status && vehicle.homeless_status !== 'none' && (
+            {isHomelessForUi(vehicle.homeless_status) && (
               <div className="flex items-center justify-between text-sm">
                 <span className="text-gray-600">Homeless Status:</span>
                 <Badge variant="outline" className="text-xs bg-orange-50">
-                  {vehicle.homeless_status}
+                  {homelessStatusLabel(vehicle.homeless_status)}
                 </Badge>
               </div>
             )}

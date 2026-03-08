@@ -130,7 +130,7 @@ export default function FieldOfficerPortal() {
     checkGeofence()
     const interval = setInterval(checkGeofence, 30000)
     return () => clearInterval(interval)
-  }, [user, currentPatrolZone])
+  }, [user, currentPatrolZone, setZone])
 
   const fileToDataUrl = (file: File) =>
     new Promise<string>((resolve, reject) => {

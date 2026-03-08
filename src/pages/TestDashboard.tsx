@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -39,50 +39,47 @@ export default function TestDashboard() {
   const [isRunning, setIsRunning] = useState(false)
 
   // Load test results from JSON file (if exists)
-  useEffect(() => {
-    loadTestResults()
-  }, [])
-
-  const loadTestResults = async () => {
+  const loadTestResults = useCallback(async () => {
     try {
       const response = await fetch('/test-results/results.json')
       if (response.ok) {
         const data = await response.json()
         setTestResults(data)
-        processTestResults(data)
+
+        // Parse Playwright test results and organize by test area
+        const areas = getDefaultTestAreas()
+
+        if (data.suites) {
+          data.suites.forEach((suite: any) => {
+            const area = areas.find(a => suite.title.includes(a.name))
+            if (area) {
+              suite.specs.forEach((spec: any) => {
+                area.tests.push({
+                  id: spec.id || spec.title,
+                  name: spec.title,
+                  status: spec.ok ? 'passed' : 'failed',
+                  duration: spec.tests?.[0]?.results?.[0]?.duration,
+                  error: spec.tests?.[0]?.results?.[0]?.error?.message,
+                  timestamp: new Date().toISOString(),
+                })
+              })
+            }
+          })
+        }
+
+        setTestAreas(areas)
+        calculateProgress(areas)
       }
     } catch (error) {
       console.error('Failed to load test results:', error)
       // Load default test areas structure
       setTestAreas(getDefaultTestAreas())
     }
-  }
+  }, [])
 
-  const processTestResults = (data: any) => {
-    // Parse Playwright test results and organize by test area
-    const areas = getDefaultTestAreas()
-    
-    if (data.suites) {
-      data.suites.forEach((suite: any) => {
-        const area = areas.find(a => suite.title.includes(a.name))
-        if (area) {
-          suite.specs.forEach((spec: any) => {
-            area.tests.push({
-              id: spec.id || spec.title,
-              name: spec.title,
-              status: spec.ok ? 'passed' : 'failed',
-              duration: spec.tests?.[0]?.results?.[0]?.duration,
-              error: spec.tests?.[0]?.results?.[0]?.error?.message,
-              timestamp: new Date().toISOString(),
-            })
-          })
-        }
-      })
-    }
-
-    setTestAreas(areas)
-    calculateProgress(areas)
-  }
+  useEffect(() => {
+    loadTestResults()
+  }, [loadTestResults])
 
   const getDefaultTestAreas = (): TestArea[] => [
     {

@@ -3,7 +3,7 @@
  * Enhanced camera controls for evidence photo capture with metadata overlay
  */
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { 
@@ -67,7 +67,7 @@ export function CameraCapture({
   const [autoDetectedZone, setAutoDetectedZone] = useState<string | null>(null)
 
   // Start camera stream
-  const startCamera = async () => {
+  const startCamera = useCallback(async () => {
     try {
       const constraints: MediaStreamConstraints = {
         video: {
@@ -104,16 +104,16 @@ export function CameraCapture({
       toast.error('Camera access denied or unavailable')
       onCancel()
     }
-  }
+  }, [facingMode, onCancel])
 
   // Stop camera stream
-  const stopCamera = () => {
+  const stopCamera = useCallback(() => {
     if (streamRef.current) {
       streamRef.current.getTracks().forEach(track => track.stop())
       streamRef.current = null
     }
     setIsStreaming(false)
-  }
+  }, [])
 
   // Toggle flash
   const toggleFlash = async () => {
@@ -257,7 +257,7 @@ export function CameraCapture({
       clearInterval(timeInterval)
       stopCamera()
     }
-  }, [zones])
+  }, [zones, startCamera, stopCamera])
 
   return (
     <div className="fixed inset-0 z-50 bg-black">

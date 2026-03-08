@@ -55,13 +55,21 @@ async function runImport() {
     // Safely parse JSON arrays for allowed_days
     let allowedDays = null
     if (row.allowed_days && row.allowed_days.trim() !== '') {
-      try { allowedDays = JSON.parse(row.allowed_days) } catch (e) { }
+      try {
+        allowedDays = JSON.parse(row.allowed_days)
+      } catch (_err) {
+        // Keep null when source data is malformed.
+      }
     }
 
     // Safely parse JSON for geometry
     let geometry = null
     if (row.geometry && row.geometry.trim() !== '') {
-      try { geometry = JSON.parse(row.geometry) } catch (e) { }
+      try {
+        geometry = JSON.parse(row.geometry)
+      } catch (_err) {
+        // Keep null when source data is malformed.
+      }
     }
 
     return {

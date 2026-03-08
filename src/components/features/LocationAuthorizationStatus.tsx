@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { CheckCircle, XCircle, Navigation, AlertTriangle } from 'lucide-react'
@@ -38,7 +38,7 @@ export function LocationAuthorizationStatus({
   // When the RPC doesn't exist yet in the DB, hide the component silently
   const [unavailable, setUnavailable] = useState(false)
 
-  const checkLocation = async () => {
+  const checkLocation = useCallback(async () => {
     if (!latitude || !longitude || !organizationId || unavailable) return
 
     setChecking(true)
@@ -79,12 +79,12 @@ export function LocationAuthorizationStatus({
     } finally {
       setChecking(false)
     }
-  }
+  }, [latitude, longitude, organizationId, unavailable, onStatusChange])
 
   // Check on mount and when coordinates change
   useEffect(() => {
     checkLocation()
-  }, [latitude, longitude, organizationId])
+  }, [checkLocation])
 
   // Auto-refresh — stops automatically once unavailable is set
   useEffect(() => {
@@ -92,7 +92,7 @@ export function LocationAuthorizationStatus({
 
     const interval = setInterval(checkLocation, refreshInterval)
     return () => clearInterval(interval)
-  }, [refreshInterval, latitude, longitude, organizationId, unavailable])
+  }, [refreshInterval, unavailable, checkLocation])
 
   // RPC not deployed yet — hide the component silently, no error shown
   if (unavailable) return null

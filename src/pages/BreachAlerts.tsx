@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
@@ -98,7 +98,7 @@ export default function BreachAlerts() {
 
   // ── Intelligence Alerts: flagged vehicles after hours / day-visit violations
   const { data: intelligenceAlerts } = useQuery({
-    queryKey: ['intelligence-alerts', organizationId, zoneId],
+    queryKey: ['intelligence-alerts', effectiveOrganizationId, zoneId, dateFrom, dateTo],
     queryFn: async () => {
       let q = (supabase.from('breach_alerts') as any)
         .select('id, plate_number, breach_type, created_at, status, zones!zone_id(name)')
@@ -121,12 +121,11 @@ export default function BreachAlerts() {
 
   // ── Safety Alerts: officer unexpected departures (welfare inactivity) ──────
   const { data: safetyAlerts } = useQuery({
-    queryKey: ['safety-alerts', organizationId],
+    queryKey: ['safety-alerts', effectiveOrganizationId, dateFrom, dateTo],
     queryFn: async () => {
       let q = (supabase.from('officer_welfare_alerts') as any)
         .select('id, officer_name, alert_type, status, created_at, gps_latitude, gps_longitude')
-        .in('alert_type', ['inactivity', 'gps_lost'])
-        .eq('status', 'pending')
+        .in('status', ['pending', 'acknowledged'])
         .order('created_at', { ascending: false })
         .limit(10)
 
@@ -143,7 +142,7 @@ export default function BreachAlerts() {
 
   // Fetch breach alerts (use created_at, not detected_at)
   const { data: breaches, isLoading } = useQuery({
-    queryKey: ['breach-alerts', organizationId, zoneId, statusFilter, searchQuery, dateFrom, dateTo],
+    queryKey: ['breach-alerts', effectiveOrganizationId, zoneId, statusFilter, searchQuery, dateFrom, dateTo],
     queryFn: async () => {
       let query = (supabase.from('breach_alerts') as any)
         .select(`
@@ -351,25 +350,25 @@ export default function BreachAlerts() {
 
   // ── Decision Dock actions ─────────────────────────────────────────────────
 
-  const handleIssueEnforcement = () => {
+  const handleIssueEnforcement = useCallback(() => {
     if (!activeBreach) return
     if (!['pending', 'acknowledged'].includes(activeBreach.status)) {
       toast.warning('Cannot issue enforcement for this status')
       return
     }
     enforcementMutation.mutate(activeBreach.id)
-  }
+  }, [activeBreach, enforcementMutation])
 
-  const handleIssueWarning = () => {
+  const handleIssueWarning = useCallback(() => {
     if (!activeBreach) return
     if (activeBreach.status !== 'pending') {
       toast.warning('Warning can only be issued for pending breaches')
       return
     }
     acknowledgeMutation.mutate(activeBreach.id)
-  }
+  }, [activeBreach, acknowledgeMutation])
 
-  const handleReject = () => {
+  const handleReject = useCallback(() => {
     if (!activeBreach) return
     if (['resolved', 'dismissed'].includes(activeBreach.status)) {
       toast.warning('Breach is already closed')
@@ -377,7 +376,7 @@ export default function BreachAlerts() {
     }
     dismissMutation.mutate({ breachId: activeBreach.id, reason: rejectionReason || undefined })
     setRejectionReason('')
-  }
+  }, [activeBreach, dismissMutation, rejectionReason])
 
   const handleResolve = () => {
     if (!activeBreach) return
@@ -386,7 +385,7 @@ export default function BreachAlerts() {
 
   // ── Queue navigation ──────────────────────────────────────────────────────
 
-  const navigateQueue = (direction: number) => {
+  const navigateQueue = useCallback((direction: number) => {
     if (!breaches || breaches.length === 0) return
     if (!activeBreachId) {
       setActiveBreachId(breaches[0].id)
@@ -397,7 +396,7 @@ export default function BreachAlerts() {
     if (nextIndex >= 0 && nextIndex < breaches.length) {
       setActiveBreachId(breaches[nextIndex].id)
     }
-  }
+  }, [activeBreachId, breaches])
 
   // ── Keyboard shortcuts ────────────────────────────────────────────────────
 
@@ -433,7 +432,7 @@ export default function BreachAlerts() {
     }
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
-  }, [activeBreach, breaches, rejectionReason])
+  }, [activeBreach, handleIssueEnforcement, handleIssueWarning, handleReject, navigateQueue])
 
   const handleSelectBreach = (breachId: string) => {
     setActiveBreachId(breachId)
@@ -596,6 +595,9 @@ export default function BreachAlerts() {
                     <span className="font-bold">{a.officer_name}</span>
                     <Badge variant="outline" className="capitalize text-xs">
                       {a.alert_type?.replace(/_/g, ' ')}
+                    </Badge>
+                    <Badge className={a.status === 'pending' ? 'bg-orange-100 text-orange-800' : 'bg-blue-100 text-blue-800'}>
+                      {a.status}
                     </Badge>
                   </div>
                   <div className="flex items-center gap-2">

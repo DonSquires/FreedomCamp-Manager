@@ -17,6 +17,7 @@ import {
   ChevronRight, SlidersHorizontal, BookOpen,
 } from 'lucide-react'
 import { formatDateTime } from '@/lib/utils'
+import { HOMELESS_UI_STATUSES, isHomelessForUi } from '@/lib/homelessStatus'
 
 interface RegistryVehicle {
   id: string
@@ -36,12 +37,15 @@ interface RegistryVehicle {
 }
 
 type SelfContainedFilter = 'all' | 'yes' | 'no'
-type ComplianceFilter = 'all' | 'compliant' | 'breach' | 'exempt'
+type ComplianceFilter = 'all' | 'compliant' | 'breach' | 'homeless' | 'exempt'
 
 export default function VehicleRegistry() {
   const { user } = useAuthStore()
   const { organizationId } = useGlobalFiltersStore()
   const navigate = useNavigate()
+
+  const effectiveOrganizationId =
+    organizationId || (user?.role !== 'master' ? user?.organization_id || null : null)
 
   const [searchQuery, setSearchQuery] = useState('')
   const [selfContainedFilter, setSelfContainedFilter] = useState<SelfContainedFilter>('all')
@@ -49,7 +53,7 @@ export default function VehicleRegistry() {
   const [showFilters, setShowFilters] = useState(false)
 
   const { data: vehicles, isLoading, refetch } = useQuery({
-    queryKey: ['vehicle-registry', organizationId, searchQuery, selfContainedFilter, complianceFilter],
+    queryKey: ['vehicle-registry', effectiveOrganizationId, searchQuery, selfContainedFilter, complianceFilter],
     queryFn: async () => {
       let query = (supabase as any)
         .from('canonical_vehicles')
@@ -62,6 +66,24 @@ export default function VehicleRegistry() {
         .order('plate_number', { ascending: true })
         .limit(200)
 
+      if (effectiveOrganizationId) {
+        const { data: matchingObservations, error: matchingObsError } = await (supabase as any)
+          .from('observations')
+          .select('plate_number')
+          .eq('organization_id', effectiveOrganizationId)
+
+        if (matchingObsError) throw matchingObsError
+
+        const plateRows = (matchingObservations ?? []) as Array<{ plate_number: string | null }>
+        const matchingPlates = [...new Set(plateRows.map((o) => o.plate_number).filter(Boolean) as string[])]
+
+        if (matchingPlates.length === 0) {
+          return [] as RegistryVehicle[]
+        }
+
+        query = query.in('plate_number', matchingPlates)
+      }
+
       if (searchQuery.trim()) {
         query = query.or(
           `plate_number.ilike.%${searchQuery.trim()}%,make.ilike.%${searchQuery.trim()}%,model.ilike.%${searchQuery.trim()}%`
@@ -73,6 +95,7 @@ export default function VehicleRegistry() {
 
       if (complianceFilter === 'compliant') query = query.eq('total_breaches', 0).eq('is_exempt', false)
       else if (complianceFilter === 'breach') query = query.gt('total_breaches', 0)
+      else if (complianceFilter === 'homeless') query = query.in('homeless_status', HOMELESS_UI_STATUSES)
       else if (complianceFilter === 'exempt') query = query.eq('is_exempt', true)
 
       const { data, error } = await query
@@ -85,6 +108,7 @@ export default function VehicleRegistry() {
   const total = vehicles?.length ?? 0
   const selfContainedCount = vehicles?.filter((v) => v.self_contained).length ?? 0
   const breachCount = vehicles?.filter((v) => v.total_breaches > 0).length ?? 0
+  const homelessCount = vehicles?.filter((v) => isHomelessForUi(v.homeless_status)).length ?? 0
   const exemptCount = vehicles?.filter((v) => v.is_exempt).length ?? 0
 
   const complianceBadge = (v: RegistryVehicle) => {
@@ -114,11 +138,12 @@ export default function VehicleRegistry() {
         <GlobalFilterRibbon showDateFilter={false} showZoneFilter={false} />
 
         {/* Stats row */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
           {[
             { label: 'Total Vehicles', value: total, icon: Car, color: 'text-blue-600' },
             { label: 'Self-Contained', value: selfContainedCount, icon: Shield, color: 'text-green-600' },
             { label: 'With Breaches', value: breachCount, icon: AlertTriangle, color: 'text-red-600' },
+            { label: 'Homeless', value: homelessCount, icon: AlertTriangle, color: 'text-orange-600' },
             { label: 'Exempt', value: exemptCount, icon: CheckCircle, color: 'text-purple-600' },
           ].map(({ label, value, icon: Icon, color }) => (
             <Card key={label}>
@@ -188,6 +213,7 @@ export default function VehicleRegistry() {
                       <SelectItem value="all">All</SelectItem>
                       <SelectItem value="compliant">Compliant</SelectItem>
                       <SelectItem value="breach">Has Breaches</SelectItem>
+                      <SelectItem value="homeless">Homeless</SelectItem>
                       <SelectItem value="exempt">Exempt</SelectItem>
                     </SelectContent>
                   </Select>

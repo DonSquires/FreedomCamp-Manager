@@ -16,6 +16,7 @@ import {
   ExternalLink
 } from 'lucide-react'
 import { formatDateTime, formatDate } from '@/lib/utils'
+import { homelessStatusLabel, isHomelessForUi } from '@/lib/homelessStatus'
 
 interface VehicleDetailsModalProps {
   isOpen: boolean
@@ -159,12 +160,12 @@ export function VehicleDetailsModal({
                     )}
                   </p>
                 </div>
-                {vehicle.homeless_status && vehicle.homeless_status !== 'none' && (
+                {isHomelessForUi(vehicle.homeless_status) && (
                   <div>
                     <span className="text-gray-600">Homeless Status:</span>
                     <p className="font-medium">
                       <Badge variant="outline" className="bg-orange-50">
-                        {vehicle.homeless_status}
+                        {homelessStatusLabel(vehicle.homeless_status)}
                       </Badge>
                     </p>
                   </div>

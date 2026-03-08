@@ -29,6 +29,7 @@ import {
   Camera,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { HOMELESS_UI_STATUSES, homelessStatusLabel, isHomelessForUi } from '@/lib/homelessStatus';
 import { useAuthStore } from '@/stores/authStore';
 
 // ============================================================================
@@ -518,7 +519,7 @@ function VehiclesTab() {
 
       if (search.trim()) q = q.ilike('plate_number', `%${search.trim()}%`);
       if (flagFilter === 'flagged') q = q.eq('is_flagged', true);
-      if (flagFilter === 'homeless') q = q.not('homeless_status', 'eq', 'none');
+      if (flagFilter === 'homeless') q = q.in('homeless_status', HOMELESS_UI_STATUSES);
 
       const { data, count, error } = await q;
       if (error) throw error;
@@ -615,12 +616,12 @@ function VehiclesTab() {
                             <AlertTriangle className="w-3 h-3" /> {v.flagged_priority ?? 'Flagged'}
                           </span>
                         )}
-                        {v.homeless_status && v.homeless_status !== 'none' && (
+                        {isHomelessForUi(v.homeless_status) && (
                           <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-xs font-medium bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300">
-                            🏠 {v.homeless_status === 'confirmed' ? 'Confirmed' : 'Claimed'}
+                            🏠 {homelessStatusLabel(v.homeless_status)}
                           </span>
                         )}
-                        {!v.is_flagged && (!v.homeless_status || v.homeless_status === 'none') && (
+                        {!v.is_flagged && !isHomelessForUi(v.homeless_status) && (
                           <span className="text-xs text-gray-400">—</span>
                         )}
                       </div>

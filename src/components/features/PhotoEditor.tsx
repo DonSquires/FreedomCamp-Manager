@@ -3,7 +3,7 @@
  * Client-side photo editing (crop, rotate, watermark)
  */
 
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -54,7 +54,6 @@ export function PhotoEditor({
     img.onload = () => {
       imageRef.current = img
       setImageLoaded(true)
-      drawImage()
       URL.revokeObjectURL(url)
     }
 
@@ -66,7 +65,34 @@ export function PhotoEditor({
   }, [file])
 
   // Draw image to canvas
-  const drawImage = () => {
+  const drawCropOverlay = useCallback((ctx: CanvasRenderingContext2D) => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+
+    // Darken outside crop area
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.5)'
+    ctx.fillRect(0, 0, canvas.width, canvas.height)
+
+    // Clear crop area
+    ctx.clearRect(
+      cropArea.x,
+      cropArea.y,
+      cropArea.width,
+      cropArea.height
+    )
+
+    // Draw crop border
+    ctx.strokeStyle = '#fff'
+    ctx.lineWidth = 2
+    ctx.strokeRect(
+      cropArea.x,
+      cropArea.y,
+      cropArea.width,
+      cropArea.height
+    )
+  }, [cropArea])
+
+  const drawImage = useCallback(() => {
     if (!canvasRef.current || !imageRef.current) return
 
     const canvas = canvasRef.current
@@ -107,35 +133,7 @@ export function PhotoEditor({
     if (mode === 'crop') {
       drawCropOverlay(ctx)
     }
-  }
-
-  // Draw crop overlay
-  const drawCropOverlay = (ctx: CanvasRenderingContext2D) => {
-    const canvas = canvasRef.current
-    if (!canvas) return
-
-    // Darken outside crop area
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.5)'
-    ctx.fillRect(0, 0, canvas.width, canvas.height)
-
-    // Clear crop area
-    ctx.clearRect(
-      cropArea.x,
-      cropArea.y,
-      cropArea.width,
-      cropArea.height
-    )
-
-    // Draw crop border
-    ctx.strokeStyle = '#fff'
-    ctx.lineWidth = 2
-    ctx.strokeRect(
-      cropArea.x,
-      cropArea.y,
-      cropArea.width,
-      cropArea.height
-    )
-  }
+  }, [rotation, scale, mode, drawCropOverlay])
 
   // Rotate image
   const rotate = () => {
@@ -242,7 +240,7 @@ export function PhotoEditor({
     if (imageLoaded) {
       drawImage()
     }
-  }, [rotation, scale, mode, cropArea, imageLoaded])
+  }, [imageLoaded, drawImage])
 
   return (
     <div className="fixed inset-0 z-50 bg-black/95 flex flex-col">

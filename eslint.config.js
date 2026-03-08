@@ -27,4 +27,25 @@ export default tseslint.config(
       '@typescript-eslint/no-unused-vars': 'off',
     },
   },
+  {
+    files: [
+      'src/components/features/BulkActionToolbar.tsx',
+      'src/components/features/BulkOperationToolbar.tsx',
+      'src/components/features/EmptyState.tsx',
+      'src/components/features/HelpTooltip.tsx',
+      'src/components/features/QuickActions.tsx',
+      'src/components/features/ToastManager.tsx',
+      'src/components/ui/badge.tsx',
+      'src/components/ui/button.tsx',
+      'src/components/ui/form.tsx',
+      'src/components/ui/navigation-menu.tsx',
+      'src/components/ui/sidebar.tsx',
+      'src/components/ui/sonner.tsx',
+      'src/components/ui/toggle.tsx',
+    ],
+    rules: {
+      // These files intentionally co-locate small utility exports with component exports.
+      'react-refresh/only-export-components': 'off',
+    },
+  },
 )

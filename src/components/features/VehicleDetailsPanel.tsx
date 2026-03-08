@@ -25,6 +25,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import type { Database } from '@/types/database'
+import { homelessStatusLabel, isHomelessForUi, normalizeHomelessStatus } from '@/lib/homelessStatus'
 
 type CanonicalVehicle = Database['public']['Tables']['canonical_vehicles']['Row']
 
@@ -284,7 +285,7 @@ export function VehicleDetailsPanel({
       </Card>
 
       {/* Homeless Status */}
-      {vehicle.homeless_status !== 'none' && (
+      {isHomelessForUi(vehicle.homeless_status) && (
         <Card className="border-yellow-500">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -296,8 +297,8 @@ export function VehicleDetailsPanel({
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <div className="text-sm font-medium text-muted-foreground">Status</div>
-                <Badge variant={vehicle.homeless_status === 'confirmed' ? 'destructive' : 'secondary'}>
-                  {vehicle.homeless_status}
+                <Badge variant={normalizeHomelessStatus(vehicle.homeless_status) === 'confirmed' ? 'destructive' : 'secondary'}>
+                  {homelessStatusLabel(vehicle.homeless_status)}
                 </Badge>
               </div>
               {vehicle.homeless_confirmed_at && (

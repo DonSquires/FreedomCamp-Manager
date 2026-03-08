@@ -40,6 +40,7 @@ import { Navigate } from 'react-router-dom';
 import { GlobalFilterRibbon } from '@/components/features/GlobalFilterRibbon';
 import { useGlobalFiltersStore as useGlobalFilters } from '@/stores/globalFiltersStore';
 import { AdminNavigationMenu } from '@/components/features/AdminNavigationMenu';
+import { HOMELESS_UI_STATUSES, homelessStatusLabel, normalizeHomelessStatus } from '@/lib/homelessStatus';
 
 // ============================================================================
 // Types
@@ -208,7 +209,7 @@ function OverviewTab({
       const { count, error } = await supabase
         .from('canonical_vehicles')
         .select('*', { count: 'exact', head: true })
-        .eq('is_homeless', true);
+        .in('homeless_status', HOMELESS_UI_STATUSES);
       if (error) throw error;
       return count ?? 0;
     },
@@ -609,9 +610,8 @@ function HomelessTab() {
     queryFn: async () => {
       const { data } = await supabase
         .from('canonical_vehicles')
-        .select('vehicle_id, plate_number, vehicle_make, vehicle_model, vehicle_color, is_homeless, homeless_confirmed, homeless_notes, total_observations, last_seen_at')
-        .eq('is_homeless', true)
-        .order('homeless_confirmed', { ascending: false })
+        .select('id, plate_number, make, model, colour, homeless_status, homeless_notes, total_observations, last_seen_at')
+        .in('homeless_status', HOMELESS_UI_STATUSES)
         .order('last_seen_at', { ascending: false });
       return data ?? [];
     },
@@ -641,24 +641,28 @@ function HomelessTab() {
           </thead>
           <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
             {data.map((v: any) => (
-              <tr key={v.vehicle_id} className="hover:bg-purple-50/50 dark:hover:bg-purple-950/10">
+              <tr key={v.id} className="hover:bg-purple-50/50 dark:hover:bg-purple-950/10">
                 <td className="px-4 py-3 font-mono font-bold text-gray-900 dark:text-white">
                   {v.plate_number}
                 </td>
                 <td className="px-4 py-3 text-gray-500 hidden md:table-cell">
-                  {[v.vehicle_make, v.vehicle_model, v.vehicle_color].filter(Boolean).join(' ') || '—'}
+                  {[v.make, v.model, v.colour].filter(Boolean).join(' ') || '—'}
                 </td>
                 <td className="px-4 py-3">
                   <span
                     className={cn(
                       'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold',
-                      v.homeless_confirmed
+                      normalizeHomelessStatus(v.homeless_status) === 'confirmed'
                         ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300'
-                        : 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300'
+                        : normalizeHomelessStatus(v.homeless_status) === 'claimed'
+                        ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300'
+                        : normalizeHomelessStatus(v.homeless_status) === 'declined'
+                        ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300'
+                        : 'bg-slate-100 dark:bg-slate-900/30 text-slate-700 dark:text-slate-300'
                     )}
                   >
                     <Home className="w-3 h-3" />
-                    {v.homeless_confirmed ? 'Confirmed — FC Act exempt' : 'Claimed — pending review'}
+                    {homelessStatusLabel(v.homeless_status)}
                   </span>
                 </td>
                 <td className="px-4 py-3 text-gray-400 hidden md:table-cell max-w-xs truncate" title={v.homeless_notes ?? ''}>
@@ -670,7 +674,9 @@ function HomelessTab() {
                   </span>
                 </td>
                 <td className="px-4 py-3 text-xs text-gray-400 hidden lg:table-cell">
-                  {formatDistanceToNow(new Date(v.last_seen_at), { addSuffix: true })}
+                  {v.last_seen_at
+                    ? formatDistanceToNow(new Date(v.last_seen_at), { addSuffix: true })
+                    : '—'}
                 </td>
               </tr>
             ))}

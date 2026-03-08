@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
+import { HOMELESS_UI_STATUSES, isHomelessForUi } from '@/lib/homelessStatus'
 import { toast } from 'sonner'
 import type { Vehicle } from '@/types'
 
@@ -11,7 +12,7 @@ interface UseVehiclesOptions {
   userRole?: 'admin' | 'master' | 'officer' | 'admin_officer' | null
   userOrganizationId?: string | null
   searchQuery?: string
-  statusFilter?: 'all' | 'compliant' | 'breaches'
+  statusFilter?: 'all' | 'compliant' | 'breaches' | 'homeless' | 'exempt'
 }
 
 export function useVehicles(options: UseVehiclesOptions = {}) {
@@ -74,6 +75,10 @@ export function useVehicles(options: UseVehiclesOptions = {}) {
         query = query.eq('total_breaches', 0)
       } else if (statusFilter === 'breaches') {
         query = query.gt('total_breaches', 0)
+      } else if (statusFilter === 'homeless') {
+        query = query.in('homeless_status', HOMELESS_UI_STATUSES)
+      } else if (statusFilter === 'exempt') {
+        query = query.eq('is_exempt', true)
       }
 
       const { data, error } = await query
@@ -143,7 +148,7 @@ export function useVehicleStats(organizationId?: string | null) {
         compliant: data?.filter(v => v.total_breaches === 0).length || 0,
         breaches: data?.filter(v => v.total_breaches > 0).length || 0,
         selfContained: data?.filter(v => v.self_contained).length || 0,
-        homeless: data?.filter(v => v.homeless_status !== 'none').length || 0,
+        homeless: data?.filter(v => isHomelessForUi(v.homeless_status)).length || 0,
         exempt: data?.filter(v => v.is_exempt).length || 0,
       }
 

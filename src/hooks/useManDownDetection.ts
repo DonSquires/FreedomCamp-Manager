@@ -82,6 +82,29 @@ export function useManDownDetection(options: UseManDownDetectionOptions = {}) {
   const manDownStateRef = useRef(manDownState)
   useEffect(() => { manDownStateRef.current = manDownState }, [manDownState])
 
+  // ─── Resolve / acknowledge ─────────────────────────────────────────────────
+
+  const resolveManDownAlert = useCallback(async (alertId: string) => {
+    const { error } = await (supabase as any)
+      .from('officer_welfare_alerts')
+      .update({
+        status: 'resolved',
+        resolved_by: user?.id,
+        resolved_at: new Date().toISOString(),
+        resolution_notes: 'Officer self-resolved via Man-Down acknowledgement',
+      })
+      .eq('id', alertId)
+
+    if (error) {
+      toast.error('Could not clear Man-Down alert — please contact admin')
+      return
+    }
+
+    setManDownState({ isActive: false, alertId: null, triggeredAt: null })
+    toast.success('Man-Down alert cleared')
+    options.onResolved?.()
+  }, [user, options])
+
   // ─── Fire man-down alert ───────────────────────────────────────────────────
 
   const fireManDownAlert = useCallback(async () => {
@@ -124,30 +147,7 @@ export function useManDownDetection(options: UseManDownDetectionOptions = {}) {
         onClick: () => resolveManDownAlert(alertId),
       },
     })
-  }, [user, options])
-
-  // ─── Resolve / acknowledge ─────────────────────────────────────────────────
-
-  const resolveManDownAlert = useCallback(async (alertId: string) => {
-    const { error } = await (supabase as any)
-      .from('officer_welfare_alerts')
-      .update({
-        status: 'resolved',
-        resolved_by: user?.id,
-        resolved_at: new Date().toISOString(),
-        resolution_notes: 'Officer self-resolved via Man-Down acknowledgement',
-      })
-      .eq('id', alertId)
-
-    if (error) {
-      toast.error('Could not clear Man-Down alert — please contact admin')
-      return
-    }
-
-    setManDownState({ isActive: false, alertId: null, triggeredAt: null })
-    toast.success('Man-Down alert cleared')
-    options.onResolved?.()
-  }, [user, options])
+  }, [user, options, resolveManDownAlert])
 
   // ─── GPS update (called by parent on each position fix) ───────────────────
 

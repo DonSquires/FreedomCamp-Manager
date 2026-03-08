@@ -14,6 +14,7 @@ import { GlobalFilterRibbon } from '@/components/features/GlobalFilterRibbon'
 import { LoadingSpinner } from '@/components/features/LoadingSpinner'
 import { Search, Car, AlertTriangle, CheckCircle, Calendar, RefreshCw, Database, Globe } from 'lucide-react'
 import { formatDateTime } from '@/lib/utils'
+import { HOMELESS_UI_STATUSES, isHomelessForUi, normalizeHomelessStatus } from '@/lib/homelessStatus'
 import { checkNZSCVCertification, enrichVehicleFromMotorWeb } from '@/lib/railwayServices'
 import { toast } from 'sonner'
 
@@ -35,13 +36,15 @@ interface Vehicle {
   total_breaches: number
 }
 
+type StatusFilter = 'all' | 'compliant' | 'breaches' | 'homeless' | 'exempt'
+
 export default function VehicleManagement() {
   const { user } = useAuthStore()
   const { organizationId, zoneId, dateFrom, dateTo } = useGlobalFiltersStore()
   const queryClient = useQueryClient()
   const navigate = useNavigate()
   const [searchQuery, setSearchQuery] = useState('')
-  const [statusFilter, setStatusFilter] = useState<'all' | 'compliant' | 'breaches'>('all')
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
   const [showDetailsDialog, setShowDetailsDialog] = useState(false)
   const [selectedVehicle, setSelectedVehicle] = useState<Vehicle | null>(null)
   const [checkingNZSCV, setCheckingNZSCV] = useState(false)
@@ -102,6 +105,10 @@ export default function VehicleManagement() {
         query = query.eq('total_breaches', 0)
       } else if (statusFilter === 'breaches') {
         query = query.gt('total_breaches', 0)
+      } else if (statusFilter === 'homeless') {
+        query = query.in('homeless_status', HOMELESS_UI_STATUSES)
+      } else if (statusFilter === 'exempt') {
+        query = query.eq('is_exempt', true)
       }
 
       const { data, error } = await query
@@ -228,7 +235,7 @@ export default function VehicleManagement() {
     compliant: vehicles.filter(v => v.total_breaches === 0).length,
     breaches: vehicles.filter(v => v.total_breaches > 0).length,
     selfContained: vehicles.filter(v => v.self_contained).length,
-    homeless: vehicles.filter(v => v.homeless_status === 'confirmed' || v.homeless_status === 'claimed').length,
+    homeless: vehicles.filter(v => isHomelessForUi(v.homeless_status)).length,
     exempt: vehicles.filter(v => v.is_exempt).length,
   } : null
 
@@ -335,6 +342,20 @@ export default function VehicleManagement() {
                 <AlertTriangle className="h-4 w-4 mr-1" />
                 Breaches
               </Button>
+              <Button
+                variant={statusFilter === 'homeless' ? 'default' : 'outline'}
+                onClick={() => setStatusFilter('homeless')}
+                size="sm"
+              >
+                Homeless
+              </Button>
+              <Button
+                variant={statusFilter === 'exempt' ? 'default' : 'outline'}
+                onClick={() => setStatusFilter('exempt')}
+                size="sm"
+              >
+                Exempt
+              </Button>
             </div>
           </div>
         </CardContent>
@@ -411,9 +432,9 @@ export default function VehicleManagement() {
                         Self-Contained
                       </Badge>
                     )}
-                    {vehicle.homeless_status && vehicle.homeless_status !== 'none' && (
+                    {isHomelessForUi(vehicle.homeless_status) && (
                       <Badge variant="outline" className="text-xs bg-orange-50">
-                        Homeless
+                        Homeless ({normalizeHomelessStatus(vehicle.homeless_status)})
                       </Badge>
                     )}
                     {vehicle.is_exempt && (
@@ -529,9 +550,9 @@ export default function VehicleManagement() {
                     Expires: {new Date(selectedVehicle.self_contained_expiry).toLocaleDateString()}
                   </Badge>
                 )}
-                {selectedVehicle.homeless_status && selectedVehicle.homeless_status !== 'none' && (
+                {isHomelessForUi(selectedVehicle.homeless_status) && (
                   <Badge variant="outline" className="bg-orange-50">
-                    Homeless ({selectedVehicle.homeless_status})
+                    Homeless ({normalizeHomelessStatus(selectedVehicle.homeless_status)})
                   </Badge>
                 )}
                 {selectedVehicle.is_exempt && (

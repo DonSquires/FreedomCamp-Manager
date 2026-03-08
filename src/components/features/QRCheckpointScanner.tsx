@@ -57,6 +57,16 @@ function CameraQRScanner({ onCode, onCancel }: QRScannerProps) {
   const [started, setStarted] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  const stopCamera = useCallback(() => {
+    if (scanIntervalRef.current != null) {
+      clearInterval(scanIntervalRef.current)
+      scanIntervalRef.current = null
+    }
+    streamRef.current?.getTracks().forEach((t) => t.stop())
+    streamRef.current = null
+    setStarted(false)
+  }, [])
+
   const startCamera = useCallback(async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -88,17 +98,7 @@ function CameraQRScanner({ onCode, onCancel }: QRScannerProps) {
     } catch (err: any) {
       setError(err.message || 'Camera not available')
     }
-  }, [onCode])
-
-  const stopCamera = useCallback(() => {
-    if (scanIntervalRef.current != null) {
-      clearInterval(scanIntervalRef.current)
-      scanIntervalRef.current = null
-    }
-    streamRef.current?.getTracks().forEach((t) => t.stop())
-    streamRef.current = null
-    setStarted(false)
-  }, [])
+  }, [onCode, stopCamera])
 
   const handleCancel = () => {
     stopCamera()
