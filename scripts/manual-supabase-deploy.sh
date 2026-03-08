@@ -10,6 +10,12 @@ set -eu
 MODE="${1:-all}"
 PROJECT_REF="${SUPABASE_PROJECT_REF:-kxwjcupuxnnbnzcgmkoi}"
 PUBLIC_FUNCTIONS="orc-ingest vehicle-ingest alpr-process alpr-retry plate-scanner-photo-first stream-webhook get-weather send-push-notification"
+ROOT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)"
+REPO_SUPABASE="$ROOT_DIR/.tools/bin/supabase"
+
+if [ -x "$REPO_SUPABASE" ]; then
+  export PATH="$ROOT_DIR/.tools/bin:$PATH"
+fi
 
 case "$MODE" in
   functions|db|all) ;;
@@ -22,6 +28,7 @@ esac
 
 if ! command -v supabase >/dev/null 2>&1; then
   echo "Supabase CLI not found."
+  echo "Checked: $REPO_SUPABASE"
   echo "Install options:"
   echo "  npm i -g supabase"
   echo "  or: brew install supabase/tap/supabase"
