@@ -2,7 +2,10 @@
  * DUPLICATE DETECTION - BATCH PROCESSOR
  * 
  * Processes up to 300 observations at a time
- * Finds duplicates within 8-hour window in same zone
+ * Finds duplicates in same zone during NZ patrol windows:
+ * - 16:00 to 23:59 NZT
+ * - 00:00 to 09:59 NZT
+ * and within 50 meters GPS proximity.
  * Keeps newest observation, deletes older duplicates
  * Frontend handles pagination and progress tracking
  */
@@ -10,6 +13,62 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
 import { corsHeaders } from '../_shared/cors.ts';
+
+const DUPLICATE_DISTANCE_METERS = 50;
+
+function calculateDistanceMeters(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6371000;
+  const dLat = (lat2 - lat1) * (Math.PI / 180);
+  const dLng = (lng2 - lng1) * (Math.PI / 180);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2)
+    + Math.cos(lat1 * (Math.PI / 180))
+    * Math.cos(lat2 * (Math.PI / 180))
+    * Math.sin(dLng / 2)
+    * Math.sin(dLng / 2);
+  return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
+}
+
+function nzDateKey(value: string): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Pacific/Auckland',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date(value));
+}
+
+function nzHour(value: string): number {
+  return Number(new Intl.DateTimeFormat('en-NZ', {
+    timeZone: 'Pacific/Auckland',
+    hour: '2-digit',
+    hour12: false,
+  }).format(new Date(value)));
+}
+
+function nzDuplicateWindow(value: string): 'evening' | 'morning' | null {
+  const h = nzHour(value);
+  if (h >= 16 && h < 24) return 'evening';
+  if (h >= 0 && h < 10) return 'morning';
+  return null;
+}
+
+function isDuplicateByRule(current: any, previous: any): boolean {
+  if (current.zone_id !== previous.zone_id) return false;
+
+  const currentWindow = nzDuplicateWindow(current.recorded_at);
+  const previousWindow = nzDuplicateWindow(previous.recorded_at);
+  if (!currentWindow || currentWindow !== previousWindow) return false;
+  if (nzDateKey(current.recorded_at) !== nzDateKey(previous.recorded_at)) return false;
+
+  const lat1 = Number(current.gps_latitude);
+  const lng1 = Number(current.gps_longitude);
+  const lat2 = Number(previous.gps_latitude);
+  const lng2 = Number(previous.gps_longitude);
+  if (![lat1, lng1, lat2, lng2].every(Number.isFinite)) return false;
+
+  return calculateDistanceMeters(lat1, lng1, lat2, lng2) <= DUPLICATE_DISTANCE_METERS;
+}
 
 serve(async (req) => {
   // Handle CORS preflight
@@ -30,7 +89,7 @@ serve(async (req) => {
     // Build base query
     let query = supabaseAdmin
       .from('observations')
-      .select('*', { count: 'exact' });
+      .select('observation_id,id,plate_number,zone_id,recorded_at,gps_latitude,gps_longitude', { count: 'exact' });
 
     // Apply filters
     if (zoneIds && zoneIds.length > 0) {
@@ -80,7 +139,8 @@ serve(async (req) => {
     }
 
     const duplicatesToDelete: string[] = [];
-    let deleteKeyColumn: 'id' | 'observation_id' = 'id';
+    const hasObservationId = observations.some((obs) => (obs as any).observation_id != null);
+    const deleteKeyColumn: 'id' | 'observation_id' = hasObservationId ? 'observation_id' : 'id';
 
     // Find duplicates in each group
     for (const [plateNumber, plateObs] of plateGroups.entries()) {
@@ -101,20 +161,11 @@ serve(async (req) => {
         for (let j = 0; j < i; j++) {
           const previous = plateObs[j];
           
-          // Check if same zone
-          if (current.zone_id !== previous.zone_id) continue;
-
-          // Check if within 8 hours
-          const currentTime = new Date(current.recorded_at).getTime();
-          const previousTime = new Date(previous.recorded_at).getTime();
-          const hoursDiff = Math.abs(previousTime - currentTime) / (1000 * 60 * 60);
-
-          if (hoursDiff <= 8) {
+          if (isDuplicateByRule(current, previous)) {
             const currentId = (current as any).observation_id ?? (current as any).id;
-            if ((current as any).observation_id) deleteKeyColumn = 'observation_id';
             if (!duplicatesToDelete.includes(currentId)) {
               duplicatesToDelete.push(currentId);
-              console.log(`🗑️ Duplicate: ${plateNumber} (${hoursDiff.toFixed(1)}h apart)`);
+              console.log(`🗑️ Duplicate: ${plateNumber} (same zone window + <=${DUPLICATE_DISTANCE_METERS}m)`);
             }
             break;
           }

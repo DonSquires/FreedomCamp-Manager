@@ -3,7 +3,7 @@
  * 
  * Performs three operations in sequence on batches of 300 observations:
  * 1. Zone Correction (GPS-based)
- * 2. Duplicate Detection (8-hour window)
+ * 2. Duplicate Detection (same zone, NZ patrol windows, <=50m GPS)
  * 3. Compliance Recalculation (current rules)
  * 
  * Frontend handles pagination and progress tracking
@@ -13,6 +13,41 @@ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
 import { corsHeaders } from '../_shared/cors.ts';
 import { nzHour, toValidBreachType } from '../_shared/compliance.ts';
+
+const DUPLICATE_DISTANCE_METERS = 50;
+
+function nzDateKey(value: string): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Pacific/Auckland',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date(value));
+}
+
+function duplicateWindow(value: string): 'evening' | 'morning' | null {
+  const h = nzHour(value);
+  if (h >= 16 && h < 24) return 'evening';
+  if (h >= 0 && h < 10) return 'morning';
+  return null;
+}
+
+function isDuplicateByRule(current: any, previous: any): boolean {
+  if (current.zone_id !== previous.zone_id) return false;
+
+  const currentWindow = duplicateWindow(current.recorded_at);
+  const previousWindow = duplicateWindow(previous.recorded_at);
+  if (!currentWindow || currentWindow !== previousWindow) return false;
+  if (nzDateKey(current.recorded_at) !== nzDateKey(previous.recorded_at)) return false;
+
+  const lat1 = Number(current.gps_latitude);
+  const lng1 = Number(current.gps_longitude);
+  const lat2 = Number(previous.gps_latitude);
+  const lng2 = Number(previous.gps_longitude);
+  if (![lat1, lng1, lat2, lng2].every(Number.isFinite)) return false;
+
+  return calculateDistance(lat1, lng1, lat2, lng2) <= DUPLICATE_DISTANCE_METERS;
+}
 
 serve(async (req) => {
   // Handle CORS preflight
@@ -93,7 +128,9 @@ serve(async (req) => {
     if (zoneError) throw zoneError;
 
     console.log(`📍 Loaded ${zones?.length || 0} active zones for GPS matching`);
-    let observationKeyColumn: 'id' | 'observation_id' = 'id';
+    let observationKeyColumn: 'id' | 'observation_id' = observations.some((obs: any) => obs.observation_id != null)
+      ? 'observation_id'
+      : 'id';
 
     for (const obs of observations) {
       const obsId = (obs as any).observation_id ?? (obs as any).id;
@@ -147,18 +184,11 @@ serve(async (req) => {
         for (let j = 0; j < i; j++) {
           const previous = plateObs[j];
           
-          if (current.zone_id !== previous.zone_id) continue;
-
-          const hoursDiff = Math.abs(
-            new Date(current.recorded_at).getTime() - new Date(previous.recorded_at).getTime()
-          ) / (1000 * 60 * 60);
-
-          if (hoursDiff <= 8) {
+          if (isDuplicateByRule(current, previous)) {
             const currentId = (current as any).observation_id ?? (current as any).id;
-            if ((current as any).observation_id) observationKeyColumn = 'observation_id';
             if (!duplicatesToDelete.includes(currentId)) {
               duplicatesToDelete.push(currentId);
-              console.log(`🗑️ Duplicate: ${plateNumber} (${hoursDiff.toFixed(1)}h apart)`);
+              console.log(`🗑️ Duplicate: ${plateNumber} (same zone window + <=${DUPLICATE_DISTANCE_METERS}m)`);
             }
             break;
           }
