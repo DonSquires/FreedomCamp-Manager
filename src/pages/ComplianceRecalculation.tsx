@@ -126,7 +126,17 @@ export default function ComplianceRecalculation() {
     },
     onError: (error: any) => {
       setProgress(0)
-      toast.error(error.message || 'Recalculation failed')
+      const msg: string = error?.message || 'Recalculation failed'
+      // Match the exact messages produced by edgeFunctions.ts session error paths
+      const isSessionError =
+        msg === 'Session expired. Please sign in again.' ||
+        msg === 'Session has expired. Please sign in again.' ||
+        msg === 'No active session found. Please sign in again and retry.'
+      if (isSessionError) {
+        toast.error('Your session has expired. Please sign in again to retry.', { duration: 8000 })
+      } else {
+        toast.error(msg)
+      }
       refetchActions()
     },
     onSettled: (_, __, context: any) => {
