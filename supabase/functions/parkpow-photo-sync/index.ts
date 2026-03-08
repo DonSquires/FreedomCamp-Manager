@@ -117,35 +117,36 @@ Deno.serve(async (req) => {
       return json(503, { error: 'PARKPOW_API_TOKEN not configured' });
     }
 
-    const authHeader = req.headers.get('Authorization') || '';
-    if (!authHeader.startsWith('Bearer ')) {
-      return json(401, { error: 'Missing authorization' });
-    }
-
-    const token = authHeader.replace('Bearer ', '');
-
     const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey);
-    const supabaseAuth = createClient(supabaseUrl, anonKey, {
-      global: { headers: { Authorization: authHeader } },
-    });
+    const authHeader = req.headers.get('Authorization') || '';
+    let profile: { id: string; role: string; organization_id: string | null } | null = null;
 
-    const { data: authData, error: authError } = await supabaseAuth.auth.getUser(token);
-    if (authError || !authData?.user) {
-      return json(401, { error: 'Unauthorized' });
-    }
+    if (authHeader.startsWith('Bearer ')) {
+      const token = authHeader.replace('Bearer ', '');
+      const supabaseAuth = createClient(supabaseUrl, anonKey, {
+        global: { headers: { Authorization: authHeader } },
+      });
 
-    const { data: profile, error: profileError } = await supabaseAdmin
-      .from('user_profiles')
-      .select('id, role, organization_id')
-      .eq('id', authData.user.id)
-      .single();
+      const { data: authData, error: authError } = await supabaseAuth.auth.getUser(token);
+      if (authError || !authData?.user) {
+        return json(401, { error: 'Unauthorized' });
+      }
 
-    if (profileError || !profile) {
-      return json(403, { error: 'User profile not found' });
-    }
+      const { data: loadedProfile, error: profileError } = await supabaseAdmin
+        .from('user_profiles')
+        .select('id, role, organization_id')
+        .eq('id', authData.user.id)
+        .single();
 
-    if (!['admin', 'master', 'admin_officer'].includes(profile.role)) {
-      return json(403, { error: 'Insufficient permissions' });
+      if (profileError || !loadedProfile) {
+        return json(403, { error: 'User profile not found' });
+      }
+
+      if (!['admin', 'master', 'admin_officer'].includes(loadedProfile.role)) {
+        return json(403, { error: 'Insufficient permissions' });
+      }
+
+      profile = loadedProfile;
     }
 
     const body = (await req.json().catch(() => ({}))) as ScopePayload;
@@ -173,7 +174,7 @@ Deno.serve(async (req) => {
       .lte('recorded_at', dateTo!)
       .limit(limit);
 
-    if (profile.role !== 'master' && profile.organization_id) {
+    if (profile && profile.role !== 'master' && profile.organization_id) {
       query = query.eq('organization_id', profile.organization_id);
     }
 

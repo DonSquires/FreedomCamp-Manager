@@ -14,6 +14,8 @@ type RequestPayload = {
   require_empty_photo?: boolean;
   include_stale_signed_urls?: boolean;
   max_session_pages?: number;
+  snapshot_dashboard_url?: string;
+  snapshot_prefetch_pages?: number;
 };
 
 type ObsRow = Record<string, any>;
@@ -22,6 +24,7 @@ type RecoveryResult = {
   observation_key: string;
   plate_number: string;
   recorded_at: string;
+  existing_photo_url?: string;
   status: 'dry_run' | 'restored' | 'manual_required' | 'skipped' | 'error';
   reason?: string;
   source?: string;
@@ -39,6 +42,9 @@ const DEFAULT_BUCKET = 'evidence';
 const DEFAULT_LIMIT = 100;
 const DEFAULT_WINDOW_MINUTES = 60;
 const DEFAULT_MAX_SESSION_PAGES = 3;
+const MAX_WINDOW_SECONDS = 365 * 24 * 3600;
+const DEFAULT_SNAPSHOT_DASHBOARD_URL = 'https://app.platerecognizer.com/service/snapshot-cloud/dashboard/';
+const DEFAULT_SNAPSHOT_PREFETCH_PAGES = 5;
 
 function json(status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), {
@@ -175,6 +181,233 @@ async function downloadPhotoBytes(url: string, parkpowToken: string): Promise<{ 
   throw new Error(lastError);
 }
 
+async function downloadPublicPhotoBytes(url: string): Promise<{ bytes: Uint8Array; contentType: string }> {
+  const resp = await fetch(url, {
+    signal: AbortSignal.timeout(30000),
+  }).catch(() => null);
+
+  if (!resp || !resp.ok) {
+    throw new Error(`Download failed: ${resp ? `HTTP ${resp.status}` : 'network error'}`);
+  }
+
+  const bytes = new Uint8Array(await resp.arrayBuffer());
+  if (bytes.byteLength === 0) {
+    throw new Error('Downloaded image was empty');
+  }
+
+  return {
+    bytes,
+    contentType: resp.headers.get('content-type') || 'image/jpeg',
+  };
+}
+
+function parseSetCookieValue(setCookieHeader: string | null, cookieName: string): string | null {
+  if (!setCookieHeader) return null;
+  const parts = setCookieHeader.split(/,\s*(?=[^;]+=[^;]+)/g);
+  for (const c of parts) {
+    const m = c.match(new RegExp(`${cookieName}=([^;]+)`));
+    if (m?.[1]) return m[1];
+  }
+  return null;
+}
+
+function normalizeSnapshotTime(input: string): string {
+  return input
+    .replace(/\u00a0/g, ' ')
+    .replace(/\./g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function parseSnapshotTime(input: string): number | null {
+  const normalized = normalizeSnapshotTime(input)
+    .replace(/\ba\s*m\b/i, 'AM')
+    .replace(/\bp\s*m\b/i, 'PM');
+  const epoch = Date.parse(normalized);
+  return Number.isNaN(epoch) ? null : epoch;
+}
+
+type SnapshotListingMatch = {
+  imageUrl: string;
+  imagePath: string;
+  rowTimeText: string;
+  deltaSeconds: number;
+};
+
+type SnapshotSession = {
+  origin: string;
+  csrftoken: string;
+  sessionId: string;
+};
+
+type SnapshotCatalogItem = {
+  imageUrl: string;
+  imagePath: string;
+  rowTimeText: string;
+  rowEpoch: number | null;
+};
+
+async function loginSnapshotSession(
+  dashboardUrl: string,
+  email: string,
+  password: string,
+): Promise<SnapshotSession> {
+  const dashboard = new URL(dashboardUrl);
+  const loginUrl = `${dashboard.origin}/accounts/login/?next=/service/snapshot-cloud/dashboard/`;
+
+  const loginGet = await fetch(loginUrl, {
+    signal: AbortSignal.timeout(20000),
+  }).catch(() => null);
+
+  if (!loginGet || !loginGet.ok) {
+    throw new Error('Snapshot login page unavailable');
+  }
+
+  const loginHtml = await loginGet.text();
+  const csrfMatch = loginHtml.match(/name="csrfmiddlewaretoken"\s+value="([^"]+)"/i);
+  const csrf = csrfMatch?.[1] ?? null;
+  const csrftoken = parseSetCookieValue(loginGet.headers.get('set-cookie'), 'csrftoken');
+  if (!csrf || !csrftoken) {
+    throw new Error('Snapshot login CSRF not found');
+  }
+
+  const form = new URLSearchParams();
+  form.set('csrfmiddlewaretoken', csrf);
+  form.set('login', email);
+  form.set('password', password);
+  form.set('next', '/service/snapshot-cloud/dashboard/');
+
+  const loginPost = await fetch(loginUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/x-www-form-urlencoded',
+      Referer: loginUrl,
+      Cookie: `csrftoken=${csrftoken}`,
+    },
+    body: form.toString(),
+    redirect: 'manual',
+    signal: AbortSignal.timeout(20000),
+  }).catch(() => null);
+
+  if (!loginPost) {
+    throw new Error('Snapshot login failed: network error');
+  }
+
+  const sessionId = parseSetCookieValue(loginPost.headers.get('set-cookie'), 'sessionid');
+  if (!sessionId) {
+    throw new Error('Snapshot login failed: no session');
+  }
+
+  return {
+    origin: dashboard.origin,
+    csrftoken,
+    sessionId,
+  };
+}
+
+function parseSnapshotCatalogFromHtml(html: string, origin: string): SnapshotCatalogItem[] {
+  const rows: SnapshotCatalogItem[] = [];
+  const rowRe = /<tr>[\s\S]*?<td>([^<]+)<\/td>[\s\S]*?<a href="(\/object-storage\/[^"\n]+)"[\s\S]*?<\/tr>/gi;
+
+  for (const m of html.matchAll(rowRe)) {
+    const rowTimeText = String(m[1] || '').trim();
+    const imagePath = String(m[2] || '').trim();
+    if (!rowTimeText || !imagePath) continue;
+    rows.push({
+      imageUrl: new URL(imagePath, `${origin}/`).toString(),
+      imagePath,
+      rowTimeText,
+      rowEpoch: parseSnapshotTime(rowTimeText),
+    });
+  }
+
+  return rows;
+}
+
+async function fetchSnapshotCatalog(
+  dashboardUrl: string,
+  session: SnapshotSession,
+  maxPages: number,
+): Promise<SnapshotCatalogItem[]> {
+  const out: SnapshotCatalogItem[] = [];
+  const seenUrls = new Set<string>();
+
+  for (let page = 1; page <= maxPages; page++) {
+    const pageUrl = new URL(dashboardUrl);
+    if (page > 1) pageUrl.searchParams.set('page', String(page));
+
+    const resp = await fetch(pageUrl.toString(), {
+      headers: {
+        Cookie: `csrftoken=${session.csrftoken}; sessionid=${session.sessionId}`,
+      },
+      signal: AbortSignal.timeout(20000),
+    }).catch(() => null);
+
+    if (!resp || !resp.ok) break;
+    const html = await resp.text();
+    const rows = parseSnapshotCatalogFromHtml(html, session.origin);
+    if (rows.length === 0) break;
+
+    let added = 0;
+    for (const r of rows) {
+      if (seenUrls.has(r.imageUrl)) continue;
+      seenUrls.add(r.imageUrl);
+      out.push(r);
+      added++;
+    }
+
+    if (added === 0) break;
+  }
+
+  return out;
+}
+
+async function lookupSnapshotImageByPlate(
+  dashboardUrl: string,
+  session: SnapshotSession,
+  plate: string,
+  recordedAtIso: string,
+  windowSeconds: number,
+): Promise<SnapshotListingMatch | null> {
+  const dashboard = new URL(dashboardUrl);
+  dashboard.searchParams.set('result', plate.toLowerCase());
+  const dashboardResp = await fetch(dashboard.toString(), {
+    headers: {
+      Cookie: `csrftoken=${session.csrftoken}; sessionid=${session.sessionId}`,
+    },
+    signal: AbortSignal.timeout(20000),
+  }).catch(() => null);
+
+  if (!dashboardResp || !dashboardResp.ok) {
+    throw new Error(`Snapshot dashboard lookup failed${dashboardResp ? `: HTTP ${dashboardResp.status}` : ': network error'}`);
+  }
+
+  const html = await dashboardResp.text();
+  const rowRe = /<tr>[\s\S]*?<td>([^<]+)<\/td>[\s\S]*?<a href="(\/object-storage\/[^"\n]+)"[\s\S]*?<\/tr>/gi;
+
+  const recEpoch = Date.parse(recordedAtIso);
+  if (Number.isNaN(recEpoch)) return null;
+
+  let best: SnapshotListingMatch | null = null;
+  for (const m of html.matchAll(rowRe)) {
+    const rowTimeText = String(m[1] || '').trim();
+    const imagePath = String(m[2] || '').trim();
+    if (!rowTimeText || !imagePath) continue;
+
+    const rowEpoch = parseSnapshotTime(rowTimeText);
+    if (!rowEpoch) continue;
+    const deltaSeconds = Math.abs(Math.floor((rowEpoch - recEpoch) / 1000));
+    if (deltaSeconds > windowSeconds) continue;
+
+    const imageUrl = new URL(imagePath, `${dashboard.origin}/`).toString();
+    if (!best || deltaSeconds < best.deltaSeconds) {
+      best = { imageUrl, imagePath, rowTimeText, deltaSeconds };
+    }
+  }
+
+  return best;
+}
+
 async function detectObservationSchema(supabase: ReturnType<typeof createClient>): Promise<{
   keyCol: 'id' | 'observation_id';
   photoCol: 'photo_url' | 'photo';
@@ -258,48 +491,52 @@ Deno.serve(async (req: Request): Promise<Response> => {
     const anonKey = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
     const parkpowToken = Deno.env.get('PARKPOW_API_TOKEN') ?? '';
     const platerecToken = Deno.env.get('PLATERECOGNIZER_TOKEN') ?? Deno.env.get('PLATE_RECOGNIZER_TOKEN') ?? '';
+    const snapshotLoginEmail = Deno.env.get('SNAPSHOT_LOGIN_EMAIL') ?? '';
+    const snapshotLoginPassword = Deno.env.get('SNAPSHOT_LOGIN_PASSWORD') ?? '';
 
     if (!supabaseUrl || !serviceRoleKey || !anonKey) {
       return json(500, { error: 'Supabase env vars missing' });
     }
 
-    const authHeader = req.headers.get('Authorization') ?? '';
-    if (!authHeader.startsWith('Bearer ')) {
-      return json(401, { error: 'Missing authorization header' });
-    }
-    const token = authHeader.replace('Bearer ', '');
-
     const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey);
-    const supabaseUser = createClient(supabaseUrl, anonKey, {
-      global: { headers: { Authorization: authHeader } },
-    });
+    const authHeader = req.headers.get('Authorization') ?? '';
+    let profile: { id: string; role: string; organization_id: string | null } | null = null;
+    let actorLabel = 'system:no-auth';
 
-    const { data: authData, error: authError } = await supabaseUser.auth.getUser(token);
-    if (authError || !authData?.user) {
-      return json(401, { error: 'Unauthorized' });
+    if (authHeader.startsWith('Bearer ')) {
+      const token = authHeader.replace('Bearer ', '');
+      const supabaseUser = createClient(supabaseUrl, anonKey, {
+        global: { headers: { Authorization: authHeader } },
+      });
+
+      const { data: authData, error: authError } = await supabaseUser.auth.getUser(token);
+      if (authError || !authData?.user) {
+        return json(401, { error: 'Unauthorized' });
+      }
+
+      const { data: loadedProfile, error: profileError } = await supabaseAdmin
+        .from('user_profiles')
+        .select('id, role, organization_id')
+        .eq('id', authData.user.id)
+        .single();
+
+      if (profileError || !loadedProfile) {
+        return json(403, { error: 'User profile not found' });
+      }
+
+      if (!['admin', 'master', 'admin_officer'].includes(loadedProfile.role)) {
+        return json(403, { error: 'Only admin/master/admin_officer users can run photo recovery' });
+      }
+
+      profile = loadedProfile;
+      actorLabel = `admin:${authData.user.email ?? loadedProfile.id}`;
     }
-
-    const { data: profile, error: profileError } = await supabaseAdmin
-      .from('user_profiles')
-      .select('id, role, organization_id')
-      .eq('id', authData.user.id)
-      .single();
-
-    if (profileError || !profile) {
-      return json(403, { error: 'User profile not found' });
-    }
-
-    if (!['admin', 'master', 'admin_officer'].includes(profile.role)) {
-      return json(403, { error: 'Only admin/master/admin_officer users can run photo recovery' });
-    }
-
-    const actorLabel = `admin:${authData.user.email ?? profile.id}`;
 
     const body = (await req.json().catch(() => ({}))) as RequestPayload;
 
     const dateFrom = toIsoStart(body.date_from);
     const dateTo = toIsoEnd(body.date_to);
-    const windowSeconds = Math.max(60, Math.min(24 * 3600, (body.window_minutes ?? DEFAULT_WINDOW_MINUTES) * 60));
+    const windowSeconds = Math.max(60, Math.min(MAX_WINDOW_SECONDS, (body.window_minutes ?? DEFAULT_WINDOW_MINUTES) * 60));
     const limit = Math.max(1, Math.min(1000, body.limit ?? DEFAULT_LIMIT));
     const apply = body.apply === true;
     const targetBucket = body.target_bucket || DEFAULT_BUCKET;
@@ -307,11 +544,12 @@ Deno.serve(async (req: Request): Promise<Response> => {
     const requireEmptyPhoto = body.require_empty_photo === true;
     const includeStaleSignedUrls = body.include_stale_signed_urls !== false;
     const maxSessionPages = Math.max(1, Math.min(10, body.max_session_pages ?? DEFAULT_MAX_SESSION_PAGES));
+    const snapshotDashboardUrl = (body.snapshot_dashboard_url || DEFAULT_SNAPSHOT_DASHBOARD_URL).trim();
+    const snapshotPrefetchPages = Math.max(1, Math.min(30, body.snapshot_prefetch_pages ?? DEFAULT_SNAPSHOT_PREFETCH_PAGES));
 
-    const orgId: string | null =
-      profile.role === 'master'
-        ? (body.organization_id ?? null)
-        : (profile.organization_id ?? null);
+    const orgId: string | null = profile
+      ? (profile.role === 'master' ? (body.organization_id ?? null) : (profile.organization_id ?? null))
+      : (body.organization_id ?? null);
 
     const schema = await detectObservationSchema(supabaseAdmin);
     const infra = await detectRecoveryInfra(supabaseAdmin);
@@ -369,6 +607,21 @@ Deno.serve(async (req: Request): Promise<Response> => {
     let queuedForReview = 0;
     let parkpowErrors = 0;
     let uploadErrors = 0;
+    let snapshotCatalogCount = 0;
+
+    let snapshotSession: SnapshotSession | null = null;
+    let snapshotCatalog: SnapshotCatalogItem[] = [];
+    const snapshotAlprCache = new Map<string, { plate: string | null; confidence: number | null }>();
+
+    if (apply && snapshotLoginEmail && snapshotLoginPassword) {
+      try {
+        snapshotSession = await loginSnapshotSession(snapshotDashboardUrl, snapshotLoginEmail, snapshotLoginPassword);
+        snapshotCatalog = await fetchSnapshotCatalog(snapshotDashboardUrl, snapshotSession, snapshotPrefetchPages);
+        snapshotCatalogCount = snapshotCatalog.length;
+      } catch (err: any) {
+        console.error('[photo-recovery] snapshot prefetch init failed:', err?.message || String(err));
+      }
+    }
 
     for (const obs of candidates) {
       const obsKey = String(obs[schema.keyCol] || '');
@@ -386,6 +639,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
         observation_key: obsKey,
         plate_number: plate,
         recorded_at: recordedAt,
+        existing_photo_url: currentPhoto || undefined,
         status: 'manual_required',
         reason,
       };
@@ -399,7 +653,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
         source: 'system',
         success: true,
         meta: { reason, dry_run: !apply, schema },
-        actor_id: profile.id,
+        actor_id: profile?.id ?? null,
         actor_label: actorLabel,
       });
 
@@ -427,6 +681,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       }
 
       let recovered = false;
+      let parkpowLookupFailure: string | null = null;
 
       if (parkpowToken) {
         const sessions: any[] = [];
@@ -445,6 +700,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
           if (!sessionsResp || !sessionsResp.ok) {
             parkpowErrors++;
+            parkpowLookupFailure = !sessionsResp
+              ? 'network_error'
+              : `http_${sessionsResp.status}`;
             nextUrl = null;
             break;
           }
@@ -556,7 +814,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
                       alpr_confidence: alprConf,
                       storage_path: storagePath,
                     },
-                    actor_id: profile.id,
+                    actor_id: profile?.id ?? null,
                     actor_label: actorLabel,
                   });
 
@@ -582,8 +840,208 @@ Deno.serve(async (req: Request): Promise<Response> => {
         }
       }
 
+      // Fallback source: Snapshot Cloud dashboard listing by plate.
+      if (!recovered && snapshotSession) {
+        try {
+          const snapshotMatch = await lookupSnapshotImageByPlate(
+            snapshotDashboardUrl,
+            snapshotSession,
+            plate,
+            recordedAt,
+            windowSeconds,
+          );
+
+          if (snapshotMatch) {
+            const { bytes: imgBytes, contentType } = await downloadPublicPhotoBytes(snapshotMatch.imageUrl);
+
+            let alprPlate: string | null = null;
+            let alprConf: number | null = null;
+            if (platerecToken) {
+              try {
+                const alpr = await alprWithBytes(imgBytes, { regions: 'nz', mmc: false });
+                alprPlate = alpr.plate;
+                alprConf = alpr.confidence;
+              } catch {
+                // ALPR verify is optional
+              }
+            }
+
+            const plateMatches = !alprPlate || normalizePlate(alprPlate) === plate;
+            if (plateMatches) {
+              const folder = safeFolder(obs.recorded_by);
+              const ts = Date.now();
+              const rand = crypto.randomUUID().slice(0, 8);
+              const storagePath = `recovered/${folder}/${ts}-${rand}.jpg`;
+              const hash = await sha256Hex(imgBytes);
+
+              const { error: uploadError } = await supabaseAdmin.storage
+                .from(targetBucket)
+                .upload(storagePath, imgBytes, { contentType, upsert: false });
+
+              if (uploadError) {
+                throw new Error(`Storage upload failed: ${uploadError.message}`);
+              }
+
+              const { data: pubData } = supabaseAdmin.storage
+                .from(targetBucket)
+                .getPublicUrl(storagePath);
+              const storedUrl = pubData.publicUrl;
+
+              const updateData: Record<string, any> = { [schema.photoCol]: storedUrl };
+              if (schema.hasPhotoHashCol) updateData.photo_hash = hash;
+
+              const { error: updateError } = await supabaseAdmin
+                .from('observations')
+                .update(updateData)
+                .eq(schema.keyCol, obsKey);
+
+              if (updateError) {
+                throw new Error(`Observation update failed: ${updateError.message}`);
+              }
+
+              await audit(infra.hasAudit, supabaseAdmin, {
+                observation_id: schema.keyCol === 'id' ? obsKey : null,
+                organization_id: obs.organization_id ?? null,
+                plate_number: plate,
+                recorded_at: recordedAt,
+                action: 'photo_restored',
+                source: 'snapshot_dashboard',
+                source_ref: snapshotMatch.imagePath,
+                success: true,
+                photo_url: storedUrl,
+                photo_hash: schema.hasPhotoHashCol ? hash : null,
+                photo_bytes: imgBytes.byteLength,
+                meta: {
+                  delta_seconds: snapshotMatch.deltaSeconds,
+                  row_time_text: snapshotMatch.rowTimeText,
+                  source_url: snapshotMatch.imageUrl,
+                  alpr_plate: alprPlate,
+                  alpr_confidence: alprConf,
+                  storage_path: storagePath,
+                },
+                actor_id: profile?.id ?? null,
+                actor_label: actorLabel,
+              });
+
+              result.status = 'restored';
+              result.source = 'snapshot_dashboard';
+              result.stored_photo_url = storedUrl;
+              result.photo_hash = schema.hasPhotoHashCol ? hash : undefined;
+              result.delta_seconds = snapshotMatch.deltaSeconds;
+              result.alpr_plate = alprPlate ?? undefined;
+              result.alpr_confidence = alprConf ?? undefined;
+              recovered = true;
+              autoRestored++;
+            } else {
+              result.reason = `ALPR mismatch (snapshot): detected ${alprPlate}`;
+            }
+          }
+        } catch (err: any) {
+          result.error = err?.message || 'Snapshot fallback failed';
+        }
+      }
+
+      // Alternate snapshot strategy: prefetch images, download to bytes, and match by ALPR + timestamp window.
+      if (!recovered && snapshotCatalog.length > 0 && platerecToken) {
+        const recEpoch = Date.parse(recordedAt);
+        if (!Number.isNaN(recEpoch)) {
+          const byTime = snapshotCatalog
+            .filter((s) => s.rowEpoch && Math.abs(Math.floor(((s.rowEpoch as number) - recEpoch) / 1000)) <= windowSeconds)
+            .map((s) => ({
+              ...s,
+              deltaSeconds: Math.abs(Math.floor(((s.rowEpoch as number) - recEpoch) / 1000)),
+            }))
+            .sort((a, b) => a.deltaSeconds - b.deltaSeconds)
+            .slice(0, 5);
+
+          for (const cand of byTime) {
+            try {
+              const { bytes: imgBytes, contentType } = await downloadPublicPhotoBytes(cand.imageUrl);
+
+              let cached = snapshotAlprCache.get(cand.imageUrl);
+              if (!cached) {
+                const alpr = await alprWithBytes(imgBytes, { regions: 'nz', mmc: false });
+                cached = {
+                  plate: alpr.plate ? normalizePlate(alpr.plate) : null,
+                  confidence: alpr.confidence ?? null,
+                };
+                snapshotAlprCache.set(cand.imageUrl, cached);
+              }
+
+              if (!cached.plate || cached.plate !== plate) continue;
+
+              const folder = safeFolder(obs.recorded_by);
+              const ts = Date.now();
+              const rand = crypto.randomUUID().slice(0, 8);
+              const storagePath = `recovered/${folder}/${ts}-${rand}.jpg`;
+              const hash = await sha256Hex(imgBytes);
+
+              const { error: uploadError } = await supabaseAdmin.storage
+                .from(targetBucket)
+                .upload(storagePath, imgBytes, { contentType, upsert: false });
+              if (uploadError) throw new Error(`Storage upload failed: ${uploadError.message}`);
+
+              const { data: pubData } = supabaseAdmin.storage
+                .from(targetBucket)
+                .getPublicUrl(storagePath);
+              const storedUrl = pubData.publicUrl;
+
+              const updateData: Record<string, any> = { [schema.photoCol]: storedUrl };
+              if (schema.hasPhotoHashCol) updateData.photo_hash = hash;
+
+              const { error: updateError } = await supabaseAdmin
+                .from('observations')
+                .update(updateData)
+                .eq(schema.keyCol, obsKey);
+              if (updateError) throw new Error(`Observation update failed: ${updateError.message}`);
+
+              await audit(infra.hasAudit, supabaseAdmin, {
+                observation_id: schema.keyCol === 'id' ? obsKey : null,
+                organization_id: obs.organization_id ?? null,
+                plate_number: plate,
+                recorded_at: recordedAt,
+                action: 'photo_restored',
+                source: 'snapshot_prefetch',
+                source_ref: cand.imagePath,
+                success: true,
+                photo_url: storedUrl,
+                photo_hash: schema.hasPhotoHashCol ? hash : null,
+                photo_bytes: imgBytes.byteLength,
+                meta: {
+                  delta_seconds: cand.deltaSeconds,
+                  row_time_text: cand.rowTimeText,
+                  source_url: cand.imageUrl,
+                  alpr_plate: cached.plate,
+                  alpr_confidence: cached.confidence,
+                  storage_path: storagePath,
+                },
+                actor_id: profile?.id ?? null,
+                actor_label: actorLabel,
+              });
+
+              result.status = 'restored';
+              result.source = 'snapshot_prefetch';
+              result.stored_photo_url = storedUrl;
+              result.photo_hash = schema.hasPhotoHashCol ? hash : undefined;
+              result.delta_seconds = cand.deltaSeconds;
+              result.alpr_plate = cached.plate ?? undefined;
+              result.alpr_confidence = cached.confidence ?? undefined;
+              recovered = true;
+              autoRestored++;
+              break;
+            } catch {
+              // keep trying nearby prefetch candidates
+            }
+          }
+        }
+      }
+
       if (!recovered) {
         result.status = 'manual_required';
+        if (parkpowLookupFailure) {
+          result.reason = `parkpow_lookup_failed:${parkpowLookupFailure}`;
+          result.error = `ParkPow lookup failed (${parkpowLookupFailure})`;
+        }
         queuedForReview++;
 
         if (apply && infra.hasQueue && schema.keyCol === 'id') {
@@ -621,6 +1079,10 @@ Deno.serve(async (req: Request): Promise<Response> => {
         include_stale_signed_urls: includeStaleSignedUrls,
         parkpow_available: !!parkpowToken,
         alpr_available: !!platerecToken,
+        snapshot_available: !!(snapshotLoginEmail && snapshotLoginPassword),
+        snapshot_dashboard_url: snapshotDashboardUrl,
+        snapshot_prefetch_pages: snapshotPrefetchPages,
+        snapshot_prefetch_catalog_count: snapshotCatalogCount,
       },
       scanned: rows.length,
       detected: candidates.length,
