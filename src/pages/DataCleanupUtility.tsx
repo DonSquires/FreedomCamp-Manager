@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import { supabase } from '@/lib/supabase'
+import { edgeFunctions } from '@/lib/edgeFunctions'
 import { useAuthStore } from '@/stores/authStore'
 import { useGlobalFiltersStore } from '@/stores/globalFiltersStore'
 import { toast } from 'sonner'
@@ -98,22 +99,50 @@ export default function DataCleanupUtility() {
     {
       id: 'duplicate-observations',
       title: 'Remove Duplicate Observations',
-      description: 'Delete duplicate vehicle observations (same plate, zone, within 5 minutes)',
+      description: 'Delete duplicate observations in same zone, same NZ patrol window, within 50m GPS',
       icon: FileX,
       severity: 'high',
       action: async () => {
-        const { data, error } = await supabase.functions.invoke('duplicate-detection', {
-          body: { 
-            action: 'remove',
-            organizationId: organizationId || user?.organization_id,
-          },
+        const zoneIds = organizationId
+          ? ((await supabase
+            .from('zones')
+            .select('id')
+            .eq('organization_id', organizationId)
+            .eq('is_active', true)).data || []).map((z: any) => z.id)
+          : undefined
+
+        const { data: totalData, error: totalError } = await edgeFunctions.detectDuplicates({
+          zoneIds,
+          get_total: true,
         })
 
-        if (error) throw error
+        if (totalError) throw new Error(totalError)
+
+        const total = Number((totalData as any)?.total ?? 0)
+        if (total <= 0) {
+          return {
+            deleted: 0,
+            message: 'No duplicate observations found for current filter scope',
+          }
+        }
+
+        const batchSize = 250
+        let removedTotal = 0
+
+        for (let offset = 0; offset < total; offset += batchSize) {
+          const { data: batchData, error: batchError } = await edgeFunctions.detectDuplicates({
+            zoneIds,
+            offset,
+            batch_size: batchSize,
+          })
+
+          if (batchError) throw new Error(batchError)
+          removedTotal += Number((batchData as any)?.removed ?? 0)
+        }
 
         return {
-          deleted: data?.deleted || 0,
-          message: `Removed ${data?.deleted || 0} duplicate observations`,
+          deleted: removedTotal,
+          message: `Removed ${removedTotal} duplicate observations`,
         }
       },
     },

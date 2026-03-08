@@ -370,7 +370,12 @@ export const edgeFunctions = {
    * Find and remove duplicate observations
    */
   detectDuplicates: async (params: {
-    hours_window?: number
+    zoneIds?: string[]
+    dateRangeStart?: string
+    dateRangeEnd?: string
+    offset?: number
+    batch_size?: number
+    get_total?: boolean
   }) => {
     return callEdgeFunction('duplicate-detection', params)
   },
