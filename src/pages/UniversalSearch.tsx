@@ -89,8 +89,8 @@ export default function UniversalSearch() {
           (() => {
             let patrolQuery = supabase
               .from('patrols')
-              .select('id, started_at, ended_at, status, zone_id, zones(name)')
-              .order('started_at', { ascending: false })
+              .select('id, created_at, status, zone_id, zones(name)')
+              .order('created_at', { ascending: false })
               .limit(20)
             if (orgFilter) patrolQuery = patrolQuery.eq('organization_id', orgFilter)
             return patrolQuery
@@ -100,9 +100,9 @@ export default function UniversalSearch() {
           (() => {
             let bQuery = supabase
               .from('breach_alerts')
-              .select('id, plate_number, breach_type, status, detected_at, zones(name)')
+              .select('id, plate_number, breach_type, status, created_at, zones(name)')
               .ilike('plate_number', `%${q}%`)
-              .order('detected_at', { ascending: false })
+              .order('created_at', { ascending: false })
               .limit(20)
             if (orgFilter) bQuery = bQuery.eq('organization_id', orgFilter)
             return bQuery
@@ -325,7 +325,7 @@ export default function UniversalSearch() {
                         </Badge>
                         <p className="text-xs text-gray-400 mt-1 flex items-center gap-1 justify-end">
                           <Clock className="h-3 w-3" />
-                          {formatDateTime(b.detected_at)}
+                          {formatDateTime(b.created_at)}
                         </p>
                       </div>
                     </CardContent>
@@ -358,7 +358,7 @@ export default function UniversalSearch() {
                       </div>
                       <p className="text-xs text-gray-400 flex items-center gap-1">
                         <Clock className="h-3 w-3" />
-                        {formatDateTime(p.started_at)}
+                        {formatDateTime(p.created_at)}
                       </p>
                     </CardContent>
                   </Card>

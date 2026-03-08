@@ -41,7 +41,7 @@ interface ActiveBreach {
   breach_type: string
   status: string
   severity: string
-  detected_at: string
+  created_at: string
   zone: { name: string }
 }
 
@@ -62,13 +62,19 @@ interface EnforcementAction {
 interface ActivePatrol {
   id: string
   status: string
-  started_at: string
+  created_at: string
   zone: { name: string }
   officer: { 
     first_name: string
     last_name: string
   }
-  vehicles_checked: number
+}
+
+function deriveSeverityFromBreachType(breachType: string): 'critical' | 'high' | 'medium' {
+  const bt = String(breachType || '').toLowerCase()
+  if (bt.includes('tow') || bt.includes('danger')) return 'critical'
+  if (bt.includes('overstay') || bt.includes('consecutive')) return 'high'
+  return 'medium'
 }
 
 export default function EnforcementCommandCenter() {
@@ -99,10 +105,10 @@ export default function EnforcementCommandCenter() {
         breachQuery = breachQuery.eq('zone_id', zoneId)
       }
       if (startDate) {
-        breachQuery = breachQuery.gte('detected_at', startDate)
+        breachQuery = breachQuery.gte('created_at', startDate)
       }
       if (endDate) {
-        breachQuery = breachQuery.lte('detected_at', endDate)
+        breachQuery = breachQuery.lte('created_at', endDate)
       }
 
       // Active patrols
@@ -118,10 +124,10 @@ export default function EnforcementCommandCenter() {
         patrolQuery = patrolQuery.eq('zone_id', zoneId)
       }
       if (startDate) {
-        patrolQuery = patrolQuery.gte('started_at', startDate)
+        patrolQuery = patrolQuery.gte('created_at', startDate)
       }
       if (endDate) {
-        patrolQuery = patrolQuery.lte('started_at', endDate)
+        patrolQuery = patrolQuery.lte('created_at', endDate)
       }
 
       // Notices issued today
@@ -184,12 +190,11 @@ export default function EnforcementCommandCenter() {
           plate_number,
           breach_type,
           status,
-          severity,
-          detected_at,
+          created_at,
           zone:zones(name)
         `)
         .in('status', ['pending', 'notified'])
-        .order('detected_at', { ascending: false })
+        .order('created_at', { ascending: false })
         .limit(20)
 
       if (effectiveOrganizationId) {
@@ -200,22 +205,29 @@ export default function EnforcementCommandCenter() {
         query = query.eq('zone_id', zoneId)
       }
       if (startDate) {
-        query = query.gte('detected_at', startDate)
+        query = query.gte('created_at', startDate)
       }
       if (endDate) {
-        query = query.lte('detected_at', endDate)
+        query = query.lte('created_at', endDate)
       }
 
-      if (selectedView === 'urgent') {
-        query = query.in('severity', ['critical', 'high'])
-      } else if (selectedView === 'pending') {
+      if (selectedView === 'pending') {
         query = query.eq('status', 'pending')
       }
 
       const { data, error } = await query
 
       if (error) throw error
-      return data as ActiveBreach[]
+      const rows = (data || []).map((breach: any) => ({
+        ...breach,
+        severity: deriveSeverityFromBreachType(breach.breach_type),
+      })) as ActiveBreach[]
+
+      if (selectedView === 'urgent') {
+        return rows.filter((b) => ['critical', 'high'].includes(b.severity))
+      }
+
+      return rows
     },
     refetchInterval: 30000,
   })
@@ -277,13 +289,12 @@ export default function EnforcementCommandCenter() {
         .select(`
           id,
           status,
-          started_at,
-          vehicles_checked,
+          created_at,
           zone:zones(name),
-          officer:user_profiles(first_name, last_name)
+          officer:user_profiles!patrols_assigned_to_fkey(first_name, last_name)
         `)
         .eq('status', 'in_progress')
-        .order('started_at', { ascending: false })
+        .order('created_at', { ascending: false })
 
       if (user?.role !== 'master' && user?.organization_id) {
         query = query.eq('organization_id', user.organization_id)
@@ -499,7 +510,7 @@ export default function EnforcementCommandCenter() {
                       <div className="flex items-center gap-4 text-xs text-gray-500 mt-2">
                         <span className="flex items-center gap-1">
                           <Clock className="h-3 w-3" />
-                          {formatDateTime(breach.detected_at)}
+                          {formatDateTime(breach.created_at)}
                         </span>
                       </div>
                     </div>
@@ -536,7 +547,7 @@ export default function EnforcementCommandCenter() {
                       <div className="flex items-center gap-2 mb-1">
                         <Users className="h-4 w-4 text-blue-600" />
                         <span className="font-medium text-sm">
-                          {patrol.officer.first_name} {patrol.officer.last_name}
+                          {patrol.officer?.first_name || 'Unassigned'} {patrol.officer?.last_name || ''}
                         </span>
                       </div>
                       <p className="text-xs text-gray-600 dark:text-gray-400">
@@ -544,10 +555,10 @@ export default function EnforcementCommandCenter() {
                       </p>
                       <div className="flex items-center justify-between mt-2 text-xs">
                         <span className="text-gray-500">
-                          {patrol.vehicles_checked || 0} vehicles
+                          In progress
                         </span>
                         <span className="text-gray-500">
-                          {formatDateTime(patrol.started_at)}
+                          {formatDateTime(patrol.created_at)}
                         </span>
                       </div>
                     </div>

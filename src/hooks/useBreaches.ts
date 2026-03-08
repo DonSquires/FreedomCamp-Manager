@@ -20,6 +20,13 @@ interface BreachAlertExtended extends BreachAlert {
   }
 }
 
+function deriveSeverityFromBreachType(breachType?: string): 'critical' | 'high' | 'medium' {
+  const bt = String(breachType || '').toLowerCase()
+  if (bt.includes('tow') || bt.includes('danger')) return 'critical'
+  if (bt.includes('overstay') || bt.includes('consecutive')) return 'high'
+  return 'medium'
+}
+
 export function useBreaches(options: UseBreachesOptions = {}) {
   const { 
     organizationId, 
@@ -38,7 +45,7 @@ export function useBreaches(options: UseBreachesOptions = {}) {
           zone:zones(name),
           organization:organizations(name)
         `)
-        .order('detected_at', { ascending: false })
+        .order('created_at', { ascending: false })
 
       if (organizationId) {
         query = query.eq('organization_id', organizationId)
@@ -52,10 +59,6 @@ export function useBreaches(options: UseBreachesOptions = {}) {
         query = query.eq('status', statusFilter)
       }
 
-      if (severityFilter !== 'all') {
-        query = query.eq('severity', severityFilter)
-      }
-
       if (searchQuery) {
         query = query.ilike('plate_number', `%${searchQuery}%`)
       }
@@ -63,7 +66,18 @@ export function useBreaches(options: UseBreachesOptions = {}) {
       const { data, error } = await query.limit(100)
 
       if (error) throw error
-      return data as unknown as BreachAlertExtended[]
+
+      const rows = (data || []) as any[]
+      const withSeverity = rows.map((row) => ({
+        ...row,
+        severity: row.severity || deriveSeverityFromBreachType(row.breach_type),
+      })) as BreachAlertExtended[]
+
+      if (severityFilter !== 'all') {
+        return withSeverity.filter((b: any) => b.severity === severityFilter)
+      }
+
+      return withSeverity
     },
   })
 }
@@ -139,7 +153,7 @@ export function useBreachStats(organizationId?: string | null) {
     queryKey: ['breach-stats', organizationId],
     queryFn: async () => {
       let query = (supabase.from('breach_alerts') as any)
-        .select('status, severity', { count: 'exact' })
+        .select('status, breach_type', { count: 'exact' })
 
       if (organizationId) {
         query = query.eq('organization_id', organizationId)
@@ -154,8 +168,8 @@ export function useBreachStats(organizationId?: string | null) {
         pending: data?.filter(b => b.status === 'pending').length || 0,
         notified: data?.filter(b => b.status === 'notified').length || 0,
         resolved: data?.filter(b => b.status === 'resolved').length || 0,
-        critical: data?.filter(b => b.severity === 'critical').length || 0,
-        high: data?.filter(b => b.severity === 'high').length || 0,
+        critical: data?.filter((b: any) => deriveSeverityFromBreachType(b.breach_type) === 'critical').length || 0,
+        high: data?.filter((b: any) => deriveSeverityFromBreachType(b.breach_type) === 'high').length || 0,
       }
 
       return stats

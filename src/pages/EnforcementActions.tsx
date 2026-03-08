@@ -168,7 +168,7 @@ export default function EnforcementActions() {
           zone:zones(name)
         `)
         .in('status', ['pending', 'notified'])
-        .order('detected_at', { ascending: false })
+        .order('created_at', { ascending: false })
         .limit(50)
 
       if (effectiveOrganizationId) {
@@ -180,10 +180,10 @@ export default function EnforcementActions() {
       }
 
       if (startDate) {
-        query = query.gte('detected_at', startDate)
+        query = query.gte('created_at', startDate)
       }
       if (endDate) {
-        query = query.lte('detected_at', endDate)
+        query = query.lte('created_at', endDate)
       }
 
       const { data, error } = await query
