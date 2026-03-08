@@ -36,7 +36,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/stores/authStore';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useSearchParams } from 'react-router-dom';
 import { GlobalFilterRibbon } from '@/components/features/GlobalFilterRibbon';
 import { useGlobalFiltersStore as useGlobalFilters } from '@/stores/globalFiltersStore';
 import { AdminNavigationMenu } from '@/components/features/AdminNavigationMenu';
@@ -703,7 +703,39 @@ const TABS: { id: CompTab; label: string; icon: React.ElementType }[] = [
 export default function CompliancePage() {
   const { isAuthenticated, user } = useAuthStore();
   const [activeTab, setActiveTab] = useState<CompTab>('overview');
-  const { dateFrom, dateTo, organizationId, zoneId } = useGlobalFilters();
+  const [searchParams] = useSearchParams();
+  const {
+    dateFrom,
+    dateTo,
+    organizationId,
+    zoneId,
+    setDateRange,
+    setOrganization,
+    setZone,
+  } = useGlobalFilters();
+
+  useEffect(() => {
+    const tab = searchParams.get('tab');
+    if (tab && ['overview', 'breaches', 'zones', 'homeless'].includes(tab)) {
+      setActiveTab(tab as CompTab);
+    }
+
+    const qDateFrom = searchParams.get('dateFrom');
+    const qDateTo = searchParams.get('dateTo');
+    if (qDateFrom && qDateTo) {
+      setDateRange(qDateFrom, qDateTo, 'custom');
+    }
+
+    const qOrgId = searchParams.get('orgId');
+    if (qOrgId && user?.role === 'master') {
+      setOrganization(qOrgId, null);
+    }
+
+    const qZoneId = searchParams.get('zoneId');
+    if (qZoneId) {
+      setZone(qZoneId, null);
+    }
+  }, [searchParams, setDateRange, setOrganization, setZone, user?.role]);
 
   if (!isAuthenticated || !user) return <Navigate to="/login" replace />;
 

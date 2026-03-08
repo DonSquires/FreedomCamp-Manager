@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
@@ -78,7 +79,16 @@ const CANNED_REJECTION_REASONS = [
 
 export default function BreachAlerts() {
   const { user } = useAuthStore()
-  const { organizationId, zoneId, dateFrom, dateTo } = useGlobalFiltersStore()
+  const {
+    organizationId,
+    zoneId,
+    dateFrom,
+    dateTo,
+    setDateRange,
+    setOrganization,
+    setZone,
+  } = useGlobalFiltersStore()
+  const [searchParams] = useSearchParams()
   const effectiveOrganizationId =
     user?.role === 'master' ? organizationId || null : user?.organization_id || null
   const startDate = dateFrom ? `${dateFrom}T00:00:00Z` : null
@@ -95,6 +105,34 @@ export default function BreachAlerts() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
 
   const queryClient = useQueryClient()
+
+  useEffect(() => {
+    const status = searchParams.get('status')
+    if (status) {
+      setStatusFilter(status)
+    }
+
+    const search = searchParams.get('search')
+    if (search) {
+      setSearchQuery(search)
+    }
+
+    const qDateFrom = searchParams.get('dateFrom')
+    const qDateTo = searchParams.get('dateTo')
+    if (qDateFrom && qDateTo) {
+      setDateRange(qDateFrom, qDateTo, 'custom')
+    }
+
+    const qOrgId = searchParams.get('orgId')
+    if (qOrgId && user?.role === 'master') {
+      setOrganization(qOrgId, null)
+    }
+
+    const qZoneId = searchParams.get('zoneId')
+    if (qZoneId) {
+      setZone(qZoneId, null)
+    }
+  }, [searchParams, setDateRange, setOrganization, setZone, user?.role])
 
   // ── Intelligence Alerts: flagged vehicles after hours / day-visit violations
   const { data: intelligenceAlerts } = useQuery({

@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { useGlobalFiltersStore } from '@/stores/globalFiltersStore'
@@ -40,9 +40,18 @@ type StatusFilter = 'all' | 'compliant' | 'breaches' | 'homeless' | 'exempt'
 
 export default function VehicleManagement() {
   const { user } = useAuthStore()
-  const { organizationId, zoneId, dateFrom, dateTo } = useGlobalFiltersStore()
+  const {
+    organizationId,
+    zoneId,
+    dateFrom,
+    dateTo,
+    setDateRange,
+    setOrganization,
+    setZone,
+  } = useGlobalFiltersStore()
   const queryClient = useQueryClient()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
   const [showDetailsDialog, setShowDetailsDialog] = useState(false)
@@ -51,6 +60,34 @@ export default function VehicleManagement() {
   const [enrichingMotorWeb, setEnrichingMotorWeb] = useState(false)
   const [scrapingSales, setScrapingSales] = useState(false)
   const [nzscvResult, setNzscvResult] = useState<any>(null)
+
+  useEffect(() => {
+    const status = searchParams.get('status') as StatusFilter | null
+    if (status && ['all', 'compliant', 'breaches', 'homeless', 'exempt'].includes(status)) {
+      setStatusFilter(status)
+    }
+
+    const search = searchParams.get('search')
+    if (search) {
+      setSearchQuery(search)
+    }
+
+    const qDateFrom = searchParams.get('dateFrom')
+    const qDateTo = searchParams.get('dateTo')
+    if (qDateFrom && qDateTo) {
+      setDateRange(qDateFrom, qDateTo, 'custom')
+    }
+
+    const qOrgId = searchParams.get('orgId')
+    if (qOrgId && user?.role === 'master') {
+      setOrganization(qOrgId, null)
+    }
+
+    const qZoneId = searchParams.get('zoneId')
+    if (qZoneId) {
+      setZone(qZoneId, null)
+    }
+  }, [searchParams, setDateRange, setOrganization, setZone, user?.role])
 
   // Fetch vehicles
   const { data: vehicles, isLoading } = useQuery({

@@ -97,6 +97,7 @@ function NavigationLinks({ onClick }: { onClick?: () => void }) {
 
 export function AppLayout({ children, title, description, showBackButton }: AppLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [desktopNavOpen, setDesktopNavOpen] = useState(true)
   const { user, logout } = useAuthStore()
   const navigate = useNavigate()
 
@@ -167,7 +168,12 @@ export function AppLayout({ children, title, description, showBackButton }: AppL
       </header>
 
       {/* Desktop Sidebar */}
-      <aside className="hidden lg:block fixed inset-y-0 left-0 w-64 bg-white dark:bg-gray-800 border-r dark:border-gray-700 z-30">
+      <aside
+        className={cn(
+          'hidden lg:block fixed inset-y-0 left-0 w-64 bg-white dark:bg-gray-800 border-r dark:border-gray-700 z-30 transition-transform duration-200',
+          desktopNavOpen ? 'translate-x-0' : '-translate-x-full'
+        )}
+      >
         <div className="flex flex-col h-full">
           <div className="p-6 border-b dark:border-gray-700">
             <h2 className="font-bold text-xl text-blue-600 dark:text-blue-400">FreedomCamp</h2>
@@ -199,12 +205,23 @@ export function AppLayout({ children, title, description, showBackButton }: AppL
       </aside>
 
       {/* Main Content */}
-      <div className="lg:pl-64">
+      <div className={cn('transition-[padding] duration-200', desktopNavOpen ? 'lg:pl-64' : 'lg:pl-0')}>
         {/* Desktop Header */}
         <header className="hidden lg:block bg-white dark:bg-gray-800 shadow-sm sticky top-0 z-20">
           <div className="px-6 py-4">
             <div className="flex items-center justify-between">
-              <div>
+              <div className="flex items-start gap-3">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setDesktopNavOpen((v) => !v)}
+                  title={desktopNavOpen ? 'Collapse menu' : 'Open menu'}
+                  className="mt-0.5"
+                >
+                  <Menu className="h-5 w-5" />
+                </Button>
+
+                <div>
                 {showBackButton && (
                   <Button 
                     variant="ghost" 
@@ -226,6 +243,7 @@ export function AppLayout({ children, title, description, showBackButton }: AppL
                     {description}
                   </p>
                 )}
+                </div>
               </div>
             </div>
           </div>
