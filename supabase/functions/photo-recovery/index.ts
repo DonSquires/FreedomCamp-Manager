@@ -331,7 +331,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       // Upsert into missing_photo_queue
       if (apply) {
         const reason =
-          obs.photo_url === null && obs.photo_hash === null ? 'null_url'
+          obs.photo_url === null && obs.photo_hash === null ? 'null_both'
           : obs.photo_url  === null ? 'null_url'
           : 'null_hash';
 
@@ -476,14 +476,12 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
                         const storedUrl = pubData.publicUrl;
 
-                        // Update observation
-                        const updatePayload: Record<string, unknown> = {};
-                        if (!obs.photo_url)  updatePayload.photo_url  = storedUrl;
-                        if (!obs.photo_hash) updatePayload.photo_hash = hash;
-
+                        // Update observation – always set both fields atomically.
+                        // If only one field was missing we still set both to ensure
+                        // the observation is in a fully consistent state.
                         const { error: updateError } = await supabaseAdmin
                           .from('observations')
-                          .update(updatePayload)
+                          .update({ photo_url: storedUrl, photo_hash: hash })
                           .eq('id', obs.id);
 
                         if (!updateError) {
@@ -532,7 +530,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
                             success:         true,
                             photo_url:       storedUrl,
                             photo_hash:      hash,
-                            meta:            { fields_updated: Object.keys(updatePayload) },
+                            meta:            { fields_updated: ['photo_url', 'photo_hash'] },
                             actor_id:        profile.id,
                             actor_label:     actorLabel,
                           });

@@ -27,7 +27,7 @@ CREATE TABLE IF NOT EXISTS missing_photo_queue (
 
   -- Diagnosis
   reason TEXT NOT NULL
-    CHECK (reason IN ('null_hash', 'null_url', 'object_404', 'hash_mismatch', 'legacy_path', 'unknown'))
+    CHECK (reason IN ('null_both', 'null_hash', 'null_url', 'object_404', 'hash_mismatch', 'legacy_path', 'unknown'))
     DEFAULT 'unknown',
   original_photo_url TEXT,   -- candidate URL found (legacy bucket / ParkPow / PlateRecognizer)
   attempted_hash     TEXT,   -- SHA-256 calculated from the candidate file
@@ -272,7 +272,7 @@ BEGIN
       o.plate_number,
       o.recorded_at,
       CASE
-        WHEN o.photo_url  IS NULL AND o.photo_hash IS NULL THEN 'null_url'
+        WHEN o.photo_url  IS NULL AND o.photo_hash IS NULL THEN 'null_both'
         WHEN o.photo_url  IS NULL THEN 'null_url'
         WHEN o.photo_hash IS NULL THEN 'null_hash'
         ELSE 'unknown'

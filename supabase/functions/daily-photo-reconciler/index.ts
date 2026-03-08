@@ -275,13 +275,14 @@ Deno.serve(async (req: Request): Promise<Response> => {
     // -----------------------------------------------------------------------
     const agedThreshold = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
 
-    const { data: agedPending } = await supabase
+    // Use a direct count query to avoid fragile head-query type inference
+    const { data: agedPendingRows } = await supabase
       .from('missing_photo_queue')
-      .select('id', { count: 'exact', head: true })
+      .select('id')
       .eq('status', 'pending')
       .lt('created_at', agedThreshold);
 
-    const agedPendingCount = (agedPending as unknown as { count?: number })?.count ?? 0;
+    const agedPendingCount = agedPendingRows?.length ?? 0;
 
     if (agedPendingCount > 0) {
       console.warn(`[daily-photo-reconciler] ${agedPendingCount} repairs aged > 24h`);
