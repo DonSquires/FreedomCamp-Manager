@@ -362,8 +362,28 @@ export const edgeFunctions = {
     require_empty_photo?: boolean
     target_bucket?: string
     parkpow_base_url?: string
+    max_session_pages?: number
   }) => {
     return callEdgeFunction('parkpow-photo-sync', params)
+  },
+
+  /**
+   * Recover missing/stale observation photos using ParkPow as source-of-truth.
+   */
+  recoverObservationPhotos: async (params: {
+    organization_id?: string
+    date_from?: string
+    date_to?: string
+    window_minutes?: number
+    limit?: number
+    apply?: boolean
+    target_bucket?: string
+    parkpow_base_url?: string
+    require_empty_photo?: boolean
+    include_stale_signed_urls?: boolean
+    max_session_pages?: number
+  }) => {
+    return callEdgeFunction('photo-recovery', params)
   },
 
   /**

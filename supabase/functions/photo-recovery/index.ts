@@ -1,42 +1,6 @@
-// ============================================================================
-// photo-recovery  Edge Function
-// ============================================================================
-// Recover and relink vehicle/plate photos accidentally deleted from the
-// evidence storage bucket.
-//
-// Flow per observation in scope:
-//   1. Detect observations with null photo_url or photo_hash
-//   2. Search ParkPow sessions by plate + recorded_at timestamp (±window)
-//   3. If candidate found: download image → upload to evidence bucket →
-//      run Plate Recognizer to verify plate → update observation
-//   4. If plate doesn't match or no ParkPow session found: add to
-//      missing_photo_queue with status = 'manual_required'
-//   5. Log every action to photo_recovery_audit_log (chain-of-custody)
-//
-// POST body (all optional):
-//   {
-//     organization_id?: string,     // restrict to one org (master only if omitted)
-//     date_from?:       string,     // ISO date or datetime (default: 30 days ago)
-//     date_to?:         string,     // ISO date or datetime (default: now)
-//     window_minutes?:  number,     // ParkPow timestamp match window (default: 60)
-//     limit?:           number,     // max observations to process (default: 100, max: 500)
-//     apply?:           boolean,    // false = dry-run (default: false)
-//     target_bucket?:   string,     // storage bucket for restored photos (default: 'evidence')
-//     parkpow_base_url?: string,
-//   }
-//
-// Returns:
-//   { success, scanned, detected, auto_restored, queued_for_review,
-//     parkpow_errors, upload_errors, sample_results[] }
-// ============================================================================
-
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.7';
 import { corsHeaders } from '../_shared/cors.ts';
 import { alprWithBytes } from '../_shared/alpr.ts';
-
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
 
 type RequestPayload = {
   organization_id?: string;
@@ -47,38 +11,34 @@ type RequestPayload = {
   apply?: boolean;
   target_bucket?: string;
   parkpow_base_url?: string;
+  require_empty_photo?: boolean;
+  include_stale_signed_urls?: boolean;
+  max_session_pages?: number;
 };
 
-type ObservationRow = {
-  id: string;
-  organization_id: string;
-  plate_number: string;
-  recorded_at: string;
-  photo_url: string | null;
-  photo_hash: string | null;
-  gps_latitude: number | null;
-  gps_longitude: number | null;
-  recorded_by: string;
-};
+type ObsRow = Record<string, any>;
 
 type RecoveryResult = {
-  observation_id: string;
+  observation_key: string;
   plate_number: string;
   recorded_at: string;
   status: 'dry_run' | 'restored' | 'manual_required' | 'skipped' | 'error';
+  reason?: string;
   source?: string;
   stored_photo_url?: string;
   photo_hash?: string;
   delta_seconds?: number;
+  matched_session_id?: number | null;
   alpr_plate?: string;
   alpr_confidence?: number;
-  reason?: string;
   error?: string;
 };
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
+const DEFAULT_BASE_URL = 'https://api.parkpow.com/api/v1';
+const DEFAULT_BUCKET = 'evidence';
+const DEFAULT_LIMIT = 100;
+const DEFAULT_WINDOW_MINUTES = 60;
+const DEFAULT_MAX_SESSION_PAGES = 3;
 
 function json(status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), {
@@ -98,6 +58,10 @@ function toIsoStart(raw?: string): string {
 function toIsoEnd(raw?: string): string {
   if (!raw) return new Date().toISOString();
   return /^\d{4}-\d{2}-\d{2}$/.test(raw) ? `${raw}T23:59:59Z` : raw;
+}
+
+function normalizePlate(input: string | null | undefined): string {
+  return String(input || '').toUpperCase().replace(/\s+/g, '').trim();
 }
 
 function safeFolder(input: string | null | undefined): string {
@@ -124,13 +88,47 @@ function extractPhotoUrl(session: Record<string, unknown>): string | null {
   );
 }
 
+function normalizePhotoUrl(rawUrl: string | null, parkpowBaseUrl: string): string | null {
+  if (!rawUrl) return null;
+  const trimmed = String(rawUrl).trim();
+  if (!trimmed) return null;
+  if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) return trimmed;
+
+  try {
+    const base = new URL(parkpowBaseUrl);
+    return new URL(trimmed, `${base.origin}/`).toString();
+  } catch {
+    return null;
+  }
+}
+
 function pickSessionTimestamp(session: Record<string, unknown>): string | null {
   return (
     (session.entry_time as string) ||
     (session.created_at as string) ||
     (session.time as string) ||
+    (session.observed_at as string) ||
+    (session.timestamp as string) ||
     null
   );
+}
+
+function getSessionsArray(payload: any): any[] {
+  if (Array.isArray(payload)) return payload;
+  if (Array.isArray(payload?.results)) return payload.results;
+  if (Array.isArray(payload?.data)) return payload.data;
+  if (Array.isArray(payload?.sessions)) return payload.sessions;
+  return [];
+}
+
+function getNextPageUrl(payload: any): string | null {
+  const next = payload?.next;
+  return typeof next === 'string' && next.trim() ? next.trim() : null;
+}
+
+function isSignedStorageUrl(url: string | null | undefined): boolean {
+  const v = String(url || '');
+  return v.includes('/storage/v1/object/sign/') && v.includes('token=');
 }
 
 async function sha256Hex(bytes: Uint8Array): Promise<string> {
@@ -140,11 +138,68 @@ async function sha256Hex(bytes: Uint8Array): Promise<string> {
     .join('');
 }
 
-// ---------------------------------------------------------------------------
-// Audit logger
-// ---------------------------------------------------------------------------
+async function downloadPhotoBytes(url: string, parkpowToken: string): Promise<{ bytes: Uint8Array; contentType: string }> {
+  const attempts: Array<HeadersInit | undefined> = [
+    { Authorization: `Token ${parkpowToken}` },
+    undefined,
+  ];
+
+  let lastError = 'Download failed';
+
+  for (const headers of attempts) {
+    const resp = await fetch(url, {
+      headers,
+      signal: AbortSignal.timeout(30000),
+    }).catch(() => null);
+
+    if (!resp) {
+      lastError = 'Download failed: network error';
+      continue;
+    }
+
+    if (!resp.ok) {
+      lastError = `Download failed: HTTP ${resp.status}`;
+      continue;
+    }
+
+    const bytes = new Uint8Array(await resp.arrayBuffer());
+    if (bytes.byteLength === 0) {
+      lastError = 'Downloaded image was empty';
+      continue;
+    }
+
+    const contentType = resp.headers.get('content-type') || 'image/jpeg';
+    return { bytes, contentType };
+  }
+
+  throw new Error(lastError);
+}
+
+async function detectObservationSchema(supabase: ReturnType<typeof createClient>): Promise<{
+  keyCol: 'id' | 'observation_id';
+  photoCol: 'photo_url' | 'photo';
+  hasPhotoHashCol: boolean;
+}> {
+  const idProbe = await supabase.from('observations').select('id').limit(1);
+  const keyCol: 'id' | 'observation_id' = idProbe.error ? 'observation_id' : 'id';
+
+  const photoUrlProbe = await supabase.from('observations').select('photo_url').limit(1);
+  const photoCol: 'photo_url' | 'photo' = photoUrlProbe.error ? 'photo' : 'photo_url';
+
+  const hashProbe = await supabase.from('observations').select('photo_hash').limit(1);
+  const hasPhotoHashCol = !hashProbe.error;
+
+  return { keyCol, photoCol, hasPhotoHashCol };
+}
+
+async function detectRecoveryInfra(supabase: ReturnType<typeof createClient>): Promise<{ hasQueue: boolean; hasAudit: boolean }> {
+  const queueProbe = await supabase.from('missing_photo_queue').select('id').limit(1);
+  const auditProbe = await supabase.from('photo_recovery_audit_log').select('id').limit(1);
+  return { hasQueue: !queueProbe.error, hasAudit: !auditProbe.error };
+}
 
 async function audit(
+  enabled: boolean,
   supabase: ReturnType<typeof createClient>,
   entry: {
     observation_id: string | null;
@@ -164,32 +219,30 @@ async function audit(
     actor_label?: string;
   },
 ): Promise<void> {
+  if (!enabled) return;
+
   const { error } = await supabase.from('photo_recovery_audit_log').insert({
-    observation_id:  entry.observation_id,
+    observation_id: entry.observation_id,
     organization_id: entry.organization_id,
-    plate_number:    entry.plate_number ?? null,
-    recorded_at:     entry.recorded_at ?? null,
-    action:          entry.action,
-    source:          entry.source ?? null,
-    source_ref:      entry.source_ref ?? null,
-    success:         entry.success,
-    photo_url:       entry.photo_url ?? null,
-    photo_hash:      entry.photo_hash ?? null,
-    photo_bytes:     entry.photo_bytes ?? null,
-    error_message:   entry.error_message ?? null,
-    meta:            entry.meta ?? null,
-    actor_id:        entry.actor_id ?? null,
-    actor_label:     entry.actor_label ?? 'system',
+    plate_number: entry.plate_number ?? null,
+    recorded_at: entry.recorded_at ?? null,
+    action: entry.action,
+    source: entry.source ?? null,
+    source_ref: entry.source_ref ?? null,
+    success: entry.success,
+    photo_url: entry.photo_url ?? null,
+    photo_hash: entry.photo_hash ?? null,
+    photo_bytes: entry.photo_bytes ?? null,
+    error_message: entry.error_message ?? null,
+    meta: entry.meta ?? null,
+    actor_id: entry.actor_id ?? null,
+    actor_label: entry.actor_label ?? 'system',
   });
+
   if (error) {
-    // Audit failures are non-fatal but must be surfaced in logs
     console.error('[photo-recovery] audit insert failed:', error.message);
   }
 }
-
-// ---------------------------------------------------------------------------
-// Main handler
-// ---------------------------------------------------------------------------
 
 Deno.serve(async (req: Request): Promise<Response> => {
   if (req.method === 'OPTIONS') {
@@ -200,17 +253,16 @@ Deno.serve(async (req: Request): Promise<Response> => {
   }
 
   try {
-    const supabaseUrl      = Deno.env.get('SUPABASE_URL') ?? '';
-    const serviceRoleKey   = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
-    const anonKey          = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
-    const parkpowToken     = Deno.env.get('PARKPOW_API_TOKEN') ?? '';
-    const platerecToken    = Deno.env.get('PLATERECOGNIZER_TOKEN') ?? Deno.env.get('PLATE_RECOGNIZER_TOKEN') ?? '';
+    const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
+    const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+    const anonKey = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
+    const parkpowToken = Deno.env.get('PARKPOW_API_TOKEN') ?? '';
+    const platerecToken = Deno.env.get('PLATERECOGNIZER_TOKEN') ?? Deno.env.get('PLATE_RECOGNIZER_TOKEN') ?? '';
 
     if (!supabaseUrl || !serviceRoleKey || !anonKey) {
       return json(500, { error: 'Supabase env vars missing' });
     }
 
-    // ----- Auth -----
     const authHeader = req.headers.get('Authorization') ?? '';
     if (!authHeader.startsWith('Bearer ')) {
       return json(401, { error: 'Missing authorization header' });
@@ -218,7 +270,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     const token = authHeader.replace('Bearer ', '');
 
     const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey);
-    const supabaseUser  = createClient(supabaseUrl, anonKey, {
+    const supabaseUser = createClient(supabaseUrl, anonKey, {
       global: { headers: { Authorization: authHeader } },
     });
 
@@ -229,7 +281,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
     const { data: profile, error: profileError } = await supabaseAdmin
       .from('user_profiles')
-      .select('id, role, organization_id, first_name, last_name')
+      .select('id, role, organization_id')
       .eq('id', authData.user.id)
       .single();
 
@@ -237,33 +289,40 @@ Deno.serve(async (req: Request): Promise<Response> => {
       return json(403, { error: 'User profile not found' });
     }
 
-    if (!['admin', 'master'].includes(profile.role)) {
-      return json(403, { error: 'Only admin and master users can run photo recovery' });
+    if (!['admin', 'master', 'admin_officer'].includes(profile.role)) {
+      return json(403, { error: 'Only admin/master/admin_officer users can run photo recovery' });
     }
 
     const actorLabel = `admin:${authData.user.email ?? profile.id}`;
 
-    // ----- Parse body -----
     const body = (await req.json().catch(() => ({}))) as RequestPayload;
 
-    const dateFrom       = toIsoStart(body.date_from);
-    const dateTo         = toIsoEnd(body.date_to);
-    const windowSeconds  = Math.max(60, Math.min(24 * 3600, (body.window_minutes ?? 60) * 60));
-    const limit          = Math.max(1, Math.min(500, body.limit ?? 100));
-    const apply          = body.apply === true;
-    const targetBucket   = body.target_bucket || 'evidence';
-    const parkpowBaseUrl = (body.parkpow_base_url || 'https://api.parkpow.com/api/v1').replace(/\/$/, '');
+    const dateFrom = toIsoStart(body.date_from);
+    const dateTo = toIsoEnd(body.date_to);
+    const windowSeconds = Math.max(60, Math.min(24 * 3600, (body.window_minutes ?? DEFAULT_WINDOW_MINUTES) * 60));
+    const limit = Math.max(1, Math.min(1000, body.limit ?? DEFAULT_LIMIT));
+    const apply = body.apply === true;
+    const targetBucket = body.target_bucket || DEFAULT_BUCKET;
+    const parkpowBaseUrl = (body.parkpow_base_url || DEFAULT_BASE_URL).replace(/\/$/, '');
+    const requireEmptyPhoto = body.require_empty_photo === true;
+    const includeStaleSignedUrls = body.include_stale_signed_urls !== false;
+    const maxSessionPages = Math.max(1, Math.min(10, body.max_session_pages ?? DEFAULT_MAX_SESSION_PAGES));
 
-    // Org scoping: non-master users are locked to their own org
     const orgId: string | null =
       profile.role === 'master'
         ? (body.organization_id ?? null)
         : (profile.organization_id ?? null);
 
-    // ----- Phase 1: Detect missing photos -----
+    const schema = await detectObservationSchema(supabaseAdmin);
+    const infra = await detectRecoveryInfra(supabaseAdmin);
+
+    let selectCols = `${schema.keyCol},organization_id,plate_number,recorded_at,recorded_by,${schema.photoCol}`;
+    if (schema.hasPhotoHashCol) selectCols += ',photo_hash';
+
     let obsQuery = supabaseAdmin
       .from('observations')
-      .select('id, organization_id, plate_number, recorded_at, photo_url, photo_hash, gps_latitude, gps_longitude, recorded_by')
+      .select(selectCols)
+      .not('plate_number', 'is', null)
       .gte('recorded_at', dateFrom)
       .lte('recorded_at', dateTo)
       .order('recorded_at', { ascending: true })
@@ -273,21 +332,31 @@ Deno.serve(async (req: Request): Promise<Response> => {
       obsQuery = obsQuery.eq('organization_id', orgId);
     }
 
-    // Find observations where either photo_url or photo_hash is null
-    obsQuery = obsQuery.or('photo_url.is.null,photo_hash.is.null');
-
     const { data: observations, error: obsError } = await obsQuery;
     if (obsError) {
       return json(500, { error: `Failed to load observations: ${obsError.message}` });
     }
 
-    const rows = (observations ?? []) as ObservationRow[];
+    const rows = (observations ?? []) as ObsRow[];
 
-    if (rows.length === 0) {
+    const candidates = rows.filter((obs) => {
+      const photoValue = String(obs[schema.photoCol] || '').trim();
+      const hasPhoto = photoValue.length > 0;
+      const hasHash = schema.hasPhotoHashCol ? String(obs.photo_hash || '').trim().length > 0 : true;
+      const missingAny = !hasPhoto || !hasHash;
+      const staleSigned = includeStaleSignedUrls && hasPhoto && isSignedStorageUrl(photoValue);
+
+      if (requireEmptyPhoto) return !hasPhoto;
+      return missingAny || staleSigned;
+    });
+
+    if (candidates.length === 0) {
       return json(200, {
         success: true,
-        message: 'No observations with missing photos found in scope',
-        scanned: 0,
+        message: 'No candidate observations in scope',
+        schema,
+        infra,
+        scanned: rows.length,
         detected: 0,
         auto_restored: 0,
         queued_for_review: 0,
@@ -295,55 +364,56 @@ Deno.serve(async (req: Request): Promise<Response> => {
       });
     }
 
-    // ----- Process each observation -----
     const results: RecoveryResult[] = [];
-    let autoRestored      = 0;
-    let queuedForReview   = 0;
-    let parkpowErrors     = 0;
-    let uploadErrors      = 0;
+    let autoRestored = 0;
+    let queuedForReview = 0;
+    let parkpowErrors = 0;
+    let uploadErrors = 0;
 
-    for (const obs of rows) {
+    for (const obs of candidates) {
+      const obsKey = String(obs[schema.keyCol] || '');
+      const plate = normalizePlate(obs.plate_number);
+      const recordedAt = String(obs.recorded_at || '');
+      const currentPhoto = String(obs[schema.photoCol] || '').trim();
+      const hasHash = schema.hasPhotoHashCol ? String(obs.photo_hash || '').trim().length > 0 : true;
+      const reason = (!currentPhoto ? 'missing_photo' : !hasHash ? 'missing_hash' : isSignedStorageUrl(currentPhoto) ? 'stale_signed_url' : 'unknown');
+
+      if (!obsKey || !plate || !recordedAt) {
+        continue;
+      }
+
       const result: RecoveryResult = {
-        observation_id: obs.id,
-        plate_number:   obs.plate_number,
-        recorded_at:    obs.recorded_at,
-        status:         'manual_required',
+        observation_key: obsKey,
+        plate_number: plate,
+        recorded_at: recordedAt,
+        status: 'manual_required',
+        reason,
       };
 
-      // Log detection
-      await audit(supabaseAdmin, {
-        observation_id:  obs.id,
-        organization_id: obs.organization_id,
-        plate_number:    obs.plate_number,
-        recorded_at:     obs.recorded_at,
-        action:          'detect',
-        source:          'system',
-        success:         true,
-        meta: {
-          has_url:  obs.photo_url !== null,
-          has_hash: obs.photo_hash !== null,
-          dry_run:  !apply,
-        },
-        actor_id:    profile.id,
+      await audit(infra.hasAudit, supabaseAdmin, {
+        observation_id: schema.keyCol === 'id' ? obsKey : null,
+        organization_id: obs.organization_id ?? null,
+        plate_number: plate,
+        recorded_at: recordedAt,
+        action: 'detect',
+        source: 'system',
+        success: true,
+        meta: { reason, dry_run: !apply, schema },
+        actor_id: profile.id,
         actor_label: actorLabel,
       });
 
-      // Upsert into missing_photo_queue
-      if (apply) {
-        const reason =
-          obs.photo_url === null && obs.photo_hash === null ? 'null_both'
-          : obs.photo_url  === null ? 'null_url'
-          : 'null_hash';
-
+      if (apply && infra.hasQueue && schema.keyCol === 'id') {
+        const queueReason = reason === 'stale_signed_url' ? 'object_404' : reason === 'missing_hash' ? 'null_hash' : 'null_url';
         await supabaseAdmin.from('missing_photo_queue').upsert(
           {
-            observation_id:  obs.id,
+            observation_id: obsKey,
             organization_id: obs.organization_id,
-            plate_number:    obs.plate_number,
-            recorded_at:     obs.recorded_at,
-            reason,
-            status:          'repairing',
-            attempts:        1,
+            plate_number: plate,
+            recorded_at: recordedAt,
+            reason: queueReason,
+            status: 'repairing',
+            attempts: 1,
             last_attempt_at: new Date().toISOString(),
           },
           { onConflict: 'observation_id' },
@@ -356,307 +426,209 @@ Deno.serve(async (req: Request): Promise<Response> => {
         continue;
       }
 
-      // ----- Phase 2: ParkPow search -----
       let recovered = false;
 
       if (parkpowToken) {
-        await audit(supabaseAdmin, {
-          observation_id:  obs.id,
-          organization_id: obs.organization_id,
-          plate_number:    obs.plate_number,
-          recorded_at:     obs.recorded_at,
-          action:          'parkpow_search',
-          source:          'parkpow',
-          success:         false, // updated below
-          meta:            { plate: obs.plate_number, window_seconds: windowSeconds },
-          actor_id:        profile.id,
-          actor_label:     actorLabel,
-        });
+        const sessions: any[] = [];
+        let nextUrl: string | null = `${parkpowBaseUrl}/sessions/?license_plate=${encodeURIComponent(plate)}&limit=100`;
+        let page = 0;
 
-        try {
-          const sessResp = await fetch(
-            `${parkpowBaseUrl}/sessions/?license_plate=${encodeURIComponent(obs.plate_number.toUpperCase())}&limit=100`,
-            {
-              headers: {
-                Authorization: `Token ${parkpowToken}`,
-                'Content-Type': 'application/json',
-              },
-              signal: AbortSignal.timeout(15000),
+        while (nextUrl && page < maxSessionPages) {
+          page += 1;
+          const sessionsResp = await fetch(nextUrl, {
+            headers: {
+              Authorization: `Token ${parkpowToken}`,
+              'Content-Type': 'application/json',
             },
-          );
+            signal: AbortSignal.timeout(15000),
+          }).catch(() => null);
 
-          if (sessResp.ok) {
-            const sessData = await sessResp.json();
-            const sessions: Array<Record<string, unknown>> = Array.isArray(sessData?.results)
-              ? sessData.results
-              : [];
+          if (!sessionsResp || !sessionsResp.ok) {
+            parkpowErrors++;
+            nextUrl = null;
+            break;
+          }
 
-            const recEpoch = Date.parse(obs.recorded_at);
-            let bestSession: Record<string, unknown> | null = null;
-            let bestDelta = Number.MAX_SAFE_INTEGER;
+          const sessionsData = await sessionsResp.json().catch(() => ({}));
+          sessions.push(...getSessionsArray(sessionsData));
+          nextUrl = getNextPageUrl(sessionsData);
+        }
 
-            for (const s of sessions) {
-              const ts = pickSessionTimestamp(s);
-              const url = extractPhotoUrl(s);
-              if (!ts || !url) continue;
-              const sEpoch = Date.parse(ts);
-              if (Number.isNaN(sEpoch)) continue;
-              const delta = Math.abs(Math.floor((sEpoch - recEpoch) / 1000));
-              if (delta < bestDelta) {
-                bestDelta = delta;
-                bestSession = s;
-              }
+        if (sessions.length > 0) {
+          const recEpoch = Date.parse(recordedAt);
+          let best: any = null;
+          let bestDelta = Number.MAX_SAFE_INTEGER;
+
+          for (const s of sessions) {
+            const ts = pickSessionTimestamp(s);
+            const url = normalizePhotoUrl(extractPhotoUrl(s), parkpowBaseUrl);
+            if (!ts || !url) continue;
+            const sEpoch = Date.parse(ts);
+            if (Number.isNaN(sEpoch) || Number.isNaN(recEpoch)) continue;
+            const delta = Math.abs(Math.floor((sEpoch - recEpoch) / 1000));
+            if (delta < bestDelta) {
+              best = s;
+              bestDelta = delta;
             }
+          }
 
-            if (bestSession && bestDelta <= windowSeconds) {
-              const candidateUrl = extractPhotoUrl(bestSession);
-              const sessionId    = bestSession.id ?? null;
+          if (best && bestDelta <= windowSeconds) {
+            const matchedPhotoUrl = normalizePhotoUrl(extractPhotoUrl(best), parkpowBaseUrl);
+            if (matchedPhotoUrl) {
+              try {
+                const { bytes: imgBytes, contentType } = await downloadPhotoBytes(matchedPhotoUrl, parkpowToken);
 
-              if (candidateUrl) {
-                // ----- Phase 3: Download + ALPR verify -----
-                const imgResp = await fetch(candidateUrl, {
-                  headers: { Authorization: `Token ${parkpowToken}` },
-                  signal: AbortSignal.timeout(30000),
-                }).catch(() => null);
+                let alprPlate: string | null = null;
+                let alprConf: number | null = null;
 
-                if (imgResp?.ok) {
-                  const imgBytes = new Uint8Array(await imgResp.arrayBuffer());
-
-                  if (imgBytes.byteLength > 0) {
-                    // Optionally verify plate via Plate Recognizer
-                    let alprPlate: string | null = null;
-                    let alprConf: number | null = null;
-
-                    if (platerecToken) {
-                      try {
-                        const alprResult = await alprWithBytes(imgBytes, { regions: 'nz', mmc: false });
-                        alprPlate = alprResult.plate;
-                        alprConf  = alprResult.confidence;
-
-                        await audit(supabaseAdmin, {
-                          observation_id:  obs.id,
-                          organization_id: obs.organization_id,
-                          plate_number:    obs.plate_number,
-                          recorded_at:     obs.recorded_at,
-                          action:          'platerecognizer',
-                          source:          'platerecognizer',
-                          source_ref:      candidateUrl,
-                          success:         alprPlate !== null,
-                          meta:            { alpr_plate: alprPlate, alpr_confidence: alprConf },
-                          actor_id:        profile.id,
-                          actor_label:     actorLabel,
-                        });
-                      } catch (alprErr: unknown) {
-                        console.warn('[photo-recovery] ALPR verify failed:', (alprErr as Error).message);
-                      }
-                    }
-
-                    // Accept the photo if ALPR matches or ALPR not available
-                    const plateMatches =
-                      !alprPlate ||
-                      alprPlate.replace(/\s/g, '').toUpperCase() ===
-                        obs.plate_number.replace(/\s/g, '').toUpperCase();
-
-                    if (plateMatches) {
-                      // ----- Upload to storage -----
-                      const folder = safeFolder(obs.recorded_by);
-                      const ts     = Date.now();
-                      const rand   = crypto.randomUUID().slice(0, 8);
-                      const storagePath = `recovered/${folder}/${ts}-${rand}.jpg`;
-                      const hash   = await sha256Hex(imgBytes);
-
-                      const { error: uploadError } = await supabaseAdmin.storage
-                        .from(targetBucket)
-                        .upload(storagePath, imgBytes, { contentType: 'image/jpeg', upsert: false });
-
-                      if (!uploadError) {
-                        const { data: pubData } = supabaseAdmin.storage
-                          .from(targetBucket)
-                          .getPublicUrl(storagePath);
-
-                        const storedUrl = pubData.publicUrl;
-
-                        // Update observation – always set both fields atomically.
-                        // If only one field was missing we still set both to ensure
-                        // the observation is in a fully consistent state.
-                        const { error: updateError } = await supabaseAdmin
-                          .from('observations')
-                          .update({ photo_url: storedUrl, photo_hash: hash })
-                          .eq('id', obs.id);
-
-                        if (!updateError) {
-                          // Mark queue item as fixed
-                          await supabaseAdmin
-                            .from('missing_photo_queue')
-                            .update({
-                              status:            'fixed',
-                              original_photo_url: storedUrl,
-                              attempted_hash:    hash,
-                              repair_notes:      `Auto-recovered from ParkPow session ${sessionId} (delta ${bestDelta}s)`,
-                            })
-                            .eq('observation_id', obs.id);
-
-                          // Audit: photo restored
-                          await audit(supabaseAdmin, {
-                            observation_id:  obs.id,
-                            organization_id: obs.organization_id,
-                            plate_number:    obs.plate_number,
-                            recorded_at:     obs.recorded_at,
-                            action:          'photo_restored',
-                            source:          'parkpow',
-                            source_ref:      String(sessionId ?? ''),
-                            success:         true,
-                            photo_url:       storedUrl,
-                            photo_hash:      hash,
-                            photo_bytes:     imgBytes.byteLength,
-                            meta: {
-                              delta_seconds:     bestDelta,
-                              alpr_plate:        alprPlate,
-                              alpr_confidence:   alprConf,
-                              storage_path:      storagePath,
-                            },
-                            actor_id:        profile.id,
-                            actor_label:     actorLabel,
-                          });
-
-                          // Audit: observation updated
-                          await audit(supabaseAdmin, {
-                            observation_id:  obs.id,
-                            organization_id: obs.organization_id,
-                            plate_number:    obs.plate_number,
-                            recorded_at:     obs.recorded_at,
-                            action:          'observation_updated',
-                            source:          'parkpow',
-                            success:         true,
-                            photo_url:       storedUrl,
-                            photo_hash:      hash,
-                            meta:            { fields_updated: ['photo_url', 'photo_hash'] },
-                            actor_id:        profile.id,
-                            actor_label:     actorLabel,
-                          });
-
-                          result.status          = 'restored';
-                          result.source          = 'parkpow';
-                          result.stored_photo_url = storedUrl;
-                          result.photo_hash      = hash;
-                          result.delta_seconds   = bestDelta;
-                          result.alpr_plate      = alprPlate ?? undefined;
-                          result.alpr_confidence = alprConf  ?? undefined;
-                          recovered = true;
-                          autoRestored++;
-                        } else {
-                          uploadErrors++;
-                          result.error = `Observation update failed: ${updateError.message}`;
-                        }
-                      } else {
-                        uploadErrors++;
-                        result.error = `Storage upload failed: ${uploadError.message}`;
-
-                        await audit(supabaseAdmin, {
-                          observation_id:  obs.id,
-                          organization_id: obs.organization_id,
-                          plate_number:    obs.plate_number,
-                          recorded_at:     obs.recorded_at,
-                          action:          'photo_restored',
-                          source:          'parkpow',
-                          success:         false,
-                          error_message:   uploadError.message,
-                          actor_id:        profile.id,
-                          actor_label:     actorLabel,
-                        });
-                      }
-                    } else {
-                      // ALPR plate mismatch – do not auto-apply
-                      result.reason = `ALPR plate mismatch: detected "${alprPlate}", expected "${obs.plate_number}"`;
-                      await audit(supabaseAdmin, {
-                        observation_id:  obs.id,
-                        organization_id: obs.organization_id,
-                        plate_number:    obs.plate_number,
-                        recorded_at:     obs.recorded_at,
-                        action:          'parkpow_search',
-                        source:          'parkpow',
-                        source_ref:      String(sessionId ?? ''),
-                        success:         false,
-                        meta: {
-                          reason:         'plate_mismatch',
-                          alpr_plate:     alprPlate,
-                          expected_plate: obs.plate_number,
-                          delta_seconds:  bestDelta,
-                        },
-                        actor_id:        profile.id,
-                        actor_label:     actorLabel,
-                      });
-                    }
+                if (platerecToken) {
+                  try {
+                    const alpr = await alprWithBytes(imgBytes, { regions: 'nz', mmc: false });
+                    alprPlate = alpr.plate;
+                    alprConf = alpr.confidence;
+                  } catch {
+                    // ALPR verify is optional
                   }
                 }
+
+                const plateMatches =
+                  !alprPlate || normalizePlate(alprPlate) === plate;
+
+                if (plateMatches) {
+                  const folder = safeFolder(obs.recorded_by);
+                  const ts = Date.now();
+                  const rand = crypto.randomUUID().slice(0, 8);
+                  const storagePath = `recovered/${folder}/${ts}-${rand}.jpg`;
+                  const hash = await sha256Hex(imgBytes);
+
+                  const { error: uploadError } = await supabaseAdmin.storage
+                    .from(targetBucket)
+                    .upload(storagePath, imgBytes, { contentType, upsert: false });
+
+                  if (uploadError) {
+                    throw new Error(`Storage upload failed: ${uploadError.message}`);
+                  }
+
+                  const { data: pubData } = supabaseAdmin.storage
+                    .from(targetBucket)
+                    .getPublicUrl(storagePath);
+                  const storedUrl = pubData.publicUrl;
+
+                  const updateData: Record<string, any> = { [schema.photoCol]: storedUrl };
+                  if (schema.hasPhotoHashCol) updateData.photo_hash = hash;
+
+                  const { error: updateError } = await supabaseAdmin
+                    .from('observations')
+                    .update(updateData)
+                    .eq(schema.keyCol, obsKey);
+
+                  if (updateError) {
+                    throw new Error(`Observation update failed: ${updateError.message}`);
+                  }
+
+                  if (infra.hasQueue && schema.keyCol === 'id') {
+                    await supabaseAdmin
+                      .from('missing_photo_queue')
+                      .update({
+                        status: 'fixed',
+                        original_photo_url: storedUrl,
+                        attempted_hash: schema.hasPhotoHashCol ? hash : null,
+                        repair_notes: `Auto-recovered from ParkPow session ${best.id ?? ''} (delta ${bestDelta}s)`,
+                      })
+                      .eq('observation_id', obsKey);
+                  }
+
+                  await audit(infra.hasAudit, supabaseAdmin, {
+                    observation_id: schema.keyCol === 'id' ? obsKey : null,
+                    organization_id: obs.organization_id ?? null,
+                    plate_number: plate,
+                    recorded_at: recordedAt,
+                    action: 'photo_restored',
+                    source: 'parkpow',
+                    source_ref: String(best.id ?? ''),
+                    success: true,
+                    photo_url: storedUrl,
+                    photo_hash: schema.hasPhotoHashCol ? hash : null,
+                    photo_bytes: imgBytes.byteLength,
+                    meta: {
+                      delta_seconds: bestDelta,
+                      alpr_plate: alprPlate,
+                      alpr_confidence: alprConf,
+                      storage_path: storagePath,
+                    },
+                    actor_id: profile.id,
+                    actor_label: actorLabel,
+                  });
+
+                  result.status = 'restored';
+                  result.source = 'parkpow';
+                  result.stored_photo_url = storedUrl;
+                  result.photo_hash = schema.hasPhotoHashCol ? hash : undefined;
+                  result.delta_seconds = bestDelta;
+                  result.matched_session_id = typeof best.id === 'number' ? best.id : null;
+                  result.alpr_plate = alprPlate ?? undefined;
+                  result.alpr_confidence = alprConf ?? undefined;
+                  recovered = true;
+                  autoRestored++;
+                } else {
+                  result.reason = `ALPR mismatch: detected ${alprPlate}`;
+                }
+              } catch (err: any) {
+                uploadErrors++;
+                result.error = err?.message || 'Apply failed';
               }
             }
-          } else {
-            parkpowErrors++;
           }
-        } catch (parkpowErr: unknown) {
-          parkpowErrors++;
-          console.error('[photo-recovery] ParkPow error:', (parkpowErr as Error).message);
         }
       }
 
-      // ----- Phase 4: Queue for manual review if not auto-recovered -----
       if (!recovered) {
         result.status = 'manual_required';
         queuedForReview++;
 
-        const repairNotes = result.reason
-          ? result.reason
-          : !parkpowToken
-          ? 'PARKPOW_API_TOKEN not configured – manual recovery required'
-          : 'No matching ParkPow session found within time window';
-
-        await supabaseAdmin
-          .from('missing_photo_queue')
-          .update({
-            status:       'manual_required',
-            repair_notes: repairNotes,
-            last_attempt_at: new Date().toISOString(),
-          })
-          .eq('observation_id', obs.id);
-
-        await audit(supabaseAdmin, {
-          observation_id:  obs.id,
-          organization_id: obs.organization_id,
-          plate_number:    obs.plate_number,
-          recorded_at:     obs.recorded_at,
-          action:          'queue_updated',
-          source:          'system',
-          success:         true,
-          meta:            { new_status: 'manual_required', repair_notes: repairNotes },
-          actor_id:        profile.id,
-          actor_label:     actorLabel,
-        });
+        if (apply && infra.hasQueue && schema.keyCol === 'id') {
+          await supabaseAdmin
+            .from('missing_photo_queue')
+            .update({
+              status: 'manual_required',
+              repair_notes:
+                result.reason ||
+                (!parkpowToken
+                  ? 'PARKPOW_API_TOKEN not configured – manual recovery required'
+                  : 'No matching ParkPow session found within time window'),
+              last_attempt_at: new Date().toISOString(),
+            })
+            .eq('observation_id', obsKey);
+        }
       }
 
       results.push(result);
     }
 
     return json(200, {
-      success:            true,
+      success: true,
       apply,
+      schema,
+      infra,
       options: {
-        date_from:        dateFrom,
-        date_to:          dateTo,
-        window_minutes:   Math.floor(windowSeconds / 60),
+        date_from: dateFrom,
+        date_to: dateTo,
+        window_minutes: Math.floor(windowSeconds / 60),
         limit,
-        target_bucket:    targetBucket,
-        organization_id:  orgId,
+        target_bucket: targetBucket,
+        organization_id: orgId,
+        require_empty_photo: requireEmptyPhoto,
+        include_stale_signed_urls: includeStaleSignedUrls,
         parkpow_available: !!parkpowToken,
-        alpr_available:    !!platerecToken,
+        alpr_available: !!platerecToken,
       },
-      scanned:            rows.length,
-      detected:           rows.length,
-      auto_restored:      autoRestored,
-      queued_for_review:  queuedForReview,
-      parkpow_errors:     parkpowErrors,
-      upload_errors:      uploadErrors,
-      sample_results:     results.slice(0, 50),
+      scanned: rows.length,
+      detected: candidates.length,
+      auto_restored: autoRestored,
+      queued_for_review: queuedForReview,
+      parkpow_errors: parkpowErrors,
+      upload_errors: uploadErrors,
+      sample_results: results.slice(0, 50),
     });
   } catch (err: unknown) {
     const msg = (err as Error)?.message ?? 'Internal server error';
