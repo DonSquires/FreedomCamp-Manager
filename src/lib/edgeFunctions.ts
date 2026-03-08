@@ -269,6 +269,62 @@ export const edgeFunctions = {
   },
 
   /**
+   * UI-pinned compliance recalculation invoker.
+   *
+   * This keeps Admin UI flows locked to recalculate-compliance-v3 and returns
+   * stable fields expected by the Compliance Recalculation page.
+   */
+  recalculateComplianceUIPinned: async (params: {
+    zone_id?: string
+    zone_ids?: string[]
+    date_from?: string
+    date_to?: string
+    get_total?: boolean
+    offset?: number
+    batch_size?: number
+  }) => {
+    const zoneIds = params.zone_ids && params.zone_ids.length > 0
+      ? params.zone_ids
+      : params.zone_id
+        ? [params.zone_id]
+        : []
+
+    const v3Response = await callEdgeFunction('recalculate-compliance-v3', {
+      zone_ids: zoneIds,
+      date_from: params.date_from,
+      date_to: params.date_to,
+      get_total: params.get_total,
+      offset: params.offset,
+      limit: params.batch_size,
+      apply: true,
+    })
+
+    if (v3Response.error || !v3Response.data) {
+      return v3Response
+    }
+
+    const data: any = v3Response.data
+    if (params.get_total) {
+      return {
+        data: {
+          total: Number(data.total ?? 0),
+        },
+        error: null,
+      }
+    }
+
+    return {
+      data: {
+        processed: Number(data.processed ?? 0),
+        complianceChanged: Number(data.compliance_changed ?? 0),
+        breachesCreated: Number(data.breaches_created ?? 0),
+        skippedNoRules: Number(data.skipped_no_rules ?? 0),
+      },
+      error: null,
+    }
+  },
+
+  /**
    * Test observations against zone compliance matrix and populate
    * observation compliance fields (is_compliant, breach_type, breach_reason).
    */

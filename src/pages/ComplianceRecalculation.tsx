@@ -30,7 +30,8 @@ interface RecalculationResult {
   action_id?: string | null
   observations_processed: number
   compliance_changed: number
-  drift_events_created: number
+  breaches_created: number
+  skipped_no_rules: number
   duration_seconds: number
   status: 'completed' | 'failed'
   error_message?: string
@@ -48,8 +49,13 @@ interface RecalcAction {
   error_message: string | null
 }
 
-const BATCH_SIZE = 150
-
+interface LiveRunState {
+  total: number
+  processed: number
+  changed: number
+  breachesCreated: number
+  skippedNoRules: number
+}
 export default function ComplianceRecalculation() {
   const { user } = useAuthStore()
   const [scope, setScope] = useState<'organization' | 'zone' | 'date_range'>('organization')
@@ -60,6 +66,7 @@ export default function ComplianceRecalculation() {
   const [result, setResult] = useState<RecalculationResult | null>(null)
   const [isRunning, setIsRunning] = useState(false)
   const [progress, setProgress] = useState(0)
+  const [liveRun, setLiveRun] = useState<LiveRunState | null>(null)
 
   const effectiveOrgId = selectedOrgId || (user?.role !== 'master' ? user?.organization_id || '' : '')
 
@@ -89,34 +96,129 @@ export default function ComplianceRecalculation() {
     }
   }, [selectedOrgId, user?.organization_id, user?.role])
 
+  const runRecalculatePinnedBatched = async (params: {
+    zone_ids: string[]
+    date_from?: string
+    date_to?: string
+  }): Promise<RecalculationResult> => {
+    const startedAt = Date.now()
+
+    const { data: totalData, error: totalError } = await edgeFunctions.recalculateComplianceUIPinned({
+      zone_ids: params.zone_ids,
+      date_from: params.date_from,
+      date_to: params.date_to,
+      get_total: true,
+    })
+
+    if (totalError) throw new Error(totalError)
+
+    const total = Number((totalData as any)?.total ?? 0)
+    const warning = (totalData as any)?.warning as string | undefined
+    if (warning) {
+      toast.warning(warning)
+    }
+
+    if (total <= 0) {
+      return {
+        observations_processed: 0,
+        compliance_changed: 0,
+        breaches_created: 0,
+        skipped_no_rules: 0,
+        duration_seconds: Math.round((Date.now() - startedAt) / 1000),
+        status: 'completed',
+      }
+    }
+
+    setLiveRun({
+      total,
+      processed: 0,
+      changed: 0,
+      breachesCreated: 0,
+      skippedNoRules: 0,
+    })
+
+    let offset = 0
+    const batchSize = 50
+    let processedTotal = 0
+    let changedTotal = 0
+    let breachesCreatedTotal = 0
+    let skippedNoRulesTotal = 0
+
+    while (offset < total) {
+      const { data: batchData, error: batchError } = await edgeFunctions.recalculateComplianceUIPinned({
+        zone_ids: params.zone_ids,
+        date_from: params.date_from,
+        date_to: params.date_to,
+        offset,
+        batch_size: batchSize,
+      })
+
+      if (batchError) throw new Error(batchError)
+
+      const processed = Number((batchData as any)?.processed ?? 0)
+      const changed = Number((batchData as any)?.complianceChanged ?? 0)
+      const breachesCreated = Number((batchData as any)?.breachesCreated ?? 0)
+      const skippedNoRules = Number((batchData as any)?.skippedNoRules ?? 0)
+
+      processedTotal += processed
+      changedTotal += changed
+      breachesCreatedTotal += breachesCreated
+      skippedNoRulesTotal += skippedNoRules
+
+      const progressPct = total > 0 ? Math.min(100, Math.round((processedTotal / total) * 100)) : 0
+      setProgress(progressPct)
+      setLiveRun({
+        total,
+        processed: processedTotal,
+        changed: changedTotal,
+        breachesCreated: breachesCreatedTotal,
+        skippedNoRules: skippedNoRulesTotal,
+      })
+
+      if (processed <= 0) break
+      offset += processed
+    }
+
+    return {
+      observations_processed: processedTotal,
+      compliance_changed: changedTotal,
+      breaches_created: breachesCreatedTotal,
+      skipped_no_rules: skippedNoRulesTotal,
+      duration_seconds: Math.round((Date.now() - startedAt) / 1000),
+      status: 'completed',
+    }
+  }
+
   const recalculateMutation = useMutation({
     mutationFn: async (): Promise<RecalculationResult> => {
-      const params: Parameters<typeof edgeFunctions.recalculateCompliance>[0] = {}
-
       if (scope === 'zone' && selectedZoneId) {
-        params.zone_id = selectedZoneId
-      } else {
-        // organization or date_range scope — restrict to the selected org
-        if (effectiveOrgId) params.organization_id = effectiveOrgId
+        return runRecalculatePinnedBatched({
+          zone_ids: [selectedZoneId],
+          date_from: dateFrom || undefined,
+          date_to: dateTo || undefined,
+        })
       }
 
-      if (dateFrom) params.date_from = dateFrom
-      if (dateTo)   params.date_to   = dateTo
+      const zoneIds = (zones ?? [])
+        .filter((z) => !effectiveOrgId || z.organization_id === effectiveOrgId)
+        .map((z) => z.id)
 
-      const { data, error } = await edgeFunctions.recalculateCompliance(params)
-      if (error) throw new Error(error)
-      return data as RecalculationResult
+      if (zoneIds.length === 0) {
+        throw new Error('No zones available for recalculation in the selected scope')
+      }
+
+      return runRecalculatePinnedBatched({
+        zone_ids: zoneIds,
+        date_from: scope === 'date_range' ? dateFrom : undefined,
+        date_to: scope === 'date_range' ? dateTo : undefined,
+      })
     },
     onMutate: () => {
       setIsRunning(true)
       setProgress(0)
       setResult(null)
-      
-      const interval = setInterval(() => {
-        setProgress(prev => Math.min(prev + 3, 85))
-      }, 800)
-      
-      return { interval }
+      setLiveRun(null)
+      return {}
     },
     onSuccess: (data) => {
       setProgress(100)
@@ -141,9 +243,7 @@ export default function ComplianceRecalculation() {
     },
     onSettled: (_, __, context: any) => {
       setIsRunning(false)
-      if (context?.interval) {
-        clearInterval(context.interval)
-      }
+      if (context?.interval) clearInterval(context.interval)
     },
   })
 
@@ -161,7 +261,7 @@ export default function ComplianceRecalculation() {
       return
     }
 
-    toast.info(`Starting compliance recalculation (server processes in batches of ${BATCH_SIZE})`)
+    toast.info('Starting live compliance recalculation (50 records per batch)')
     recalculateMutation.mutate(undefined as any)
   }
 
@@ -174,7 +274,7 @@ export default function ComplianceRecalculation() {
       <div className="max-w-4xl mx-auto space-y-6">
         <div className="flex items-center justify-center">
           <Badge variant="secondary" className="text-xs">
-            Active Engine: recalculate-compliance-v3 (v2-compatible wrapper)
+            Active Engine: recalculate-compliance-v3 (UI pinned)
           </Badge>
         </div>
 
@@ -400,17 +500,37 @@ export default function ComplianceRecalculation() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Clock className="h-5 w-5 animate-pulse" />
-                Processing...
+                Processing Live...
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <Progress value={progress} className="w-full" />
-              <p className="text-sm text-gray-600 text-center">
-                {progress < 30 && "Loading observations..."}
-                {progress >= 30 && progress < 60 && "Evaluating compliance rules..."}
-                {progress >= 60 && progress < 85 && "Detecting breaches..."}
-                {progress >= 85 && "Finalizing results..."}
-              </p>
+              <p className="text-sm text-gray-600 text-center">{progress}% complete</p>
+
+              {liveRun && (
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+                  <div className="bg-white dark:bg-gray-800 p-3 rounded-lg">
+                    <div className="text-xs text-gray-600">Target</div>
+                    <div className="text-lg font-semibold mt-1">{liveRun.total.toLocaleString()}</div>
+                  </div>
+                  <div className="bg-white dark:bg-gray-800 p-3 rounded-lg">
+                    <div className="text-xs text-gray-600">Processed</div>
+                    <div className="text-lg font-semibold mt-1">{liveRun.processed.toLocaleString()}</div>
+                  </div>
+                  <div className="bg-white dark:bg-gray-800 p-3 rounded-lg">
+                    <div className="text-xs text-gray-600">Changed</div>
+                    <div className="text-lg font-semibold text-orange-600 mt-1">{liveRun.changed.toLocaleString()}</div>
+                  </div>
+                  <div className="bg-white dark:bg-gray-800 p-3 rounded-lg">
+                    <div className="text-xs text-gray-600">Breaches</div>
+                    <div className="text-lg font-semibold text-red-600 mt-1">{liveRun.breachesCreated.toLocaleString()}</div>
+                  </div>
+                  <div className="bg-white dark:bg-gray-800 p-3 rounded-lg">
+                    <div className="text-xs text-gray-600">Skipped</div>
+                    <div className="text-lg font-semibold text-blue-600 mt-1">{liveRun.skippedNoRules.toLocaleString()}</div>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         )}
@@ -446,9 +566,9 @@ export default function ComplianceRecalculation() {
                 </div>
                 
                 <div className="bg-white dark:bg-gray-800 p-4 rounded-lg">
-                  <div className="text-sm text-gray-600">Drift Events</div>
-                  <div className="text-2xl font-bold text-blue-600 mt-1">
-                    {result.drift_events_created.toLocaleString()}
+                  <div className="text-sm text-gray-600">Breaches Created</div>
+                  <div className="text-2xl font-bold text-red-600 mt-1">
+                    {result.breaches_created.toLocaleString()}
                   </div>
                 </div>
                 
@@ -456,6 +576,13 @@ export default function ComplianceRecalculation() {
                   <div className="text-sm text-gray-600">Duration</div>
                   <div className="text-2xl font-bold text-purple-600 mt-1">
                     {result.duration_seconds}s
+                  </div>
+                </div>
+
+                <div className="bg-white dark:bg-gray-800 p-4 rounded-lg col-span-2 md:col-span-4">
+                  <div className="text-sm text-gray-600">Skipped (No Rules)</div>
+                  <div className="text-xl font-bold text-blue-600 mt-1">
+                    {result.skipped_no_rules.toLocaleString()}
                   </div>
                 </div>
               </div>
@@ -473,14 +600,14 @@ export default function ComplianceRecalculation() {
                 </div>
               </div>
 
-              {result.drift_events_created > 0 && (
+              {result.breaches_created > 0 && (
                 <div className="flex items-start gap-3 bg-yellow-50 dark:bg-yellow-900/20 p-4 rounded-lg">
                   <TrendingUp className="h-5 w-5 text-yellow-600 mt-0.5" />
                   <div className="flex-1 text-sm text-yellow-900 dark:text-yellow-100">
-                    <p className="font-semibold">Compliance Drift Detected</p>
+                    <p className="font-semibold">New Breaches Created</p>
                     <p className="mt-1">
-                      {result.drift_events_created} drift event(s) were created because compliance rules changed.
-                      Review these in the Admin Portal to understand what changed and why.
+                      {result.breaches_created} new pending breach alert(s) were created during this run.
+                      Review these in the Admin Portal to triage required enforcement actions.
                     </p>
                   </div>
                 </div>
