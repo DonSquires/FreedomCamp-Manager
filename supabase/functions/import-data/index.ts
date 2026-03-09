@@ -13,6 +13,21 @@ interface ImportRequest {
   organizationId?: string;
 }
 
+function normalizeTimestamp(input: unknown): string | null {
+  if (!input) return null;
+  const raw = String(input).trim();
+  if (!raw) return null;
+
+  // Date-only inputs are anchored to 19:00Z to preserve existing import behavior.
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+    return `${raw}T19:00:00Z`;
+  }
+
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed.toISOString();
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
@@ -221,14 +236,22 @@ ${fileContent}`;
         continue;
       }
 
-      // Use recordDate if provided - set to 19:00 (7 PM) on the SAME date
-      // Example: Data dated 8/2/26 → timestamp is 8/2/26 19:00
-      let timestamp: string;
+      // Prefer explicit request date; otherwise use timestamp fields from source data.
+      // Do not default to "now" for legacy imports because that destroys historical timing.
+      let timestamp: string | null = null;
       if (recordDate) {
-        const dateOnly = recordDate.split('T')[0]; // Get YYYY-MM-DD
-        timestamp = `${dateOnly}T19:00:00Z`; // 7 PM on the same date
+        const dateOnly = recordDate.split('T')[0];
+        timestamp = normalizeTimestamp(dateOnly);
       } else {
-        timestamp = record.recorded_at || new Date().toISOString();
+        timestamp =
+          normalizeTimestamp(record.recorded_at) ||
+          normalizeTimestamp(record.created_at) ||
+          normalizeTimestamp(record.timestamp);
+      }
+
+      if (!timestamp) {
+        skippedRecords.push({ record, reason: 'Missing/invalid timestamp in source data' });
+        continue;
       }
 
       observationsToInsert.push({

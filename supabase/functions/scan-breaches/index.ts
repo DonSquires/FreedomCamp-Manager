@@ -10,6 +10,7 @@ interface BreachDetection {
   breachDetails: any;
   vehicleRecordIds: string[];
   dueDate?: string;
+  sourceRecordedAt?: string;
 }
 
 Deno.serve(async (req) => {
@@ -105,6 +106,7 @@ Deno.serve(async (req) => {
     // Group observations by zone and plate
     const platesByZone = new Map<string, Set<string>>();
     const observationsByPlateZone = new Map<string, string[]>();
+    const latestRecordedAtByPlateZone = new Map<string, string>();
     
     for (const obs of observations || []) {
       const key = `${obs.zone_id}:${obs.plate_number}`;
@@ -118,6 +120,13 @@ Deno.serve(async (req) => {
         observationsByPlateZone.set(key, []);
       }
       observationsByPlateZone.get(key)!.push(obs.observation_id);
+
+      if (obs.recorded_at) {
+        const currentLatest = latestRecordedAtByPlateZone.get(key);
+        if (!currentLatest || new Date(obs.recorded_at).getTime() > new Date(currentLatest).getTime()) {
+          latestRecordedAtByPlateZone.set(key, obs.recorded_at);
+        }
+      }
     }
 
     console.log(`Scanning ${observations?.length || 0} vehicle observations across ${zones?.length || 0} zones`);
@@ -133,13 +142,17 @@ Deno.serve(async (req) => {
       for (const plateNumber of platesInZone) {
         const key = `${zone.id}:${plateNumber}`;
         const observationIds = observationsByPlateZone.get(key) || [];
+        const sourceRecordedAt = latestRecordedAtByPlateZone.get(key);
+        const checkDate = sourceRecordedAt
+          ? sourceRecordedAt.split('T')[0]
+          : new Date().toISOString().split('T')[0];
         
         // Call centralized compliance calculation function
         const { data: complianceData, error: complianceError } = await supabaseAdmin
           .rpc('calculate_vehicle_compliance', {
             p_plate_number: plateNumber,
             p_zone_id: zone.id,
-            p_check_date: new Date().toISOString().split('T')[0]
+            p_check_date: checkDate
           });
 
         if (complianceError) {
@@ -174,6 +187,7 @@ Deno.serve(async (req) => {
               observation_ids: observationIds,
             },
             vehicleRecordIds: [], // No vehicle_records in new schema
+            sourceRecordedAt,
           });
         }
       }
@@ -217,6 +231,7 @@ Deno.serve(async (req) => {
             plate_number: breach.plateNumber,
           },
           due_date: breach.dueDate || null,
+          created_at: breach.sourceRecordedAt,
           status: 'pending',
           notified_by: user?.id || null,
         });

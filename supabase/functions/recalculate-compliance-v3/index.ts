@@ -427,6 +427,7 @@ serve(async (req: Request) => {
                 observation_id: observationId,
                 breach_reason: breachReason,
               },
+              created_at: obs.recorded_at,
               status: 'pending',
             });
 

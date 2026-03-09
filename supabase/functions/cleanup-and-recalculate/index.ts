@@ -357,6 +357,7 @@ serve(async (req) => {
               plate_number:    obs.plate_number,
               breach_type:     alertType,
               breach_details:  { observation_id: obsId, breach_reason: breachReason },
+              created_at:      obs.recorded_at,
               status:          'pending',
             });
             breachesCreated++;
