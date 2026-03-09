@@ -14,6 +14,7 @@ interface BreachDetection {
 }
 
 type OvernightVerificationMode = 'two_photo_verification' | 'one_photo_per_day_inference';
+const EMBEDDING_MATCH_THRESHOLD = 0.86;
 
 function nzDateKey(value: string): string {
   return new Intl.DateTimeFormat('en-CA', {
@@ -49,6 +50,39 @@ function hasStableLocationEvidence(current: any, previous: any): boolean {
   const pLng = Number(previous.gps_longitude);
   if (![cLat, cLng, pLat, pLng].every(Number.isFinite)) return true;
   return calculateDistanceMeters(cLat, cLng, pLat, pLng) <= 50;
+}
+
+function readEmbeddingVector(row: any): number[] | null {
+  const raw = row?.vehicle_embedding ?? row?.embedding;
+  if (!raw) return null;
+
+  let parsed = raw;
+  if (typeof parsed === 'string') {
+    try {
+      parsed = JSON.parse(parsed);
+    } catch {
+      return null;
+    }
+  }
+  if (!Array.isArray(parsed) || parsed.length === 0) return null;
+
+  const nums = parsed.map((v: unknown) => Number(v));
+  if (nums.some((n) => !Number.isFinite(n))) return null;
+  return nums;
+}
+
+function cosineSimilarity(a: number[], b: number[]): number {
+  if (a.length !== b.length || a.length === 0) return 0;
+  let dot = 0;
+  let normA = 0;
+  let normB = 0;
+  for (let i = 0; i < a.length; i++) {
+    dot += a[i] * b[i];
+    normA += a[i] * a[i];
+    normB += b[i] * b[i];
+  }
+  if (normA <= 0 || normB <= 0) return 0;
+  return dot / (Math.sqrt(normA) * Math.sqrt(normB));
 }
 
 Deno.serve(async (req) => {
@@ -130,7 +164,7 @@ Deno.serve(async (req) => {
     // Get unique plate numbers per zone from observations
     let observationsQuery = supabaseAdmin
       .from('observations')
-      .select('plate_number, zone_id, observation_id, organization_id, recorded_at, gps_latitude, gps_longitude')
+      .select('*')
       
       .order('recorded_at', { ascending: false });
     
@@ -226,6 +260,28 @@ Deno.serve(async (req) => {
 
           return false;
         })();
+
+        const hasInferenceEvidence = (() => {
+          const bucket = evidenceObservationsByPlateZone.get(evidenceKey) ?? [];
+          if (bucket.length < 2) return false;
+
+          for (let i = 1; i < bucket.length; i++) {
+            const previous = bucket[i - 1];
+            const current = bucket[i];
+            if (dayDiffInNz(current.recorded_at, previous.recorded_at) !== 1) continue;
+            if (!hasStableLocationEvidence(current, previous)) continue;
+
+            const currentEmbedding = readEmbeddingVector(current);
+            const previousEmbedding = readEmbeddingVector(previous);
+            if (!currentEmbedding || !previousEmbedding || currentEmbedding.length !== previousEmbedding.length) continue;
+
+            if (cosineSimilarity(currentEmbedding, previousEmbedding) >= EMBEDDING_MATCH_THRESHOLD) {
+              return true;
+            }
+          }
+
+          return false;
+        })();
         
         // Call centralized compliance calculation function
         const { data: complianceData, error: complianceError } = await supabaseAdmin
@@ -254,7 +310,11 @@ Deno.serve(async (req) => {
             || compliance.violation_type === 'monthly_overstay'
             || compliance.violation_type === 'consecutive_overstay';
 
-          if (overnightMode === 'two_photo_verification' && overstayType && !hasTwoPhotoEvidence) {
+          const overnightEvidenceOk = overnightMode === 'two_photo_verification'
+            ? hasTwoPhotoEvidence
+            : hasInferenceEvidence;
+
+          if (overstayType && !overnightEvidenceOk) {
             continue;
           }
           

@@ -3,6 +3,7 @@ import { corsHeaders } from '../_shared/cors.ts';
 import { nzHour, toValidBreachType } from '../_shared/compliance.ts';
 
 type OvernightVerificationMode = 'two_photo_verification' | 'one_photo_per_day_inference';
+const EMBEDDING_MATCH_THRESHOLD = 0.86;
 
 function nzDateKey(value: string): string {
   return new Intl.DateTimeFormat('en-CA', {
@@ -38,6 +39,41 @@ function hasStableLocationEvidence(current: any, previous: any): boolean {
   const pLng = Number(previous.gps_longitude);
   if (![cLat, cLng, pLat, pLng].every(Number.isFinite)) return true;
   return distanceMeters(cLat, cLng, pLat, pLng) <= 50;
+}
+
+function readEmbeddingVector(row: any): number[] | null {
+  const raw = row?.vehicle_embedding ?? row?.embedding;
+  if (!raw) return null;
+
+  let parsed = raw;
+  if (typeof parsed === 'string') {
+    try {
+      parsed = JSON.parse(parsed);
+    } catch {
+      return null;
+    }
+  }
+  if (!Array.isArray(parsed) || parsed.length === 0) return null;
+
+  const nums = parsed.map((v: unknown) => Number(v));
+  if (nums.some((n) => !Number.isFinite(n))) return null;
+  return nums;
+}
+
+function cosineSimilarity(a: number[], b: number[]): number {
+  if (a.length !== b.length || a.length === 0) return 0;
+  let dot = 0;
+  let normA = 0;
+  let normB = 0;
+
+  for (let i = 0; i < a.length; i++) {
+    dot += a[i] * b[i];
+    normA += a[i] * a[i];
+    normB += b[i] * b[i];
+  }
+
+  if (normA <= 0 || normB <= 0) return 0;
+  return dot / (Math.sqrt(normA) * Math.sqrt(normB));
 }
 
 /**
@@ -268,6 +304,30 @@ Deno.serve(async (req) => {
           return false;
         })();
 
+        const hasInferenceOvernightEvidence = (() => {
+          const key = `${obs.organization_id}:${obs.zone_id}:${obs.plate_number}`;
+          const bucket = observationsByPlateZone.get(key) ?? [];
+          const currentTs = new Date(obs.recorded_at).getTime();
+          const currentEmbedding = readEmbeddingVector(obs);
+          if (!currentEmbedding) return false;
+
+          for (const previous of bucket) {
+            const prevTs = new Date(previous.recorded_at).getTime();
+            if (!(prevTs < currentTs)) continue;
+            if (dayDiffInNz(obs.recorded_at, previous.recorded_at) !== 1) continue;
+            if (!hasStableLocationEvidence(obs, previous)) continue;
+
+            const previousEmbedding = readEmbeddingVector(previous);
+            if (!previousEmbedding || previousEmbedding.length !== currentEmbedding.length) continue;
+
+            if (cosineSimilarity(currentEmbedding, previousEmbedding) >= EMBEDDING_MATCH_THRESHOLD) {
+              return true;
+            }
+          }
+
+          return false;
+        })();
+
         // Day-visit-only
         if (matrix.day_visit_only) {
           const hour = nzHour(obs.recorded_at);
@@ -281,7 +341,11 @@ Deno.serve(async (req) => {
         if (isCompliant && matrix.nights_per_month != null) {
           if ((obs.nights_stayed_this_month ?? 0) > matrix.nights_per_month) {
             if (!(isHomeless && matrix.homeless_exemption !== false)) {
-              if (overnightMode === 'two_photo_verification' && !hasTwoPhotoOvernightEvidence) {
+              const overnightEvidenceOk = overnightMode === 'two_photo_verification'
+                ? hasTwoPhotoOvernightEvidence
+                : hasInferenceOvernightEvidence;
+
+              if (!overnightEvidenceOk) {
                 isCompliant = true;
               } else {
                 isCompliant  = false;
@@ -295,7 +359,11 @@ Deno.serve(async (req) => {
         if (isCompliant && matrix.max_consecutive_nights != null) {
           if ((obs.consecutive_nights ?? 0) > matrix.max_consecutive_nights) {
             if (!(isHomeless && matrix.homeless_exemption !== false)) {
-              if (overnightMode === 'two_photo_verification' && !hasTwoPhotoOvernightEvidence) {
+              const overnightEvidenceOk = overnightMode === 'two_photo_verification'
+                ? hasTwoPhotoOvernightEvidence
+                : hasInferenceOvernightEvidence;
+
+              if (!overnightEvidenceOk) {
                 isCompliant = true;
               } else {
                 isCompliant  = false;

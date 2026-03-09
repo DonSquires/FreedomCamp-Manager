@@ -527,7 +527,7 @@ Deno.serve(async (req) => {
 
       // Store vehicle embedding when inference service provided one
       if (vehicleEmbedding) {
-        updateData.vehicle_embedding = JSON.stringify(vehicleEmbedding);
+        updateData.vehicle_embedding = vehicleEmbedding;
         updateData.embedding_quality = embeddingQuality;
         updateData.embedding_model_version = 'yolov8n_mobilenetv3_v1.0';
         updateData.embedding_created_at = new Date().toISOString();

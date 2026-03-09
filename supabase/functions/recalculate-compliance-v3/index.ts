@@ -33,6 +33,7 @@ type MatrixRuleSet = RuleSet & {
 };
 
 type OvernightVerificationMode = 'two_photo_verification' | 'one_photo_per_day_inference';
+const EMBEDDING_MATCH_THRESHOLD = 0.86;
 
 function parseJwtPayload(token: string): Record<string, unknown> | null {
   try {
@@ -108,6 +109,42 @@ function hasStableLocationEvidence(current: any, previous: any): boolean {
   if (![cLat, cLng, pLat, pLng].every(Number.isFinite)) return true;
 
   return calculateDistanceMeters(cLat, cLng, pLat, pLng) <= 50;
+}
+
+function readEmbeddingVector(row: any): number[] | null {
+  const raw = row?.vehicle_embedding ?? row?.embedding;
+  if (!raw) return null;
+
+  let parsed = raw;
+  if (typeof parsed === 'string') {
+    try {
+      parsed = JSON.parse(parsed);
+    } catch {
+      return null;
+    }
+  }
+
+  if (!Array.isArray(parsed) || parsed.length === 0) return null;
+
+  const nums = parsed.map((v: unknown) => Number(v));
+  if (nums.some((n) => !Number.isFinite(n))) return null;
+  return nums;
+}
+
+function cosineSimilarity(a: number[], b: number[]): number {
+  if (a.length !== b.length || a.length === 0) return 0;
+  let dot = 0;
+  let normA = 0;
+  let normB = 0;
+
+  for (let i = 0; i < a.length; i++) {
+    dot += a[i] * b[i];
+    normA += a[i] * a[i];
+    normB += b[i] * b[i];
+  }
+
+  if (normA <= 0 || normB <= 0) return 0;
+  return dot / (Math.sqrt(normA) * Math.sqrt(normB));
 }
 
 function toEpoch(value?: string | null): number | null {
@@ -211,6 +248,8 @@ serve(async (req: Request) => {
     const hasNightsStayedColumn = await detectObservationColumn(supabaseAdmin, 'nights_stayed_this_month');
     const hasConsecutiveNightsColumn = await detectObservationColumn(supabaseAdmin, 'consecutive_nights');
     const hasSelfContainedColumn = await detectObservationColumn(supabaseAdmin, 'self_contained');
+    const hasVehicleEmbeddingColumn = await detectObservationColumn(supabaseAdmin, 'vehicle_embedding');
+    const hasEmbeddingColumn = await detectObservationColumn(supabaseAdmin, 'embedding');
 
     const zoneIds = body.zone_ids?.length
       ? body.zone_ids
@@ -229,6 +268,8 @@ serve(async (req: Request) => {
       'recorded_at',
       'gps_latitude',
       'gps_longitude',
+      ...(hasVehicleEmbeddingColumn ? ['vehicle_embedding'] : []),
+      ...(hasEmbeddingColumn ? ['embedding'] : []),
       'is_compliant',
       'breach_type',
       ...(hasBreachReasonColumn ? ['breach_reason'] : []),
@@ -360,6 +401,30 @@ serve(async (req: Request) => {
       return false;
     };
 
+    const hasInferenceOvernightEvidence = (obs: any): boolean => {
+      const key = `${obs.organization_id}:${obs.zone_id}:${obs.plate_number}`;
+      const bucket = observationsByPlateZone.get(key) ?? [];
+      const currentTs = new Date(obs.recorded_at).getTime();
+      const currentEmbedding = readEmbeddingVector(obs);
+      if (!currentEmbedding) return false;
+
+      for (const previous of bucket) {
+        const prevTs = new Date(previous.recorded_at).getTime();
+        if (!(prevTs < currentTs)) continue;
+        if (dayDiffInNz(obs.recorded_at, previous.recorded_at) !== 1) continue;
+        if (!hasStableLocationEvidence(obs, previous)) continue;
+
+        const previousEmbedding = readEmbeddingVector(previous);
+        if (!previousEmbedding || previousEmbedding.length !== currentEmbedding.length) continue;
+
+        if (cosineSimilarity(currentEmbedding, previousEmbedding) >= EMBEDDING_MATCH_THRESHOLD) {
+          return true;
+        }
+      }
+
+      return false;
+    };
+
     const getRulesForObservation = (obs: any): RuleSet | null => {
       const rules = byZoneMatrices.get(obs.zone_id) ?? [];
       const obsTs = toEpoch(obs.recorded_at);
@@ -435,7 +500,11 @@ serve(async (req: Request) => {
         const nightsStayed = hasNightsStayedColumn ? (obs.nights_stayed_this_month ?? 0) : 0;
         const exempt = isHomelessExempt && rules.homeless_exemption !== false;
         if (nightsStayed > rules.nights_per_month && !exempt) {
-          if (overnightMode === 'two_photo_verification' && !hasTwoPhotoOvernightEvidence(obs)) {
+          const overnightEvidenceOk = overnightMode === 'two_photo_verification'
+            ? hasTwoPhotoOvernightEvidence(obs)
+            : hasInferenceOvernightEvidence(obs);
+
+          if (!overnightEvidenceOk) {
             isCompliant = true;
             breachType = null;
             breachReason = null;
@@ -451,7 +520,11 @@ serve(async (req: Request) => {
         const consecutive = hasConsecutiveNightsColumn ? (obs.consecutive_nights ?? 0) : 0;
         const exempt = isHomelessExempt && rules.homeless_exemption !== false;
         if (consecutive > rules.max_consecutive_nights && !exempt) {
-          if (overnightMode === 'two_photo_verification' && !hasTwoPhotoOvernightEvidence(obs)) {
+          const overnightEvidenceOk = overnightMode === 'two_photo_verification'
+            ? hasTwoPhotoOvernightEvidence(obs)
+            : hasInferenceOvernightEvidence(obs);
+
+          if (!overnightEvidenceOk) {
             isCompliant = true;
             breachType = null;
             breachReason = null;
