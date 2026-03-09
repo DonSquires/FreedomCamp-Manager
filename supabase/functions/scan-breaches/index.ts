@@ -13,6 +13,44 @@ interface BreachDetection {
   sourceRecordedAt?: string;
 }
 
+type OvernightVerificationMode = 'two_photo_verification' | 'one_photo_per_day_inference';
+
+function nzDateKey(value: string): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Pacific/Auckland',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date(value));
+}
+
+function dayDiffInNz(aIso: string, bIso: string): number {
+  const a = new Date(`${nzDateKey(aIso)}T00:00:00Z`).getTime();
+  const b = new Date(`${nzDateKey(bIso)}T00:00:00Z`).getTime();
+  return Math.round((a - b) / (24 * 60 * 60 * 1000));
+}
+
+function calculateDistanceMeters(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6371e3;
+  const phi1 = (lat1 * Math.PI) / 180;
+  const phi2 = (lat2 * Math.PI) / 180;
+  const dPhi = ((lat2 - lat1) * Math.PI) / 180;
+  const dLambda = ((lng2 - lng1) * Math.PI) / 180;
+  const a = Math.sin(dPhi / 2) * Math.sin(dPhi / 2)
+    + Math.cos(phi1) * Math.cos(phi2) * Math.sin(dLambda / 2) * Math.sin(dLambda / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
+function hasStableLocationEvidence(current: any, previous: any): boolean {
+  const cLat = Number(current.gps_latitude);
+  const cLng = Number(current.gps_longitude);
+  const pLat = Number(previous.gps_latitude);
+  const pLng = Number(previous.gps_longitude);
+  if (![cLat, cLng, pLat, pLng].every(Number.isFinite)) return true;
+  return calculateDistanceMeters(cLat, cLng, pLat, pLng) <= 50;
+}
+
 Deno.serve(async (req) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
@@ -92,7 +130,7 @@ Deno.serve(async (req) => {
     // Get unique plate numbers per zone from observations
     let observationsQuery = supabaseAdmin
       .from('observations')
-      .select('plate_number, zone_id, observation_id, organization_id')
+      .select('plate_number, zone_id, observation_id, organization_id, recorded_at, gps_latitude, gps_longitude')
       
       .order('recorded_at', { ascending: false });
     
@@ -105,7 +143,7 @@ Deno.serve(async (req) => {
 
     // Group observations by zone and plate
     const platesByZone = new Map<string, Set<string>>();
-    const observationsByPlateZone = new Map<string, string[]>();
+    const observationIdsByPlateZone = new Map<string, string[]>();
     const latestRecordedAtByPlateZone = new Map<string, string>();
     
     for (const obs of observations || []) {
@@ -116,10 +154,10 @@ Deno.serve(async (req) => {
       }
       platesByZone.get(obs.zone_id)!.add(obs.plate_number);
       
-      if (!observationsByPlateZone.has(key)) {
-        observationsByPlateZone.set(key, []);
+      if (!observationIdsByPlateZone.has(key)) {
+        observationIdsByPlateZone.set(key, []);
       }
-      observationsByPlateZone.get(key)!.push(obs.observation_id);
+      observationIdsByPlateZone.get(key)!.push(obs.observation_id);
 
       if (obs.recorded_at) {
         const currentLatest = latestRecordedAtByPlateZone.get(key);
@@ -133,6 +171,32 @@ Deno.serve(async (req) => {
 
     const breachesDetected: BreachDetection[] = [];
 
+    const orgIds = [...new Set((zones || []).map((z: any) => z.organization_id).filter(Boolean))];
+    const { data: orgRows } = await supabaseAdmin
+      .from('organizations')
+      .select('id, overnight_verification_mode')
+      .in('id', orgIds);
+
+    const overnightModeByOrg = new Map<string, OvernightVerificationMode>(
+      (orgRows ?? []).map((o: any) => [
+        String(o.id),
+        (o.overnight_verification_mode === 'one_photo_per_day_inference'
+          ? 'one_photo_per_day_inference'
+          : 'two_photo_verification') as OvernightVerificationMode,
+      ]),
+    );
+
+    const evidenceObservationsByPlateZone = new Map<string, any[]>();
+    for (const obs of observations || []) {
+      const bucketKey = `${obs.organization_id}:${obs.zone_id}:${obs.plate_number}`;
+      const bucket = evidenceObservationsByPlateZone.get(bucketKey) ?? [];
+      bucket.push(obs);
+      evidenceObservationsByPlateZone.set(bucketKey, bucket);
+    }
+    for (const [, bucket] of evidenceObservationsByPlateZone) {
+      bucket.sort((a, b) => new Date(a.recorded_at).getTime() - new Date(b.recorded_at).getTime());
+    }
+
     // Process each zone
     for (const zone of zones || []) {
       const platesInZone = platesByZone.get(zone.id);
@@ -141,11 +205,27 @@ Deno.serve(async (req) => {
       // Check each unique plate in this zone using centralized compliance function
       for (const plateNumber of platesInZone) {
         const key = `${zone.id}:${plateNumber}`;
-        const observationIds = observationsByPlateZone.get(key) || [];
+        const evidenceKey = `${zone.organization_id}:${zone.id}:${plateNumber}`;
+        const observationIds = observationIdsByPlateZone.get(key) || [];
         const sourceRecordedAt = latestRecordedAtByPlateZone.get(key);
         const checkDate = sourceRecordedAt
           ? sourceRecordedAt.split('T')[0]
           : new Date().toISOString().split('T')[0];
+        const overnightMode = overnightModeByOrg.get(String(zone.organization_id)) ?? 'two_photo_verification';
+
+        const hasTwoPhotoEvidence = (() => {
+          const bucket = evidenceObservationsByPlateZone.get(evidenceKey) ?? [];
+          if (bucket.length < 2) return false;
+
+          for (let i = 1; i < bucket.length; i++) {
+            const previous = bucket[i - 1];
+            const current = bucket[i];
+            if (dayDiffInNz(current.recorded_at, previous.recorded_at) !== 1) continue;
+            if (hasStableLocationEvidence(current, previous)) return true;
+          }
+
+          return false;
+        })();
         
         // Call centralized compliance calculation function
         const { data: complianceData, error: complianceError } = await supabaseAdmin
@@ -168,6 +248,15 @@ Deno.serve(async (req) => {
         if (!compliance.is_compliant || 
             compliance.violation_severity === 'critical' || 
             compliance.violation_severity === 'moderate') {
+
+          const overstayType = compliance.violation_type === 'monthly_limit_exceeded'
+            || compliance.violation_type === 'consecutive_nights_exceeded'
+            || compliance.violation_type === 'monthly_overstay'
+            || compliance.violation_type === 'consecutive_overstay';
+
+          if (overnightMode === 'two_photo_verification' && overstayType && !hasTwoPhotoEvidence) {
+            continue;
+          }
           
           breachesDetected.push({
             plateNumber,

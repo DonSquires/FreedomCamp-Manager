@@ -22,6 +22,83 @@ import { alprWithBytes } from '../_shared/alpr.ts';
 
 // API Configuration
 const RAILWAY_INFERENCE_URL = Deno.env.get('INFERENCE_SERVICE_URL');
+const PHOTO_FETCH_TIMEOUT_MS = Number(Deno.env.get('ALPR_PHOTO_FETCH_TIMEOUT_MS') ?? '8000');
+
+function parseStorageLocation(raw: string): { bucket: string; path: string } | null {
+  const input = String(raw || '').trim();
+  if (!input) return null;
+
+  // Match Supabase storage URLs:
+  // /storage/v1/object/public/<bucket>/<path>
+  // /storage/v1/object/sign/<bucket>/<path>
+  // /storage/v1/object/authenticated/<bucket>/<path>
+  if (/^https?:\/\//i.test(input)) {
+    try {
+      const url = new URL(input);
+      const decodedPath = decodeURIComponent(url.pathname);
+      const m = decodedPath.match(/\/storage\/v1\/object\/(?:public|sign|authenticated)\/([^/]+)\/(.+)$/);
+      if (!m) return null;
+      return { bucket: m[1], path: m[2].replace(/^\/+/, '') };
+    } catch {
+      return null;
+    }
+  }
+
+  // Direct bucket/path input support: "scans/<file>" or "evidence/<file>"
+  const cleaned = input.replace(/^\/+/, '');
+  const slashIndex = cleaned.indexOf('/');
+  if (slashIndex <= 0) return null;
+
+  const bucket = cleaned.slice(0, slashIndex);
+  const path = cleaned.slice(slashIndex + 1).replace(/^\/+/, '');
+  if (!bucket || !path) return null;
+
+  return { bucket, path };
+}
+
+async function downloadPhotoBytes(
+  supabase: ReturnType<typeof createClient>,
+  photoRef: string,
+): Promise<{ bytes: Uint8Array; mimeType: string; source: string }> {
+  const storageLocation = parseStorageLocation(photoRef);
+
+  // Prefer service-role storage download when the URL/path points to Supabase storage.
+  if (storageLocation) {
+    const { data, error } = await supabase.storage
+      .from(storageLocation.bucket)
+      .download(storageLocation.path);
+
+    if (!error && data) {
+      const bytes = new Uint8Array(await data.arrayBuffer());
+      return {
+        bytes,
+        mimeType: data.type || 'image/jpeg',
+        source: `storage:${storageLocation.bucket}`,
+      };
+    }
+
+    console.warn('⚠️ Storage download failed, falling back to HTTP fetch:', {
+      bucket: storageLocation.bucket,
+      path: storageLocation.path,
+      error: error?.message,
+    });
+  }
+
+  const response = await fetch(photoRef, {
+    signal: AbortSignal.timeout(PHOTO_FETCH_TIMEOUT_MS),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to download photo: HTTP ${response.status}`);
+  }
+
+  const bytes = new Uint8Array(await response.arrayBuffer());
+  return {
+    bytes,
+    mimeType: response.headers.get('content-type') || 'image/jpeg',
+    source: 'http',
+  };
+}
 
 interface ALPRRequest {
   // MODE 1: Update existing observation (Background Processing)
@@ -253,16 +330,14 @@ Deno.serve(async (req) => {
     // STEP 5: DOWNLOAD PHOTO FROM STORAGE
     // ==========================================================================
     console.log('📥 Downloading photo from:', body.photo_url);
-    
-    const photoResponse = await fetch(body.photo_url);
-    if (!photoResponse.ok) {
-      throw new Error(`Failed to download photo: ${photoResponse.status}`);
-    }
-    
-    const photoBlob = await photoResponse.blob();
+
+    const photoDownload = await downloadPhotoBytes(supabase, body.photo_url);
+
+    const photoBlob = new Blob([photoDownload.bytes], { type: photoDownload.mimeType });
     console.log('✅ Photo downloaded:', {
       size_bytes: photoBlob.size,
-      type: photoBlob.type
+      type: photoBlob.type,
+      source: photoDownload.source,
     });
 
     let plateNumber: string | null = null;
@@ -271,7 +346,7 @@ Deno.serve(async (req) => {
     let stage: ALPRResponse['stage'] = 'manual';
 
     // Convert blob to bytes once — shared by Stage 1 (bytes) and Stage 2 (Blob)
-    const photoBytes = new Uint8Array(await photoBlob.arrayBuffer());
+    const photoBytes = photoDownload.bytes;
 
     // ==========================================================================
     // STAGE 1: PLATE RECOGNIZER (Primary — cloud ALPR, highest accuracy)

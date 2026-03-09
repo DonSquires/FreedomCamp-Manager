@@ -19,6 +19,7 @@ export interface Database {
           contact_email: string | null
           contact_phone: string | null
           enforcement_workflow: string
+          overnight_verification_mode: 'two_photo_verification' | 'one_photo_per_day_inference'
           is_active: boolean
           created_at: string
           updated_at: string
@@ -32,6 +33,7 @@ export interface Database {
           contact_email?: string | null
           contact_phone?: string | null
           enforcement_workflow?: string
+          overnight_verification_mode?: 'two_photo_verification' | 'one_photo_per_day_inference'
           is_active?: boolean
           created_at?: string
           updated_at?: string
@@ -45,6 +47,7 @@ export interface Database {
           contact_email?: string | null
           contact_phone?: string | null
           enforcement_workflow?: string
+          overnight_verification_mode?: 'two_photo_verification' | 'one_photo_per_day_inference'
           is_active?: boolean
           created_at?: string
           updated_at?: string

@@ -107,14 +107,23 @@ export default function ScanScreen() {
 
       // 6. Detect plate via ALPR
       toast.loading('Running plate detection...')
-      const { data: alprData, error: alprError } = await supabase.functions.invoke('alpr-process', {
-        body: {
-          photo_url: photoUrl,
-          latitude: loc.coords.latitude,
-          longitude: loc.coords.longitude,
-          accuracy: loc.coords.accuracy,
-        },
-      })
+      const alprTimeoutMs = 5000
+      const alprResult = await Promise.race([
+        supabase.functions.invoke('alpr-process', {
+          body: {
+            photo_url: photoUrl,
+            latitude: loc.coords.latitude,
+            longitude: loc.coords.longitude,
+            accuracy: loc.coords.accuracy,
+          },
+        }),
+        new Promise<{ data: null; error: { message: string } }>((resolve) => {
+          setTimeout(() => resolve({ data: null, error: { message: 'ALPR pre-detect timed out' } }), alprTimeoutMs)
+        }),
+      ])
+
+      const alprData = (alprResult as any)?.data
+      const alprError = (alprResult as any)?.error
 
       if (alprError) {
         console.warn('ALPR failed; continuing with manual-required flow:', alprError.message)

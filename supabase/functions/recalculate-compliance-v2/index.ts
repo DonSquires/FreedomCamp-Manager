@@ -2,6 +2,44 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
 import { corsHeaders } from '../_shared/cors.ts';
 import { nzHour, toValidBreachType } from '../_shared/compliance.ts';
 
+type OvernightVerificationMode = 'two_photo_verification' | 'one_photo_per_day_inference';
+
+function nzDateKey(value: string): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Pacific/Auckland',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date(value));
+}
+
+function dayDiffInNz(aIso: string, bIso: string): number {
+  const a = new Date(`${nzDateKey(aIso)}T00:00:00Z`).getTime();
+  const b = new Date(`${nzDateKey(bIso)}T00:00:00Z`).getTime();
+  return Math.round((a - b) / (24 * 60 * 60 * 1000));
+}
+
+function distanceMeters(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6371e3;
+  const phi1 = (lat1 * Math.PI) / 180;
+  const phi2 = (lat2 * Math.PI) / 180;
+  const dPhi = ((lat2 - lat1) * Math.PI) / 180;
+  const dLambda = ((lng2 - lng1) * Math.PI) / 180;
+  const a = Math.sin(dPhi / 2) * Math.sin(dPhi / 2)
+    + Math.cos(phi1) * Math.cos(phi2) * Math.sin(dLambda / 2) * Math.sin(dLambda / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
+function hasStableLocationEvidence(current: any, previous: any): boolean {
+  const cLat = Number(current.gps_latitude);
+  const cLng = Number(current.gps_longitude);
+  const pLat = Number(previous.gps_latitude);
+  const pLng = Number(previous.gps_longitude);
+  if (![cLat, cLng, pLat, pLng].every(Number.isFinite)) return true;
+  return distanceMeters(cLat, cLng, pLat, pLng) <= 50;
+}
+
 /**
  * STRICT ZONE-BASED COMPLIANCE RECALCULATION
  * 
@@ -113,6 +151,32 @@ Deno.serve(async (req) => {
       );
     }
 
+    const orgIds = [...new Set(observations.map((o: any) => o.organization_id).filter(Boolean))];
+    const { data: orgRows } = await supabaseAdmin
+      .from('organizations')
+      .select('id, overnight_verification_mode')
+      .in('id', orgIds);
+
+    const overnightModeByOrg = new Map<string, OvernightVerificationMode>(
+      (orgRows ?? []).map((o: any) => [
+        String(o.id),
+        (o.overnight_verification_mode === 'one_photo_per_day_inference'
+          ? 'one_photo_per_day_inference'
+          : 'two_photo_verification') as OvernightVerificationMode,
+      ]),
+    );
+
+    const observationsByPlateZone = new Map<string, any[]>();
+    for (const row of observations) {
+      const key = `${row.organization_id}:${row.zone_id}:${row.plate_number}`;
+      const bucket = observationsByPlateZone.get(key) ?? [];
+      bucket.push(row);
+      observationsByPlateZone.set(key, bucket);
+    }
+    for (const [, bucket] of observationsByPlateZone) {
+      bucket.sort((a, b) => new Date(a.recorded_at).getTime() - new Date(b.recorded_at).getTime());
+    }
+
     // Track zone matrices (cache to avoid re-querying)
     const zoneMatrices = new Map<string, any>();
     const zonesWithoutMatrix = new Set<string>();
@@ -187,6 +251,22 @@ Deno.serve(async (req) => {
           .eq('plate_number', plateNumber)
           .maybeSingle();
         const isHomeless = cv?.homeless_status === 'confirmed';
+        const overnightMode = overnightModeByOrg.get(String(obs.organization_id)) ?? 'two_photo_verification';
+
+        const hasTwoPhotoOvernightEvidence = (() => {
+          const key = `${obs.organization_id}:${obs.zone_id}:${obs.plate_number}`;
+          const bucket = observationsByPlateZone.get(key) ?? [];
+          const currentTs = new Date(obs.recorded_at).getTime();
+
+          for (const previous of bucket) {
+            const prevTs = new Date(previous.recorded_at).getTime();
+            if (!(prevTs < currentTs)) continue;
+            if (dayDiffInNz(obs.recorded_at, previous.recorded_at) !== 1) continue;
+            if (hasStableLocationEvidence(obs, previous)) return true;
+          }
+
+          return false;
+        })();
 
         // Day-visit-only
         if (matrix.day_visit_only) {
@@ -201,9 +281,13 @@ Deno.serve(async (req) => {
         if (isCompliant && matrix.nights_per_month != null) {
           if ((obs.nights_stayed_this_month ?? 0) > matrix.nights_per_month) {
             if (!(isHomeless && matrix.homeless_exemption !== false)) {
-              isCompliant  = false;
-              breachType   = 'monthly_limit';
-              breachReason = `Exceeded monthly stay limit: ${obs.nights_stayed_this_month} nights stayed, limit is ${matrix.nights_per_month}`;
+              if (overnightMode === 'two_photo_verification' && !hasTwoPhotoOvernightEvidence) {
+                isCompliant = true;
+              } else {
+                isCompliant  = false;
+                breachType   = 'monthly_limit';
+                breachReason = `Exceeded monthly stay limit: ${obs.nights_stayed_this_month} nights stayed, limit is ${matrix.nights_per_month}`;
+              }
             }
           }
         }
@@ -211,9 +295,13 @@ Deno.serve(async (req) => {
         if (isCompliant && matrix.max_consecutive_nights != null) {
           if ((obs.consecutive_nights ?? 0) > matrix.max_consecutive_nights) {
             if (!(isHomeless && matrix.homeless_exemption !== false)) {
-              isCompliant  = false;
-              breachType   = 'consecutive_nights';
-              breachReason = `Exceeded consecutive nights limit: ${obs.consecutive_nights} consecutive nights, limit is ${matrix.max_consecutive_nights}`;
+              if (overnightMode === 'two_photo_verification' && !hasTwoPhotoOvernightEvidence) {
+                isCompliant = true;
+              } else {
+                isCompliant  = false;
+                breachType   = 'consecutive_nights';
+                breachReason = `Exceeded consecutive nights limit: ${obs.consecutive_nights} consecutive nights, limit is ${matrix.max_consecutive_nights}`;
+              }
             }
           }
         }

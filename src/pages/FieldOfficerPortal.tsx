@@ -279,14 +279,23 @@ export default function FieldOfficerPortal() {
       // STEP 7: PRE-DETECT PLATE (Non-blocking hint for ingest)
       // ============================================================================
       toast.info('Running plate detection...')
-      const { data: alprData, error: alprError } = await supabase.functions.invoke('alpr-process', {
-        body: {
-          photo_url: photoUrl,
-          latitude: position.coords.latitude,
-          longitude: position.coords.longitude,
-          accuracy: position.coords.accuracy,
-        },
-      })
+      const alprTimeoutMs = 5000
+      const alprResult = await Promise.race([
+        supabase.functions.invoke('alpr-process', {
+          body: {
+            photo_url: photoUrl,
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+            accuracy: position.coords.accuracy,
+          },
+        }),
+        new Promise<{ data: null; error: { message: string } }>((resolve) => {
+          setTimeout(() => resolve({ data: null, error: { message: 'ALPR pre-detect timed out' } }), alprTimeoutMs)
+        }),
+      ])
+
+      const alprData = (alprResult as any)?.data
+      const alprError = (alprResult as any)?.error
 
       if (alprError) {
         console.warn('⚠️ ALPR pre-detection failed, continuing with manual flow:', alprError.message)

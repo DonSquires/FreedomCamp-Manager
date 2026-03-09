@@ -16,7 +16,7 @@ import { toast } from 'sonner'
 import { AppLayout } from '@/components/features/AppLayout'
 import { ZoneGeofenceEditor } from '@/components/features/ZoneGeofenceEditor'
 import { ZoneGeofenceIndicator } from '@/components/features/ZoneGeofenceIndicator'
-import { getOrgTypeLabel } from '@/lib/utils'
+import { getOrgTypeLabel, getOvernightVerificationModeLabel } from '@/lib/utils'
 interface Organization {
   id: string
   name: string
@@ -25,6 +25,7 @@ interface Organization {
   parent_organization_id: string | null
   is_active: boolean
   enforcement_workflow: string
+  overnight_verification_mode: 'two_photo_verification' | 'one_photo_per_day_inference'
   contact_email: string
   contact_phone: string
   geom: any
@@ -261,7 +262,7 @@ export default function OrganizationProfile() {
               </div>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 {/* Users */}
                 <div className="flex items-center gap-3 p-3 bg-blue-50 dark:bg-blue-950 rounded-lg">
                   <div className="p-2 bg-blue-100 dark:bg-blue-900 rounded-lg">
@@ -294,6 +295,19 @@ export default function OrganizationProfile() {
                       {organization.enforcement_workflow?.replace('_', ' ').toUpperCase() || 'DEFAULT'}
                     </div>
                     <div className="text-xs text-gray-600">Workflow</div>
+                  </div>
+                </div>
+
+                {/* Stay Verification */}
+                <div className="flex items-center gap-3 p-3 bg-amber-50 dark:bg-amber-950 rounded-lg">
+                  <div className="p-2 bg-amber-100 dark:bg-amber-900 rounded-lg">
+                    <CheckCircle className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+                  </div>
+                  <div>
+                    <div className="text-sm font-medium text-amber-700 dark:text-amber-300">
+                      {getOvernightVerificationModeLabel(organization.overnight_verification_mode || 'two_photo_verification')}
+                    </div>
+                    <div className="text-xs text-gray-600">Stay Verification</div>
                   </div>
                 </div>
               </div>

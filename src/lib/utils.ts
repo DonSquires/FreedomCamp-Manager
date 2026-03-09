@@ -82,3 +82,14 @@ export function getOrgTypeLabel(type: string): string {
     default: return type
   }
 }
+
+export function getOvernightVerificationModeLabel(mode: string): string {
+  switch (mode) {
+    case 'two_photo_verification':
+      return '2-photo verification'
+    case 'one_photo_per_day_inference':
+      return '1-photo/day + inference'
+    default:
+      return mode
+  }
+}

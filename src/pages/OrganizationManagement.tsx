@@ -14,7 +14,7 @@ import { Building2, Users, MapPin, Settings, Plus } from 'lucide-react'
 import { toast } from 'sonner'
 import { AppLayout } from '@/components/features/AppLayout'
 import { GlobalFilterRibbon } from '@/components/features/GlobalFilterRibbon'
-import { getOrgTypeLabel } from '@/lib/utils'
+import { getOrgTypeLabel, getOvernightVerificationModeLabel } from '@/lib/utils'
 
 interface Organization {
   id: string
@@ -24,6 +24,7 @@ interface Organization {
   parent_organization_id: string | null
   is_active: boolean
   enforcement_workflow: string
+  overnight_verification_mode: 'two_photo_verification' | 'one_photo_per_day_inference'
   contact_email: string | null
   contact_phone: string | null
 }
@@ -38,6 +39,7 @@ export default function OrganizationManagement() {
   // Edit form state
   const [editName, setEditName] = useState('')
   const [editWorkflow, setEditWorkflow] = useState('admin_first')
+  const [editOvernightVerificationMode, setEditOvernightVerificationMode] = useState<'two_photo_verification' | 'one_photo_per_day_inference'>('two_photo_verification')
   const [editEmail, setEditEmail] = useState('')
   const [editPhone, setEditPhone] = useState('')
   const [editIsActive, setEditIsActive] = useState(true)
@@ -47,6 +49,7 @@ export default function OrganizationManagement() {
   // Create form state
   const [createName, setCreateName] = useState('')
   const [createWorkflow, setCreateWorkflow] = useState('admin_first')
+  const [createOvernightVerificationMode, setCreateOvernightVerificationMode] = useState<'two_photo_verification' | 'one_photo_per_day_inference'>('two_photo_verification')
   const [createEmail, setCreateEmail] = useState('')
   const [createPhone, setCreatePhone] = useState('')
   const [createOrgType, setCreateOrgType] = useState<'owner' | 'service_provider' | 'client'>('client')
@@ -136,6 +139,7 @@ export default function OrganizationManagement() {
           organization_level: level,
           parent_organization_id: createParentOrgId,
           enforcement_workflow: createWorkflow,
+          overnight_verification_mode: createOvernightVerificationMode,
           contact_email: createEmail || null,
           contact_phone: createPhone || null,
           is_active: true,
@@ -157,6 +161,7 @@ export default function OrganizationManagement() {
   const resetForm = () => {
     setEditName('')
     setEditWorkflow('admin_first')
+    setEditOvernightVerificationMode('two_photo_verification')
     setEditEmail('')
     setEditPhone('')
     setEditIsActive(true)
@@ -167,6 +172,7 @@ export default function OrganizationManagement() {
   const resetCreateForm = () => {
     setCreateName('')
     setCreateWorkflow('admin_first')
+    setCreateOvernightVerificationMode('two_photo_verification')
     setCreateEmail('')
     setCreatePhone('')
     setCreateOrgType('client')
@@ -177,6 +183,7 @@ export default function OrganizationManagement() {
     setSelectedOrg(org)
     setEditName(org.name)
     setEditWorkflow(org.enforcement_workflow)
+    setEditOvernightVerificationMode(org.overnight_verification_mode || 'two_photo_verification')
     setEditEmail(org.contact_email || '')
     setEditPhone(org.contact_phone || '')
     setEditIsActive(org.is_active)
@@ -255,7 +262,7 @@ export default function OrganizationManagement() {
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                     {/* Users */}
                     <div className="flex items-center gap-3 p-3 bg-blue-50 rounded-lg">
                       <div className="p-2 bg-blue-100 rounded-lg">
@@ -288,6 +295,19 @@ export default function OrganizationManagement() {
                           {org.enforcement_workflow?.replace('_', ' ').toUpperCase()}
                         </div>
                         <div className="text-xs text-gray-600">Workflow</div>
+                      </div>
+                    </div>
+
+                    {/* Overnight Verification */}
+                    <div className="flex items-center gap-3 p-3 bg-amber-50 rounded-lg">
+                      <div className="p-2 bg-amber-100 rounded-lg">
+                        <Settings className="h-5 w-5 text-amber-600" />
+                      </div>
+                      <div>
+                        <div className="text-sm font-medium text-amber-700">
+                          {getOvernightVerificationModeLabel(org.overnight_verification_mode || 'two_photo_verification')}
+                        </div>
+                        <div className="text-xs text-gray-600">Stay Verification</div>
                       </div>
                     </div>
                   </div>
@@ -386,6 +406,22 @@ export default function OrganizationManagement() {
                 </SelectContent>
               </Select>
             </div>
+
+            <div>
+              <Label htmlFor="editOvernightMode">Overnight Stay Verification</Label>
+              <Select
+                value={editOvernightVerificationMode}
+                onValueChange={(v: 'two_photo_verification' | 'one_photo_per_day_inference') => setEditOvernightVerificationMode(v)}
+              >
+                <SelectTrigger id="editOvernightMode">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="two_photo_verification">2-photo verification (day 1 + day 2)</SelectItem>
+                  <SelectItem value="one_photo_per_day_inference">1-photo/day verification (inference + GPS)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
             
             <div>
               <Label htmlFor="editEmail">Contact Email</Label>
@@ -430,6 +466,7 @@ export default function OrganizationManagement() {
                   organization_level: levelMap[editOrgType] || 3,
                   parent_organization_id: editParentOrgId,
                   enforcement_workflow: editWorkflow,
+                  overnight_verification_mode: editOvernightVerificationMode,
                   contact_email: editEmail || null,
                   contact_phone: editPhone || null,
                   is_active: editIsActive,
@@ -507,6 +544,22 @@ export default function OrganizationManagement() {
                   <SelectItem value="admin_first">Admin First (default)</SelectItem>
                   <SelectItem value="officer_direct">Officer Direct</SelectItem>
                   <SelectItem value="hybrid">Hybrid</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label htmlFor="createOvernightMode">Overnight Stay Verification</Label>
+              <Select
+                value={createOvernightVerificationMode}
+                onValueChange={(v: 'two_photo_verification' | 'one_photo_per_day_inference') => setCreateOvernightVerificationMode(v)}
+              >
+                <SelectTrigger id="createOvernightMode">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="two_photo_verification">2-photo verification (day 1 + day 2)</SelectItem>
+                  <SelectItem value="one_photo_per_day_inference">1-photo/day verification (inference + GPS)</SelectItem>
                 </SelectContent>
               </Select>
             </div>

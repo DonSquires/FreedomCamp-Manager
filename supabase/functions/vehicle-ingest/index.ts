@@ -28,6 +28,7 @@ const ALLOWED_LOCALHOST_ORIGINS = new Set([
   "http://localhost:5173",
   "http://localhost:3000",
 ]);
+const PHOTO_FETCH_TIMEOUT_MS = Number(Deno.env.get("INGEST_PHOTO_FETCH_TIMEOUT_MS") ?? "8000");
 
 function getCorsHeaders(req: Request) {
   const origin = req.headers.get("origin") ?? "";
@@ -49,6 +50,78 @@ async function sha256Hash(data: Uint8Array): Promise<string> {
   const hashBuffer = await crypto.subtle.digest("SHA-256", data);
   const hashArray = Array.from(new Uint8Array(hashBuffer));
   return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+function bytesToBase64(data: Uint8Array): string {
+  // Avoid spreading large arrays into String.fromCharCode(...arr), which can stall/crash.
+  let binary = "";
+  const chunkSize = 0x8000;
+  for (let i = 0; i < data.length; i += chunkSize) {
+    const chunk = data.subarray(i, i + chunkSize);
+    binary += String.fromCharCode(...chunk);
+  }
+  return btoa(binary);
+}
+
+function parseStorageLocation(raw: string): { bucket: string; path: string } | null {
+  const input = String(raw || "").trim();
+  if (!input) return null;
+
+  if (/^https?:\/\//i.test(input)) {
+    try {
+      const url = new URL(input);
+      const decodedPath = decodeURIComponent(url.pathname);
+      const match = decodedPath.match(/\/storage\/v1\/object\/(?:public|sign|authenticated)\/([^/]+)\/(.+)$/);
+      if (!match) return null;
+      return { bucket: match[1], path: match[2].replace(/^\/+/, "") };
+    } catch {
+      return null;
+    }
+  }
+
+  const cleaned = input.replace(/^\/+/, "");
+  const idx = cleaned.indexOf("/");
+  if (idx <= 0) return null;
+  const bucket = cleaned.slice(0, idx);
+  const path = cleaned.slice(idx + 1).replace(/^\/+/, "");
+  if (!bucket || !path) return null;
+  return { bucket, path };
+}
+
+async function downloadPhotoBytes(
+  supabase: ReturnType<typeof createClient>,
+  photoRef: string,
+): Promise<{ bytes: Uint8Array; source: string }> {
+  const storageLocation = parseStorageLocation(photoRef);
+
+  if (storageLocation) {
+    const { data, error } = await supabase.storage
+      .from(storageLocation.bucket)
+      .download(storageLocation.path);
+
+    if (!error && data) {
+      return {
+        bytes: new Uint8Array(await data.arrayBuffer()),
+        source: `storage:${storageLocation.bucket}`,
+      };
+    }
+
+    console.warn("⚠️ Storage download failed, falling back to HTTP fetch", {
+      bucket: storageLocation.bucket,
+      path: storageLocation.path,
+      error: error?.message,
+    });
+  }
+
+  const response = await fetch(photoRef, { signal: AbortSignal.timeout(PHOTO_FETCH_TIMEOUT_MS) });
+  if (!response.ok) {
+    throw new Error(`Photo URL download failed: HTTP ${response.status}`);
+  }
+
+  return {
+    bytes: new Uint8Array(await response.arrayBuffer()),
+    source: "http",
+  };
 }
 
 Deno.serve(async (req) => {
@@ -186,6 +259,7 @@ Deno.serve(async (req) => {
     let idempotencyKey: string | null = null;
     let officerNotes: string | null = null;
     let weatherConditions: string | null = null;
+    let photoUrlInput: string | null = null;
     
     // Onspace AI fallback mode - plate data from client
     let clientPlate: string | null = null;
@@ -212,6 +286,7 @@ Deno.serve(async (req) => {
       idempotencyKey = body.idempotencyKey ?? body.idempotency_key;
       officerNotes = body.notes ?? body.officer_notes;
       weatherConditions = body.weather ?? body.weather_conditions;
+      photoUrlInput = body.photo_url ?? body.photoUrl ?? null;
       
       // Onspace AI provided plate data
       if (USE_ONSPACE_AI) {
@@ -239,6 +314,7 @@ Deno.serve(async (req) => {
       idempotencyKey = formData.get("idempotencyKey") as string;
       officerNotes = formData.get("notes") as string;
       weatherConditions = formData.get("weather") as string;
+      photoUrlInput = (formData.get("photo_url") as string) || (formData.get("photoUrl") as string) || null;
       
       // Onspace AI provided plate data
       if (USE_ONSPACE_AI) {
@@ -262,12 +338,27 @@ Deno.serve(async (req) => {
       );
     }
 
+    // Support ingest from existing photo URLs (storage-first) when raw image payload is absent.
+    if (!imageBytes && !imageDataUrl && photoUrlInput) {
+      try {
+        const photoDownload = await downloadPhotoBytes(supabase, photoUrlInput);
+        imageBytes = photoDownload.bytes;
+        console.log("✅ Loaded photo from URL for ingest", {
+          source: photoDownload.source,
+          bytes: imageBytes.length,
+        });
+      } catch (photoErr: any) {
+        console.error("❌ Failed to load photo_url input:", photoErr?.message || photoErr);
+      }
+    }
+
     // Validate required fields
     if (!imageBytes && !imageDataUrl) {
       console.error('❌ Missing image data. Received:', {
         hasImageBytes: !!imageBytes,
         hasImageDataUrl: !!imageDataUrl,
         imageDataUrlLength: imageDataUrl?.length,
+        hasPhotoUrlInput: !!photoUrlInput,
       });
       return new Response(JSON.stringify({ error: "Missing image data" }), {
         status: 400,
@@ -341,6 +432,7 @@ Deno.serve(async (req) => {
       mode: USE_ONSPACE_AI ? "onspace_fallback" : "railway_inference",
       hasBytes: !!imageBytes,
       hasDataUrl: !!imageDataUrl,
+      hasPhotoUrlInput: !!photoUrlInput,
     });
 
     // Check for duplicate (idempotency)
@@ -437,19 +529,26 @@ Deno.serve(async (req) => {
       // Railway inference mode - Call standalone service
       console.log('🚂 Using Railway inference service');
       const inferenceUrl = Deno.env.get('INFERENCE_SERVICE_URL');
+      const inferenceTimeoutMs = Number(Deno.env.get('INFERENCE_TIMEOUT_MS') ?? '8000');
       
       if (!inferenceUrl) {
         throw new Error('INFERENCE_SERVICE_URL not configured');
       }
 
       try {
+        const imageBase64 = imageDataUrl?.split(',')[1] ?? (imageBytes ? bytesToBase64(imageBytes) : null);
+        if (!imageBase64) {
+          throw new Error('No image payload available for inference');
+        }
+
         const inferenceResponse = await fetch(`${inferenceUrl}/infer`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            image_base64: imageDataUrl?.split(',')[1] ?? btoa(String.fromCharCode(...imageBytes!)),
+            image_base64: imageBase64,
             mode: 'alpr_with_orc_fallback',
           }),
+          signal: AbortSignal.timeout(inferenceTimeoutMs),
         });
 
         if (!inferenceResponse.ok) {

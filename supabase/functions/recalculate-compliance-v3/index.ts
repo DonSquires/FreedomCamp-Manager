@@ -32,6 +32,8 @@ type MatrixRuleSet = RuleSet & {
   version?: number | null;
 };
 
+type OvernightVerificationMode = 'two_photo_verification' | 'one_photo_per_day_inference';
+
 function parseJwtPayload(token: string): Record<string, unknown> | null {
   try {
     const parts = token.split('.');
@@ -67,6 +69,45 @@ function normalizeDayName(dateIso: string): string {
     weekday: 'long',
   }).format(new Date(dateIso));
   return day.toLowerCase();
+}
+
+function nzDateKey(value: string): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Pacific/Auckland',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date(value));
+}
+
+function dayDiffInNz(aIso: string, bIso: string): number {
+  const a = new Date(`${nzDateKey(aIso)}T00:00:00Z`).getTime();
+  const b = new Date(`${nzDateKey(bIso)}T00:00:00Z`).getTime();
+  return Math.round((a - b) / (24 * 60 * 60 * 1000));
+}
+
+function calculateDistanceMeters(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const R = 6371e3;
+  const phi1 = (lat1 * Math.PI) / 180;
+  const phi2 = (lat2 * Math.PI) / 180;
+  const dPhi = ((lat2 - lat1) * Math.PI) / 180;
+  const dLambda = ((lng2 - lng1) * Math.PI) / 180;
+  const a = Math.sin(dPhi / 2) * Math.sin(dPhi / 2)
+    + Math.cos(phi1) * Math.cos(phi2) * Math.sin(dLambda / 2) * Math.sin(dLambda / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
+function hasStableLocationEvidence(current: any, previous: any): boolean {
+  const cLat = Number(current.gps_latitude);
+  const cLng = Number(current.gps_longitude);
+  const pLat = Number(previous.gps_latitude);
+  const pLng = Number(previous.gps_longitude);
+
+  // If GPS is missing for either row, keep zone/date photo-pair as sufficient evidence.
+  if (![cLat, cLng, pLat, pLng].every(Number.isFinite)) return true;
+
+  return calculateDistanceMeters(cLat, cLng, pLat, pLng) <= 50;
 }
 
 function toEpoch(value?: string | null): number | null {
@@ -186,6 +227,8 @@ serve(async (req: Request) => {
       'organization_id',
       'plate_number',
       'recorded_at',
+      'gps_latitude',
+      'gps_longitude',
       'is_compliant',
       'breach_type',
       ...(hasBreachReasonColumn ? ['breach_reason'] : []),
@@ -276,6 +319,47 @@ serve(async (req: Request) => {
       (homelessRows ?? []).map((r: any) => [String(r.plate_number), String(r.homeless_status ?? '')]),
     );
 
+    const orgIds = [...new Set(observations.map((o: any) => o.organization_id).filter(Boolean))];
+    const { data: orgRows } = await supabaseAdmin
+      .from('organizations')
+      .select('id, overnight_verification_mode')
+      .in('id', orgIds);
+
+    const overnightModeByOrg = new Map<string, OvernightVerificationMode>(
+      (orgRows ?? []).map((o: any) => [
+        String(o.id),
+        (o.overnight_verification_mode === 'one_photo_per_day_inference'
+          ? 'one_photo_per_day_inference'
+          : 'two_photo_verification') as OvernightVerificationMode,
+      ]),
+    );
+
+    const observationsByPlateZone = new Map<string, any[]>();
+    for (const row of observations) {
+      const key = `${row.organization_id}:${row.zone_id}:${row.plate_number}`;
+      const bucket = observationsByPlateZone.get(key) ?? [];
+      bucket.push(row);
+      observationsByPlateZone.set(key, bucket);
+    }
+    for (const [, bucket] of observationsByPlateZone) {
+      bucket.sort((a, b) => new Date(a.recorded_at).getTime() - new Date(b.recorded_at).getTime());
+    }
+
+    const hasTwoPhotoOvernightEvidence = (obs: any): boolean => {
+      const key = `${obs.organization_id}:${obs.zone_id}:${obs.plate_number}`;
+      const bucket = observationsByPlateZone.get(key) ?? [];
+      const currentTs = new Date(obs.recorded_at).getTime();
+
+      for (const previous of bucket) {
+        const prevTs = new Date(previous.recorded_at).getTime();
+        if (!(prevTs < currentTs)) continue;
+        if (dayDiffInNz(obs.recorded_at, previous.recorded_at) !== 1) continue;
+        if (hasStableLocationEvidence(obs, previous)) return true;
+      }
+
+      return false;
+    };
+
     const getRulesForObservation = (obs: any): RuleSet | null => {
       const rules = byZoneMatrices.get(obs.zone_id) ?? [];
       const obsTs = toEpoch(obs.recorded_at);
@@ -322,6 +406,7 @@ serve(async (req: Request) => {
       // Four-category model: confirmed / claimed / declined / freedom_camper.
       // confirmed + claimed are exempt-eligible. declined and freedom_camper are non-exempt.
       const isHomelessExempt = homelessCategory === 'confirmed' || homelessCategory === 'claimed';
+      const overnightMode = overnightModeByOrg.get(String(obs.organization_id)) ?? 'two_photo_verification';
 
       let isCompliant = true;
       let breachType: string | null = null;
@@ -350,9 +435,15 @@ serve(async (req: Request) => {
         const nightsStayed = hasNightsStayedColumn ? (obs.nights_stayed_this_month ?? 0) : 0;
         const exempt = isHomelessExempt && rules.homeless_exemption !== false;
         if (nightsStayed > rules.nights_per_month && !exempt) {
-          isCompliant = false;
-          breachType = 'monthly_limit';
-          breachReason = `Exceeded monthly stay limit: ${nightsStayed} > ${rules.nights_per_month}`;
+          if (overnightMode === 'two_photo_verification' && !hasTwoPhotoOvernightEvidence(obs)) {
+            isCompliant = true;
+            breachType = null;
+            breachReason = null;
+          } else {
+            isCompliant = false;
+            breachType = 'monthly_limit';
+            breachReason = `Exceeded monthly stay limit: ${nightsStayed} > ${rules.nights_per_month}`;
+          }
         }
       }
 
@@ -360,9 +451,15 @@ serve(async (req: Request) => {
         const consecutive = hasConsecutiveNightsColumn ? (obs.consecutive_nights ?? 0) : 0;
         const exempt = isHomelessExempt && rules.homeless_exemption !== false;
         if (consecutive > rules.max_consecutive_nights && !exempt) {
-          isCompliant = false;
-          breachType = 'consecutive_nights';
-          breachReason = `Exceeded consecutive nights limit: ${consecutive} > ${rules.max_consecutive_nights}`;
+          if (overnightMode === 'two_photo_verification' && !hasTwoPhotoOvernightEvidence(obs)) {
+            isCompliant = true;
+            breachType = null;
+            breachReason = null;
+          } else {
+            isCompliant = false;
+            breachType = 'consecutive_nights';
+            breachReason = `Exceeded consecutive nights limit: ${consecutive} > ${rules.max_consecutive_nights}`;
+          }
         }
       }
 
