@@ -317,7 +317,7 @@ export default function FieldOfficerPortal() {
       )
 
       if (alprError) {
-        console.warn('⚠️ ALPR pre-detection failed, continuing with manual flow:', alprError.message)
+        console.warn('⚠️ ALPR pre-detection failed, continuing with manual flow:', alprError)
       }
 
       const detectedPlate = alprData?.plate || alprData?.plate_number || null
@@ -348,7 +348,7 @@ export default function FieldOfficerPortal() {
       )
 
       if (ingestError) {
-        throw new Error(`Save failed: ${ingestError.message}`)
+        throw new Error(`Save failed: ${ingestError}`)
       }
 
       console.log('✅ Observation created via vehicle-ingest:', {
