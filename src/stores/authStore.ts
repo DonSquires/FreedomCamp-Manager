@@ -103,6 +103,9 @@ export const useAuthStore = create<AuthState>()(
 
       logout: async () => {
         await supabase.auth.signOut()
+        if (typeof window !== 'undefined') {
+          window.sessionStorage.removeItem('adminOfficerPortalChoice')
+        }
         set({ user: null, isAuthenticated: false, loading: false })
       },
 

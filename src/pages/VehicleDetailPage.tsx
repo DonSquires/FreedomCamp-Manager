@@ -142,7 +142,7 @@ export default function VehicleDetailPage() {
 
   // Fetch breach alerts
   const { data: breaches = [], isLoading: loadingBreaches } = useQuery({
-    queryKey: ['vehicle-breaches', vehicle?.plate_number],
+    queryKey: ['vehicle-breaches', vehicle?.plate_number, effectiveOrganizationId, zoneId, dateFrom, dateTo],
     queryFn: async () => {
       let query = supabase
         .from('breach_alerts')

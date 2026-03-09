@@ -7,6 +7,10 @@ dotenv.config();
 // ---------------------------------------------------------------------------
 // Data Sources
 // ---------------------------------------------------------------------------
+// GeoBoundaries (public, no API key) — Stats NZ sourced for New Zealand.
+//   ADM2 Territorial Authorities: https://www.geoboundaries.org/api/current/gbOpen/NZL/ADM2/
+//   ADM1 Regions:                https://www.geoboundaries.org/api/current/gbOpen/NZL/ADM1/
+//
 // Stats NZ Geographic Data Service (requires STATSNZ_API_KEY)
 //   TA 2025 (Clipped to coastline): https://datafinder.stats.govt.nz/layer/120962-territorial-authority-2025-clipped/
 //   TA 2025 (Generalised):          https://datafinder.stats.govt.nz/layer/120963-territorial-authority-2025/
@@ -25,10 +29,15 @@ const LAYER_IDS = {
   meshblock: "120980",
 };
 
-// NZTA public fallback endpoint (no API key required)
-const NZTA_TA_URL =
-  "https://spatial.nzta.govt.nz/portal/rest/services/Hosted/Territorial_Authority_Boundaries/FeatureServer/0/query"
-  + "?where=1%3D1&outFields=*&f=geojson";
+const GEOBOUNDARIES_ADM1_META_URL = 'https://www.geoboundaries.org/api/current/gbOpen/NZL/ADM1/';
+const GEOBOUNDARIES_ADM2_META_URL = 'https://www.geoboundaries.org/api/current/gbOpen/NZL/ADM2/';
+
+const ORG_BOUNDARY_ALIASES: Record<string, string[]> = {
+  'Hutt City Council': ['Lower Hutt City'],
+  'Rotorua Lakes Council': ['Rotorua District'],
+  'Opotiki District Council': ['Opotiki District', 'Opotiki'],
+  'Otorohanga District Council': ['Otorohanga District', 'Otorohanga'],
+};
 
 const STATSNZ_API_KEY = process.env.STATSNZ_API_KEY;
 const IMPORT_MODE = (process.env.IMPORT_MODE || "territorial") as keyof typeof LAYER_IDS;
@@ -41,6 +50,20 @@ const supabase = createClient(
 );
 
 let zoneBoundarySourceSupported: boolean | null = null;
+let organizationsGeomSupported: boolean | null = null;
+
+interface GeoBoundariesMeta {
+  gjDownloadURL?: string;
+}
+
+interface BoundaryFeature {
+  properties?: Record<string, any>;
+  geometry?: any;
+}
+
+interface BoundaryDataset {
+  features: BoundaryFeature[];
+}
 
 async function supportsZoneBoundarySource(): Promise<boolean> {
   if (zoneBoundarySourceSupported !== null) return zoneBoundarySourceSupported;
@@ -59,6 +82,22 @@ async function supportsZoneBoundarySource(): Promise<boolean> {
   return zoneBoundarySourceSupported;
 }
 
+async function supportsOrganizationsGeom(): Promise<boolean> {
+  if (organizationsGeomSupported !== null) return organizationsGeomSupported;
+
+  const { error } = await (supabase.from('organizations') as any)
+    .select('geom')
+    .limit(1);
+
+  if (error && /geom/i.test(error.message || '')) {
+    organizationsGeomSupported = false;
+    return organizationsGeomSupported;
+  }
+
+  organizationsGeomSupported = true;
+  return organizationsGeomSupported;
+}
+
 function buildWfsUrl(layerId: string, bbox?: string): string | null {
   if (!STATSNZ_API_KEY) return null;
   let url = `https://datafinder.stats.govt.nz/services;key=${STATSNZ_API_KEY}/wfs`
@@ -71,87 +110,168 @@ function buildWfsUrl(layerId: string, bbox?: string): string | null {
   return url;
 }
 
+function normalizeName(value: string): string {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\(.*?\)/g, ' ')
+    .replace(/[-_']/g, ' ')
+    .replace(/\bcity council\b|\bdistrict council\b|\bregional council\b|\bcouncil\b|\bdistrict\b|\bcity\b|\bregion\b|\bte\b|\bthe\b/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+}
+
+async function fetchGeoBoundariesDataset(metaUrl: string): Promise<BoundaryDataset> {
+  const metaRes = await fetch(metaUrl);
+  if (!metaRes.ok) {
+    throw new Error(`GeoBoundaries metadata request failed: ${metaRes.status} ${metaRes.statusText}`);
+  }
+
+  const meta = (await metaRes.json()) as GeoBoundariesMeta;
+  if (!meta.gjDownloadURL) {
+    throw new Error(`GeoBoundaries metadata missing gjDownloadURL for ${metaUrl}`);
+  }
+
+  const dataRes = await fetch(meta.gjDownloadURL);
+  if (!dataRes.ok) {
+    throw new Error(`GeoBoundaries GeoJSON request failed: ${dataRes.status} ${dataRes.statusText}`);
+  }
+
+  const dataset = (await dataRes.json()) as BoundaryDataset;
+  if (!Array.isArray(dataset.features)) {
+    throw new Error('Invalid GeoBoundaries dataset: missing features array.');
+  }
+
+  return dataset;
+}
+
+async function updateOrganizationJurisdiction(orgId: string, geometry: any): Promise<void> {
+  const canWriteOrgGeom = await supportsOrganizationsGeom();
+
+  if (canWriteOrgGeom) {
+    const { error: orgErr } = await (supabase.from('organizations') as any)
+      .update({ geom: geometry })
+      .eq('id', orgId);
+
+    if (orgErr) {
+      throw new Error(`organizations.geom update failed: ${orgErr.message}`);
+    }
+  }
+
+  const { error: zoneErr } = await (supabase.from('zones') as any)
+    .update({ geometry })
+    .eq('organization_id', orgId)
+    .eq('zone_type', 'general');
+
+  if (zoneErr) {
+    throw new Error(`zones.geometry update failed: ${zoneErr.message}`);
+  }
+}
+
+function findFuzzyFeature(
+  candidates: string[],
+  sourceMap: Map<string, BoundaryFeature>,
+): BoundaryFeature | undefined {
+  const matches: BoundaryFeature[] = [];
+
+  for (const [nameKey, feature] of sourceMap.entries()) {
+    for (const candidate of candidates) {
+      if (candidate.length < 4) continue;
+      if (nameKey.includes(candidate) || candidate.includes(nameKey)) {
+        matches.push(feature);
+        break;
+      }
+    }
+  }
+
+  // Only accept fuzzy match when exactly one candidate is found.
+  return matches.length === 1 ? matches[0] : undefined;
+}
+
 // ---------------------------------------------------------------------------
 // Mode 1: Import Territorial Authority boundaries → match to organizations
 // Uses Stats NZ (clipped coastline) as primary, NZTA as public fallback
 // ---------------------------------------------------------------------------
 async function importTerritorialAuthorities() {
-  let url = buildWfsUrl(LAYER_IDS.territorial);
-  let source = "Stats NZ (layer 120962 – clipped to coastline)";
-  let useNztaFallback = false;
+  console.log('📡 Fetching jurisdiction boundaries from GeoBoundaries (Stats NZ source)...');
 
-  if (!url) {
-    // Fallback to NZTA public endpoint (no API key required)
-    console.log("ℹ️  STATSNZ_API_KEY not set – using NZTA public data as fallback.");
-    console.log("   For best results, register at https://datafinder.stats.govt.nz/ and set STATSNZ_API_KEY.\n");
-    url = NZTA_TA_URL;
-    source = "NZTA / Waka Kotahi (public ArcGIS)";
-    useNztaFallback = true;
+  const [adm1, adm2] = await Promise.all([
+    fetchGeoBoundariesDataset(GEOBOUNDARIES_ADM1_META_URL),
+    fetchGeoBoundariesDataset(GEOBOUNDARIES_ADM2_META_URL),
+  ]);
+
+  const adm1ByName = new Map<string, BoundaryFeature>();
+  const adm2ByName = new Map<string, BoundaryFeature>();
+
+  for (const feature of adm1.features) {
+    const shapeName = String(feature.properties?.shapeName || '').trim();
+    if (!shapeName || !feature.geometry) continue;
+    adm1ByName.set(normalizeName(shapeName), feature);
   }
 
-  console.log(`📡 Fetching Territorial Authority boundaries from ${source}...`);
-
-  const response = await fetch(url);
-  if (!response.ok) {
-    throw new Error(`API request failed: ${response.status} ${response.statusText}`);
+  for (const feature of adm2.features) {
+    const shapeName = String(feature.properties?.shapeName || '').trim();
+    if (!shapeName || !feature.geometry) continue;
+    adm2ByName.set(normalizeName(shapeName), feature);
   }
 
-  const geojson = await response.json();
-  console.log(`🗺️  Downloaded ${geojson.features.length} Territorial Authority boundaries.`);
+  const { data: organizations, error: orgErr } = await (supabase.from('organizations') as any)
+    .select('id, name')
+    .eq('is_active', true)
+    .order('name');
+
+  if (orgErr) {
+    throw new Error(`Failed to load organizations: ${orgErr.message}`);
+  }
+
+  console.log(`🗺️  Loaded ${adm1.features.length} ADM1 and ${adm2.features.length} ADM2 boundaries.`);
+  console.log(`🏢 Matching ${organizations.length} active organizations...`);
 
   let successCount = 0;
   let skipCount = 0;
 
-  for (const feature of geojson.features) {
-    // Stats NZ properties: TA2025_V1_00_NAME_ASCII, TA2025_V1_00_NAME
-    // NZTA properties: TA_NAME, TA2023_V_1
-    const rawName = feature.properties.TA2025_V1_00_NAME_ASCII
-      || feature.properties.TA2025_V1_00_NAME
-      || feature.properties.TA_NAME
-      || feature.properties.NAME
-      // NZTA ArcGIS fallback currently returns lowercase property names.
-      || feature.properties.ta2013name
-      || feature.properties.portalsearch
-      || feature.properties.name;
-    if (!rawName) continue;
+  for (const org of organizations) {
+    const orgName = String(org.name || '').trim();
+    const candidateNames = [orgName, ...(ORG_BOUNDARY_ALIASES[orgName] || [])];
+    const normalizedCandidates = candidateNames.map(normalizeName);
+    const isRegional = /regional council/i.test(orgName);
 
-    const { data: orgs } = await supabase
-      .from('organizations')
-      .select('id, name')
-      .ilike('name', `%${rawName}%`)
-      .limit(1);
+    let feature: BoundaryFeature | undefined;
 
-    const org = orgs?.[0];
+    for (const candidate of normalizedCandidates) {
+      feature = isRegional
+        ? adm1ByName.get(candidate)
+        : adm2ByName.get(candidate) || adm1ByName.get(candidate);
+      if (feature) break;
+    }
 
-    if (org) {
-      console.log(`✅ MATCH: Gov '${rawName}' -> DB '${org.name}'`);
+    if (!feature) {
+      feature = isRegional
+        ? findFuzzyFeature(normalizedCandidates, adm1ByName)
+        : findFuzzyFeature(normalizedCandidates, adm2ByName) || findFuzzyFeature(normalizedCandidates, adm1ByName);
+    }
 
-      // Some environments keep jurisdiction geometry only on zones.
+    if (!feature?.geometry) {
+      console.log(`   ⚠️  Skipping '${orgName}' - no boundary match found.`);
+      skipCount++;
+      continue;
+    }
 
-      const { data: updatedZones, error: zoneErr } = await supabase
-        .from('zones')
-        .update({
-          geometry: feature.geometry,
-        })
-        .eq('organization_id', org.id)
-        .eq('zone_type', 'general') // Only update the top-level jurisdiction
-        .select('id');
-
-      if (zoneErr) console.error(`   ❌ Zone Update Failed: ${zoneErr.message}`);
-      else if (!updatedZones || updatedZones.length === 0) {
-        console.warn(`   ⚠️  No parent zone found for '${org.name}' - jurisdiction zone not set.`);
-      } else {
-        successCount++;
-      }
-    } else {
-      console.log(`   ⚠️  Skipping '${rawName}' - Not in DB.`);
+    try {
+      await updateOrganizationJurisdiction(org.id, feature.geometry);
+      console.log(`✅ MATCH: '${orgName}' -> '${feature.properties?.shapeName || 'Unknown'}'`);
+      successCount++;
+    } catch (err: any) {
+      console.error(`   ❌ Update failed for '${orgName}': ${err.message}`);
       skipCount++;
     }
   }
 
-  console.log(`\n🎉 TERRITORIAL AUTHORITY IMPORT COMPLETE`);
-  console.log(`✅ Hydrated: ${successCount} Regions`);
-  console.log(`⏭️  Skipped:  ${skipCount} Regions`);
+  console.log(`\n🎉 JURISDICTION IMPORT COMPLETE`);
+  console.log(`✅ Updated: ${successCount} organizations`);
+  console.log(`⏭️  Skipped: ${skipCount} organizations`);
+  console.log(`📚 Source: GeoBoundaries API (Stats NZ-derived TA + Region boundaries)`);
 }
 
 // ---------------------------------------------------------------------------

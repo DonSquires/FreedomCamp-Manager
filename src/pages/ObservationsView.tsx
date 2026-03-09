@@ -3,10 +3,12 @@ import { useQuery } from '@tanstack/react-query'
 import { MapContainer, TileLayer, CircleMarker, Popup } from 'react-leaflet'
 import MarkerClusterGroup from 'react-leaflet-cluster'
 import { supabase } from '@/lib/supabase'
+import { JurisdictionMapViewport } from '@/components/features/JurisdictionMapViewport'
 import { useAuthStore } from '@/stores/authStore'
 import { useGlobalFiltersStore } from '@/stores/globalFiltersStore'
 import { AppLayout } from '@/components/features/AppLayout'
 import { GlobalFilterRibbon } from '@/components/features/GlobalFilterRibbon'
+import { MapFocusToolbar } from '@/components/features/MapFocusToolbar'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -62,6 +64,7 @@ export default function ObservationsView() {
   const [activeTab, setActiveTab] = useState('list')
   const [heatmapMode, setHeatmapMode] = useState(false)
   const [selectedPhoto, setSelectedPhoto] = useState<Observation | null>(null)
+  const [focusKey, setFocusKey] = useState(0)
 
   // ── Data fetch ─────────────────────────────────────────────────────────────
   const { data: observations = [], isLoading, refetch } = useQuery({
@@ -270,15 +273,18 @@ export default function ObservationsView() {
                   <MapPin className="h-4 w-4" />
                   Observation Locations ({withGPS.length} with GPS)
                 </CardTitle>
-                <Button
-                  variant={heatmapMode ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => setHeatmapMode(!heatmapMode)}
-                  className="gap-1.5"
-                >
-                  <Flame className="h-4 w-4" />
-                  {heatmapMode ? 'Heatmap on' : 'Heatmap'}
-                </Button>
+                <div className="flex items-center gap-2">
+                  <MapFocusToolbar onFocus={() => setFocusKey((k) => k + 1)} className="gap-1.5" />
+                  <Button
+                    variant={heatmapMode ? 'default' : 'outline'}
+                    size="sm"
+                    onClick={() => setHeatmapMode(!heatmapMode)}
+                    className="gap-1.5"
+                  >
+                    <Flame className="h-4 w-4" />
+                    {heatmapMode ? 'Heatmap on' : 'Heatmap'}
+                  </Button>
+                </div>
               </div>
               <CardDescription className="text-xs">
                 {heatmapMode
@@ -298,6 +304,12 @@ export default function ObservationsView() {
                     zoom={12}
                     style={{ height: '100%', width: '100%', borderRadius: '0 0 0.5rem 0.5rem' }}
                   >
+                    <JurisdictionMapViewport
+                      organizationId={effectiveOrganizationId}
+                      fallbackCenter={defaultCenter}
+                      fallbackZoom={12}
+                      focusKey={focusKey}
+                    />
                     <TileLayer
                       attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
                       url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"

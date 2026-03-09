@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Toaster } from 'sonner'
 import { useAuthStore } from '@/stores/authStore'
@@ -69,6 +69,12 @@ const queryClient = new QueryClient({
 // Protected Route wrapper
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuthStore()
+  const location = useLocation()
+
+  const hasPortalChoice = () => {
+    if (typeof window === 'undefined') return false
+    return window.sessionStorage.getItem('adminOfficerPortalChoice') === 'selected'
+  }
 
   if (loading) {
     return (
@@ -82,6 +88,15 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
   if (!user) {
     return <Navigate to="/login" replace />
+  }
+
+  // admin_officer must choose a portal once per login session.
+  if (
+    user.role === 'admin_officer' &&
+    location.pathname !== '/portal-selection' &&
+    !hasPortalChoice()
+  ) {
+    return <Navigate to="/portal-selection" replace />
   }
 
   return <>{children}</>
@@ -133,7 +148,16 @@ export default function App() {
         <Routes>
           {/* Public routes */}
           <Route path="/login" element={<Login />} />
-          <Route path="/portal-selection" element={<PortalSelection />} />
+          <Route
+            path="/portal-selection"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin_officer']}>
+                  <PortalSelection />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
 
           {/* Field Officer Portal */}
           <Route
@@ -151,7 +175,13 @@ export default function App() {
             path="/"
             element={
               <ProtectedRoute>
-                {user?.role === 'officer' ? <FieldOfficerPortal /> : <AdminPortal />}
+                {user?.role === 'officer' ? (
+                  <FieldOfficerPortal />
+                ) : user?.role === 'admin_officer' ? (
+                  <Navigate to="/portal-selection" replace />
+                ) : (
+                  <AdminPortal />
+                )}
               </ProtectedRoute>
             }
           />

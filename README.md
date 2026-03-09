@@ -125,5 +125,7 @@ Vercel's integration handles the deployment independently.
   options including Railway and manual hosting
 - [`docs/NEW_PROJECT_SETUP.md`](docs/NEW_PROJECT_SETUP.md) — full new-project
   setup guide
+- [`docs/JURISDICTION_BOUNDARY_SETUP.md`](docs/JURISDICTION_BOUNDARY_SETUP.md) —
+  bulk setup for NZ jurisdiction boundaries (GeoBoundaries/Stats NZ source)
 - [Vercel token management](https://vercel.com/account/tokens)
 - [GitHub encrypted secrets docs](https://docs.github.com/en/actions/security-guides/encrypted-secrets)

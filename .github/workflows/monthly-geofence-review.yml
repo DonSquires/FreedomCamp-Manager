@@ -1,0 +1,94 @@
+name: Monthly Geofence Review
+
+on:
+  schedule:
+    # 02:00 UTC on day 1 of every month
+    - cron: '0 2 1 * *'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Run in dry-run mode (no DB writes)'
+        required: true
+        default: false
+        type: boolean
+      review_month:
+        description: 'Review month start date (YYYY-MM-01). Leave blank for current UTC month.'
+        required: false
+        default: ''
+        type: string
+
+jobs:
+  geofence-review:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    concurrency:
+      group: monthly-geofence-review
+      cancel-in-progress: false
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Validate required secrets
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          set -euo pipefail
+          missing=0
+          for var in SUPABASE_URL SUPABASE_SERVICE_ROLE_KEY; do
+            if [ -z "${!var:-}" ]; then
+              echo "::error::Missing required secret: $var"
+              missing=1
+            fi
+          done
+          if [ "$missing" -ne 0 ]; then
+            exit 1
+          fi
+
+      - name: Install runtime dependencies for review script
+        run: |
+          set -euo pipefail
+          npm install --no-save tsx dotenv @supabase/supabase-js
+
+      - name: Resolve execution mode and review month
+        id: params
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "schedule" ]; then
+            echo "dry_run=0" >> "$GITHUB_OUTPUT"
+          else
+            if [ "${{ inputs.dry_run }}" = "true" ]; then
+              echo "dry_run=1" >> "$GITHUB_OUTPUT"
+            else
+              echo "dry_run=0" >> "$GITHUB_OUTPUT"
+            fi
+          fi
+
+          if [ -n "${{ inputs.review_month }}" ]; then
+            echo "review_month=${{ inputs.review_month }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "review_month=$(date -u +%Y-%m-01)" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Run monthly geofence review
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          REVIEW_MONTH: ${{ steps.params.outputs.review_month }}
+          DRY_RUN: ${{ steps.params.outputs.dry_run }}
+        run: |
+          set -euo pipefail
+          echo "Running review for month: $REVIEW_MONTH"
+          if [ "$DRY_RUN" = "1" ]; then
+            echo "Mode: DRY RUN"
+          else
+            echo "Mode: LIVE"
+          fi
+          npx tsx scripts/review_zone_geofences.ts

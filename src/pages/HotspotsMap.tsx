@@ -9,6 +9,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { MapContainer, TileLayer, CircleMarker, Popup } from 'react-leaflet'
+import { JurisdictionMapViewport } from '@/components/features/JurisdictionMapViewport'
+import { MapFocusToolbar } from '@/components/features/MapFocusToolbar'
 import { 
   MapPin, 
   TrendingUp,
@@ -42,6 +44,7 @@ export default function HotspotsMap() {
   const endDate = dateTo ? `${dateTo}T23:59:59Z` : null
   const [showBreachesOnly, setShowBreachesOnly] = useState(false)
   const [selectedZone, setSelectedZone] = useState<string | null>(null)
+  const [focusKey, setFocusKey] = useState(0)
 
   // Fetch hotspot data
   const { data: hotspots, isLoading } = useQuery({
@@ -249,6 +252,7 @@ export default function HotspotsMap() {
           <Layers className="h-4 w-4 mr-2" />
           Layer Options
         </Button>
+        <MapFocusToolbar onFocus={() => setFocusKey((k) => k + 1)} />
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">
@@ -261,6 +265,12 @@ export default function HotspotsMap() {
                 zoom={11}
                 style={{ height: '100%', width: '100%' }}
               >
+                <JurisdictionMapViewport
+                  organizationId={effectiveOrganizationId}
+                  fallbackCenter={defaultCenter}
+                  fallbackZoom={11}
+                  focusKey={focusKey}
+                />
                 <TileLayer
                   attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
                   url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"

@@ -28,6 +28,17 @@ interface GlobalFiltersState {
   setNextDay: () => void
 }
 
+const toNZDateString = (date: Date): string => {
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Pacific/Auckland',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  })
+
+  return formatter.format(date)
+}
+
 export const useGlobalFiltersStore = create<GlobalFiltersState>()(
   persist(
     (set) => ({
@@ -60,23 +71,23 @@ export const useGlobalFiltersStore = create<GlobalFiltersState>()(
         }),
 
       setToday: () => {
-        const today = new Date().toISOString().split('T')[0]
+        const today = toNZDateString(new Date())
         set({ dateFrom: today, dateTo: today, datePreset: 'today' })
       },
 
       setYesterday: () => {
         const yesterday = new Date()
         yesterday.setDate(yesterday.getDate() - 1)
-        const dateStr = yesterday.toISOString().split('T')[0]
+        const dateStr = toNZDateString(yesterday)
         set({ dateFrom: dateStr, dateTo: dateStr, datePreset: 'yesterday' })
       },
 
       setPrevDay: () => {
         set((state) => {
           if (!state.dateFrom) return state
-          const prevDay = new Date(state.dateFrom)
+          const prevDay = new Date(`${state.dateFrom}T12:00:00`)
           prevDay.setDate(prevDay.getDate() - 1)
-          const dateStr = prevDay.toISOString().split('T')[0]
+          const dateStr = toNZDateString(prevDay)
           return { dateFrom: dateStr, dateTo: dateStr, datePreset: 'custom' }
         })
       },
@@ -84,9 +95,9 @@ export const useGlobalFiltersStore = create<GlobalFiltersState>()(
       setNextDay: () => {
         set((state) => {
           if (!state.dateFrom) return state
-          const nextDay = new Date(state.dateFrom)
+          const nextDay = new Date(`${state.dateFrom}T12:00:00`)
           nextDay.setDate(nextDay.getDate() + 1)
-          const dateStr = nextDay.toISOString().split('T')[0]
+          const dateStr = toNZDateString(nextDay)
           return { dateFrom: dateStr, dateTo: dateStr, datePreset: 'custom' }
         })
       },

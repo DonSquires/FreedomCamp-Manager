@@ -11,7 +11,7 @@ dotenv.config();
 // 1. DOC Campsites – ~300 conservation campsites (Point)
 //    https://doc-deptconservation.opendata.arcgis.com/
 const DOC_CAMPSITES_URL =
-  "https://services2.arcgis.com/b5ADKIcWivL5vNaV/arcgis/rest/services/DOC_Campsites/FeatureServer/0/query"
+  "https://services1.arcgis.com/3JjYDyG3oajxU6HO/arcgis/rest/services/DOC_Campsites/FeatureServer/0/query"
   + "?where=1%3D1&outFields=*&f=geojson";
 
 // 2. DOC Huts – ~950 backcountry huts (Point)
@@ -46,7 +46,7 @@ const LINZ_CROWN_PROPERTY_URL =
 const COUNCIL_FREEDOM_CAMPING_URLS: { council: string; url: string }[] = [
   {
     council: "Waikato",
-    url: "https://services.arcgis.com/Kc0LkSFpGNNtcKVK/arcgis/rest/services/Freedom_Camping/FeatureServer/0/query"
+    url: "https://services3.arcgis.com/Oou6z70yKcGvIDxP/arcgis/rest/services/Freedom_Camping/FeatureServer/0/query"
       + "?where=1%3D1&outFields=*&f=geojson",
   },
   {
@@ -56,7 +56,7 @@ const COUNCIL_FREEDOM_CAMPING_URLS: { council: string; url: string }[] = [
   },
   {
     council: "Christchurch",
-    url: "https://services1.arcgis.com/Li1xnlLOgNl1oVSN/ArcGIS/rest/services/Freedom_Camping_Management_Zone_OpenData/FeatureServer/0/query"
+    url: "https://gis.ccc.govt.nz/server/rest/services/OpenData/Regulatory/FeatureServer/5/query"
       + "?where=1%3D1&outFields=*&f=geojson",
   },
 ];
@@ -207,7 +207,8 @@ async function upsertZone(
   existingZones: Map<string, string>,
   counters: { created: number; updated: number }
 ): Promise<void> {
-  const existingId = existingZones.get(params.name);
+  const lookupKey = `${params.orgId}::${params.name}`;
+  const existingId = existingZones.get(lookupKey);
 
   if (existingId) {
     const updateData: any = {
@@ -251,6 +252,19 @@ async function upsertZone(
     if (error) {
       console.error(`   ❌ Insert failed for '${params.name}': ${error.message}`);
     } else {
+      const { data: inserted } = await supabase
+        .from('zones')
+        .select('id')
+        .eq('name', params.name)
+        .eq('organization_id', params.orgId)
+        .eq('zone_type', 'specific')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (inserted?.id) {
+        existingZones.set(lookupKey, inserted.id);
+      }
       counters.created++;
     }
   }
@@ -263,12 +277,12 @@ async function fetchExistingZones(): Promise<Map<string, string>> {
   const map = new Map<string, string>();
   const { data } = await supabase
     .from('zones')
-    .select('id, name')
+    .select('id, name, organization_id')
     .eq('zone_type', 'specific');
 
   if (data) {
     for (const z of data) {
-      map.set(z.name, z.id);
+      map.set(`${z.organization_id}::${z.name}`, z.id);
     }
   }
   return map;
@@ -474,9 +488,11 @@ async function importLinzCrownProperty(orgZones: OrgZone[]) {
     // LINZ Crown Property typically uses PropertyName, Land_Distr, or similar fields
     const propertyName = props.PropertyName || props.PROPERTYNAME
       || props.Property_Name || props.property_name
+      || props.napalis_id
+      || props.OBJECTID
       || props.Name || props.name || props.NAME;
     const landDistrict = props.Land_Distr || props.LandDistrict || props.LAND_DISTR || '';
-    const purpose = props.Purpose || props.PURPOSE || props.purpose || '';
+    const purpose = props.Purpose || props.PURPOSE || props.purpose || props.land_use || '';
     const agency = props.ManagingAgency || props.Managing_Agency || props.MANAGING_AGENCY || '';
 
     if (!propertyName) { skipCount++; continue; }
@@ -487,7 +503,7 @@ async function importLinzCrownProperty(orgZones: OrgZone[]) {
     const centroid = geometryCentroid(feature.geometry);
     if (!centroid) { skipCount++; continue; }
 
-    const zoneName = `Crown: ${propertyName}`;
+    const zoneName = `Crown: ${String(propertyName)}`;
     const description = [
       purpose ? `Purpose: ${purpose}` : '',
       agency ? `Agency: ${agency}` : '',
@@ -546,7 +562,9 @@ async function importCouncilFreedomCamping(orgZones: OrgZone[]) {
     for (const feature of features) {
       const props = feature.properties || {};
       const name = props.SiteName || props.Site_Name || props.name || props.Name || props.NAME
-        || props.Label || props.LABEL || props.Location || props.LOCATION;
+        || props.Label || props.LABEL || props.Location || props.LOCATION
+        || props.LocationName || props.location_name || props.Location_Name
+        || props.FreedomCampingManagementZoneID || props.OBJECTID;
       if (!name) { skipCount++; continue; }
 
       // Try centroid-based org matching

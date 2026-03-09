@@ -17,7 +17,12 @@ export default function Login() {
   // Redirect if already authenticated
   useEffect(() => {
     if (isAuthenticated && user) {
-      navigate('/', { replace: true })
+      if (user.role === 'admin_officer') {
+        window.sessionStorage.removeItem('adminOfficerPortalChoice')
+        navigate('/portal-selection', { replace: true })
+      } else {
+        navigate('/', { replace: true })
+      }
     }
   }, [isAuthenticated, user, navigate])
 

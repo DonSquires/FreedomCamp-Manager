@@ -18,6 +18,11 @@ export default function PortalSelection() {
     }
   }, [user, navigate])
 
+  const selectPortal = (path: '/admin' | '/field-officer') => {
+    window.sessionStorage.setItem('adminOfficerPortalChoice', 'selected')
+    navigate(path)
+  }
+
   // admin_officer — show the chooser
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-950 to-slate-900 flex items-center justify-center p-4">
@@ -34,7 +39,7 @@ export default function PortalSelection() {
         {/* Admin portal */}
         <Card
           className="cursor-pointer hover:shadow-xl transition-all hover:scale-[1.02] border-blue-500/30 bg-white/5 backdrop-blur"
-          onClick={() => navigate('/admin')}
+          onClick={() => selectPortal('/admin')}
         >
           <CardHeader className="pb-2">
             <CardTitle className="flex items-center gap-3 text-white">
@@ -58,7 +63,7 @@ export default function PortalSelection() {
         {/* Field officer portal */}
         <Card
           className="cursor-pointer hover:shadow-xl transition-all hover:scale-[1.02] border-green-500/30 bg-white/5 backdrop-blur"
-          onClick={() => navigate('/field-officer')}
+          onClick={() => selectPortal('/field-officer')}
         >
           <CardHeader className="pb-2">
             <CardTitle className="flex items-center gap-3 text-white">

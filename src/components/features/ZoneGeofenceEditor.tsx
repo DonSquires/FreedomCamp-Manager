@@ -1,5 +1,9 @@
 import { useState, useEffect } from 'react'
 import { MapContainer, TileLayer, Circle, Polygon, CircleMarker, useMapEvents } from 'react-leaflet'
+import { useAuthStore } from '@/stores/authStore'
+import { useGlobalFiltersStore } from '@/stores/globalFiltersStore'
+import { JurisdictionMapViewport } from '@/components/features/JurisdictionMapViewport'
+import { MapFocusToolbar } from '@/components/features/MapFocusToolbar'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -130,6 +134,11 @@ export function ZoneGeofenceEditor({
   onSave, 
   onCancel 
 }: ZoneGeofenceEditorProps) {
+  const { user } = useAuthStore()
+  const { organizationId } = useGlobalFiltersStore()
+  const effectiveOrganizationId =
+    user?.role === 'master' ? organizationId || null : user?.organization_id || null
+
   const parsedInitial = parseInitialGeometry(initialGeometry)
   const [geometryType, setGeometryType] = useState<'circle' | 'polygon'>(
     parsedInitial.geometryType
@@ -146,6 +155,7 @@ export function ZoneGeofenceEditor({
   const [polygonPoints, setPolygonPoints] = useState<Coordinate[]>(
     parsedInitial.points
   )
+  const [focusKey, setFocusKey] = useState(0)
   const [isSaving, setIsSaving] = useState(false)
   const [useCurrentLocation, setUseCurrentLocation] = useState(false)
 
@@ -320,6 +330,12 @@ export function ZoneGeofenceEditor({
               zoom={14}
               style={{ height: '100%', width: '100%' }}
             >
+              <JurisdictionMapViewport
+                organizationId={effectiveOrganizationId}
+                fallbackCenter={[centerLat, centerLng]}
+                fallbackZoom={14}
+                focusKey={focusKey}
+              />
               <TileLayer
                 attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
                 url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
@@ -353,6 +369,7 @@ export function ZoneGeofenceEditor({
           </div>
 
           <div className="flex gap-2">
+            <MapFocusToolbar onFocus={() => setFocusKey((k) => k + 1)} className="flex-1" />
             {geometryType === 'polygon' && (
               <Button
                 type="button"
