@@ -15,6 +15,8 @@ import { Camera, Map, FileText, History, AlertTriangle, MapPin, QrCode, ShieldAl
 import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
+import { edgeFunctions } from '@/lib/edgeFunctions'
+import { resolveObservationZoneForOrg } from '@/lib/zoneResolution'
 import { formatDateTime } from '@/lib/utils'
 
 // Enforcement workflow mode labels shown in the status card
@@ -22,6 +24,42 @@ const WORKFLOW_LABELS: Record<string, string> = {
   admin_first:    'Admin First',
   officer_direct: 'Officer Direct',
   hybrid:         'Hybrid',
+}
+
+const isTransientEdgeTransportError = (errorMessage?: string | null) => {
+  const msg = (errorMessage || '').toLowerCase()
+  return (
+    msg.includes('failed to send a request to the edge function') ||
+    msg.includes('fetch failed') ||
+    msg.includes('networkerror') ||
+    msg.includes('network request failed')
+  )
+}
+
+const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
+
+async function retryEdgeCall<T>(
+  fn: () => Promise<{ data: T | null; error: string | null }>,
+  retries = 2,
+  delayMs = 700
+) {
+  let attempt = 0
+  let lastError: string | null = null
+
+  while (attempt <= retries) {
+    const result = await fn()
+    if (!result.error) return result
+
+    lastError = result.error
+    if (!isTransientEdgeTransportError(result.error) || attempt === retries) {
+      return result
+    }
+
+    await wait(delayMs * (attempt + 1))
+    attempt += 1
+  }
+
+  return { data: null, error: lastError || 'Unknown edge function failure' }
 }
 
 export default function FieldOfficerPortal() {
@@ -196,12 +234,10 @@ export default function FieldOfficerPortal() {
       let weatherConditions = 'Unknown';
       
       try {
-        const { data: weatherData, error: weatherError } = await supabase.functions.invoke('get-weather', {
-          body: {
-            latitude: position.coords.latitude,
-            longitude: position.coords.longitude,
-          }
-        });
+        const { data: weatherData, error: weatherError } = await edgeFunctions.getWeather({
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+        })
 
         if (!weatherError && weatherData?.weather) {
           weatherConditions = weatherData.weather;
@@ -254,21 +290,13 @@ export default function FieldOfficerPortal() {
       // ============================================================================
       // STEP 6: GET OR CREATE "OTHER LOCATION" ZONE (If outside geofence)
       // ============================================================================
-      let finalZoneId = zoneId;
+      const { zoneId: finalZoneId, source: zoneSource } = await resolveObservationZoneForOrg(
+        user.organization_id,
+        zoneId
+      )
 
-      if (!finalZoneId) {
-        // Scan is outside geofences - get/create "Other Location" zone using RPC
-        // (Officers can't INSERT into zones table directly due to RLS)
-        const { data: otherZoneId, error: rpcError } = await (supabase as any)
-          .rpc('ensure_other_location_zone', { p_organization_id: user.organization_id });
-
-        if (rpcError) {
-          console.error('❌ Failed to get Other Location zone:', rpcError);
-          throw new Error('Zone setup failed - contact support');
-        }
-
-        finalZoneId = otherZoneId;
-        console.log('✅ Using Other Location zone:', finalZoneId);
+      if (zoneSource !== 'preferred') {
+        console.log('✅ Resolved fallback zone:', { finalZoneId, zoneSource })
       }
 
       if (!finalZoneId) {
@@ -279,14 +307,14 @@ export default function FieldOfficerPortal() {
       // STEP 7: PRE-DETECT PLATE (Non-blocking hint for ingest)
       // ============================================================================
       toast.info('Running plate detection...')
-      const { data: alprData, error: alprError } = await supabase.functions.invoke('alpr-process', {
-        body: {
+      const { data: alprData, error: alprError } = await retryEdgeCall(() =>
+        edgeFunctions.processALPR({
           photo_url: photoUrl,
           latitude: position.coords.latitude,
           longitude: position.coords.longitude,
           accuracy: position.coords.accuracy,
-        },
-      })
+        })
+      )
 
       if (alprError) {
         console.warn('⚠️ ALPR pre-detection failed, continuing with manual flow:', alprError.message)
@@ -299,8 +327,8 @@ export default function FieldOfficerPortal() {
       // STEP 8: CREATE OBSERVATION VIA UNIFIED INGEST PIPELINE
       // ============================================================================
       toast.info('Saving observation...')
-      const { data: ingestData, error: ingestError } = await supabase.functions.invoke('vehicle-ingest', {
-        body: {
+      const { data: ingestData, error: ingestError } = await retryEdgeCall(() =>
+        edgeFunctions.ingestVehicleObservation({
           image: imageDataUrl,
           gpsLatitude: position.coords.latitude,
           gpsLongitude: position.coords.longitude,
@@ -314,8 +342,10 @@ export default function FieldOfficerPortal() {
           plate: detectedPlate,
           confidence: detectedConfidence,
           requires_manual_entry: !detectedPlate,
-        },
-      })
+        }),
+        2,
+        1000
+      )
 
       if (ingestError) {
         throw new Error(`Save failed: ${ingestError.message}`)

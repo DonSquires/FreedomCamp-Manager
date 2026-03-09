@@ -11,9 +11,9 @@ type RequestPayload = {
   apply?: boolean;
   target_bucket?: string;
   parkpow_base_url?: string;
-  require_empty_photo?: boolean;
-  include_stale_signed_urls?: boolean;
   max_session_pages?: number;
+  enforce_alpr_match?: boolean;
+  ignore_time_window?: boolean;
 };
 
 type ObsRow = Record<string, any>;
@@ -39,12 +39,51 @@ const DEFAULT_BUCKET = 'evidence';
 const DEFAULT_LIMIT = 100;
 const DEFAULT_WINDOW_MINUTES = 60;
 const DEFAULT_MAX_SESSION_PAGES = 3;
+const NZ_TIMEZONE = 'Pacific/Auckland';
+
+const MONTH_INDEX: Record<string, number> = {
+  jan: 0,
+  january: 0,
+  feb: 1,
+  february: 1,
+  mar: 2,
+  march: 2,
+  apr: 3,
+  april: 3,
+  may: 4,
+  jun: 5,
+  june: 5,
+  jul: 6,
+  july: 6,
+  aug: 7,
+  august: 7,
+  sep: 8,
+  sept: 8,
+  september: 8,
+  oct: 9,
+  october: 9,
+  nov: 10,
+  november: 10,
+  dec: 11,
+  december: 11,
+};
 
 function json(status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), {
     status,
     headers: { ...corsHeaders, 'Content-Type': 'application/json' },
   });
+}
+
+function getJwtRole(token: string): string | null {
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) return null;
+    const payload = JSON.parse(atob(parts[1]));
+    return typeof payload?.role === 'string' ? payload.role : null;
+  } catch {
+    return null;
+  }
 }
 
 function toIsoStart(raw?: string): string {
@@ -61,7 +100,83 @@ function toIsoEnd(raw?: string): string {
 }
 
 function normalizePlate(input: string | null | undefined): string {
-  return String(input || '').toUpperCase().replace(/\s+/g, '').trim();
+  return String(input || '').toUpperCase().replace(/[^A-Z0-9]/g, '').trim();
+}
+
+function timezoneOffsetMs(date: Date, timeZone: string): number {
+  const dtf = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    hour12: false,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  });
+  const parts = dtf.formatToParts(date);
+  const map: Record<string, string> = {};
+  for (const p of parts) {
+    if (p.type !== 'literal') map[p.type] = p.value;
+  }
+
+  const asUtc = Date.UTC(
+    Number(map.year),
+    Number(map.month) - 1,
+    Number(map.day),
+    Number(map.hour),
+    Number(map.minute),
+    Number(map.second),
+  );
+
+  return asUtc - date.getTime();
+}
+
+function parseNzDisplayTimestamp(raw: string): string | null {
+  const text = String(raw || '').trim();
+  if (!text) return null;
+
+  const m = text.match(/^([A-Za-z]+)\.?\s+(\d{1,2}),\s*(\d{4}),\s*(\d{1,2}):(\d{2})\s*([ap])\.?m\.?$/i);
+  if (!m) return null;
+
+  const monthKey = m[1].toLowerCase();
+  const month = MONTH_INDEX[monthKey];
+  if (month === undefined) return null;
+
+  const day = Number(m[2]);
+  const year = Number(m[3]);
+  let hour = Number(m[4]);
+  const minute = Number(m[5]);
+  const ampm = m[6].toLowerCase();
+
+  if (Number.isNaN(day) || Number.isNaN(year) || Number.isNaN(hour) || Number.isNaN(minute)) {
+    return null;
+  }
+
+  if (hour < 1 || hour > 12 || minute < 0 || minute > 59) return null;
+
+  if (ampm === 'p' && hour !== 12) hour += 12;
+  if (ampm === 'a' && hour === 12) hour = 0;
+
+  const utcGuess = Date.UTC(year, month, day, hour, minute, 0);
+  let offset = timezoneOffsetMs(new Date(utcGuess), NZ_TIMEZONE);
+  let utcMs = utcGuess - offset;
+
+  // Re-evaluate once to handle DST transitions near boundary times.
+  offset = timezoneOffsetMs(new Date(utcMs), NZ_TIMEZONE);
+  utcMs = utcGuess - offset;
+
+  return new Date(utcMs).toISOString();
+}
+
+function normalizeTimestamp(raw: string | null | undefined): string | null {
+  const text = String(raw || '').trim();
+  if (!text) return null;
+
+  const direct = Date.parse(text);
+  if (!Number.isNaN(direct)) return new Date(direct).toISOString();
+
+  return parseNzDisplayTimestamp(text);
 }
 
 function safeFolder(input: string | null | undefined): string {
@@ -70,13 +185,35 @@ function safeFolder(input: string | null | undefined): string {
 }
 
 function extractPhotoUrl(session: Record<string, unknown>): string | null {
+  const startData = session.start_data as Record<string, string> | undefined;
+  const endData = session.end_data as Record<string, string> | undefined;
+  const visitStartData = session.visit_start_data as Record<string, string> | undefined;
+  const visitEndData = session.visit_end_data as Record<string, string> | undefined;
+
   return (
+    (session.photo as string) ||
+    (session.start_img as string) ||
+    (session.end_img as string) ||
+    (session.start_img_plate as string) ||
+    (session.end_img_plate as string) ||
     (session.image_url as string) ||
     (session.snapshot_url as string) ||
     (session.plate_image_url as string) ||
     (session.vehicle_image_url as string) ||
     (session.camera_image_url as string) ||
+    (session.vehicle_url as string) ||
+    (session.source_url as string) ||
     (session.photo_url as string) ||
+    startData?.source_url ||
+    startData?.image_url ||
+    endData?.source_url ||
+    endData?.image_url ||
+    visitStartData?.photo ||
+    visitStartData?.image_url ||
+    visitStartData?.source_url ||
+    visitEndData?.photo ||
+    visitEndData?.image_url ||
+    visitEndData?.source_url ||
     ((session.images as Array<Record<string, string>>)?.[0]?.url) ||
     ((session.images as Array<Record<string, string>>)?.[0]?.image_url) ||
     ((session.images as Array<Record<string, string>>)?.[0]?.snapshot_url) ||
@@ -103,8 +240,21 @@ function normalizePhotoUrl(rawUrl: string | null, parkpowBaseUrl: string): strin
 }
 
 function pickSessionTimestamp(session: Record<string, unknown>): string | null {
+  const visitStartData = session.visit_start_data as Record<string, string> | undefined;
+  const visitEndData = session.visit_end_data as Record<string, string> | undefined;
+
   return (
+    (session.visit_timestamp as string) ||
+    (session.start_date as string) ||
+    (session.end_date as string) ||
+    (session.last_spotted as string) ||
     (session.entry_time as string) ||
+    (session.start_time as string) ||
+    (session.end_time as string) ||
+    visitStartData?.timestamp ||
+    visitStartData?.time ||
+    visitEndData?.timestamp ||
+    visitEndData?.time ||
     (session.created_at as string) ||
     (session.time as string) ||
     (session.observed_at as string) ||
@@ -113,11 +263,32 @@ function pickSessionTimestamp(session: Record<string, unknown>): string | null {
   );
 }
 
+function pickSessionPlate(session: Record<string, unknown>): string | null {
+  const vehicle = session.vehicle as Record<string, unknown> | undefined;
+  const startData = session.start_data as Record<string, string> | undefined;
+  const endData = session.end_data as Record<string, string> | undefined;
+  const visitStartData = session.visit_start_data as Record<string, string> | undefined;
+  return normalizePlate(
+    (vehicle?.license_plate as string) ||
+    (vehicle?.plate as string) ||
+    startData?.plate ||
+    endData?.plate ||
+    (session.license_plate as string) ||
+    (session.plate_number as string) ||
+    (session.plate as string) ||
+    (session.vehicle_tag as string) ||
+    visitStartData?.license_plate ||
+    visitStartData?.plate_number ||
+    null,
+  ) || null;
+}
+
 function getSessionsArray(payload: any): any[] {
   if (Array.isArray(payload)) return payload;
   if (Array.isArray(payload?.results)) return payload.results;
   if (Array.isArray(payload?.data)) return payload.data;
   if (Array.isArray(payload?.sessions)) return payload.sessions;
+  if (Array.isArray(payload?.visits)) return payload.visits;
   return [];
 }
 
@@ -129,6 +300,140 @@ function getNextPageUrl(payload: any): string | null {
 function isSignedStorageUrl(url: string | null | undefined): boolean {
   const v = String(url || '');
   return v.includes('/storage/v1/object/sign/') && v.includes('token=');
+}
+
+function isPlaceholderPhotoUrl(url: string | null | undefined): boolean {
+  const raw = String(url || '').trim();
+  if (!raw) return false;
+
+  const lower = raw.toLowerCase();
+  if (lower.includes('blank%20car.jpg') || lower.includes('blank car.jpg')) return true;
+
+  try {
+    const decoded = decodeURIComponent(raw).toLowerCase();
+    return decoded.includes('blank car.jpg');
+  } catch {
+    return false;
+  }
+}
+
+function hasJpgPhotoValue(url: string | null | undefined): boolean {
+  const v = String(url || '').trim().toLowerCase();
+  if (!v) return false;
+  return v.includes('.jpg') || v.includes('.jpeg');
+}
+
+function isAlreadyRecoveredPublicUrl(url: string | null | undefined): boolean {
+  const v = String(url || '').trim().toLowerCase();
+  if (!v) return false;
+  return v.includes('/storage/v1/object/public/evidence/recovered/');
+}
+
+async function fetchParkPowEntriesForPlate(params: {
+  plate: string;
+  baseUrl: string;
+  token: string;
+  maxPages: number;
+  recordedAt: string;
+  windowSeconds: number;
+}): Promise<{
+  entries: any[];
+  errors: number;
+  attempts: number;
+  errorSamples: Array<{ endpoint: string; status: number | null; detail?: string }>;
+  endpointStats: Record<string, { attempts: number; okResponses: number; responsesWithResults: number; totalResults: number }>;
+}> {
+  const { plate, baseUrl, token, maxPages, recordedAt, windowSeconds } = params;
+  const entries: any[] = [];
+  let errors = 0;
+  let attempts = 0;
+  const errorSamples: Array<{ endpoint: string; status: number | null; detail?: string }> = [];
+  const endpointStats: Record<string, { attempts: number; okResponses: number; responsesWithResults: number; totalResults: number }> = {};
+
+  const recEpoch = Date.parse(recordedAt);
+  const start = Number.isNaN(recEpoch)
+    ? new Date(Date.now() - windowSeconds * 1000).toISOString()
+    : new Date(recEpoch - windowSeconds * 1000).toISOString();
+  const end = Number.isNaN(recEpoch)
+    ? new Date(Date.now() + windowSeconds * 1000).toISOString()
+    : new Date(recEpoch + windowSeconds * 1000).toISOString();
+
+  const trimmedBase = baseUrl.replace(/\/$/, '');
+  const candidates = [
+    // Primary documented endpoint with exact plate filter.
+    `${trimmedBase}/visit-list-large/?license_plate=${encodeURIComponent(plate)}&start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}&page_size=100`,
+    // Historical fallback without time bounds.
+    `${trimmedBase}/visit-list-large/?license_plate=${encodeURIComponent(plate)}&page_size=100`,
+    // Hosted docs domain fallback.
+    `https://app.parkpow.com/api/v1/visit-list-large/?license_plate=${encodeURIComponent(plate)}&start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}&page_size=100`,
+    `https://app.parkpow.com/api/v1/visit-list-large/?license_plate=${encodeURIComponent(plate)}&page_size=100`,
+  ];
+
+  const urls = Array.from(new Set(candidates));
+
+  for (const initialUrl of urls) {
+    if (!endpointStats[initialUrl]) {
+      endpointStats[initialUrl] = { attempts: 0, okResponses: 0, responsesWithResults: 0, totalResults: 0 };
+    }
+
+    let nextUrl: string | null = initialUrl;
+    let page = 0;
+
+    while (nextUrl && page < maxPages) {
+      attempts += 1;
+      endpointStats[initialUrl].attempts += 1;
+      page += 1;
+      let retry429 = 0;
+
+      while (true) {
+      const resp = await fetch(nextUrl, {
+        headers: {
+          Authorization: `Token ${token}`,
+          'Content-Type': 'application/json',
+        },
+        signal: AbortSignal.timeout(15000),
+      }).catch(() => null);
+
+      if (resp && resp.status === 429 && retry429 < 2) {
+        retry429 += 1;
+        await new Promise((resolve) => setTimeout(resolve, 1200));
+        continue;
+      }
+
+      if (!resp || !resp.ok) {
+        errors += 1;
+        if (errorSamples.length < 20) {
+          let detail = 'network error';
+          let status: number | null = null;
+
+          if (resp) {
+            status = resp.status;
+            detail = (await resp.text().catch(() => '')).slice(0, 200) || `HTTP ${resp.status}`;
+          }
+
+          errorSamples.push({ endpoint: initialUrl, status, detail });
+        }
+        nextUrl = null;
+        break;
+      }
+
+      const payload = await resp.json().catch(() => ({}));
+      endpointStats[initialUrl].okResponses += 1;
+      const pageEntries = getSessionsArray(payload);
+      if (pageEntries.length > 0) {
+        endpointStats[initialUrl].responsesWithResults += 1;
+        endpointStats[initialUrl].totalResults += pageEntries.length;
+      }
+      entries.push(...pageEntries);
+      nextUrl = getNextPageUrl(payload);
+      break;
+      }
+    }
+
+    if (entries.length > 0) break;
+  }
+
+  return { entries, errors, attempts, errorSamples, endpointStats };
 }
 
 async function sha256Hex(bytes: Uint8Array): Promise<string> {
@@ -274,27 +579,6 @@ Deno.serve(async (req: Request): Promise<Response> => {
       global: { headers: { Authorization: authHeader } },
     });
 
-    const { data: authData, error: authError } = await supabaseUser.auth.getUser(token);
-    if (authError || !authData?.user) {
-      return json(401, { error: 'Unauthorized' });
-    }
-
-    const { data: profile, error: profileError } = await supabaseAdmin
-      .from('user_profiles')
-      .select('id, role, organization_id')
-      .eq('id', authData.user.id)
-      .single();
-
-    if (profileError || !profile) {
-      return json(403, { error: 'User profile not found' });
-    }
-
-    if (!['admin', 'master', 'admin_officer'].includes(profile.role)) {
-      return json(403, { error: 'Only admin/master/admin_officer users can run photo recovery' });
-    }
-
-    const actorLabel = `admin:${authData.user.email ?? profile.id}`;
-
     const body = (await req.json().catch(() => ({}))) as RequestPayload;
 
     const dateFrom = toIsoStart(body.date_from);
@@ -304,9 +588,42 @@ Deno.serve(async (req: Request): Promise<Response> => {
     const apply = body.apply === true;
     const targetBucket = body.target_bucket || DEFAULT_BUCKET;
     const parkpowBaseUrl = (body.parkpow_base_url || DEFAULT_BASE_URL).replace(/\/$/, '');
-    const requireEmptyPhoto = body.require_empty_photo === true;
-    const includeStaleSignedUrls = body.include_stale_signed_urls !== false;
+    const enforceAlprMatch = body.enforce_alpr_match === true;
+    const ignoreTimeWindow = body.ignore_time_window === true;
+    // This function is intentionally scoped to deleted-photo re-enrichment only.
+    // Deleted data can appear as an empty URL or an expired signed storage URL.
+    const requireEmptyPhoto = true;
     const maxSessionPages = Math.max(1, Math.min(10, body.max_session_pages ?? DEFAULT_MAX_SESSION_PAGES));
+
+    let profile: { id: string; role: string; organization_id: string | null } | null = null;
+    let actorLabel = 'system';
+
+    const { data: authData, error: authError } = await supabaseUser.auth.getUser(token);
+    const serviceRoleDryRun = getJwtRole(token) === 'service_role';
+
+    if (!authError && authData?.user) {
+      const { data: profileData, error: profileError } = await supabaseAdmin
+        .from('user_profiles')
+        .select('id, role, organization_id')
+        .eq('id', authData.user.id)
+        .single();
+
+      if (profileError || !profileData) {
+        return json(403, { error: 'User profile not found' });
+      }
+
+      if (!['admin', 'master', 'admin_officer'].includes(profileData.role)) {
+        return json(403, { error: 'Only admin/master/admin_officer users can run photo recovery' });
+      }
+
+      profile = profileData;
+      actorLabel = `admin:${authData.user.email ?? profileData.id}`;
+    } else if (serviceRoleDryRun) {
+      profile = { id: 'service-role', role: 'master', organization_id: null };
+      actorLabel = apply ? 'system:service_role_apply' : 'system:service_role_dry_run';
+    } else {
+      return json(401, { error: 'Unauthorized' });
+    }
 
     const orgId: string | null =
       profile.role === 'master'
@@ -342,12 +659,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
     const candidates = rows.filter((obs) => {
       const photoValue = String(obs[schema.photoCol] || '').trim();
       const hasPhoto = photoValue.length > 0;
-      const hasHash = schema.hasPhotoHashCol ? String(obs.photo_hash || '').trim().length > 0 : true;
-      const missingAny = !hasPhoto || !hasHash;
-      const staleSigned = includeStaleSignedUrls && hasPhoto && isSignedStorageUrl(photoValue);
-
-      if (requireEmptyPhoto) return !hasPhoto;
-      return missingAny || staleSigned;
+      if (isAlreadyRecoveredPublicUrl(photoValue)) return false;
+      return !hasPhoto || isPlaceholderPhotoUrl(photoValue) || isSignedStorageUrl(photoValue) || hasJpgPhotoValue(photoValue);
     });
 
     if (candidates.length === 0) {
@@ -368,15 +681,26 @@ Deno.serve(async (req: Request): Promise<Response> => {
     let autoRestored = 0;
     let queuedForReview = 0;
     let parkpowErrors = 0;
+    let parkpowAttempts = 0;
     let uploadErrors = 0;
+    const parkpowErrorSamples: Array<{ endpoint: string; status: number | null; detail?: string }> = [];
+    const parkpowEndpointStats: Record<string, { attempts: number; okResponses: number; responsesWithResults: number; totalResults: number }> = {};
+    const parkpowVisitShapeSamples: Array<Record<string, unknown>> = [];
 
     for (const obs of candidates) {
       const obsKey = String(obs[schema.keyCol] || '');
       const plate = normalizePlate(obs.plate_number);
       const recordedAt = String(obs.recorded_at || '');
       const currentPhoto = String(obs[schema.photoCol] || '').trim();
-      const hasHash = schema.hasPhotoHashCol ? String(obs.photo_hash || '').trim().length > 0 : true;
-      const reason = (!currentPhoto ? 'missing_photo' : !hasHash ? 'missing_hash' : isSignedStorageUrl(currentPhoto) ? 'stale_signed_url' : 'unknown');
+      const reason = !currentPhoto
+        ? 'missing_photo'
+        : isPlaceholderPhotoUrl(currentPhoto)
+          ? 'placeholder_photo'
+        : isSignedStorageUrl(currentPhoto)
+          ? 'stale_signed_url'
+        : hasJpgPhotoValue(currentPhoto)
+          ? 'jpg_present_check'
+          : 'unknown';
 
       if (!obsKey || !plate || !recordedAt) {
         continue;
@@ -404,7 +728,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       });
 
       if (apply && infra.hasQueue && schema.keyCol === 'id') {
-        const queueReason = reason === 'stale_signed_url' ? 'object_404' : reason === 'missing_hash' ? 'null_hash' : 'null_url';
+        const queueReason = reason === 'stale_signed_url' ? 'object_404' : 'null_url';
         await supabaseAdmin.from('missing_photo_queue').upsert(
           {
             observation_id: obsKey,
@@ -429,50 +753,61 @@ Deno.serve(async (req: Request): Promise<Response> => {
       let recovered = false;
 
       if (parkpowToken) {
-        const sessions: any[] = [];
-        let nextUrl: string | null = `${parkpowBaseUrl}/sessions/?license_plate=${encodeURIComponent(plate)}&limit=100`;
-        let page = 0;
+        const fetched = await fetchParkPowEntriesForPlate({
+          plate,
+          baseUrl: parkpowBaseUrl,
+          token: parkpowToken,
+          maxPages: maxSessionPages,
+          recordedAt,
+          windowSeconds,
+        });
 
-        while (nextUrl && page < maxSessionPages) {
-          page += 1;
-          const sessionsResp = await fetch(nextUrl, {
-            headers: {
-              Authorization: `Token ${parkpowToken}`,
-              'Content-Type': 'application/json',
-            },
-            signal: AbortSignal.timeout(15000),
-          }).catch(() => null);
-
-          if (!sessionsResp || !sessionsResp.ok) {
-            parkpowErrors++;
-            nextUrl = null;
-            break;
+        const sessions = fetched.entries;
+        parkpowErrors += fetched.errors;
+        parkpowAttempts += fetched.attempts;
+        if (fetched.errorSamples.length > 0 && parkpowErrorSamples.length < 20) {
+          parkpowErrorSamples.push(...fetched.errorSamples.slice(0, 20 - parkpowErrorSamples.length));
+        }
+        for (const [endpoint, s] of Object.entries(fetched.endpointStats)) {
+          if (!parkpowEndpointStats[endpoint]) {
+            parkpowEndpointStats[endpoint] = { attempts: 0, okResponses: 0, responsesWithResults: 0, totalResults: 0 };
           }
-
-          const sessionsData = await sessionsResp.json().catch(() => ({}));
-          sessions.push(...getSessionsArray(sessionsData));
-          nextUrl = getNextPageUrl(sessionsData);
+          parkpowEndpointStats[endpoint].attempts += s.attempts;
+          parkpowEndpointStats[endpoint].okResponses += s.okResponses;
+          parkpowEndpointStats[endpoint].responsesWithResults += s.responsesWithResults;
+          parkpowEndpointStats[endpoint].totalResults += s.totalResults;
         }
 
         if (sessions.length > 0) {
           const recEpoch = Date.parse(recordedAt);
           let best: any = null;
           let bestDelta = Number.MAX_SAFE_INTEGER;
+          let usableVisitCandidates = 0;
+          let closestDeltaAny = Number.MAX_SAFE_INTEGER;
+          let exactPlateSessions = 0;
 
           for (const s of sessions) {
-            const ts = pickSessionTimestamp(s);
+            const sessionPlate = pickSessionPlate(s);
+            if (!sessionPlate || sessionPlate !== plate) continue;
+            exactPlateSessions += 1;
+
+            const ts = normalizeTimestamp(pickSessionTimestamp(s));
             const url = normalizePhotoUrl(extractPhotoUrl(s), parkpowBaseUrl);
             if (!ts || !url) continue;
+            usableVisitCandidates += 1;
             const sEpoch = Date.parse(ts);
             if (Number.isNaN(sEpoch) || Number.isNaN(recEpoch)) continue;
             const delta = Math.abs(Math.floor((sEpoch - recEpoch) / 1000));
+            if (delta < closestDeltaAny) {
+              closestDeltaAny = delta;
+            }
             if (delta < bestDelta) {
               best = s;
               bestDelta = delta;
             }
           }
 
-          if (best && bestDelta <= windowSeconds) {
+          if (best && (ignoreTimeWindow || bestDelta <= windowSeconds)) {
             const matchedPhotoUrl = normalizePhotoUrl(extractPhotoUrl(best), parkpowBaseUrl);
             if (matchedPhotoUrl) {
               try {
@@ -492,7 +827,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
                 }
 
                 const plateMatches =
-                  !alprPlate || normalizePlate(alprPlate) === plate;
+                  !enforceAlprMatch || !alprPlate || normalizePlate(alprPlate) === plate;
 
                 if (plateMatches) {
                   const folder = safeFolder(obs.recorded_by);
@@ -578,7 +913,38 @@ Deno.serve(async (req: Request): Promise<Response> => {
                 result.error = err?.message || 'Apply failed';
               }
             }
+          } else {
+            if (exactPlateSessions === 0) {
+              result.reason = 'No exact ParkPow plate match for observation plate';
+            } else if (usableVisitCandidates === 0) {
+              result.reason = 'ParkPow visits found but no usable photo/timestamp fields';
+              if (sessions.length > 0 && parkpowVisitShapeSamples.length < 5) {
+                const sample = sessions[0] as Record<string, unknown>;
+                const startData = (sample.start_data as Record<string, unknown>) || {};
+                const endData = (sample.end_data as Record<string, unknown>) || {};
+                parkpowVisitShapeSamples.push({
+                  plate,
+                  top_level_keys: Object.keys(sample).slice(0, 40),
+                  start_data_keys: Object.keys(startData).slice(0, 30),
+                  end_data_keys: Object.keys(endData).slice(0, 30),
+                  start_img: String(sample.start_img ?? '').slice(0, 200),
+                  end_img: String(sample.end_img ?? '').slice(0, 200),
+                  start_img_plate: String(sample.start_img_plate ?? '').slice(0, 200),
+                  end_img_plate: String(sample.end_img_plate ?? '').slice(0, 200),
+                  start_date: sample.start_date ?? null,
+                  end_date: sample.end_date ?? null,
+                  last_spotted: sample.last_spotted ?? null,
+                  vehicle_shape: typeof sample.vehicle === 'object' && sample.vehicle
+                    ? Object.keys(sample.vehicle as Record<string, unknown>).slice(0, 20)
+                    : null,
+                });
+              }
+            } else if (bestDelta > windowSeconds) {
+              result.reason = `Closest ParkPow visit outside window (${bestDelta}s > ${windowSeconds}s)`;
+            }
           }
+        } else {
+          result.reason = 'No ParkPow visits returned for plate';
         }
       }
 
@@ -618,7 +984,9 @@ Deno.serve(async (req: Request): Promise<Response> => {
         target_bucket: targetBucket,
         organization_id: orgId,
         require_empty_photo: requireEmptyPhoto,
-        include_stale_signed_urls: includeStaleSignedUrls,
+        include_stale_signed_urls: true,
+        enforce_alpr_match: enforceAlprMatch,
+        ignore_time_window: ignoreTimeWindow,
         parkpow_available: !!parkpowToken,
         alpr_available: !!platerecToken,
       },
@@ -627,6 +995,10 @@ Deno.serve(async (req: Request): Promise<Response> => {
       auto_restored: autoRestored,
       queued_for_review: queuedForReview,
       parkpow_errors: parkpowErrors,
+      parkpow_attempts: parkpowAttempts,
+      parkpow_error_samples: parkpowErrorSamples,
+      parkpow_endpoint_stats: parkpowEndpointStats,
+      parkpow_visit_shape_samples: parkpowVisitShapeSamples,
       upload_errors: uploadErrors,
       sample_results: results.slice(0, 50),
     });

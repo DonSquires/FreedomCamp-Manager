@@ -54,6 +54,14 @@ interface Organization {
   name: string
 }
 
+const isMissingZoneLegalColumnError = (error: unknown) => {
+  const message = (error as { message?: string })?.message?.toLowerCase() || ''
+  return (
+    message.includes("could not find the 'bylaw_clause' column") ||
+    message.includes("could not find the 'bylaw_source_url' column")
+  )
+}
+
 export default function ZoneManagement() {
   const { user } = useAuthStore()
   const { organizationId } = useGlobalFiltersStore()
@@ -188,12 +196,25 @@ export default function ZoneManagement() {
   const updateZoneMutation = useMutation({
     mutationFn: async (updates: Partial<Zone>) => {
       if (!selectedZone) throw new Error('No zone selected')
-      
+
       const { error } = await (supabase.from('zones') as any)
         .update(updates)
         .eq('id', selectedZone.id)
 
-      if (error) throw error
+      if (!error) return
+
+      if (!isMissingZoneLegalColumnError(error)) {
+        throw error
+      }
+
+      // Backward compatibility: allow updates to succeed on databases
+      // where legal columns are not yet migrated.
+      const { bylaw_clause, bylaw_source_url, ...legacySafeUpdates } = updates
+      const { error: fallbackError } = await (supabase.from('zones') as any)
+        .update(legacySafeUpdates)
+        .eq('id', selectedZone.id)
+
+      if (fallbackError) throw fallbackError
     },
     onSuccess: () => {
       toast.success('Zone updated successfully')
