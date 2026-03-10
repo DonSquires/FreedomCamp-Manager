@@ -1,8 +1,12 @@
+import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
-import { AlertTriangle, MapPin, Calendar, Camera, FileText } from 'lucide-react'
+import { AlertTriangle, MapPin, Calendar, Camera, FileText, Loader2 } from 'lucide-react'
+import { supabase } from '@/lib/supabase'
+import { toast } from 'sonner'
 
 interface ViolationEvidenceModalProps {
   open: boolean
@@ -25,16 +29,45 @@ interface ViolationData {
 }
 
 export function ViolationEvidenceModal({ open, onClose, violation }: ViolationEvidenceModalProps) {
+  const navigate = useNavigate()
+  const [generatingNotice, setGeneratingNotice] = useState(false)
+
   if (!violation) return null
 
-  const handleGenerateNotice = () => {
-    // TODO: Call generate-notice-to-vacate Edge Function
-    console.log('Generating notice for:', violation.plate_number)
+  const handleGenerateNotice = async () => {
+    setGeneratingNotice(true)
+    try {
+      const { data, error } = await supabase.functions.invoke('generate-notice-to-vacate', {
+        body: {
+          plateNumber: violation.plate_number,
+          deliveryMethod: 'printed_onsite',
+          breachDetails: { notes: violation.violation_reason },
+        },
+      })
+      if (error) throw new Error(error.message)
+      if (!data?.success) throw new Error(data?.error || 'Failed to generate notice')
+      toast.success(`Notice ${data.notice?.reference_number || ''} generated`)
+      onClose()
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to generate notice')
+    } finally {
+      setGeneratingNotice(false)
+    }
   }
 
   const handleCreateEnforcement = () => {
-    // TODO: Navigate to enforcement action creation
-    console.log('Creating enforcement action for:', violation.plate_number)
+    onClose()
+    navigate('/enforcement-actions', {
+      state: {
+        prefill: {
+          plate_number: violation.plate_number,
+          notes: violation.violation_reason,
+          photo_url: violation.photo_url,
+          gps_latitude: violation.gps_latitude,
+          gps_longitude: violation.gps_longitude,
+        },
+      },
+    })
   }
 
   return (
@@ -146,8 +179,8 @@ export function ViolationEvidenceModal({ open, onClose, violation }: ViolationEv
           <Button variant="outline" onClick={onClose}>
             Close
           </Button>
-          <Button variant="outline" onClick={handleGenerateNotice}>
-            <FileText className="h-4 w-4 mr-2" />
+          <Button variant="outline" onClick={handleGenerateNotice} disabled={generatingNotice}>
+            {generatingNotice ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <FileText className="h-4 w-4 mr-2" />}
             Generate Notice
           </Button>
           <Button onClick={handleCreateEnforcement}>
