@@ -83,6 +83,10 @@ export interface Database {
           push_token: string | null
           push_token_updated_at: string | null
           notification_preferences: any
+          bio: string | null
+          emergency_contact_name: string | null
+          emergency_contact_phone: string | null
+          profile_photo_url: string | null
           created_at: string
           updated_at: string
         }
@@ -115,6 +119,10 @@ export interface Database {
           push_token?: string | null
           push_token_updated_at?: string | null
           notification_preferences?: any
+          bio?: string | null
+          emergency_contact_name?: string | null
+          emergency_contact_phone?: string | null
+          profile_photo_url?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -147,6 +155,10 @@ export interface Database {
           push_token?: string | null
           push_token_updated_at?: string | null
           notification_preferences?: any
+          bio?: string | null
+          emergency_contact_name?: string | null
+          emergency_contact_phone?: string | null
+          profile_photo_url?: string | null
           created_at?: string
           updated_at?: string
         }

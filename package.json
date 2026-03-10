@@ -5,7 +5,18 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "playwright test",
+    "test:e2e": "playwright test",
+    "test:ui": "playwright test --ui",
+    "test:debug": "playwright test --debug",
+    "test:headed": "playwright test --headed",
+    "test:report": "playwright show-report",
+    "test:scan": "playwright test tests/e2e/scan-flow.spec.ts",
+    "test:rls": "playwright test tests/e2e/multi-org-rls.spec.ts",
+    "test:reports": "playwright test tests/e2e/report-generation.spec.ts",
+    "test:smoke": "playwright test --grep @smoke",
+    "install:playwright": "playwright install"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.0",
@@ -83,6 +94,7 @@
     "tailwindcss": "^3.4.11",
     "typescript": "^5.5.3",
     "typescript-eslint": "^8.0.1",
-    "vite": "^5.4.1"
+    "vite": "^5.4.1",
+    "@playwright/test": "^1.49.0"
   }
 }
