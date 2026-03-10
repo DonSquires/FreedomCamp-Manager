@@ -130,7 +130,10 @@ export default function ImportHistoricalData() {
         setTab('history')
         queryClient.invalidateQueries({ queryKey: ['historical-batches'] })
       } else if (data?.success) {
-        toast.success(`✅ Import complete — ${data.successful || 0} records imported`)
+        const imported = data?.summary?.successful ?? data?.successful ?? 0
+        const gpsInferred = data?.summary?.gps_inferred_records ?? 0
+        const gpsFallback = data?.summary?.gps_fallback_records ?? 0
+        toast.success(`✅ Import complete — ${imported} records imported (GPS inferred: ${gpsInferred}, fallback: ${gpsFallback})`)
         queryClient.invalidateQueries({ queryKey: ['historical-batches'] })
       } else {
         toast.warning(data?.message || 'Import started but no batch ID returned')

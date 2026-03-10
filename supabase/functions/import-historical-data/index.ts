@@ -39,8 +39,7 @@ interface ImportProgress {
 }
 
 interface ParsedRecord {
-  id: string;         // Excel row identifier (NOT a database UUID)
-  sourceId?: string;  // Optional: old UUID from source system (stored in source_observation_id)
+  sourceRowId?: string; // Optional legacy spreadsheet ID (logs only, not persisted)
   zone: string;
   date: string;
   plate: string;
@@ -55,6 +54,81 @@ interface ProcessedRecord extends ParsedRecord {
   isNewZone: boolean;
   errors: string[];
   status: 'pending' | 'success' | 'error';
+}
+
+type ZoneRow = {
+  id: string;
+  name: string;
+  organization_id: string;
+  location_lat: number | null;
+  location_lng: number | null;
+  geometry: any;
+};
+
+function toNumber(v: unknown): number | null {
+  if (typeof v === 'number' && Number.isFinite(v)) return v;
+  if (typeof v === 'string') {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : null;
+  }
+  return null;
+}
+
+function centroidFromPolygon(coords: any): { lat: number; lng: number } | null {
+  if (!Array.isArray(coords) || !Array.isArray(coords[0])) return null;
+  const ring = coords[0];
+  if (!Array.isArray(ring) || ring.length === 0) return null;
+
+  let sumLat = 0;
+  let sumLng = 0;
+  let count = 0;
+
+  for (const p of ring) {
+    if (!Array.isArray(p) || p.length < 2) continue;
+    const lng = toNumber(p[0]);
+    const lat = toNumber(p[1]);
+    if (lat === null || lng === null) continue;
+    sumLat += lat;
+    sumLng += lng;
+    count += 1;
+  }
+
+  if (count === 0) return null;
+  return { lat: sumLat / count, lng: sumLng / count };
+}
+
+function inferGpsFromZone(zone: ZoneRow | null): { lat: number; lng: number } | null {
+  if (!zone) return null;
+
+  // First preference: explicit zone lat/lng fields.
+  if (zone.location_lat !== null && zone.location_lng !== null) {
+    return { lat: zone.location_lat, lng: zone.location_lng };
+  }
+
+  // Fallback: try to derive from GeoJSON-ish geometry.
+  const rawGeometry = typeof zone.geometry === 'string'
+    ? (() => {
+        try { return JSON.parse(zone.geometry); } catch { return null; }
+      })()
+    : zone.geometry;
+
+  if (!rawGeometry || typeof rawGeometry !== 'object') return null;
+
+  if (rawGeometry.type === 'Point' && Array.isArray(rawGeometry.coordinates)) {
+    const lng = toNumber(rawGeometry.coordinates[0]);
+    const lat = toNumber(rawGeometry.coordinates[1]);
+    if (lat !== null && lng !== null) return { lat, lng };
+  }
+
+  if (rawGeometry.type === 'Polygon') {
+    return centroidFromPolygon(rawGeometry.coordinates);
+  }
+
+  if (rawGeometry.type === 'MultiPolygon' && Array.isArray(rawGeometry.coordinates) && rawGeometry.coordinates.length > 0) {
+    return centroidFromPolygon(rawGeometry.coordinates[0]);
+  }
+
+  return null;
 }
 
 Deno.serve(async (req) => {
@@ -440,12 +514,8 @@ Return ONLY a JSON object with this structure:
         continue;
       }
 
-      const rawId = String(row[0] || '');
-      // Detect if the first column is a UUID from the old system
-      const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
       const record: ParsedRecord = {
-        id: rawId,
-        sourceId: UUID_PATTERN.test(rawId) ? rawId : undefined, // store old UUID for audit trail
+        sourceRowId: row[0] ? String(row[0]).trim() : undefined,
         zone: String(row[1] || '').trim(), // Column B: Title (zone name)
         date: parsedDate, // Column C: RecordedDate (properly parsed)
         plate: String(row[3] || '').trim().toUpperCase().replace(/[^A-Z0-9]/g, ''), // Column D: REGO
@@ -512,7 +582,7 @@ Return ONLY a JSON object with this structure:
     console.log('📥 [IMPORT] Loading active zones across all organisations…');
     const { data: existingZones, error: zonesError } = await supabaseAdmin
       .from('zones')
-      .select('id, name, organization_id')
+      .select('id, name, organization_id, location_lat, location_lng, geometry')
       .eq('is_active', true);
 
     if (zonesError) {
@@ -520,8 +590,10 @@ Return ONLY a JSON object with this structure:
     }
 
     // Partition zones: target-org first, then others
-    const targetOrgZones = (existingZones || []).filter(z => z.organization_id === targetOrganizationId);
-    const otherOrgZones  = (existingZones || []).filter(z => z.organization_id !== targetOrganizationId);
+    const allZones: ZoneRow[] = (existingZones || []) as ZoneRow[];
+    const targetOrgZones = allZones.filter(z => z.organization_id === targetOrganizationId);
+    const otherOrgZones  = allZones.filter(z => z.organization_id !== targetOrganizationId);
+    const zoneById = new Map<string, ZoneRow>(allZones.map((z) => [z.id, z]));
 
     console.log(
       `✅ [IMPORT] Loaded ${existingZones?.length || 0} zones ` +
@@ -640,6 +712,14 @@ Return ONLY a JSON object with this structure:
       // Map zone names to IDs (new zones always belong to targetOrganizationId)
       (newZones || []).forEach(zone => {
         createdZonesMap.set(zone.name, zone.id);
+        zoneById.set(zone.id, {
+          id: zone.id,
+          name: zone.name,
+          organization_id: targetOrganizationId,
+          location_lat: null,
+          location_lng: null,
+          geometry: null,
+        });
       });
 
       zonesCreated = newZones?.length || 0;
@@ -669,6 +749,8 @@ Return ONLY a JSON object with this structure:
 
     let successful = 0;
     let failed = 0;
+    let gpsInferredCount = 0;
+    let gpsFallbackCount = 0;
     const processingErrors: any[] = []; // Separate error log for processing phase (distinct from parsing errors)
 
     for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
@@ -683,6 +765,8 @@ Return ONLY a JSON object with this structure:
             total_rows: jsonData.length - 1,
             valid_records: parsedRecords.length,
             zones_created: zonesCreated,
+            gps_inferred_records: gpsInferredCount,
+            gps_fallback_records: gpsFallbackCount,
             current_batch: batchIndex + 1,
             total_batches: batches.length,
             batch_size: BATCH_SIZE,
@@ -752,15 +836,21 @@ Return ONLY a JSON object with this structure:
           // Create observation with proper NZ timezone handling
           // LEGACY IMPORT: No photo available - use placeholder and set legacy flags
           // ⚠️ NO COMPLIANCE CALCULATION DURING IMPORT - run recalculation afterward
+          const zoneForGps = record.zoneId ? zoneById.get(record.zoneId) || null : null;
+          const inferredGps = inferGpsFromZone(zoneForGps);
+          if (inferredGps) {
+            gpsInferredCount++;
+          } else {
+            gpsFallbackCount++;
+          }
+
           const { data: observation, error: obsError } = await supabaseAdmin
             .from('observations')
             .insert({
               // ── Identity ──────────────────────────────────────────────
               // observations.id is always gen_random_uuid() (PostgreSQL default).
-              // Old UUIDs from the source system (if present in row[0]) are
-              // stored in source_observation_id for audit purposes only.
+              // Spreadsheet ID column is intentionally ignored for persistence.
               idempotency_key: idempotencyKey,
-              source_observation_id: record.sourceId ?? null,
 
               // ── Core fields ───────────────────────────────────────────
               plate_number: record.plate,
@@ -791,8 +881,8 @@ Return ONLY a JSON object with this structure:
               is_compliant: null,
               
               // ── GPS placeholders (required NOT NULL in schema) ────────
-              gps_latitude: 0,
-              gps_longitude: 0,
+              gps_latitude: inferredGps?.lat ?? 0,
+              gps_longitude: inferredGps?.lng ?? 0,
 
               // ── Legacy import flags (Evidence Act 2006 Compliance) ────
               is_legacy_import: true,
@@ -832,7 +922,7 @@ Return ONLY a JSON object with this structure:
           failed++;
           
           processingErrors.push({
-            record_id: record.id,
+            record_id: record.sourceRowId || `${record.plate}:${record.date}`,
             plate: record.plate,
             zone: record.zone,
             error: error.message,
@@ -850,6 +940,8 @@ Return ONLY a JSON object with this structure:
             total_rows: jsonData.length - 1, 
             valid_records: parsedRecords.length,
             zones_created: zonesCreated,
+            gps_inferred_records: gpsInferredCount,
+            gps_fallback_records: gpsFallbackCount,
             parsing_errors: errorLog.slice(0, 100), // Parsing phase errors
             processing_errors: processingErrors.slice(0, 100) // Processing phase errors
           },
@@ -875,6 +967,8 @@ Return ONLY a JSON object with this structure:
     console.log(`   Success: ${successful}`);
     console.log(`   Failed: ${failed}`);
     console.log(`   Zones Created: ${zonesCreated}`);
+    console.log(`   GPS Inferred: ${gpsInferredCount}`);
+    console.log(`   GPS Fallback (0,0): ${gpsFallbackCount}`);
 
     return new Response(
       JSON.stringify({
@@ -885,6 +979,8 @@ Return ONLY a JSON object with this structure:
           successful,
           failed,
           zones_created: zonesCreated,
+          gps_inferred_records: gpsInferredCount,
+          gps_fallback_records: gpsFallbackCount,
           new_zones: uniqueNewZones,
         },
         error_log: processingErrors.length > 0 ? processingErrors.slice(0, 10) : undefined,
