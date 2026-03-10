@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useTransition } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
@@ -22,6 +22,7 @@ export function GlobalFilterRibbon({
   showZoneFilter = true,
   className,
 }: GlobalFilterRibbonProps) {
+  const [, startTransition] = useTransition()
   const { user } = useAuthStore()
   const {
     dateFrom,
@@ -183,14 +184,16 @@ export function GlobalFilterRibbon({
               <Select
                 value={organizationId || '__all__'}
                 onValueChange={(value) => {
-                  if (value === '__all__' || !value) {
-                    setOrganization(null, null)
+                  startTransition(() => {
+                    if (value === '__all__' || !value) {
+                      setOrganization(null, null)
+                      setZone(null, null)
+                      return
+                    }
+                    const org = organizations?.find(o => o.id === value)
+                    setOrganization(value, org?.name || null)
                     setZone(null, null)
-                    return
-                  }
-                  const org = organizations?.find(o => o.id === value)
-                  setOrganization(value, org?.name || null)
-                  setZone(null, null)
+                  })
                 }}
               >
                 <SelectTrigger className="w-[200px] h-9">
@@ -215,12 +218,14 @@ export function GlobalFilterRibbon({
               <Select
                 value={zoneId || '__all__'}
                 onValueChange={(value) => {
-                  if (value === '__all__' || !value) {
-                    setZone(null, null)
-                    return
-                  }
-                  const zone = zones?.find(z => z.id === value)
-                  setZone(value, zone?.name || null)
+                  startTransition(() => {
+                    if (value === '__all__' || !value) {
+                      setZone(null, null)
+                      return
+                    }
+                    const zone = zones?.find(z => z.id === value)
+                    setZone(value, zone?.name || null)
+                  })
                 }}
               >
                 <SelectTrigger className="w-[200px] h-9">

@@ -7,7 +7,6 @@ type ScopePayload = {
   window_minutes?: number;
   limit?: number;
   apply?: boolean;
-  require_empty_photo?: boolean;
   target_bucket?: string;
   parkpow_base_url?: string;
 };
@@ -156,7 +155,8 @@ Deno.serve(async (req) => {
     const windowSeconds = Math.max(1, Math.min(24 * 60, body.window_minutes ?? DEFAULT_WINDOW_MINUTES)) * 60;
     const limit = Math.max(1, Math.min(1000, body.limit ?? DEFAULT_LIMIT));
     const apply = body.apply === true;
-    const requireEmptyPhoto = body.require_empty_photo !== false;
+    // Keep this legacy function strictly focused on re-enriching deleted photos.
+    const requireEmptyPhoto = true;
     const targetBucket = body.target_bucket || DEFAULT_BUCKET;
     const parkpowBaseUrl = (body.parkpow_base_url || DEFAULT_BASE_URL).replace(/\/$/, '');
 
@@ -178,9 +178,7 @@ Deno.serve(async (req) => {
       query = query.eq('organization_id', profile.organization_id);
     }
 
-    if (requireEmptyPhoto) {
-      query = query.is(schema.photoCol, null);
-    }
+    query = query.is(schema.photoCol, null);
 
     const { data: observations, error: obsError } = await query;
     if (obsError) {
@@ -350,7 +348,7 @@ Deno.serve(async (req) => {
         window_minutes: Math.floor(windowSeconds / 60),
         limit,
         apply,
-        require_empty_photo: requireEmptyPhoto,
+        require_empty_photo: true,
         target_bucket: targetBucket,
         parkpow_base_url: parkpowBaseUrl,
       },
