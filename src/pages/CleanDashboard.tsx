@@ -6,7 +6,7 @@
  */
 
 import { useState } from 'react';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { formatDistanceToNow, format, startOfDay } from 'date-fns';
 import {
@@ -1010,7 +1010,13 @@ type AllTabs = Tab | 'organisations';
 
 export default function CleanDashboard() {
   const { isAuthenticated, user, logout } = useAuthStore();
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<AllTabs>('overview');
+
+  const handleLogout = async () => {
+    await logout();
+    navigate('/login', { replace: true });
+  };
 
   if (!isAuthenticated || !user) {
     return <Navigate to="/login" replace />;
@@ -1039,7 +1045,7 @@ export default function CleanDashboard() {
               <span className="text-xs text-gray-400 capitalize">{user.role}</span>
             </div>
             <button
-              onClick={logout}
+              onClick={handleLogout}
               className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
               title="Sign out"
             >
