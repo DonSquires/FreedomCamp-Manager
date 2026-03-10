@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { useGlobalFiltersStore } from '@/stores/globalFiltersStore'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Calendar, Building2, MapPin, X, ChevronLeft, ChevronRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -90,6 +91,18 @@ export function GlobalFilterRibbon({
 
   const hasActiveFilters = dateFrom || dateTo || organizationId || zoneId
 
+  const handleFromDateChange = (value: string) => {
+    const nextFrom = value || null
+    const safeTo = dateTo && nextFrom && dateTo < nextFrom ? nextFrom : dateTo
+    setDateRange(nextFrom, safeTo, nextFrom || safeTo ? 'custom' : null)
+  }
+
+  const handleToDateChange = (value: string) => {
+    const nextTo = value || null
+    const safeFrom = dateFrom && nextTo && dateFrom > nextTo ? nextTo : dateFrom
+    setDateRange(safeFrom, nextTo, safeFrom || nextTo ? 'custom' : null)
+  }
+
   return (
     <div className={cn('bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700', className)}>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
@@ -136,6 +149,29 @@ export function GlobalFilterRibbon({
                     </Button>
                   </div>
                 )}
+              </div>
+
+              <div className="flex items-center gap-2 ml-2">
+                <div className="flex items-center gap-1">
+                  <span className="text-xs text-gray-500">From</span>
+                  <Input
+                    type="date"
+                    value={dateFrom || ''}
+                    onChange={(e) => handleFromDateChange(e.target.value)}
+                    max={dateTo || undefined}
+                    className="h-8 w-[150px]"
+                  />
+                </div>
+                <div className="flex items-center gap-1">
+                  <span className="text-xs text-gray-500">To</span>
+                  <Input
+                    type="date"
+                    value={dateTo || ''}
+                    onChange={(e) => handleToDateChange(e.target.value)}
+                    min={dateFrom || undefined}
+                    className="h-8 w-[150px]"
+                  />
+                </div>
               </div>
             </div>
           )}

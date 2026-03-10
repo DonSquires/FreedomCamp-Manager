@@ -597,9 +597,13 @@ export const edgeFunctions = {
    * Generate dashboard statistics report
    */
   generateDashboardReport: async (params: {
+    report_type?: string
     organization_id?: string
+    zone_id?: string
     date_from?: string
     date_to?: string
+    start_date?: string
+    end_date?: string
   }) => {
     return callEdgeFunction('generate-dashboard-report', params)
   },

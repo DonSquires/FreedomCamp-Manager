@@ -49,3 +49,5 @@ grep_requested_output.txt
 .bin/
 .bun/
 .tools/
+.vercel
+.env*.local

@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
-import { FunctionsHttpError } from '@supabase/supabase-js'
+import { edgeFunctions } from '@/lib/edgeFunctions'
 import { useAuthStore } from '@/stores/authStore'
 import { useGlobalFiltersStore } from '@/stores/globalFiltersStore'
 import { Button } from '@/components/ui/button'
@@ -133,31 +133,18 @@ export default function Reports() {
   const generateReportMutation = useMutation({
     mutationFn: async (reportType: string) => {
       setGeneratingReport(reportType)
-      
-      // Call edge function to generate PDF
-      const { data, error } = await supabase.functions.invoke('generate-dashboard-report', {
-        body: {
-          report_type: reportType,
-          organization_id: effectiveOrganizationId,
-          zone_id: zoneId,
-          start_date: startDate,
-          end_date: endDate,
-        },
+
+      // Use shared edgeFunction caller so JWT refresh/invalid-session handling is centralized.
+      const { data, error } = await edgeFunctions.generateDashboardReport({
+        report_type: reportType,
+        organization_id: effectiveOrganizationId || undefined,
+        zone_id: zoneId || undefined,
+        start_date: startDate || undefined,
+        end_date: endDate || undefined,
       })
 
-      // Better error handling with detailed messages
       if (error) {
-        let errorMessage = error.message
-        if (error instanceof FunctionsHttpError) {
-          try {
-            const statusCode = error.context?.status ?? 500
-            const textContent = await error.context?.text()
-            errorMessage = `[${statusCode}] ${textContent || error.message || 'Unknown error'}`
-          } catch {
-            errorMessage = error.message || 'Failed to read response'
-          }
-        }
-        throw new Error(errorMessage)
+        throw new Error(error)
       }
       return data
     },
