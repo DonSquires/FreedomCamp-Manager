@@ -893,6 +893,80 @@ export interface Database {
         }
       }
       // Add other tables as needed
+      import_batches: {
+        Row: {
+          id: string
+          organization_id: string
+          uploaded_by: string
+          batch_name: string
+          file_name: string | null
+          file_size_bytes: number | null
+          status: string
+          total_records: number
+          processed_records: number
+          successful_records: number
+          failed_records: number
+          zones_created: number
+          parsed_records: number
+          plates_enriched: number
+          vehicles_enriched: number
+          homeless_inferred: number
+          hs_issues_inferred: number
+          created_at: string
+          started_at: string | null
+          completed_at: string | null
+          error_summary: string | null
+          import_config: any
+        }
+        Insert: {
+          id?: string
+          organization_id: string
+          uploaded_by: string
+          batch_name: string
+          file_name?: string | null
+          file_size_bytes?: number | null
+          status?: string
+          total_records?: number
+          processed_records?: number
+          successful_records?: number
+          failed_records?: number
+          zones_created?: number
+          parsed_records?: number
+          plates_enriched?: number
+          vehicles_enriched?: number
+          homeless_inferred?: number
+          hs_issues_inferred?: number
+          created_at?: string
+          started_at?: string | null
+          completed_at?: string | null
+          error_summary?: string | null
+          import_config?: any
+        }
+        Update: {
+          id?: string
+          organization_id?: string
+          uploaded_by?: string
+          batch_name?: string
+          file_name?: string | null
+          file_size_bytes?: number | null
+          status?: string
+          total_records?: number
+          processed_records?: number
+          successful_records?: number
+          failed_records?: number
+          zones_created?: number
+          parsed_records?: number
+          plates_enriched?: number
+          vehicles_enriched?: number
+          homeless_inferred?: number
+          hs_issues_inferred?: number
+          created_at?: string
+          started_at?: string | null
+          completed_at?: string | null
+          error_summary?: string | null
+          import_config?: any
+        }
+      }
     }
     Functions: {
       get_user_role: {

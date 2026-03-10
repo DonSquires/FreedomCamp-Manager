@@ -163,7 +163,7 @@ export default function ImportHistoricalData() {
         <TabsList>
           <TabsTrigger value="upload" className="flex items-center gap-1.5">
             <Upload className="h-4 w-4" />
-            Upload Excel
+            Upload File
           </TabsTrigger>
           <TabsTrigger value="history" className="flex items-center gap-1.5">
             <List className="h-4 w-4" />
@@ -184,7 +184,7 @@ export default function ImportHistoricalData() {
                   Historical Data Import
                 </CardTitle>
                 <CardDescription>
-                  Upload an Excel (.xlsx) file with historical observation records. The system will parse all records server-side, auto-match zone names via fuzzy matching, create missing zones, and bulk-import all observations atomically. Progress is tracked in real time.
+                  Upload a CSV (.csv) or Excel (.xlsx) file with historical observation records. The system will parse all records server-side, auto-match zone names via fuzzy matching, create missing zones, and bulk-import all observations atomically. DOWNER/LINZ CSV format is supported. Progress is tracked in real time.
                 </CardDescription>
               </CardHeader>
             </Card>
@@ -192,19 +192,26 @@ export default function ImportHistoricalData() {
             {/* Expected format */}
             <Card className="border-dashed">
               <CardContent className="p-4">
-                <p className="text-xs font-semibold text-muted-foreground uppercase mb-2">Expected Column Format</p>
-                <div className="font-mono text-xs text-muted-foreground grid grid-cols-2 gap-1">
+                <p className="text-xs font-semibold text-muted-foreground uppercase mb-2">Supported Column Formats</p>
+                <p className="text-xs text-muted-foreground mb-1 font-medium">DOWNER/LINZ CSV format:</p>
+                <div className="font-mono text-xs text-muted-foreground grid grid-cols-3 gap-1 mb-2">
+                  {['ID', 'Title', 'RecordedDate', 'REGO', 'Note'].map(col => (
+                    <span key={col} className="bg-muted rounded px-1.5 py-0.5">{col}</span>
+                  ))}
+                </div>
+                <p className="text-xs text-muted-foreground mb-1 font-medium">Generic Excel format:</p>
+                <div className="font-mono text-xs text-muted-foreground grid grid-cols-3 gap-1">
                   {['ID', 'Zone', 'Date', 'Plate', 'Notes', 'Attachments'].map(col => (
                     <span key={col} className="bg-muted rounded px-1.5 py-0.5">{col}</span>
                   ))}
                 </div>
-                <p className="text-xs text-muted-foreground mt-2">Other columns are ignored. Zone names are fuzzy-matched to existing zones.</p>
+                <p className="text-xs text-muted-foreground mt-2">Zone names are fuzzy-matched to existing zones. Dates in DD/MM/YYYY format are handled automatically.</p>
               </CardContent>
             </Card>
 
             {/* File drop */}
             <div className="space-y-1.5">
-              <Label>Excel File (.xlsx) *</Label>
+              <Label>CSV or Excel File (.csv, .xlsx) *</Label>
               <div
                 className="border-2 border-dashed rounded-lg p-8 text-center cursor-pointer hover:border-primary transition-colors"
                 onClick={() => fileRef.current?.click()}
@@ -220,8 +227,8 @@ export default function ImportHistoricalData() {
                 ) : (
                   <div className="flex flex-col items-center gap-2 text-muted-foreground">
                     <Upload className="h-8 w-8" />
-                    <span>Click to choose an Excel file</span>
-                    <span className="text-xs">.xlsx format required</span>
+                    <span>Click to choose a file</span>
+                    <span className="text-xs">.csv or .xlsx format</span>
                   </div>
                 )}
               </div>
