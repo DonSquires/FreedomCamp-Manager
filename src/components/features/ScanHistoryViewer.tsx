@@ -49,12 +49,10 @@ export function ScanHistoryViewer({
           recorded_at,
           is_compliant,
           breach_type,
-          zones!observations_zone_id_fkey (name),
-          canonical_vehicles!observations_plate_number_fkey (
-            make,
-            model,
-            colour
-          )
+          vehicle_make,
+          vehicle_model,
+          vehicle_color,
+          zones!observations_zone_id_fkey (name)
         `)
         .eq('recorded_by', user?.id ?? '')
         .order('recorded_at', { ascending: false })
@@ -82,7 +80,7 @@ export function ScanHistoryViewer({
     return (
       scan.plate_number.toLowerCase().includes(searchLower) ||
       (scan.zones as any)?.name?.toLowerCase().includes(searchLower) ||
-      (scan.canonical_vehicles as any)?.make?.toLowerCase().includes(searchLower)
+      (scan.vehicle_make as any)?.toLowerCase().includes(searchLower)
     )
   })
 
@@ -194,11 +192,11 @@ export function ScanHistoryViewer({
                   </div>
 
                   <div className="text-sm text-muted-foreground space-y-1">
-                    {(scan.canonical_vehicles as any)?.make && (
+                    {(scan.vehicle_make as any) && (
                       <div>
-                        {(scan.canonical_vehicles as any).make}{' '}
-                        {(scan.canonical_vehicles as any).model}{' '}
-                        {(scan.canonical_vehicles as any).colour && `• ${(scan.canonical_vehicles as any).colour}`}
+                        {(scan.vehicle_make as any)}{' '}
+                        {(scan.vehicle_model as any)}{' '}
+                        {(scan.vehicle_color as any) && `• ${(scan.vehicle_color as any)}`}
                       </div>
                     )}
                     <div>

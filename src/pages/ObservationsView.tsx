@@ -74,7 +74,7 @@ export default function ObservationsView() {
       let q = supabase
         .from('observations')
         .select(`
-          id:observation_id,
+          id,
           plate_number,
           recorded_at,
           gps_latitude,

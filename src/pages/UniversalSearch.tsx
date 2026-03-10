@@ -60,13 +60,13 @@ export default function UniversalSearch() {
             .or(`plate_number.ilike.%${q}%,make.ilike.%${q}%,model.ilike.%${q}%,colour.ilike.%${q}%`)
             .limit(20),
 
-          // Observations – notes, location
+          // Observations – officer notes, plate
           (() => {
             let obsQuery = supabase
               .from('observations')
-              .select('id:observation_id, notes, location_name, recorded_at, is_compliant, plate_number')
+              .select('id, officer_notes, recorded_at, is_compliant, plate_number')
               
-              .or(`notes.ilike.%${q}%,location_name.ilike.%${q}%,plate_number.ilike.%${q}%`)
+              .or(`officer_notes.ilike.%${q}%,plate_number.ilike.%${q}%`)
               .order('recorded_at', { ascending: false })
               .limit(20)
             if (orgFilter) obsQuery = obsQuery.eq('organization_id', orgFilter)

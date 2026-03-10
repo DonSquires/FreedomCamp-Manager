@@ -292,7 +292,7 @@ function BreachesTab({
       let q = supabase
         .from('observations')
         .select(
-          'id:observation_id, plate_number, recorded_at, breach_type, breach_reason, nights_stayed_this_month, consecutive_nights, vehicle_make, vehicle_model, vehicle_color, self_contained, photo_url, zones(name), organizations(name), user_profiles(first_name, last_name)',
+          'id, plate_number, recorded_at, breach_type, breach_reason, nights_stayed_this_month, consecutive_nights, vehicle_make, vehicle_model, vehicle_color, self_contained, photo_url, zones(name), organizations(name), user_profiles(first_name, last_name)',
           { count: 'exact' }
         )
         .eq('is_compliant', false)

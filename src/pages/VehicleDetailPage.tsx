@@ -64,7 +64,7 @@ interface Observation {
   sticker_presence: boolean | null
   plate_confidence: number | null
   processing_status: string | null
-  nights_in_zone: number | null
+  nights_stayed_this_month: number | null
   zone: { name: string } | null
   recorded_by_user: { first_name: string; last_name: string } | null
 }
@@ -125,8 +125,8 @@ export default function VehicleDetailPage() {
       let query = supabase
         .from('observations')
         .select(`
-          id:observation_id, recorded_at, gps_latitude, gps_longitude, photo_url, is_compliant,
-          sticker_presence, plate_confidence, processing_status, nights_in_zone,
+          id, recorded_at, gps_latitude, gps_longitude, photo_url, is_compliant,
+          sticker_presence, plate_confidence, processing_status, nights_stayed_this_month,
           zone:zones!zone_id(name),
           recorded_by_user:user_profiles!recorded_by(first_name, last_name)
         `)
@@ -520,10 +520,10 @@ export default function VehicleDetailPage() {
                             {obs.zone.name}
                           </span>
                         )}
-                        {obs.nights_in_zone != null && (
+                        {obs.nights_stayed_this_month != null && (
                           <span className="flex items-center gap-1">
                             <Clock className="h-3 w-3" />
-                            Night {obs.nights_in_zone}
+                            Night {obs.nights_stayed_this_month}
                           </span>
                         )}
                         {obs.recorded_by_user && (
