@@ -90,7 +90,7 @@ export default function Login() {
           </form>
 
           <div className="mt-6 text-center text-sm text-gray-600 dark:text-gray-400">
-            <p>Iron Eagle Security / OnSpace AI</p>
+            <p>Iron Eagle Security</p>
             <p className="mt-1">NZ Freedom Camping Enforcement</p>
           </div>
         </CardContent>

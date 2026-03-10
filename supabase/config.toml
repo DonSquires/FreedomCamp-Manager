@@ -33,19 +33,20 @@ file_size_limit = "50MiB"
 
 [auth]
 enabled = true
-# Production site URL — set to the permanent domain, not an ephemeral preview URL.
+# Production site URL — use the apex domain as the canonical anchor.
 # This value is pushed to the hosted project via `supabase config push` and is
 # used by Supabase (GoTrue + PostgREST) as the primary CORS allowed origin.
-# Never set this to a preview subdomain — use additional_redirect_urls for that.
-site_url = "https://freedomcampmanager.onspace.build"
+# Use the apex domain here; add the www subdomain and any preview URLs in
+# additional_redirect_urls so auth redirects still work from those origins.
+site_url = "https://fcmanager.co.nz"
 # All allowed redirect origins:
-#  - production domains
-#  - wildcard covering every ephemeral Onspace preview build
-#    (Onspace generates: preview-react-9b4t5o-<hash>.onspace.build)
+#  - www subdomain (apex is site_url; subdomains go here)
+#  - hosted app build URL
+#  - wildcard covering every ephemeral preview build
 #  - localhost for local development
 additional_redirect_urls = [
-  "https://fcmanager.co.nz",
   "https://www.fcmanager.co.nz",
+  "https://freedomcampmanager.onspace.build",
   "https://*.onspace.build",
   "https://*.onspace.build/**",
   "http://localhost:5173",
