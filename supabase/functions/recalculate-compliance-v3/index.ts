@@ -153,6 +153,14 @@ function toEpoch(value?: string | null): number | null {
   return Number.isNaN(ts) ? null : ts;
 }
 
+function normalizePlateKey(value?: string | null): string {
+  return String(value ?? '')
+    .trim()
+    .toUpperCase()
+    .replace(/\s+/g, '')
+    .replace(/[^A-Z0-9]/g, '');
+}
+
 function normalizeHomelessCategory(status?: string | null): 'confirmed' | 'claimed' | 'declined' | 'freedom_camper' {
   const s = String(status ?? '').toLowerCase();
   if (s === 'confirmed') return 'confirmed';
@@ -350,14 +358,18 @@ serve(async (req: Request) => {
       });
     }
 
-    const plates = [...new Set(observations.map((o: any) => o.plate_number).filter(Boolean))];
+    const plates = [...new Set(
+      observations
+        .map((o: any) => normalizePlateKey(o.plate_number))
+        .filter(Boolean),
+    )];
     const { data: homelessRows } = await supabaseAdmin
       .from('canonical_vehicles')
       .select('plate_number, homeless_status')
       .in('plate_number', plates);
 
     const homelessStatusByPlate = new Map<string, string>(
-      (homelessRows ?? []).map((r: any) => [String(r.plate_number), String(r.homeless_status ?? '')]),
+      (homelessRows ?? []).map((r: any) => [normalizePlateKey(r.plate_number), String(r.homeless_status ?? '')]),
     );
 
     const orgIds = [...new Set(observations.map((o: any) => o.organization_id).filter(Boolean))];
@@ -377,7 +389,7 @@ serve(async (req: Request) => {
 
     const observationsByPlateZone = new Map<string, any[]>();
     for (const row of observations) {
-      const key = `${row.organization_id}:${row.zone_id}:${row.plate_number}`;
+      const key = `${row.organization_id}:${row.zone_id}:${normalizePlateKey(row.plate_number)}`;
       const bucket = observationsByPlateZone.get(key) ?? [];
       bucket.push(row);
       observationsByPlateZone.set(key, bucket);
@@ -387,7 +399,7 @@ serve(async (req: Request) => {
     }
 
     const hasTwoPhotoOvernightEvidence = (obs: any): boolean => {
-      const key = `${obs.organization_id}:${obs.zone_id}:${obs.plate_number}`;
+      const key = `${obs.organization_id}:${obs.zone_id}:${normalizePlateKey(obs.plate_number)}`;
       const bucket = observationsByPlateZone.get(key) ?? [];
       const currentTs = new Date(obs.recorded_at).getTime();
 
@@ -402,7 +414,7 @@ serve(async (req: Request) => {
     };
 
     const hasInferenceOvernightEvidence = (obs: any): boolean => {
-      const key = `${obs.organization_id}:${obs.zone_id}:${obs.plate_number}`;
+      const key = `${obs.organization_id}:${obs.zone_id}:${normalizePlateKey(obs.plate_number)}`;
       const bucket = observationsByPlateZone.get(key) ?? [];
       const currentTs = new Date(obs.recorded_at).getTime();
       const currentEmbedding = readEmbeddingVector(obs);
@@ -467,7 +479,9 @@ serve(async (req: Request) => {
         continue;
       }
 
-      const homelessCategory = normalizeHomelessCategory(homelessStatusByPlate.get(obs.plate_number));
+      const homelessCategory = normalizeHomelessCategory(
+        homelessStatusByPlate.get(normalizePlateKey(obs.plate_number)),
+      );
       // Four-category model: confirmed / claimed / declined / freedom_camper.
       // confirmed + claimed are exempt-eligible. declined and freedom_camper are non-exempt.
       const isHomelessExempt = homelessCategory === 'confirmed' || homelessCategory === 'claimed';

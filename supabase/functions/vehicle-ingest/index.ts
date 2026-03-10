@@ -88,6 +88,16 @@ function parseStorageLocation(raw: string): { bucket: string; path: string } | n
   return { bucket, path };
 }
 
+function normalizePlateNumber(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  const normalized = String(raw)
+    .trim()
+    .toUpperCase()
+    .replace(/\s+/g, '')
+    .replace(/[^A-Z0-9]/g, '');
+  return normalized || null;
+}
+
 async function downloadPhotoBytes(
   supabase: ReturnType<typeof createClient>,
   photoRef: string,
@@ -582,7 +592,7 @@ Deno.serve(async (req) => {
     }
     // ========================================================================
 
-    const plateNumber = inferenceResult.plate;
+    const plateNumber = normalizePlateNumber(inferenceResult.plate);
     const requiresManualEntry = inferenceResult.requires_manual_entry;
     const plateConfidence = inferenceResult.confidence;
 

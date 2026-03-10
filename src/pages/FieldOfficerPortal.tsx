@@ -16,6 +16,7 @@ import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
 import { formatDateTime } from '@/lib/utils'
+import { homelessStatusLabel, isHomelessForUi } from '@/lib/homelessStatus'
 
 // Enforcement workflow mode labels shown in the status card
 const WORKFLOW_LABELS: Record<string, string> = {
@@ -70,7 +71,30 @@ export default function FieldOfficerPortal() {
         .order('recorded_at', { ascending: false })
         .limit(10)
       if (error) return []
-      return data as any[]
+
+      const scans = (data ?? []) as any[]
+      const plates = [...new Set(scans.map((s) => String(s.plate_number || '').trim().toUpperCase()).filter(Boolean))]
+
+      if (plates.length === 0) {
+        return scans
+      }
+
+      const { data: vehicles, error: vehiclesError } = await (supabase.from('canonical_vehicles') as any)
+        .select('plate_number, homeless_status')
+        .in('plate_number', plates)
+
+      if (vehiclesError) {
+        return scans
+      }
+
+      const homelessByPlate = new globalThis.Map<string, string | null>(
+        (vehicles ?? []).map((v: any) => [String(v.plate_number || '').trim().toUpperCase(), v.homeless_status ?? null]),
+      )
+
+      return scans.map((scan) => ({
+        ...scan,
+        homeless_status: homelessByPlate.get(String(scan.plate_number || '').trim().toUpperCase()) ?? null,
+      }))
     },
     enabled: !!user?.id,
     refetchInterval: 15000,  // auto-refresh every 15 s so AI results appear
@@ -657,6 +681,11 @@ export default function FieldOfficerPortal() {
                     <div className="text-[11px] text-muted-foreground truncate">
                       {scan.zone?.name} · {formatDateTime(scan.recorded_at)}
                     </div>
+                    {isHomelessForUi(scan.homeless_status) && (
+                      <div className="text-[11px] text-orange-700 dark:text-orange-300 font-medium">
+                        🏠 {homelessStatusLabel(scan.homeless_status)}
+                      </div>
+                    )}
                   </div>
 
                   {/* Enforcement action buttons — only shown for breach + AI complete */}

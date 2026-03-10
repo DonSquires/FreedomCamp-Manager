@@ -203,15 +203,21 @@ Extract and include the EXACT text describing the behavior in "safety_descriptio
             break;
         }
 
+        const currentStatus = String(canonicalVehicle.homeless_status ?? '').toLowerCase()
+        const homelessStatus = homeless_confirmed === true
+          ? 'confirmed'
+          : homeless_confirmed === false
+          ? 'declined'
+          : homeless_claimed
+          ? 'claimed'
+          : 'freedom_camper'
+
         // Update canonical vehicle homeless status
-        const needsUpdate = 
-          (homeless_claimed && canonicalVehicle.homeless_status === 'none') ||
-          (homeless_claimed && canonicalVehicle.homeless_confirmed !== homeless_confirmed);
+        const needsUpdate =
+          currentStatus !== homelessStatus ||
+          canonicalVehicle.homeless_confirmed !== homeless_confirmed;
 
         if (needsUpdate) {
-          const homelessStatus = homeless_confirmed === true ? 'confirmed' : 
-                                homeless_confirmed === false ? 'not_homeless' : 
-                                homeless_claimed ? 'claimed' : 'none';
 
           const { error: updateError } = await supabaseAdmin
             .from('canonical_vehicles')

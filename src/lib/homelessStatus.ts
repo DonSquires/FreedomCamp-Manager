@@ -7,6 +7,9 @@ export function normalizeHomelessStatus(status: string | null | undefined): Home
   if (normalized === 'confirmed') return 'confirmed'
   if (normalized === 'claimed') return 'claimed'
   if (normalized === 'declined') return 'declined'
+  if (normalized === 'not_homeless' || normalized === 'none' || normalized === 'not homeless') {
+    return 'freedom_camper'
+  }
   return 'freedom_camper'
 }
 
