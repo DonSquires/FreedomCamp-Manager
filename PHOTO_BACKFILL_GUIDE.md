@@ -1,56 +1,22 @@
 # ============================================
-# PHOTO BACKFILL & RECONCILIATION GUIDE
-# Recover and relink vehicle/plate photos accidentally deleted from storage
+# PHOTO BACKFILL & RECONCILIATION SCRIPT
+# Reconcile orphaned observations with missing photos
 # ============================================
 
-This document outlines the backfill process to recover and reconcile observations
-missing verifiable original photos following an accidental storage bucket deletion.
-
-**Schema note**: The `observations` table (migrated from the legacy
-`vehicle_observations_v2`) stores `photo_url` (storage URL) and `photo_hash`
-(SHA-256 of the original file). The recovery infrastructure is created by migration
-`20260323_photo_recovery_infrastructure.sql`.
+This document outlines the backfill process to reconcile observations missing verifiable original photos.
 
 ## Prerequisites
 
-- Migration `20260323_photo_recovery_infrastructure.sql` deployed
-- `PARKPOW_API_TOKEN` and `PLATERECOGNIZER_TOKEN` secrets set in Supabase
-- Access to Supabase Storage (`evidence` bucket)
+- Database migration `20260219_photo_first_enforcement.sql` deployed
+- Access to Supabase Storage (evidence bucket)
 - Service role credentials for admin operations
 
-## Automated Recovery (Recommended)
+## Phase 1: Detection (Read-Only Scan)
 
-Use the **`photo-recovery`** Edge Function to orchestrate all phases automatically:
-
-```bash
-# Dry run – see what would be recovered without making changes
-curl -X POST "$SUPABASE_URL/functions/v1/photo-recovery" \
-  -H "Authorization: Bearer $ADMIN_JWT" \
-  -H "Content-Type: application/json" \
-  -d '{"apply": false, "window_minutes": 60, "limit": 200}'
-
-# Apply – recover photos and update observations
-curl -X POST "$SUPABASE_URL/functions/v1/photo-recovery" \
-  -H "Authorization: Bearer $ADMIN_JWT" \
-  -H "Content-Type: application/json" \
-  -d '{"apply": true, "window_minutes": 60, "limit": 200, "date_from": "2026-01-01"}'
-```
-
-All actions are logged to `photo_recovery_audit_log` for chain-of-custody.
-
----
-
-## Manual Phase-by-Phase Recovery
-
-### Phase 1: Detection (Read-Only Scan)
-
-Run detection query to populate missing_photo_queue, **or** call the DB function:
+Run detection query to populate missing_photo_queue:
 
 ```sql
--- Option A: Use the helper function (preferred)
-SELECT * FROM detect_missing_photos();
-
--- Option B: Manual detection query
+-- Detect observations missing photos and populate queue
 INSERT INTO missing_photo_queue (
   observation_id,
   organization_id,
@@ -58,178 +24,180 @@ INSERT INTO missing_photo_queue (
   recorded_at,
   reason
 )
-SELECT
-  obs.id,
+SELECT 
+  obs.observation_id,
   obs.organization_id,
   obs.plate_number,
   obs.recorded_at,
-  CASE
-    WHEN obs.photo_url  IS NULL AND obs.photo_hash IS NULL THEN 'null_url'
-    WHEN obs.photo_url  IS NULL THEN 'null_url'
-    WHEN obs.photo_hash IS NULL THEN 'null_hash'
+  CASE 
+    WHEN obs.photo_original_sha256 IS NULL THEN 'null_hash'
+    WHEN obs.photo_original_bytes IS NULL OR obs.photo_original_bytes <= 0 THEN 'null_hash'
     ELSE 'unknown'
   END AS reason
-FROM observations obs
-WHERE
-  obs.photo_url  IS NULL
-  OR obs.photo_hash IS NULL
-ON CONFLICT (observation_id) DO NOTHING;
+FROM vehicle_observations_v2 obs
+WHERE 
+  obs.photo_original_sha256 IS NULL
+  OR obs.photo_original_bytes IS NULL
+  OR obs.photo_original_bytes <= 0
+ON CONFLICT DO NOTHING;
 ```
 
 ## Phase 2: Recovery Attempts
 
 For each record in `missing_photo_queue` with status='pending':
 
-### 2.1 Automated Recovery via Edge Function (Preferred)
-
-```bash
-# Run photo-recovery edge function (applies ParkPow + Plate Recognizer matching)
-curl -X POST "$SUPABASE_URL/functions/v1/photo-recovery" \
-  -H "Authorization: Bearer $ADMIN_JWT" \
-  -H "Content-Type: application/json" \
-  -d '{"apply": true, "window_minutes": 60, "limit": 200}'
-```
-
-### 2.2 Check Legacy Buckets (Manual)
+### 2.1 Check Legacy Buckets
 
 ```typescript
 // Search for photo in old bucket paths
 const legacyPaths = [
   `evidence/${organizationId}/${plateNumber}/${timestamp}.jpg`,
   `uploads/${userId}/${timestamp}.jpg`,
-  `vehicle-photos/${observationId}.jpg`,
-  `scans/${userId}/${timestamp}-${hash}.jpg`,
+  `vehicle-photos/${observationId}.jpg`
 ];
 
 for (const path of legacyPaths) {
   const { data, error } = await supabase.storage
     .from('evidence')
     .download(path);
-
+  
   if (!error && data) {
-    // Found candidate photo – compute SHA-256 and update observation
-    const hashBytes = await crypto.subtle.digest('SHA-256', await data.arrayBuffer());
-    const hash = Array.from(new Uint8Array(hashBytes))
-      .map(b => b.toString(16).padStart(2, '0')).join('');
-    const newPath = `recovered/${orgId}/${Date.now()}-${hash}.jpg`;
-
+    // Found candidate photo
+    // Calculate hash, move to correct path
+    const hash = await calculateSHA256(data);
+    const newPath = `originals/${orgId}/${year}/${month}/${obsId}/${hash}.jpg`;
+    
+    // Copy to new location
     await supabase.storage.from('evidence').upload(newPath, data);
-    const { data: urlData } = supabase.storage.from('evidence').getPublicUrl(newPath);
-
-    // Update observation (current schema)
+    
+    // Update observation
     await supabase
-      .from('observations')
-      .update({ photo_url: urlData.publicUrl, photo_hash: hash })
-      .eq('id', observationId)
-      .is('photo_url', null);
-
-    // Mark queue item as fixed
+      .from('vehicle_observations_v2')
+      .update({
+        photo_original_sha256: hash,
+        photo_original_bytes: data.size,
+        photo_url: getPublicUrl(newPath)
+      })
+      .eq('observation_id', observationId);
+    
+    // Mark as fixed in queue
     await supabase
       .from('missing_photo_queue')
       .update({
         status: 'fixed',
-        original_photo_url: urlData.publicUrl,
+        original_photo_url: newPath,
         attempted_hash: hash,
-        repair_notes: `Recovered from legacy path: ${path}`,
+        repair_notes: `Recovered from legacy path: ${path}`
       })
       .eq('observation_id', observationId);
-
-    // Audit log
-    await supabase.from('photo_recovery_audit_log').insert({
-      observation_id: observationId,
-      action: 'photo_restored',
-      source: 'legacy_bucket',
-      source_ref: path,
-      success: true,
-      photo_url: urlData.publicUrl,
-      photo_hash: hash,
-      actor_label: 'admin',
-    });
-
+    
     break;
   }
 }
 ```
 
-### 2.3 Match by Plate + Timestamp Window (ParkPow)
+### 2.2 Check Derived Photos (Watermarked)
 
-Use the `parkpow-photo-sync` Edge Function to search ParkPow sessions:
+```typescript
+// If only watermarked version exists
+const derivedPath = `derived/${orgId}/${year}/${month}/${obsId}/watermarked-*.jpg`;
 
-```bash
-curl -X POST "$SUPABASE_URL/functions/v1/parkpow-photo-sync" \
-  -H "Authorization: Bearer $ADMIN_JWT" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "apply": true,
-    "window_minutes": 90,
-    "require_empty_photo": true,
-    "date_from": "2026-01-01",
-    "date_to": "2026-03-23"
-  }'
+const { data: files } = await supabase.storage
+  .from('evidence')
+  .list(derivedPath);
+
+if (files && files.length > 0) {
+  // Download watermarked photo
+  const { data: watermarkedPhoto } = await supabase.storage
+    .from('evidence')
+    .download(files[0].name);
+  
+  // Calculate hash of watermarked version
+  const hash = await calculateSHA256(watermarkedPhoto);
+  
+  // Mark as manual review required (watermarked is not admissible as original)
+  await supabase
+    .from('missing_photo_queue')
+    .update({
+      status: 'manual_required',
+      original_photo_url: files[0].name,
+      attempted_hash: hash,
+      repair_notes: 'Only watermarked version found - original lost. Field re-capture recommended.'
+    })
+    .eq('observation_id', observationId);
+}
 ```
 
-Or use the shell script for bulk processing:
+### 2.3 Match by Plate + Timestamp Window
 
-```bash
-APPLY=true DATE_FROM=2026-01-01 DATE_TO=2026-03-23 \
-  WINDOW_MINUTES=90 \
-  sh scripts/match-parkpow-photos-to-observations.sh
+```typescript
+// Find photos uploaded around the same time with matching plate
+const { data: candidatePhotos } = await supabase
+  .from('photo_metadata')
+  .select('*')
+  .gte('captured_at', new Date(observation.recorded_at - 5 * 60 * 1000)) // 5 min before
+  .lte('captured_at', new Date(observation.recorded_at + 5 * 60 * 1000)) // 5 min after
+  .eq('organization_id', observation.organization_id);
+
+for (const photo of candidatePhotos) {
+  // Check if photo matches observation characteristics
+  if (photo.gps_latitude && photo.gps_longitude) {
+    const distance = calculateDistance(
+      observation.gps_latitude,
+      observation.gps_longitude,
+      photo.gps_latitude,
+      photo.gps_longitude
+    );
+    
+    if (distance < 100) { // Within 100m
+      // Possible match - flag for manual review
+      await supabase
+        .from('missing_photo_queue')
+        .update({
+          status: 'manual_required',
+          original_photo_url: photo.photo_url,
+          attempted_hash: photo.original_sha256,
+          repair_notes: `Possible match found: ${distance.toFixed(0)}m away, ${Math.abs(new Date(observation.recorded_at) - new Date(photo.captured_at)) / 1000}s time difference`
+        })
+        .eq('observation_id', observation.observation_id);
+      
+      break;
+    }
+  }
+}
 ```
 
 ## Phase 3: Manual Review
 
-For observations with `status='manual_required'`:
+For observations with status='manual_required':
 
-1. Admin reviews candidate photos in `missing_photo_queue`
+1. Admin reviews candidate photos in missing_photo_queue
 2. If correct photo identified:
-   - Update observation with `photo_url` and `photo_hash`
-   - Mark queue item as `'fixed'`
+   - Update observation with photo_original_sha256, photo_original_bytes
+   - Mark queue item as 'fixed'
 3. If no photo can be recovered:
    - Option A: Re-capture in field (assign to officer)
-   - Option B: Mark observation as `'abandoned'` (non-evidential)
+   - Option B: Mark observation as 'abandoned' (non-evidential)
 
 ```sql
 -- Assign for field re-capture
 UPDATE missing_photo_queue
-SET
+SET 
   status = 'manual_required',
   assigned_to = '{officer_id}',
   repair_notes = 'Original photo lost - field re-capture required'
 WHERE id = '{queue_item_id}';
 
--- Accept a manually confirmed photo
-UPDATE observations
-SET photo_url  = '{confirmed_url}',
-    photo_hash = '{sha256_hash}'
-WHERE id = '{observation_id}'
-  AND (photo_url IS NULL OR photo_hash IS NULL);
-
-UPDATE missing_photo_queue
-SET status = 'fixed',
-    original_photo_url = '{confirmed_url}',
-    attempted_hash = '{sha256_hash}',
-    repair_notes = 'Manually confirmed by admin {email}'
+-- Or abandon observation (delete or mark non-evidential)
+UPDATE vehicle_observations_v2
+SET review_blocked = true
 WHERE observation_id = '{observation_id}';
 
-INSERT INTO photo_recovery_audit_log (
-  observation_id, action, source, success, photo_url, photo_hash, actor_label
-) VALUES (
-  '{observation_id}', 'observation_updated', 'manual', true,
-  '{confirmed_url}', '{sha256_hash}', 'admin:{email}'
-);
-
--- Or abandon observation (mark non-evidential; cannot delete due to evidence rules)
 UPDATE missing_photo_queue
-SET status = 'abandoned',
-    repair_notes = 'Original photo unrecoverable - observation marked non-evidential'
+SET 
+  status = 'abandoned',
+  repair_notes = 'Original photo unrecoverable - observation marked non-evidential'
 WHERE observation_id = '{observation_id}';
-
-INSERT INTO photo_recovery_audit_log (
-  observation_id, action, source, success, error_message, actor_label
-) VALUES (
-  '{observation_id}', 'abandoned', 'manual', false,
-  'Photo unrecoverable', 'admin:{email}'
-);
 ```
 
 ## Phase 4: Verification
@@ -237,16 +205,16 @@ INSERT INTO photo_recovery_audit_log (
 After backfill complete, verify photo coverage:
 
 ```sql
--- Check photo integrity health (uses observations table)
+-- Check photo integrity health
 SELECT * FROM photo_integrity_health;
 
 -- Check for remaining orphaned observations
 SELECT COUNT(*) AS remaining_orphans
-FROM observations
-WHERE photo_url IS NULL OR photo_hash IS NULL;
+FROM vehicle_observations_v2
+WHERE photo_original_sha256 IS NULL;
 
 -- Check missing_photo_queue status breakdown
-SELECT
+SELECT 
   status,
   COUNT(*) AS count,
   MIN(recorded_at) AS oldest_observation,
@@ -254,95 +222,115 @@ SELECT
 FROM missing_photo_queue
 GROUP BY status
 ORDER BY count DESC;
-
--- Audit log summary
-SELECT action, source, success, COUNT(*) AS count
-FROM photo_recovery_audit_log
-GROUP BY action, source, success
-ORDER BY count DESC;
 ```
 
-## Phase 5: Verify NOT NULL Enforcement
+## Phase 5: Enable NOT NULL Constraint
 
-Once all `missing_photo_queue` items are `'fixed'` or `'abandoned'`, confirm the
-`observations` table has no remaining gaps:
+Only after backfill complete and all pending repairs resolved:
 
-```sql
--- Confirm zero remaining gaps
-SELECT COUNT(*) AS remaining_orphans
-FROM observations
-WHERE photo_url IS NULL OR photo_hash IS NULL;
--- Expected: 0
+```bash
+# Deploy the NOT NULL enforcement migration
+psql $DATABASE_URL -f supabase/migrations/20260219_enforce_photo_not_null.sql
 ```
 
-The `observations` table already enforces `photo_url text NOT NULL` and
-`photo_hash text NOT NULL` in migration `20260221_rebuild_observations_clean.sql`.
-No additional migration step is required for new observations.
+This will:
+- Enforce NOT NULL on photo_original_sha256
+- Enforce NOT NULL on photo_original_bytes
+- Revoke DELETE permission on vehicle_observations_v2
+- Remove temporary indexes
 
 ## Monitoring
 
-Use the `daily-photo-reconciler` Edge Function for continuous monitoring:
-
-```bash
-# Trigger daily reconciler manually
-curl -X POST "$SUPABASE_URL/functions/v1/daily-photo-reconciler" \
-  -H "Authorization: Bearer $ADMIN_JWT" \
-  -H "Content-Type: application/json" \
-  -d '{}'
-```
-
-Or query the views directly:
+After enforcement enabled, monitor photo integrity:
 
 ```sql
--- Daily photo integrity check (SLO target ≥99.95%)
-SELECT
+-- Daily photo integrity check
+SELECT 
   organization_name,
   total_observations,
-  with_photo,
-  missing_any,
-  photo_coverage_pct,
-  CASE
-    WHEN photo_coverage_pct >= 99.95 THEN '✅ MEETS SLO'
-    WHEN photo_coverage_pct >= 99.00 THEN '⚠️ AT RISK'
-    ELSE '❌ BELOW SLO'
-  END AS slo_status
+  with_hash,
+  missing_hash,
+  hash_coverage_pct
 FROM photo_integrity_health
-ORDER BY photo_coverage_pct ASC;
+WHERE hash_coverage_pct < 99.95; -- Alert if below SLO
 
 -- Recent observations photo status (last 7 days)
-SELECT
+SELECT 
   status,
   COUNT(*) AS count
 FROM recent_observations_photo_status
 GROUP BY status;
 
 -- Should show:
--- ok: ~100%
--- missing_url: 0
+-- ok: 100% (if zero-loss enforcement working)
 -- missing_hash: 0
--- missing_both: 0
+-- invalid_bytes: 0
+-- blocked: 0 (unless manually flagged)
+```
+
+## Continuous Reconciler (Daily Job)
+
+Run daily to detect any storage anomalies:
+
+```typescript
+// Edge Function: daily-photo-reconciler
+
+const { data: recentObservations } = await supabase
+  .from('recent_observations_photo_status')
+  .select('*')
+  .eq('status', 'ok'); // Should be ok, but verify storage
+
+for (const obs of recentObservations) {
+  // HEAD check on storage
+  const { data, error } = await supabase.storage
+    .from('evidence')
+    .download(`originals/${obs.organization_id}/.../${obs.photo_original_sha256}.jpg`);
+  
+  if (error || !data) {
+    // Photo missing from storage despite DB having hash
+    console.error('Storage anomaly detected:', obs.observation_id);
+    
+    // Alert on-call
+    await sendAlert({
+      severity: 'critical',
+      message: `Photo missing from storage: observation ${obs.observation_id}`,
+      observation_id: obs.observation_id
+    });
+    
+    // Flag in queue
+    await supabase
+      .from('missing_photo_queue')
+      .insert({
+        observation_id: obs.observation_id,
+        organization_id: obs.organization_id,
+        reason: 'object_404',
+        status: 'repairing'
+      });
+  }
+}
 ```
 
 ## Recovery Timeline Estimate
 
 | Phase | Duration | Description |
 |-------|----------|-------------|
-| Detection | 5 minutes | `detect_missing_photos()` + `photo-recovery` dry-run |
-| Automated Recovery | 1-2 hours | ParkPow + PlateRecognizer matching (`apply: true`) |
-| Manual Review | 1-3 days | Admin verifies `manual_required` queue items |
-| Field Re-capture | 1-2 weeks | Officers re-scan vehicles with unrecoverable photos |
-| Verification | 30 minutes | Confirm `missing_photo_queue` empty, check views |
+| Detection | 5 minutes | Populate missing_photo_queue |
+| Automated Recovery | 1-2 hours | Search legacy paths, match candidates |
+| Manual Review | 1-3 days | Admin verifies candidate matches |
+| Field Re-capture | 1-2 weeks | Officers re-scan vehicles with lost photos |
+| Verification | 30 minutes | Confirm backfill complete |
+| Enable NOT NULL | 5 minutes | Deploy enforcement migration |
 
 ## Success Criteria
 
-- ✅ `photo_integrity_health` shows ≥99.95% coverage for all organisations
-- ✅ `missing_photo_queue` has 0 `'pending'` or `'repairing'` items
-- ✅ All active observations have non-null `photo_url` AND `photo_hash`
-- ✅ `daily-photo-reconciler` runs without new anomalies
-- ✅ `photo_recovery_audit_log` provides complete chain-of-custody trail
+- ✅ Photo integrity health shows ≥99.95% hash coverage
+- ✅ missing_photo_queue has 0 'pending' or 'repairing' items
+- ✅ All active observations have photo_original_sha256 AND photo_original_bytes > 0
+- ✅ NOT NULL constraint enabled without errors
+- ✅ Daily reconciler runs without alerts
 
 ---
 
 **Status**: Ready to execute
 **Owner**: Admin team
-**Next Step**: Run `detect_missing_photos()` to populate the queue, then trigger `photo-recovery` with `apply: false` (dry run) first
+**Next Step**: Run Phase 1 detection query

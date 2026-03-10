@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 
-const SUPABASE_URL = process.env.SUPABASE_URL || process.env.URL;
-const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.KEY;
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const APPLY = String(process.env.APPLY || 'false').toLowerCase() === 'true';
 // Default to full-scope reconciliation so all zones are covered unless explicitly limited.
 const LEGACY_ONLY = String(process.env.LEGACY_ONLY || 'false').toLowerCase() === 'true';
@@ -10,7 +10,7 @@ const UPDATE_RECORDED_BY = String(process.env.UPDATE_RECORDED_BY || 'false').toL
 const RECORDED_BY = process.env.RECORDED_BY || null;
 
 if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
-  throw new Error('SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY (or URL/KEY) are required');
+  throw new Error('SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are required');
 }
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {

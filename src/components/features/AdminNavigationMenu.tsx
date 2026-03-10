@@ -1,6 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
 import { Link, useNavigate, useLocation } from 'react-router-dom'
-import { useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/stores/authStore'
 import { Button } from '@/components/ui/button'
 import {
@@ -85,43 +84,6 @@ const moreGroups = [
   },
 ]
 
-const routeRoles: Record<string, Array<'master' | 'admin' | 'officer' | 'admin_officer'>> = {
-  '/admin': ['admin', 'admin_officer', 'master'],
-  '/compliance': ['admin', 'admin_officer', 'master', 'officer'],
-  '/vehicles': ['admin', 'admin_officer', 'master', 'officer'],
-  '/breaches': ['admin', 'admin_officer', 'master', 'officer'],
-  '/search': ['admin', 'admin_officer', 'master', 'officer'],
-  '/compliance-analytics': ['admin', 'admin_officer', 'master'],
-  '/compliance-recalculation': ['admin', 'admin_officer', 'master'],
-  '/spatial-compliance': ['admin', 'master'],
-  '/enforcement-command-center': ['admin', 'admin_officer', 'master'],
-  '/enforcement-review': ['admin', 'admin_officer', 'master'],
-  '/notice-to-vacate': ['admin', 'admin_officer', 'master'],
-  '/infringements': ['admin', 'admin_officer', 'master', 'officer'],
-  '/breach-notices': ['admin', 'admin_officer', 'master', 'officer'],
-  '/vehicle-registry': ['admin', 'admin_officer', 'master'],
-  '/zones': ['admin', 'admin_officer', 'master'],
-  '/hotspots': ['admin', 'admin_officer', 'master', 'officer'],
-  '/live-patrol': ['admin', 'admin_officer', 'master'],
-  '/live-tracking': ['admin', 'master'],
-  '/officer-welfare': ['admin', 'admin_officer', 'master'],
-  '/patrol-checkpoints': ['admin', 'admin_officer', 'master'],
-  '/person-records': ['admin', 'admin_officer', 'master'],
-  '/incidents': ['admin', 'admin_officer', 'master', 'officer'],
-  '/incident-reports': ['admin', 'admin_officer', 'master', 'officer'],
-  '/investigations': ['admin', 'admin_officer', 'master'],
-  '/reports-hub': ['admin', 'admin_officer', 'master'],
-  '/observations-report': ['admin', 'admin_officer', 'master', 'officer'],
-  '/observations': ['admin', 'admin_officer', 'master', 'officer'],
-  '/users': ['admin', 'master'],
-  '/audit-log': ['admin', 'admin_officer', 'master'],
-  '/privacy-curtain': ['admin', 'master'],
-  '/import-data': ['admin', 'admin_officer', 'master'],
-  '/import-historical': ['admin', 'admin_officer', 'master'],
-  '/data': ['admin', 'master'],
-  '/settings': ['admin', 'admin_officer', 'master', 'officer'],
-}
-
 // Dropdown panel: responsive grid, scrollable on narrow screens
 const MORE_DROPDOWN_CLS =
   'absolute left-0 top-full mt-1 z-50 bg-white border border-gray-200 rounded-lg shadow-lg p-2 ' +
@@ -129,7 +91,6 @@ const MORE_DROPDOWN_CLS =
 
 export function AdminNavigationMenu() {
   const { user, logout } = useAuthStore()
-  const queryClient = useQueryClient()
   const navigate = useNavigate()
   const location = useLocation()
   const [moreOpen, setMoreOpen] = useState(false)
@@ -151,24 +112,10 @@ export function AdminNavigationMenu() {
 
   const handleLogout = async () => {
     await logout()
-    queryClient.clear()
     navigate('/login', { replace: true })
   }
 
   const isActive = (to: string) => location.pathname === to
-  const canAccessPath = (to: string) => {
-    if (!user) return false
-    const allowedRoles = routeRoles[to]
-    if (!allowedRoles) return true
-    return allowedRoles.includes(user.role)
-  }
-  const filteredPrimaryLinks = primaryLinks.filter(({ to }) => canAccessPath(to))
-  const filteredMoreGroups = moreGroups
-    .map((group) => ({
-      ...group,
-      links: group.links.filter(({ to }) => canAccessPath(to)),
-    }))
-    .filter((group) => group.links.length > 0)
 
   return (
     <nav className="bg-white border-b border-gray-200 shadow-sm sticky top-0 z-40">
@@ -195,7 +142,7 @@ export function AdminNavigationMenu() {
 
           {/* Primary nav links */}
           <div className="flex items-center gap-0.5 overflow-x-auto flex-1 min-w-0">
-            {filteredPrimaryLinks.map(({ to, label, icon: Icon }) => (
+            {primaryLinks.map(({ to, label, icon: Icon }) => (
               <Link
                 key={to}
                 to={to}
@@ -226,7 +173,7 @@ export function AdminNavigationMenu() {
 
               {moreOpen && (
                 <div className={MORE_DROPDOWN_CLS}>
-                  {filteredMoreGroups.map((group) => (
+                  {moreGroups.map((group) => (
                     <div key={group.label} className="min-w-0">
                       <div className="text-xs font-semibold text-gray-400 uppercase tracking-wide px-2 py-1 mt-1">
                         {group.label}
