@@ -11,6 +11,8 @@ interface ResolvedZone {
   source: ZoneResolutionSource
 }
 
+const FALLBACK_ZONE_NAME = 'other location'
+
 export async function resolveObservationZoneForOrg(
   organizationId: string,
   preferredZoneId?: string | null
@@ -30,7 +32,7 @@ export async function resolveObservationZoneForOrg(
   const { data: byNameZones, error: byNameError } = await (supabase.from('zones') as any)
     .select('id, name')
     .eq('organization_id', organizationId)
-    .ilike('name', 'other location')
+    .ilike('name', FALLBACK_ZONE_NAME)
     .limit(1)
 
   if (!byNameError && byNameZones?.[0]?.id) {

@@ -26,7 +26,7 @@ const WORKFLOW_LABELS: Record<string, string> = {
   hybrid:         'Hybrid',
 }
 
-const isTransientEdgeTransportError = (errorMessage?: string | null) => {
+const isTransientNetworkError = (errorMessage?: string | null) => {
   const msg = (errorMessage || '').toLowerCase()
   return (
     msg.includes('failed to send a request to the edge function') ||
@@ -51,7 +51,7 @@ async function retryEdgeCall<T>(
     if (!result.error) return result
 
     lastError = result.error
-    if (!isTransientEdgeTransportError(result.error) || attempt === retries) {
+    if (!isTransientNetworkError(result.error) || attempt === retries) {
       return result
     }
 

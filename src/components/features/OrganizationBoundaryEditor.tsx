@@ -139,7 +139,7 @@ export function OrganizationBoundaryEditor({
     const parseRing = (ringStr: string): number[][] => {
       return ringStr.trim().split(',').map(pair => {
         const parts = pair.trim().split(/\s+/)
-        if (parts.length < 2) throw new Error(`Invalid coordinate pair: "${pair}". Expected format: "longitude latitude"`)
+        if (parts.length < 2) throw new Error(`Invalid coordinate pair: "${pair}". Expected WKT format: "longitude latitude" (space-separated)`)
         return [parseFloat(parts[0]), parseFloat(parts[1])]
       })
     }
