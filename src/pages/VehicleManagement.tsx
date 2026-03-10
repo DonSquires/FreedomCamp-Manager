@@ -17,6 +17,7 @@ import { formatDateTime } from '@/lib/utils'
 import { HOMELESS_UI_STATUSES, isHomelessForUi, normalizeHomelessStatus } from '@/lib/homelessStatus'
 import { checkNZSCVCertification, enrichVehicleFromMotorWeb } from '@/lib/railwayServices'
 import { getObservationPhotoUrl, getVehiclePhotoUrl } from '@/lib/photoUtils'
+import { PhotoWithFallback } from '@/components/features/PhotoWithFallback'
 import { toast } from 'sonner'
 
 interface Vehicle {
@@ -457,19 +458,14 @@ export default function VehicleManagement() {
               onClick={() => navigate(`/vehicles/${vehicle.id}`)}
             >
               {/* Vehicle Photo */}
-              {vehicle.profile_photo ? (
-                <div className="w-full h-40 bg-gray-100 dark:bg-gray-800 overflow-hidden">
-                  <img
-                    src={vehicle.profile_photo}
-                    alt={vehicle.plate_number}
-                    className="w-full h-full object-cover"
-                  />
-                </div>
-              ) : (
-                <div className="w-full h-40 bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
-                  <Car className="h-16 w-16 text-gray-300 dark:text-gray-600" />
-                </div>
-              )}
+              <div className="w-full h-40 bg-gray-100 dark:bg-gray-800 overflow-hidden">
+                <PhotoWithFallback
+                  src={vehicle.profile_photo}
+                  alt={vehicle.plate_number}
+                  className="w-full h-full object-cover"
+                  placeholderClassName="w-full h-full"
+                />
+              </div>
               <CardHeader className="pb-2">
                 <div className="flex items-start justify-between">
                   <div>
@@ -570,20 +566,14 @@ export default function VehicleManagement() {
           {selectedVehicle && (
             <div className="space-y-6">
               {/* Profile Photo */}
-              {selectedVehicle.profile_photo ? (
-                <div className="rounded-lg overflow-hidden">
-                  <img 
-                    src={selectedVehicle.profile_photo} 
-                    alt={selectedVehicle.plate_number}
-                    className="w-full h-56 object-cover"
-                  />
-                </div>
-              ) : (
-                <div className="rounded-lg bg-gray-100 dark:bg-gray-800 h-32 flex items-center justify-center">
-                  <Car className="h-16 w-16 text-gray-300 dark:text-gray-600" />
-                  <span className="ml-3 text-sm text-gray-400">No photo available</span>
-                </div>
-              )}
+              <div className="rounded-lg overflow-hidden h-56 bg-gray-100 dark:bg-gray-800">
+                <PhotoWithFallback
+                  src={selectedVehicle.profile_photo}
+                  alt={selectedVehicle.plate_number}
+                  className="w-full h-full object-cover"
+                  placeholderClassName="w-full h-full"
+                />
+              </div>
 
               {/* Vehicle Details */}
               <div className="grid grid-cols-2 gap-4">

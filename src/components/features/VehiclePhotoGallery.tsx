@@ -20,6 +20,7 @@ import {
   ExternalLink,
   Grid,
   List,
+  Car,
 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -36,6 +37,10 @@ export function VehiclePhotoGallery({
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid')
   const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null)
   const [lightboxPhoto, setLightboxPhoto] = useState<string | null>(null)
+  const [errorPhotoIds, setErrorPhotoIds] = useState<Set<string>>(new Set())
+
+  const markPhotoError = (id: string) =>
+    setErrorPhotoIds((prev) => new Set([...prev, id]))
 
   // Fetch vehicle photos
   const { data: photos, isLoading } = useQuery({
@@ -167,13 +172,20 @@ export function VehiclePhotoGallery({
                   <div key={photo.id} className="relative group">
                     <div
                       className="relative aspect-square cursor-pointer overflow-hidden rounded-lg border"
-                      onClick={() => openLightbox(photo.photo_url)}
+                      onClick={() => !errorPhotoIds.has(photo.id) && openLightbox(photo.photo_url)}
                     >
-                      <img
-                        src={photo.photo_url}
-                        alt={`Photo from ${new Date(photo.recorded_at).toLocaleDateString()}`}
-                        className="w-full h-full object-cover transition-transform group-hover:scale-105"
-                      />
+                      {errorPhotoIds.has(photo.id) ? (
+                        <div className="w-full h-full flex items-center justify-center bg-muted">
+                          <Car className="h-8 w-8 text-muted-foreground/40" />
+                        </div>
+                      ) : (
+                        <img
+                          src={photo.photo_url}
+                          alt={`Photo from ${new Date(photo.recorded_at).toLocaleDateString()}`}
+                          className="w-full h-full object-cover transition-transform group-hover:scale-105"
+                          onError={() => markPhotoError(photo.id)}
+                        />
+                      )}
                       
                       {/* Overlay badges */}
                       <div className="absolute top-2 right-2 flex flex-col gap-1">
@@ -219,14 +231,21 @@ export function VehiclePhotoGallery({
                       <div className="flex gap-4">
                         {/* Thumbnail */}
                         <div
-                          className="relative w-32 h-32 flex-shrink-0 cursor-pointer"
-                          onClick={() => openLightbox(photo.photo_url)}
+                          className="relative w-32 h-32 flex-shrink-0 cursor-pointer overflow-hidden rounded"
+                          onClick={() => !errorPhotoIds.has(photo.id) && openLightbox(photo.photo_url)}
                         >
-                          <img
-                            src={photo.photo_url}
-                            alt="Observation"
-                            className="w-full h-full object-cover rounded"
-                          />
+                          {errorPhotoIds.has(photo.id) ? (
+                            <div className="w-full h-full flex items-center justify-center bg-muted rounded">
+                              <Car className="h-8 w-8 text-muted-foreground/40" />
+                            </div>
+                          ) : (
+                            <img
+                              src={photo.photo_url}
+                              alt="Observation"
+                              className="w-full h-full object-cover rounded"
+                              onError={() => markPhotoError(photo.id)}
+                            />
+                          )}
                           {isProfilePhoto(photo.photo_url) && (
                             <div className="absolute top-1 right-1">
                               <Badge className="bg-yellow-500 text-xs">
