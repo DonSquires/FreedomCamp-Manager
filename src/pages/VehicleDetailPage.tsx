@@ -102,7 +102,7 @@ export default function VehicleDetailPage() {
   const endDate = dateTo ? `${dateTo}T23:59:59Z` : null
 
   // Fetch vehicle
-  const { data: vehicle, isLoading: loadingVehicle } = useQuery({
+  const { data: vehicle, isLoading: loadingVehicle, error: vehicleError, refetch: refetchVehicle } = useQuery({
     queryKey: ['vehicle-detail', id],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -114,6 +114,8 @@ export default function VehicleDetailPage() {
       return data as CanonicalVehicle
     },
     enabled: !!id,
+    retry: 1,
+    staleTime: 30000,
   })
 
   // Fetch observations
@@ -263,8 +265,32 @@ export default function VehicleDetailPage() {
   if (loadingVehicle) {
     return (
       <AppLayout title="Vehicle Detail">
-        <div className="flex items-center justify-center py-24">
+        <div className="flex flex-col items-center justify-center py-24 gap-3">
           <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600" />
+          <p className="text-sm text-muted-foreground">Loading vehicle details…</p>
+        </div>
+      </AppLayout>
+    )
+  }
+
+  if (vehicleError) {
+    return (
+      <AppLayout title="Vehicle Detail">
+        <div className="text-center py-24">
+          <AlertTriangle className="h-16 w-16 mx-auto text-destructive/60 mb-4" />
+          <p className="text-xl font-semibold">Failed to load vehicle</p>
+          <p className="text-sm text-muted-foreground mt-2 mb-6 max-w-md mx-auto">
+            {vehicleError instanceof Error ? vehicleError.message : 'An unexpected error occurred. Please try again.'}
+          </p>
+          <div className="flex gap-3 justify-center">
+            <Button onClick={() => refetchVehicle()}>
+              Retry
+            </Button>
+            <Button variant="outline" onClick={() => navigate('/vehicles')}>
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Back to Vehicles
+            </Button>
+          </div>
         </div>
       </AppLayout>
     )
