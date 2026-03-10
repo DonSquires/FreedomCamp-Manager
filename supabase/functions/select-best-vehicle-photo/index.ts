@@ -76,8 +76,26 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Source 3: enforcement_actions (future - if attachments field added)
-    // TODO: Add when enforcement_actions.attachments column exists
+    // Source 3: enforcement_actions.attachments
+    const { data: enforcementActions } = await supabaseClient
+      .from('enforcement_actions')
+      .select('attachments')
+      .eq('plate_number', plateNumber)
+      .not('attachments', 'is', null);
+
+    if (enforcementActions && enforcementActions.length > 0) {
+      enforcementActions.forEach(ea => {
+        if (ea.attachments && Array.isArray(ea.attachments)) {
+          const enforcementPhotos = ea.attachments
+            .map((a: any) => a.url)
+            .filter(Boolean);
+          photoUrls.push(...enforcementPhotos);
+          if (enforcementPhotos.length > 0) {
+            console.log(`Found ${enforcementPhotos.length} photos from enforcement_actions`);
+          }
+        }
+      });
+    }
 
     // Source 4: photo_metadata table (if exists)
     const { data: photoMetadata } = await supabaseClient
