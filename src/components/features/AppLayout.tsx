@@ -1,8 +1,12 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/stores/authStore'
+import { useSessionLockStore } from '@/stores/sessionLockStore'
+import { useSessionPreferencesStore } from '@/stores/sessionPreferencesStore'
+import { useThemePreferencesStore } from '@/stores/themePreferencesStore'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet'
 import {
   Menu,
@@ -27,8 +31,15 @@ import {
   ScanLine,
   Receipt,
   User,
+  Lock,
+  Unlock,
+  Sun,
+  Moon,
+  Monitor,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { toast } from 'sonner'
+import { signalSessionActivity } from '@/hooks/useSessionInactivityLock'
 
 interface AppLayoutProps {
   children: React.ReactNode
@@ -97,11 +108,73 @@ function NavigationLinks({ onClick }: { onClick?: () => void }) {
 }
 
 export function AppLayout({ children, title, description, showBackButton }: AppLayoutProps) {
+  const brandLogoUrl = 'https://kxwjcupuxnnbnzcgmkoi.supabase.co/storage/v1/object/public/Logo/IES%20Logo.jpg'
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [desktopNavOpen, setDesktopNavOpen] = useState(true)
-  const { user, logout } = useAuthStore()
+  const [reLoginPassword, setReLoginPassword] = useState('')
+  const [unlocking, setUnlocking] = useState(false)
+  const { user, logout, login } = useAuthStore()
+  const {
+    isLocked,
+    isWarningVisible,
+    warningSecondsRemaining,
+    title: lockTitle,
+    message: lockMessage,
+    clearWarning,
+    unlock,
+  } = useSessionLockStore()
+  const { autoLogoffEnabled } = useSessionPreferencesStore()
+  const { themeMode } = useThemePreferencesStore()
+  const [resolvedTheme, setResolvedTheme] = useState<'light' | 'dark'>('light')
   const queryClient = useQueryClient()
   const navigate = useNavigate()
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      setResolvedTheme('light')
+      return
+    }
+
+    const applyResolvedTheme = () => {
+      if (themeMode === 'light' || themeMode === 'dark') {
+        setResolvedTheme(themeMode)
+        return
+      }
+
+      setResolvedTheme(window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
+    }
+
+    applyResolvedTheme()
+
+    if (themeMode !== 'system') {
+      return
+    }
+
+    const media = window.matchMedia('(prefers-color-scheme: dark)')
+    const onChange = () => applyResolvedTheme()
+
+    if (typeof media.addEventListener === 'function') {
+      media.addEventListener('change', onChange)
+      return () => media.removeEventListener('change', onChange)
+    }
+
+    media.addListener(onChange)
+    return () => media.removeListener(onChange)
+  }, [themeMode])
+
+  const themeBadgeText =
+    themeMode === 'system'
+      ? `System -> ${resolvedTheme === 'dark' ? 'Dark' : 'Light'}`
+      : themeMode === 'dark'
+        ? 'Dark'
+        : 'Light'
+
+  const ThemeBadgeIcon =
+    themeMode === 'system'
+      ? Monitor
+      : resolvedTheme === 'dark'
+        ? Moon
+        : Sun
 
   const handleLogout = async () => {
     await logout()
@@ -111,6 +184,40 @@ export function AppLayout({ children, title, description, showBackButton }: AppL
 
   const handleBack = () => {
     navigate('/')
+  }
+
+  const handleUnlockSession = async () => {
+    if (!user?.email) {
+      toast.error('Session cannot be restored. Please log in again.')
+      return
+    }
+    if (!reLoginPassword.trim()) {
+      toast.error('Enter your password to unlock the session.')
+      return
+    }
+
+    setUnlocking(true)
+    try {
+      await login(user.email, reLoginPassword)
+      setReLoginPassword('')
+      unlock()
+      toast.success('Session unlocked')
+    } catch (error: any) {
+      toast.error(error?.message || 'Unable to unlock session')
+    } finally {
+      setUnlocking(false)
+    }
+  }
+
+  const handleLogoutCompletely = async () => {
+    unlock()
+    await handleLogout()
+  }
+
+  const handleStaySignedIn = () => {
+    clearWarning()
+    signalSessionActivity()
+    toast.success('Session extended')
   }
 
   return (
@@ -253,8 +360,118 @@ export function AppLayout({ children, title, description, showBackButton }: AppL
         </header>
 
         {/* Page Content */}
-        <main className="p-4 lg:p-6">
+        <main className="p-4 lg:p-6 relative">
           {children}
+
+          {autoLogoffEnabled && isWarningVisible && !isLocked && (
+            <div className="absolute inset-0 z-40 bg-slate-950/35 backdrop-blur-[3px] flex items-center justify-center p-4">
+              <div className="session-mesh session-mesh--amber" aria-hidden="true" />
+              <div className="session-mesh session-mesh--rose" aria-hidden="true" />
+              <div className="w-full max-w-lg rounded-3xl border border-amber-200/80 bg-white/95 shadow-[0_25px_80px_rgba(15,23,42,0.45)] overflow-hidden relative">
+                <div className="absolute -top-20 -right-14 h-52 w-52 rounded-full bg-orange-300/30 blur-3xl pointer-events-none" />
+                <div className="absolute -bottom-24 -left-16 h-56 w-56 rounded-full bg-amber-200/40 blur-3xl pointer-events-none" />
+
+                <div className="relative bg-gradient-to-r from-amber-500 via-orange-500 to-rose-500 p-6 text-white">
+                  <div className="flex items-center gap-3">
+                    <img src={brandLogoUrl} alt="Iron Eagle Security logo" className="h-12 w-12 rounded-xl object-cover border border-white/30 shadow-sm transition dark:brightness-90 dark:contrast-125 dark:saturate-75" />
+                    <div>
+                      <h2 className="text-2xl font-bold tracking-tight">Session Timeout Warning</h2>
+                      <p className="text-sm opacity-95">No activity detected. Your data view will lock soon.</p>
+                      <span className="inline-flex items-center gap-1.5 mt-2 rounded-full border border-white/30 bg-white/15 px-2.5 py-1 text-[11px] font-medium tracking-wide uppercase">
+                        <ThemeBadgeIcon className="h-3.5 w-3.5" />
+                        Theme: {themeBadgeText}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="relative p-6 space-y-4">
+                  <p className="text-sm text-slate-600">
+                    Locking in <span className="font-semibold text-slate-900">{warningSecondsRemaining}s</span> unless activity is detected.
+                  </p>
+                  <div className="h-2.5 rounded-full bg-slate-100 overflow-hidden shadow-inner">
+                    <div
+                      className="h-full bg-gradient-to-r from-amber-400 via-orange-500 to-rose-500 transition-all"
+                      style={{ width: `${Math.max(2, (warningSecondsRemaining / 60) * 100)}%` }}
+                    />
+                  </div>
+                  <div className="flex gap-2">
+                    <Button className="flex-1" onClick={handleStaySignedIn}>
+                      Keep Working
+                    </Button>
+                    <Button variant="outline" className="flex-1" onClick={handleLogoutCompletely}>
+                      Logout
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {isLocked && (
+            <div className="absolute inset-0 z-50 bg-slate-950/45 backdrop-blur-md flex items-center justify-center p-4">
+              <div className="session-mesh session-mesh--cyan" aria-hidden="true" />
+              <div className="session-mesh session-mesh--violet" aria-hidden="true" />
+              <div className="w-full max-w-xl rounded-3xl border border-slate-200/60 bg-white/95 shadow-[0_30px_100px_rgba(15,23,42,0.55)] overflow-hidden relative">
+                <div className="absolute -top-24 -left-10 h-64 w-64 rounded-full bg-cyan-200/25 blur-3xl pointer-events-none" />
+                <div className="absolute -bottom-24 -right-12 h-72 w-72 rounded-full bg-rose-200/20 blur-3xl pointer-events-none" />
+
+                <div className="relative bg-gradient-to-r from-slate-800 via-slate-900 to-slate-800 p-6 text-white">
+                  <div className="flex items-center gap-3">
+                    <div className="rounded-2xl bg-white/15 p-2">
+                      <img src={brandLogoUrl} alt="Iron Eagle Security logo" className="h-10 w-10 rounded-lg object-cover border border-white/20 transition dark:brightness-90 dark:contrast-125 dark:saturate-75" />
+                    </div>
+                    <div>
+                      <p className="text-xs uppercase tracking-wider opacity-90">Time Out Detected</p>
+                      <h2 className="text-2xl font-bold leading-tight">{lockTitle}</h2>
+                      <span className="inline-flex items-center gap-1.5 mt-2 rounded-full border border-white/25 bg-white/10 px-2.5 py-1 text-[11px] font-medium tracking-wide uppercase">
+                        <ThemeBadgeIcon className="h-3.5 w-3.5" />
+                        Theme: {themeBadgeText}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="relative p-6 space-y-4">
+                  <p className="text-sm text-slate-600">{lockMessage}</p>
+                  <p className="text-sm text-slate-600">
+                    Log back in from this screen to continue where you left off, or sign out completely.
+                  </p>
+
+                  <div className="space-y-2">
+                    <label htmlFor="unlock-password" className="text-sm font-medium text-slate-700">
+                      Password for {user?.email}
+                    </label>
+                    <Input
+                      id="unlock-password"
+                      type="password"
+                      value={reLoginPassword}
+                      onChange={(e) => setReLoginPassword(e.target.value)}
+                      placeholder="Enter password to unlock"
+                      disabled={unlocking}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault()
+                          handleUnlockSession()
+                        }
+                      }}
+                    />
+                  </div>
+
+                  <div className="flex flex-col sm:flex-row gap-2 pt-2">
+                    <Button className="flex-1" onClick={handleUnlockSession} disabled={unlocking}>
+                      <Unlock className="h-4 w-4 mr-2" />
+                      {unlocking ? 'Unlocking...' : 'Log Back In'}
+                    </Button>
+                    <Button variant="outline" className="flex-1" onClick={handleLogoutCompletely} disabled={unlocking}>
+                      <LogOut className="h-4 w-4 mr-2" />
+                      Logout Completely
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </main>
       </div>
     </div>

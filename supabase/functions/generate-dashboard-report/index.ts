@@ -9,8 +9,11 @@ import { corsHeaders } from '../_shared/cors.ts';
 
 interface DashboardReportRequest {
   organization_id?: string;
-  date_from: string;
-  date_to: string;
+  report_type?: string;
+  date_from?: string;
+  date_to?: string;
+  start_date?: string;
+  end_date?: string;
   zone_id?: string;
 }
 
@@ -23,12 +26,33 @@ serve(async (req) => {
   try {
     const {
       organization_id,
+      report_type,
       date_from,
       date_to,
+      start_date,
+      end_date,
       zone_id,
     } = await req.json() as DashboardReportRequest;
 
-    console.log('📊 Generating dashboard report:', { organization_id, date_from, date_to, zone_id });
+    const normalizedDateFrom = date_from ?? start_date;
+    const normalizedDateTo = date_to ?? end_date;
+
+    if (!normalizedDateFrom || !normalizedDateTo) {
+      return new Response(
+        JSON.stringify({ error: 'date_from/date_to (or start_date/end_date) are required' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const reportType = report_type || 'compliance';
+
+    console.log('📊 Generating dashboard report:', {
+      organization_id,
+      report_type: reportType,
+      date_from: normalizedDateFrom,
+      date_to: normalizedDateTo,
+      zone_id,
+    });
 
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
@@ -36,14 +60,13 @@ serve(async (req) => {
     );
 
     // Build date range strings
-    const startDateTime = `${date_from}T00:00:00`;
-    const endDateTime = `${date_to}T23:59:59`;
+    const startDateTime = `${normalizedDateFrom}T00:00:00`;
+    const endDateTime = `${normalizedDateTo}T23:59:59`;
 
     // Load observations for the date range
     let obsQuery = supabase
       .from('observations')
       .select(`
-        id,
         plate_number,
         zone_id,
         organization_id,
@@ -67,6 +90,19 @@ serve(async (req) => {
 
     console.log(`✅ Loaded ${obs.length} observations for ${uniquePlates.length} unique vehicles`);
 
+    // Load enforcement actions for report-specific sections
+    let enforcementQuery = supabase
+      .from('enforcement_actions')
+      .select('action_type, outcome, created_at')
+      .gte('created_at', startDateTime)
+      .lte('created_at', endDateTime);
+
+    if (organization_id) enforcementQuery = enforcementQuery.eq('organization_id', organization_id);
+    if (zone_id) enforcementQuery = enforcementQuery.eq('zone_id', zone_id);
+
+    const { data: enforcementActions } = await enforcementQuery;
+    const enforcementRows = enforcementActions || [];
+
     // Load vehicle details
     let vehicleData: any[] = [];
     if (uniquePlates.length > 0) {
@@ -87,8 +123,8 @@ serve(async (req) => {
       .select('plate_number, zone_id, nights_stayed_this_month, consecutive_nights, zones(name)')
       .in('plate_number', uniquePlates)
       
-      .gte('recorded_at', date_from)
-      .lte('recorded_at', date_to)
+      .gte('recorded_at', normalizedDateFrom)
+      .lte('recorded_at', normalizedDateTo)
       .order('recorded_at', { ascending: false });
 
     if (organization_id) latestObsQuery = latestObsQuery.eq('organization_id', organization_id);
@@ -203,6 +239,40 @@ serve(async (req) => {
     breachVehicles.sort((a, b) => new Date(b.last_seen).getTime() - new Date(a.last_seen).getTime());
     atRiskVehicles.sort((a, b) => new Date(b.last_seen).getTime() - new Date(a.last_seen).getTime());
 
+    // Build top vehicle activity list
+    const vehicleActivityMap = new Map<string, any>();
+    for (const o of obs) {
+      if (!vehicleActivityMap.has(o.plate_number)) {
+        const vehicle = vehicleMap.get(o.plate_number);
+        vehicleActivityMap.set(o.plate_number, {
+          plate_number: o.plate_number,
+          vehicle_make: vehicle?.vehicle_make || 'Unknown',
+          vehicle_model: vehicle?.vehicle_model || '',
+          observations: 0,
+          non_compliant_observations: 0,
+          zones: new Set<string>(),
+          first_seen: o.recorded_at,
+          last_seen: o.recorded_at,
+        });
+      }
+
+      const row = vehicleActivityMap.get(o.plate_number);
+      row.observations += 1;
+      if (!o.is_compliant) row.non_compliant_observations += 1;
+      row.zones.add(o.zones?.name || 'Unknown Zone');
+      if (new Date(o.recorded_at).getTime() < new Date(row.first_seen).getTime()) row.first_seen = o.recorded_at;
+      if (new Date(o.recorded_at).getTime() > new Date(row.last_seen).getTime()) row.last_seen = o.recorded_at;
+    }
+
+    const topVehicles = Array.from(vehicleActivityMap.values())
+      .map((v: any) => ({
+        ...v,
+        zone_count: v.zones.size,
+        zones: Array.from(v.zones),
+      }))
+      .sort((a, b) => b.observations - a.observations)
+      .slice(0, 10);
+
     // Calculate zone statistics
     const zoneStatsMap = new Map<string, any>();
     const uniqueZoneIds = new Set(obs.map((o: any) => o.zone_id));
@@ -264,6 +334,33 @@ serve(async (req) => {
       };
     }).sort((a, b) => b.observations - a.observations);
 
+    const zoneHotspots = zoneStats.slice(0, 5).map((z: any) => ({
+      zone_name: z.zone_name,
+      observations: z.observations,
+      compliance_rate: z.compliance_rate,
+    }));
+
+    const enforcementByType = new Map<string, number>();
+    const enforcementByOutcome = new Map<string, number>();
+    for (const action of enforcementRows) {
+      const type = action.action_type || 'unknown';
+      const outcome = action.outcome || 'unknown';
+      enforcementByType.set(type, (enforcementByType.get(type) || 0) + 1);
+      enforcementByOutcome.set(outcome, (enforcementByOutcome.get(outcome) || 0) + 1);
+    }
+
+    const enforcementSummary = {
+      total_actions: enforcementRows.length,
+      by_type: Array.from(enforcementByType.entries())
+        .map(([type, count]) => ({ type, count }))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 8),
+      by_outcome: Array.from(enforcementByOutcome.entries())
+        .map(([outcome, count]) => ({ outcome, count }))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 8),
+    };
+
     // Calculate overall statistics
     const totalObservations = obs.length;
     const totalVehicles = uniquePlates.length;
@@ -298,8 +395,9 @@ serve(async (req) => {
 
     // Generate HTML
     const html = generateReportHTML({
-      dateFrom: date_from,
-      dateTo: date_to,
+      reportType,
+      dateFrom: normalizedDateFrom,
+      dateTo: normalizedDateTo,
       organizationName,
       zoneName,
       stats: {
@@ -313,15 +411,19 @@ serve(async (req) => {
       zoneStats,
       breachVehicles,
       atRiskVehicles,
+      topVehicles,
+      zoneHotspots,
+      enforcementSummary,
     });
 
+    const reportTitle = getReportTitle(reportType);
     const pdfMetadata = {
-      title: 'Dashboard Summary Report',
-      subject: `Compliance Report ${date_from} to ${date_to}`,
+      title: reportTitle,
+      subject: `${reportTitle} ${normalizedDateFrom} to ${normalizedDateTo}`,
       creator: 'FreedomCamp Manager',
       producer: 'FreedomCamp Manager PDF Generator',
       creationDate: new Date().toISOString(),
-      keywords: ['dashboard', 'compliance', 'breach', 'at-risk', 'summary'].join(', '),
+      keywords: ['dashboard', reportType, 'compliance', 'breach', 'at-risk', 'summary'].join(', '),
     };
 
     console.log(`✅ Report generated: ${totalBreaches} breaches, ${totalAtRisk} at risk`);
@@ -330,6 +432,7 @@ serve(async (req) => {
       JSON.stringify({
         html,
         metadata: pdfMetadata,
+        report_type: reportType,
         generated_at: new Date().toISOString(),
         stats: {
           totalObservations,
@@ -353,7 +456,24 @@ serve(async (req) => {
 });
 
 function generateReportHTML(data: any): string {
-  const { dateFrom, dateTo, organizationName, zoneName, stats, zoneStats, breachVehicles, atRiskVehicles } = data;
+  const {
+    reportType,
+    dateFrom,
+    dateTo,
+    organizationName,
+    zoneName,
+    stats,
+    zoneStats,
+    breachVehicles,
+    atRiskVehicles,
+    topVehicles,
+    zoneHotspots,
+    enforcementSummary,
+  } = data;
+  const reportTitle = getReportTitle(reportType);
+  const escapedReportTitle = escapeHtml(reportTitle);
+  const escapedOrganizationName = escapeHtml(organizationName);
+  const escapedZoneName = escapeHtml(zoneName);
 
   const formatDate = (date: string) => new Date(date).toLocaleDateString('en-NZ', {
     day: 'numeric',
@@ -369,12 +489,25 @@ function generateReportHTML(data: any): string {
     minute: '2-digit',
   });
 
+  const reportSubtitle = getReportSubtitle(reportType);
+
+  let reportSpecificSections = '';
+  if (reportType === 'enforcement') {
+    reportSpecificSections = `${renderEnforcementSection(enforcementSummary)}${renderZoneStatsSection(zoneStats)}`;
+  } else if (reportType === 'vehicle-activity') {
+    reportSpecificSections = `${renderVehicleActivitySection(topVehicles)}${renderBreachVehiclesSection(breachVehicles)}${renderAtRiskVehiclesSection(atRiskVehicles)}`;
+  } else if (reportType === 'zone-stats') {
+    reportSpecificSections = `${renderZoneStatsSection(zoneStats)}${renderZoneHotspotsSection(zoneHotspots)}`;
+  } else {
+    reportSpecificSections = `${renderZoneStatsSection(zoneStats)}${renderBreachVehiclesSection(breachVehicles)}${renderAtRiskVehiclesSection(atRiskVehicles)}`;
+  }
+
   return `
 <!DOCTYPE html>
 <html>
 <head>
   <meta charset="UTF-8">
-  <title>Dashboard Summary Report</title>
+  <title>${escapedReportTitle}</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
   <style>
     @page {
@@ -730,9 +863,9 @@ function generateReportHTML(data: any): string {
   
   <div id="report-content">
   <div class="header">
-    <h1>📊 Dashboard Summary Report</h1>
-    <div class="subtitle">Comprehensive Compliance Analysis</div>
-    <div class="subtitle">${organizationName} • ${zoneName}</div>
+    <h1>📊 ${escapedReportTitle}</h1>
+    <div class="subtitle">${escapeHtml(reportSubtitle)}</div>
+    <div class="subtitle">${escapedOrganizationName} • ${escapedZoneName}</div>
     <div class="date-range">
       ${formatDate(dateFrom)} - ${formatDate(dateTo)}
     </div>
@@ -764,166 +897,13 @@ function generateReportHTML(data: any): string {
     </div>
   </div>
 
-  ${zoneStats && zoneStats.length > 0 ? `
-  <div class="section">
-    <div class="section-title">
-      <span>📍 ZONE PERFORMANCE</span>
-      <span class="badge" style="background: #3b82f6;">${zoneStats.length}</span>
-    </div>
-    
-    <table style="width: 100%; border-collapse: collapse; font-size: 10px; margin-top: 12px;">
-      <thead>
-        <tr style="background: #f1f5f9; border-bottom: 2px solid #cbd5e1;">
-          <th style="text-align: left; padding: 10px; font-weight: 700; color: #0F172A;">Zone</th>
-          <th style="text-align: center; padding: 10px; font-weight: 700; color: #0F172A;">Observations</th>
-          <th style="text-align: center; padding: 10px; font-weight: 700; color: #0F172A;">Vehicles</th>
-          <th style="text-align: center; padding: 10px; font-weight: 700; color: #0F172A;">Overstayers</th>
-          <th style="text-align: center; padding: 10px; font-weight: 700; color: #0F172A;">At Risk</th>
-          <th style="text-align: center; padding: 10px; font-weight: 700; color: #0F172A;">Compliance</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${zoneStats.map((zone: any, idx: number) => `
-          <tr style="border-bottom: 1px solid #e2e8f0; ${idx % 2 === 0 ? 'background: #f8fafc;' : ''}">
-            <td style="padding: 10px; font-weight: 600; color: #334155;">${zone.zone_name}</td>
-            <td style="text-align: center; padding: 10px; color: #475569;">${zone.observations}</td>
-            <td style="text-align: center; padding: 10px; color: #475569;">${zone.vehicles}</td>
-            <td style="text-align: center; padding: 10px;">
-              <span style="color: ${zone.overstayers > 0 ? '#dc2626' : '#10b981'}; font-weight: 700;">${zone.overstayers}</span>
-            </td>
-            <td style="text-align: center; padding: 10px;">
-              <span style="color: ${zone.at_risk > 0 ? '#d97706' : '#10b981'}; font-weight: 700;">${zone.at_risk}</span>
-            </td>
-            <td style="text-align: center; padding: 10px;">
-              <span style="padding: 4px 10px; border-radius: 12px; font-weight: 700; font-size: 9px; 
-                ${zone.compliance_rate >= 80 
-                  ? 'background: #dcfce7; color: #166534;' 
-                  : 'background: #fee2e2; color: #991b1b;'}">
-                ${zone.compliance_rate}%
-              </span>
-            </td>
-          </tr>
-        `).join('')}
-      </tbody>
-    </table>
-  </div>
-  ` : ''}
-
-  ${breachVehicles.length > 0 ? `
-  <div class="section">
-    <div class="section-title">
-      <span>🚨 VEHICLES IN BREACH</span>
-      <span class="badge">${breachVehicles.length}</span>
-    </div>
-    
-    <div class="vehicle-grid">
-      ${breachVehicles.map((vehicle: any) => `
-        <div class="vehicle-card">
-          <div class="vehicle-header">
-            <div class="vehicle-info">
-              <div class="plate-number">${vehicle.plate_number}</div>
-              <div class="vehicle-details">
-                ${vehicle.vehicle_make || 'Unknown'} ${vehicle.vehicle_model || ''} 
-                ${vehicle.vehicle_year ? `(${vehicle.vehicle_year})` : ''}
-              </div>
-              <div class="vehicle-details">
-                ${vehicle.vehicle_color || 'Color Unknown'} • 
-                ${vehicle.total_observations} observations
-              </div>
-              ${vehicle.is_flagged ? '<span class="badge flagged">🚩 Flagged</span>' : ''}
-              ${vehicle.homeless_status === 'confirmed' ? '<span class="badge homeless">🏠 Homeless</span>' : ''}
-            </div>
-            ${vehicle.profile_photo ? `
-              <img src="${vehicle.profile_photo}" class="vehicle-photo" alt="${vehicle.plate_number}" />
-            ` : ''}
-          </div>
-          
-          <div class="breach-details">
-            ${vehicle.breach_zones.map((zone: any) => `
-              <div class="breach-zone">
-                <div class="breach-zone-name">${zone.zone_name}</div>
-                ${zone.consecutive_nights > zone.max_consecutive ? `
-                  <div class="breach-metric">
-                    <span class="breach-metric-label">Consecutive Nights:</span>
-                    <span class="breach-metric-value">${zone.consecutive_nights} / ${zone.max_consecutive} max</span>
-                  </div>
-                ` : ''}
-                ${zone.nights_stayed > zone.monthly_limit ? `
-                  <div class="breach-metric">
-                    <span class="breach-metric-label">Monthly Nights:</span>
-                    <span class="breach-metric-value">${zone.nights_stayed} / ${zone.monthly_limit} max</span>
-                  </div>
-                ` : ''}
-              </div>
-            `).join('')}
-          </div>
-        </div>
-      `).join('')}
-    </div>
-  </div>
-  ` : '<div class="section"><div class="no-data">✅ No vehicles currently in breach</div></div>'}
-
-  ${atRiskVehicles.length > 0 ? `
-  <div class="section">
-    <div class="section-title">
-      <span>⏰ VEHICLES AT RISK</span>
-      <span class="badge at-risk">${atRiskVehicles.length}</span>
-    </div>
-    
-    <div class="vehicle-grid">
-      ${atRiskVehicles.map((vehicle: any) => `
-        <div class="vehicle-card at-risk">
-          <div class="vehicle-header">
-            <div class="vehicle-info">
-              <div class="plate-number">${vehicle.plate_number}</div>
-              <div class="vehicle-details">
-                ${vehicle.vehicle_make || 'Unknown'} ${vehicle.vehicle_model || ''} 
-                ${vehicle.vehicle_year ? `(${vehicle.vehicle_year})` : ''}
-              </div>
-              <div class="vehicle-details">
-                ${vehicle.vehicle_color || 'Color Unknown'} • 
-                ${vehicle.total_observations} observations
-              </div>
-              ${vehicle.is_flagged ? '<span class="badge flagged">🚩 Flagged</span>' : ''}
-              ${vehicle.homeless_status === 'confirmed' ? '<span class="badge homeless">🏠 Homeless</span>' : ''}
-            </div>
-            ${vehicle.profile_photo ? `
-              <img src="${vehicle.profile_photo}" class="vehicle-photo at-risk" alt="${vehicle.plate_number}" />
-            ` : ''}
-          </div>
-          
-          <div class="breach-details at-risk">
-            ${vehicle.at_risk_zones.map((zone: any) => `
-              <div class="breach-zone">
-                <div class="breach-zone-name at-risk">${zone.zone_name}</div>
-                ${zone.consecutive_nights === zone.max_consecutive ? `
-                  <div class="breach-metric">
-                    <span class="breach-metric-label">Consecutive Nights:</span>
-                    <span class="breach-metric-value at-risk">${zone.consecutive_nights} / ${zone.max_consecutive} max (AT LIMIT)</span>
-                  </div>
-                ` : ''}
-                ${zone.nights_stayed === zone.monthly_limit ? `
-                  <div class="breach-metric">
-                    <span class="breach-metric-label">Monthly Nights:</span>
-                    <span class="breach-metric-value at-risk">${zone.nights_stayed} / ${zone.monthly_limit} max (AT LIMIT)</span>
-                  </div>
-                ` : ''}
-              </div>
-            `).join('')}
-          </div>
-        </div>
-      `).join('')}
-    </div>
-  </div>
-  ` : '<div class="section"><div class="no-data">✅ No vehicles currently at risk</div></div>'}
+  ${reportSpecificSections}
 
   <div class="footer">
-    <p><strong>FreedomCamp Manager</strong> - Dashboard Summary Report</p>
+    <p><strong>FreedomCamp Manager</strong> - ${escapedReportTitle}</p>
     <p>Generated: ${formatDateTime(new Date().toISOString())}</p>
     <p style="margin-top: 8px; font-size: 9px;">
-      This report shows all vehicles in breach and at risk during the selected date range.<br/>
-      <strong>Breach:</strong> Vehicle has exceeded consecutive nights or monthly limits.<br/>
-      <strong>At Risk:</strong> Vehicle is at the maximum limit - one more night will trigger a breach.
+      ${escapeHtml(getReportFooter(reportType))}
     </p>
   </div>
   </div>
@@ -976,4 +956,222 @@ function generateReportHTML(data: any): string {
 </body>
 </html>
   `.trim();
+}
+
+function getReportSubtitle(reportType?: string): string {
+  switch (reportType) {
+    case 'enforcement':
+      return 'Enforcement action volume, outcomes, and distribution';
+    case 'vehicle-activity':
+      return 'Vehicle observation frequency and compliance indicators';
+    case 'zone-stats':
+      return 'Zone-level performance and hotspot concentration';
+    case 'compliance':
+    default:
+      return 'Comprehensive compliance analysis';
+  }
+}
+
+function getReportFooter(reportType?: string): string {
+  switch (reportType) {
+    case 'enforcement':
+      return 'This report focuses on enforcement actions by type and outcome for the selected period.';
+    case 'vehicle-activity':
+      return 'This report highlights the most observed vehicles and related non-compliant activity.';
+    case 'zone-stats':
+      return 'This report summarizes zone-level activity, compliance, and hotspot concentration.';
+    case 'compliance':
+    default:
+      return 'This report shows compliance, breach, and at-risk indicators for the selected date range.';
+  }
+}
+
+function escapeHtml(value: unknown): string {
+  return String(value ?? '')
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
+}
+
+function escapeAttr(value: unknown): string {
+  return escapeHtml(value).replaceAll('`', '&#96;');
+}
+
+function renderZoneStatsSection(zoneStats: any[]): string {
+  if (!zoneStats?.length) return '';
+
+  return `
+  <div class="section">
+    <div class="section-title">
+      <span>📍 ZONE PERFORMANCE</span>
+      <span class="badge" style="background: #3b82f6;">${zoneStats.length}</span>
+    </div>
+    <table style="width: 100%; border-collapse: collapse; font-size: 10px; margin-top: 12px;">
+      <thead>
+        <tr style="background: #f1f5f9; border-bottom: 2px solid #cbd5e1;">
+          <th style="text-align: left; padding: 10px; font-weight: 700; color: #0F172A;">Zone</th>
+          <th style="text-align: center; padding: 10px; font-weight: 700; color: #0F172A;">Observations</th>
+          <th style="text-align: center; padding: 10px; font-weight: 700; color: #0F172A;">Vehicles</th>
+          <th style="text-align: center; padding: 10px; font-weight: 700; color: #0F172A;">Overstayers</th>
+          <th style="text-align: center; padding: 10px; font-weight: 700; color: #0F172A;">At Risk</th>
+          <th style="text-align: center; padding: 10px; font-weight: 700; color: #0F172A;">Compliance</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${zoneStats.map((zone: any, idx: number) => `
+          <tr style="border-bottom: 1px solid #e2e8f0; ${idx % 2 === 0 ? 'background: #f8fafc;' : ''}">
+            <td style="padding: 10px; font-weight: 600; color: #334155;">${escapeHtml(zone.zone_name)}</td>
+            <td style="text-align: center; padding: 10px; color: #475569;">${zone.observations}</td>
+            <td style="text-align: center; padding: 10px; color: #475569;">${zone.vehicles}</td>
+            <td style="text-align: center; padding: 10px;"><span style="color: ${zone.overstayers > 0 ? '#dc2626' : '#10b981'}; font-weight: 700;">${zone.overstayers}</span></td>
+            <td style="text-align: center; padding: 10px;"><span style="color: ${zone.at_risk > 0 ? '#d97706' : '#10b981'}; font-weight: 700;">${zone.at_risk}</span></td>
+            <td style="text-align: center; padding: 10px;">
+              <span style="padding: 4px 10px; border-radius: 12px; font-weight: 700; font-size: 9px; ${zone.compliance_rate >= 80 ? 'background: #dcfce7; color: #166534;' : 'background: #fee2e2; color: #991b1b;'}">${zone.compliance_rate}%</span>
+            </td>
+          </tr>
+        `).join('')}
+      </tbody>
+    </table>
+  </div>`;
+}
+
+function renderBreachVehiclesSection(breachVehicles: any[]): string {
+  if (!breachVehicles?.length) return '<div class="section"><div class="no-data">✅ No vehicles currently in breach</div></div>';
+
+  return `
+  <div class="section">
+    <div class="section-title"><span>🚨 VEHICLES IN BREACH</span><span class="badge">${breachVehicles.length}</span></div>
+    <div class="vehicle-grid">
+      ${breachVehicles.map((vehicle: any) => `
+        <div class="vehicle-card">
+          <div class="vehicle-header">
+            <div class="vehicle-info">
+              <div class="plate-number">${escapeHtml(vehicle.plate_number)}</div>
+              <div class="vehicle-details">${escapeHtml(vehicle.vehicle_make || 'Unknown')} ${escapeHtml(vehicle.vehicle_model || '')} ${vehicle.vehicle_year ? `(${escapeHtml(vehicle.vehicle_year)})` : ''}</div>
+              <div class="vehicle-details">${escapeHtml(vehicle.vehicle_color || 'Color Unknown')} • ${vehicle.total_observations} observations</div>
+              ${vehicle.is_flagged ? '<span class="badge flagged">🚩 Flagged</span>' : ''}
+              ${vehicle.homeless_status === 'confirmed' ? '<span class="badge homeless">🏠 Homeless</span>' : ''}
+            </div>
+            ${vehicle.profile_photo ? `<img src="${escapeAttr(vehicle.profile_photo)}" class="vehicle-photo" alt="${escapeAttr(vehicle.plate_number)}" />` : ''}
+          </div>
+          <div class="breach-details">
+            ${vehicle.breach_zones.map((zone: any) => `
+              <div class="breach-zone">
+                <div class="breach-zone-name">${escapeHtml(zone.zone_name)}</div>
+                ${zone.consecutive_nights > zone.max_consecutive ? `<div class="breach-metric"><span class="breach-metric-label">Consecutive Nights:</span><span class="breach-metric-value">${zone.consecutive_nights} / ${zone.max_consecutive} max</span></div>` : ''}
+                ${zone.nights_stayed > zone.monthly_limit ? `<div class="breach-metric"><span class="breach-metric-label">Monthly Nights:</span><span class="breach-metric-value">${zone.nights_stayed} / ${zone.monthly_limit} max</span></div>` : ''}
+              </div>`).join('')}
+          </div>
+        </div>`).join('')}
+    </div>
+  </div>`;
+}
+
+function renderAtRiskVehiclesSection(atRiskVehicles: any[]): string {
+  if (!atRiskVehicles?.length) return '<div class="section"><div class="no-data">✅ No vehicles currently at risk</div></div>';
+
+  return `
+  <div class="section">
+    <div class="section-title"><span>⏰ VEHICLES AT RISK</span><span class="badge at-risk">${atRiskVehicles.length}</span></div>
+    <div class="vehicle-grid">
+      ${atRiskVehicles.map((vehicle: any) => `
+        <div class="vehicle-card at-risk">
+          <div class="vehicle-header">
+            <div class="vehicle-info">
+              <div class="plate-number">${escapeHtml(vehicle.plate_number)}</div>
+              <div class="vehicle-details">${escapeHtml(vehicle.vehicle_make || 'Unknown')} ${escapeHtml(vehicle.vehicle_model || '')} ${vehicle.vehicle_year ? `(${escapeHtml(vehicle.vehicle_year)})` : ''}</div>
+              <div class="vehicle-details">${escapeHtml(vehicle.vehicle_color || 'Color Unknown')} • ${vehicle.total_observations} observations</div>
+              ${vehicle.is_flagged ? '<span class="badge flagged">🚩 Flagged</span>' : ''}
+              ${vehicle.homeless_status === 'confirmed' ? '<span class="badge homeless">🏠 Homeless</span>' : ''}
+            </div>
+            ${vehicle.profile_photo ? `<img src="${escapeAttr(vehicle.profile_photo)}" class="vehicle-photo at-risk" alt="${escapeAttr(vehicle.plate_number)}" />` : ''}
+          </div>
+          <div class="breach-details at-risk">
+            ${vehicle.at_risk_zones.map((zone: any) => `
+              <div class="breach-zone">
+                <div class="breach-zone-name at-risk">${escapeHtml(zone.zone_name)}</div>
+                ${zone.consecutive_nights === zone.max_consecutive ? `<div class="breach-metric"><span class="breach-metric-label">Consecutive Nights:</span><span class="breach-metric-value at-risk">${zone.consecutive_nights} / ${zone.max_consecutive} max (AT LIMIT)</span></div>` : ''}
+                ${zone.nights_stayed === zone.monthly_limit ? `<div class="breach-metric"><span class="breach-metric-label">Monthly Nights:</span><span class="breach-metric-value at-risk">${zone.nights_stayed} / ${zone.monthly_limit} max (AT LIMIT)</span></div>` : ''}
+              </div>`).join('')}
+          </div>
+        </div>`).join('')}
+    </div>
+  </div>`;
+}
+
+function renderEnforcementSection(enforcementSummary: any): string {
+  const byType = enforcementSummary?.by_type || [];
+  const byOutcome = enforcementSummary?.by_outcome || [];
+  return `
+  <div class="section">
+    <div class="section-title"><span>🛡️ ENFORCEMENT SUMMARY</span><span class="badge" style="background: #3b82f6;">${enforcementSummary?.total_actions || 0}</span></div>
+    <table style="width: 100%; border-collapse: collapse; font-size: 10px; margin-top: 12px;">
+      <thead>
+        <tr style="background: #f1f5f9; border-bottom: 2px solid #cbd5e1;"><th style="text-align: left; padding: 10px;">Action Type</th><th style="text-align: center; padding: 10px;">Count</th></tr>
+      </thead>
+      <tbody>
+        ${byType.length ? byType.map((item: any, idx: number) => `<tr style="border-bottom: 1px solid #e2e8f0; ${idx % 2 === 0 ? 'background: #f8fafc;' : ''}"><td style="padding: 10px;">${escapeHtml(item.type)}</td><td style="text-align: center; padding: 10px;">${item.count}</td></tr>`).join('') : '<tr><td colspan="2" style="padding: 10px; text-align: center; color: #64748b;">No enforcement actions recorded.</td></tr>'}
+      </tbody>
+    </table>
+    <table style="width: 100%; border-collapse: collapse; font-size: 10px; margin-top: 12px;">
+      <thead>
+        <tr style="background: #f1f5f9; border-bottom: 2px solid #cbd5e1;"><th style="text-align: left; padding: 10px;">Outcome</th><th style="text-align: center; padding: 10px;">Count</th></tr>
+      </thead>
+      <tbody>
+        ${byOutcome.length ? byOutcome.map((item: any, idx: number) => `<tr style="border-bottom: 1px solid #e2e8f0; ${idx % 2 === 0 ? 'background: #f8fafc;' : ''}"><td style="padding: 10px;">${escapeHtml(item.outcome)}</td><td style="text-align: center; padding: 10px;">${item.count}</td></tr>`).join('') : '<tr><td colspan="2" style="padding: 10px; text-align: center; color: #64748b;">No outcomes available.</td></tr>'}
+      </tbody>
+    </table>
+  </div>`;
+}
+
+function renderVehicleActivitySection(topVehicles: any[]): string {
+  return `
+  <div class="section">
+    <div class="section-title"><span>🚗 TOP VEHICLE ACTIVITY</span><span class="badge" style="background: #16a34a;">${topVehicles?.length || 0}</span></div>
+    <table style="width: 100%; border-collapse: collapse; font-size: 10px; margin-top: 12px;">
+      <thead>
+        <tr style="background: #f1f5f9; border-bottom: 2px solid #cbd5e1;">
+          <th style="text-align: left; padding: 10px;">Plate</th>
+          <th style="text-align: left; padding: 10px;">Vehicle</th>
+          <th style="text-align: center; padding: 10px;">Observations</th>
+          <th style="text-align: center; padding: 10px;">Non-Compliant</th>
+          <th style="text-align: center; padding: 10px;">Zones</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${topVehicles?.length ? topVehicles.map((v: any, idx: number) => `<tr style="border-bottom: 1px solid #e2e8f0; ${idx % 2 === 0 ? 'background: #f8fafc;' : ''}"><td style="padding: 10px; font-family: monospace; font-weight: 700;">${escapeHtml(v.plate_number)}</td><td style="padding: 10px;">${escapeHtml(v.vehicle_make)} ${escapeHtml(v.vehicle_model)}</td><td style="text-align: center; padding: 10px;">${v.observations}</td><td style="text-align: center; padding: 10px;">${v.non_compliant_observations}</td><td style="text-align: center; padding: 10px;">${v.zone_count}</td></tr>`).join('') : '<tr><td colspan="5" style="padding: 10px; text-align: center; color: #64748b;">No vehicle activity for selected period.</td></tr>'}
+      </tbody>
+    </table>
+  </div>`;
+}
+
+function renderZoneHotspotsSection(zoneHotspots: any[]): string {
+  return `
+  <div class="section">
+    <div class="section-title"><span>🔥 ZONE HOTSPOTS</span><span class="badge" style="background: #d97706;">${zoneHotspots?.length || 0}</span></div>
+    <table style="width: 100%; border-collapse: collapse; font-size: 10px; margin-top: 12px;">
+      <thead>
+        <tr style="background: #f1f5f9; border-bottom: 2px solid #cbd5e1;"><th style="text-align: left; padding: 10px;">Zone</th><th style="text-align: center; padding: 10px;">Observations</th><th style="text-align: center; padding: 10px;">Compliance</th></tr>
+      </thead>
+      <tbody>
+        ${zoneHotspots?.length ? zoneHotspots.map((zone: any, idx: number) => `<tr style="border-bottom: 1px solid #e2e8f0; ${idx % 2 === 0 ? 'background: #f8fafc;' : ''}"><td style="padding: 10px;">${escapeHtml(zone.zone_name)}</td><td style="text-align: center; padding: 10px;">${zone.observations}</td><td style="text-align: center; padding: 10px;">${zone.compliance_rate}%</td></tr>`).join('') : '<tr><td colspan="3" style="padding: 10px; text-align: center; color: #64748b;">No zone hotspots available.</td></tr>'}
+      </tbody>
+    </table>
+  </div>`;
+}
+
+function getReportTitle(reportType?: string): string {
+  switch (reportType) {
+    case 'enforcement':
+      return 'Enforcement Activity Report';
+    case 'vehicle-activity':
+      return 'Vehicle Activity Report';
+    case 'zone-stats':
+      return 'Zone Statistics Report';
+    case 'compliance':
+    default:
+      return 'Compliance Report';
+  }
 }

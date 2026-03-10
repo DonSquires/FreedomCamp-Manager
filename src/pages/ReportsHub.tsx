@@ -104,7 +104,7 @@ export default function ReportsHub() {
       icon: <MapPin className="h-6 w-6" />,
       badge: 'Map',
       badgeColor: 'bg-yellow-100 text-yellow-800',
-      route: '/hotspots-map',
+      route: '/hotspots',
     },
     {
       id: 'trend-analysis',
@@ -143,7 +143,7 @@ export default function ReportsHub() {
       icon: <Download className="h-6 w-6" />,
       badge: 'CSV',
       badgeColor: 'bg-green-100 text-green-800',
-      route: '/data-management',
+      route: '/data',
     },
   ]
 
@@ -274,7 +274,7 @@ export default function ReportsHub() {
               <BarChart3 className="h-4 w-4 mr-2" />
               View Analytics Dashboard
             </Button>
-            <Button variant="outline" onClick={() => navigate('/data-management')}>
+            <Button variant="outline" onClick={() => navigate('/data')}>
               <Download className="h-4 w-4 mr-2" />
               Export All Data
             </Button>

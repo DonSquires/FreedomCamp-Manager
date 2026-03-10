@@ -8,6 +8,7 @@
 import { supabase } from './supabase'
 import { toast } from 'sonner'
 import { FunctionsHttpError } from '@supabase/supabase-js'
+import { useSessionLockStore } from '@/stores/sessionLockStore'
 
 const ACCESS_TOKEN_REFRESH_BUFFER_MS = 60_000
 
@@ -71,12 +72,16 @@ async function getValidAccessToken(): Promise<string | null> {
 
   if (shouldRefresh) {
     const refreshedAccessToken = await tryRefreshAccessToken()
-    if (!refreshedAccessToken) {
-      // Sign out to clear stale session state so ProtectedRoute redirects to login
-      try { await supabase.auth.signOut() } catch { /* ignore sign-out errors */ }
-      throw new Error('Session has expired. Please sign in again.')
+    if (refreshedAccessToken) {
+      return refreshedAccessToken
     }
-    return refreshedAccessToken
+
+    // Graceful fallback: if current token is still technically valid, allow one attempt.
+    if (expiresAtMs > Date.now()) {
+      return session.access_token
+    }
+
+    throw new Error('Session refresh failed. Please retry. If the problem continues, sign in again.')
   }
 
   return session.access_token
@@ -120,11 +125,13 @@ async function callEdgeFunction<T = any>(
   body?: any,
   options: { showToast?: boolean } = { showToast: true }
 ): Promise<{ data: T | null; error: string | null }> {
+  const { lock, unlock } = useSessionLockStore.getState()
+
   try {
     const accessToken = await getValidAccessToken()
     if (!accessToken) {
-      await supabase.auth.signOut()
       const errorMessage = 'No active session found. Please sign in again and retry.'
+      lock('Session Lockout', 'Your session is no longer active. Log back in to unlock this workspace.')
       if (options.showToast) {
         toast.error(errorMessage)
       }
@@ -151,11 +158,17 @@ async function callEdgeFunction<T = any>(
           })
 
           if (!retryResult.error) {
+            unlock()
             return { data: retryResult.data as T, error: null }
           }
         }
 
-        try { await supabase.auth.signOut() } catch { /* ignore sign-out errors */ }
+        const authErrorMessage = 'Session expired during request. Please retry once or sign in again.'
+        lock('Session Timed Out', 'Your session expired while this task was running. Log back in to continue safely.')
+        if (options.showToast) {
+          toast.error(authErrorMessage)
+        }
+        return { data: null, error: authErrorMessage }
       }
 
       const errorMessage = await getErrorMessage(error)
@@ -165,9 +178,13 @@ async function callEdgeFunction<T = any>(
       return { data: null, error: errorMessage }
     }
 
+    unlock()
     return { data, error: null }
   } catch (error: any) {
     const errorMessage = await getErrorMessage(error)
+    if (errorMessage.toLowerCase().includes('session')) {
+      lock('Session Lockout', 'Your session could not be refreshed. Log back in to unlock this workspace.')
+    }
     if (options.showToast) {
       toast.error(errorMessage)
     }

@@ -11,7 +11,6 @@ import { FileText, Download, TrendingUp, Users, MapPin, AlertCircle, Clock, Chec
 import { AppLayout } from '@/components/features/AppLayout'
 import { GlobalFilterRibbon } from '@/components/features/GlobalFilterRibbon'
 import { toast } from 'sonner'
-import { formatDateTime } from '@/lib/utils'
 
 // ── CSV helpers ───────────────────────────────────────────────────────────────
 function toCSV(rows: Record<string, any>[]): string {
@@ -48,6 +47,16 @@ function downloadJSON(data: any, filename: string) {
   URL.revokeObjectURL(url)
 }
 
+function openReportHtml(html: string) {
+  const reportWindow = window.open('', '_blank')
+  if (!reportWindow) {
+    throw new Error('Failed to open report window. Please allow popups and try again.')
+  }
+
+  reportWindow.document.write(html)
+  reportWindow.document.close()
+}
+
 export default function Reports() {
   const { user } = useAuthStore()
   const { organizationId, zoneId, dateFrom, dateTo } = useGlobalFiltersStore()
@@ -56,6 +65,9 @@ export default function Reports() {
     user?.role !== 'master' ? user?.organization_id || null : organizationId || null
   const startDate = dateFrom ? `${dateFrom}T00:00:00Z` : null
   const endDate = dateTo ? `${dateTo}T23:59:59Z` : null
+  const reportDateTo = dateTo || new Date().toISOString().slice(0, 10)
+  const reportDateFrom =
+    dateFrom || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
 
   // Fetch report statistics
   const { data: stats, isLoading } = useQuery({
@@ -139,8 +151,8 @@ export default function Reports() {
         report_type: reportType,
         organization_id: effectiveOrganizationId || undefined,
         zone_id: zoneId || undefined,
-        start_date: startDate || undefined,
-        end_date: endDate || undefined,
+        date_from: reportDateFrom,
+        date_to: reportDateTo,
       })
 
       if (error) {
@@ -150,12 +162,14 @@ export default function Reports() {
     },
     onSuccess: (data, reportType) => {
       toast.success(`${reportType} report generated successfully`)
-      
-      // Download the PDF if URL is returned
-      if (data?.url) {
+      if (data?.html) {
+        openReportHtml(data.html)
+      } else if (data?.url) {
         window.open(data.url, '_blank')
+      } else {
+        toast.error('Report generated but no printable content was returned')
       }
-      
+
       setGeneratingReport(null)
     },
     onError: (error: any, reportType) => {

@@ -22,6 +22,8 @@ import {
   Check,
 } from 'lucide-react'
 import { toast } from 'sonner'
+import { useSessionPreferencesStore } from '@/stores/sessionPreferencesStore'
+import { useThemePreferencesStore } from '@/stores/themePreferencesStore'
 
 interface NotificationPreferences {
   breach_alerts: boolean
@@ -34,7 +36,7 @@ interface NotificationPreferences {
 }
 
 interface AppPreferences {
-  dark_mode: boolean
+  theme_mode: 'light' | 'dark' | 'system'
   driving_mode: boolean
   auto_logoff_enabled: boolean
   offline_sync_enabled: boolean
@@ -43,6 +45,13 @@ interface AppPreferences {
 
 export default function Settings() {
   const { user } = useAuthStore()
+  const {
+    autoLogoffEnabled,
+    inactivityMinutes,
+    setAutoLogoffEnabled,
+    setInactivityMinutes,
+  } = useSessionPreferencesStore()
+  const { themeMode, setThemeMode } = useThemePreferencesStore()
 
   const [notifPrefs, setNotifPrefs] = useState<NotificationPreferences>({
     breach_alerts: true,
@@ -55,17 +64,21 @@ export default function Settings() {
   })
 
   const [appPrefs, setAppPrefs] = useState<AppPreferences>({
-    dark_mode: false,
+    theme_mode: themeMode,
     driving_mode: false,
-    auto_logoff_enabled: true,
+    auto_logoff_enabled: autoLogoffEnabled,
     offline_sync_enabled: true,
     gps_tracking_enabled: true,
   })
+  const [autoLogoffMinutes, setAutoLogoffMinutes] = useState<number>(inactivityMinutes)
 
   const [saved, setSaved] = useState(false)
 
   const handleSave = async () => {
     // Persist to user_preferences if the table exists, or just show success
+    setAutoLogoffEnabled(appPrefs.auto_logoff_enabled)
+    setInactivityMinutes(autoLogoffMinutes)
+    setThemeMode(appPrefs.theme_mode)
     setSaved(true)
     toast.success('Settings saved')
     setTimeout(() => setSaved(false), 2000)
@@ -228,12 +241,25 @@ export default function Settings() {
                 <CardTitle className="text-base">Application Preferences</CardTitle>
               </CardHeader>
               <CardContent>
-                <AppToggle
-                  label="Dark Mode"
-                  description="Use dark theme throughout the application"
-                  checked={appPrefs.dark_mode}
-                  onCheckedChange={v => setAppPrefs(p => ({ ...p, dark_mode: v }))}
-                />
+                <div className="py-3 border-b">
+                  <Label className="font-medium text-sm">Theme Mode</Label>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Choose light mode, dark mode, or follow your computer system theme.
+                  </p>
+                  <div className="mt-3 grid grid-cols-3 gap-2">
+                    {(['light', 'dark', 'system'] as const).map((mode) => (
+                      <Button
+                        key={mode}
+                        type="button"
+                        variant={appPrefs.theme_mode === mode ? 'default' : 'outline'}
+                        onClick={() => setAppPrefs((p) => ({ ...p, theme_mode: mode }))}
+                        className="capitalize"
+                      >
+                        {mode}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
                 <AppToggle
                   label="Driving Mode"
                   description="Larger touch targets for use while driving"
@@ -246,6 +272,22 @@ export default function Settings() {
                   checked={appPrefs.auto_logoff_enabled}
                   onCheckedChange={v => setAppPrefs(p => ({ ...p, auto_logoff_enabled: v }))}
                 />
+                <div className="py-3 border-b">
+                  <Label htmlFor="auto-logoff-minutes" className="font-medium text-sm">Auto Logoff Timeout (minutes)</Label>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Recommended 10-30 minutes. A warning appears 60 seconds before lock.
+                  </p>
+                  <Input
+                    id="auto-logoff-minutes"
+                    type="number"
+                    min={5}
+                    max={120}
+                    disabled={!appPrefs.auto_logoff_enabled}
+                    value={autoLogoffMinutes}
+                    onChange={(e) => setAutoLogoffMinutes(Number(e.target.value || 10))}
+                    className="mt-2 w-40"
+                  />
+                </div>
                 <AppToggle
                   label="Offline Sync"
                   description="Queue observations and sync when connectivity is restored"

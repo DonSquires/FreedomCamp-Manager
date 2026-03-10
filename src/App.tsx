@@ -3,6 +3,8 @@ import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-route
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Toaster } from 'sonner'
 import { useAuthStore } from '@/stores/authStore'
+import { useSessionInactivityLock } from '@/hooks/useSessionInactivityLock'
+import { useThemeMode } from '@/hooks/useThemeMode'
 import Login from '@/pages/Login'
 import AdminPortal from '@/pages/AdminPortal'
 import FieldOfficerPortal from '@/pages/FieldOfficerPortal'
@@ -121,6 +123,8 @@ function RoleRoute({
 
 export default function App() {
   const { user, loading, checkSession, initializeAuth, ensureLoadingResolved } = useAuthStore()
+  useSessionInactivityLock()
+  useThemeMode()
 
   // Check session on app load
   useEffect(() => {

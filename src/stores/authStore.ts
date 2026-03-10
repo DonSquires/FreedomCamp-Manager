@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { createJSONStorage, persist } from 'zustand/middleware'
 import { supabase } from '@/lib/supabase'
+import { useSessionLockStore } from './sessionLockStore'
 
 let authListenerInitialized = false
 
@@ -112,6 +113,7 @@ export const useAuthStore = create<AuthState>()(
         }
 
         set({ user: authUser, isAuthenticated: true, loading: false })
+        useSessionLockStore.getState().unlock()
       },
 
       logout: async () => {
@@ -120,6 +122,7 @@ export const useAuthStore = create<AuthState>()(
           window.sessionStorage.removeItem('adminOfficerPortalChoice')
         }
         set({ user: null, isAuthenticated: false, loading: false })
+        useSessionLockStore.getState().unlock()
       },
 
       checkSession: async () => {

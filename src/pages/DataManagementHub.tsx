@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { supabase } from '@/lib/supabase'
+import { edgeFunctions } from '@/lib/edgeFunctions'
 import { useAuthStore } from '@/stores/authStore'
 import { useGlobalFiltersStore } from '@/stores/globalFiltersStore'
 import { toast } from 'sonner'
@@ -154,16 +155,14 @@ export default function DataManagementHub() {
       const dateTo = new Date().toISOString().slice(0, 10)
       const dateFrom = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
 
-      // Call export edge function
-      const { data, error } = await supabase.functions.invoke('generate-dashboard-report', {
-        body: {
-          organization_id: organizationId || user?.organization_id,
-          date_from: dateFrom,
-          date_to: dateTo,
-        },
+      // Call export edge function via shared auth wrapper (refresh/retry on JWT expiry)
+      const { data, error } = await edgeFunctions.generateDashboardReport({
+        organization_id: organizationId || user?.organization_id || undefined,
+        date_from: dateFrom,
+        date_to: dateTo,
       })
 
-      if (error) throw error
+      if (error) throw new Error(error)
 
       toast.success('Export started - check your downloads')
     } catch (error: any) {
