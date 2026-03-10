@@ -193,12 +193,15 @@ Deno.serve(async (req) => {
 
     console.log('✅ [IMPORT] User authorized - role:', profile.role, 'org:', profile.organization_id);
 
-    // Parse request body
-    const { file_path, organization_id } = await req.json();
+    // Parse request body – accept both camelCase (UI) and snake_case (legacy) param names
+    const body = await req.json();
+    const file_path = body.file_path || body.filePath;
+    const batch_name = body.batch_name || body.batchName || null;
+    const organization_id = body.organization_id || body.organizationId;
 
     if (!file_path) {
       return new Response(
-        JSON.stringify({ error: 'Missing file_path' }),
+        JSON.stringify({ error: 'Missing file_path (or filePath)' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -265,36 +268,38 @@ Deno.serve(async (req) => {
 
     console.log('✅ [IMPORT] File downloaded, size:', fileData.size, 'bytes');
 
-    // Create import history record for tracking
-    console.log('📝 [IMPORT] Creating import history record...');
+    // Create import batch record for UI progress tracking
+    console.log('📝 [IMPORT] Creating import batch record...');
     console.log('   - Organization ID:', targetOrganizationId);
-    console.log('   - Imported by:', user.id);
+    console.log('   - Uploaded by:', user.id);
     console.log('   - File name:', file_path.split('/').pop());
 
     const { data: importRecord, error: importError } = await supabaseAdmin
-      .from('import_history')
+      .from('import_batches')
       .insert({
         organization_id: targetOrganizationId,
-        imported_by: user.id,
-        import_type: 'observation_migration', // Historical data import - allowed by CHECK constraint
+        uploaded_by: user.id,
+        batch_name: batch_name || `Import ${new Date().toISOString().split('T')[0]}`,
         file_name: file_path.split('/').pop(),
-        status: 'partial', // Import in progress - allowed values: completed, failed, partial
-        records_imported: 0,
-        duplicates_skipped: 0,
+        status: 'parsing',
+        total_records: 0,
+        processed_records: 0,
+        successful_records: 0,
         failed_records: 0,
+        zones_created: 0,
       })
       .select('id')
       .single();
 
     if (importError || !importRecord) {
-      console.error('❌ [IMPORT] Failed to create import history:', importError);
+      console.error('❌ [IMPORT] Failed to create import batch:', importError);
       console.error('   - Error code:', importError?.code);
       console.error('   - Error message:', importError?.message);
       console.error('   - Error details:', importError?.details);
       console.error('   - Error hint:', importError?.hint);
       return new Response(
         JSON.stringify({ 
-          error: 'Failed to create import history record',
+          error: 'Failed to create import batch record',
           details: importError?.message,
           code: importError?.code,
           hint: importError?.hint
@@ -303,11 +308,11 @@ Deno.serve(async (req) => {
       );
     }
 
-    const importHistoryId = importRecord.id;
-    console.log('✅ [IMPORT] Import history created:', importHistoryId);
+    const importBatchId = importRecord.id;
+    console.log('✅ [IMPORT] Import batch created:', importBatchId);
 
     // Parse Excel file
-    console.log('📄 [IMPORT] Parsing Excel file...');
+    console.log('📄 [IMPORT] Parsing file...');
     
     const arrayBuffer = await fileData.arrayBuffer();
     const workbook = XLSX.read(new Uint8Array(arrayBuffer), { type: 'array' });
@@ -315,10 +320,54 @@ Deno.serve(async (req) => {
     const worksheet = workbook.Sheets[sheetName];
     const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as any[][];
 
-    console.log(`✅ [IMPORT] Excel parsed - ${jsonData.length} rows`);
+    console.log(`✅ [IMPORT] File parsed - ${jsonData.length} rows`);
 
-    // STEP: AI-powered document analysis for intelligent data cleaning
-    console.log('🤖 [IMPORT] Analyzing document with OnSpace AI...');
+    // Update batch: set total_records once we know the row count
+    await supabaseAdmin
+      .from('import_batches')
+      .update({ total_records: Math.max(0, jsonData.length - 1), status: 'zone_matching' })
+      .eq('id', importBatchId);
+
+    // ── Heuristic date-format detection (runs before AI, no network needed) ──
+    // Check first 10 non-header rows for a date string to determine format.
+    // NZ DOWNER/LINZ exports always use DD/MM/YYYY so we prefer that when
+    // the first slash-segment is > 12.
+    let dateFormat = 'unknown';
+    for (let scanRow = 1; scanRow <= Math.min(10, jsonData.length - 1); scanRow++) {
+      const candidate = jsonData[scanRow]?.[2];
+      if (typeof candidate === 'string' && candidate.includes('/')) {
+        const parts = candidate.trim().split('/');
+        if (parts.length === 3) {
+          const a = parseInt(parts[0], 10);
+          const b = parseInt(parts[1], 10);
+          if (a > 12) {
+            // First segment > 12 can only be a day, so format is DD/MM/YYYY
+            dateFormat = 'dd/mm/yyyy';
+          } else if (b > 12) {
+            // Second segment > 12 can only be a day, so format is MM/DD/YYYY
+            dateFormat = 'mm/dd/yyyy';
+          } else {
+            // Ambiguous – both values fit in either day or month range.
+            // Default to DD/MM/YYYY: NZ DOWNER/LINZ exports always use this
+            // convention and it is the standard date format in New Zealand.
+            dateFormat = 'dd/mm/yyyy';
+          }
+          console.log(`📅 [IMPORT] Heuristic date format detected: ${dateFormat} (from "${candidate}")`);
+          break;
+        }
+      } else if (typeof candidate === 'number') {
+        dateFormat = 'excel_serial';
+        break;
+      }
+    }
+
+    // STEP: AI-powered document analysis for intelligent data cleaning (optional enhancement)
+    // Minimum confidence required for AI to override the heuristic date-format detection.
+    // 0.8 is chosen because heuristic detection is reliable for unambiguous cases (first
+    // segment > 12 is always DD), and we only want AI to override when it is quite certain
+    // its analysis is better (e.g. mixed-format files where heuristic guesses incorrectly).
+    const AI_DATE_FORMAT_CONFIDENCE_THRESHOLD = 0.8;
+    console.log('🤖 [IMPORT] Attempting AI document analysis (optional)...');
     const sampleRows = jsonData.slice(0, Math.min(20, jsonData.length));
     const aiAnalysisPrompt = `You are a data analyst for a Freedom Camping compliance system. Analyze this Excel data for historical vehicle observations.
 
@@ -354,7 +403,6 @@ Return ONLY a JSON object with this structure:
   "recommendations": ["recommendation1", "recommendation2"]
 }`;
 
-    let dateFormat = 'unknown';
     let aiAnalysis: any = null;
 
     try {
@@ -389,14 +437,19 @@ Return ONLY a JSON object with this structure:
         const content = aiData.choices[0]?.message?.content;
         if (content) {
           aiAnalysis = JSON.parse(content);
-          dateFormat = aiAnalysis.dateFormat || 'unknown';
-          console.log('✅ [IMPORT] AI Analysis complete:', JSON.stringify(aiAnalysis, null, 2));
+          // Only override heuristic detection if AI is highly confident
+          if (aiAnalysis.dateFormat && aiAnalysis.dateFormatConfidence >= AI_DATE_FORMAT_CONFIDENCE_THRESHOLD) {
+            dateFormat = aiAnalysis.dateFormat;
+            console.log(`✅ [IMPORT] AI overrides date format to: ${dateFormat} (confidence ${aiAnalysis.dateFormatConfidence})`);
+          } else {
+            console.log(`✅ [IMPORT] AI Analysis complete but low confidence; keeping heuristic format: ${dateFormat}`);
+          }
         }
       } else {
-        console.warn('⚠️ [IMPORT] AI analysis failed, falling back to standard parsing');
+        console.warn('⚠️ [IMPORT] AI analysis failed, using heuristic date format:', dateFormat);
       }
     } catch (aiError: any) {
-      console.warn('⚠️ [IMPORT] AI analysis error (non-critical):', aiError.message);
+      console.warn('⚠️ [IMPORT] AI analysis error (non-critical), using heuristic:', aiError.message);
     }
 
     // Parse records (skip header)
@@ -456,7 +509,20 @@ Return ONLY a JSON object with this structure:
           dateObj = new Date(dateValue);
           console.log(`📅 Row ${i + 1}: ISO date "${dateValue}" → ${dateObj.toISOString()}`);
         }
-        // Case 6: Generic string parsing fallback
+        // Case 6: Slash-delimited string with unknown format – default to DD/MM/YYYY (NZ convention)
+        else if (typeof dateValue === 'string' && dateValue.includes('/')) {
+          const parts = dateValue.trim().split('/');
+          if (parts.length === 3) {
+            const day = parseInt(parts[0], 10);
+            const month = parseInt(parts[1], 10) - 1;
+            const year = parseInt(parts[2], 10);
+            dateObj = new Date(year, month, day);
+            console.log(`📅 Row ${i + 1}: Unknown format – NZ DD/MM/YYYY fallback "${dateValue}" → ${dateObj.toISOString()}`);
+          } else {
+            dateObj = new Date(dateValue);
+          }
+        }
+        // Case 7: Generic string parsing (last resort)
         else if (typeof dateValue === 'string' && dateValue.trim()) {
           dateObj = new Date(dateValue);
           console.log(`📅 Row ${i + 1}: Generic string "${dateValue}" → ${dateObj.toISOString()}`);
@@ -554,18 +620,17 @@ Return ONLY a JSON object with this structure:
       console.warn(`⚠️ [IMPORT] ${errorLog.length} records skipped during parsing due to validation errors`);
     }
 
-    // Update progress: parsing complete with AI analysis
+    // Update batch record: parsing complete, about to do zone matching
     await supabaseAdmin
-      .from('import_history')
+      .from('import_batches')
       .update({
-        error_log: { 
-          total_rows: jsonData.length - 1, 
-          valid_records: parsedRecords.length,
-          ai_analysis: aiAnalysis,
-          detected_date_format: dateFormat,
-        },
+        parsed_records: parsedRecords.length,
+        status: 'zone_matching',
+        error_summary: errorLog.length > 0
+          ? `${errorLog.length} rows skipped during parsing`
+          : null,
       })
-      .eq('id', importHistoryId);
+      .eq('id', importBatchId);
 
     // Load zones across ALL organisations.
     // The import function was previously scoped to targetOrganizationId only,
@@ -725,6 +790,12 @@ Return ONLY a JSON object with this structure:
       zonesCreated = newZones?.length || 0;
       console.log(`✅ [IMPORT] Created ${zonesCreated} new zones under target org`);
 
+      // Update batch record with zones created count
+      await supabaseAdmin
+        .from('import_batches')
+        .update({ zones_created: zonesCreated, status: 'importing' })
+        .eq('id', importBatchId);
+
       // Update processed records with new zone IDs and org
       processedRecords.forEach(record => {
         if (record.isNewZone) {
@@ -736,6 +807,12 @@ Return ONLY a JSON object with this structure:
           }
         }
       });
+    } else {
+      // No new zones needed – move straight to importing
+      await supabaseAdmin
+        .from('import_batches')
+        .update({ zones_created: 0, status: 'importing' })
+        .eq('id', importBatchId);
     }
 
     // Process records in batches of 300 (user-requested batch size)
@@ -745,7 +822,7 @@ Return ONLY a JSON object with this structure:
       batches.push(processedRecords.slice(i, i + BATCH_SIZE));
     }
 
-    console.log(`🚀 [IMPORT] Starting AI-powered batch processing - ${batches.length} batches of 300 records`);
+    console.log(`🚀 [IMPORT] Starting batch processing - ${batches.length} batches of 300 records`);
 
     let successful = 0;
     let failed = 0;
@@ -757,24 +834,15 @@ Return ONLY a JSON object with this structure:
       const batch = batches[batchIndex];
       console.log(`📦 [IMPORT] Processing batch ${batchIndex + 1}/${batches.length} (${batch.length} records)`);
       
-      // Update progress in database for real-time UI updates
+      // Update progress in import_batches for real-time UI updates
       await supabaseAdmin
-        .from('import_history')
+        .from('import_batches')
         .update({
-          error_log: {
-            total_rows: jsonData.length - 1,
-            valid_records: parsedRecords.length,
-            zones_created: zonesCreated,
-            gps_inferred_records: gpsInferredCount,
-            gps_fallback_records: gpsFallbackCount,
-            current_batch: batchIndex + 1,
-            total_batches: batches.length,
-            batch_size: BATCH_SIZE,
-            parsing_errors: errorLog.slice(0, 100),
-            processing_errors: processingErrors.slice(0, 100),
-          },
+          processed_records: successful + failed,
+          successful_records: successful,
+          failed_records: failed,
         })
-        .eq('id', importHistoryId);
+        .eq('id', importBatchId);
 
       for (const record of batch) {
         try {
@@ -814,9 +882,9 @@ Return ONLY a JSON object with this structure:
           // Live scans use "deviceId:captureId".  Legacy imports use a
           // deterministic key so the same file can be re-imported safely
           // without creating duplicates:
-          //   import:<importHistoryId>:<plate>:<date>
+          //   import:<importBatchId>:<plate>:<date>
           // ============================================================
-          const idempotencyKey = `import:${importHistoryId}:${record.plate}:${record.date}`;
+          const idempotencyKey = `import:${importBatchId}:${record.plate}:${record.date}`;
 
           // Check whether this record was already imported (idempotency guard)
           const { data: existing } = await supabaseAdmin
@@ -932,35 +1000,35 @@ Return ONLY a JSON object with this structure:
 
       // Update progress after each batch
       await supabaseAdmin
-        .from('import_history')
+        .from('import_batches')
         .update({
-          records_imported: successful,
+          processed_records: successful + failed,
+          successful_records: successful,
           failed_records: failed,
-          error_log: { 
-            total_rows: jsonData.length - 1, 
-            valid_records: parsedRecords.length,
-            zones_created: zonesCreated,
-            gps_inferred_records: gpsInferredCount,
-            gps_fallback_records: gpsFallbackCount,
-            parsing_errors: errorLog.slice(0, 100), // Parsing phase errors
-            processing_errors: processingErrors.slice(0, 100) // Processing phase errors
-          },
+          error_summary: processingErrors.length > 0
+            ? `${processingErrors.length} records failed during import`
+            : null,
         })
-        .eq('id', importHistoryId);
+        .eq('id', importBatchId);
 
       console.log(`📊 [IMPORT] Batch ${batchIndex + 1} complete - Success: ${successful}, Failed: ${failed}`);
     }
 
-    // Mark import as complete
+    // Mark import batch as complete
     await supabaseAdmin
-      .from('import_history')
+      .from('import_batches')
       .update({
-        status: failed === processedRecords.length ? 'failed' : 'completed',
-        records_imported: successful,
-        duplicates_skipped: 0,
+        status: failed === processedRecords.length && processedRecords.length > 0 ? 'failed' : 'completed',
+        processed_records: successful + failed,
+        successful_records: successful,
         failed_records: failed,
+        zones_created: zonesCreated,
+        completed_at: new Date().toISOString(),
+        error_summary: processingErrors.length > 0
+          ? `${processingErrors.length} record(s) failed. First: ${processingErrors[0]?.error}`
+          : null,
       })
-      .eq('id', importHistoryId);
+      .eq('id', importBatchId);
 
     console.log(`✅ [IMPORT] Import complete!`);
     console.log(`   Total: ${processedRecords.length}`);
@@ -973,7 +1041,7 @@ Return ONLY a JSON object with this structure:
     return new Response(
       JSON.stringify({
         success: true,
-        import_history_id: importHistoryId,
+        batchId: importBatchId,
         summary: {
           total: processedRecords.length,
           successful,

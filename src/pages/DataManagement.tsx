@@ -100,9 +100,20 @@ export default function DataManagement() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <Button className="w-full" variant="outline">
-                Upload CSV File
-              </Button>
+              <div className="space-y-2">
+                <Link to="/import-historical">
+                  <Button className="w-full" variant="outline">
+                    Upload Historical CSV/Excel
+                    <ArrowRight className="h-4 w-4 ml-2" />
+                  </Button>
+                </Link>
+                <Link to="/import-data">
+                  <Button className="w-full" variant="outline">
+                    Import Other Data
+                    <ArrowRight className="h-4 w-4 ml-2" />
+                  </Button>
+                </Link>
+              </div>
             </CardContent>
           </Card>
 
