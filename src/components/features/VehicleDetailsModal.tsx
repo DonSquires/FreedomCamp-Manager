@@ -18,6 +18,7 @@ import {
 import { formatDateTime, formatDate } from '@/lib/utils'
 import { homelessStatusLabel, isHomelessForUi } from '@/lib/homelessStatus'
 import { getVehiclePhotoUrl } from '@/lib/photoUtils'
+import { PhotoWithFallback } from '@/components/features/PhotoWithFallback'
 
 interface VehicleDetailsModalProps {
   isOpen: boolean
@@ -97,10 +98,11 @@ export function VehicleDetailsModal({
           {/* Profile Photo */}
           {displayPhoto && (
             <div className="relative w-full h-48 bg-gray-100 rounded-lg overflow-hidden">
-              <img
+              <PhotoWithFallback
                 src={displayPhoto}
                 alt={`Vehicle ${vehicle.plate_number}`}
                 className="w-full h-full object-cover"
+                placeholderClassName="w-full h-full"
               />
               <div className="absolute top-2 right-2 flex gap-2">
                 <Button size="sm" variant="secondary" className="bg-white/90 hover:bg-white">

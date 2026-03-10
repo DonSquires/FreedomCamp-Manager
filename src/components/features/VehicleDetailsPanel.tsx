@@ -27,6 +27,7 @@ import { toast } from 'sonner'
 import type { Database } from '@/types/database'
 import { homelessStatusLabel, isHomelessForUi, normalizeHomelessStatus } from '@/lib/homelessStatus'
 import { getVehiclePhotoUrl, getObservationPhotoUrl } from '@/lib/photoUtils'
+import { PhotoWithFallback } from '@/components/features/PhotoWithFallback'
 
 type CanonicalVehicle = Database['public']['Tables']['canonical_vehicles']['Row']
 
@@ -157,10 +158,11 @@ export function VehicleDetailsPanel({
         {/* Profile Photo */}
         {displayPhoto && (
           <CardContent>
-            <img
+            <PhotoWithFallback
               src={displayPhoto}
               alt={vehicle.plate_number}
               className="w-full h-48 object-cover rounded-lg"
+              placeholderClassName="w-full h-48 rounded-lg"
             />
             {vehicle.profile_photo_selected_at && (
               <div className="text-xs text-muted-foreground mt-2">

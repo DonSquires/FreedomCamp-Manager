@@ -30,6 +30,8 @@ import { toast } from 'sonner'
 import { formatDateTime } from '@/lib/utils'
 import { checkNZSCVCertification, enrichVehicleFromMotorWeb } from '@/lib/railwayServices'
 import { getObservationPhotoUrl, getVehiclePhotoUrl } from '@/lib/photoUtils'
+import { PhotoWithFallback } from '@/components/features/PhotoWithFallback'
+import { VehiclePhotoGallery } from '@/components/features/VehiclePhotoGallery'
 
 interface CanonicalVehicle {
   id: string
@@ -340,17 +342,14 @@ export default function VehicleDetailPage() {
         <Card className="md:col-span-2">
           <CardContent className="p-6">
             <div className="flex gap-4 items-start">
-              {vehicleDisplayPhoto ? (
-                <img
+              <div className="w-28 h-20 rounded-lg border overflow-hidden shrink-0">
+                <PhotoWithFallback
                   src={vehicleDisplayPhoto}
                   alt={vehicle.plate_number}
-                  className="w-28 h-20 object-cover rounded-lg border"
+                  className="w-full h-full object-cover"
+                  placeholderClassName="w-full h-full"
                 />
-              ) : (
-                <div className="w-28 h-20 rounded-lg border bg-muted flex items-center justify-center">
-                  <Car className="h-10 w-10 text-muted-foreground/40" />
-                </div>
-              )}
+              </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
                   <h1 className="text-3xl font-mono font-bold">{vehicle.plate_number}</h1>
@@ -449,6 +448,9 @@ export default function VehicleDetailPage() {
           <TabsTrigger value="enforcement">
             Enforcement ({actions.length})
           </TabsTrigger>
+          <TabsTrigger value="photos">
+            Photos
+          </TabsTrigger>
         </TabsList>
 
         {/* Observations */}
@@ -465,17 +467,14 @@ export default function VehicleDetailPage() {
               <Card key={obs.id}>
                 <CardContent className="p-3">
                   <div className="flex items-start gap-3">
-                    {getObservationPhotoUrl(obs as any) ? (
-                      <img
-                        src={getObservationPhotoUrl(obs as any)!}
+                    <div className="w-16 h-12 rounded border overflow-hidden shrink-0">
+                      <PhotoWithFallback
+                        src={getObservationPhotoUrl(obs as any)}
                         alt="Observation"
-                        className="w-16 h-12 object-cover rounded border shrink-0"
+                        className="w-full h-full object-cover"
+                        placeholderClassName="w-full h-full"
                       />
-                    ) : (
-                      <div className="w-16 h-12 rounded border bg-muted flex items-center justify-center shrink-0">
-                        <ImageIcon className="h-5 w-5 text-muted-foreground/40" />
-                      </div>
-                    )}
+                    </div>
                     <div className="flex-1 min-w-0 space-y-0.5">
                       <div className="flex items-center gap-2 flex-wrap">
                         {obs.is_compliant === true && <Badge className="bg-green-600 text-xs">Compliant</Badge>}
@@ -588,6 +587,11 @@ export default function VehicleDetailPage() {
               </Card>
             ))
           )}
+        </TabsContent>
+
+        {/* Photos */}
+        <TabsContent value="photos" className="mt-4">
+          <VehiclePhotoGallery plateNumber={vehicle.plate_number} />
         </TabsContent>
       </Tabs>
     </AppLayout>
