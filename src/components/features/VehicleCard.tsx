@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button'
 import { Car, MapPin, Calendar, AlertTriangle, Shield, Eye } from 'lucide-react'
 import { formatDateTime } from '@/lib/utils'
 import { homelessStatusLabel, isHomelessForUi } from '@/lib/homelessStatus'
+import { getVehiclePhotoUrl } from '@/lib/photoUtils'
 import type { Vehicle } from '@/types'
 
 interface VehicleCardProps {
@@ -14,6 +15,7 @@ interface VehicleCardProps {
 
 export function VehicleCard({ vehicle, onViewDetails, showActions = true }: VehicleCardProps) {
   const complianceStatus = vehicle.total_breaches === 0 ? 'compliant' : 'breach'
+  const displayPhoto = getVehiclePhotoUrl(vehicle)
   
   return (
     <Card className="hover:shadow-lg transition-shadow">
@@ -47,10 +49,10 @@ export function VehicleCard({ vehicle, onViewDetails, showActions = true }: Vehi
       <CardContent>
         <div className="space-y-3">
           {/* Profile Photo */}
-          {vehicle.profile_photo && (
+          {displayPhoto && (
             <div className="relative w-full h-32 bg-gray-100 rounded-lg overflow-hidden">
-              <img 
-                src={vehicle.profile_photo} 
+              <img
+                src={displayPhoto}
                 alt={`Vehicle ${vehicle.plate_number}`}
                 className="w-full h-full object-cover"
               />

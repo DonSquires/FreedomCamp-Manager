@@ -30,6 +30,7 @@ import {
   Eye,
 } from 'lucide-react'
 import { formatDateTime } from '@/lib/utils'
+import { getObservationPhotoUrl } from '@/lib/photoUtils'
 
 interface Observation {
   id: string
@@ -110,7 +111,7 @@ export default function ObservationsView() {
   }, [observations, searchPlate])
 
   const withGPS = useMemo(() => filtered.filter((o) => o.gps_latitude && o.gps_longitude), [filtered])
-  const withPhoto = useMemo(() => filtered.filter((o) => o.photo_url), [filtered])
+  const withPhoto = useMemo(() => filtered.filter((o) => getObservationPhotoUrl(o as any)), [filtered])
 
   // For heatmap: cluster GPS points into a grid and calculate density
   const heatCells = useMemo(() => {
@@ -215,11 +216,11 @@ export default function ObservationsView() {
                       {/* Thumbnail */}
                       <div
                         className="h-14 w-14 shrink-0 rounded-md overflow-hidden bg-muted cursor-pointer"
-                        onClick={() => obs.photo_url && setSelectedPhoto(obs)}
+                        onClick={() => getObservationPhotoUrl(obs as any) && setSelectedPhoto(obs)}
                       >
-                        {obs.photo_url ? (
+                        {getObservationPhotoUrl(obs as any) ? (
                           <img
-                            src={obs.photo_url}
+                            src={getObservationPhotoUrl(obs as any)!}
                             alt={obs.plate_number}
                             className="h-full w-full object-cover"
                             loading="lazy"
@@ -361,7 +362,7 @@ export default function ObservationsView() {
                                 >
                                   {obs.is_compliant ? 'Compliant' : 'In Breach'}
                                 </Badge>
-                                {obs.photo_url && (
+                                {getObservationPhotoUrl(obs as any) && (
                                   <button
                                     className="flex items-center gap-1 text-xs text-blue-600 mt-1 underline"
                                     onClick={() => setSelectedPhoto(obs)}
@@ -403,7 +404,7 @@ export default function ObservationsView() {
                     onClick={() => setSelectedPhoto(obs)}
                   >
                     <img
-                      src={obs.photo_url!}
+                      src={getObservationPhotoUrl(obs as any)!}
                       alt={obs.plate_number}
                       className="h-full w-full object-cover"
                       loading="lazy"
@@ -439,10 +440,10 @@ export default function ObservationsView() {
               </span>
             </DialogTitle>
           </DialogHeader>
-          {selectedPhoto?.photo_url && (
+          {getObservationPhotoUrl(selectedPhoto as any) && (
             <div className="mt-2">
               <img
-                src={selectedPhoto.photo_url}
+                src={getObservationPhotoUrl(selectedPhoto as any)!}
                 alt={selectedPhoto.plate_number}
                 className="w-full rounded-md object-contain max-h-[60vh]"
               />

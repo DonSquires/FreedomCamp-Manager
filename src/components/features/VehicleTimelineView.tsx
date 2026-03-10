@@ -19,7 +19,9 @@ import {
   Clock,
   Filter,
   Eye,
+  Car,
 } from 'lucide-react'
+import { getObservationPhotoUrl } from '@/lib/photoUtils'
 
 interface VehicleTimelineViewProps {
   plateNumber: string
@@ -208,12 +210,16 @@ export function VehicleTimelineView({
                           </div>
 
                           {/* Photo */}
-                          {obs.photo_url && (
+                          {getObservationPhotoUrl(obs as any) ? (
                             <img
-                              src={obs.photo_url}
+                              src={getObservationPhotoUrl(obs as any)!}
                               alt="Observation"
                               className="w-full h-32 object-cover rounded mb-3"
                             />
+                          ) : (
+                            <div className="w-full h-32 rounded mb-3 bg-muted flex items-center justify-center">
+                              <Car className="h-8 w-8 text-muted-foreground/40" />
+                            </div>
                           )}
 
                           {/* Details */}

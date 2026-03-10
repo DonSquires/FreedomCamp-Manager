@@ -17,6 +17,7 @@ import {
 } from 'lucide-react'
 import { formatDateTime, formatDate } from '@/lib/utils'
 import { homelessStatusLabel, isHomelessForUi } from '@/lib/homelessStatus'
+import { getVehiclePhotoUrl } from '@/lib/photoUtils'
 
 interface VehicleDetailsModalProps {
   isOpen: boolean
@@ -65,6 +66,8 @@ export function VehicleDetailsModal({
   observations = [],
   breaches = [],
 }: VehicleDetailsModalProps) {
+  const displayPhoto = getVehiclePhotoUrl(vehicle)
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
@@ -92,10 +95,10 @@ export function VehicleDetailsModal({
 
         <div className="space-y-6">
           {/* Profile Photo */}
-          {vehicle.profile_photo && (
+          {displayPhoto && (
             <div className="relative w-full h-48 bg-gray-100 rounded-lg overflow-hidden">
-              <img 
-                src={vehicle.profile_photo} 
+              <img
+                src={displayPhoto}
                 alt={`Vehicle ${vehicle.plate_number}`}
                 className="w-full h-full object-cover"
               />

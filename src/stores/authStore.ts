@@ -37,30 +37,35 @@ export const useAuthStore = create<AuthState>()(
         authListenerInitialized = true
 
         supabase.auth.onAuthStateChange(async (_event, session) => {
-          if (!session) {
+          try {
+            if (!session) {
+              set({ user: null, isAuthenticated: false, loading: false })
+              return
+            }
+
+            const { data: profile } = await (supabase.from('user_profiles') as any)
+              .select('id, email, role, organization_id, first_name, last_name')
+              .eq('id', session.user.id)
+              .single()
+
+            if (!profile) {
+              set({ user: null, isAuthenticated: false, loading: false })
+              return
+            }
+
+            const authUser: AuthUser = {
+              id: profile.id,
+              email: profile.email,
+              role: profile.role as AuthUser['role'],
+              organization_id: profile.organization_id,
+              full_name: `${profile.first_name} ${profile.last_name}`,
+            }
+
+            set({ user: authUser, isAuthenticated: true, loading: false })
+          } catch (error) {
+            console.warn('[authStore] onAuthStateChange failed:', error)
             set({ user: null, isAuthenticated: false, loading: false })
-            return
           }
-
-          const { data: profile } = await (supabase.from('user_profiles') as any)
-            .select('id, email, role, organization_id, first_name, last_name')
-            .eq('id', session.user.id)
-            .single()
-
-          if (!profile) {
-            set({ user: null, isAuthenticated: false, loading: false })
-            return
-          }
-
-          const authUser: AuthUser = {
-            id: profile.id,
-            email: profile.email,
-            role: profile.role as AuthUser['role'],
-            organization_id: profile.organization_id,
-            full_name: `${profile.first_name} ${profile.last_name}`,
-          }
-
-          set({ user: authUser, isAuthenticated: true, loading: false })
         })
       },
 
@@ -110,34 +115,39 @@ export const useAuthStore = create<AuthState>()(
       },
 
       checkSession: async () => {
-        const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+        try {
+          const { data: { session }, error: sessionError } = await supabase.auth.getSession()
 
-        if (sessionError) {
-          set({ user: null, isAuthenticated: false, loading: false })
-          return
-        }
-        
-        if (!session) {
-          set({ user: null, isAuthenticated: false, loading: false })
-          return
-        }
-
-        // Fetch user profile
-        const { data: profile } = await (supabase.from('user_profiles') as any)
-          .select('id, email, role, organization_id, first_name, last_name')
-          .eq('id', session.user.id)
-          .single()
-
-        if (profile) {
-          const authUser: AuthUser = {
-            id: profile.id,
-            email: profile.email,
-            role: profile.role as AuthUser['role'],
-            organization_id: profile.organization_id,
-            full_name: `${profile.first_name} ${profile.last_name}`,
+          if (sessionError) {
+            set({ user: null, isAuthenticated: false, loading: false })
+            return
           }
-          set({ user: authUser, isAuthenticated: true, loading: false })
-        } else {
+
+          if (!session) {
+            set({ user: null, isAuthenticated: false, loading: false })
+            return
+          }
+
+          // Fetch user profile
+          const { data: profile } = await (supabase.from('user_profiles') as any)
+            .select('id, email, role, organization_id, first_name, last_name')
+            .eq('id', session.user.id)
+            .single()
+
+          if (profile) {
+            const authUser: AuthUser = {
+              id: profile.id,
+              email: profile.email,
+              role: profile.role as AuthUser['role'],
+              organization_id: profile.organization_id,
+              full_name: `${profile.first_name} ${profile.last_name}`,
+            }
+            set({ user: authUser, isAuthenticated: true, loading: false })
+          } else {
+            set({ user: null, isAuthenticated: false, loading: false })
+          }
+        } catch (error) {
+          console.warn('[authStore] checkSession failed:', error)
           set({ user: null, isAuthenticated: false, loading: false })
         }
       },

@@ -21,6 +21,7 @@ import {
   Filter,
 } from 'lucide-react'
 import { toast } from 'sonner'
+import { getObservationPhotoUrl } from '@/lib/photoUtils'
 
 interface ScanHistoryViewerProps {
   limit?: number
@@ -178,12 +179,16 @@ export function ScanHistoryViewer({
                 className="flex items-start gap-3 p-3 border rounded-lg hover:bg-muted/50 transition-colors"
               >
                 {/* Photo thumbnail */}
-                {scan.photo_url && (
+                {getObservationPhotoUrl(scan as any) ? (
                   <img
-                    src={scan.photo_url}
+                    src={getObservationPhotoUrl(scan as any)!}
                     alt={scan.plate_number}
                     className="w-20 h-20 object-cover rounded"
                   />
+                ) : (
+                  <div className="w-20 h-20 rounded bg-muted flex items-center justify-center">
+                    <Clock className="h-7 w-7 text-muted-foreground/40" />
+                  </div>
                 )}
 
                 {/* Details */}

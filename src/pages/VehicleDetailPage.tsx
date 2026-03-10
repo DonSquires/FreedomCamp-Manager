@@ -29,6 +29,7 @@ import {
 import { toast } from 'sonner'
 import { formatDateTime } from '@/lib/utils'
 import { checkNZSCVCertification, enrichVehicleFromMotorWeb } from '@/lib/railwayServices'
+import { getObservationPhotoUrl, getVehiclePhotoUrl } from '@/lib/photoUtils'
 
 interface CanonicalVehicle {
   id: string
@@ -289,6 +290,8 @@ export default function VehicleDetailPage() {
   const activeBreaches = breaches.filter(b =>
     ['pending', 'acknowledged', 'enforcement_started'].includes(b.status)
   )
+  const latestObservationPhoto = getObservationPhotoUrl(observations[0] as any)
+  const vehicleDisplayPhoto = getVehiclePhotoUrl(vehicle, latestObservationPhoto)
 
   return (
     <AppLayout
@@ -337,9 +340,9 @@ export default function VehicleDetailPage() {
         <Card className="md:col-span-2">
           <CardContent className="p-6">
             <div className="flex gap-4 items-start">
-              {vehicle.profile_photo ? (
+              {vehicleDisplayPhoto ? (
                 <img
-                  src={vehicle.profile_photo}
+                  src={vehicleDisplayPhoto}
                   alt={vehicle.plate_number}
                   className="w-28 h-20 object-cover rounded-lg border"
                 />
@@ -462,9 +465,9 @@ export default function VehicleDetailPage() {
               <Card key={obs.id}>
                 <CardContent className="p-3">
                   <div className="flex items-start gap-3">
-                    {obs.photo_url ? (
+                    {getObservationPhotoUrl(obs as any) ? (
                       <img
-                        src={obs.photo_url}
+                        src={getObservationPhotoUrl(obs as any)!}
                         alt="Observation"
                         className="w-16 h-12 object-cover rounded border shrink-0"
                       />

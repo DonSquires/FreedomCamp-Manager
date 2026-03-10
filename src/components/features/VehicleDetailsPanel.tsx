@@ -26,6 +26,7 @@ import {
 import { toast } from 'sonner'
 import type { Database } from '@/types/database'
 import { homelessStatusLabel, isHomelessForUi, normalizeHomelessStatus } from '@/lib/homelessStatus'
+import { getVehiclePhotoUrl, getObservationPhotoUrl } from '@/lib/photoUtils'
 
 type CanonicalVehicle = Database['public']['Tables']['canonical_vehicles']['Row']
 
@@ -67,6 +68,23 @@ export function VehicleDetailsPanel({
     },
   })
 
+  const { data: latestObservationPhoto } = useQuery({
+    queryKey: ['vehicle-latest-photo', plateNumber],
+    queryFn: async () => {
+      const { data, error } = await (supabase.from('observations') as any)
+        .select('photo_url, recorded_at')
+        .eq('plate_number', plateNumber)
+        .not('photo_url', 'is', null)
+        .order('recorded_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+
+      if (error) throw error
+      return getObservationPhotoUrl(data)
+    },
+    enabled: !!plateNumber,
+  })
+
   if (isLoading) {
     return (
       <Card>
@@ -86,6 +104,8 @@ export function VehicleDetailsPanel({
       </Card>
     )
   }
+
+  const displayPhoto = getVehiclePhotoUrl(vehicle, latestObservationPhoto)
 
   const formatDate = (date: string | null) => {
     if (!date) return 'N/A'
@@ -135,10 +155,10 @@ export function VehicleDetailsPanel({
         </CardHeader>
 
         {/* Profile Photo */}
-        {vehicle.profile_photo && (
+        {displayPhoto && (
           <CardContent>
             <img
-              src={vehicle.profile_photo}
+              src={displayPhoto}
               alt={vehicle.plate_number}
               className="w-full h-48 object-cover rounded-lg"
             />

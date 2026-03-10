@@ -18,6 +18,7 @@ import {
 } from 'lucide-react'
 import { formatDateTime } from '@/lib/utils'
 import { HOMELESS_UI_STATUSES, isHomelessForUi } from '@/lib/homelessStatus'
+import { getObservationPhotoUrl, getVehiclePhotoUrl } from '@/lib/photoUtils'
 
 interface RegistryVehicle {
   id: string
@@ -100,7 +101,43 @@ export default function VehicleRegistry() {
 
       const { data, error } = await query
       if (error) throw error
-      return (data ?? []) as RegistryVehicle[]
+
+      const rows = (data ?? []) as RegistryVehicle[]
+      const missingPhotoPlates = rows
+        .filter((v) => !getVehiclePhotoUrl(v))
+        .map((v) => v.plate_number)
+
+      if (missingPhotoPlates.length === 0) return rows
+
+      let latestObsQuery = (supabase.from('observations') as any)
+        .select('plate_number, photo_url, recorded_at')
+        .in('plate_number', missingPhotoPlates)
+        .not('photo_url', 'is', null)
+        .order('recorded_at', { ascending: false })
+        .limit(Math.max(400, missingPhotoPlates.length * 5))
+
+      if (effectiveOrganizationId) {
+        latestObsQuery = latestObsQuery.eq('organization_id', effectiveOrganizationId)
+      }
+
+      const { data: latestPhotos, error: latestPhotoError } = await latestObsQuery
+      if (latestPhotoError) throw latestPhotoError
+
+      const photoByPlate: Record<string, string> = {}
+      for (const row of latestPhotos ?? []) {
+        const plate = row.plate_number as string | null
+        if (!plate || photoByPlate[plate]) continue
+        const resolved = getObservationPhotoUrl(row as any)
+        if (resolved) photoByPlate[plate] = resolved
+      }
+
+      return rows.map((v) => {
+        const fallback = photoByPlate[v.plate_number] ?? null
+        return {
+          ...v,
+          profile_photo: getVehiclePhotoUrl(v, fallback),
+        }
+      })
     },
     enabled: !!user,
   })

@@ -4,6 +4,31 @@ import type { Database } from '@/types/database'
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 
+type SupabaseLock = <T>(
+  name: string,
+  acquireTimeout: number,
+  fn: () => Promise<T>
+) => Promise<T>
+
+const fallbackLock: SupabaseLock = async <T>(_name: string, _acquireTimeout: number, fn: () => Promise<T>) => {
+  return fn()
+}
+
+const browserLock: SupabaseLock = async <T>(name: string, _acquireTimeout: number, fn: () => Promise<T>) => {
+  if (typeof window === 'undefined' || !('locks' in navigator)) {
+    return fn()
+  }
+
+  try {
+    return await navigator.locks.request(name, { mode: 'exclusive' }, async () => fn())
+  } catch (error: unknown) {
+    if (error instanceof DOMException && error.name === 'AbortError') {
+      return fn()
+    }
+    throw error
+  }
+}
+
 /**
  * True when both VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY are present.
  * Used by the app entry-point to guard rendering when the deployment platform
@@ -28,6 +53,7 @@ export const supabase = createClient<Database>(
     auth: {
       persistSession: true,
       autoRefreshToken: true,
+      lock: typeof window === 'undefined' ? fallbackLock : browserLock,
     },
     global: {
       headers: {
