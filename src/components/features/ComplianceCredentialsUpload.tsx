@@ -3,6 +3,7 @@ import { Upload, FileText, Download, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { toast } from 'sonner'
 import { cn } from '@/lib/utils'
+import { supabase } from '@/lib/supabase'
 
 interface ExistingDocument {
   url: string
@@ -59,19 +60,19 @@ export function ComplianceCredentialsUpload({
     }
     setIsUploading(true)
     try {
-      // TODO: Replace with actual Supabase storage upload
-      await new Promise((res) => setTimeout(res, 800))
-      const blobUrl = URL.createObjectURL(selectedFile)
-      try {
-        toast.success('Document uploaded')
-        if (onUploadComplete) onUploadComplete(blobUrl, selectedType)
-      } finally {
-        // Revoke immediately — caller should use the URL synchronously or store a copy
-        URL.revokeObjectURL(blobUrl)
-      }
+      const uniqueSuffix = `${Date.now()}-${crypto.randomUUID().slice(0, 8)}`
+      const filePath = `vehicle-documents/${vehicleId}/${selectedType}/${uniqueSuffix}-${selectedFile.name}`
+      const { error: uploadError } = await supabase.storage
+        .from('scans')
+        .upload(filePath, selectedFile, { contentType: selectedFile.type, upsert: false })
+      if (uploadError) throw new Error(uploadError.message)
+      const { data: urlData } = supabase.storage.from('scans').getPublicUrl(filePath)
+      const publicUrl = urlData.publicUrl
+      toast.success('Document uploaded')
+      if (onUploadComplete) onUploadComplete(publicUrl, selectedType)
       setSelectedFile(null)
-    } catch {
-      toast.error('Upload failed. Please try again.')
+    } catch (err: any) {
+      toast.error(err.message || 'Upload failed. Please try again.')
     } finally {
       setIsUploading(false)
     }

@@ -444,7 +444,7 @@ export const edgeFunctions = {
   },
 
   /**
-   * Recover missing/stale observation photos using ParkPow as source-of-truth.
+   * Recover deleted observation photos using ParkPow as source-of-truth.
    */
   recoverObservationPhotos: async (params: {
     organization_id?: string
@@ -887,7 +887,7 @@ export const edgeFunctions = {
   },
 
   /**
-   * OnSpace AI chat for bug analysis
+   * AI chat for bug analysis
    */
   onspaceAIChat: async (params: {
     message: string

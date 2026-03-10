@@ -55,8 +55,7 @@ const browserLock: SupabaseLock = async <T>(name: string, _acquireTimeout: numbe
 /**
  * True when both VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY are present.
  * Used by the app entry-point to guard rendering when the deployment platform
- * (e.g. OnSpace AI at https://react-9b4t5o.onspace.build) has not yet had its
- * environment variables configured.
+ * has not yet had its environment variables configured.
  */
 export const supabaseConfigured = !!(supabaseUrl && supabaseAnonKey)
 
@@ -64,7 +63,7 @@ if (!supabaseConfigured) {
   console.warn(
     '[FreedomCamp Manager] VITE_SUPABASE_URL and/or VITE_SUPABASE_ANON_KEY are not set. ' +
     'Configure these environment variables in your deployment platform ' +
-    '(OnSpace AI dashboard → Environment Variables, or GitHub Secrets for the CI workflow). ' +
+    '(Environment Variables dashboard, or GitHub Secrets for the CI workflow). ' +
     'The application will not function until they are provided.'
   )
 }

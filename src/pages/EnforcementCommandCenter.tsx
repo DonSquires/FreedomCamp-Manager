@@ -160,11 +160,23 @@ export default function EnforcementCommandCenter() {
         pendingActionQuery = pendingActionQuery.lte('created_at', endDate)
       }
 
-      const [breachResult, patrolResult, noticeResult, pendingResult] = await Promise.all([
+      // Resolutions today: breach_alerts resolved since start of today
+      let resolutionsQuery = supabase
+        .from('breach_alerts')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'resolved')
+        .gte('resolved_at', `${today}T00:00:00Z`)
+
+      if (effectiveOrganizationId) {
+        resolutionsQuery = resolutionsQuery.eq('organization_id', effectiveOrganizationId)
+      }
+
+      const [breachResult, patrolResult, noticeResult, pendingResult, resolutionResult] = await Promise.all([
         breachQuery,
         patrolQuery,
         noticeQuery,
         pendingActionQuery,
+        resolutionsQuery,
       ])
 
       return {
@@ -173,7 +185,7 @@ export default function EnforcementCommandCenter() {
         active_patrols: patrolResult.count || 0,
         officers_on_duty: patrolResult.count || 0, // Simplified
         notices_issued_today: noticeResult.count || 0,
-        resolutions_today: 0, // TODO: Calculate from breach_alerts.resolved_at
+        resolutions_today: resolutionResult.count || 0,
       } as EnforcementStats
     },
     refetchInterval: 30000, // Refresh every 30s

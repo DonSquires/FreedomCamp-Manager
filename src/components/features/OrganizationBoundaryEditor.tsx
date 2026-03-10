@@ -129,6 +129,58 @@ export function OrganizationBoundaryEditor({
   }
 
   /**
+   * Convert WKT (Well-Known Text) geometry string to a GeoJSON geometry object.
+   * Supports POLYGON and MULTIPOLYGON (with or without SRID= prefix).
+   */
+  const wktToGeoJson = (wkt: string): any => {
+    // Strip optional SRID prefix: "SRID=4326;POLYGON(...)" → "POLYGON(...)"
+    const clean = wkt.trim().replace(/^SRID=\d+;/i, '').trim()
+
+    const parseRing = (ringStr: string): number[][] => {
+      return ringStr.trim().split(',').map(pair => {
+        const parts = pair.trim().split(/\s+/)
+        if (parts.length < 2) throw new Error(`Invalid coordinate pair: "${pair}". Expected WKT format: "longitude latitude" (space-separated)`)
+        return [parseFloat(parts[0]), parseFloat(parts[1])]
+      })
+    }
+
+    const parsePolygonContent = (content: string): number[][][] => {
+      const rings: number[][][] = []
+      const ringMatches = content.match(/\([^()]+\)/g)
+      if (!ringMatches) throw new Error('No rings found in POLYGON')
+      for (const rm of ringMatches) {
+        rings.push(parseRing(rm.slice(1, -1)))
+      }
+      return rings
+    }
+
+    const upperClean = clean.toUpperCase()
+
+    if (upperClean.startsWith('MULTIPOLYGON')) {
+      const inner = clean.slice(clean.indexOf('(') + 1, clean.lastIndexOf(')'))
+      const polygons: number[][][][] = []
+      let depth = 0, start = 0
+      for (let i = 0; i < inner.length; i++) {
+        if (inner[i] === '(') { if (depth === 0) start = i; depth++ }
+        else if (inner[i] === ')') {
+          depth--
+          if (depth === 0) {
+            polygons.push(parsePolygonContent(inner.slice(start + 1, i)))
+          }
+        }
+      }
+      return { type: 'MultiPolygon', coordinates: polygons }
+    }
+
+    if (upperClean.startsWith('POLYGON')) {
+      const inner = clean.slice(clean.indexOf('(') + 1, clean.lastIndexOf(')'))
+      return { type: 'Polygon', coordinates: parsePolygonContent(inner) }
+    }
+
+    throw new Error('WKT must be POLYGON or MULTIPOLYGON')
+  }
+
+  /**
    * NORMALIZE GEOJSON
    * - Snap coordinates to 6 decimal places (~10cm precision)
    * - Remove Z/M coordinates
@@ -202,10 +254,8 @@ export function OrganizationBoundaryEditor({
       let geojson: any
 
       if (fileExt === '.wkt') {
-        // TODO: Convert WKT to GeoJSON (requires library or server-side conversion)
-        toast.error('WKT format support coming soon. Please use GeoJSON for now.')
-        setValidating(false)
-        return
+        const geometry = wktToGeoJson(content)
+        geojson = { type: 'Feature', geometry, properties: {} }
       } else {
         geojson = JSON.parse(content)
       }

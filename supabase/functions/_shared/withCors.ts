@@ -23,9 +23,9 @@ type OriginMatcher = (origin: string | null) => string | null;
 
 // Exact production domains (strict allowlist)
 const ALLOWED_ORIGINS_EXACT = new Set<string>([
-  'https://freedomcampmanager.onspace.build',  // Custom Onspace subdomain
-  'https://fcmanager.co.nz',                   // Custom domain
-  'https://www.onspace.ai',                    // Onspace main site
+  'https://freedomcampmanager.onspace.build',  // Hosted app build
+  'https://fcmanager.co.nz',                   // Production domain
+  'https://www.fcmanager.co.nz',               // Production domain (www)
   'https://react-9b4t5o.onspace.build',        // Static build
   'http://localhost:5173',                      // Local dev
   'http://localhost:3000',                      // Local dev (alternate port)
@@ -33,7 +33,7 @@ const ALLOWED_ORIGINS_EXACT = new Set<string>([
 
 /**
  * Check if origin matches ephemeral preview subdomain pattern
- * Onspace generates: preview-react-9b4t5o-<random>.onspace.build
+ * Preview builds generate: preview-react-9b4t5o-<random>.onspace.build
  */
 function isAllowedPreview(origin: string): boolean {
   try {

@@ -6,6 +6,7 @@ import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
 import { edgeFunctions } from '@/lib/edgeFunctions'
 import { railwayServices } from '@/lib/railwayServices'
+import { resolveObservationZoneForOrg } from '@/lib/zoneResolution'
 import { useAuthStore } from '@/stores/authStore'
 
 interface PlateScannerProps {
@@ -137,13 +138,7 @@ export function PlateScanner({ onScanComplete, onCancel }: PlateScannerProps) {
         throw new Error('No organization is assigned to the current user')
       }
 
-      const { data: zoneId, error: zoneError } = await (supabase as any).rpc('ensure_other_location_zone', {
-        p_organization_id: user.organization_id,
-      })
-
-      if (zoneError || !zoneId) {
-        throw new Error(zoneError?.message || 'Could not resolve zone for observation')
-      }
+      const { zoneId } = await resolveObservationZoneForOrg(user.organization_id)
 
       // Step 3: Create full observation via vehicle-ingest
       toast.info('Creating observation...')

@@ -6,6 +6,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/stores/authStore'
 import { toast } from 'sonner'
+import { supabase } from '@/lib/supabase'
 
 interface QueuedObservation {
   id: string
@@ -183,9 +184,33 @@ export function useOfflineQueue() {
       queryClient.invalidateQueries({ queryKey: ['offline-queue'] })
 
       try {
-        // TODO: Call vehicle-ingest Edge Function
-        // For now, simulate sync
-        await new Promise(resolve => setTimeout(resolve, 1000))
+        // Convert photo_blob to base64 data URL if available
+        let imageDataUrl: string | undefined
+        if (observation.photo_blob) {
+          imageDataUrl = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader()
+            reader.onload = () => resolve(reader.result as string)
+            reader.onerror = () => reject(reader.error)
+            reader.readAsDataURL(observation.photo_blob)
+          })
+        }
+
+        // Call vehicle-ingest Edge Function to sync observation
+        const { error: invokeError } = await supabase.functions.invoke('vehicle-ingest', {
+          body: {
+            plate: observation.plate_number,
+            zoneId: observation.zone_id,
+            gpsLatitude: observation.gps_latitude,
+            gpsLongitude: observation.gps_longitude,
+            gpsAccuracy: observation.gps_accuracy,
+            recordedAt: observation.recorded_at,
+            notes: observation.officer_notes,
+            weather_conditions: observation.weather_conditions,
+            ...(imageDataUrl ? { image: imageDataUrl } : {}),
+            requires_manual_entry: !observation.plate_number,
+          },
+        })
+        if (invokeError) throw new Error(invokeError.message)
 
         // Mark as synced and remove from queue
         await updateInDB(id, { status: 'synced' })
