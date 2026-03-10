@@ -120,13 +120,22 @@ function RoleRoute({
 }
 
 export default function App() {
-  const { user, loading, checkSession, initializeAuth } = useAuthStore()
+  const { user, loading, checkSession, initializeAuth, ensureLoadingResolved } = useAuthStore()
 
   // Check session on app load
   useEffect(() => {
     initializeAuth()
     checkSession()
-  }, [checkSession, initializeAuth])
+
+    // Safety net: never block routing indefinitely on auth init.
+    const loadingFallback = window.setTimeout(() => {
+      ensureLoadingResolved()
+    }, 12000)
+
+    return () => {
+      window.clearTimeout(loadingFallback)
+    }
+  }, [checkSession, ensureLoadingResolved, initializeAuth])
 
   // Show loading state while checking session
   if (loading) {

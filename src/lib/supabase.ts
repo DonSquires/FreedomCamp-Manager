@@ -4,6 +4,29 @@ import type { Database } from '@/types/database'
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 
+const memoryStorage = new Map<string, string>()
+
+const sessionAuthStorage = {
+  getItem: (key: string) => {
+    if (typeof window === 'undefined') return memoryStorage.get(key) ?? null
+    return window.sessionStorage.getItem(key)
+  },
+  setItem: (key: string, value: string) => {
+    if (typeof window === 'undefined') {
+      memoryStorage.set(key, value)
+      return
+    }
+    window.sessionStorage.setItem(key, value)
+  },
+  removeItem: (key: string) => {
+    if (typeof window === 'undefined') {
+      memoryStorage.delete(key)
+      return
+    }
+    window.sessionStorage.removeItem(key)
+  },
+}
+
 type SupabaseLock = <T>(
   name: string,
   acquireTimeout: number,
@@ -54,6 +77,7 @@ export const supabase = createClient<Database>(
       persistSession: true,
       autoRefreshToken: true,
       lock: typeof window === 'undefined' ? fallbackLock : browserLock,
+      storage: sessionAuthStorage,
     },
     global: {
       headers: {

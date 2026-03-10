@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { persist } from 'zustand/middleware'
+import { createJSONStorage, persist } from 'zustand/middleware'
 import { supabase } from '@/lib/supabase'
 
 let authListenerInitialized = false
@@ -16,6 +16,7 @@ interface AuthState {
   user: AuthUser | null
   isAuthenticated: boolean
   loading: boolean
+  ensureLoadingResolved: () => void
   login: (email: string, password: string) => Promise<void>
   logout: () => Promise<void>
   checkSession: () => Promise<void>
@@ -28,6 +29,13 @@ export const useAuthStore = create<AuthState>()(
       user: null,
       isAuthenticated: false,
       loading: true,
+
+      ensureLoadingResolved: () => {
+        set((state) => {
+          if (!state.loading) return state
+          return { ...state, loading: false, isAuthenticated: !!state.user }
+        })
+      },
 
       initializeAuth: () => {
         if (authListenerInitialized) {
@@ -116,7 +124,15 @@ export const useAuthStore = create<AuthState>()(
 
       checkSession: async () => {
         try {
-          const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+          const sessionPromise = supabase.auth.getSession()
+          const timeoutPromise = new Promise<never>((_, reject) => {
+            setTimeout(() => reject(new Error('Auth session check timed out')), 10000)
+          })
+
+          const { data: { session }, error: sessionError } = await Promise.race([
+            sessionPromise,
+            timeoutPromise,
+          ])
 
           if (sessionError) {
             set({ user: null, isAuthenticated: false, loading: false })
@@ -154,6 +170,7 @@ export const useAuthStore = create<AuthState>()(
     }),
     {
       name: 'auth-storage',
+      storage: createJSONStorage(() => sessionStorage),
       // Persist only user profile details; auth truth comes from Supabase session.
       partialize: (state) => ({ user: state.user }),
     }

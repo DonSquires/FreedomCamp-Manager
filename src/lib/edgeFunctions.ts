@@ -11,6 +11,45 @@ import { FunctionsHttpError } from '@supabase/supabase-js'
 
 const ACCESS_TOKEN_REFRESH_BUFFER_MS = 60_000
 
+async function readFunctionsErrorText(error: FunctionsHttpError): Promise<string> {
+  try {
+    const response = error.context as Response | undefined
+    if (!response) return ''
+
+    // Clone to avoid consuming the original body stream for other handlers.
+    const readable = typeof response.clone === 'function' ? response.clone() : response
+    return await readable.text()
+  } catch {
+    return ''
+  }
+}
+
+async function isJwtAuthError(error: unknown): Promise<boolean> {
+  if (!(error instanceof FunctionsHttpError)) return false
+
+  const statusCode = error.context?.status ?? 0
+  if (statusCode !== 401) return false
+
+  const textContent = await readFunctionsErrorText(error)
+  if (!textContent) return false
+
+  try {
+    const parsed = JSON.parse(textContent)
+    const gatewayMsg: string = parsed?.message || ''
+    return gatewayMsg === 'Invalid JWT' || gatewayMsg === 'JWT expired'
+  } catch {
+    return false
+  }
+}
+
+async function tryRefreshAccessToken(): Promise<string | null> {
+  const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession()
+  if (refreshError || !refreshData.session) {
+    return null
+  }
+  return refreshData.session.access_token
+}
+
 async function getValidAccessToken(): Promise<string | null> {
   const { data: sessionData, error: sessionError } = await supabase.auth.getSession()
 
@@ -19,23 +58,25 @@ async function getValidAccessToken(): Promise<string | null> {
   }
 
   if (!sessionData.session) {
-    return null
+    // Recover from transient client state where refresh token exists but active
+    // session has not been rehydrated yet.
+    return tryRefreshAccessToken()
   }
 
-  let session = sessionData.session
+  const session = sessionData.session
   const expiresAtMs = session.expires_at ? session.expires_at * 1000 : 0
 
   // Refresh when: expiry is unknown (0), token has already expired, or expiry is within buffer window
   const shouldRefresh = expiresAtMs === 0 || (expiresAtMs - Date.now()) < ACCESS_TOKEN_REFRESH_BUFFER_MS
 
   if (shouldRefresh) {
-    const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession()
-    if (refreshError || !refreshData.session) {
+    const refreshedAccessToken = await tryRefreshAccessToken()
+    if (!refreshedAccessToken) {
       // Sign out to clear stale session state so ProtectedRoute redirects to login
       try { await supabase.auth.signOut() } catch { /* ignore sign-out errors */ }
-      throw new Error(refreshError?.message || 'Session has expired. Please sign in again.')
+      throw new Error('Session has expired. Please sign in again.')
     }
-    session = refreshData.session
+    return refreshedAccessToken
   }
 
   return session.access_token
@@ -48,7 +89,7 @@ async function getErrorMessage(error: any): Promise<string> {
   if (error instanceof FunctionsHttpError) {
     try {
       const statusCode = error.context?.status ?? 500
-      const textContent = await error.context?.text()
+      const textContent = await readFunctionsErrorText(error)
 
       if (statusCode === 401 && textContent) {
         try {
@@ -56,7 +97,6 @@ async function getErrorMessage(error: any): Promise<string> {
           // Supabase gateway returns {"message":"Invalid JWT"} or {"message":"JWT expired"}
           const gatewayMsg: string = parsed?.message || ''
           if (gatewayMsg === 'Invalid JWT' || gatewayMsg === 'JWT expired') {
-            await supabase.auth.signOut()
             return 'Session expired. Please sign in again.'
           }
         } catch {
@@ -99,6 +139,25 @@ async function callEdgeFunction<T = any>(
     })
 
     if (error) {
+      // Retry once after forced refresh for transient JWT invalid/expired responses.
+      if (await isJwtAuthError(error)) {
+        const refreshedAccessToken = await tryRefreshAccessToken()
+        if (refreshedAccessToken) {
+          const retryResult = await supabase.functions.invoke(functionName, {
+            body: body || {},
+            headers: {
+              Authorization: `Bearer ${refreshedAccessToken}`,
+            },
+          })
+
+          if (!retryResult.error) {
+            return { data: retryResult.data as T, error: null }
+          }
+        }
+
+        try { await supabase.auth.signOut() } catch { /* ignore sign-out errors */ }
+      }
+
       const errorMessage = await getErrorMessage(error)
       if (options.showToast) {
         toast.error(errorMessage)
