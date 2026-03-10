@@ -30,7 +30,7 @@ interface ObservationRow {
   plate_number: string | null
   recorded_at: string
   is_compliant: boolean | null
-  nights_in_zone: number | null
+  nights_stayed_this_month: number | null
   processing_status: string | null
   gps_latitude: number | null
   gps_longitude: number | null
@@ -57,7 +57,7 @@ export default function ObservationsReport() {
       let q = supabase
         .from('observations')
         .select(`
-          id:observation_id, plate_number, recorded_at, is_compliant, nights_in_zone,
+          id, plate_number, recorded_at, is_compliant, nights_stayed_this_month,
           processing_status, gps_latitude, gps_longitude, photo_url,
           zone:zones!zone_id(name),
           recorded_by_user:user_profiles!recorded_by(first_name, last_name)
@@ -231,7 +231,7 @@ export default function ObservationsReport() {
                     {obs.is_compliant === null && <Badge variant="secondary" className="text-xs">Pending</Badge>}
                   </td>
                   <td className="px-3 py-2 text-muted-foreground">
-                    {obs.nights_in_zone != null ? obs.nights_in_zone : '—'}
+                    {obs.nights_stayed_this_month != null ? obs.nights_stayed_this_month : '—'}
                   </td>
                   <td className="px-3 py-2 text-muted-foreground">
                     {obs.recorded_by_user

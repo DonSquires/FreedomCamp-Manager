@@ -229,7 +229,7 @@ export default function BreachAlerts() {
     queryFn: async () => {
       if (!activeBreach?.plate_number) return []
       const { data } = await (supabase.from('observations') as any)
-        .select('id:observation_id, photo_url, recorded_at, gps_latitude, gps_longitude, zones!observations_zone_id_fkey(name)')
+        .select('id, photo_url, recorded_at, gps_latitude, gps_longitude, zones!observations_zone_id_fkey(name)')
         .eq('plate_number', activeBreach.plate_number)
         .eq('organization_id', activeBreach.organization_id)
         
