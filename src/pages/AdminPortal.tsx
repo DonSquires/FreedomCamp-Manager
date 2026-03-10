@@ -233,6 +233,14 @@ export default function AdminPortal() {
 
   const drilldowns = [
     {
+      title: 'Manual Recalculation',
+      description: 'Run targeted compliance recalculation jobs with audit tracking.',
+      to: '/compliance-recalculation',
+      icon: Shield,
+      metric: 'Admin utility',
+      config: { to: '/compliance-recalculation', metric: 'manual_recalculation', period: periodLabel, label: 'Manual Recalculation' },
+    },
+    {
       title: 'Compliance Analysis',
       description: 'Dive into trends, exemptions and by-zone compliance performance.',
       to: '/compliance',
@@ -456,6 +464,13 @@ export default function AdminPortal() {
         </section>
 
         <section className="grid gap-3 md:grid-cols-3">
+          <Button
+            variant="outline"
+            onClick={() => openDrilldown({ to: '/compliance-recalculation', metric: 'manual_recalculation', period: periodLabel, label: 'Manual Recalculation' })}
+            className="justify-between"
+          >
+            Manual Recalculation <Shield className="h-4 w-4" />
+          </Button>
           <Button
             variant="outline"
             onClick={() => openDrilldown({ to: '/reports-hub', metric: 'reporting_workspace', period: periodLabel, label: 'Reporting Workspace' })}
