@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useQuery, useMutation } from '@tanstack/react-query'
+import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { useGlobalFiltersStore } from '@/stores/globalFiltersStore'
@@ -367,66 +367,7 @@ export default function Reports() {
     return () => window.clearTimeout(watchdog)
   }, [generatingReport])
 
-  // Generate report mutation
-  const generateReportMutation = useMutation({
-    mutationFn: async (reportType: string) => {
-      setGeneratingReport(reportType)
-
-      const { data, error } = await callFunctionDirect<any>(
-        'generate-dashboard-report',
-        {
-        report_type: reportType,
-        organization_id: effectiveOrganizationId || undefined,
-        zone_id: zoneId || undefined,
-        date_from: reportDateFrom,
-        date_to: reportDateTo,
-        },
-        REPORT_TIMEOUT_MS
-      )
-
-      if (error) {
-        throw new Error(error)
-      }
-
-      return data
-    },
-    onSuccess: (data, reportType) => {
-      try {
-        toast.success(`${reportType} report generated successfully`)
-
-        if (data?.html) {
-          setReportPreviewTitle(reportType.replace(/-/g, ' '))
-          setReportPreviewHtml(data.html)
-          setReportPreviewOpen(true)
-        } else if (data?.url) {
-          // Keep UX in-app by embedding a lightweight redirect page.
-          setReportPreviewTitle(reportType.replace(/-/g, ' '))
-          setReportPreviewHtml(
-            `<!DOCTYPE html><html><body style="font-family:sans-serif;padding:16px"><p>Open generated report:</p><p><a href="${String(data.url)}" target="_blank" rel="noopener noreferrer">${String(data.url)}</a></p></body></html>`
-          )
-          setReportPreviewOpen(true)
-        } else {
-          toast.error('Report generated but no printable content was returned', {
-            description: `Expected html or url payload. Received keys: ${Object.keys(data || {}).join(', ') || 'none'}`,
-          })
-        }
-      } catch (handlerError) {
-        showDetailedErrorToast('Report generated, but opening/downloading failed', handlerError)
-      } finally {
-        setGeneratingReport(null)
-      }
-    },
-    onError: (error: any, reportType) => {
-      showDetailedErrorToast(`Failed to generate ${reportType} report`, error)
-      setGeneratingReport(null)
-    },
-    onSettled: () => {
-      // Defensive reset so the UI never gets stuck in "Generating...".
-      setGeneratingReport(null)
-    },
-  })
-
-  const handleGenerateReport = (reportType: string) => {
+  const handleGenerateReport = async (reportType: string) => {
     if (REPORT_STABILIZATION_MODE && reportType !== STABLE_REPORT_TYPE) {
       toast.info('Report temporarily disabled during stabilization', {
         description: 'Only Compliance Report generation is enabled while we stabilize reporting.',
@@ -437,7 +378,53 @@ export default function Reports() {
     setReportPreviewOpen(false)
     setReportPreviewHtml('')
     setReportPreviewTitle('')
-    generateReportMutation.mutate(reportType)
+    setGeneratingReport(reportType)
+
+    let timeoutId: ReturnType<typeof setTimeout> | undefined
+
+    try {
+      const overallTimeout = new Promise<never>((_, reject) => {
+        timeoutId = setTimeout(() => reject(new Error('Report generation timed out. Please try again.')), REPORT_TIMEOUT_MS)
+      })
+
+      const callPromise = callFunctionDirect<any>(
+        'generate-dashboard-report',
+        {
+          report_type: reportType,
+          organization_id: effectiveOrganizationId || undefined,
+          zone_id: zoneId || undefined,
+          date_from: reportDateFrom,
+          date_to: reportDateTo,
+        },
+        REPORT_TIMEOUT_MS
+      )
+
+      const { data, error } = await Promise.race([callPromise, overallTimeout])
+      if (error) throw new Error(error)
+
+      toast.success(`${reportType} report generated successfully`)
+
+      if (data?.html) {
+        setReportPreviewTitle(reportType.replace(/-/g, ' '))
+        setReportPreviewHtml(data.html)
+        setReportPreviewOpen(true)
+      } else if (data?.url) {
+        setReportPreviewTitle(reportType.replace(/-/g, ' '))
+        setReportPreviewHtml(
+          `<!DOCTYPE html><html><body style="font-family:sans-serif;padding:16px"><p>Open generated report:</p><p><a href="${String(data.url)}" target="_blank" rel="noopener noreferrer">${String(data.url)}</a></p></body></html>`
+        )
+        setReportPreviewOpen(true)
+      } else {
+        toast.error('Report generated but no printable content was returned', {
+          description: `Expected html or url payload. Received keys: ${Object.keys(data || {}).join(', ') || 'none'}`,
+        })
+      }
+    } catch (error: any) {
+      showDetailedErrorToast(`Failed to generate ${reportType} report`, error)
+    } finally {
+      clearTimeout(timeoutId)
+      setGeneratingReport(null)
+    }
   }
 
   const handleDownloadPreviewPdf = async () => {
