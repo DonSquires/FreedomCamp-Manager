@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState } from 'react'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
@@ -55,12 +55,6 @@ function downloadJSON(data: any, filename: string) {
   a.click()
   URL.revokeObjectURL(url)
 }
-
-const REPORT_LOADING_HTML =
-  '<!DOCTYPE html><html><head><title>Generating Report\u2026</title>' +
-  '<style>body{font-family:sans-serif;display:flex;align-items:center;justify-content:center;' +
-  'min-height:100vh;margin:0;background:#f8fafc}h2{color:#374151;font-weight:500}</style></head>' +
-  '<body><h2>&#8987; Generating report, please wait\u2026</h2></body></html>'
 
 /** Maximum ms to wait for the generate-dashboard-report Edge Function before giving up. */
 const REPORT_TIMEOUT_MS = 120_000
@@ -235,7 +229,11 @@ export default function Reports() {
   const { user } = useAuthStore()
   const { organizationId, zoneId, dateFrom, dateTo } = useGlobalFiltersStore()
   const [generatingReport, setGeneratingReport] = useState<string | null>(null)
-  const reportWindowRef = useRef<Window | null>(null)
+
+  // In-app report preview state
+  const [reportPreviewOpen, setReportPreviewOpen] = useState(false)
+  const [reportPreviewTitle, setReportPreviewTitle] = useState('')
+  const [reportPreviewHtml, setReportPreviewHtml] = useState('')
 
   // Email dialog state
   const [emailDialogOpen, setEmailDialogOpen] = useState(false)
@@ -357,28 +355,19 @@ export default function Reports() {
     onSuccess: (data, reportType) => {
       try {
         toast.success(`${reportType} report generated successfully`)
-        const win = reportWindowRef.current
-        reportWindowRef.current = null
 
         if (data?.html) {
-          if (win && !win.closed) {
-            // Write report HTML into the pre-opened window
-            win.document.open()
-            win.document.write(data.html)
-            win.document.close()
-          } else {
-            // Popup was blocked or closed — download as HTML file instead
-            downloadReportHtml(data.html)
-            toast.info('Report downloaded as an HTML file (popups appear to be blocked)')
-          }
+          setReportPreviewTitle(reportType.replace(/-/g, ' '))
+          setReportPreviewHtml(data.html)
+          setReportPreviewOpen(true)
         } else if (data?.url) {
-          if (win && !win.closed) {
-            win.location.href = data.url
-          } else {
-            window.open(data.url, '_blank')
-          }
+          // Keep UX in-app by embedding a lightweight redirect page.
+          setReportPreviewTitle(reportType.replace(/-/g, ' '))
+          setReportPreviewHtml(
+            `<!DOCTYPE html><html><body style="font-family:sans-serif;padding:16px"><p>Open generated report:</p><p><a href="${String(data.url)}" target="_blank" rel="noopener noreferrer">${String(data.url)}</a></p></body></html>`
+          )
+          setReportPreviewOpen(true)
         } else {
-          if (win && !win.closed) win.close()
           toast.error('Report generated but no printable content was returned', {
             description: `Expected html or url payload. Received keys: ${Object.keys(data || {}).join(', ') || 'none'}`,
           })
@@ -390,9 +379,6 @@ export default function Reports() {
       }
     },
     onError: (error: any, reportType) => {
-      const win = reportWindowRef.current
-      reportWindowRef.current = null
-      if (win && !win.closed) win.close()
       showDetailedErrorToast(`Failed to generate ${reportType} report`, error)
       setGeneratingReport(null)
     },
@@ -403,15 +389,9 @@ export default function Reports() {
   })
 
   const handleGenerateReport = (reportType: string) => {
-    // Open the report window NOW while inside the user-gesture event handler so
-    // browser popup blockers don't interfere. We'll write the HTML into it once
-    // the Edge Function responds.
-    const win = window.open('', '_blank')
-    if (win) {
-      win.document.write(REPORT_LOADING_HTML)
-      win.document.close()
-    }
-    reportWindowRef.current = win
+    setReportPreviewOpen(false)
+    setReportPreviewHtml('')
+    setReportPreviewTitle('')
     generateReportMutation.mutate(reportType)
   }
 
@@ -923,6 +903,43 @@ export default function Reports() {
         </CardContent>
       </Card>
     </AppLayout>
+
+    {/* ── In-app report preview dialog ── */}
+    <Dialog open={reportPreviewOpen} onOpenChange={setReportPreviewOpen}>
+      <DialogContent className="sm:max-w-6xl w-[95vw] h-[90vh] flex flex-col">
+        <DialogHeader>
+          <DialogTitle className="capitalize">
+            {reportPreviewTitle || 'Generated report'}
+          </DialogTitle>
+          <DialogDescription>
+            Review the report in-app and use the report's "Download PDF" button.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="flex-1 border rounded-md overflow-hidden bg-white">
+          <iframe
+            title="Generated report preview"
+            className="w-full h-full"
+            srcDoc={reportPreviewHtml}
+          />
+        </div>
+
+        <DialogFooter>
+          <Button
+            variant="outline"
+            onClick={() => {
+              if (!reportPreviewHtml) return
+              downloadReportHtml(reportPreviewHtml)
+            }}
+          >
+            Download HTML Copy
+          </Button>
+          <Button variant="outline" onClick={() => setReportPreviewOpen(false)}>
+            Close
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
 
     {/* ── Send Report by Email dialog ── */}
     <Dialog open={emailDialogOpen} onOpenChange={(open) => { if (!open) setSendingEmail(false); setEmailDialogOpen(open) }}>
