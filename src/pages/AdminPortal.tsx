@@ -82,65 +82,90 @@ export default function AdminPortal() {
   const { data, isLoading } = useQuery({
     queryKey: ['admin-primary-dashboard', effectiveOrganizationId, zoneId, dateFrom, dateTo],
     queryFn: async () => {
-      let obsQuery = (supabase.from('observations') as any)
-        .select('plate_number, is_compliant, recorded_at, zone_id, organization_id')
-        .order('recorded_at', { ascending: true })
-        .limit(5000)
-
-      if (effectiveOrganizationId) {
-        obsQuery = obsQuery.eq('organization_id', effectiveOrganizationId)
-      }
-      if (zoneId) {
-        obsQuery = obsQuery.eq('zone_id', zoneId)
-      }
-      if (startDate) {
-        obsQuery = obsQuery.gte('recorded_at', startDate)
-      }
-      if (endDate) {
-        obsQuery = obsQuery.lte('recorded_at', endDate)
+      // ── Helper: apply org / zone / date filters to any query ──────────────
+      const applyFilters = (q: any) => {
+        if (effectiveOrganizationId) q = q.eq('organization_id', effectiveOrganizationId)
+        if (zoneId)                  q = q.eq('zone_id', zoneId)
+        if (startDate)               q = q.gte('recorded_at', startDate)
+        if (endDate)                 q = q.lte('recorded_at', endDate)
+        return q
       }
 
-      const { data: observations, error: obsError } = await obsQuery
-      if (obsError) throw obsError
+      // ── 1. Total observations (accurate server-side COUNT, no row cap) ────
+      const { count: totalObservations, error: totalErr } = await applyFilters(
+        supabase.from('observations').select('*', { count: 'exact', head: true })
+      )
+      if (totalErr) throw totalErr
 
+      // ── 2. Compliant observations count ──────────────────────────────────
+      const { count: compliantCount, error: compliantErr } = await applyFilters(
+        supabase.from('observations').select('*', { count: 'exact', head: true }).eq('is_compliant', true)
+      )
+      if (compliantErr) throw compliantErr
+
+      // ── 3. Active vehicles — unique plates in the date range ─────────────
+      // get_observation_summary returns COUNT(DISTINCT plate_number) server-side.
+      // When no date is set, use a wide sentinel range so the RPC returns all-time data.
+      let activeVehicles = 0
+      const rpcFrom = dateFrom ?? '1970-01-01'
+      const rpcTo   = dateTo   ?? new Date().toISOString().slice(0, 10)
+      const { data: summaryRows, error: summaryErr } = await supabase.rpc(
+        'get_observation_summary',
+        {
+          p_start_date:      rpcFrom,
+          p_end_date:        rpcTo,
+          p_organization_id: effectiveOrganizationId ?? null,
+          p_zone_id:         zoneId ?? null,
+        }
+      )
+      if (!summaryErr && summaryRows?.[0]) {
+        activeVehicles = Number(summaryRows[0].unique_vehicles) || 0
+      }
+
+      // ── 4. Trend data rows (for the chart only — limited fetch is fine) ──
+      const { data: trendRows, error: trendErr } = await applyFilters(
+        supabase
+          .from('observations')
+          .select('plate_number, is_compliant, recorded_at')
+          .order('recorded_at', { ascending: true })
+          .limit(10000)
+      )
+      if (trendErr) throw trendErr
+
+      // ── 5. Active breaches (COUNT, filtered by date range + active status) ─
       let breachesQuery = (supabase.from('breach_alerts') as any)
         .select('*', { count: 'exact', head: true })
         .in('status', ['pending', 'acknowledged', 'enforcement_started'])
 
-      if (effectiveOrganizationId) {
-        breachesQuery = breachesQuery.eq('organization_id', effectiveOrganizationId)
-      }
-      if (zoneId) {
-        breachesQuery = breachesQuery.eq('zone_id', zoneId)
-      }
-      if (startDate) {
-        breachesQuery = breachesQuery.gte('created_at', startDate)
-      }
-      if (endDate) {
-        breachesQuery = breachesQuery.lte('created_at', endDate)
-      }
+      if (effectiveOrganizationId) breachesQuery = breachesQuery.eq('organization_id', effectiveOrganizationId)
+      if (zoneId)                  breachesQuery = breachesQuery.eq('zone_id', zoneId)
+      if (startDate)               breachesQuery = breachesQuery.gte('created_at', startDate)
+      if (endDate)                 breachesQuery = breachesQuery.lte('created_at', endDate)
 
       const { count: activeBreaches, error: breachError } = await breachesQuery
       if (breachError) throw breachError
 
       return {
-        observations: observations ?? [],
-        activeBreaches: activeBreaches ?? 0,
+        totalObservations: totalObservations ?? 0,
+        compliantCount:    compliantCount    ?? 0,
+        activeVehicles,
+        trendRows:         trendRows         ?? [],
+        activeBreaches:    activeBreaches    ?? 0,
       }
     },
   })
 
   const metrics = useMemo(() => {
-    const observations = data?.observations ?? []
-    const totalObservations = observations.length
-    const compliant = observations.filter((o: any) => o.is_compliant).length
-    const complianceRate = totalObservations > 0 ? Math.round((compliant / totalObservations) * 100) : 0
-    const activeVehicles = new Set(
-      observations.map((o: any) => String(o.plate_number || '').trim()).filter(Boolean)
-    ).size
+    const totalObservations = data?.totalObservations ?? 0
+    const compliant         = data?.compliantCount    ?? 0
+    const complianceRate    = totalObservations > 0
+      ? Math.round((compliant / totalObservations) * 100)
+      : 0
+    const activeVehicles    = data?.activeVehicles ?? 0
 
+    // Build trend data from the limited row fetch (chart only)
     const byDate = new globalThis.Map<string, { compliant: number; breaches: number; total: number }>()
-    observations.forEach((o: any) => {
+    ;(data?.trendRows ?? []).forEach((o: any) => {
       const key = new Date(o.recorded_at).toISOString().slice(0, 10)
       const current = byDate.get(key) || { compliant: 0, breaches: 0, total: 0 }
       current.total += 1
