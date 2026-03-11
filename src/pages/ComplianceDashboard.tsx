@@ -43,62 +43,28 @@ export default function ComplianceDashboard() {
   const startDate = dateFrom ? nzDateToUTCStart(dateFrom) : null
   const endDate = dateTo ? nzDateToUTCEnd(dateTo) : null
 
-  // Fetch dashboard stats — all breach counts come from breach_alerts
+  // Single RPC call – all aggregation and rate calculation done on the server.
   const { data: stats, isLoading } = useQuery({
     queryKey: ['dashboard-stats', effectiveOrganizationId, zoneId, dateFrom, dateTo],
     queryFn: async () => {
-      let obsQuery = (supabase.from('observations') as any).select('*', { count: 'exact', head: true })
-      let compliantQuery = (supabase.from('observations') as any).select('*', { count: 'exact', head: true }).eq('is_compliant', true)
-      let breachQuery = (supabase.from('breach_alerts') as any).select('*', { count: 'exact', head: true }).in('status', ['pending', 'acknowledged', 'enforcement_started'])
-      let patrolQuery = (supabase.from('patrols') as any).select('*', { count: 'exact', head: true }).eq('status', 'in_progress')
-      let vehicleQuery = (supabase.from('canonical_vehicles') as any).select('*', { count: 'exact', head: true })
-
-      if (effectiveOrganizationId) {
-        obsQuery = obsQuery.eq('organization_id', effectiveOrganizationId)
-        compliantQuery = compliantQuery.eq('organization_id', effectiveOrganizationId)
-        breachQuery = breachQuery.eq('organization_id', effectiveOrganizationId)
-        patrolQuery = patrolQuery.eq('organization_id', effectiveOrganizationId)
-        vehicleQuery = vehicleQuery.eq('organization_id', effectiveOrganizationId)
-      }
-
-      if (zoneId) {
-        obsQuery = obsQuery.eq('zone_id', zoneId)
-        compliantQuery = compliantQuery.eq('zone_id', zoneId)
-        breachQuery = breachQuery.eq('zone_id', zoneId)
-      }
-
-      if (startDate) {
-        obsQuery = obsQuery.gte('recorded_at', startDate)
-        compliantQuery = compliantQuery.gte('recorded_at', startDate)
-        breachQuery = breachQuery.gte('created_at', startDate)
-      }
-      if (endDate) {
-        obsQuery = obsQuery.lte('recorded_at', endDate)
-        compliantQuery = compliantQuery.lte('recorded_at', endDate)
-        breachQuery = breachQuery.lte('created_at', endDate)
-      }
-
-      const [obsResult, compliantResult, breachResult, patrolResult, vehicleResult] = await Promise.all([
-        obsQuery,
-        compliantQuery,
-        breachQuery,
-        patrolQuery,
-        vehicleQuery,
-      ])
-
-      const totalObs = obsResult.count || 0
-      const compliantObs = compliantResult.count || 0
-      const complianceRate = totalObs > 0 ? (compliantObs / totalObs) * 100 : 0
-
+      const start = startDate ?? new Date(0).toISOString()
+      const end   = endDate   ?? new Date().toISOString()
+      const { data, error } = await (supabase.rpc as any)('get_admin_dashboard_stats', {
+        p_start_date:      start,
+        p_end_date:        end,
+        p_organization_id: effectiveOrganizationId ?? null,
+      })
+      if (error) throw error
+      const row = Array.isArray(data) ? data[0] : data
       return {
-        total_observations: totalObs,
-        compliant_observations: compliantObs,
-        non_compliant_observations: totalObs - compliantObs,
-        active_breaches: breachResult.count || 0,
-        total_vehicles: vehicleResult.count || 0,
-        active_patrols: patrolResult.count || 0,
-        compliance_rate: complianceRate,
-      }
+        total_observations:         row?.total_observations         ?? 0,
+        compliant_observations:     row?.compliant_observations     ?? 0,
+        non_compliant_observations: row?.non_compliant_observations ?? 0,
+        compliance_rate:            row?.compliance_rate            ?? 0,
+        active_breaches:            row?.pending_breach_alerts      ?? 0,
+        total_vehicles:             row?.total_vehicles             ?? 0,
+        active_patrols:             row?.active_patrols             ?? 0,
+      } as DashboardStats
     },
   })
 

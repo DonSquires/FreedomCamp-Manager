@@ -58,14 +58,14 @@ interface BreachObservation {
 }
 
 interface ZoneStats {
-  id: string;
-  name: string;
+  zone_id: string;
+  zone_name: string;
+  organization_name: string | null;
   is_active: boolean;
   nights_per_month: number;
   max_consecutive_nights: number;
   self_contained_required: boolean;
   day_visit_only: boolean;
-  organizations: { name: string } | null;
   obs_count: number;
   breach_count: number;
   compliance_pct: number;
@@ -149,118 +149,60 @@ function OverviewTab({
   const startISO = nzDateToUTCStart(dateFrom);
   const endISO = nzDateToUTCEnd(dateTo);
 
-  const { data: total } = useQuery({
-    queryKey: ['comp-total', dateFrom, dateTo, orgId, zoneId],
+  // Single RPC call – all aggregation done on the server.
+  const { data: stats } = useQuery({
+    queryKey: ['comp-stats', dateFrom, dateTo, orgId, zoneId],
     queryFn: async () => {
-      let q = supabase
-        .from('observations')
-        .select('*', { count: 'exact', head: true })
-        .gte('recorded_at', startISO)
-        .lte('recorded_at', endISO);
-      if (orgId) q = q.eq('organization_id', orgId);
-      if (zoneId) q = q.eq('zone_id', zoneId);
-      const { count, error } = await q;
+      const { data, error } = await (supabase.rpc as any)('get_compliance_stats', {
+        p_start:            startISO,
+        p_end:              endISO,
+        p_organization_id:  orgId  ?? null,
+        p_zone_id:          zoneId ?? null,
+      });
       if (error) throw error;
-      return count ?? 0;
+      // rpc returns array of one row
+      return (Array.isArray(data) ? data[0] : data) as {
+        total_observations: number;
+        breach_count:       number;
+        compliant_count:    number;
+        compliance_rate:    number;   // e.g. 96
+        flagged_vehicles:   number;
+        homeless_vehicles:  number;
+      } | null;
     },
   });
-
-  const { data: compliant } = useQuery({
-    queryKey: ['comp-compliant', dateFrom, dateTo, orgId, zoneId],
-    queryFn: async () => {
-      let q = supabase
-        .from('observations')
-        .select('*', { count: 'exact', head: true })
-        .eq('is_compliant', true)
-        .gte('recorded_at', startISO)
-        .lte('recorded_at', endISO);
-      if (orgId) q = q.eq('organization_id', orgId);
-      if (zoneId) q = q.eq('zone_id', zoneId);
-      const { count, error } = await q;
-      if (error) throw error;
-      return count ?? 0;
-    },
-  });
-
-  const { data: breaches } = useQuery({
-    queryKey: ['comp-breaches', dateFrom, dateTo, orgId, zoneId],
-    queryFn: async () => {
-      // Source: observations where is_compliant = false (breach_alerts may be unpopulated)
-      let q = supabase
-        .from('observations')
-        .select('*', { count: 'exact', head: true })
-        .eq('is_compliant', false)
-        .gte('recorded_at', startISO)
-        .lte('recorded_at', endISO);
-      if (orgId) q = q.eq('organization_id', orgId);
-      if (zoneId) q = q.eq('zone_id', zoneId);
-      const { count, error } = await q;
-      if (error) throw error;
-      return count ?? 0;
-    },
-  });
-
-  const { data: flagged } = useQuery({
-    queryKey: ['comp-flagged'],
-    queryFn: async () => {
-      const { count, error } = await supabase
-        .from('canonical_vehicles')
-        .select('*', { count: 'exact', head: true })
-        .eq('is_flagged', true);
-      if (error) throw error;
-      return count ?? 0;
-    },
-  });
-
-  const { data: homeless } = useQuery({
-    queryKey: ['comp-homeless'],
-    queryFn: async () => {
-      const { count, error } = await supabase
-        .from('canonical_vehicles')
-        .select('*', { count: 'exact', head: true })
-        .in('homeless_status', HOMELESS_UI_STATUSES);
-      if (error) throw error;
-      return count ?? 0;
-    },
-  });
-
-  // Compute compliance rate from observations (not breach_alerts) for accuracy
-  const compRate =
-    total && total > 0
-      ? `${Math.round(((compliant ?? 0) / total) * 100)}%`
-      : undefined;
 
   return (
     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
       <KPI
         label="Total Observations"
-        value={total}
+        value={stats?.total_observations}
         icon={Eye}
         color="bg-blue-500"
         sub={`${dateFrom} → ${dateTo}`}
       />
       <KPI
         label="Breaches"
-        value={breaches}
+        value={stats?.breach_count}
         icon={XCircle}
         color="bg-red-500"
-        trend={breaches ? 'up' : null}
+        trend={stats?.breach_count ? 'up' : null}
         sub="Non-compliant observations"
       />
       <KPI
         label="Compliance Rate"
-        value={compRate}
+        value={stats ? `${stats.compliance_rate}%` : undefined}
         icon={Shield}
         color={
-          compRate && parseInt(compRate) >= 80 ? 'bg-green-500' : 'bg-orange-500'
+          stats && stats.compliance_rate >= 80 ? 'bg-green-500' : 'bg-orange-500'
         }
       />
       <KPI
         label="Flagged Vehicles"
-        value={flagged}
+        value={stats?.flagged_vehicles}
         icon={AlertTriangle}
         color="bg-orange-500"
-        sub={`${homeless ?? '…'} homeless tracked`}
+        sub={`${stats?.homeless_vehicles ?? '…'} homeless tracked`}
       />
     </div>
   );
@@ -452,57 +394,28 @@ function ZonesTab({
   const startISO = nzDateToUTCStart(dateFrom);
   const endISO = nzDateToUTCEnd(dateTo);
 
-  const { data: zones, isLoading: zonesLoading } = useQuery({
-    queryKey: ['comp-zones', orgId],
+  // Single RPC call – all zone aggregation done on the server.
+  const { data: zoneStats, isLoading: zonesLoading } = useQuery({
+    queryKey: ['comp-zone-breakdown', dateFrom, dateTo, orgId],
     queryFn: async () => {
-      let q = supabase
-        .from('zones')
-        .select('id, name, is_active, nights_per_month, max_consecutive_nights, self_contained_required, day_visit_only, organizations(name)')
-        .order('name');
-      if (orgId) q = q.eq('organization_id', orgId);
-      const { data, error } = await q;
+      const { data, error } = await (supabase.rpc as any)('get_zone_compliance_breakdown', {
+        p_start:            startISO,
+        p_end:              endISO,
+        p_organization_id:  orgId ?? null,
+      });
       if (error) throw error;
-      return data ?? [];
-    },
-  });
-
-  const { data: obsCounts } = useQuery({
-    queryKey: ['comp-zone-obs', dateFrom, dateTo, orgId],
-    queryFn: async () => {
-      let q = (supabase.from('observations') as any)
-        .select('zone_id, is_compliant')
-        .gte('recorded_at', startISO)
-        .lte('recorded_at', endISO);
-      if (orgId) q = q.eq('organization_id', orgId);
-      const { data, error } = await q;
-      if (error) throw error;
-      const counts: Record<string, { total: number; breaches: number }> = {};
-      for (const r of data ?? []) {
-        if (!counts[r.zone_id]) counts[r.zone_id] = { total: 0, breaches: 0 };
-        counts[r.zone_id].total++;
-        if (!r.is_compliant) counts[r.zone_id].breaches++;
-      }
-      return counts;
+      return (data ?? []) as ZoneStats[];
     },
   });
 
   if (zonesLoading) return <Spinner />;
-  if (!zones?.length) return <Empty msg="No zones found" />;
-
-  const zoneStats: ZoneStats[] = zones.map((z: any) => {
-    const c = obsCounts?.[z.id] ?? { total: 0, breaches: 0 };
-    const pct = c.total > 0 ? Math.round(((c.total - c.breaches) / c.total) * 100) : 100;
-    return { ...z, obs_count: c.total, breach_count: c.breaches, compliance_pct: pct };
-  });
-
-  // Sort by breach count desc
-  zoneStats.sort((a, b) => b.breach_count - a.breach_count);
+  if (!zoneStats?.length) return <Empty msg="No zones found" />;
 
   return (
     <div className="space-y-3">
       {zoneStats.map((z) => (
         <div
-          key={z.id}
+          key={z.zone_id}
           className={cn(
             'bg-white dark:bg-gray-900 rounded-xl border shadow-sm p-4',
             z.is_active ? 'border-gray-200 dark:border-gray-700' : 'border-gray-100 dark:border-gray-800 opacity-60'
@@ -513,7 +426,7 @@ function ZonesTab({
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
                 <MapPin className="w-4 h-4 text-blue-500 shrink-0" />
-                <span className="font-semibold text-gray-900 dark:text-white truncate">{z.name}</span>
+                <span className="font-semibold text-gray-900 dark:text-white truncate">{z.zone_name}</span>
                 {!z.is_active && (
                   <span className="text-xs bg-gray-100 dark:bg-gray-800 text-gray-500 px-1.5 py-0.5 rounded">
                     Inactive
@@ -521,7 +434,7 @@ function ZonesTab({
                 )}
               </div>
               <div className="flex flex-wrap gap-1.5 mt-1">
-                <span className="text-xs text-gray-400">{z.organizations?.name ?? '—'}</span>
+                <span className="text-xs text-gray-400">{z.organization_name ?? '—'}</span>
                 <span className="text-xs text-gray-300">·</span>
                 <span className="text-xs text-gray-400">{z.nights_per_month}n/mo</span>
                 <span className="text-xs text-gray-300">·</span>

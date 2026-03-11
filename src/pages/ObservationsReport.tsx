@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { useGlobalFiltersStore } from '@/stores/globalFiltersStore'
+import { nzDateToUTCStart, nzDateToUTCEnd } from '@/lib/timezone'
 import { AppLayout } from '@/components/features/AppLayout'
 import { GlobalFilterRibbon } from '@/components/features/GlobalFilterRibbon'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -42,8 +43,8 @@ interface ObservationRow {
 export default function ObservationsReport() {
   const { user } = useAuthStore()
   const { organizationId, zoneId, dateFrom, dateTo } = useGlobalFiltersStore()
-  const startDate = dateFrom ? `${dateFrom}T00:00:00Z` : null
-  const endDate = dateTo ? `${dateTo}T23:59:59Z` : null
+  const startDate = dateFrom ? nzDateToUTCStart(dateFrom) : null
+  const endDate = dateTo ? nzDateToUTCEnd(dateTo) : null
 
   const [search, setSearch] = useState('')
   const [complianceFilter, setComplianceFilter] = useState('all')
@@ -126,15 +127,28 @@ export default function ObservationsReport() {
     )
   })
 
-  const stats = {
-    total: observations.length,
-    compliant: observations.filter(o => o.is_compliant === true).length,
-    breach: observations.filter(o => o.is_compliant === false).length,
-    pending: observations.filter(o => o.is_compliant === null).length,
-    rate: observations.length > 0
-      ? Math.round((observations.filter(o => o.is_compliant === true).length / observations.length) * 100)
-      : null,
-  }
+  // Summary stats — computed on the server, not from the already-filtered list.
+  const { data: stats } = useQuery({
+    queryKey: ['obs-report-stats', orgId, zoneId, dateFrom, dateTo],
+    queryFn: async () => {
+      const start = startDate ?? new Date(0).toISOString()
+      const end   = endDate   ?? new Date().toISOString()
+      const { data, error } = await (supabase.rpc as any)('get_compliance_stats', {
+        p_start:            start,
+        p_end:              end,
+        p_organization_id:  orgId  ?? null,
+        p_zone_id:          zoneId ?? null,
+      })
+      if (error) throw error
+      const row = Array.isArray(data) ? data[0] : data
+      return {
+        total:     (row?.total_observations  ?? 0) as number,
+        compliant: (row?.compliant_count     ?? 0) as number,
+        breach:    (row?.breach_count        ?? 0) as number,
+        rate:      (row?.compliance_rate     ?? null) as number | null,
+      }
+    },
+  })
 
   return (
     <AppLayout title="Observations Report" description="View, filter and export observation records">
