@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { useGlobalFiltersStore } from '@/stores/globalFiltersStore'
 import { getEffectiveOrgId } from '@/lib/orgUtils'
+import { nzDateToUTCStart, nzDateToUTCEnd } from '@/lib/timezone'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -39,8 +40,8 @@ export default function ComplianceDashboard() {
   const [analysisResults, setAnalysisResults] = useState<any>(null)
 
   const effectiveOrganizationId = getEffectiveOrgId(user, organizationId)
-  const startDate = dateFrom ? `${dateFrom}T00:00:00Z` : null
-  const endDate = dateTo ? `${dateTo}T23:59:59Z` : null
+  const startDate = dateFrom ? nzDateToUTCStart(dateFrom) : null
+  const endDate = dateTo ? nzDateToUTCEnd(dateTo) : null
 
   // Fetch dashboard stats — all breach counts come from breach_alerts
   const { data: stats, isLoading } = useQuery({
@@ -48,7 +49,7 @@ export default function ComplianceDashboard() {
     queryFn: async () => {
       let obsQuery = (supabase.from('observations') as any).select('*', { count: 'exact', head: true })
       let compliantQuery = (supabase.from('observations') as any).select('*', { count: 'exact', head: true }).eq('is_compliant', true)
-      let breachQuery = (supabase.from('breach_alerts') as any).select('*', { count: 'exact', head: true }).eq('status', 'pending')
+      let breachQuery = (supabase.from('breach_alerts') as any).select('*', { count: 'exact', head: true }).in('status', ['pending', 'acknowledged', 'enforcement_started'])
       let patrolQuery = (supabase.from('patrols') as any).select('*', { count: 'exact', head: true }).eq('status', 'in_progress')
       let vehicleQuery = (supabase.from('canonical_vehicles') as any).select('*', { count: 'exact', head: true })
 
