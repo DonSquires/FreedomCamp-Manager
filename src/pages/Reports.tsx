@@ -66,6 +66,18 @@ async function callFunctionDirect<T = any>(
   body: Record<string, unknown>,
   timeoutMs: number
 ): Promise<{ data: T | null; error: string | null }> {
+  async function withTimeout<P>(promise: Promise<P>, ms: number, message: string): Promise<P> {
+    let timeoutId: ReturnType<typeof setTimeout> | undefined
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      timeoutId = setTimeout(() => reject(new Error(message)), ms)
+    })
+    try {
+      return await Promise.race([promise, timeoutPromise])
+    } finally {
+      clearTimeout(timeoutId)
+    }
+  }
+
   async function invokeWithToken(accessToken: string): Promise<{ status: number; parsed: any; networkError: string | null }> {
     const controller = new AbortController()
     const timerId = setTimeout(() => controller.abort(), timeoutMs)
@@ -103,7 +115,11 @@ async function callFunctionDirect<T = any>(
     }
   }
 
-  const { data: sessionData, error: sessionError } = await supabase.auth.getSession()
+  const { data: sessionData, error: sessionError } = await withTimeout(
+    supabase.auth.getSession(),
+    12000,
+    'Auth session read timed out'
+  )
   if (sessionError || !sessionData.session?.access_token) {
     return { data: null, error: 'No active session found. Please sign in again.' }
   }
@@ -115,7 +131,11 @@ async function callFunctionDirect<T = any>(
   // Retry once with a freshly refreshed token when the gateway rejects JWT.
   if (result.status === 401) {
     attemptedRefresh = true
-    const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession()
+    const { data: refreshData, error: refreshError } = await withTimeout(
+      supabase.auth.refreshSession(),
+      12000,
+      'Auth session refresh timed out'
+    )
     if (refreshError || !refreshData.session?.access_token) {
       refreshFailureMessage = refreshError?.message || 'No refreshed access token returned'
     } else {
@@ -329,6 +349,21 @@ export default function Reports() {
     if (!statsError) return
     showDetailedErrorToast('Failed to load report statistics', statsError)
   }, [statsError])
+
+  // Last-resort safety net so the UI never gets stuck in Generating... forever.
+  useEffect(() => {
+    if (!generatingReport) return
+
+    const watchdog = window.setTimeout(() => {
+      setGeneratingReport(null)
+      toast.error('Report generation was interrupted', {
+        description:
+          'The request took too long or stalled. Please retry. If this persists, refresh the page and sign in again.',
+      })
+    }, REPORT_TIMEOUT_MS + 5000)
+
+    return () => window.clearTimeout(watchdog)
+  }, [generatingReport])
 
   // Generate report mutation
   const generateReportMutation = useMutation({
