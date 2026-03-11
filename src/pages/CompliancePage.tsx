@@ -149,26 +149,36 @@ function OverviewTab({
   const startISO = nzDateToUTCStart(dateFrom);
   const endISO = nzDateToUTCEnd(dateTo);
 
-  // Single RPC call – all aggregation done on the server.
+  // Direct queries against observations + canonical_vehicles (respects RLS).
   const { data: stats } = useQuery({
     queryKey: ['comp-stats', dateFrom, dateTo, orgId, zoneId],
     queryFn: async () => {
-      const { data, error } = await (supabase.rpc as any)('get_compliance_stats', {
-        p_start:            startISO,
-        p_end:              endISO,
-        p_organization_id:  orgId  ?? null,
-        p_zone_id:          zoneId ?? null,
-      });
-      if (error) throw error;
-      // rpc returns array of one row
-      return (Array.isArray(data) ? data[0] : data) as {
-        total_observations: number;
-        breach_count:       number;
-        compliant_count:    number;
-        compliance_rate:    number;   // e.g. 96
-        flagged_vehicles:   number;
-        homeless_vehicles:  number;
-      } | null;
+      const applyObs = (q: any) => {
+        q = q.gte('recorded_at', startISO).lte('recorded_at', endISO);
+        if (orgId)  q = q.eq('organization_id', orgId);
+        if (zoneId) q = q.eq('zone_id', zoneId);
+        return q;
+      };
+
+      const [totalRes, breachRes, flaggedRes, homelessRes] = await Promise.all([
+        applyObs(supabase.from('observations').select('*', { count: 'exact', head: true })),
+        applyObs(supabase.from('observations').select('*', { count: 'exact', head: true }).eq('is_compliant', false)),
+        supabase.from('canonical_vehicles').select('*', { count: 'exact', head: true }).eq('is_flagged', true),
+        supabase.from('canonical_vehicles').select('*', { count: 'exact', head: true }).in('homeless_status', ['confirmed', 'claimed', 'suspected', 'declined']),
+      ]);
+
+      const total    = totalRes.count  ?? 0;
+      const breaches = breachRes.count ?? 0;
+      const compliant = total - breaches;
+
+      return {
+        total_observations: total,
+        breach_count:       breaches,
+        compliant_count:    compliant,
+        compliance_rate:    total > 0 ? Math.round(100 * compliant / total) : 0,
+        flagged_vehicles:   flaggedRes.count  ?? 0,
+        homeless_vehicles:  homelessRes.count ?? 0,
+      };
     },
   });
 
@@ -394,17 +404,54 @@ function ZonesTab({
   const startISO = nzDateToUTCStart(dateFrom);
   const endISO = nzDateToUTCEnd(dateTo);
 
-  // Single RPC call – all zone aggregation done on the server.
+  // Direct queries against zones + observations (respects RLS).
   const { data: zoneStats, isLoading: zonesLoading } = useQuery({
     queryKey: ['comp-zone-breakdown', dateFrom, dateTo, orgId],
     queryFn: async () => {
-      const { data, error } = await (supabase.rpc as any)('get_zone_compliance_breakdown', {
-        p_start:            startISO,
-        p_end:              endISO,
-        p_organization_id:  orgId ?? null,
-      });
-      if (error) throw error;
-      return (data ?? []) as ZoneStats[];
+      let zonesQ = supabase
+        .from('zones')
+        .select('id, name, is_active, nights_per_month, max_consecutive_nights, self_contained_required, day_visit_only, organization_id, organizations(name)');
+      if (orgId) zonesQ = zonesQ.eq('organization_id', orgId);
+      const { data: zones, error: zErr } = await zonesQ;
+      if (zErr) throw zErr;
+      if (!zones?.length) return [];
+
+      let obsQ = supabase
+        .from('observations')
+        .select('zone_id, is_compliant')
+        .gte('recorded_at', startISO)
+        .lte('recorded_at', endISO);
+      if (orgId) obsQ = obsQ.eq('organization_id', orgId);
+      const { data: obs, error: oErr } = await obsQ;
+      if (oErr) throw oErr;
+
+      // Build a lookup map for O(n+m) aggregation instead of O(n*m) nested filter.
+      const obsMap = new Map<string, { is_compliant: boolean | null }[]>();
+      for (const o of (obs ?? []) as any[]) {
+        const arr = obsMap.get(o.zone_id) ?? [];
+        arr.push(o);
+        obsMap.set(o.zone_id, arr);
+      }
+
+      return (zones as any[]).map((z) => {
+        const zObs        = obsMap.get(z.id) ?? [];
+        const obs_count   = zObs.length;
+        const breach_count = zObs.filter((o) => o.is_compliant === false).length;
+        const compliant   = obs_count - breach_count;
+        return {
+          zone_id:                z.id,
+          zone_name:              z.name,
+          organization_name:      (z.organizations as any)?.name ?? null,
+          is_active:              z.is_active,
+          nights_per_month:       z.nights_per_month,
+          max_consecutive_nights: z.max_consecutive_nights,
+          self_contained_required: z.self_contained_required,
+          day_visit_only:         z.day_visit_only,
+          obs_count,
+          breach_count,
+          compliance_pct: obs_count > 0 ? Math.round(100 * compliant / obs_count) : 100,
+        } as ZoneStats;
+      }).sort((a, b) => b.breach_count - a.breach_count || b.obs_count - a.obs_count);
     },
   });
 
