@@ -76,7 +76,11 @@ export default function ImportData() {
       return (data || []) as ImportBatch[]
     },
     enabled: !!user,
-    refetchInterval: 5000,
+    refetchInterval: (query) => {
+      const data = query.state.data as ImportBatch[] | undefined
+      if (!data) return 5000
+      return data.some(b => ['pending', 'processing', 'enriching'].includes(b.status)) ? 5000 : false
+    },
   })
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {

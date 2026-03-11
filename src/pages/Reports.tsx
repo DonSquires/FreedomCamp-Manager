@@ -84,7 +84,7 @@ export default function Reports() {
     queryFn: async () => {
       // Get observation count
       let obsQuery = (supabase.from('observations') as any)
-        .select('observation_id, is_compliant', { count: 'exact' })
+        .select('id, is_compliant', { count: 'exact' })
         
 
       if (effectiveOrganizationId) {
