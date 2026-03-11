@@ -186,10 +186,21 @@ export default function BreachAlerts() {
   })
 
   // Fetch breach alerts (use created_at, not detected_at)
-  const { data: breaches, isLoading } = useQuery({
+  const { data: breaches, isLoading, isError: breachesIsError, error: breachesError } = useQuery({
     queryKey: ['breach-alerts', effectiveOrganizationId, zoneId, statusFilter, searchQuery, dateFrom, dateTo],
     queryFn: async () => {
-      let query = (supabase.from('breach_alerts') as any)
+      const applyFilters = (query: any) => {
+        if (effectiveOrganizationId) query = query.eq('organization_id', effectiveOrganizationId)
+        if (zoneId) query = query.eq('zone_id', zoneId)
+        if (startDate) query = query.gte('created_at', startDate)
+        if (endDate) query = query.lte('created_at', endDate)
+        if (statusFilter !== 'all') query = query.eq('status', statusFilter)
+        if (searchQuery) query = query.ilike('plate_number', `%${searchQuery}%`)
+        return query
+      }
+
+      // Primary path with joined labels.
+      let primaryQuery = (supabase.from('breach_alerts') as any)
         .select(`
           *,
           zones!zone_id(name),
@@ -197,21 +208,35 @@ export default function BreachAlerts() {
         `)
         .order('created_at', { ascending: false })
 
-      if (effectiveOrganizationId) {
-        query = query.eq('organization_id', effectiveOrganizationId)
-      }
+      primaryQuery = applyFilters(primaryQuery)
+      const primary = await primaryQuery.limit(100)
+      if (!primary.error) return primary.data || []
 
-      if (zoneId) query = query.eq('zone_id', zoneId)
-      if (startDate) query = query.gte('created_at', startDate)
-      if (endDate) query = query.lte('created_at', endDate)
-      if (statusFilter !== 'all') query = query.eq('status', statusFilter)
-      if (searchQuery) query = query.ilike('plate_number', `%${searchQuery}%`)
+      // Fallback path if relationship join is unavailable or policy blocks join targets.
+      let fallbackQuery = (supabase.from('breach_alerts') as any)
+        .select('*')
+        .order('created_at', { ascending: false })
 
-      const { data, error } = await query.limit(100)
-      if (error) throw error
-      return data
+      fallbackQuery = applyFilters(fallbackQuery)
+      const fallback = await fallbackQuery.limit(100)
+      if (fallback.error) throw fallback.error
+
+      return (fallback.data || []).map((row: any) => ({
+        ...row,
+        zones: null,
+        organizations: null,
+      }))
     },
+    retry: 1,
   })
+
+  useEffect(() => {
+    if (!breachesIsError) return
+    toast.error('Failed to load breaches', {
+      description: (breachesError as any)?.message || 'Unknown error loading breach queue',
+      duration: 8000,
+    })
+  }, [breachesIsError, breachesError])
 
   // Derived: active breach from the list
   const activeBreach = breaches?.find((b: any) => b.id === activeBreachId) || null
@@ -789,6 +814,18 @@ export default function BreachAlerts() {
           <div className="overflow-y-auto flex-1">
             {isLoading ? (
               <div className="p-6 text-center text-gray-500 text-sm">Loading breaches...</div>
+            ) : breachesIsError ? (
+              <div className="p-6 text-center text-red-600 text-sm space-y-2">
+                <p>Failed to load breaches.</p>
+                <p className="text-xs text-gray-500">{(breachesError as any)?.message || 'Unknown error'}</p>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => queryClient.invalidateQueries({ queryKey: ['breach-alerts'] })}
+                >
+                  Retry
+                </Button>
+              </div>
             ) : breaches && breaches.length === 0 ? (
               <div className="p-6 text-center text-gray-500">
                 <CheckCircle className="h-10 w-10 text-green-400 mx-auto mb-2" />
