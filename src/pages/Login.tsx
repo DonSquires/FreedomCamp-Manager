@@ -33,6 +33,12 @@ export default function Login() {
     try {
       await login(email, password)
       toast.success('Login successful')
+      // Request fullscreen for tablet/mobile field officer workflows
+      if (document.documentElement.requestFullscreen) {
+        document.documentElement.requestFullscreen().catch(() => {
+          // Fullscreen may be denied by the browser; ignore silently
+        })
+      }
       // Don't navigate here - let the useEffect handle it after state updates
     } catch (error: any) {
       toast.error(error.message || 'Login failed')
@@ -41,7 +47,7 @@ export default function Login() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center p-4">
+    <div className="h-screen overflow-hidden bg-gray-50 dark:bg-gray-900 flex items-center justify-center p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <div className="flex justify-center mb-4">

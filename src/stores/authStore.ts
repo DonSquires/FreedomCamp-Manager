@@ -19,6 +19,7 @@ interface AuthState {
   loading: boolean
   ensureLoadingResolved: () => void
   login: (email: string, password: string) => Promise<void>
+  unlockSession: (email: string, password: string) => Promise<void>
   logout: () => Promise<void>
   checkSession: () => Promise<void>
   initializeAuth: () => void
@@ -113,6 +114,18 @@ export const useAuthStore = create<AuthState>()(
         }
 
         set({ user: authUser, isAuthenticated: true, loading: false })
+        useSessionLockStore.getState().unlock()
+      },
+
+      // Re-authenticates from the session lock screen without triggering the
+      // global loading state, preventing the app from briefly unmounting and
+      // causing a visual loop. User state is kept current via the onAuthStateChange
+      // listener (registered in initializeAuth) which fires automatically on
+      // successful sign-in and refreshes the user profile in the store.
+      unlockSession: async (email: string, password: string) => {
+        const { error } = await supabase.auth.signInWithPassword({ email, password })
+        if (error) throw error
+        // Clear the session lock; the auth listener will keep user state current.
         useSessionLockStore.getState().unlock()
       },
 

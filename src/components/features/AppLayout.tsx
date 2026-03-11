@@ -114,7 +114,7 @@ export function AppLayout({ children, title, description, showBackButton }: AppL
   const [desktopNavOpen, setDesktopNavOpen] = useState(true)
   const [reLoginPassword, setReLoginPassword] = useState('')
   const [unlocking, setUnlocking] = useState(false)
-  const { user, logout, login } = useAuthStore()
+  const { user, logout, unlockSession } = useAuthStore()
   const {
     isLocked,
     isWarningVisible,
@@ -199,9 +199,10 @@ export function AppLayout({ children, title, description, showBackButton }: AppL
 
     setUnlocking(true)
     try {
-      await login(user.email, reLoginPassword)
+      // unlockSession re-authenticates without a loading flash and clears the
+      // lock state internally; no separate unlock() call is needed here.
+      await unlockSession(user.email, reLoginPassword)
       setReLoginPassword('')
-      unlock()
       toast.success('Session unlocked')
     } catch (error: any) {
       toast.error(error?.message || 'Unable to unlock session')
@@ -365,7 +366,7 @@ export function AppLayout({ children, title, description, showBackButton }: AppL
           {children}
 
           {autoLogoffEnabled && isWarningVisible && !isLocked && (
-            <div className="absolute inset-0 z-40 bg-slate-950/35 backdrop-blur-[3px] flex items-center justify-center p-4">
+            <div className="fixed inset-0 z-40 bg-slate-950/35 backdrop-blur-[3px] flex items-start justify-center pt-16 px-4 pb-4">
               <div className="session-mesh session-mesh--amber" aria-hidden="true" />
               <div className="session-mesh session-mesh--rose" aria-hidden="true" />
               <div className="w-full max-w-lg rounded-3xl border border-amber-200/80 bg-white/95 shadow-[0_25px_80px_rgba(15,23,42,0.45)] overflow-hidden relative">
@@ -410,7 +411,7 @@ export function AppLayout({ children, title, description, showBackButton }: AppL
           )}
 
           {isLocked && (
-            <div className="absolute inset-0 z-50 bg-slate-950/45 backdrop-blur-md flex items-center justify-center p-4">
+            <div className="fixed inset-0 z-50 bg-slate-950/45 backdrop-blur-md flex items-start justify-center pt-16 px-4 pb-4">
               <div className="session-mesh session-mesh--cyan" aria-hidden="true" />
               <div className="session-mesh session-mesh--violet" aria-hidden="true" />
               <div className="w-full max-w-xl rounded-3xl border border-slate-200/60 bg-white/95 shadow-[0_30px_100px_rgba(15,23,42,0.55)] overflow-hidden relative">
