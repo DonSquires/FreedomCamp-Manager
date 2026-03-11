@@ -104,11 +104,15 @@ export default function VehicleManagement() {
         .select('*')
         .order('plate_number', { ascending: true })
 
-      // Scope to org/zone via matching observations (no date filter on the list)
+      // Scope to org/zone via matching observations (no date filter on the list).
+      // Use a high limit to override Supabase's 1000-row default, and exclude
+      // placeholder values set by the async scan pipeline ('PROCESSING...').
       if (effectiveOrganizationId || zoneId) {
         let obsQuery = supabase
           .from('observations')
           .select('plate_number')
+          .neq('plate_number', 'PROCESSING...')
+          .limit(10000)
 
         if (effectiveOrganizationId) {
           obsQuery = obsQuery.eq('organization_id', effectiveOrganizationId)
@@ -124,7 +128,7 @@ export default function VehicleManagement() {
           ...new Set(
             (matchingObs ?? [])
               .map((o: any) => o.plate_number)
-              .filter(Boolean) as string[]
+              .filter((p: any) => p && typeof p === 'string' && p.trim()) as string[]
           ),
         ]
         if (matchingPlates.length === 0) return [] as Vehicle[]
@@ -159,13 +163,16 @@ export default function VehicleManagement() {
 
       if (missingPhotoPlates.length === 0) return rows
 
-      const { data: latestPhotos } = await (supabase.from('observations') as any)
+      let photoQuery = (supabase.from('observations') as any)
         .select('plate_number, photo_url, recorded_at')
         .in('plate_number', missingPhotoPlates)
         .not('photo_url', 'is', null)
-        .eq('organization_id', effectiveOrganizationId ?? undefined)
         .order('recorded_at', { ascending: false })
         .limit(Math.max(600, missingPhotoPlates.length * 5))
+      if (effectiveOrganizationId) {
+        photoQuery = photoQuery.eq('organization_id', effectiveOrganizationId)
+      }
+      const { data: latestPhotos } = await photoQuery
 
       const photoByPlate: Record<string, string> = {}
       for (const row of latestPhotos ?? []) {
