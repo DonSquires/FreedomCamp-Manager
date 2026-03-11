@@ -968,6 +968,7 @@ export interface Database {
         }
       }
     }
+    Views: {}
     Functions: {
       get_user_role: {
         Args: { uid: string }
