@@ -125,7 +125,7 @@ export default function FieldOfficerPortal() {
           'id, plate_number, recorded_at, is_compliant, processing_status',
           'photo_url, zone_id, breach_type, consecutive_nights, nights_stayed_this_month',
           'zone:zones!zone_id(name)',
-          'vehicle:canonical_vehicles!plate_number(homeless_status)',
+          'vehicle:canonical_vehicles!plate_number(homeless_status, is_exempt)',
         ].join(', '))
         .eq('recorded_by', user.id)
         .order('recorded_at', { ascending: false })
@@ -846,8 +846,10 @@ export default function FieldOfficerPortal() {
               if (scanTabFilter === 'breach') return !scan.is_compliant && !isProcessingAI
               if (scanTabFilter === 'at_risk') return isProcessingAI || (scan.is_compliant && (scan.consecutive_nights ?? 0) >= 2)
               if (scanTabFilter === 'homeless') {
-                const homelessStatus = (scan.vehicle as any)?.homeless_status
-                return homelessStatus === 'confirmed' || homelessStatus === 'claimed'
+                const vehicle = scan.vehicle as any
+                const homelessStatus = vehicle?.homeless_status
+                const isExempt = Boolean(vehicle?.is_exempt)
+                return homelessStatus === 'confirmed' || homelessStatus === 'claimed' || isExempt
               }
               return true
             }).map((scan: any) => {

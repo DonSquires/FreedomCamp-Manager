@@ -109,7 +109,7 @@ export default function AdminPortal() {
       let activeVehicles = 0
       const rpcFrom = dateFrom ?? '1970-01-01'
       const rpcTo   = dateTo   ?? new Date().toISOString().slice(0, 10)
-      const { data: summaryRows, error: summaryErr } = await (supabase as any).rpc(
+      const { data: summaryRows, error: summaryErr } = await supabase.rpc(
         'get_observation_summary',
         {
           p_start_date:      rpcFrom,
@@ -117,7 +117,7 @@ export default function AdminPortal() {
           p_organization_id: effectiveOrganizationId ?? null,
           p_zone_id:         zoneId ?? null,
         }
-      ) as { data: Array<{ total_observations: number; compliant_count: number; breach_count: number; unique_vehicles: number; unique_zones: number }> | null; error: unknown }
+      )
       if (!summaryErr && summaryRows && summaryRows[0]) {
         activeVehicles = Number(summaryRows[0].unique_vehicles) || 0
       }

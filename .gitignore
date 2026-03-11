@@ -51,3 +51,6 @@ grep_requested_output.txt
 .tools/
 .vercel
 .env*.local
+.npm-cache/
+.home/
+.local/
