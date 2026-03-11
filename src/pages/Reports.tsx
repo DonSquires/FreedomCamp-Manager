@@ -106,7 +106,7 @@ export default function Reports() {
     queryFn: async () => {
       // Get observation count
       let obsQuery = (supabase.from('observations') as any)
-        .select('id, is_compliant', { count: 'exact' })
+        .select('observation_id, is_compliant', { count: 'exact' })
         
 
       if (effectiveOrganizationId) {
@@ -123,7 +123,8 @@ export default function Reports() {
         obsQuery = obsQuery.eq('zone_id', zoneId)
       }
 
-      const { data: observations, count: observationCount } = await obsQuery
+      const { data: observations, count: observationCount, error: observationsError } = await obsQuery
+      if (observationsError) throw observationsError
 
       const compliantCount = observations?.filter(o => o.is_compliant).length || 0
       const complianceRate = observationCount && observationCount > 0 
@@ -149,7 +150,8 @@ export default function Reports() {
         enforcementQuery = enforcementQuery.lte('created_at', endDate)
       }
 
-      const { count: enforcementCount } = await enforcementQuery
+      const { count: enforcementCount, error: enforcementError } = await enforcementQuery
+      if (enforcementError) throw enforcementError
 
       // Get zone count
       let zoneQuery = supabase
@@ -161,7 +163,8 @@ export default function Reports() {
         zoneQuery = zoneQuery.eq('organization_id', effectiveOrganizationId)
       }
 
-      const { count: zoneCount } = await zoneQuery
+      const { count: zoneCount, error: zonesError } = await zoneQuery
+      if (zonesError) throw zonesError
 
       return {
         observations: observationCount || 0,
