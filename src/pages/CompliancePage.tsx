@@ -47,14 +47,12 @@ import { nzDateToUTCStart, nzDateToUTCEnd } from '@/lib/timezone';
 // Types
 // ============================================================================
 
-interface BreachAlert {
+interface BreachObservation {
   id: string;
   plate_number: string | null;
-  created_at: string;
-  breach_type: string;
-  breach_details: any;
-  status: string;
-  resolution_notes: string | null;
+  recorded_at: string;
+  breach_type: string | null;
+  breach_reason: string | null;
   zones: { name: string } | null;
   organizations: { name: string } | null;
 }
@@ -187,12 +185,13 @@ function OverviewTab({
   const { data: breaches } = useQuery({
     queryKey: ['comp-breaches', dateFrom, dateTo, orgId, zoneId],
     queryFn: async () => {
-      // Source: breach_alerts (single source of truth for all breach counts)
+      // Source: observations where is_compliant = false (breach_alerts may be unpopulated)
       let q = supabase
-        .from('breach_alerts')
+        .from('observations')
         .select('*', { count: 'exact', head: true })
-        .gte('created_at', startISO)
-        .lte('created_at', endISO);
+        .eq('is_compliant', false)
+        .gte('recorded_at', startISO)
+        .lte('recorded_at', endISO);
       if (orgId) q = q.eq('organization_id', orgId);
       if (zoneId) q = q.eq('zone_id', zoneId);
       const { count, error } = await q;
@@ -298,23 +297,24 @@ function BreachesTab({
   const { data, isLoading, isFetching, isError, error: queryError } = useQuery({
     queryKey: ['breaches-detail', page, search, dateFrom, dateTo, orgId, zoneId],
     queryFn: async () => {
-      // Source: breach_alerts – the single source of truth for all breaches.
+      // Source: observations where is_compliant = false
       let q = supabase
-        .from('breach_alerts')
+        .from('observations')
         .select(
-          'id, plate_number, created_at, breach_type, breach_details, status, resolution_notes, zones!zone_id(name), organizations!organization_id(name)',
+          'id, plate_number, recorded_at, breach_type, breach_reason, zones!observations_zone_id_fkey(name), organizations!observations_organization_id_fkey(name)',
           { count: 'exact' }
         )
-        .gte('created_at', startISO)
-        .lte('created_at', endISO)
-        .order('created_at', { ascending: false })
+        .eq('is_compliant', false)
+        .gte('recorded_at', startISO)
+        .lte('recorded_at', endISO)
+        .order('recorded_at', { ascending: false })
         .range(page * PAGE, (page + 1) * PAGE - 1);
       if (search.trim()) q = q.ilike('plate_number', `%${search.trim()}%`);
       if (orgId) q = q.eq('organization_id', orgId);
       if (zoneId) q = q.eq('zone_id', zoneId);
       const { data, count, error } = await q;
       if (error) throw error;
-      return { rows: (data ?? []) as BreachAlert[], total: count ?? 0 };
+      return { rows: (data ?? []) as BreachObservation[], total: count ?? 0 };
     },
     placeholderData: (p) => p,
   });
@@ -336,14 +336,6 @@ function BreachesTab({
     no_wof: 'No WOF',
   };
 
-  const STATUS_COLORS: Record<string, string> = {
-    pending: 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300',
-    acknowledged: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300',
-    enforcement_started: 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300',
-    resolved: 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300',
-    dismissed: 'bg-gray-100 dark:bg-gray-900/30 text-gray-500 dark:text-gray-400',
-  };
-
   return (
     <div className="space-y-4">
       <div className="flex flex-col sm:flex-row gap-3">
@@ -358,7 +350,7 @@ function BreachesTab({
           />
         </div>
         <span className="self-center text-sm text-gray-500">
-          {data?.total ?? '…'} breach alert{data?.total !== 1 ? 's' : ''}
+          {data?.total ?? '…'} non-compliant observation{data?.total !== 1 ? 's' : ''}
           {isFetching && <RefreshCw className="inline w-3 h-3 ml-2 animate-spin" />}
         </span>
       </div>
@@ -367,9 +359,9 @@ function BreachesTab({
         {isLoading ? (
           <Spinner />
         ) : isError ? (
-          <Empty msg={`Failed to load breach alerts: ${(queryError as Error)?.message ?? 'Unknown error'}`} />
+          <Empty msg={`Failed to load breach observations: ${(queryError as Error)?.message ?? 'Unknown error'}`} />
         ) : !data?.rows.length ? (
-          <Empty msg="No breach alerts found in this period" />
+          <Empty msg="No breach observations found in this period" />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -378,8 +370,7 @@ function BreachesTab({
                   <th className="px-4 py-3 font-semibold text-gray-600 dark:text-gray-400">Plate</th>
                   <th className="px-4 py-3 font-semibold text-gray-600 dark:text-gray-400">Zone</th>
                   <th className="px-4 py-3 font-semibold text-gray-600 dark:text-gray-400">Breach Type</th>
-                  <th className="px-4 py-3 font-semibold text-gray-600 dark:text-gray-400 hidden sm:table-cell">Status</th>
-                  <th className="px-4 py-3 font-semibold text-gray-600 dark:text-gray-400">Created</th>
+                  <th className="px-4 py-3 font-semibold text-gray-600 dark:text-gray-400">Recorded</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
@@ -397,25 +388,17 @@ function BreachesTab({
                     <td className="px-4 py-3">
                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300">
                         <XCircle className="w-3 h-3" />
-                        {BREACH_LABELS[b.breach_type] ?? b.breach_type.replace(/_/g, ' ')}
+                        {BREACH_LABELS[b.breach_type ?? ''] ?? b.breach_type?.replace(/_/g, ' ') ?? 'Unknown'}
                       </span>
-                      {b.breach_details?.message && (
-                        <p className="text-xs text-gray-400 mt-0.5 max-w-xs truncate" title={b.breach_details.message}>
-                          {b.breach_details.message}
+                      {b.breach_reason && (
+                        <p className="text-xs text-gray-400 mt-0.5 max-w-xs truncate" title={b.breach_reason}>
+                          {b.breach_reason}
                         </p>
                       )}
                     </td>
-                    <td className="px-4 py-3 hidden sm:table-cell">
-                      <span className={cn(
-                        'inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold',
-                        STATUS_COLORS[b.status] ?? STATUS_COLORS.pending
-                      )}>
-                        {b.status.replace(/_/g, ' ')}
-                      </span>
-                    </td>
                     <td className="px-4 py-3 text-xs text-gray-400 whitespace-nowrap">
-                      <span title={format(new Date(b.created_at), 'PPPp')}>
-                        {formatDistanceToNow(new Date(b.created_at), { addSuffix: true })}
+                      <span title={format(new Date(b.recorded_at), 'PPPp')}>
+                        {formatDistanceToNow(new Date(b.recorded_at), { addSuffix: true })}
                       </span>
                     </td>
                   </tr>
