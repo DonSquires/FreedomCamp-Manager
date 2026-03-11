@@ -73,7 +73,8 @@ serve(async (req) => {
         is_compliant,
         breach_type,
         recorded_at,
-        compliance_snapshot,
+        nights_stayed_this_month,
+        consecutive_nights,
         zones(name),
         organizations(name)
       `)
@@ -85,7 +86,7 @@ serve(async (req) => {
 
     let enforcementQuery = supabase
       .from('enforcement_actions')
-      .select('action_type, outcome, created_at')
+      .select('action_type, completion_outcome, created_at')
       .gte('created_at', startDateTime)
       .lte('created_at', endDateTime);
 
@@ -130,11 +131,10 @@ serve(async (req) => {
     const vehicleMap = new Map(vehicleData.map((v: any) => [v.plate_number, v]));
 
     // Derive compliance snapshots per plate+zone from the already-loaded observations.
-    // Some environments store stay counters in compliance_snapshot instead of top-level columns.
     const getMonthlyNights = (o: any): number =>
-      Number(o?.nights_stayed_this_month ?? o?.compliance_snapshot?.nights_stayed_this_month ?? o?.compliance_snapshot?.nights_stayed ?? 0) || 0;
+      Number(o?.nights_stayed_this_month ?? 0) || 0;
     const getConsecutiveNights = (o: any): number =>
-      Number(o?.consecutive_nights ?? o?.compliance_snapshot?.consecutive_nights ?? 0) || 0;
+      Number(o?.consecutive_nights ?? 0) || 0;
 
     const staysByPlateZone = new Map<string, any>();
     for (const o of obs) {
@@ -339,7 +339,7 @@ serve(async (req) => {
     const enforcementByOutcome = new Map<string, number>();
     for (const action of enforcementRows) {
       const type = action.action_type || 'unknown';
-      const outcome = action.outcome || 'unknown';
+      const outcome = action.completion_outcome || 'unknown';
       enforcementByType.set(type, (enforcementByType.get(type) || 0) + 1);
       enforcementByOutcome.set(outcome, (enforcementByOutcome.get(outcome) || 0) + 1);
     }
