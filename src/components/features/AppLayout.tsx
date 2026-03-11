@@ -93,13 +93,13 @@ function NavigationLinks({ onClick }: { onClick?: () => void }) {
             to={item.path}
             onClick={onClick}
             className={cn(
-              'flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors',
+              'flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-all duration-150',
               isActive
-                ? 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-100'
-                : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800'
+                ? 'bg-blue-50 text-blue-700 shadow-[inset_3px_0_0_theme(colors.blue.600)] dark:bg-blue-950/50 dark:text-blue-200 dark:shadow-[inset_3px_0_0_theme(colors.blue.400)]'
+                : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700/60 dark:hover:text-gray-100'
             )}
           >
-            <Icon className="h-5 w-5" />
+            <Icon className={cn('h-4 w-4 shrink-0', isActive ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400 dark:text-gray-500')} />
             <span>{item.label}</span>
           </Link>
         )
@@ -223,7 +223,7 @@ export function AppLayout({ children, title, description, showBackButton }: AppL
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+    <div className="min-h-screen bg-gray-50/80 dark:bg-gray-900 bg-[radial-gradient(ellipse_at_top_right,_rgba(59,130,246,0.04),_transparent_60%)]">
       {/* Mobile Header */}
       <header className="lg:hidden bg-white dark:bg-gray-800 shadow-sm sticky top-0 z-40">
         <div className="flex items-center justify-between px-4 py-3">
@@ -282,17 +282,17 @@ export function AppLayout({ children, title, description, showBackButton }: AppL
       {/* Desktop Sidebar */}
       <aside
         className={cn(
-          'hidden lg:block fixed inset-y-0 left-0 w-64 bg-white dark:bg-gray-800 border-r dark:border-gray-700 z-30 transition-transform duration-200',
+          'hidden lg:block fixed inset-y-0 left-0 w-64 bg-white dark:bg-gray-800 border-r dark:border-gray-700 z-30 transition-transform duration-200 shadow-[2px_0_12px_-2px_rgba(0,0,0,0.08)] dark:shadow-[2px_0_12px_-2px_rgba(0,0,0,0.4)]',
           desktopNavOpen ? 'translate-x-0' : '-translate-x-full'
         )}
       >
         <div className="flex flex-col h-full">
-          <div className="p-6 border-b dark:border-gray-700">
-            <h2 className="font-bold text-xl text-blue-600 dark:text-blue-400">FreedomCamp</h2>
-            <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+          <div className="p-5 border-b dark:border-gray-700 bg-gradient-to-br from-blue-600 to-blue-700 dark:from-blue-800 dark:to-blue-900">
+            <h2 className="font-bold text-xl text-white">FreedomCamp</h2>
+            <p className="text-sm text-blue-100 mt-0.5">
               {user?.full_name}
             </p>
-            <p className="text-xs text-gray-500 dark:text-gray-500">
+            <p className="text-xs text-blue-200 mt-0.5">
               {user?.role === 'master' ? 'System Administrator' : 
                user?.role === 'admin' ? 'Administrator' :
                user?.role === 'admin_officer' ? 'Admin Officer' : 'Field Officer'}
@@ -319,7 +319,7 @@ export function AppLayout({ children, title, description, showBackButton }: AppL
       {/* Main Content */}
       <div className={cn('transition-[padding] duration-200', desktopNavOpen ? 'lg:pl-64' : 'lg:pl-0')}>
         {/* Desktop Header */}
-        <header className="hidden lg:block bg-white dark:bg-gray-800 shadow-sm sticky top-0 z-20">
+        <header className="hidden lg:block bg-white dark:bg-gray-800 shadow-[0_2px_8px_-2px_rgba(0,0,0,0.1)] dark:shadow-[0_2px_8px_-2px_rgba(0,0,0,0.4)] sticky top-0 z-20 border-b border-gray-100 dark:border-gray-700/50">
           <div className="px-6 py-4">
             <div className="flex items-center justify-between">
               <div className="flex items-start gap-3">

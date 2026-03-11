@@ -17,6 +17,7 @@ import {
   Bookmark,
   Car,
   Clock3,
+  Eye,
   Gavel,
   Layers,
   Map,
@@ -294,25 +295,45 @@ export default function AdminPortal() {
     title: string
     value: string | number
     config: DrillConfig
+    icon: React.FC<{ className?: string }>
+    iconBg: string
+    iconColor: string
+    accentColor: string
   }> = [
     {
       title: 'Observations',
       value: isLoading ? '...' : metrics.totalObservations,
+      icon: Eye,
+      iconBg: 'bg-blue-100 dark:bg-blue-900/40',
+      iconColor: 'text-blue-600 dark:text-blue-400',
+      accentColor: 'from-blue-500 to-blue-600',
       config: { to: '/compliance', metric: 'observations', period: periodLabel, tab: 'overview', label: 'Observations KPI' },
     },
     {
       title: 'Compliance Rate',
       value: isLoading ? '...' : `${metrics.complianceRate}%`,
+      icon: Shield,
+      iconBg: 'bg-emerald-100 dark:bg-emerald-900/40',
+      iconColor: 'text-emerald-600 dark:text-emerald-400',
+      accentColor: 'from-emerald-500 to-emerald-600',
       config: { to: '/compliance', metric: 'compliance_rate', period: periodLabel, tab: 'zones', label: 'Compliance Rate KPI' },
     },
     {
       title: 'Active Breaches',
       value: isLoading ? '...' : metrics.activeBreaches,
+      icon: AlertTriangle,
+      iconBg: 'bg-red-100 dark:bg-red-900/40',
+      iconColor: 'text-red-600 dark:text-red-400',
+      accentColor: 'from-red-500 to-red-600',
       config: { to: '/breaches', metric: 'active_breaches', period: periodLabel, status: 'pending', label: 'Active Breaches KPI' },
     },
     {
       title: 'Active Vehicles',
       value: isLoading ? '...' : metrics.activeVehicles,
+      icon: Car,
+      iconBg: 'bg-violet-100 dark:bg-violet-900/40',
+      iconColor: 'text-violet-600 dark:text-violet-400',
+      accentColor: 'from-violet-500 to-violet-600',
       config: { to: '/vehicles', metric: 'active_vehicles', period: periodLabel, status: 'all', label: 'Active Vehicles KPI' },
     },
   ]
@@ -325,81 +346,97 @@ export default function AdminPortal() {
       <GlobalFilterRibbon />
 
       <div className="space-y-6">
-        <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          {kpiDrilldowns.map((kpi) => (
-            <Card key={kpi.title} className="cursor-pointer transition-colors hover:bg-muted/40" onClick={() => openDrilldown(kpi.config)}>
-              <CardHeader className="pb-2">
-                <CardDescription className="flex items-center justify-between">
-                  {kpi.title}
-                  <ArrowRight className="h-3.5 w-3.5 text-muted-foreground" />
-                </CardDescription>
-                <CardTitle className="text-3xl">{kpi.value}</CardTitle>
-              </CardHeader>
-              <CardContent className="pt-0">
-                <button
-                  type="button"
-                  className="text-xs text-blue-600 hover:underline"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    saveView(`KPI: ${kpi.title}`, kpi.config)
-                  }}
-                >
-                  Save View
-                </button>
-              </CardContent>
-            </Card>
-          ))}
+        {/* KPI Cards */}
+        <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          {kpiDrilldowns.map((kpi) => {
+            const Icon = kpi.icon
+            return (
+              <Card
+                key={kpi.title}
+                className="cursor-pointer overflow-hidden group"
+                onClick={() => openDrilldown(kpi.config)}
+              >
+                {/* Color accent bar at top */}
+                <div className={`h-1 w-full bg-gradient-to-r ${kpi.accentColor}`} />
+                <CardHeader className="pb-2 pt-4">
+                  <CardDescription className="flex items-center justify-between text-xs font-medium uppercase tracking-wide">
+                    {kpi.title}
+                    <ArrowRight className="h-3.5 w-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                  </CardDescription>
+                  <div className="flex items-end justify-between mt-1">
+                    <CardTitle className="text-4xl font-bold tracking-tight">{kpi.value}</CardTitle>
+                    <div className={`rounded-xl p-2.5 ${kpi.iconBg}`}>
+                      <Icon className={`h-5 w-5 ${kpi.iconColor}`} />
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="pt-0 pb-3">
+                  <button
+                    type="button"
+                    className="text-xs text-muted-foreground hover:text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity hover:underline"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      saveView(`KPI: ${kpi.title}`, kpi.config)
+                    }}
+                  >
+                    Save View
+                  </button>
+                </CardContent>
+              </Card>
+            )
+          })}
         </section>
 
-        <section className="grid gap-6 xl:grid-cols-[320px_1.35fr_1fr]">
+        <section className="grid gap-6 xl:grid-cols-[300px_1.4fr_1fr]">
+          {/* Analysis Workspace */}
           <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <Bookmark className="h-5 w-5" />
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Bookmark className="h-4 w-4 text-blue-600" />
                 Analysis Workspace
               </CardTitle>
-              <CardDescription>Saved views and rapid bookmarks for drill-down workflows.</CardDescription>
+              <CardDescription className="text-xs">Saved views and rapid bookmarks for drill-down workflows.</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Quick Bookmarks</p>
+            <CardContent className="space-y-4 pt-0">
+              <div className="space-y-1.5">
+                <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground px-1">Quick Bookmarks</p>
                 {QUICK_BOOKMARKS.map((item) => {
                   const config: DrillConfig = { to: item.to, metric: item.params.metric || 'bookmark', period: periodLabel, tab: item.params.tab, status: item.params.status, label: item.name }
                   return (
                     <button
                       key={item.name}
                       onClick={() => openDrilldown(config)}
-                      className="flex w-full items-center justify-between rounded-md border px-2.5 py-2 text-left text-sm hover:bg-muted"
+                      className="flex w-full items-center justify-between rounded-lg border bg-muted/30 px-3 py-2 text-left text-sm hover:bg-muted hover:shadow-sm transition-all"
                     >
-                      <span>{item.name}</span>
-                      <Star className="h-3.5 w-3.5 text-amber-500" />
+                      <span className="font-medium">{item.name}</span>
+                      <Star className="h-3.5 w-3.5 text-amber-500 shrink-0" />
                     </button>
                   )
                 })}
               </div>
 
-              <div className="space-y-2">
-                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Saved Views</p>
-                {savedViews.length === 0 && <p className="text-xs text-muted-foreground">No saved views yet.</p>}
+              <div className="space-y-1.5">
+                <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground px-1">Saved Views</p>
+                {savedViews.length === 0 && <p className="text-xs text-muted-foreground px-1">No saved views yet.</p>}
                 {savedViews.map((view) => (
                   <button
                     key={view.id}
                     onClick={() => openSavedView(view.to, view.params)}
-                    className="flex w-full items-center justify-between rounded-md border px-2.5 py-2 text-left text-sm hover:bg-muted"
+                    className="flex w-full items-center justify-between rounded-lg border bg-muted/30 px-3 py-2 text-left text-sm hover:bg-muted hover:shadow-sm transition-all"
                   >
-                    <span className="truncate">{view.name}</span>
-                    <Pin className="h-3.5 w-3.5 text-sky-600" />
+                    <span className="truncate font-medium">{view.name}</span>
+                    <Pin className="h-3.5 w-3.5 text-sky-600 shrink-0" />
                   </button>
                 ))}
               </div>
 
-              <div className="space-y-2">
-                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Recent Drilldowns</p>
-                {recentDrilldowns.length === 0 && <p className="text-xs text-muted-foreground">No recent drilldowns in this session.</p>}
+              <div className="space-y-1.5">
+                <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground px-1">Recent Drilldowns</p>
+                {recentDrilldowns.length === 0 && <p className="text-xs text-muted-foreground px-1">No recent drilldowns in this session.</p>}
                 {recentDrilldowns.map((item, idx) => (
-                  <div key={`${item.label}-${idx}`} className="flex items-center justify-between rounded-md border px-2.5 py-2 text-xs">
+                  <div key={`${item.label}-${idx}`} className="flex items-center justify-between rounded-lg border px-3 py-2 text-xs bg-muted/20">
                     <span className="truncate">{item.label}</span>
-                    <span className="inline-flex items-center gap-1 text-muted-foreground">
+                    <span className="inline-flex items-center gap-1 text-muted-foreground shrink-0 ml-2">
                       <Clock3 className="h-3 w-3" />
                       now
                     </span>
@@ -415,49 +452,43 @@ export default function AdminPortal() {
             description="Rolling compliance vs breach signal for current filter scope"
           />
 
+          {/* BI Drill-Down Lanes */}
           <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-lg">
-                <Layers className="h-5 w-5" />
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Layers className="h-4 w-4 text-blue-600" />
                 BI Drill-Down Lanes
               </CardTitle>
-              <CardDescription>
+              <CardDescription className="text-xs">
                 Start at macro KPIs, then jump into operational workflows.
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-2">
+            <CardContent className="space-y-1.5 pt-0">
               {drilldowns.map(({ title, description, to, icon: Icon, metric, config }) => (
-                <button
+                <div
                   key={to}
+                  className="group rounded-xl border bg-muted/20 hover:bg-muted/60 hover:shadow-sm transition-all duration-150 cursor-pointer"
                   onClick={() => openDrilldown(config)}
-                  className="w-full rounded-lg border px-3 py-2 text-left transition-colors hover:bg-muted"
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openDrilldown(config) } }}
                 >
-                  <div className="flex items-center justify-between gap-3">
+                  <div className="px-3 py-2.5 flex items-center justify-between gap-2">
                     <div className="min-w-0">
-                      <div className="flex items-center gap-2 font-medium">
-                        <Icon className="h-4 w-4" />
-                        <span className="truncate">{title}</span>
+                      <div className="flex items-center gap-2">
+                        <Icon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                        <span className="text-sm font-medium truncate">{title}</span>
                       </div>
-                      <p className="mt-1 text-xs text-muted-foreground">{description}</p>
+                      <p className="text-[11px] text-muted-foreground mt-0.5 truncate">{description}</p>
                     </div>
-                    <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    <div className="flex items-center gap-2 shrink-0">
+                      <Badge variant="secondary" className="text-[10px] py-0 px-1.5 hidden group-hover:inline-flex">
+                        {metric}
+                      </Badge>
+                      <ArrowRight className="h-3.5 w-3.5 text-muted-foreground" />
+                    </div>
                   </div>
-                  <Badge variant="secondary" className="mt-2 text-[11px]">
-                    {metric}
-                  </Badge>
-                  <div className="mt-2">
-                    <button
-                      type="button"
-                      className="text-xs text-blue-600 hover:underline"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        saveView(title, config)
-                      }}
-                    >
-                      Save lane
-                    </button>
-                  </div>
-                </button>
+                </div>
               ))}
             </CardContent>
           </Card>
@@ -467,28 +498,28 @@ export default function AdminPortal() {
           <Button
             variant="outline"
             onClick={() => openDrilldown({ to: '/compliance-recalculation', metric: 'manual_recalculation', period: periodLabel, label: 'Manual Recalculation' })}
-            className="justify-between"
+            className="justify-between hover:shadow-sm transition-shadow"
           >
             Manual Recalculation <Shield className="h-4 w-4" />
           </Button>
           <Button
             variant="outline"
             onClick={() => openDrilldown({ to: '/reports-hub', metric: 'reporting_workspace', period: periodLabel, label: 'Reporting Workspace' })}
-            className="justify-between"
+            className="justify-between hover:shadow-sm transition-shadow"
           >
             Reporting Workspace <BarChart3 className="h-4 w-4" />
           </Button>
           <Button
             variant="outline"
             onClick={() => openDrilldown({ to: '/users', metric: 'team_access', period: periodLabel, label: 'Team and Access' })}
-            className="justify-between"
+            className="justify-between hover:shadow-sm transition-shadow"
           >
             Team & Access <Users className="h-4 w-4" />
           </Button>
           <Button
             variant="outline"
             onClick={() => openDrilldown({ to: '/enforcement-command-center', metric: 'enforcement_control', period: periodLabel, label: 'Enforcement Control' })}
-            className="justify-between"
+            className="justify-between hover:shadow-sm transition-shadow"
           >
             Enforcement Control <Gavel className="h-4 w-4" />
           </Button>
