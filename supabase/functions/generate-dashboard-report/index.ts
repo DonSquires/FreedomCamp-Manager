@@ -63,7 +63,7 @@ serve(async (req) => {
     const startDateTime = `${normalizedDateFrom}T00:00:00`;
     const endDateTime = `${normalizedDateTo}T23:59:59`;
 
-    // Load observations for the date range
+    // Build queries that don't depend on each other and can run in parallel
     let obsQuery = supabase
       .from('observations')
       .select(`
@@ -73,6 +73,8 @@ serve(async (req) => {
         is_compliant,
         breach_type,
         recorded_at,
+        nights_stayed_this_month,
+        consecutive_nights,
         zones(name),
         organizations(name)
       `)
@@ -82,15 +84,6 @@ serve(async (req) => {
     if (organization_id) obsQuery = obsQuery.eq('organization_id', organization_id);
     if (zone_id) obsQuery = obsQuery.eq('zone_id', zone_id);
 
-    const { data: observations, error: obsError } = await obsQuery;
-    if (obsError) throw obsError;
-
-    const obs = observations || [];
-    const uniquePlates = [...new Set(obs.map((o: any) => o.plate_number))];
-
-    console.log(`✅ Loaded ${obs.length} observations for ${uniquePlates.length} unique vehicles`);
-
-    // Load enforcement actions for report-specific sections
     let enforcementQuery = supabase
       .from('enforcement_actions')
       .select('action_type, outcome, created_at')
@@ -100,10 +93,31 @@ serve(async (req) => {
     if (organization_id) enforcementQuery = enforcementQuery.eq('organization_id', organization_id);
     if (zone_id) enforcementQuery = enforcementQuery.eq('zone_id', zone_id);
 
-    const { data: enforcementActions } = await enforcementQuery;
-    const enforcementRows = enforcementActions || [];
+    let matrixQuery = supabase
+      .from('zone_compliance_matrix')
+      .select('zone_id, max_consecutive_nights, nights_per_month')
+      .is('effective_to', null);
 
-    // Load vehicle details
+    if (organization_id) matrixQuery = matrixQuery.eq('organization_id', organization_id);
+
+    // Run independent queries in parallel to reduce total round-trip time
+    const [
+      { data: observations, error: obsError },
+      { data: enforcementActions },
+      { data: matrices },
+    ] = await Promise.all([obsQuery, enforcementQuery, matrixQuery]);
+
+    if (obsError) throw obsError;
+
+    const obs = observations || [];
+    const uniquePlates = [...new Set(obs.map((o: any) => o.plate_number))];
+
+    console.log(`✅ Loaded ${obs.length} observations for ${uniquePlates.length} unique vehicles`);
+
+    const enforcementRows = enforcementActions || [];
+    const matrixMap = new Map(matrices?.map((m: any) => [m.zone_id, m]) || []);
+
+    // Load vehicle details (depends on uniquePlates derived from obs)
     let vehicleData: any[] = [];
     if (uniquePlates.length > 0) {
       const { data: vehicles } = await supabase
@@ -116,25 +130,11 @@ serve(async (req) => {
 
     const vehicleMap = new Map(vehicleData.map((v: any) => [v.plate_number, v]));
 
-    // Load latest compliance snapshot per plate+zone from observations
-    // (vehicle_monthly_stays is no longer auto-updated by the new observations pipeline)
-    let latestObsQuery = supabase
-      .from('observations')
-      .select('plate_number, zone_id, nights_stayed_this_month, consecutive_nights, zones(name)')
-      .in('plate_number', uniquePlates)
-      
-      .gte('recorded_at', normalizedDateFrom)
-      .lte('recorded_at', normalizedDateTo)
-      .order('recorded_at', { ascending: false });
-
-    if (organization_id) latestObsQuery = latestObsQuery.eq('organization_id', organization_id);
-    if (zone_id) latestObsQuery = latestObsQuery.eq('zone_id', zone_id);
-
-    const { data: latestObs } = await latestObsQuery;
-
-    // Deduplicate: keep the most recent snapshot per plate+zone (highest nights_stayed)
+    // Derive compliance snapshots per plate+zone from the already-loaded observations
+    // (nights_stayed_this_month and consecutive_nights are now included in obsQuery,
+    //  eliminating the need for a separate redundant latestObsQuery round-trip)
     const staysByPlateZone = new Map<string, any>();
-    for (const o of (latestObs ?? [])) {
+    for (const o of obs) {
       const key = `${o.plate_number}:${o.zone_id}`;
       const existing = staysByPlateZone.get(key);
       if (!existing || (o.nights_stayed_this_month ?? 0) > (existing.nights_stayed ?? 0)) {
@@ -148,17 +148,6 @@ serve(async (req) => {
       }
     }
     const stays = [...staysByPlateZone.values()];
-
-    // Get compliance matrix
-    let matrixQuery = supabase
-      .from('zone_compliance_matrix')
-      .select('zone_id, max_consecutive_nights, nights_per_month')
-      .is('effective_to', null);
-
-    if (organization_id) matrixQuery = matrixQuery.eq('organization_id', organization_id);
-
-    const { data: matrices } = await matrixQuery;
-    const matrixMap = new Map(matrices?.map((m: any) => [m.zone_id, m]) || []);
 
     // Calculate overstayers and at-risk vehicles
     const overstayersMap = new Map<string, any[]>();
@@ -371,27 +360,18 @@ serve(async (req) => {
       ? Math.round(((totalVehicles - totalBreaches) / totalVehicles) * 100)
       : 100;
 
-    // Load organization name if specified
-    let organizationName = 'All Organizations';
-    if (organization_id) {
-      const { data: org } = await supabase
-        .from('organizations')
-        .select('name')
-        .eq('id', organization_id)
-        .single();
-      if (org) organizationName = org.name;
-    }
+    // Load organization name and zone name in parallel
+    const [orgResult, zoneResult] = await Promise.all([
+      organization_id
+        ? supabase.from('organizations').select('name').eq('id', organization_id).single()
+        : Promise.resolve({ data: null }),
+      zone_id
+        ? supabase.from('zones').select('name').eq('id', zone_id).single()
+        : Promise.resolve({ data: null }),
+    ]);
 
-    // Load zone name if specified
-    let zoneName = 'All Zones';
-    if (zone_id) {
-      const { data: zone } = await supabase
-        .from('zones')
-        .select('name')
-        .eq('id', zone_id)
-        .single();
-      if (zone) zoneName = zone.name;
-    }
+    const organizationName = orgResult.data?.name ?? 'All Organizations';
+    const zoneName = zoneResult.data?.name ?? 'All Zones';
 
     // Generate HTML
     const html = generateReportHTML({
