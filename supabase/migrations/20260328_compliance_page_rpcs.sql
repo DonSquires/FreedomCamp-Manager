@@ -49,7 +49,7 @@ BEGIN
   veh AS (
     SELECT
       COUNT(*) FILTER (WHERE is_flagged = TRUE)                               AS flagged,
-      COUNT(*) FILTER (WHERE homeless_status IN ('confirmed','claimed','declined')) AS homeless
+      COUNT(*) FILTER (WHERE homeless_status IN ('confirmed','claimed','suspected','declined')) AS homeless
     FROM canonical_vehicles
   )
   SELECT
@@ -270,7 +270,6 @@ BEGIN
       AND (p_zone_id         IS NULL OR zone_id         = p_zone_id)
     GROUP BY DATE(recorded_at AT TIME ZONE 'Pacific/Auckland')
     ORDER BY nz_date
-    LIMIT 30
   ) dt;
 
   RETURN jsonb_build_object(
@@ -387,7 +386,7 @@ BEGIN
                     AS flagged_vehicles,
 
     (SELECT COUNT(*) FROM public.canonical_vehicles
-     WHERE homeless_status IN ('confirmed', 'suspected', 'claimed'))
+     WHERE homeless_status IN ('confirmed', 'suspected', 'claimed', 'declined'))
                     AS homeless_vehicles,
 
     -- Homeless-exempt observations today

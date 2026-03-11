@@ -14,15 +14,17 @@ import { AppLayout } from '@/components/features/AppLayout'
 interface Incident {
   id: string
   organization_id: string
-  zone_id: string
-  plate_number: string
-  incident_type: string
-  severity: string
+  zone_id: string | null
+  plate_number: string | null
+  incident_type: string | null
+  severity: string | null
   status: string
-  description: string
-  recorded_at: string
+  description: string | null
   created_at: string
-  attachments: any[]
+  evidence_count: number
+  primary_evidence_url: string | null
+  location_address: string | null
+  notes: string | null
 }
 
 export default function IncidentManagement() {
@@ -42,14 +44,15 @@ export default function IncidentManagement() {
       let query = supabase
         .from('incidents')
         .select('*')
-        .order('recorded_at', { ascending: false })
+        .is('deleted_at', null)
+        .order('created_at', { ascending: false })
 
       // Apply filters
       if (startDate) {
-        query = query.gte('recorded_at', startDate)
+        query = query.gte('created_at', startDate)
       }
       if (endDate) {
-        query = query.lte('recorded_at', endDate)
+        query = query.lte('created_at', endDate)
       }
       if (effectiveOrganizationId) {
         query = query.eq('organization_id', effectiveOrganizationId)
@@ -165,7 +168,7 @@ export default function IncidentManagement() {
                   <div className="flex items-center gap-2">
                     <Calendar className="h-4 w-4 text-gray-400" />
                     <span className="text-gray-600">
-                      {formatDateTime(incident.recorded_at)}
+                      {formatDateTime(incident.created_at)}
                     </span>
                   </div>
                   {incident.plate_number && (
@@ -175,11 +178,11 @@ export default function IncidentManagement() {
                       </span>
                     </div>
                   )}
-                  {incident.attachments && incident.attachments.length > 0 && (
+                  {incident.evidence_count > 0 && (
                     <div className="flex items-center gap-2">
                       <Image className="h-4 w-4 text-gray-400" />
                       <span className="text-gray-600">
-                        {incident.attachments.length} attachment(s)
+                        {incident.evidence_count} attachment(s)
                       </span>
                     </div>
                   )}

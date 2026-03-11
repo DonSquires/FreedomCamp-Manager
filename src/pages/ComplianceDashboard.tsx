@@ -47,7 +47,7 @@ export default function ComplianceDashboard() {
   const { data: stats, isLoading } = useQuery({
     queryKey: ['dashboard-stats', effectiveOrganizationId, zoneId, dateFrom, dateTo],
     queryFn: async () => {
-      const start = startDate ?? new Date(0).toISOString()
+      const start = startDate ?? new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString()
       const end   = endDate   ?? new Date().toISOString()
       const { data, error } = await (supabase.rpc as any)('get_admin_dashboard_stats', {
         p_start_date:      start,

@@ -131,7 +131,7 @@ export default function ObservationsReport() {
   const { data: stats } = useQuery({
     queryKey: ['obs-report-stats', orgId, zoneId, dateFrom, dateTo],
     queryFn: async () => {
-      const start = startDate ?? new Date(0).toISOString()
+      const start = startDate ?? new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString()
       const end   = endDate   ?? new Date().toISOString()
       const { data, error } = await (supabase.rpc as any)('get_compliance_stats', {
         p_start:            start,
