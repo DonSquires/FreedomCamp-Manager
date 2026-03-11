@@ -6,8 +6,18 @@ import { useAuthStore } from '@/stores/authStore'
 import { useGlobalFiltersStore } from '@/stores/globalFiltersStore'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 import { StatCard } from '@/components/features/StatCard'
-import { FileText, Download, TrendingUp, Users, MapPin, AlertCircle, Clock, CheckCircle, HeartPulse, Scale, Mail } from 'lucide-react'
+import { FileText, Download, TrendingUp, Users, MapPin, AlertCircle, Clock, CheckCircle, HeartPulse, Scale, Mail, Send } from 'lucide-react'
 import { AppLayout } from '@/components/features/AppLayout'
 import { GlobalFilterRibbon } from '@/components/features/GlobalFilterRibbon'
 import { toast } from 'sonner'
@@ -53,6 +63,9 @@ const REPORT_LOADING_HTML =
   'min-height:100vh;margin:0;background:#f8fafc}h2{color:#374151;font-weight:500}</style></head>' +
   '<body><h2>&#8987; Generating report, please wait\u2026</h2></body></html>'
 
+/** Maximum ms to wait for the generate-dashboard-report Edge Function before giving up. */
+const REPORT_TIMEOUT_MS = 120_000
+
 function downloadReportHtml(html: string) {
   const blob = new Blob([html], { type: 'text/html;charset=utf-8' })
   const url = URL.createObjectURL(blob)
@@ -70,6 +83,13 @@ export default function Reports() {
   const { organizationId, zoneId, dateFrom, dateTo } = useGlobalFiltersStore()
   const [generatingReport, setGeneratingReport] = useState<string | null>(null)
   const reportWindowRef = useRef<Window | null>(null)
+
+  // Email dialog state
+  const [emailDialogOpen, setEmailDialogOpen] = useState(false)
+  const [emailReportType, setEmailReportType] = useState<string>('')
+  const [emailRecipient, setEmailRecipient] = useState<string>('')
+  const [sendingEmail, setSendingEmail] = useState(false)
+
   const effectiveOrganizationId =
     user?.role !== 'master' ? user?.organization_id || null : organizationId || null
   const startDate = dateFrom ? `${dateFrom}T00:00:00Z` : null
@@ -155,8 +175,17 @@ export default function Reports() {
     mutationFn: async (reportType: string) => {
       setGeneratingReport(reportType)
 
-      // Use shared edgeFunction caller so JWT refresh/invalid-session handling is centralized.
-      const { data, error } = await edgeFunctions.generateDashboardReport({
+      // Race the Edge Function call against the module-level timeout so the
+      // "Generating…" state never hangs indefinitely if the function stalls.
+      let timeoutId: ReturnType<typeof setTimeout> | undefined
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        timeoutId = setTimeout(
+          () => reject(new Error('Report generation timed out. Please try again.')),
+          REPORT_TIMEOUT_MS
+        )
+      })
+
+      const fetchPromise = edgeFunctions.generateDashboardReport({
         report_type: reportType,
         organization_id: effectiveOrganizationId || undefined,
         zone_id: zoneId || undefined,
@@ -164,10 +193,15 @@ export default function Reports() {
         date_to: reportDateTo,
       })
 
-      if (error) {
-        throw new Error(error)
+      try {
+        const { data, error } = await Promise.race([fetchPromise, timeoutPromise])
+        if (error) {
+          throw new Error(error)
+        }
+        return data
+      } finally {
+        clearTimeout(timeoutId)
       }
-      return data
     },
     onSuccess: (data, reportType) => {
       toast.success(`${reportType} report generated successfully`)
@@ -219,6 +253,40 @@ export default function Reports() {
     }
     reportWindowRef.current = win
     generateReportMutation.mutate(reportType)
+  }
+
+  // ── Email report helpers ───────────────────────────────────────────────────
+  const handleOpenEmailDialog = (reportType: string) => {
+    setEmailReportType(reportType)
+    // Default to the currently signed-in user's email
+    setEmailRecipient(user?.email || '')
+    setEmailDialogOpen(true)
+  }
+
+  const handleSendEmail = async () => {
+    if (!emailRecipient.trim()) {
+      toast.error('Please enter a recipient email address')
+      return
+    }
+    setSendingEmail(true)
+    try {
+      const { error } = await edgeFunctions.sendReportEmail({
+        report_type:     emailReportType,
+        recipient_email: emailRecipient.trim(),
+        organization_id: effectiveOrganizationId || undefined,
+        zone_id:         zoneId || undefined,
+        date_from:       reportDateFrom,
+        date_to:         reportDateTo,
+      })
+      if (error) {
+        toast.error(`Failed to send email: ${error}`)
+      } else {
+        toast.success(`Report emailed to ${emailRecipient}`)
+        setEmailDialogOpen(false)
+      }
+    } finally {
+      setSendingEmail(false)
+    }
   }
 
   // ── H&S Register CSV export ────────────────────────────────────────────────
@@ -343,6 +411,7 @@ export default function Reports() {
   }
 
   return (
+    <>
     <AppLayout title="Reports" description="Generate compliance and enforcement reports" showBackButton>
       <GlobalFilterRibbon />
 
@@ -394,7 +463,7 @@ export default function Reports() {
             </ul>
             <Button
               onClick={() => handleGenerateReport('compliance')}
-              className="w-full"
+              className="w-full mb-2"
               disabled={generatingReport === 'compliance'}
             >
               {generatingReport === 'compliance' ? (
@@ -408,6 +477,15 @@ export default function Reports() {
                   Generate PDF
                 </>
               )}
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => handleOpenEmailDialog('compliance')}
+              className="w-full"
+              disabled={generatingReport === 'compliance'}
+            >
+              <Mail className="h-4 w-4 mr-2" />
+              Send by Email
             </Button>
           </CardContent>
         </Card>
@@ -430,7 +508,7 @@ export default function Reports() {
             </ul>
             <Button
               onClick={() => handleGenerateReport('enforcement')}
-              className="w-full"
+              className="w-full mb-2"
               disabled={generatingReport === 'enforcement'}
             >
               {generatingReport === 'enforcement' ? (
@@ -444,6 +522,15 @@ export default function Reports() {
                   Generate PDF
                 </>
               )}
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => handleOpenEmailDialog('enforcement')}
+              className="w-full"
+              disabled={generatingReport === 'enforcement'}
+            >
+              <Mail className="h-4 w-4 mr-2" />
+              Send by Email
             </Button>
           </CardContent>
         </Card>
@@ -466,7 +553,7 @@ export default function Reports() {
             </ul>
             <Button
               onClick={() => handleGenerateReport('vehicle-activity')}
-              className="w-full"
+              className="w-full mb-2"
               disabled={generatingReport === 'vehicle-activity'}
             >
               {generatingReport === 'vehicle-activity' ? (
@@ -480,6 +567,15 @@ export default function Reports() {
                   Generate PDF
                 </>
               )}
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => handleOpenEmailDialog('vehicle-activity')}
+              className="w-full"
+              disabled={generatingReport === 'vehicle-activity'}
+            >
+              <Mail className="h-4 w-4 mr-2" />
+              Send by Email
             </Button>
           </CardContent>
         </Card>
@@ -502,7 +598,7 @@ export default function Reports() {
             </ul>
             <Button
               onClick={() => handleGenerateReport('zone-stats')}
-              className="w-full"
+              className="w-full mb-2"
               disabled={generatingReport === 'zone-stats'}
             >
               {generatingReport === 'zone-stats' ? (
@@ -516,6 +612,15 @@ export default function Reports() {
                   Generate PDF
                 </>
               )}
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => handleOpenEmailDialog('zone-stats')}
+              className="w-full"
+              disabled={generatingReport === 'zone-stats'}
+            >
+              <Mail className="h-4 w-4 mr-2" />
+              Send by Email
             </Button>
           </CardContent>
         </Card>
@@ -651,5 +756,64 @@ export default function Reports() {
         </CardContent>
       </Card>
     </AppLayout>
+
+    {/* ── Send Report by Email dialog ── */}
+    <Dialog open={emailDialogOpen} onOpenChange={setEmailDialogOpen}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Send className="h-5 w-5 text-blue-600" />
+            Send Report by Email
+          </DialogTitle>
+          <DialogDescription>
+            The{' '}
+            <span className="font-medium capitalize">
+              {emailReportType.replace(/-/g, ' ')}
+            </span>{' '}
+            report will be sent as a formatted email for the period{' '}
+            <span className="font-medium">
+              {reportDateFrom} → {reportDateTo}
+            </span>
+            .
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-3 py-2">
+          <div className="space-y-1.5">
+            <Label htmlFor="report-email-recipient">Recipient email address</Label>
+            <Input
+              id="report-email-recipient"
+              type="email"
+              placeholder="e.g. manager@example.com"
+              value={emailRecipient}
+              onChange={(e) => setEmailRecipient(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); if (!sendingEmail) handleSendEmail() } }}
+              disabled={sendingEmail}
+              autoFocus
+            />
+          </div>
+        </div>
+
+        <DialogFooter className="gap-2 sm:gap-0">
+          <Button variant="outline" onClick={() => setEmailDialogOpen(false)} disabled={sendingEmail}>
+            Cancel
+          </Button>
+          <Button onClick={handleSendEmail} disabled={sendingEmail || !emailRecipient.trim()}>
+            {sendingEmail ? (
+              <>
+                <Clock className="h-4 w-4 mr-2 animate-spin" />
+                Sending…
+              </>
+            ) : (
+              <>
+                <Send className="h-4 w-4 mr-2" />
+                Send Report
+              </>
+            )}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+    </>
   )
 }

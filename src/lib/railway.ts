@@ -86,9 +86,13 @@ export async function checkRailwayServicesHealth() {
       return { proxy: false, inference: false }
     }
 
+    // Proxy returns { status: 'ok' }; inference returns { status: 'healthy' }.
+    // Accept either value so both display as online.
+    const proxyOk = data?.proxy?.status === 'ok' || data?.proxy?.status === 'healthy'
+    const inferenceOk = data?.inference?.status === 'ok' || data?.inference?.status === 'healthy'
     return {
-      proxy: data?.proxy?.status === 'ok',
-      inference: data?.inference?.status === 'ok',
+      proxy: proxyOk,
+      inference: inferenceOk,
     }
   } catch (error) {
     console.error('Railway health check error:', error)

@@ -9,34 +9,54 @@
 import { supabase } from './supabase'
 
 /**
- * Get Railway service URLs from Supabase secrets
+ * Response type from the check-railway-health Edge Function.
+ */
+interface RailwayHealthResponse {
+  proxy: { status: string; error?: string; [key: string]: unknown }
+  proxy_url: string | null
+  inference: { status: string; error?: string; [key: string]: unknown }
+  inference_url: string | null
+  checked_at: string
+}
+
+/**
+ * Get Railway service URLs and health status from the check-railway-health Edge Function.
  */
 async function getRailwayServiceURLs(): Promise<{
   proxyUrl: string | null
   inferenceUrl: string | null
+  proxyHealth: RailwayHealthResponse['proxy'] | null
+  inferenceHealth: RailwayHealthResponse['inference'] | null
   error: string | null
 }> {
   try {
-    // Call Edge Function to retrieve Railway URLs from backend secrets
+    // Call Edge Function to retrieve Railway URLs and health from backend secrets
     const { data, error } = await supabase.functions.invoke('check-railway-health')
 
     if (error) {
       return {
         proxyUrl: null,
         inferenceUrl: null,
+        proxyHealth: null,
+        inferenceHealth: null,
         error: error.message || 'Failed to get Railway service URLs',
       }
     }
 
+    const response = data as RailwayHealthResponse | null
     return {
-      proxyUrl: data?.proxy_url || null,
-      inferenceUrl: data?.inference_url || null,
+      proxyUrl: response?.proxy_url || null,
+      inferenceUrl: response?.inference_url || null,
+      proxyHealth: response?.proxy || null,
+      inferenceHealth: response?.inference || null,
       error: null,
     }
   } catch (error: any) {
     return {
       proxyUrl: null,
       inferenceUrl: null,
+      proxyHealth: null,
+      inferenceHealth: null,
       error: error.message || 'Unknown error',
     }
   }
@@ -402,84 +422,59 @@ export interface ServiceHealthStatus {
 }
 
 /**
- * Check proxy server health
+ * Check proxy server health.
+ *
+ * Health is determined by the check-railway-health Edge Function rather than a
+ * direct browser-to-Railway fetch.  Direct fetches would fail with CORS errors
+ * because the Railway services whitelist only the Supabase project origin.
  */
 export async function checkProxyHealth(): Promise<ServiceHealthStatus> {
-  const { proxyUrl, error: urlError } = await getRailwayServiceURLs()
+  const { proxyUrl, proxyHealth, error: urlError } = await getRailwayServiceURLs()
 
-  if (urlError || !proxyUrl) {
-    return {
-      status: 'offline',
-      error: urlError || 'Service URL not configured',
-    }
+  if (urlError) {
+    return { status: 'offline', error: urlError }
   }
 
-  const startTime = Date.now()
-  try {
-    const response = await fetch(`${proxyUrl}/health`, {
-      method: 'GET',
-    })
+  if (!proxyUrl) {
+    return { status: 'offline', error: 'PROXY_SERVER_URL secret not configured in Supabase' }
+  }
 
-    const latency = Date.now() - startTime
+  // The edge function already pinged the service and returned a health object.
+  // Map its status to our ServiceHealthStatus type.
+  const rawStatus = proxyHealth?.status as string | undefined
+  const isOnline = rawStatus === 'ok' || rawStatus === 'healthy'
+  const isOffline = !rawStatus || rawStatus === 'offline'
 
-    if (!response.ok) {
-      return {
-        status: 'degraded',
-        latency_ms: latency,
-        error: `HTTP ${response.status}`,
-      }
-    }
-
-    return {
-      status: 'online',
-      latency_ms: latency,
-    }
-  } catch (error: any) {
-    return {
-      status: 'offline',
-      error: error.message || 'Connection failed',
-    }
+  return {
+    status: isOnline ? 'online' : isOffline ? 'offline' : 'degraded',
+    error: proxyHealth?.error as string | undefined,
   }
 }
 
 /**
- * Check inference service health
+ * Check inference service health.
+ *
+ * Health is determined by the check-railway-health Edge Function rather than a
+ * direct browser-to-Railway fetch (CORS would block that).
  */
 export async function checkInferenceHealth(): Promise<ServiceHealthStatus> {
-  const { inferenceUrl, error: urlError } = await getRailwayServiceURLs()
+  const { inferenceUrl, inferenceHealth, error: urlError } = await getRailwayServiceURLs()
 
-  if (urlError || !inferenceUrl) {
-    return {
-      status: 'offline',
-      error: urlError || 'Service URL not configured',
-    }
+  if (urlError) {
+    return { status: 'offline', error: urlError }
   }
 
-  const startTime = Date.now()
-  try {
-    const response = await fetch(`${inferenceUrl}/health`, {
-      method: 'GET',
-    })
+  if (!inferenceUrl) {
+    return { status: 'offline', error: 'INFERENCE_SERVICE_URL secret not configured in Supabase' }
+  }
 
-    const latency = Date.now() - startTime
+  const rawStatus = inferenceHealth?.status as string | undefined
+  const isOnline = rawStatus === 'ok' || rawStatus === 'healthy'
+  const isOffline = !rawStatus || rawStatus === 'offline'
 
-    if (!response.ok) {
-      return {
-        status: 'degraded',
-        latency_ms: latency,
-        error: `HTTP ${response.status}`,
-      }
-    }
-
-    return {
-      status: 'online',
-      latency_ms: latency,
-    }
-  } catch (error: any) {
-    return {
-      status: 'offline',
-      error: error.message || 'Connection failed',
-    }
+  return {
+    status: isOnline ? 'online' : isOffline ? 'offline' : 'degraded',
+    error: inferenceHealth?.error as string | undefined,
   }
 }
 

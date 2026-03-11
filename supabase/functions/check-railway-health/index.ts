@@ -1,7 +1,24 @@
 import { corsHeaders } from '../_shared/cors.ts'
 
-const PROXY_SERVER_URL = Deno.env.get('PROXY_SERVER_URL') || 'http://localhost:3000'
-const INFERENCE_SERVICE_URL = Deno.env.get('INFERENCE_SERVICE_URL') || 'http://localhost:8000'
+const HEALTH_CHECK_TIMEOUT_MS = 8_000
+const PROXY_SERVER_URL = Deno.env.get('PROXY_SERVER_URL') || ''
+const INFERENCE_SERVICE_URL = Deno.env.get('INFERENCE_SERVICE_URL') || ''
+
+/** Safely parse a fetch Response as JSON, falling back to a status object. */
+async function safeJson(response: Response): Promise<Record<string, unknown>> {
+  try {
+    return await response.json()
+  } catch {
+    return { status: 'ok' }
+  }
+}
+
+/** Convert an unknown rejection reason to a plain string. */
+function reasonToString(reason: unknown): string {
+  if (reason instanceof Error) return reason.message
+  if (typeof reason === 'string') return reason
+  return 'Connection failed'
+}
 
 Deno.serve(async (req) => {
   // Handle CORS preflight
@@ -9,32 +26,72 @@ Deno.serve(async (req) => {
     return new Response('ok', { headers: corsHeaders })
   }
 
+  // If environment variables are not configured, return a clear offline status
+  // immediately rather than hitting localhost which would be meaningless inside
+  // the edge-function sandbox.
+  if (!PROXY_SERVER_URL || !INFERENCE_SERVICE_URL) {
+    return new Response(
+      JSON.stringify({
+        proxy: { status: 'offline', error: 'PROXY_SERVER_URL not configured' },
+        proxy_url: PROXY_SERVER_URL || null,
+        inference: { status: 'offline', error: 'INFERENCE_SERVICE_URL not configured' },
+        inference_url: INFERENCE_SERVICE_URL || null,
+        checked_at: new Date().toISOString(),
+      }),
+      {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        status: 200,
+      },
+    )
+  }
+
   try {
     // Check both services in parallel
     const [proxyCheck, inferenceCheck] = await Promise.allSettled([
-      fetch(`${PROXY_SERVER_URL}/health`, { 
+      fetch(`${PROXY_SERVER_URL}/health`, {
         method: 'GET',
-        signal: AbortSignal.timeout(5000) // 5 second timeout
+        signal: AbortSignal.timeout(HEALTH_CHECK_TIMEOUT_MS), // cold-start grace period
       }),
-      fetch(`${INFERENCE_SERVICE_URL}/health`, { 
+      fetch(`${INFERENCE_SERVICE_URL}/health`, {
         method: 'GET',
-        signal: AbortSignal.timeout(5000)
+        signal: AbortSignal.timeout(HEALTH_CHECK_TIMEOUT_MS),
       }),
     ])
 
-    const proxyStatus = proxyCheck.status === 'fulfilled' && proxyCheck.value.ok
-      ? await proxyCheck.value.json()
-      : { status: 'offline', error: proxyCheck.status === 'rejected' ? proxyCheck.reason : 'Not responding' }
+    // Resolve health status for each service independently to avoid unsafe
+    // type assertions.
+    function resolveStatus(
+      result: PromiseSettledResult<Response>,
+      json: Record<string, unknown> | null,
+    ): Record<string, unknown> {
+      if (result.status === 'rejected') {
+        return { status: 'offline', error: reasonToString(result.reason) }
+      }
+      if (!result.value.ok) {
+        return { status: 'offline', error: `HTTP ${result.value.status}` }
+      }
+      return json ?? { status: 'ok' }
+    }
 
-    const inferenceStatus = inferenceCheck.status === 'fulfilled' && inferenceCheck.value.ok
-      ? await inferenceCheck.value.json()
-      : { status: 'offline', error: inferenceCheck.status === 'rejected' ? inferenceCheck.reason : 'Not responding' }
+    const [proxyJson, inferenceJson] = await Promise.all([
+      proxyCheck.status === 'fulfilled' && proxyCheck.value.ok
+        ? safeJson(proxyCheck.value)
+        : Promise.resolve(null),
+      inferenceCheck.status === 'fulfilled' && inferenceCheck.value.ok
+        ? safeJson(inferenceCheck.value)
+        : Promise.resolve(null),
+    ])
+
+    const proxyStatus = resolveStatus(proxyCheck, proxyJson)
+    const inferenceStatus = resolveStatus(inferenceCheck, inferenceJson)
 
     return new Response(
       JSON.stringify({
         proxy: proxyStatus,
+        proxy_url: PROXY_SERVER_URL,
         inference: inferenceStatus,
-        checked_at: new Date().toISOString()
+        inference_url: INFERENCE_SERVICE_URL,
+        checked_at: new Date().toISOString(),
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
