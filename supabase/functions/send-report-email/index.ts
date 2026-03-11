@@ -126,11 +126,9 @@ serve(async (req) => {
     const endDateTime    = `${reportDateTo}T23:59:59`;
 
     // ── Build independent queries to run in parallel ──────────────────────────
-    // Keep compatibility with environments where stay counters are nested in
-    // compliance_snapshot instead of top-level observations columns.
     let obsQuery = supabaseAdmin
       .from('observations')
-      .select('plate_number, zone_id, organization_id, is_compliant, breach_type, recorded_at, compliance_snapshot, zones(name), organizations(name)')
+      .select('plate_number, zone_id, organization_id, is_compliant, breach_type, recorded_at, nights_stayed_this_month, consecutive_nights, zones(name), organizations(name)')
       .gte('recorded_at', startDateTime)
       .lte('recorded_at', endDateTime);
 
@@ -139,7 +137,7 @@ serve(async (req) => {
 
     let enfQuery = supabaseAdmin
       .from('enforcement_actions')
-      .select('action_type, outcome, created_at')
+      .select('action_type, completion_outcome, created_at')
       .gte('created_at', startDateTime)
       .lte('created_at', endDateTime);
 
@@ -179,9 +177,9 @@ serve(async (req) => {
 
     // ── Derive stay snapshots from the already-loaded observations ───────────
     const getMonthlyNights = (o: any): number =>
-      Number(o?.nights_stayed_this_month ?? o?.compliance_snapshot?.nights_stayed_this_month ?? o?.compliance_snapshot?.nights_stayed ?? 0) || 0;
+      Number(o?.nights_stayed_this_month ?? 0) || 0;
     const getConsecutiveNights = (o: any): number =>
-      Number(o?.consecutive_nights ?? o?.compliance_snapshot?.consecutive_nights ?? 0) || 0;
+      Number(o?.consecutive_nights ?? 0) || 0;
 
     const staysByPlateZone = new Map<string, any>();
     for (const o of obs) {
