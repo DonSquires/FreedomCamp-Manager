@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/badge'
 import { AppLayout } from '@/components/features/AppLayout'
 import { GlobalFilterRibbon } from '@/components/features/GlobalFilterRibbon'
 import { ComplianceTrendChart, type TrendDataPoint } from '@/components/features/ComplianceTrendChart'
+import { nzDateToUTCStart, nzDateToUTCEnd } from '@/lib/timezone'
 import { 
   AlertTriangle,
   ArrowRight,
@@ -84,8 +85,22 @@ export default function AdminPortal() {
   const effectiveOrganizationId =
     user?.role === 'master' ? organizationId || null : user?.organization_id || null
 
-  const startDate = dateFrom ? `${dateFrom}T00:00:00Z` : null
-  const endDate = dateTo ? `${dateTo}T23:59:59Z` : null
+  const normalizeFilterDate = (value: string | null): string | null => {
+    if (!value) return null
+    if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value
+    const slash = value.match(/^(\d{2})\/(\d{2})\/(\d{4})$/)
+    if (slash) {
+      const [, dd, mm, yyyy] = slash
+      return `${yyyy}-${mm}-${dd}`
+    }
+    return null
+  }
+
+  const normalizedDateFrom = normalizeFilterDate(dateFrom)
+  const normalizedDateTo = normalizeFilterDate(dateTo)
+
+  const startDate = normalizedDateFrom ? nzDateToUTCStart(normalizedDateFrom) : null
+  const endDate = normalizedDateTo ? nzDateToUTCEnd(normalizedDateTo) : null
 
   const { data, isLoading } = useQuery({
     queryKey: ['admin-primary-dashboard', effectiveOrganizationId, zoneId, dateFrom, dateTo],
@@ -115,8 +130,8 @@ export default function AdminPortal() {
       // get_observation_summary returns COUNT(DISTINCT plate_number) server-side.
       // When no date is set, use a wide sentinel range so the RPC returns all-time data.
       let activeVehicles = 0
-      const rpcFrom = dateFrom ?? '1970-01-01'
-      const rpcTo   = dateTo   ?? new Date().toISOString().slice(0, 10)
+      const rpcFrom = normalizedDateFrom ?? '1970-01-01'
+      const rpcTo   = normalizedDateTo   ?? new Date().toISOString().slice(0, 10)
       const rpcGetObservationSummary = supabase.rpc as unknown as (
         fn: 'get_observation_summary',
         args: {
