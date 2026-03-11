@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { supabase } from '@/lib/supabase'
+import { edgeFunctions } from '@/lib/edgeFunctions'
 import { useAuthStore } from '@/stores/authStore'
 import { useGlobalFiltersStore } from '@/stores/globalFiltersStore'
 import { AppLayout } from '@/components/features/AppLayout'
@@ -45,44 +46,6 @@ async function withTimeout<T>(promise: Promise<T>, ms: number, timeoutMessage: s
   }
 }
 
-async function getValidAccessToken(): Promise<string> {
-  const { data: sessionData, error: sessionError } = await withTimeout(
-    supabase.auth.getSession(),
-    12000,
-    'Reading auth session timed out'
-  )
-
-  if (sessionError) throw new Error(sessionError.message || 'Failed to read session')
-
-  if (sessionData.session?.access_token) {
-    return sessionData.session.access_token
-  }
-
-  const { data: refreshData, error: refreshError } = await withTimeout(
-    supabase.auth.refreshSession(),
-    12000,
-    'Refreshing auth session timed out'
-  )
-
-  if (refreshError || !refreshData.session?.access_token) {
-    throw new Error(refreshError?.message || 'No active session. Please sign in again.')
-  }
-
-  return refreshData.session.access_token
-}
-
-function buildErrorMessage(status: number, payload: any): string {
-  const parts = [
-    payload?.error,
-    payload?.message,
-    payload?.code ? `code=${payload.code}` : null,
-    payload?.details,
-    payload?.hint,
-  ].filter(Boolean)
-
-  return `HTTP ${status}: ${parts.length ? parts.join(' | ') : 'Request failed'}`
-}
-
 export default function Reports() {
   const { user } = useAuthStore()
   const { organizationId, zoneId, dateFrom, dateTo } = useGlobalFiltersStore()
@@ -108,45 +71,25 @@ export default function Reports() {
     setGenerating(true)
 
     try {
-      const token = await getValidAccessToken()
-
-      const response = await withTimeout(
-        fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-dashboard-report`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
+      const { data, error } = await withTimeout(
+        edgeFunctions.generateDashboardReport({
             report_type: 'compliance',
             organization_id: effectiveOrganizationId || undefined,
             zone_id: zoneId || undefined,
             date_from: reportDateFrom,
             date_to: reportDateTo,
-          }),
         }),
         REPORT_TIMEOUT_MS,
         'Report generation timed out'
       )
 
-      const text = await response.text()
-      let payload: any = null
-      try {
-        payload = text ? JSON.parse(text) : null
-      } catch {
-        payload = { message: text }
-      }
+      if (error) throw new Error(error)
 
-      if (!response.ok) {
-        throw new Error(buildErrorMessage(response.status, payload))
-      }
-
-      if (!payload?.html) {
+      if (!data?.html) {
         throw new Error('Report generated but html payload was missing')
       }
 
-      setPreviewHtml(payload.html)
+      setPreviewHtml(data.html)
       setPreviewOpen(true)
       toast.success('Compliance report generated')
     } catch (error: any) {
@@ -167,40 +110,20 @@ export default function Reports() {
     setSendingEmail(true)
 
     try {
-      const token = await getValidAccessToken()
-
-      const response = await withTimeout(
-        fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-report-email`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
+      const { error } = await withTimeout(
+        edgeFunctions.sendReportEmail({
             report_type: 'compliance',
             recipient_email: emailRecipient.trim(),
             organization_id: effectiveOrganizationId || undefined,
             zone_id: zoneId || undefined,
             date_from: reportDateFrom,
             date_to: reportDateTo,
-          }),
         }),
         EMAIL_TIMEOUT_MS,
         'Email send timed out'
       )
 
-      const text = await response.text()
-      let payload: any = null
-      try {
-        payload = text ? JSON.parse(text) : null
-      } catch {
-        payload = { message: text }
-      }
-
-      if (!response.ok) {
-        throw new Error(buildErrorMessage(response.status, payload))
-      }
+      if (error) throw new Error(error)
 
       toast.success(`Report sent to ${emailRecipient.trim()}`)
       setEmailDialogOpen(false)
