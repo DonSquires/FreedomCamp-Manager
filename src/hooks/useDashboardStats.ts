@@ -1,10 +1,14 @@
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
+import { getEffectiveOrgId } from '@/lib/orgUtils'
 
 interface DashboardStatsParams {
   organizationId?: string | null
   dateFrom?: string | null
   dateTo?: string | null
+  zoneId?: string | null
+  userRole?: string | null
+  userOrgId?: string | null
 }
 
 interface DashboardStats {
@@ -20,14 +24,20 @@ interface DashboardStats {
 }
 
 export function useDashboardStats(params: DashboardStatsParams = {}) {
-  const { organizationId, dateFrom, dateTo } = params
+  const { organizationId, dateFrom, dateTo, zoneId, userRole, userOrgId } = params
+
+  // Compute the effective org ID using the shared utility
+  const effectiveOrgId = getEffectiveOrgId(
+    { role: userRole, organization_id: userOrgId },
+    organizationId,
+  )
 
   return useQuery({
-    queryKey: ['dashboard-stats', organizationId, dateFrom, dateTo],
+    queryKey: ['dashboard-stats', effectiveOrgId, zoneId, dateFrom, dateTo],
     queryFn: async () => {
       // Try RPC function first
       const { data: rpcData, error: rpcError } = await (supabase as any).rpc('get_admin_dashboard_stats', {
-        p_organization_id: organizationId || null,
+        p_organization_id: effectiveOrgId || null,
         p_date_from: dateFrom || null,
         p_date_to: dateTo || null,
       })
@@ -37,44 +47,62 @@ export function useDashboardStats(params: DashboardStatsParams = {}) {
       }
 
       // Fallback to manual calculation
-      return await calculateStatsManually(organizationId, dateFrom, dateTo)
+      return await calculateStatsManually(effectiveOrgId, zoneId, dateFrom, dateTo)
     },
   })
 }
 
 async function calculateStatsManually(
   organizationId?: string | null,
+  zoneId?: string | null,
   dateFrom?: string | null,
-  dateTo?: string | null
+  dateTo?: string | null,
 ): Promise<DashboardStats> {
-  let obsQuery = (supabase.from('observations') as any).select('is_compliant', { count: 'exact' })
-  let breachQuery = (supabase.from('breach_alerts') as any).select('*', { count: 'exact' }).eq('status', 'pending')
-  let vehicleQuery = (supabase.from('canonical_vehicles') as any).select('*', { count: 'exact' })
-  let patrolQuery = (supabase.from('patrols') as any).select('*', { count: 'exact' }).eq('status', 'in_progress')
+  // Use separate HEAD count queries so pagination never under-counts
+  let totalObsQuery = (supabase.from('observations') as any).select('*', { count: 'exact', head: true })
+  let compliantObsQuery = (supabase.from('observations') as any).select('*', { count: 'exact', head: true }).eq('is_compliant', true)
+  let breachQuery = (supabase.from('breach_alerts') as any).select('*', { count: 'exact', head: true }).eq('status', 'pending')
+  let vehicleQuery = (supabase.from('canonical_vehicles') as any).select('*', { count: 'exact', head: true })
+  let patrolQuery = (supabase.from('patrols') as any).select('*', { count: 'exact', head: true }).eq('status', 'in_progress')
 
   if (organizationId) {
-    obsQuery = obsQuery.eq('organization_id', organizationId)
+    totalObsQuery = totalObsQuery.eq('organization_id', organizationId)
+    compliantObsQuery = compliantObsQuery.eq('organization_id', organizationId)
     breachQuery = breachQuery.eq('organization_id', organizationId)
     vehicleQuery = vehicleQuery.eq('organization_id', organizationId)
     patrolQuery = patrolQuery.eq('organization_id', organizationId)
   }
 
-  if (dateFrom) {
-    obsQuery = obsQuery.gte('recorded_at', dateFrom)
-  }
-  if (dateTo) {
-    obsQuery = obsQuery.lte('recorded_at', dateTo)
+  if (zoneId) {
+    totalObsQuery = totalObsQuery.eq('zone_id', zoneId)
+    compliantObsQuery = compliantObsQuery.eq('zone_id', zoneId)
+    breachQuery = breachQuery.eq('zone_id', zoneId)
   }
 
-  const [obsResult, breachResult, vehicleResult, patrolResult] = await Promise.all([
-    obsQuery,
+  const startDate = dateFrom ? `${dateFrom}T00:00:00Z` : null
+  const endDate = dateTo ? `${dateTo}T23:59:59Z` : null
+
+  if (startDate) {
+    totalObsQuery = totalObsQuery.gte('recorded_at', startDate)
+    compliantObsQuery = compliantObsQuery.gte('recorded_at', startDate)
+    breachQuery = breachQuery.gte('created_at', startDate)
+  }
+  if (endDate) {
+    totalObsQuery = totalObsQuery.lte('recorded_at', endDate)
+    compliantObsQuery = compliantObsQuery.lte('recorded_at', endDate)
+    breachQuery = breachQuery.lte('created_at', endDate)
+  }
+
+  const [totalObsResult, compliantObsResult, breachResult, vehicleResult, patrolResult] = await Promise.all([
+    totalObsQuery,
+    compliantObsQuery,
     breachQuery,
     vehicleQuery,
     patrolQuery,
   ])
 
-  const totalObs = obsResult.count || 0
-  const compliantObs = obsResult.data?.filter(o => o.is_compliant).length || 0
+  const totalObs = totalObsResult.count || 0
+  const compliantObs = compliantObsResult.count || 0
   const complianceRate = totalObs > 0 ? (compliantObs / totalObs) * 100 : 0
 
   return {
@@ -90,9 +118,9 @@ async function calculateStatsManually(
   }
 }
 
-export function useRecentActivity(organizationId?: string | null) {
+export function useRecentActivity(organizationId?: string | null, zoneId?: string | null) {
   return useQuery({
-    queryKey: ['recent-activity', organizationId],
+    queryKey: ['recent-activity', organizationId, zoneId],
     queryFn: async () => {
       let query = (supabase.from('observations') as any)
         .select(`
@@ -106,6 +134,9 @@ export function useRecentActivity(organizationId?: string | null) {
 
       if (organizationId) {
         query = query.eq('organization_id', organizationId)
+      }
+      if (zoneId) {
+        query = query.eq('zone_id', zoneId)
       }
 
       const { data, error } = await query

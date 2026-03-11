@@ -926,10 +926,11 @@ function OrganisationsTab() {
   const { data: orgBreachCounts } = useQuery({
     queryKey: ['org-breach-counts'],
     queryFn: async () => {
+      // Count active breach alerts per organisation (single source of truth)
       const { data, error } = await supabase
-        .from('observations')
+        .from('breach_alerts')
         .select('organization_id')
-        .eq('is_compliant', false);
+        .eq('status', 'pending');
       if (error) throw error;
       const counts: Record<string, number> = {};
       for (const row of (data ?? []) as { organization_id: string }[]) {

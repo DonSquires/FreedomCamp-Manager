@@ -10,6 +10,7 @@ import { supabase } from '@/lib/supabase'
 import { edgeFunctions } from '@/lib/edgeFunctions'
 import { useAuthStore } from '@/stores/authStore'
 import { useGlobalFiltersStore } from '@/stores/globalFiltersStore'
+import { getEffectiveOrgId } from '@/lib/orgUtils'
 import { toast } from 'sonner'
 import {
   Database,
@@ -73,14 +74,14 @@ export default function DataManagementHub() {
 
   // Fetch data statistics
   const { data: stats, isLoading } = useQuery({
-    queryKey: ['data-stats', organizationId],
+    queryKey: ['data-stats', organizationId, user?.organization_id, user?.role],
     queryFn: async () => {
-      const orgFilter = organizationId || (user?.role === 'master' ? null : user?.organization_id)
+      const orgFilter = getEffectiveOrgId(user, organizationId)
 
       // Total observations
       let obsQuery = supabase
         .from('observations')
-        .select('observation_id', { count: 'exact', head: true })
+        .select('id', { count: 'exact', head: true })
       
       if (orgFilter) obsQuery = obsQuery.eq('organization_id', orgFilter)
       const { count: totalObservations } = await obsQuery
@@ -126,15 +127,16 @@ export default function DataManagementHub() {
 
   // Fetch import history from import_batches (import_history table does not exist)
   const { data: importHistory } = useQuery({
-    queryKey: ['import-history', organizationId],
+    queryKey: ['import-history', organizationId, user?.organization_id, user?.role],
     queryFn: async () => {
+      const orgFilter = getEffectiveOrgId(user, organizationId)
       let query = (supabase.from('import_batches') as any)
         .select('*')
         .order('created_at', { ascending: false })
         .limit(5)
 
-      if (organizationId) {
-        query = query.eq('organization_id', organizationId)
+      if (orgFilter) {
+        query = query.eq('organization_id', orgFilter)
       }
 
       const { data, error } = await query
