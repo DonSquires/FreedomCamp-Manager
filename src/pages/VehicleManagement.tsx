@@ -424,15 +424,15 @@ export default function VehicleManagement() {
                   { key: 'homeless', label: 'Homeless' },
                   { key: 'exempt', label: 'Exempt' },
                 ] as const
-              ).map(({ key, label, icon }) => (
+              ).map((item) => (
                 <Button
-                  key={key}
-                  variant={statusFilter === key ? 'default' : 'outline'}
-                  onClick={() => setStatusFilter(key)}
+                  key={item.key}
+                  variant={statusFilter === item.key ? 'default' : 'outline'}
+                  onClick={() => setStatusFilter(item.key)}
                   size="sm"
                 >
-                  {icon}
-                  {label}
+                  {'icon' in item ? item.icon : null}
+                  {item.label}
                 </Button>
               ))}
             </div>

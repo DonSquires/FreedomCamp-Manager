@@ -1003,6 +1003,21 @@ export interface Database {
           trend_percentage: number
         }
       }
+      get_observation_summary: {
+        Args: {
+          p_start_date: string
+          p_end_date: string
+          p_organization_id?: string | null
+          p_zone_id?: string | null
+        }
+        Returns: {
+          total_observations: number
+          compliant_count: number
+          breach_count: number
+          unique_vehicles: number
+          unique_zones: number
+        }[]
+      }
     }
   }
 }
