@@ -1,7 +1,6 @@
-import { useState, useRef } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
-import { edgeFunctions } from '@/lib/edgeFunctions'
 import { useAuthStore } from '@/stores/authStore'
 import { useGlobalFiltersStore } from '@/stores/globalFiltersStore'
 import { Button } from '@/components/ui/button'
@@ -68,6 +67,114 @@ const REPORT_TIMEOUT_MS = 120_000
 /** Maximum ms to wait for the send-report-email Edge Function before giving up. */
 const EMAIL_TIMEOUT_MS = 60_000
 
+async function callFunctionDirect<T = any>(
+  functionName: string,
+  body: Record<string, unknown>,
+  timeoutMs: number
+): Promise<{ data: T | null; error: string | null }> {
+  const { data: sessionData, error: sessionError } = await supabase.auth.getSession()
+  if (sessionError || !sessionData.session?.access_token) {
+    return { data: null, error: 'No active session found. Please sign in again.' }
+  }
+
+  const controller = new AbortController()
+  const timerId = setTimeout(() => controller.abort(), timeoutMs)
+
+  try {
+    const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/${functionName}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${sessionData.session.access_token}`,
+      },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    })
+
+    const text = await response.text()
+    let parsed: any = null
+    if (text) {
+      try {
+        parsed = JSON.parse(text)
+      } catch {
+        parsed = { message: text }
+      }
+    }
+
+    if (!response.ok) {
+      const messageParts = [
+        parsed?.error,
+        parsed?.message,
+        parsed?.code ? `code=${parsed.code}` : null,
+        parsed?.details,
+        parsed?.hint,
+      ].filter(Boolean)
+
+      const message =
+        messageParts.length > 0
+          ? messageParts.join(' | ')
+          : `Request failed with status ${response.status}`
+
+      return { data: null, error: `HTTP ${response.status}: ${String(message)}` }
+    }
+
+    return { data: parsed as T, error: null }
+  } catch (error: any) {
+    if (error?.name === 'AbortError') {
+      return { data: null, error: 'Request timed out. Please try a smaller date range.' }
+    }
+    return { data: null, error: error?.message || 'Unknown request error' }
+  } finally {
+    clearTimeout(timerId)
+  }
+}
+
+function formatErrorDetail(error: unknown): string {
+  if (typeof error === 'string') return error
+
+  if (error instanceof Error) {
+    const anyError = error as any
+    const messageParts = [
+      anyError.message,
+      anyError.code ? `code=${anyError.code}` : null,
+      anyError.details,
+      anyError.hint,
+      anyError.status ? `status=${anyError.status}` : null,
+    ].filter(Boolean)
+
+    return messageParts.join(' | ') || 'Unknown error'
+  }
+
+  if (error && typeof error === 'object') {
+    const anyError = error as any
+    const messageParts = [
+      anyError.error,
+      anyError.message,
+      anyError.code ? `code=${anyError.code}` : null,
+      anyError.details,
+      anyError.hint,
+      anyError.status ? `status=${anyError.status}` : null,
+    ].filter(Boolean)
+
+    if (messageParts.length > 0) return messageParts.join(' | ')
+
+    try {
+      return JSON.stringify(anyError)
+    } catch {
+      return 'Unknown error'
+    }
+  }
+
+  return 'Unknown error'
+}
+
+function showDetailedErrorToast(title: string, error: unknown) {
+  toast.error(title, {
+    description: formatErrorDetail(error),
+  })
+}
+
 function downloadReportHtml(html: string) {
   const blob = new Blob([html], { type: 'text/html;charset=utf-8' })
   const url = URL.createObjectURL(blob)
@@ -101,7 +208,7 @@ export default function Reports() {
     dateFrom || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
 
   // Fetch report statistics
-  const { data: stats, isLoading } = useQuery({
+  const { data: stats, isLoading, error: statsError } = useQuery({
     queryKey: ['report-stats', organizationId, zoneId, dateFrom, dateTo],
     queryFn: async () => {
       // Get observation count
@@ -175,38 +282,33 @@ export default function Reports() {
     },
   })
 
+  useEffect(() => {
+    if (!statsError) return
+    showDetailedErrorToast('Failed to load report statistics', statsError)
+  }, [statsError])
+
   // Generate report mutation
   const generateReportMutation = useMutation({
     mutationFn: async (reportType: string) => {
       setGeneratingReport(reportType)
 
-      // Race the Edge Function call against the module-level timeout so the
-      // "Generating…" state never hangs indefinitely if the function stalls.
-      let timeoutId: ReturnType<typeof setTimeout> | undefined
-      const timeoutPromise = new Promise<never>((_, reject) => {
-        timeoutId = setTimeout(
-          () => reject(new Error('Report generation timed out. Please try again.')),
-          REPORT_TIMEOUT_MS
-        )
-      })
-
-      const fetchPromise = edgeFunctions.generateDashboardReport({
+      const { data, error } = await callFunctionDirect<any>(
+        'generate-dashboard-report',
+        {
         report_type: reportType,
         organization_id: effectiveOrganizationId || undefined,
         zone_id: zoneId || undefined,
         date_from: reportDateFrom,
         date_to: reportDateTo,
-      })
+        },
+        REPORT_TIMEOUT_MS
+      )
 
-      try {
-        const { data, error } = await Promise.race([fetchPromise, timeoutPromise])
-        if (error) {
-          throw new Error(error)
-        }
-        return data
-      } finally {
-        clearTimeout(timeoutId)
+      if (error) {
+        throw new Error(error)
       }
+
+      return data
     },
     onSuccess: (data, reportType) => {
       toast.success(`${reportType} report generated successfully`)
@@ -232,7 +334,9 @@ export default function Reports() {
           }
         } else {
           if (win && !win.closed) win.close()
-          toast.error('Report generated but no printable content was returned')
+          toast.error('Report generated but no printable content was returned', {
+            description: `Expected html or url payload. Received keys: ${Object.keys(data || {}).join(', ') || 'none'}`,
+          })
         }
       } finally {
         setGeneratingReport(null)
@@ -242,7 +346,7 @@ export default function Reports() {
       const win = reportWindowRef.current
       reportWindowRef.current = null
       if (win && !win.closed) win.close()
-      toast.error(`Failed to generate ${reportType} report: ${error.message}`)
+      showDetailedErrorToast(`Failed to generate ${reportType} report`, error)
       setGeneratingReport(null)
     },
   })
@@ -274,35 +378,29 @@ export default function Reports() {
       return
     }
     setSendingEmail(true)
-    let timeoutId: ReturnType<typeof setTimeout> | undefined
-    const timeoutPromise = new Promise<never>((_, reject) => {
-      timeoutId = setTimeout(
-        () => reject(new Error('Email sending timed out. Please try again.')),
-        EMAIL_TIMEOUT_MS
-      )
-    })
+
     try {
-      const { error } = await Promise.race([
-        edgeFunctions.sendReportEmail({
+      const { error } = await callFunctionDirect(
+        'send-report-email',
+        {
           report_type:     emailReportType,
           recipient_email: emailRecipient.trim(),
           organization_id: effectiveOrganizationId || undefined,
           zone_id:         zoneId || undefined,
           date_from:       reportDateFrom,
           date_to:         reportDateTo,
-        }),
-        timeoutPromise,
-      ])
+        },
+        EMAIL_TIMEOUT_MS
+      )
       if (error) {
-        toast.error(`Failed to send email: ${error}`)
+        showDetailedErrorToast('Failed to send email', error)
       } else {
         toast.success(`Report emailed to ${emailRecipient}`)
         setEmailDialogOpen(false)
       }
     } catch (err: any) {
-      toast.error(`Failed to send email: ${err.message}`)
+      showDetailedErrorToast('Failed to send email', err)
     } finally {
-      clearTimeout(timeoutId)
       setSendingEmail(false)
     }
   }
@@ -342,7 +440,7 @@ export default function Reports() {
       downloadCSV(toCSV(rows), `hs-register-${new Date().toISOString().slice(0, 10)}.csv`)
       toast.success('H&S Register exported')
     } catch (err: any) {
-      toast.error(`Export failed: ${err.message}`)
+      showDetailedErrorToast('H&S register export failed', err)
     } finally {
       setExportingHS(false)
     }
@@ -383,7 +481,7 @@ export default function Reports() {
       downloadJSON(exportData, `infringement-bureau-${new Date().toISOString().slice(0, 10)}.json`)
       toast.success('Infringement Bureau export downloaded (JSON)')
     } catch (err: any) {
-      toast.error(`Export failed: ${err.message}`)
+      showDetailedErrorToast('Infringement export failed', err)
     } finally {
       setExportingInfringement(false)
     }
@@ -422,7 +520,7 @@ export default function Reports() {
       downloadCSV(toCSV(rows), `client-patrol-report-${new Date().toISOString().slice(0, 10)}.csv`)
       toast.success('Client Patrol Report exported')
     } catch (err: any) {
-      toast.error(`Export failed: ${err.message}`)
+      showDetailedErrorToast('Client patrol report export failed', err)
     } finally {
       setExportingPatrol(false)
     }
