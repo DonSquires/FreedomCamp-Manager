@@ -1,5 +1,6 @@
 import { corsHeaders } from '../_shared/cors.ts'
 
+const HEALTH_CHECK_TIMEOUT_MS = 8_000
 const PROXY_SERVER_URL = Deno.env.get('PROXY_SERVER_URL') || ''
 const INFERENCE_SERVICE_URL = Deno.env.get('INFERENCE_SERVICE_URL') || ''
 
@@ -49,11 +50,11 @@ Deno.serve(async (req) => {
     const [proxyCheck, inferenceCheck] = await Promise.allSettled([
       fetch(`${PROXY_SERVER_URL}/health`, {
         method: 'GET',
-        signal: AbortSignal.timeout(8000), // 8 second timeout (cold-start grace)
+        signal: AbortSignal.timeout(HEALTH_CHECK_TIMEOUT_MS), // cold-start grace period
       }),
       fetch(`${INFERENCE_SERVICE_URL}/health`, {
         method: 'GET',
-        signal: AbortSignal.timeout(8000),
+        signal: AbortSignal.timeout(HEALTH_CHECK_TIMEOUT_MS),
       }),
     ])
 
