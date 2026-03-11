@@ -234,6 +234,7 @@ export default function Reports() {
   const [reportPreviewOpen, setReportPreviewOpen] = useState(false)
   const [reportPreviewTitle, setReportPreviewTitle] = useState('')
   const [reportPreviewHtml, setReportPreviewHtml] = useState('')
+  const [reportPdfDownloadBusy, setReportPdfDownloadBusy] = useState(false)
 
   // Email dialog state
   const [emailDialogOpen, setEmailDialogOpen] = useState(false)
@@ -393,6 +394,38 @@ export default function Reports() {
     setReportPreviewHtml('')
     setReportPreviewTitle('')
     generateReportMutation.mutate(reportType)
+  }
+
+  const handleDownloadPreviewPdf = async () => {
+    if (!reportPreviewHtml) return
+
+    setReportPdfDownloadBusy(true)
+    try {
+      const popup = window.open('', '_blank')
+      if (!popup) {
+        toast.error('Popup blocked', {
+          description: 'Allow popups for this site to use direct PDF download, or use Download HTML Copy.',
+        })
+        return
+      }
+
+      popup.document.open()
+      popup.document.write(reportPreviewHtml)
+      popup.document.close()
+
+      // Give scripts in the report time to initialize before invoking download.
+      setTimeout(() => {
+        try {
+          popup.focus()
+          popup.postMessage({ type: 'trigger-report-download-pdf' }, '*')
+          popup.eval?.('if (typeof downloadPDF === "function") downloadPDF();')
+        } catch {
+          // Ignore; the report itself still exposes a visible Download PDF button.
+        }
+      }, 450)
+    } finally {
+      setReportPdfDownloadBusy(false)
+    }
   }
 
   // ── Email report helpers ───────────────────────────────────────────────────
@@ -906,13 +939,13 @@ export default function Reports() {
 
     {/* ── In-app report preview dialog ── */}
     <Dialog open={reportPreviewOpen} onOpenChange={setReportPreviewOpen}>
-      <DialogContent className="sm:max-w-6xl w-[95vw] h-[90vh] flex flex-col">
+      <DialogContent className="w-[98vw] max-w-[98vw] h-[96vh] flex flex-col p-4">
         <DialogHeader>
           <DialogTitle className="capitalize">
             {reportPreviewTitle || 'Generated report'}
           </DialogTitle>
           <DialogDescription>
-            Review the report in-app and use the report's "Download PDF" button.
+            Review the report in-app. You can download PDF directly from the action bar.
           </DialogDescription>
         </DialogHeader>
 
@@ -925,6 +958,22 @@ export default function Reports() {
         </div>
 
         <DialogFooter>
+          <Button
+            onClick={handleDownloadPreviewPdf}
+            disabled={reportPdfDownloadBusy || !reportPreviewHtml}
+          >
+            {reportPdfDownloadBusy ? (
+              <>
+                <Clock className="h-4 w-4 mr-2 animate-spin" />
+                Opening PDF Download…
+              </>
+            ) : (
+              <>
+                <Download className="h-4 w-4 mr-2" />
+                Download PDF
+              </>
+            )}
+          </Button>
           <Button
             variant="outline"
             onClick={() => {

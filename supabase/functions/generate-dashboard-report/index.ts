@@ -944,6 +944,14 @@ function generateReportHTML(data: any): string {
         window.close();
       }
     });
+
+    // Allow parent UI to trigger download via postMessage when report is opened
+    // in a helper window/tab.
+    window.addEventListener('message', (event) => {
+      if (event?.data?.type === 'trigger-report-download-pdf') {
+        downloadPDF(document.querySelector('.btn-download'));
+      }
+    });
   </script>
 </body>
 </html>
