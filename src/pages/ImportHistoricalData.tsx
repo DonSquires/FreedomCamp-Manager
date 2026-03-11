@@ -2,6 +2,8 @@ import { useState, useRef, useEffect } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
+import { useGlobalFiltersStore } from '@/stores/globalFiltersStore'
+import { getEffectiveOrgId } from '@/lib/orgUtils'
 import { AppLayout } from '@/components/features/AppLayout'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -49,6 +51,7 @@ const STATUS_META: Record<string, { label: string; variant: 'default' | 'seconda
 
 export default function ImportHistoricalData() {
   const { user } = useAuthStore()
+  const { organizationId: globalOrgId } = useGlobalFiltersStore()
   const queryClient = useQueryClient()
   const fileRef = useRef<HTMLInputElement>(null)
 
@@ -59,7 +62,13 @@ export default function ImportHistoricalData() {
   const [uploadProgress, setUploadProgress] = useState(0)
   const [activeBatchId, setActiveBatchId] = useState<string | null>(null)
 
-  const orgId = user?.role === 'master' ? undefined : user?.organization_id
+  // Use getEffectiveOrgId so that:
+  //  - master users use their globally-selected org (from global filters store)
+  //  - all other users use their own organization
+  const orgId = getEffectiveOrgId(user, globalOrgId)
+
+  const isMaster = user?.role === 'master'
+  const missingMasterOrg = isMaster && !orgId
 
   // Fetch batches
   const { data: batches = [], isLoading } = useQuery({
@@ -103,11 +112,15 @@ export default function ImportHistoricalData() {
 
   const handleUpload = async () => {
     if (!file) {
-      toast.error('Please select an Excel file')
+      toast.error('Please select a CSV or Excel file')
       return
     }
     if (!batchName.trim()) {
       toast.error('Please enter a batch name')
+      return
+    }
+    if (missingMasterOrg) {
+      toast.error('Please select an organisation in the global filter bar before importing')
       return
     }
     setUploading(true)
@@ -271,10 +284,20 @@ export default function ImportHistoricalData() {
               </div>
             )}
 
+            {missingMasterOrg && (
+              <div className="flex items-start gap-2 rounded-lg border border-yellow-300 bg-yellow-50 dark:bg-yellow-900/20 p-3 text-sm text-yellow-800 dark:text-yellow-200">
+                <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+                <span>
+                  You are logged in as a master user. Please select an organisation using the global
+                  filter bar at the top of the page before importing.
+                </span>
+              </div>
+            )}
+
             <Button
               className="w-full"
               onClick={handleUpload}
-              disabled={!file || uploading}
+              disabled={!file || uploading || missingMasterOrg}
             >
               {uploading ? (
                 <span className="flex items-center gap-2">

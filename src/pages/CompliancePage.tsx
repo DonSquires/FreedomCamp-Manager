@@ -174,15 +174,32 @@ function OverviewTab({
     },
   });
 
-  const { data: breaches } = useQuery({
-    queryKey: ['comp-breaches', dateFrom, dateTo, orgId, zoneId],
+  const { data: compliant } = useQuery({
+    queryKey: ['comp-compliant', dateFrom, dateTo, orgId, zoneId],
     queryFn: async () => {
       let q = supabase
         .from('observations')
         .select('*', { count: 'exact', head: true })
-        .eq('is_compliant', false)
+        .eq('is_compliant', true)
         .gte('recorded_at', from.toISOString())
         .lte('recorded_at', to.toISOString());
+      if (orgId) q = q.eq('organization_id', orgId);
+      if (zoneId) q = q.eq('zone_id', zoneId);
+      const { count, error } = await q;
+      if (error) throw error;
+      return count ?? 0;
+    },
+  });
+
+  const { data: breaches } = useQuery({
+    queryKey: ['comp-breaches', dateFrom, dateTo, orgId, zoneId],
+    queryFn: async () => {
+      // Source: breach_alerts (single source of truth for all breach counts)
+      let q = supabase
+        .from('breach_alerts')
+        .select('*', { count: 'exact', head: true })
+        .gte('created_at', from.toISOString())
+        .lte('created_at', to.toISOString());
       if (orgId) q = q.eq('organization_id', orgId);
       if (zoneId) q = q.eq('zone_id', zoneId);
       const { count, error } = await q;
@@ -215,9 +232,10 @@ function OverviewTab({
     },
   });
 
+  // Compute compliance rate from observations (not breach_alerts) for accuracy
   const compRate =
     total && total > 0
-      ? `${Math.round(((total - (breaches ?? 0)) / total) * 100)}%`
+      ? `${Math.round(((compliant ?? 0) / total) * 100)}%`
       : undefined;
 
   return (
