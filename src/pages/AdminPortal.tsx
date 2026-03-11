@@ -145,9 +145,44 @@ export default function AdminPortal() {
           p_zone_id: zoneId ?? null,
         },
       )
-      if (summaryErr) diagnostics.push(`get_observation_summary: ${(summaryErr as any)?.message || 'unknown error'}`)
       if (!summaryErr && summaryRows && summaryRows[0]) {
         activeVehicles = Number(summaryRows[0].unique_vehicles) || 0
+      } else {
+        // Fallback when RPC is unavailable in schema cache: count distinct plates directly.
+        // We page through results to avoid row limits while still keeping an exact count.
+        const uniquePlates = new Set<string>()
+        const pageSize = 1000
+        let offset = 0
+
+        while (true) {
+          let vehicleQuery = supabase
+            .from('observations')
+            .select('plate_number')
+            .not('plate_number', 'is', null)
+            .order('recorded_at', { ascending: false })
+            .range(offset, offset + pageSize - 1)
+
+          if (effectiveOrganizationId) vehicleQuery = vehicleQuery.eq('organization_id', effectiveOrganizationId)
+          if (zoneId) vehicleQuery = vehicleQuery.eq('zone_id', zoneId)
+          if (startDate) vehicleQuery = vehicleQuery.gte('recorded_at', startDate)
+          if (endDate) vehicleQuery = vehicleQuery.lte('recorded_at', endDate)
+
+          const { data: vehicleRows, error: vehicleErr } = await vehicleQuery
+          if (vehicleErr) {
+            diagnostics.push(`active_vehicles_fallback: ${vehicleErr.message || 'unknown error'}`)
+            break
+          }
+
+          const rows = vehicleRows ?? []
+          rows.forEach((r: any) => {
+            if (r?.plate_number) uniquePlates.add(String(r.plate_number).trim().toUpperCase())
+          })
+
+          if (rows.length < pageSize) break
+          offset += pageSize
+        }
+
+        activeVehicles = uniquePlates.size
       }
 
       // ── 4. Trend data rows (for the chart only — limited fetch is fine) ──
