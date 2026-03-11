@@ -41,27 +41,22 @@ import { GlobalFilterRibbon } from '@/components/features/GlobalFilterRibbon';
 import { useGlobalFiltersStore as useGlobalFilters } from '@/stores/globalFiltersStore';
 import { AdminNavigationMenu } from '@/components/features/AdminNavigationMenu';
 import { HOMELESS_UI_STATUSES, homelessStatusLabel, normalizeHomelessStatus } from '@/lib/homelessStatus';
+import { nzDateToUTCStart, nzDateToUTCEnd } from '@/lib/timezone';
 
 // ============================================================================
 // Types
 // ============================================================================
 
-interface BreachObservation {
+interface BreachAlert {
   id: string;
-  plate_number: string;
-  recorded_at: string;
-  breach_type: string | null;
-  breach_reason: string | null;
-  nights_stayed_this_month: number;
-  consecutive_nights: number;
-  vehicle_make: string | null;
-  vehicle_model: string | null;
-  vehicle_color: string | null;
-  self_contained: boolean;
-  photo_url: string;
+  plate_number: string | null;
+  created_at: string;
+  breach_type: string;
+  breach_details: any;
+  status: string;
+  resolution_notes: string | null;
   zones: { name: string } | null;
   organizations: { name: string } | null;
-  user_profiles: { first_name: string; last_name: string } | null;
 }
 
 interface ZoneStats {
@@ -153,10 +148,8 @@ function OverviewTab({
   orgId: string | null;
   zoneId: string | null;
 }) {
-  const from = new Date(dateFrom);
-  from.setHours(0, 0, 0, 0);
-  const to = new Date(dateTo);
-  to.setHours(23, 59, 59, 999);
+  const startISO = nzDateToUTCStart(dateFrom);
+  const endISO = nzDateToUTCEnd(dateTo);
 
   const { data: total } = useQuery({
     queryKey: ['comp-total', dateFrom, dateTo, orgId, zoneId],
@@ -164,8 +157,8 @@ function OverviewTab({
       let q = supabase
         .from('observations')
         .select('*', { count: 'exact', head: true })
-        .gte('recorded_at', from.toISOString())
-        .lte('recorded_at', to.toISOString());
+        .gte('recorded_at', startISO)
+        .lte('recorded_at', endISO);
       if (orgId) q = q.eq('organization_id', orgId);
       if (zoneId) q = q.eq('zone_id', zoneId);
       const { count, error } = await q;
@@ -181,8 +174,8 @@ function OverviewTab({
         .from('observations')
         .select('*', { count: 'exact', head: true })
         .eq('is_compliant', true)
-        .gte('recorded_at', from.toISOString())
-        .lte('recorded_at', to.toISOString());
+        .gte('recorded_at', startISO)
+        .lte('recorded_at', endISO);
       if (orgId) q = q.eq('organization_id', orgId);
       if (zoneId) q = q.eq('zone_id', zoneId);
       const { count, error } = await q;
@@ -198,8 +191,8 @@ function OverviewTab({
       let q = supabase
         .from('breach_alerts')
         .select('*', { count: 'exact', head: true })
-        .gte('created_at', from.toISOString())
-        .lte('created_at', to.toISOString());
+        .gte('created_at', startISO)
+        .lte('created_at', endISO);
       if (orgId) q = q.eq('organization_id', orgId);
       if (zoneId) q = q.eq('zone_id', zoneId);
       const { count, error } = await q;
@@ -299,31 +292,29 @@ function BreachesTab({
     setPage(0);
   }, [dateFrom, dateTo, orgId, zoneId]);
 
-  const from = new Date(dateFrom);
-  from.setHours(0, 0, 0, 0);
-  const to = new Date(dateTo);
-  to.setHours(23, 59, 59, 999);
+  const startISO = nzDateToUTCStart(dateFrom);
+  const endISO = nzDateToUTCEnd(dateTo);
 
   const { data, isLoading, isFetching, isError, error: queryError } = useQuery({
     queryKey: ['breaches-detail', page, search, dateFrom, dateTo, orgId, zoneId],
     queryFn: async () => {
+      // Source: breach_alerts – the single source of truth for all breaches.
       let q = supabase
-        .from('observations')
+        .from('breach_alerts')
         .select(
-          'id, plate_number, recorded_at, breach_type, breach_reason, nights_stayed_this_month, consecutive_nights, vehicle_make, vehicle_model, vehicle_color, self_contained, photo_url, zones(name), organizations(name), user_profiles(first_name, last_name)',
+          'id, plate_number, created_at, breach_type, breach_details, status, resolution_notes, zones!zone_id(name), organizations!organization_id(name)',
           { count: 'exact' }
         )
-        .eq('is_compliant', false)
-        .gte('recorded_at', from.toISOString())
-        .lte('recorded_at', to.toISOString())
-        .order('recorded_at', { ascending: false })
+        .gte('created_at', startISO)
+        .lte('created_at', endISO)
+        .order('created_at', { ascending: false })
         .range(page * PAGE, (page + 1) * PAGE - 1);
       if (search.trim()) q = q.ilike('plate_number', `%${search.trim()}%`);
       if (orgId) q = q.eq('organization_id', orgId);
       if (zoneId) q = q.eq('zone_id', zoneId);
       const { data, count, error } = await q;
       if (error) throw error;
-      return { rows: (data ?? []) as BreachObservation[], total: count ?? 0 };
+      return { rows: (data ?? []) as BreachAlert[], total: count ?? 0 };
     },
     placeholderData: (p) => p,
   });
@@ -331,13 +322,26 @@ function BreachesTab({
   const totalPages = Math.ceil((data?.total ?? 0) / PAGE);
 
   const BREACH_LABELS: Record<string, string> = {
+    consecutive_nights: 'Consecutive nights',
+    monthly_limit: 'Monthly limit exceeded',
+    self_contained: 'Self-contained required',
+    after_hours: 'After hours',
+    day_visit_violation: 'Day-visit zone',
+    allowed_days_violation: 'Allowed days exceeded',
     overstay: 'Overstay',
-    consecutive_days: 'Consecutive nights',
     no_self_contained: 'Self-contained required',
     overnight_in_day_only_zone: 'Day-visit zone',
     nights_exceeded: 'Nights exceeded',
     unauthorized_zone: 'Unauthorized zone',
     no_wof: 'No WOF',
+  };
+
+  const STATUS_COLORS: Record<string, string> = {
+    pending: 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300',
+    acknowledged: 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300',
+    enforcement_started: 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300',
+    resolved: 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300',
+    dismissed: 'bg-gray-100 dark:bg-gray-900/30 text-gray-500 dark:text-gray-400',
   };
 
   return (
@@ -354,7 +358,7 @@ function BreachesTab({
           />
         </div>
         <span className="self-center text-sm text-gray-500">
-          {data?.total ?? '…'} breach{data?.total !== 1 ? 'es' : ''}
+          {data?.total ?? '…'} breach alert{data?.total !== 1 ? 's' : ''}
           {isFetching && <RefreshCw className="inline w-3 h-3 ml-2 animate-spin" />}
         </span>
       </div>
@@ -363,70 +367,55 @@ function BreachesTab({
         {isLoading ? (
           <Spinner />
         ) : isError ? (
-          <Empty msg={`Failed to load breaches: ${(queryError as Error)?.message ?? 'Unknown error'}`} />
+          <Empty msg={`Failed to load breach alerts: ${(queryError as Error)?.message ?? 'Unknown error'}`} />
         ) : !data?.rows.length ? (
-          <Empty msg="No breaches found in this period" />
+          <Empty msg="No breach alerts found in this period" />
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="bg-red-50 dark:bg-red-950/20 text-left">
                   <th className="px-4 py-3 font-semibold text-gray-600 dark:text-gray-400">Plate</th>
-                  <th className="px-4 py-3 font-semibold text-gray-600 dark:text-gray-400 hidden md:table-cell">Vehicle</th>
                   <th className="px-4 py-3 font-semibold text-gray-600 dark:text-gray-400">Zone</th>
                   <th className="px-4 py-3 font-semibold text-gray-600 dark:text-gray-400">Breach Type</th>
-                  <th className="px-4 py-3 font-semibold text-gray-600 dark:text-gray-400 hidden sm:table-cell">Nights</th>
-                  <th className="px-4 py-3 font-semibold text-gray-600 dark:text-gray-400 hidden lg:table-cell">Photo</th>
-                  <th className="px-4 py-3 font-semibold text-gray-600 dark:text-gray-400">Recorded</th>
+                  <th className="px-4 py-3 font-semibold text-gray-600 dark:text-gray-400 hidden sm:table-cell">Status</th>
+                  <th className="px-4 py-3 font-semibold text-gray-600 dark:text-gray-400">Created</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
                 {data.rows.map((b) => (
                   <tr key={b.id} className="hover:bg-red-50/50 dark:hover:bg-red-950/10">
                     <td className="px-4 py-3 font-mono font-bold text-red-700 dark:text-red-400">
-                      {b.plate_number}
-                    </td>
-                    <td className="px-4 py-3 text-gray-500 hidden md:table-cell">
-                      {[b.vehicle_make, b.vehicle_model, b.vehicle_color].filter(Boolean).join(' ') || '—'}
+                      {b.plate_number ?? '—'}
                     </td>
                     <td className="px-4 py-3 text-gray-600 dark:text-gray-400">
                       <span className="flex items-center gap-1">
                         <MapPin className="w-3 h-3 shrink-0" />
-                        {b.zones?.name ?? '—'}
+                        {(b.zones as any)?.name ?? '—'}
                       </span>
                     </td>
                     <td className="px-4 py-3">
                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300">
                         <XCircle className="w-3 h-3" />
-                        {b.breach_type ? BREACH_LABELS[b.breach_type] ?? b.breach_type.replace(/_/g, ' ') : 'Breach'}
+                        {BREACH_LABELS[b.breach_type] ?? b.breach_type.replace(/_/g, ' ')}
                       </span>
-                      {b.breach_reason && (
-                        <p className="text-xs text-gray-400 mt-0.5 max-w-xs truncate" title={b.breach_reason}>
-                          {b.breach_reason}
+                      {b.breach_details?.message && (
+                        <p className="text-xs text-gray-400 mt-0.5 max-w-xs truncate" title={b.breach_details.message}>
+                          {b.breach_details.message}
                         </p>
                       )}
                     </td>
-                    <td className="px-4 py-3 hidden sm:table-cell text-center">
-                      <span className="text-xs text-gray-500">
-                        {b.nights_stayed_this_month}mo / {b.consecutive_nights}consec
+                    <td className="px-4 py-3 hidden sm:table-cell">
+                      <span className={cn(
+                        'inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold',
+                        STATUS_COLORS[b.status] ?? STATUS_COLORS.pending
+                      )}>
+                        {b.status.replace(/_/g, ' ')}
                       </span>
                     </td>
-                    <td className="px-4 py-3 hidden lg:table-cell">
-                      {b.photo_url ? (
-                        <a href={b.photo_url} target="_blank" rel="noopener noreferrer">
-                          <img
-                            src={b.photo_url}
-                            alt="evidence"
-                            className="h-10 w-16 object-cover rounded border border-gray-200"
-                          />
-                        </a>
-                      ) : (
-                        <span className="text-xs text-gray-400">—</span>
-                      )}
-                    </td>
                     <td className="px-4 py-3 text-xs text-gray-400 whitespace-nowrap">
-                      <span title={format(new Date(b.recorded_at), 'PPPp')}>
-                        {formatDistanceToNow(new Date(b.recorded_at), { addSuffix: true })}
+                      <span title={format(new Date(b.created_at), 'PPPp')}>
+                        {formatDistanceToNow(new Date(b.created_at), { addSuffix: true })}
                       </span>
                     </td>
                   </tr>
@@ -477,10 +466,8 @@ function ZonesTab({
   dateTo: string;
   orgId: string | null;
 }) {
-  const from = new Date(dateFrom);
-  from.setHours(0, 0, 0, 0);
-  const to = new Date(dateTo);
-  to.setHours(23, 59, 59, 999);
+  const startISO = nzDateToUTCStart(dateFrom);
+  const endISO = nzDateToUTCEnd(dateTo);
 
   const { data: zones, isLoading: zonesLoading } = useQuery({
     queryKey: ['comp-zones', orgId],
@@ -501,8 +488,8 @@ function ZonesTab({
     queryFn: async () => {
       let q = (supabase.from('observations') as any)
         .select('zone_id, is_compliant')
-        .gte('recorded_at', from.toISOString())
-        .lte('recorded_at', to.toISOString());
+        .gte('recorded_at', startISO)
+        .lte('recorded_at', endISO);
       if (orgId) q = q.eq('organization_id', orgId);
       const { data, error } = await q;
       if (error) throw error;

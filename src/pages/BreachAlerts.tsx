@@ -38,6 +38,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatDateTime } from '@/lib/utils'
+import { nzDateToUTCStart, nzDateToUTCEnd } from '@/lib/timezone'
 import { AppLayout } from '@/components/features/AppLayout'
 import { GlobalFilterRibbon } from '@/components/features/GlobalFilterRibbon'
 import { enrichVehicleFromMotorWeb } from '@/lib/railwayServices'
@@ -91,8 +92,8 @@ export default function BreachAlerts() {
   const [searchParams] = useSearchParams()
   const effectiveOrganizationId =
     user?.role === 'master' ? organizationId || null : user?.organization_id || null
-  const startDate = dateFrom ? `${dateFrom}T00:00:00Z` : null
-  const endDate = dateTo ? `${dateTo}T23:59:59Z` : null
+  const startDate = dateFrom ? nzDateToUTCStart(dateFrom) : null
+  const endDate = dateTo ? nzDateToUTCEnd(dateTo) : null
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [enrichingVehicle, setEnrichingVehicle] = useState<string | null>(null)
@@ -134,14 +135,13 @@ export default function BreachAlerts() {
     }
   }, [searchParams, setDateRange, setOrganization, setZone, user?.role])
 
-  // ── Intelligence Alerts: flagged vehicles after hours / day-visit violations
+  // ── Intelligence Alerts: breach alerts requiring attention ─────────────────
   const { data: intelligenceAlerts } = useQuery({
     queryKey: ['intelligence-alerts', effectiveOrganizationId, zoneId, dateFrom, dateTo],
     queryFn: async () => {
       let q = (supabase.from('breach_alerts') as any)
         .select('id, plate_number, breach_type, created_at, status, zones!zone_id(name)')
-        .in('breach_type', ['after_hours', 'day_visit_violation', 'allowed_days_violation'])
-        .eq('status', 'pending')
+        .in('status', ['pending', 'acknowledged', 'enforcement_started'])
         .order('created_at', { ascending: false })
         .limit(10)
 

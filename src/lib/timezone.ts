@@ -79,6 +79,37 @@ export function parseNZDate(dateStr: string): Date {
 }
 
 /**
+ * Convert a NZ local date string (YYYY-MM-DD) to a UTC ISO string representing
+ * the start of that day in NZ timezone.
+ *
+ * NZ observes NZST (UTC+12) in winter and NZDT (UTC+13) in summer.  By always
+ * using +13:00 (the maximum NZ offset) we ensure we capture the earliest
+ * possible NZ midnight in UTC regardless of the current DST state:
+ *   - During NZDT (+13:00): exactly correct.
+ *   - During NZST (+12:00): starts 1 hour earlier than NZ midnight, which may
+ *     include a small amount of the previous NZ day — but guarantees that no
+ *     NZ data from the selected day is accidentally excluded.
+ */
+export function nzDateToUTCStart(dateStr: string): string {
+  return new Date(`${dateStr}T00:00:00+13:00`).toISOString()
+}
+
+/**
+ * Convert a NZ local date string (YYYY-MM-DD) to a UTC ISO string representing
+ * the end of that day in NZ timezone.
+ *
+ * By always using +12:00 (NZST / the minimum NZ offset) we ensure we capture
+ * the latest possible NZ day-end in UTC regardless of the current DST state:
+ *   - During NZST (+12:00): exactly correct.
+ *   - During NZDT (+13:00): extends 1 hour past NZ midnight, which may include
+ *     a small amount of the following NZ day — but guarantees that no NZ data
+ *     from the selected day is accidentally excluded.
+ */
+export function nzDateToUTCEnd(dateStr: string): string {
+  return new Date(`${dateStr}T23:59:59+12:00`).toISOString()
+}
+
+/**
  * Get relative time string (e.g., "2 hours ago")
  */
 export function relativeTime(date: string | Date): string {
