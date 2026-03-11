@@ -14,7 +14,7 @@
  *   4. Homeless/exempt vehicles
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { format, formatDistanceToNow, startOfDay, subDays } from 'date-fns';
 import {
@@ -53,9 +53,12 @@ interface BreachObservation {
   recorded_at: string;
   breach_type: string | null;
   breach_reason: string | null;
+  status?: string | null;
   zones: { name: string } | null;
   organizations: { name: string } | null;
 }
+
+type BreachStatus = 'pending' | 'acknowledged' | 'enforcement_started';
 
 interface ZoneStats {
   zone_id: string;
@@ -229,11 +232,13 @@ function BreachesTab({
   dateTo,
   orgId,
   zoneId,
+  statusFilter,
 }: {
   dateFrom: string;
   dateTo: string;
   orgId: string | null;
   zoneId: string | null;
+  statusFilter?: BreachStatus | null;
 }) {
   const [page, setPage] = useState(0);
   const [search, setSearch] = useState('');
@@ -247,9 +252,43 @@ function BreachesTab({
   const endISO = nzDateToUTCEnd(dateTo);
 
   const { data, isLoading, isFetching, isError, error: queryError } = useQuery({
-    queryKey: ['breaches-detail', page, search, dateFrom, dateTo, orgId, zoneId],
+    queryKey: ['breaches-detail', page, search, dateFrom, dateTo, orgId, zoneId, statusFilter],
     queryFn: async () => {
-      // Source: observations where is_compliant = false
+      if (statusFilter) {
+        let q = supabase
+          .from('breach_alerts')
+          .select(
+            'id, plate_number, created_at, breach_type, breach_details, status, zones(name), organizations(name)',
+            { count: 'exact' }
+          )
+          .eq('status', statusFilter)
+          .gte('created_at', startISO)
+          .lte('created_at', endISO)
+          .order('created_at', { ascending: false })
+          .range(page * PAGE, (page + 1) * PAGE - 1);
+
+        if (search.trim()) q = q.ilike('plate_number', `%${search.trim()}%`);
+        if (orgId) q = q.eq('organization_id', orgId);
+        if (zoneId) q = q.eq('zone_id', zoneId);
+
+        const { data, count, error } = await q;
+        if (error) throw error;
+
+        const rows: BreachObservation[] = (data ?? []).map((row: any) => ({
+          id: row.id,
+          plate_number: row.plate_number,
+          recorded_at: row.created_at,
+          breach_type: row.breach_type,
+          breach_reason: row.breach_details?.breach_reason ?? null,
+          status: row.status,
+          zones: row.zones ?? null,
+          organizations: row.organizations ?? null,
+        }));
+
+        return { rows, total: count ?? 0 };
+      }
+
+      // Default source: observations where is_compliant = false
       let q = supabase
         .from('observations')
         .select(
@@ -261,9 +300,11 @@ function BreachesTab({
         .lte('recorded_at', endISO)
         .order('recorded_at', { ascending: false })
         .range(page * PAGE, (page + 1) * PAGE - 1);
+
       if (search.trim()) q = q.ilike('plate_number', `%${search.trim()}%`);
       if (orgId) q = q.eq('organization_id', orgId);
       if (zoneId) q = q.eq('zone_id', zoneId);
+
       const { data, count, error } = await q;
       if (error) throw error;
       return { rows: (data ?? []) as BreachObservation[], total: count ?? 0 };
@@ -302,7 +343,7 @@ function BreachesTab({
           />
         </div>
         <span className="self-center text-sm text-gray-500">
-          {data?.total ?? '…'} non-compliant observation{data?.total !== 1 ? 's' : ''}
+          {data?.total ?? '…'} {statusFilter ? `${statusFilter.replace(/_/g, ' ')} breach alert` : 'non-compliant observation'}{data?.total !== 1 ? 's' : ''}
           {isFetching && <RefreshCw className="inline w-3 h-3 ml-2 animate-spin" />}
         </span>
       </div>
@@ -322,6 +363,7 @@ function BreachesTab({
                   <th className="px-4 py-3 font-semibold text-gray-600 dark:text-gray-400">Plate</th>
                   <th className="px-4 py-3 font-semibold text-gray-600 dark:text-gray-400">Zone</th>
                   <th className="px-4 py-3 font-semibold text-gray-600 dark:text-gray-400">Breach Type</th>
+                  {statusFilter && <th className="px-4 py-3 font-semibold text-gray-600 dark:text-gray-400">Status</th>}
                   <th className="px-4 py-3 font-semibold text-gray-600 dark:text-gray-400">Recorded</th>
                 </tr>
               </thead>
@@ -348,6 +390,13 @@ function BreachesTab({
                         </p>
                       )}
                     </td>
+                    {statusFilter && (
+                      <td className="px-4 py-3">
+                        <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
+                          {(b.status ?? statusFilter).replace(/_/g, ' ')}
+                        </span>
+                      </td>
+                    )}
                     <td className="px-4 py-3 text-xs text-gray-400 whitespace-nowrap">
                       <span title={format(new Date(b.recorded_at), 'PPPp')}>
                         {formatDistanceToNow(new Date(b.recorded_at), { addSuffix: true })}
@@ -662,10 +711,56 @@ export default function CompliancePage() {
     setZone,
   } = useGlobalFilters();
 
+  const drillMetric = searchParams.get('metric');
+  const drillStatus = searchParams.get('status');
+  const drillSource = searchParams.get('source');
+  const breachStatusFilter: BreachStatus | null =
+    drillStatus && ['pending', 'acknowledged', 'enforcement_started'].includes(drillStatus)
+      ? (drillStatus as BreachStatus)
+      : null;
+
+  const drillContextLabel = useMemo(() => {
+    if (!drillMetric && !drillStatus) return null;
+
+    const metricLabelMap: Record<string, string> = {
+      observations: 'Observations',
+      compliance_rate: 'Compliance Rate',
+      zone_compliance: 'Zone Compliance',
+      homeless_status: 'Homeless Status',
+      active_breaches: 'Active Breaches',
+    };
+
+    const metricLabel = drillMetric ? (metricLabelMap[drillMetric] ?? drillMetric.replace(/_/g, ' ')) : null;
+    const statusLabel = drillStatus ? drillStatus.replace(/_/g, ' ') : null;
+
+    if (metricLabel && statusLabel) return `${metricLabel} (${statusLabel})`;
+    return metricLabel ?? statusLabel;
+  }, [drillMetric, drillStatus]);
+
   useEffect(() => {
     const tab = searchParams.get('tab');
+    const metric = searchParams.get('metric');
+    const status = searchParams.get('status');
+
+    let resolvedTab: CompTab | null = null;
+
     if (tab && ['overview', 'breaches', 'zones', 'homeless'].includes(tab)) {
-      setActiveTab(tab as CompTab);
+      resolvedTab = tab as CompTab;
+    } else if (metric) {
+      const metricTabMap: Record<string, CompTab> = {
+        observations: 'overview',
+        compliance_rate: 'zones',
+        zone_compliance: 'zones',
+        homeless_status: 'homeless',
+        active_breaches: 'breaches',
+      };
+      resolvedTab = metricTabMap[metric] ?? null;
+    } else if (status && ['pending', 'acknowledged', 'enforcement_started'].includes(status)) {
+      resolvedTab = 'breaches';
+    }
+
+    if (resolvedTab) {
+      setActiveTab(resolvedTab);
     }
 
     const qDateFrom = searchParams.get('dateFrom');
@@ -716,6 +811,14 @@ export default function CompliancePage() {
               Real-time compliance data from the{' '}
               <code className="text-xs bg-gray-100 dark:bg-gray-800 px-1 rounded">observations</code> table
             </p>
+            {drillContextLabel && (
+              <div className="mt-2 inline-flex items-center gap-2 rounded-md border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-300">
+                <span>Drilldown</span>
+                <span className="opacity-70">:</span>
+                <span className="capitalize">{drillContextLabel}</span>
+                {drillSource && <span className="opacity-70">via {drillSource.replace(/_/g, ' ')}</span>}
+              </div>
+            )}
           </div>
           <div className="text-xs text-gray-400 flex items-center gap-1">
             <Calendar className="w-3 h-3" />
@@ -763,6 +866,7 @@ export default function CompliancePage() {
                 dateTo={effectiveDateTo}
                 orgId={effectiveOrgId}
                 zoneId={zoneId}
+                statusFilter={breachStatusFilter}
               />
             )}
             {activeTab === 'zones' && (
