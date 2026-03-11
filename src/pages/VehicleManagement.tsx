@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
@@ -423,7 +423,7 @@ export default function VehicleManagement() {
                   { key: 'breaches', label: 'Breaches', icon: <AlertTriangle className="h-4 w-4 mr-1" /> },
                   { key: 'homeless', label: 'Homeless' },
                   { key: 'exempt', label: 'Exempt' },
-                ] as const
+                ] as Array<{ key: StatusFilter; label: string; icon?: ReactNode }>
               ).map(({ key, label, icon }) => (
                 <Button
                   key={key}
