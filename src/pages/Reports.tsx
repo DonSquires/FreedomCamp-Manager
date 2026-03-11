@@ -355,10 +355,11 @@ export default function Reports() {
       return data
     },
     onSuccess: (data, reportType) => {
-      toast.success(`${reportType} report generated successfully`)
-      const win = reportWindowRef.current
-      reportWindowRef.current = null
       try {
+        toast.success(`${reportType} report generated successfully`)
+        const win = reportWindowRef.current
+        reportWindowRef.current = null
+
         if (data?.html) {
           if (win && !win.closed) {
             // Write report HTML into the pre-opened window
@@ -382,6 +383,8 @@ export default function Reports() {
             description: `Expected html or url payload. Received keys: ${Object.keys(data || {}).join(', ') || 'none'}`,
           })
         }
+      } catch (handlerError) {
+        showDetailedErrorToast('Report generated, but opening/downloading failed', handlerError)
       } finally {
         setGeneratingReport(null)
       }
@@ -391,6 +394,10 @@ export default function Reports() {
       reportWindowRef.current = null
       if (win && !win.closed) win.close()
       showDetailedErrorToast(`Failed to generate ${reportType} report`, error)
+      setGeneratingReport(null)
+    },
+    onSettled: () => {
+      // Defensive reset so the UI never gets stuck in "Generating...".
       setGeneratingReport(null)
     },
   })

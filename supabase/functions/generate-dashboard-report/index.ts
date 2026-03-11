@@ -929,16 +929,6 @@ function generateReportHTML(data: any): string {
       });
     }
 
-    // Auto-generate PDF on page load so the Reports page action delivers a PDF
-    // directly without requiring a second click in the report tab.
-    window.addEventListener('load', () => {
-      setTimeout(() => {
-        if (typeof html2pdf !== 'undefined') {
-          downloadPDF();
-        }
-      }, 300);
-    });
-    
     // Keyboard shortcuts
     document.addEventListener('keydown', (e) => {
       if (e.ctrlKey || e.metaKey) {
