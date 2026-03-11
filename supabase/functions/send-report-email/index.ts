@@ -126,11 +126,11 @@ serve(async (req) => {
     const endDateTime    = `${reportDateTo}T23:59:59`;
 
     // ── Build independent queries to run in parallel ──────────────────────────
-    // nights_stayed_this_month and consecutive_nights are included here so that
-    // the separate latestObsQuery round-trip is no longer needed.
+    // Keep compatibility with environments where stay counters are nested in
+    // compliance_snapshot instead of top-level observations columns.
     let obsQuery = supabaseAdmin
       .from('observations')
-      .select('plate_number, zone_id, organization_id, is_compliant, breach_type, recorded_at, nights_stayed_this_month, consecutive_nights, zones(name), organizations(name)')
+      .select('plate_number, zone_id, organization_id, is_compliant, breach_type, recorded_at, compliance_snapshot, zones(name), organizations(name)')
       .gte('recorded_at', startDateTime)
       .lte('recorded_at', endDateTime);
 
@@ -178,18 +178,24 @@ serve(async (req) => {
     const vehicleMap = new Map(vehicleData.map((v: any) => [v.plate_number, v]));
 
     // ── Derive stay snapshots from the already-loaded observations ───────────
-    // nights_stayed_this_month and consecutive_nights are now in obsQuery,
-    // eliminating the need for the separate latestObsQuery round-trip.
+    const getMonthlyNights = (o: any): number =>
+      Number(o?.nights_stayed_this_month ?? o?.compliance_snapshot?.nights_stayed_this_month ?? o?.compliance_snapshot?.nights_stayed ?? 0) || 0;
+    const getConsecutiveNights = (o: any): number =>
+      Number(o?.consecutive_nights ?? o?.compliance_snapshot?.consecutive_nights ?? 0) || 0;
+
     const staysByPlateZone = new Map<string, any>();
     for (const o of obs) {
       const key = `${o.plate_number}:${o.zone_id}`;
       const existing = staysByPlateZone.get(key);
-      if (!existing || (o.nights_stayed_this_month ?? 0) > (existing.nights_stayed ?? 0)) {
+      const monthlyNights = getMonthlyNights(o);
+      const consecutiveNights = getConsecutiveNights(o);
+
+      if (!existing || monthlyNights > (existing.nights_stayed ?? 0)) {
         staysByPlateZone.set(key, {
           plate_number:      o.plate_number,
           zone_id:           o.zone_id,
-          nights_stayed:     o.nights_stayed_this_month ?? 0,
-          consecutive_nights: o.consecutive_nights ?? 0,
+          nights_stayed:     monthlyNights,
+          consecutive_nights: consecutiveNights,
           zones:             o.zones,
         });
       }

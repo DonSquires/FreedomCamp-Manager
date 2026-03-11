@@ -73,8 +73,7 @@ serve(async (req) => {
         is_compliant,
         breach_type,
         recorded_at,
-        nights_stayed_this_month,
-        consecutive_nights,
+        compliance_snapshot,
         zones(name),
         organizations(name)
       `)
@@ -130,19 +129,26 @@ serve(async (req) => {
 
     const vehicleMap = new Map(vehicleData.map((v: any) => [v.plate_number, v]));
 
-    // Derive compliance snapshots per plate+zone from the already-loaded observations
-    // (nights_stayed_this_month and consecutive_nights are now included in obsQuery,
-    //  eliminating the need for a separate redundant latestObsQuery round-trip)
+    // Derive compliance snapshots per plate+zone from the already-loaded observations.
+    // Some environments store stay counters in compliance_snapshot instead of top-level columns.
+    const getMonthlyNights = (o: any): number =>
+      Number(o?.nights_stayed_this_month ?? o?.compliance_snapshot?.nights_stayed_this_month ?? o?.compliance_snapshot?.nights_stayed ?? 0) || 0;
+    const getConsecutiveNights = (o: any): number =>
+      Number(o?.consecutive_nights ?? o?.compliance_snapshot?.consecutive_nights ?? 0) || 0;
+
     const staysByPlateZone = new Map<string, any>();
     for (const o of obs) {
       const key = `${o.plate_number}:${o.zone_id}`;
       const existing = staysByPlateZone.get(key);
-      if (!existing || (o.nights_stayed_this_month ?? 0) > (existing.nights_stayed ?? 0)) {
+      const monthlyNights = getMonthlyNights(o);
+      const consecutiveNights = getConsecutiveNights(o);
+
+      if (!existing || monthlyNights > (existing.nights_stayed ?? 0)) {
         staysByPlateZone.set(key, {
           plate_number:      o.plate_number,
           zone_id:           o.zone_id,
-          nights_stayed:     o.nights_stayed_this_month ?? 0,
-          consecutive_nights: o.consecutive_nights ?? 0,
+          nights_stayed:     monthlyNights,
+          consecutive_nights: consecutiveNights,
           zones:             o.zones,
         });
       }
@@ -889,14 +895,16 @@ function generateReportHTML(data: any): string {
   </div>
   
   <script>
-    function downloadPDF() {
-      const button = event.target.closest('button');
-      const originalContent = button.innerHTML;
-      
-      // Show loading state
-      button.innerHTML = '<svg class="spinner" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M11.534 7h3.932a.25.25 0 0 1 .192.41l-1.966 2.36a.25.25 0 0 1-.384 0l-1.966-2.36a.25.25 0 0 1 .192-.41zm-11 2h3.932a.25.25 0 0 0 .192-.41L2.692 6.23a.25.25 0 0 0-.384 0L.342 8.59A.25.25 0 0 0 .534 9z"/><path fill-rule="evenodd" d="M8 3c-1.552 0-2.94.707-3.857 1.818a.5.5 0 1 1-.771-.636A6.002 6.002 0 0 1 13.917 7H12.9A5.002 5.002 0 0 0 8 3zM3.1 9a5.002 5.002 0 0 0 8.757 2.182.5.5 0 1 1 .771.636A6.002 6.002 0 0 1 2.083 9H3.1z"/></svg> Generating...';
-      button.disabled = true;
-      
+    function downloadPDF(triggerEl) {
+      const button = triggerEl || document.querySelector('.btn-download');
+      const originalContent = button ? button.innerHTML : '';
+
+      // Show loading state when a trigger button is available.
+      if (button) {
+        button.innerHTML = '<svg class="spinner" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M11.534 7h3.932a.25.25 0 0 1 .192.41l-1.966 2.36a.25.25 0 0 1-.384 0l-1.966-2.36a.25.25 0 0 1 .192-.41zm-11 2h3.932a.25.25 0 0 0 .192-.41L2.692 6.23a.25.25 0 0 0-.384 0L.342 8.59A.25.25 0 0 0 .534 9z"/><path fill-rule="evenodd" d="M8 3c-1.552 0-2.94.707-3.857 1.818a.5.5 0 1 1-.771-.636A6.002 6.002 0 0 1 13.917 7H12.9A5.002 5.002 0 0 0 8 3zM3.1 9a5.002 5.002 0 0 0 8.757 2.182.5.5 0 1 1 .771.636A6.002 6.002 0 0 1 2.083 9H3.1z"/></svg> Generating...';
+        button.disabled = true;
+      }
+
       const element = document.getElementById('report-content');
       const opt = {
         margin: 10,
@@ -905,17 +913,31 @@ function generateReportHTML(data: any): string {
         html2canvas: { scale: 2, useCORS: true, logging: false },
         jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
       };
-      
+
       html2pdf().set(opt).from(element).save().then(() => {
-        button.innerHTML = originalContent;
-        button.disabled = false;
+        if (button) {
+          button.innerHTML = originalContent;
+          button.disabled = false;
+        }
       }).catch(err => {
         console.error('PDF generation error:', err);
         alert('Failed to generate PDF. Please try printing instead.');
-        button.innerHTML = originalContent;
-        button.disabled = false;
+        if (button) {
+          button.innerHTML = originalContent;
+          button.disabled = false;
+        }
       });
     }
+
+    // Auto-generate PDF on page load so the Reports page action delivers a PDF
+    // directly without requiring a second click in the report tab.
+    window.addEventListener('load', () => {
+      setTimeout(() => {
+        if (typeof html2pdf !== 'undefined') {
+          downloadPDF();
+        }
+      }, 300);
+    });
     
     // Keyboard shortcuts
     document.addEventListener('keydown', (e) => {
@@ -925,7 +947,7 @@ function generateReportHTML(data: any): string {
           window.print();
         } else if (e.key === 's') {
           e.preventDefault();
-          downloadPDF();
+          downloadPDF(document.querySelector('.btn-download'));
         }
       }
       if (e.key === 'Escape') {
