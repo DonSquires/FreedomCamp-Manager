@@ -72,62 +72,80 @@ async function callFunctionDirect<T = any>(
   body: Record<string, unknown>,
   timeoutMs: number
 ): Promise<{ data: T | null; error: string | null }> {
+  async function invokeWithToken(accessToken: string): Promise<{ status: number; parsed: any; networkError: string | null }> {
+    const controller = new AbortController()
+    const timerId = setTimeout(() => controller.abort(), timeoutMs)
+
+    try {
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/${functionName}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify(body),
+        signal: controller.signal,
+      })
+
+      const text = await response.text()
+      let parsed: any = null
+      if (text) {
+        try {
+          parsed = JSON.parse(text)
+        } catch {
+          parsed = { message: text }
+        }
+      }
+
+      return { status: response.status, parsed, networkError: null }
+    } catch (error: any) {
+      if (error?.name === 'AbortError') {
+        return { status: 0, parsed: null, networkError: 'Request timed out. Please try a smaller date range.' }
+      }
+      return { status: 0, parsed: null, networkError: error?.message || 'Unknown request error' }
+    } finally {
+      clearTimeout(timerId)
+    }
+  }
+
   const { data: sessionData, error: sessionError } = await supabase.auth.getSession()
   if (sessionError || !sessionData.session?.access_token) {
     return { data: null, error: 'No active session found. Please sign in again.' }
   }
 
-  const controller = new AbortController()
-  const timerId = setTimeout(() => controller.abort(), timeoutMs)
+  let result = await invokeWithToken(sessionData.session.access_token)
 
-  try {
-    const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/${functionName}`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        apikey: import.meta.env.VITE_SUPABASE_ANON_KEY,
-        Authorization: `Bearer ${sessionData.session.access_token}`,
-      },
-      body: JSON.stringify(body),
-      signal: controller.signal,
-    })
-
-    const text = await response.text()
-    let parsed: any = null
-    if (text) {
-      try {
-        parsed = JSON.parse(text)
-      } catch {
-        parsed = { message: text }
-      }
+  // Retry once with a freshly refreshed token when the gateway rejects JWT.
+  if (result.status === 401) {
+    const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession()
+    if (!refreshError && refreshData.session?.access_token) {
+      result = await invokeWithToken(refreshData.session.access_token)
     }
-
-    if (!response.ok) {
-      const messageParts = [
-        parsed?.error,
-        parsed?.message,
-        parsed?.code ? `code=${parsed.code}` : null,
-        parsed?.details,
-        parsed?.hint,
-      ].filter(Boolean)
-
-      const message =
-        messageParts.length > 0
-          ? messageParts.join(' | ')
-          : `Request failed with status ${response.status}`
-
-      return { data: null, error: `HTTP ${response.status}: ${String(message)}` }
-    }
-
-    return { data: parsed as T, error: null }
-  } catch (error: any) {
-    if (error?.name === 'AbortError') {
-      return { data: null, error: 'Request timed out. Please try a smaller date range.' }
-    }
-    return { data: null, error: error?.message || 'Unknown request error' }
-  } finally {
-    clearTimeout(timerId)
   }
+
+  if (result.networkError) {
+    return { data: null, error: result.networkError }
+  }
+
+  if (result.status < 200 || result.status >= 300) {
+    const messageParts = [
+      result.parsed?.error,
+      result.parsed?.message,
+      result.parsed?.code ? `code=${result.parsed.code}` : null,
+      result.parsed?.details,
+      result.parsed?.hint,
+    ].filter(Boolean)
+
+    const message =
+      messageParts.length > 0
+        ? messageParts.join(' | ')
+        : `Request failed with status ${result.status}`
+
+    return { data: null, error: `HTTP ${result.status}: ${String(message)}` }
+  }
+
+  return { data: result.parsed as T, error: null }
 }
 
 function formatErrorDetail(error: unknown): string {
