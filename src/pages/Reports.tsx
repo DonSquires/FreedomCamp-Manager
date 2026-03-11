@@ -65,6 +65,8 @@ const REPORT_LOADING_HTML =
 
 /** Maximum ms to wait for the generate-dashboard-report Edge Function before giving up. */
 const REPORT_TIMEOUT_MS = 120_000
+/** Maximum ms to wait for the send-report-email Edge Function before giving up. */
+const EMAIL_TIMEOUT_MS = 60_000
 
 function downloadReportHtml(html: string) {
   const blob = new Blob([html], { type: 'text/html;charset=utf-8' })
@@ -269,22 +271,35 @@ export default function Reports() {
       return
     }
     setSendingEmail(true)
+    let timeoutId: ReturnType<typeof setTimeout> | undefined
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      timeoutId = setTimeout(
+        () => reject(new Error('Email sending timed out. Please try again.')),
+        EMAIL_TIMEOUT_MS
+      )
+    })
     try {
-      const { error } = await edgeFunctions.sendReportEmail({
-        report_type:     emailReportType,
-        recipient_email: emailRecipient.trim(),
-        organization_id: effectiveOrganizationId || undefined,
-        zone_id:         zoneId || undefined,
-        date_from:       reportDateFrom,
-        date_to:         reportDateTo,
-      })
+      const { error } = await Promise.race([
+        edgeFunctions.sendReportEmail({
+          report_type:     emailReportType,
+          recipient_email: emailRecipient.trim(),
+          organization_id: effectiveOrganizationId || undefined,
+          zone_id:         zoneId || undefined,
+          date_from:       reportDateFrom,
+          date_to:         reportDateTo,
+        }),
+        timeoutPromise,
+      ])
       if (error) {
         toast.error(`Failed to send email: ${error}`)
       } else {
         toast.success(`Report emailed to ${emailRecipient}`)
         setEmailDialogOpen(false)
       }
+    } catch (err: any) {
+      toast.error(`Failed to send email: ${err.message}`)
     } finally {
+      clearTimeout(timeoutId)
       setSendingEmail(false)
     }
   }
@@ -758,7 +773,7 @@ export default function Reports() {
     </AppLayout>
 
     {/* ── Send Report by Email dialog ── */}
-    <Dialog open={emailDialogOpen} onOpenChange={setEmailDialogOpen}>
+    <Dialog open={emailDialogOpen} onOpenChange={(open) => { if (!open) setSendingEmail(false); setEmailDialogOpen(open) }}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
@@ -795,7 +810,7 @@ export default function Reports() {
         </div>
 
         <DialogFooter className="gap-2 sm:gap-0">
-          <Button variant="outline" onClick={() => setEmailDialogOpen(false)} disabled={sendingEmail}>
+          <Button variant="outline" onClick={() => { setSendingEmail(false); setEmailDialogOpen(false) }}>
             Cancel
           </Button>
           <Button onClick={handleSendEmail} disabled={sendingEmail || !emailRecipient.trim()}>

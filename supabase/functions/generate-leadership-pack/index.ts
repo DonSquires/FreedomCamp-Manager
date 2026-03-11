@@ -41,90 +41,87 @@ serve(async (req) => {
     const startDate = date_range_start || new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
     const endDate = date_range_end || new Date().toISOString();
 
-    // Fetch drift trends
-    let driftTrends = [];
-    if (include_drift_trends) {
-      let driftQuery = supabase
-        .from('drift_events')
-        .select(`
-          *,
-          zone:zones(name),
-          organization:organizations(name)
-        `)
-        .gte('detected_at', startDate)
-        .lte('detected_at', endDate)
-        .order('detected_at', { ascending: false });
+    // Build the three independent queries to run in parallel
+    let driftQueryBuilder = supabase
+      .from('drift_events')
+      .select(`
+        *,
+        zone:zones(name),
+        organization:organizations(name)
+      `)
+      .gte('detected_at', startDate)
+      .lte('detected_at', endDate)
+      .order('detected_at', { ascending: false });
 
-      if (organization_id) {
-        driftQuery = driftQuery.eq('organization_id', organization_id);
-      }
-
-      const { data, error } = await driftQuery;
-      if (error) throw error;
-      driftTrends = data || [];
+    if (organization_id) {
+      driftQueryBuilder = driftQueryBuilder.eq('organization_id', organization_id);
     }
 
-    // Fetch zone performance metrics
-    let zonePerformance = [];
-    if (include_zone_performance) {
-      let zoneQuery = supabase
-        .from('observations')
-        .select(`
-          zone_id,
-          zone:zones(name, organization:organizations(name)),
-          recorded_at
-        `)
-        .gte('recorded_at', startDate)
-        .lte('recorded_at', endDate);
+    let zoneQueryBuilder = supabase
+      .from('observations')
+      .select(`
+        zone_id,
+        zone:zones(name, organization:organizations(name)),
+        recorded_at
+      `)
+      .gte('recorded_at', startDate)
+      .lte('recorded_at', endDate);
 
-      if (organization_id) {
-        zoneQuery = zoneQuery.eq('zone.organization_id', organization_id);
-      }
-
-      const { data: observations } = await zoneQuery;
-
-      // Aggregate by zone
-      const zoneMap = new Map();
-      observations?.forEach((obs: any) => {
-        const zoneId = obs.zone_id;
-        if (!zoneMap.has(zoneId)) {
-          zoneMap.set(zoneId, {
-            zone_id: zoneId,
-            zone_name: obs.zone?.name || 'Unknown',
-            organization_name: obs.zone?.organization?.name || 'Unknown',
-            total_observations: 0,
-          });
-        }
-        const zone = zoneMap.get(zoneId);
-        zone.total_observations += 1;
-      });
-
-      zonePerformance = Array.from(zoneMap.values());
+    if (organization_id) {
+      zoneQueryBuilder = zoneQueryBuilder.eq('zone.organization_id', organization_id);
     }
 
-    // Fetch matrix history
-    let matrixHistory = [];
-    if (include_matrix_history) {
-      let matrixQuery = supabase
-        .from('zone_compliance_matrix')
-        .select(`
-          *,
-          zone:zones(name),
-          organization:organizations(name),
-          created_by_profile:user_profiles(first_name, last_name)
-        `)
-        .gte('created_at', startDate)
-        .lte('created_at', endDate)
-        .order('created_at', { ascending: false });
+    let matrixQueryBuilder = supabase
+      .from('zone_compliance_matrix')
+      .select(`
+        *,
+        zone:zones(name),
+        organization:organizations(name),
+        created_by_profile:user_profiles(first_name, last_name)
+      `)
+      .gte('created_at', startDate)
+      .lte('created_at', endDate)
+      .order('created_at', { ascending: false });
 
-      if (organization_id) {
-        matrixQuery = matrixQuery.eq('organization_id', organization_id);
-      }
-
-      const { data, error } = await matrixQuery;
-      if (error) throw error;
-      matrixHistory = data || [];
+    if (organization_id) {
+      matrixQueryBuilder = matrixQueryBuilder.eq('organization_id', organization_id);
     }
+
+    // Run all independent queries in parallel
+    const [
+      driftResult,
+      zoneResult,
+      matrixResult,
+    ] = await Promise.all([
+      include_drift_trends     ? driftQueryBuilder  : Promise.resolve({ data: [], error: null }),
+      include_zone_performance ? zoneQueryBuilder   : Promise.resolve({ data: [], error: null }),
+      include_matrix_history   ? matrixQueryBuilder : Promise.resolve({ data: [], error: null }),
+    ]);
+
+    if (driftResult.error)  throw driftResult.error;
+    if (matrixResult.error) throw matrixResult.error;
+
+    const driftTrends = driftResult.data || [];
+    const matrixHistory = matrixResult.data || [];
+
+    // Aggregate zone observations
+    const observations = zoneResult.data || [];
+    const zoneMap = new Map();
+    observations?.forEach((obs: any) => {
+      const zoneId = obs.zone_id;
+      if (!zoneMap.has(zoneId)) {
+        zoneMap.set(zoneId, {
+          zone_id: zoneId,
+          zone_name: obs.zone?.name || 'Unknown',
+          organization_name: obs.zone?.organization?.name || 'Unknown',
+          total_observations: 0,
+        });
+      }
+      const zone = zoneMap.get(zoneId);
+      zone.total_observations += 1;
+    });
+
+    const zonePerformance = Array.from(zoneMap.values());
 
     // Generate HTML for PDF
     const html = generateLeadershipPackHTML({
