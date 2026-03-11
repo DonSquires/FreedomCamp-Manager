@@ -136,24 +136,14 @@ export default function AdminPortal() {
       let activeVehicles = 0
       const rpcFrom = normalizedDateFrom ?? '1970-01-01'
       const rpcTo   = normalizedDateTo   ?? new Date().toISOString().slice(0, 10)
-      const rpcGetObservationSummary = supabase.rpc as unknown as (
-        fn: 'get_observation_summary',
-        args: {
-          p_start_date: string
-          p_end_date: string
-          p_organization_id?: string | null
-          p_zone_id?: string | null
-        }
-      ) => Promise<{ data: ObservationSummaryRow[] | null; error: unknown }>
-
-      const { data: summaryRows, error: summaryErr } = await rpcGetObservationSummary(
+      const { data: summaryRows, error: summaryErr } = await (supabase.rpc as any)(
         'get_observation_summary',
         {
-          p_start_date:      rpcFrom,
-          p_end_date:        rpcTo,
+          p_start_date: rpcFrom,
+          p_end_date: rpcTo,
           p_organization_id: effectiveOrganizationId ?? null,
-          p_zone_id:         zoneId ?? null,
-        }
+          p_zone_id: zoneId ?? null,
+        },
       )
       if (summaryErr) diagnostics.push(`get_observation_summary: ${(summaryErr as any)?.message || 'unknown error'}`)
       if (!summaryErr && summaryRows && summaryRows[0]) {
