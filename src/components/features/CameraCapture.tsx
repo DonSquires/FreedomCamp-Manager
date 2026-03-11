@@ -280,8 +280,8 @@ export function CameraCapture({
         </div>
       )}
 
-      {/* Metadata Overlay - 50% opacity */}
-      <div className="absolute top-4 left-4 right-4 bg-black bg-opacity-50 text-white p-3 rounded-lg space-y-1 text-sm z-20">
+      {/* Metadata Overlay - 50% opacity — starts below the top controls row */}
+      <div className="absolute top-20 left-4 right-4 bg-black bg-opacity-50 text-white p-3 rounded-lg space-y-1 text-sm z-20">
         {/* Officer & Organization */}
         <div className="flex items-center gap-2 text-xs">
           <span className="font-semibold">{user?.full_name || 'Unknown Officer'}</span>
@@ -321,9 +321,9 @@ export function CameraCapture({
         </div>
       </div>
 
-      {/* Top controls */}
+      {/* Top controls — rendered above metadata overlay (z-30) */}
       {showControls && (
-        <div className="absolute top-0 left-0 right-0 p-4 bg-gradient-to-b from-black/50 to-transparent z-10">
+        <div className="absolute top-0 left-0 right-0 p-4 bg-gradient-to-b from-black/50 to-transparent z-30">
           <div className="flex items-center justify-end gap-2">
             {/* Flash toggle */}
             {hasFlash && (
