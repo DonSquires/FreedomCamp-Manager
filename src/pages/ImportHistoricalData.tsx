@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
@@ -76,10 +76,21 @@ export default function ImportHistoricalData() {
       return (data || []) as ImportBatch[]
     },
     enabled: !!user,
-    refetchInterval: 3000,
+    refetchInterval: (query) => {
+      const data = query.state.data as ImportBatch[] | undefined
+      if (!data) return 3000
+      return data.some(b => ['pending', 'parsing', 'zone_matching', 'importing'].includes(b.status)) ? 3000 : false
+    },
   })
 
   const activeBatch = activeBatchId ? batches.find(b => b.id === activeBatchId) : null
+
+  // Clear activeBatchId once the tracked batch reaches a terminal state
+  useEffect(() => {
+    if (activeBatch && ['completed', 'failed'].includes(activeBatch.status)) {
+      setActiveBatchId(null)
+    }
+  }, [activeBatch, setActiveBatchId])
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const f = e.target.files?.[0]
