@@ -469,6 +469,7 @@ serve(async (req: Request) => {
     let processed = 0;
     let complianceChanged = 0;
     let breachesCreated = 0;
+    let breachesDismissed = 0;
     let skippedNoRules = 0;
 
     for (const obs of observations) {
@@ -587,6 +588,32 @@ serve(async (req: Request) => {
 
       if (changed) complianceChanged++;
 
+      // When an observation becomes compliant, dismiss any pending/acknowledged breach alerts for it.
+      if (apply && isCompliant && (obs.is_compliant === false || obs.is_compliant === null)) {
+        const observationId = (obs as any)[keyCol];
+        const { data: openAlerts } = await supabaseAdmin
+          .from('breach_alerts')
+          .select('id')
+          .eq('organization_id', obs.organization_id)
+          .eq('zone_id', obs.zone_id)
+          .in('status', ['pending', 'acknowledged'])
+          .or(`observation_id.eq.${observationId},breach_details->>observation_id.eq.${observationId}`);
+
+        if (openAlerts && openAlerts.length > 0) {
+          const alertIds = openAlerts.map((a: any) => a.id);
+          const { error: dismissError } = await supabaseAdmin
+            .from('breach_alerts')
+            .update({
+              status: 'dismissed',
+              resolved_at: new Date().toISOString(),
+              resolution_notes: 'Auto-dismissed: observation recalculated as compliant',
+            })
+            .in('id', alertIds);
+
+          if (!dismissError) breachesDismissed += alertIds.length;
+        }
+      }
+
       if (apply && !isCompliant && breachType) {
         const observationId = (obs as any)[keyCol];
         const { data: existingBreach } = await supabaseAdmin
@@ -594,8 +621,8 @@ serve(async (req: Request) => {
           .select('id')
           .eq('organization_id', obs.organization_id)
           .eq('zone_id', obs.zone_id)
-          .eq('status', 'pending')
-          .contains('breach_details', { observation_id: observationId })
+          .in('status', ['pending', 'acknowledged'])
+          .or(`observation_id.eq.${observationId},breach_details->>observation_id.eq.${observationId}`)
           .maybeSingle();
 
         if (!existingBreach) {
@@ -606,6 +633,7 @@ serve(async (req: Request) => {
               organization_id: obs.organization_id,
               zone_id: obs.zone_id,
               plate_number: obs.plate_number,
+              observation_id: observationId,
               breach_type: validBreachType,
               breach_details: {
                 observation_id: observationId,
@@ -626,6 +654,7 @@ serve(async (req: Request) => {
       processed,
       compliance_changed: complianceChanged,
       breaches_created: breachesCreated,
+      breaches_dismissed: breachesDismissed,
       skipped_no_rules: skippedNoRules,
       apply,
       strict_matrix: strictMatrix,
