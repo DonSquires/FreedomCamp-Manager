@@ -60,6 +60,8 @@ function downloadJSON(data: any, filename: string) {
 const REPORT_TIMEOUT_MS = 120_000
 /** Maximum ms to wait for the send-report-email Edge Function before giving up. */
 const EMAIL_TIMEOUT_MS = 60_000
+const REPORT_STABILIZATION_MODE = true
+const STABLE_REPORT_TYPE = 'compliance'
 
 async function callFunctionDirect<T = any>(
   functionName: string,
@@ -425,6 +427,13 @@ export default function Reports() {
   })
 
   const handleGenerateReport = (reportType: string) => {
+    if (REPORT_STABILIZATION_MODE && reportType !== STABLE_REPORT_TYPE) {
+      toast.info('Report temporarily disabled during stabilization', {
+        description: 'Only Compliance Report generation is enabled while we stabilize reporting.',
+      })
+      return
+    }
+
     setReportPreviewOpen(false)
     setReportPreviewHtml('')
     setReportPreviewTitle('')
@@ -465,6 +474,13 @@ export default function Reports() {
 
   // ── Email report helpers ───────────────────────────────────────────────────
   const handleOpenEmailDialog = (reportType: string) => {
+    if (REPORT_STABILIZATION_MODE && reportType !== STABLE_REPORT_TYPE) {
+      toast.info('Email temporarily disabled during stabilization', {
+        description: 'Only Compliance Report email is enabled while we stabilize reporting.',
+      })
+      return
+    }
+
     setEmailReportType(reportType)
     // Default to the currently signed-in user's email
     setEmailRecipient(user?.email || '')
@@ -724,7 +740,7 @@ export default function Reports() {
             <Button
               onClick={() => handleGenerateReport('enforcement')}
               className="w-full mb-2"
-              disabled={generatingReport === 'enforcement'}
+              disabled={REPORT_STABILIZATION_MODE || generatingReport === 'enforcement'}
             >
               {generatingReport === 'enforcement' ? (
                 <>
@@ -742,11 +758,14 @@ export default function Reports() {
               variant="outline"
               onClick={() => handleOpenEmailDialog('enforcement')}
               className="w-full"
-              disabled={generatingReport === 'enforcement'}
+              disabled={REPORT_STABILIZATION_MODE || generatingReport === 'enforcement'}
             >
               <Mail className="h-4 w-4 mr-2" />
               Send by Email
             </Button>
+            {REPORT_STABILIZATION_MODE && (
+              <p className="mt-2 text-xs text-amber-700">Temporarily disabled during stabilization.</p>
+            )}
           </CardContent>
         </Card>
 
@@ -769,7 +788,7 @@ export default function Reports() {
             <Button
               onClick={() => handleGenerateReport('vehicle-activity')}
               className="w-full mb-2"
-              disabled={generatingReport === 'vehicle-activity'}
+              disabled={REPORT_STABILIZATION_MODE || generatingReport === 'vehicle-activity'}
             >
               {generatingReport === 'vehicle-activity' ? (
                 <>
@@ -787,11 +806,14 @@ export default function Reports() {
               variant="outline"
               onClick={() => handleOpenEmailDialog('vehicle-activity')}
               className="w-full"
-              disabled={generatingReport === 'vehicle-activity'}
+              disabled={REPORT_STABILIZATION_MODE || generatingReport === 'vehicle-activity'}
             >
               <Mail className="h-4 w-4 mr-2" />
               Send by Email
             </Button>
+            {REPORT_STABILIZATION_MODE && (
+              <p className="mt-2 text-xs text-amber-700">Temporarily disabled during stabilization.</p>
+            )}
           </CardContent>
         </Card>
 
@@ -814,7 +836,7 @@ export default function Reports() {
             <Button
               onClick={() => handleGenerateReport('zone-stats')}
               className="w-full mb-2"
-              disabled={generatingReport === 'zone-stats'}
+              disabled={REPORT_STABILIZATION_MODE || generatingReport === 'zone-stats'}
             >
               {generatingReport === 'zone-stats' ? (
                 <>
@@ -832,11 +854,14 @@ export default function Reports() {
               variant="outline"
               onClick={() => handleOpenEmailDialog('zone-stats')}
               className="w-full"
-              disabled={generatingReport === 'zone-stats'}
+              disabled={REPORT_STABILIZATION_MODE || generatingReport === 'zone-stats'}
             >
               <Mail className="h-4 w-4 mr-2" />
               Send by Email
             </Button>
+            {REPORT_STABILIZATION_MODE && (
+              <p className="mt-2 text-xs text-amber-700">Temporarily disabled during stabilization.</p>
+            )}
           </CardContent>
         </Card>
       </div>
