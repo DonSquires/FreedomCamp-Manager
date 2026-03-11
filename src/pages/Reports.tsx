@@ -115,11 +115,16 @@ async function callFunctionDirect<T = any>(
   }
 
   let result = await invokeWithToken(sessionData.session.access_token)
+  let attemptedRefresh = false
+  let refreshFailureMessage: string | null = null
 
   // Retry once with a freshly refreshed token when the gateway rejects JWT.
   if (result.status === 401) {
+    attemptedRefresh = true
     const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession()
-    if (!refreshError && refreshData.session?.access_token) {
+    if (refreshError || !refreshData.session?.access_token) {
+      refreshFailureMessage = refreshError?.message || 'No refreshed access token returned'
+    } else {
       result = await invokeWithToken(refreshData.session.access_token)
     }
   }
@@ -129,6 +134,27 @@ async function callFunctionDirect<T = any>(
   }
 
   if (result.status < 200 || result.status >= 300) {
+    if (result.status === 401) {
+      if (refreshFailureMessage) {
+        return {
+          data: null,
+          error:
+            `HTTP 401: Session expired and refresh failed (${refreshFailureMessage}). ` +
+            'Please sign out and sign in again.',
+        }
+      }
+
+      if (attemptedRefresh) {
+        return {
+          data: null,
+          error:
+            'HTTP 401: Token still invalid after refresh. ' +
+            'This usually means a project URL/anon key mismatch in the deployed frontend. ' +
+            'Confirm VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY point to the same Supabase project as your login session.',
+        }
+      }
+    }
+
     const messageParts = [
       result.parsed?.error,
       result.parsed?.message,
