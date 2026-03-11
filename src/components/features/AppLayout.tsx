@@ -111,7 +111,7 @@ function NavigationLinks({ onClick }: { onClick?: () => void }) {
 export function AppLayout({ children, title, description, showBackButton }: AppLayoutProps) {
   const brandLogoUrl = 'https://kxwjcupuxnnbnzcgmkoi.supabase.co/storage/v1/object/public/Logo/IES%20Logo.jpg'
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const [desktopNavOpen, setDesktopNavOpen] = useState(true)
+  const [desktopNavOpen, setDesktopNavOpen] = useState(false)
   const [reLoginPassword, setReLoginPassword] = useState('')
   const [unlocking, setUnlocking] = useState(false)
   const { user, logout, unlockSession } = useAuthStore()
