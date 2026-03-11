@@ -373,6 +373,7 @@ export const edgeFunctions = {
       offset: params.offset,
       limit: params.batch_size,
       apply: true,
+      strict_matrix: false,
     })
 
     if (v3Response.error || !v3Response.data) {
@@ -394,6 +395,7 @@ export const edgeFunctions = {
         processed: Number(data.processed ?? 0),
         complianceChanged: Number(data.compliance_changed ?? 0),
         breachesCreated: Number(data.breaches_created ?? 0),
+        breachesDismissed: Number(data.breaches_dismissed ?? 0),
         skippedNoRules: Number(data.skipped_no_rules ?? 0),
       },
       error: null,

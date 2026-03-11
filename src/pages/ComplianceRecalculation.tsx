@@ -31,6 +31,7 @@ interface RecalculationResult {
   observations_processed: number
   compliance_changed: number
   breaches_created: number
+  breaches_dismissed: number
   skipped_no_rules: number
   duration_seconds: number
   status: 'completed' | 'failed'
@@ -54,6 +55,7 @@ interface LiveRunState {
   processed: number
   changed: number
   breachesCreated: number
+  breachesDismissed: number
   skippedNoRules: number
 }
 export default function ComplianceRecalculation() {
@@ -123,6 +125,7 @@ export default function ComplianceRecalculation() {
         observations_processed: 0,
         compliance_changed: 0,
         breaches_created: 0,
+        breaches_dismissed: 0,
         skipped_no_rules: 0,
         duration_seconds: Math.round((Date.now() - startedAt) / 1000),
         status: 'completed',
@@ -134,6 +137,7 @@ export default function ComplianceRecalculation() {
       processed: 0,
       changed: 0,
       breachesCreated: 0,
+      breachesDismissed: 0,
       skippedNoRules: 0,
     })
 
@@ -142,6 +146,7 @@ export default function ComplianceRecalculation() {
     let processedTotal = 0
     let changedTotal = 0
     let breachesCreatedTotal = 0
+    let breachesDismissedTotal = 0
     let skippedNoRulesTotal = 0
 
     while (offset < total) {
@@ -158,11 +163,13 @@ export default function ComplianceRecalculation() {
       const processed = Number((batchData as any)?.processed ?? 0)
       const changed = Number((batchData as any)?.complianceChanged ?? 0)
       const breachesCreated = Number((batchData as any)?.breachesCreated ?? 0)
+      const breachesDismissed = Number((batchData as any)?.breachesDismissed ?? 0)
       const skippedNoRules = Number((batchData as any)?.skippedNoRules ?? 0)
 
       processedTotal += processed
       changedTotal += changed
       breachesCreatedTotal += breachesCreated
+      breachesDismissedTotal += breachesDismissed
       skippedNoRulesTotal += skippedNoRules
 
       const progressPct = total > 0 ? Math.min(100, Math.round((processedTotal / total) * 100)) : 0
@@ -172,6 +179,7 @@ export default function ComplianceRecalculation() {
         processed: processedTotal,
         changed: changedTotal,
         breachesCreated: breachesCreatedTotal,
+        breachesDismissed: breachesDismissedTotal,
         skippedNoRules: skippedNoRulesTotal,
       })
 
@@ -183,6 +191,7 @@ export default function ComplianceRecalculation() {
       observations_processed: processedTotal,
       compliance_changed: changedTotal,
       breaches_created: breachesCreatedTotal,
+      breaches_dismissed: breachesDismissedTotal,
       skipped_no_rules: skippedNoRulesTotal,
       duration_seconds: Math.round((Date.now() - startedAt) / 1000),
       status: 'completed',
@@ -526,7 +535,11 @@ export default function ComplianceRecalculation() {
                     <div className="text-lg font-semibold text-red-600 mt-1">{liveRun.breachesCreated.toLocaleString()}</div>
                   </div>
                   <div className="bg-white dark:bg-gray-800 p-3 rounded-lg">
-                    <div className="text-xs text-gray-600">Skipped</div>
+                    <div className="text-xs text-gray-600">Dismissed</div>
+                    <div className="text-lg font-semibold text-green-600 mt-1">{liveRun.breachesDismissed.toLocaleString()}</div>
+                  </div>
+                  <div className="bg-white dark:bg-gray-800 p-3 rounded-lg col-span-2 md:col-span-5">
+                    <div className="text-xs text-gray-600">Skipped (No Rules)</div>
                     <div className="text-lg font-semibold text-blue-600 mt-1">{liveRun.skippedNoRules.toLocaleString()}</div>
                   </div>
                 </div>
@@ -571,6 +584,13 @@ export default function ComplianceRecalculation() {
                     {result.breaches_created.toLocaleString()}
                   </div>
                 </div>
+
+                <div className="bg-white dark:bg-gray-800 p-4 rounded-lg">
+                  <div className="text-sm text-gray-600">Breaches Dismissed</div>
+                  <div className="text-2xl font-bold text-green-600 mt-1">
+                    {result.breaches_dismissed.toLocaleString()}
+                  </div>
+                </div>
                 
                 <div className="bg-white dark:bg-gray-800 p-4 rounded-lg">
                   <div className="text-sm text-gray-600">Duration</div>
@@ -579,9 +599,9 @@ export default function ComplianceRecalculation() {
                   </div>
                 </div>
 
-                <div className="bg-white dark:bg-gray-800 p-4 rounded-lg col-span-2 md:col-span-4">
+                <div className="bg-white dark:bg-gray-800 p-4 rounded-lg">
                   <div className="text-sm text-gray-600">Skipped (No Rules)</div>
-                  <div className="text-xl font-bold text-blue-600 mt-1">
+                  <div className="text-2xl font-bold text-blue-600 mt-1">
                     {result.skipped_no_rules.toLocaleString()}
                   </div>
                 </div>
@@ -608,6 +628,19 @@ export default function ComplianceRecalculation() {
                     <p className="mt-1">
                       {result.breaches_created} new pending breach alert(s) were created during this run.
                       Review these in the Admin Portal to triage required enforcement actions.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {result.breaches_dismissed > 0 && (
+                <div className="flex items-start gap-3 bg-green-50 dark:bg-green-900/20 p-4 rounded-lg">
+                  <CheckCircle className="h-5 w-5 text-green-600 mt-0.5" />
+                  <div className="flex-1 text-sm text-green-900 dark:text-green-100">
+                    <p className="font-semibold">Breach Alerts Auto-Dismissed</p>
+                    <p className="mt-1">
+                      {result.breaches_dismissed} breach alert(s) were automatically dismissed because
+                      the associated observations are now compliant after recalculation.
                     </p>
                   </div>
                 </div>
