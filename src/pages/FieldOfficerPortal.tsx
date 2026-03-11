@@ -207,7 +207,6 @@ export default function FieldOfficerPortal() {
         observationZoneId: matched.zone_id ?? null,
       } : null)
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [recentScans, lastScanResult?.observationId, lastScanResult?.processingPending])
 
   const fileToDataUrl = (file: File) =>

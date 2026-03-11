@@ -968,7 +968,7 @@ export interface Database {
         }
       }
     }
-    Views: {}
+    Views: Record<string, never>
     Functions: {
       get_user_role: {
         Args: { uid: string }

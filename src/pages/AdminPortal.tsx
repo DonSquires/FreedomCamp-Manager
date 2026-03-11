@@ -45,6 +45,14 @@ type SavedView = {
   createdAt: string
 }
 
+type ObservationSummaryRow = {
+  total_observations: number
+  compliant_count: number
+  breach_count: number
+  unique_vehicles: number
+  unique_zones: number
+}
+
 const SAVED_VIEWS_KEY = 'admin-dashboard-saved-views-v1'
 
 const QUICK_BOOKMARKS: Array<{ name: string; to: string; params: Record<string, string> }> = [
@@ -109,7 +117,17 @@ export default function AdminPortal() {
       let activeVehicles = 0
       const rpcFrom = dateFrom ?? '1970-01-01'
       const rpcTo   = dateTo   ?? new Date().toISOString().slice(0, 10)
-      const { data: summaryRows, error: summaryErr } = await supabase.rpc(
+      const rpcGetObservationSummary = supabase.rpc as unknown as (
+        fn: 'get_observation_summary',
+        args: {
+          p_start_date: string
+          p_end_date: string
+          p_organization_id?: string | null
+          p_zone_id?: string | null
+        }
+      ) => Promise<{ data: ObservationSummaryRow[] | null; error: unknown }>
+
+      const { data: summaryRows, error: summaryErr } = await rpcGetObservationSummary(
         'get_observation_summary',
         {
           p_start_date:      rpcFrom,
