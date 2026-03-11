@@ -56,6 +56,7 @@ interface BreachAlert {
   plate_number: string | null
   breach_type: string
   breach_details: any
+  observation_id: string | null
   status: string
   created_at: string
   resolved_at: string | null
@@ -67,6 +68,12 @@ interface BreachAlert {
   assigned_at: string | null
   assigned_by: string | null
   admin_review_notes: string | null
+}
+
+const OBSERVATION_SELECT_FIELDS = 'id, photo_url, recorded_at, gps_latitude, gps_longitude, vehicle_make, vehicle_model, vehicle_year, vehicle_color, has_homeless_claim, homeless_claim_notes, officer_notes, zones!observations_zone_id_fkey(name)'
+
+function formatVehicleDescription(make: string | null, model: string | null, year: number | null, color: string | null): string {
+  return [year, make, model, color].filter(Boolean).join(' ')
 }
 
 const CANNED_REJECTION_REASONS = [
@@ -223,6 +230,34 @@ export default function BreachAlerts() {
     enabled: !!activeBreach?.plate_number,
   })
 
+  // Fetch the specific observation that triggered this breach
+  const { data: triggeringObservation } = useQuery({
+    queryKey: ['breach-triggering-obs', activeBreach?.id],
+    queryFn: async () => {
+      if (!activeBreach) return null
+      // Try to fetch via the breach's observation_id FK first, then breach_details
+      const observationId = activeBreach.observation_id || activeBreach.breach_details?.observation_id
+      if (observationId) {
+        const { data } = await (supabase.from('observations') as any)
+          .select(OBSERVATION_SELECT_FIELDS)
+          .eq('id', observationId)
+          .single()
+        return data || null
+      }
+      // Fallback: look for the most recent observation at or before the breach was created
+      const { data } = await (supabase.from('observations') as any)
+        .select(OBSERVATION_SELECT_FIELDS)
+        .eq('plate_number', activeBreach.plate_number)
+        .eq('organization_id', activeBreach.organization_id)
+        .lte('recorded_at', activeBreach.created_at)
+        .order('recorded_at', { ascending: false })
+        .limit(1)
+        .single()
+      return data || null
+    },
+    enabled: !!activeBreach,
+  })
+
   // Fetch evidence photos from observations for the active breach
   const { data: evidencePhotos } = useQuery({
     queryKey: ['breach-evidence-photos', activeBreach?.plate_number],
@@ -232,8 +267,7 @@ export default function BreachAlerts() {
         .select('id, photo_url, recorded_at, gps_latitude, gps_longitude, zones!observations_zone_id_fkey(name)')
         .eq('plate_number', activeBreach.plate_number)
         .eq('organization_id', activeBreach.organization_id)
-        
-        .gte('recorded_at', activeBreach.created_at)
+        .lte('recorded_at', activeBreach.created_at)
         .not('photo_url', 'is', null)
         .order('recorded_at', { ascending: false })
         .limit(12)
@@ -869,13 +903,30 @@ export default function BreachAlerts() {
                           <Badge variant="outline" className="text-xs text-orange-600">Max allowed: {activeBreach.breach_details.max_allowed}</Badge>
                         )}
                         {Object.entries(activeBreach.breach_details).map(([k, v]) => (
-                          !['nights_count', 'consecutive_nights', 'max_allowed'].includes(k) && (
+                          !['nights_count', 'consecutive_nights', 'max_allowed', 'observation_id'].includes(k) && (
                             <Badge key={k} variant="outline" className="text-xs capitalize">
                               {k.replace(/_/g, ' ')}: {String(v)}
                             </Badge>
                           )
                         ))}
                       </div>
+                    </div>
+                  )}
+
+                  {/* Homeless Claim Status */}
+                  {triggeringObservation && (
+                    <div className={`rounded-lg p-3 text-sm border ${triggeringObservation.has_homeless_claim ? 'bg-amber-50 border-amber-200 dark:bg-amber-950/40 dark:border-amber-800' : 'bg-gray-50 border-gray-200 dark:bg-gray-700/50 dark:border-gray-600'}`}>
+                      <p className="text-xs font-semibold text-gray-500 uppercase mb-1">Homeless Claim</p>
+                      {triggeringObservation.has_homeless_claim ? (
+                        <div>
+                          <Badge className="bg-amber-500 text-white text-xs mb-1">⚠ Homeless Claim Recorded</Badge>
+                          {triggeringObservation.homeless_claim_notes && (
+                            <p className="text-xs text-amber-800 dark:text-amber-200 mt-1">{triggeringObservation.homeless_claim_notes}</p>
+                          )}
+                        </div>
+                      ) : (
+                        <p className="text-xs text-gray-500">No homeless claim on file</p>
+                      )}
                     </div>
                   )}
 
@@ -896,6 +947,7 @@ export default function BreachAlerts() {
                               src={photo.photo_url}
                               alt={`Evidence ${formatDateTime(photo.recorded_at)}`}
                               className="w-full h-full object-cover transition-transform group-hover:scale-105"
+                              onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
                             />
                             <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-xs p-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
                               <span className="flex items-center gap-1">
@@ -926,7 +978,11 @@ export default function BreachAlerts() {
                       <p className="text-xs font-semibold text-gray-500 uppercase mb-2">Vehicle Record</p>
                       <div className="bg-blue-50 dark:bg-blue-950/50 rounded-lg p-3 text-sm space-y-1">
                         <p className="font-bold text-lg">{detailVehicle.plate_number}</p>
-                        <p>{[detailVehicle.year, detailVehicle.make, detailVehicle.model, detailVehicle.colour].filter(Boolean).join(' ')}</p>
+                        <p>{
+                          formatVehicleDescription(detailVehicle.make, detailVehicle.model, detailVehicle.year, detailVehicle.colour) ||
+                          (triggeringObservation ? formatVehicleDescription(triggeringObservation.vehicle_make, triggeringObservation.vehicle_model, triggeringObservation.vehicle_year, triggeringObservation.vehicle_color) : '') ||
+                          'No vehicle description on file'
+                        }</p>
                         {(detailVehicle.owner_first_name || detailVehicle.owner_last_name) && (
                           <p className="text-gray-600 dark:text-gray-400">
                             Owner: {[detailVehicle.owner_first_name, detailVehicle.owner_last_name].filter(Boolean).join(' ')}
@@ -962,19 +1018,30 @@ export default function BreachAlerts() {
                         </Button>
                       </div>
                     </div>
-                  ) : activeBreach.plate_number && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="w-full text-xs"
-                      onClick={() => handleEnrichVehicle(activeBreach.plate_number!)}
-                      disabled={enrichingVehicle === activeBreach.plate_number}
-                    >
-                      {enrichingVehicle === activeBreach.plate_number
-                        ? <><RefreshCw className="h-4 w-4 mr-2 animate-spin" />Enriching from MotorWeb...</>
-                        : <><Database className="h-4 w-4 mr-2" />Fetch Vehicle Data (MotorWeb)</>
-                      }
-                    </Button>
+                  ) : (
+                    <div>
+                      <p className="text-xs font-semibold text-gray-500 uppercase mb-2">Vehicle Record</p>
+                      <div className="bg-blue-50 dark:bg-blue-950/50 rounded-lg p-3 text-sm space-y-1">
+                        <p className="font-bold text-lg">{activeBreach.plate_number}</p>
+                        {triggeringObservation && formatVehicleDescription(triggeringObservation.vehicle_make, triggeringObservation.vehicle_model, triggeringObservation.vehicle_year, triggeringObservation.vehicle_color) && (
+                          <p className="text-gray-700 dark:text-gray-300">{formatVehicleDescription(triggeringObservation.vehicle_make, triggeringObservation.vehicle_model, triggeringObservation.vehicle_year, triggeringObservation.vehicle_color)}</p>
+                        )}
+                        {activeBreach.plate_number && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="mt-2 w-full text-xs"
+                            onClick={() => handleEnrichVehicle(activeBreach.plate_number!)}
+                            disabled={enrichingVehicle === activeBreach.plate_number}
+                          >
+                            {enrichingVehicle === activeBreach.plate_number
+                              ? <><RefreshCw className="h-4 w-4 mr-2 animate-spin" />Enriching from MotorWeb...</>
+                              : <><Database className="h-4 w-4 mr-2" />Fetch Vehicle Data (MotorWeb)</>
+                            }
+                          </Button>
+                        )}
+                      </div>
+                    </div>
                   )}
 
                   {/* Admin notes */}
