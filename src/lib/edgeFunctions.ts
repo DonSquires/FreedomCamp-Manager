@@ -670,7 +670,9 @@ export const edgeFunctions = {
   },
 
   /**
-   * Generate dashboard statistics report
+   * Generate dashboard statistics report.
+   * Errors are surfaced to the caller (showToast: false) so the Reports page
+   * mutation can handle the error toast once rather than showing it twice.
    */
   generateDashboardReport: async (params: {
     report_type?: string
@@ -681,18 +683,20 @@ export const edgeFunctions = {
     start_date?: string
     end_date?: string
   }) => {
-    return callEdgeFunction('generate-dashboard-report', params)
+    return callEdgeFunction('generate-dashboard-report', params, { showToast: false })
   },
 
   /**
-   * Generate leadership pack (executive summary)
+   * Generate leadership pack (executive summary).
+   * Errors are surfaced to the caller so the Reports page mutation handles the
+   * error toast once rather than showing it twice.
    */
   generateLeadershipPack: async (params: {
     organization_id?: string
     date_from?: string
     date_to?: string
   }) => {
-    return callEdgeFunction('generate-leadership-pack', params)
+    return callEdgeFunction('generate-leadership-pack', params, { showToast: false })
   },
 
   /**

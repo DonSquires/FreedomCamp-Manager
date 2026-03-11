@@ -155,8 +155,18 @@ export default function Reports() {
     mutationFn: async (reportType: string) => {
       setGeneratingReport(reportType)
 
-      // Use shared edgeFunction caller so JWT refresh/invalid-session handling is centralized.
-      const { data, error } = await edgeFunctions.generateDashboardReport({
+      // Race the Edge Function call against a 120-second timeout so the
+      // "Generating…" state never hangs indefinitely if the function stalls.
+      const REPORT_TIMEOUT_MS = 120_000
+      let timeoutId: ReturnType<typeof setTimeout> | undefined
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        timeoutId = setTimeout(
+          () => reject(new Error('Report generation timed out. Please try again.')),
+          REPORT_TIMEOUT_MS
+        )
+      })
+
+      const fetchPromise = edgeFunctions.generateDashboardReport({
         report_type: reportType,
         organization_id: effectiveOrganizationId || undefined,
         zone_id: zoneId || undefined,
@@ -164,10 +174,15 @@ export default function Reports() {
         date_to: reportDateTo,
       })
 
-      if (error) {
-        throw new Error(error)
+      try {
+        const { data, error } = await Promise.race([fetchPromise, timeoutPromise])
+        if (error) {
+          throw new Error(error)
+        }
+        return data
+      } finally {
+        clearTimeout(timeoutId)
       }
-      return data
     },
     onSuccess: (data, reportType) => {
       toast.success(`${reportType} report generated successfully`)
