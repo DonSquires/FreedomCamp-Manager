@@ -1,5 +1,5 @@
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
-import { SmtpClient } from 'https://deno.land/x/denomailer@1.0.0/mod.ts';
+import { SMTPClient } from 'https://deno.land/x/denomailer@1.0.0/mod.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { corsHeaders } from '../_shared/cors.ts';
 
@@ -323,7 +323,7 @@ serve(async (req) => {
     const fromAddr = `${smtpFromName} <${smtpFrom}>`;
 
     // ── Send via SMTP ────────────────────────────────────────────────────────
-    const client = new SmtpClient();
+    const client = new SMTPClient();
 
     // Use TLS (port 465) or STARTTLS (port 587 / 25).
     const useTls = smtpPort === 465;

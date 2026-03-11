@@ -76,8 +76,7 @@ serve(async (req) => {
       .select(`
         *,
         zone:zones(name),
-        organization:organizations(name),
-        created_by_profile:user_profiles(first_name, last_name)
+        organization:organizations(name)
       `)
       .gte('created_at', startDate)
       .lte('created_at', endDate)
