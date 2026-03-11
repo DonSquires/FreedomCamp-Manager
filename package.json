@@ -3,7 +3,7 @@
   "private": true,
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "bunx tsc -b && bunx vite build",
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "playwright test",
