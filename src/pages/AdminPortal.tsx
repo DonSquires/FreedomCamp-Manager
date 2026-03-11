@@ -105,6 +105,8 @@ export default function AdminPortal() {
   const { data, isLoading } = useQuery({
     queryKey: ['admin-primary-dashboard', effectiveOrganizationId, zoneId, dateFrom, dateTo],
     queryFn: async () => {
+      const diagnostics: string[] = []
+
       // ── Helper: apply org / zone / date filters to any query ──────────────
       const applyFilters = (q: any) => {
         if (effectiveOrganizationId) q = q.eq('organization_id', effectiveOrganizationId)
@@ -118,13 +120,13 @@ export default function AdminPortal() {
       const { count: totalObservations, error: totalErr } = await applyFilters(
         supabase.from('observations').select('*', { count: 'exact', head: true })
       )
-      if (totalErr) throw totalErr
+      if (totalErr) diagnostics.push(`observations_total: ${totalErr.message || 'unknown error'}`)
 
       // ── 2. Compliant observations count ──────────────────────────────────
       const { count: compliantCount, error: compliantErr } = await applyFilters(
         supabase.from('observations').select('*', { count: 'exact', head: true }).eq('is_compliant', true)
       )
-      if (compliantErr) throw compliantErr
+      if (compliantErr) diagnostics.push(`observations_compliant: ${compliantErr.message || 'unknown error'}`)
 
       // ── 3. Active vehicles — unique plates in the date range ─────────────
       // get_observation_summary returns COUNT(DISTINCT plate_number) server-side.
@@ -151,6 +153,7 @@ export default function AdminPortal() {
           p_zone_id:         zoneId ?? null,
         }
       )
+      if (summaryErr) diagnostics.push(`get_observation_summary: ${(summaryErr as any)?.message || 'unknown error'}`)
       if (!summaryErr && summaryRows && summaryRows[0]) {
         activeVehicles = Number(summaryRows[0].unique_vehicles) || 0
       }
@@ -163,7 +166,7 @@ export default function AdminPortal() {
           .order('recorded_at', { ascending: true })
           .limit(10000)
       )
-      if (trendErr) throw trendErr
+      if (trendErr) diagnostics.push(`observations_trend: ${trendErr.message || 'unknown error'}`)
 
       // ── 5. Active breaches (COUNT, filtered by date range + active status) ─
       let breachesQuery = (supabase.from('breach_alerts') as any)
@@ -176,7 +179,7 @@ export default function AdminPortal() {
       if (endDate)                 breachesQuery = breachesQuery.lte('created_at', endDate)
 
       const { count: activeBreaches, error: breachError } = await breachesQuery
-      if (breachError) throw breachError
+      if (breachError) diagnostics.push(`breach_alerts_active: ${breachError.message || 'unknown error'}`)
 
       return {
         totalObservations: totalObservations ?? 0,
@@ -184,6 +187,7 @@ export default function AdminPortal() {
         activeVehicles,
         trendRows:         trendRows         ?? [],
         activeBreaches:    activeBreaches    ?? 0,
+        diagnostics,
       }
     },
   })
@@ -551,6 +555,22 @@ export default function AdminPortal() {
             </CardContent>
           </Card>
         </section>
+
+        {Array.isArray((data as any)?.diagnostics) && (data as any).diagnostics.length > 0 && (
+          <Card className="border-amber-300 bg-amber-50/60 dark:border-amber-800 dark:bg-amber-950/20">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm">Dashboard Data Diagnostics</CardTitle>
+              <CardDescription>
+                Some KPI queries failed and may show partial/zero values.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="pt-0 text-xs text-amber-900 dark:text-amber-200 space-y-1">
+              {(data as any).diagnostics.map((d: string, idx: number) => (
+                <div key={`${d}-${idx}`}>{d}</div>
+              ))}
+            </CardContent>
+          </Card>
+        )}
 
         <section className="grid gap-3 md:grid-cols-3">
           <Button
