@@ -5,6 +5,35 @@ import { useSessionLockStore } from './sessionLockStore'
 
 let authListenerInitialized = false
 
+function clearClientAuthArtifacts() {
+  if (typeof window === 'undefined') return
+
+  const storages: Storage[] = [window.localStorage, window.sessionStorage]
+  const knownKeys = ['auth-storage', 'adminOfficerPortalChoice']
+
+  // Remove known app keys first.
+  for (const storage of storages) {
+    for (const key of knownKeys) {
+      storage.removeItem(key)
+    }
+  }
+
+  // Remove any Supabase auth token artifacts for this browser profile.
+  for (const storage of storages) {
+    const keysToDelete: string[] = []
+    for (let i = 0; i < storage.length; i += 1) {
+      const key = storage.key(i)
+      if (!key) continue
+      if (key.startsWith('sb-') && key.includes('-auth-token')) {
+        keysToDelete.push(key)
+      }
+    }
+    for (const key of keysToDelete) {
+      storage.removeItem(key)
+    }
+  }
+}
+
 interface AuthUser {
   id: string
   email: string
@@ -131,14 +160,13 @@ export const useAuthStore = create<AuthState>()(
 
       logout: async () => {
         try {
-          await supabase.auth.signOut()
+          // Prefer local sign-out to immediately invalidate client session state.
+          await supabase.auth.signOut({ scope: 'local' })
         } catch (error) {
           // Keep logout UX reliable even if remote sign-out fails.
           console.warn('[authStore] signOut failed, clearing local auth state anyway:', error)
         }
-        if (typeof window !== 'undefined') {
-          window.sessionStorage.removeItem('adminOfficerPortalChoice')
-        }
+        clearClientAuthArtifacts()
         set({ user: null, isAuthenticated: false, loading: false })
         useSessionLockStore.getState().unlock()
       },
