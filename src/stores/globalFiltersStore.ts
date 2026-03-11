@@ -138,6 +138,16 @@ export const useGlobalFiltersStore = create<GlobalFiltersState>()(
     }),
     {
       name: 'global-filters-storage',
+      version: 2,
+      migrate: (persistedState: unknown) => {
+        const state = (persistedState ?? {}) as Partial<GlobalFiltersState>
+
+        return {
+          ...state,
+          dateFrom: normalizeDateString(state.dateFrom ?? null),
+          dateTo: normalizeDateString(state.dateTo ?? null),
+        }
+      },
     }
   )
 )
