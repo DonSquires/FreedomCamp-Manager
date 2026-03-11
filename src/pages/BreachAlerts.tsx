@@ -71,6 +71,46 @@ interface BreachAlert {
 }
 
 const OBSERVATION_SELECT_FIELDS = 'id, photo_url, recorded_at, gps_latitude, gps_longitude, vehicle_make, vehicle_model, vehicle_year, vehicle_color, has_homeless_claim, homeless_claim_notes, officer_notes, zones!observations_zone_id_fkey(name)'
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || ''
+
+function getBreachObservationId(breach: BreachAlert | null): string | null {
+  if (!breach) return null
+
+  const details = breach.breach_details || {}
+  return (
+    breach.observation_id ||
+    details.observation_id ||
+    details.triggering_observation_id ||
+    details.source_observation_id ||
+    null
+  )
+}
+
+function resolveEvidencePhotoUrl(rawUrl: string | null | undefined): string | null {
+  if (!rawUrl) return null
+  const url = rawUrl.trim()
+  if (!url) return null
+
+  if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:')) {
+    return url
+  }
+
+  if (url.startsWith('/storage/v1/object/')) {
+    return SUPABASE_URL ? `${SUPABASE_URL}${url}` : null
+  }
+
+  const normalizedPath = url.replace(/^\/+/, '')
+
+  const bucketPrefixed = normalizedPath.match(/^(scans|evidence|incident-evidence)\/(.+)$/)
+  if (bucketPrefixed) {
+    const [, bucket, path] = bucketPrefixed
+    const { data } = supabase.storage.from(bucket).getPublicUrl(path)
+    return data.publicUrl || null
+  }
+
+  const { data } = supabase.storage.from('scans').getPublicUrl(normalizedPath)
+  return data.publicUrl || null
+}
 
 function formatVehicleDescription(make: string | null, model: string | null, year: number | null, color: string | null): string {
   return [year, make, model, color].filter(Boolean).join(' ')
@@ -261,7 +301,7 @@ export default function BreachAlerts() {
     queryFn: async () => {
       if (!activeBreach) return null
       // Try to fetch via the breach's observation_id FK first, then breach_details
-      const observationId = activeBreach.observation_id || activeBreach.breach_details?.observation_id
+      const observationId = getBreachObservationId(activeBreach)
       if (observationId) {
         const { data } = await (supabase.from('observations') as any)
           .select(OBSERVATION_SELECT_FIELDS)
@@ -288,7 +328,29 @@ export default function BreachAlerts() {
     queryKey: ['breach-evidence-photos', activeBreach?.plate_number],
     queryFn: async () => {
       if (!activeBreach?.plate_number) return []
-      const { data } = await (supabase.from('observations') as any)
+
+      const normalizePhotos = (rows: any[]) =>
+        (rows || [])
+          .map((row: any) => ({
+            ...row,
+            display_url: resolveEvidencePhotoUrl(row.photo_url),
+          }))
+          .filter((row: any) => !!row.display_url)
+
+      const observationId = getBreachObservationId(activeBreach)
+      if (observationId) {
+        const byId = await (supabase.from('observations') as any)
+          .select('id, photo_url, recorded_at, gps_latitude, gps_longitude, zones!observations_zone_id_fkey(name)')
+          .eq('id', observationId)
+          .limit(1)
+
+        const normalized = normalizePhotos(byId.data || [])
+        if (normalized.length > 0) {
+          return normalized
+        }
+      }
+
+      let strictQuery = (supabase.from('observations') as any)
         .select('id, photo_url, recorded_at, gps_latitude, gps_longitude, zones!observations_zone_id_fkey(name)')
         .eq('plate_number', activeBreach.plate_number)
         .eq('organization_id', activeBreach.organization_id)
@@ -296,7 +358,22 @@ export default function BreachAlerts() {
         .not('photo_url', 'is', null)
         .order('recorded_at', { ascending: false })
         .limit(12)
-      return data || []
+
+      const strict = await strictQuery
+      const strictNormalized = normalizePhotos(strict.data || [])
+      if (strictNormalized.length > 0) {
+        return strictNormalized
+      }
+
+      // Fallback: ignore org/date constraints when data quality is inconsistent.
+      const fallback = await (supabase.from('observations') as any)
+        .select('id, photo_url, recorded_at, gps_latitude, gps_longitude, zones!observations_zone_id_fkey(name)')
+        .eq('plate_number', activeBreach.plate_number)
+        .not('photo_url', 'is', null)
+        .order('recorded_at', { ascending: false })
+        .limit(12)
+
+      return normalizePhotos(fallback.data || [])
     },
     enabled: !!activeBreach?.plate_number,
   })
@@ -978,13 +1055,23 @@ export default function BreachAlerts() {
                           <div
                             key={photo.id}
                             className="relative rounded-lg overflow-hidden aspect-video cursor-pointer group border dark:border-gray-700"
-                            onClick={() => window.open(photo.photo_url, '_blank')}
+                            onClick={() => window.open(photo.display_url, '_blank')}
                           >
                             <img
-                              src={photo.photo_url}
+                              src={photo.display_url}
                               alt={`Evidence ${formatDateTime(photo.recorded_at)}`}
                               className="w-full h-full object-cover transition-transform group-hover:scale-105"
-                              onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }}
+                              onError={(e) => {
+                                (e.target as HTMLImageElement).style.display = 'none'
+                                const parent = (e.target as HTMLElement).parentElement
+                                if (parent && !parent.querySelector('[data-photo-fallback="true"]')) {
+                                  const placeholder = document.createElement('div')
+                                  placeholder.setAttribute('data-photo-fallback', 'true')
+                                  placeholder.className = 'absolute inset-0 flex items-center justify-center bg-gray-100 text-gray-500 text-xs'
+                                  placeholder.innerText = 'Photo unavailable'
+                                  parent.appendChild(placeholder)
+                                }
+                              }}
                             />
                             <div className="absolute bottom-0 left-0 right-0 bg-black/60 text-white text-xs p-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
                               <span className="flex items-center gap-1">
@@ -1317,9 +1404,9 @@ export default function BreachAlerts() {
                   <div
                     key={photo.id}
                     className="aspect-video rounded overflow-hidden cursor-pointer border dark:border-gray-700"
-                    onClick={() => window.open(photo.photo_url, '_blank')}
+                    onClick={() => window.open(photo.display_url, '_blank')}
                   >
-                    <img src={photo.photo_url} className="w-full h-full object-cover" alt="Evidence" />
+                    <img src={photo.display_url} className="w-full h-full object-cover" alt="Evidence" />
                   </div>
                 ))}
               </div>
