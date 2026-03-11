@@ -28,6 +28,7 @@ import {
   Gavel,
   MonitorPlay,
   EyeOff,
+  Image as ImageIcon,
   ScanLine,
   Receipt,
   User,
