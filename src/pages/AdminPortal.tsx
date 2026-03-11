@@ -11,6 +11,7 @@ import { AppLayout } from '@/components/features/AppLayout'
 import { GlobalFilterRibbon } from '@/components/features/GlobalFilterRibbon'
 import { ComplianceTrendChart, type TrendDataPoint } from '@/components/features/ComplianceTrendChart'
 import { nzDateToUTCStart, nzDateToUTCEnd } from '@/lib/timezone'
+import { toast } from 'sonner'
 import { 
   AlertTriangle,
   ArrowRight,
@@ -81,6 +82,7 @@ export default function AdminPortal() {
   const navigate = useNavigate()
   const [savedViews, setSavedViews] = useState<SavedView[]>(() => readSavedViews())
   const [recentDrilldowns, setRecentDrilldowns] = useState<Array<{ label: string; at: string }>>([])
+  const [lastZeroToastKey, setLastZeroToastKey] = useState<string | null>(null)
 
   const effectiveOrganizationId =
     user?.role === 'master' ? organizationId || null : user?.organization_id || null
@@ -232,6 +234,38 @@ export default function AdminPortal() {
     const days = Math.max(1, Math.round((end - start) / 86400000) + 1)
     return `${days}d`
   }, [dateFrom, dateTo])
+
+  useEffect(() => {
+    if (isLoading || !data) return
+
+    const totalObservations = data.totalObservations ?? 0
+    const activeBreaches = data.activeBreaches ?? 0
+    const activeVehicles = data.activeVehicles ?? 0
+    const hasDiagnostics = Array.isArray((data as any).diagnostics) && (data as any).diagnostics.length > 0
+    const hasScopedFilters = Boolean(effectiveOrganizationId || zoneId || normalizedDateFrom || normalizedDateTo)
+
+    // Warn once per filter key when a scoped query returns all-zero KPIs.
+    if (hasScopedFilters && totalObservations === 0 && activeBreaches === 0 && activeVehicles === 0) {
+      const key = [effectiveOrganizationId ?? 'all-orgs', zoneId ?? 'all-zones', normalizedDateFrom ?? 'no-from', normalizedDateTo ?? 'no-to'].join('|')
+      if (key !== lastZeroToastKey) {
+        toast.warning('Dashboard returned zero results for the selected filters', {
+          description: hasDiagnostics
+            ? 'Open the diagnostics panel on this page for exact query errors.'
+            : 'Try Clear All, then re-apply filters. If this persists, it may be an access-policy scope issue.',
+          duration: 8000,
+        })
+        setLastZeroToastKey(key)
+      }
+    }
+  }, [
+    data,
+    isLoading,
+    effectiveOrganizationId,
+    zoneId,
+    normalizedDateFrom,
+    normalizedDateTo,
+    lastZeroToastKey,
+  ])
 
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -449,6 +483,22 @@ export default function AdminPortal() {
           })}
         </section>
 
+        {Array.isArray((data as any)?.diagnostics) && (data as any).diagnostics.length > 0 && (
+          <Card className="border-amber-300 bg-amber-50/60 dark:border-amber-800 dark:bg-amber-950/20">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm">Dashboard Data Diagnostics</CardTitle>
+              <CardDescription>
+                Some KPI queries failed and may show partial/zero values.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="pt-0 text-xs text-amber-900 dark:text-amber-200 space-y-1">
+              {(data as any).diagnostics.map((d: string, idx: number) => (
+                <div key={`${d}-${idx}`}>{d}</div>
+              ))}
+            </CardContent>
+          </Card>
+        )}
+
         <section className="grid gap-6 xl:grid-cols-[300px_1.4fr_1fr]">
           {/* Analysis Workspace */}
           <Card>
@@ -555,22 +605,6 @@ export default function AdminPortal() {
             </CardContent>
           </Card>
         </section>
-
-        {Array.isArray((data as any)?.diagnostics) && (data as any).diagnostics.length > 0 && (
-          <Card className="border-amber-300 bg-amber-50/60 dark:border-amber-800 dark:bg-amber-950/20">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm">Dashboard Data Diagnostics</CardTitle>
-              <CardDescription>
-                Some KPI queries failed and may show partial/zero values.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="pt-0 text-xs text-amber-900 dark:text-amber-200 space-y-1">
-              {(data as any).diagnostics.map((d: string, idx: number) => (
-                <div key={`${d}-${idx}`}>{d}</div>
-              ))}
-            </CardContent>
-          </Card>
-        )}
 
         <section className="grid gap-3 md:grid-cols-3">
           <Button
