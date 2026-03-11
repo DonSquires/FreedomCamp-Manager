@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { useGlobalFiltersStore } from '@/stores/globalFiltersStore'
+import { nzDateToUTCStart, nzDateToUTCEnd } from '@/lib/timezone'
 import { Database } from '@/types/database'
 import { AppLayout } from '@/components/features/AppLayout'
 import { GlobalFilterRibbon } from '@/components/features/GlobalFilterRibbon'
@@ -56,211 +57,36 @@ export default function ComplianceAnalytics() {
   const { organizationId, zoneId, dateFrom, dateTo } = useGlobalFiltersStore()
   const effectiveOrganizationId =
     user?.role === 'master' ? organizationId || null : user?.organization_id || null
-  const startDate = dateFrom ? `${dateFrom}T00:00:00Z` : null
-  const endDate = dateTo ? `${dateTo}T23:59:59Z` : null
+  const startDate = dateFrom ? nzDateToUTCStart(dateFrom) : null
+  const endDate = dateTo ? nzDateToUTCEnd(dateTo) : null
   const [viewMode, setViewMode] = useState<'overview' | 'trends' | 'zones'>('overview')
 
-  // Fetch compliance metrics
-  const { data: metrics, isLoading: metricsLoading } = useQuery({
-    queryKey: ['compliance-metrics', organizationId, zoneId, dateFrom, dateTo],
+  // Single RPC call – server computes all metrics, breakdowns, and trend data.
+  const { data: analytics, isLoading: metricsLoading } = useQuery({
+    queryKey: ['compliance-analytics', effectiveOrganizationId, zoneId, dateFrom, dateTo],
     queryFn: async () => {
-      let query = supabase
-        .from('observations')
-        .select('*')
-        
-
-      if (effectiveOrganizationId) {
-        query = query.eq('organization_id', effectiveOrganizationId)
-      }
-
-      if (zoneId) {
-        query = query.eq('zone_id', zoneId)
-      }
-
-      if (startDate) {
-        query = query.gte('recorded_at', startDate)
-      }
-      if (endDate) {
-        query = query.lte('recorded_at', endDate)
-      }
-
-      const { data: observations, error } = await query
-
+      const start = startDate ?? new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString()
+      const end   = endDate   ?? new Date().toISOString()
+      const { data, error } = await (supabase.rpc as any)('get_compliance_analytics_summary', {
+        p_start:            start,
+        p_end:              end,
+        p_organization_id:  effectiveOrganizationId ?? null,
+        p_zone_id:          zoneId ?? null,
+      })
       if (error) throw error
-
-      const obsData = observations as Observation[] | null
-      const total = obsData?.length || 0
-      const compliant = obsData?.filter(o => o.is_compliant).length || 0
-      const nonCompliant = total - compliant
-      const uniqueVehicles = new Set(obsData?.map(o => o.plate_number)).size
-
-      // Calculate average nights per vehicle
-      const vehicleNights = obsData?.reduce((acc: Record<string, number>, obs) => {
-        const plate = obs.plate_number
-        acc[plate] = (acc[plate] || 0) + 1
-        return acc
-      }, {}) || {}
-
-      const avgNights = uniqueVehicles > 0 
-        ? Object.values(vehicleNights).reduce((sum: number, count: number) => sum + count, 0) / uniqueVehicles
-        : 0
-
-      // Find repeat offenders (vehicles with multiple non-compliant observations)
-      const offenders = obsData?.filter(o => !o.is_compliant) || []
-      const offenderCounts = offenders.reduce((acc: Record<string, number>, obs) => {
-        const plate = obs.plate_number
-        acc[plate] = (acc[plate] || 0) + 1
-        return acc
-      }, {})
-      const repeatOffenders = Object.values(offenderCounts).filter(count => count > 1).length
-
-      return {
-        total_observations: total,
-        compliant,
-        non_compliant: nonCompliant,
-        compliance_rate: total > 0 ? (compliant / total) * 100 : 0,
-        avg_nights_per_vehicle: avgNights,
-        total_vehicles: uniqueVehicles,
-        repeat_offenders: repeatOffenders,
-      } as ComplianceMetrics
+      return data as {
+        metrics: ComplianceMetrics
+        breach_types: { name: string; value: number }[]
+        zone_compliance: { zone: string; total: number; compliant: number; rate: number }[]
+        daily_trend: { date: string; total: number; compliant: number; breaches: number }[]
+      }
     },
   })
 
-  // Fetch breach types breakdown
-  const { data: breachTypes } = useQuery({
-    queryKey: ['breach-types', organizationId, zoneId, dateFrom, dateTo],
-    queryFn: async () => {
-      let query = supabase
-        .from('observations')
-        .select('breach_type')
-        .eq('is_compliant', false)
-        
-
-      if (effectiveOrganizationId) {
-        query = query.eq('organization_id', effectiveOrganizationId)
-      }
-
-      if (zoneId) {
-        query = query.eq('zone_id', zoneId)
-      }
-
-      if (startDate) {
-        query = query.gte('recorded_at', startDate)
-      }
-      if (endDate) {
-        query = query.lte('recorded_at', endDate)
-      }
-
-      const { data, error } = await query
-      if (error) throw error
-
-      const breachData = data as Pick<Observation, 'breach_type'>[] | null
-      // Count breach types
-      const counts = (breachData || []).reduce((acc: Record<string, number>, obs) => {
-        const type = obs.breach_type || 'unknown'
-        acc[type] = (acc[type] || 0) + 1
-        return acc
-      }, {})
-
-      return Object.entries(counts).map(([name, value]) => ({
-        name: name.replace(/_/g, ' '),
-        value,
-      }))
-    },
-  })
-
-  // Fetch zone-level compliance
-  const { data: zoneCompliance } = useQuery({
-    queryKey: ['zone-compliance', organizationId, dateFrom, dateTo],
-    queryFn: async () => {
-      let query = supabase
-        .from('observations')
-        .select('zone_id, is_compliant, zones(name)')
-        
-
-      if (effectiveOrganizationId) {
-        query = query.eq('organization_id', effectiveOrganizationId)
-      }
-
-      if (startDate) {
-        query = query.gte('recorded_at', startDate)
-      }
-      if (endDate) {
-        query = query.lte('recorded_at', endDate)
-      }
-
-      const { data, error } = await query
-      if (error) throw error
-
-      // Group by zone
-      const zoneData = (data || []).reduce((acc: Record<string, any>, obs: any) => {
-        const zoneName = obs.zones?.name || 'Unknown'
-        if (!acc[zoneName]) {
-          acc[zoneName] = { total: 0, compliant: 0 }
-        }
-        acc[zoneName].total++
-        if (obs.is_compliant) {
-          acc[zoneName].compliant++
-        }
-        return acc
-      }, {})
-
-      return Object.entries(zoneData).map(([name, stats]: [string, any]) => ({
-        zone: name,
-        total: stats.total,
-        compliant: stats.compliant,
-        rate: stats.total > 0 ? (stats.compliant / stats.total) * 100 : 0,
-      }))
-    },
-  })
-
-  // Fetch daily trend
-  const { data: dailyTrend } = useQuery({
-    queryKey: ['daily-trend', organizationId, zoneId, dateFrom, dateTo],
-    queryFn: async () => {
-      let query = supabase
-        .from('observations')
-        .select('recorded_at, is_compliant')
-        
-        .order('recorded_at', { ascending: true })
-
-      if (effectiveOrganizationId) {
-        query = query.eq('organization_id', effectiveOrganizationId)
-      }
-
-      if (zoneId) {
-        query = query.eq('zone_id', zoneId)
-      }
-
-      if (startDate) {
-        query = query.gte('recorded_at', startDate)
-      }
-      if (endDate) {
-        query = query.lte('recorded_at', endDate)
-      }
-
-      const { data, error } = await query
-      if (error) throw error
-
-      const trendData = data as Pick<Observation, 'recorded_at' | 'is_compliant'>[] | null
-      // Group by day
-      const dailyData = (trendData || []).reduce((acc: Record<string, any>, obs) => {
-        const day = formatDate(obs.recorded_at)
-        if (!acc[day]) {
-          acc[day] = { date: day, total: 0, compliant: 0, breaches: 0 }
-        }
-        acc[day].total++
-        if (obs.is_compliant) {
-          acc[day].compliant++
-        } else {
-          acc[day].breaches++
-        }
-        return acc
-      }, {})
-
-      return Object.values(dailyData).slice(-30) // Last 30 days
-    },
-  })
+  const metrics     = analytics?.metrics
+  const breachTypes = analytics?.breach_types
+  const zoneCompliance = analytics?.zone_compliance
+  const dailyTrend  = analytics?.daily_trend
 
   return (
     <AppLayout

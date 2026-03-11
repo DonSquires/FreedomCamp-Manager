@@ -23,10 +23,10 @@ import { toast } from 'sonner'
 interface Vehicle {
   id: string
   plate_number: string
-  make: string | null
-  model: string | null
+  vehicle_make: string | null
+  vehicle_model: string | null
   year: number | null
-  colour: string | null
+  vehicle_color: string | null
   self_contained: boolean
   self_contained_expiry: string | null
   homeless_status: string | null
@@ -137,7 +137,7 @@ export default function VehicleManagement() {
       }
 
       if (searchQuery) {
-        query = query.or(`plate_number.ilike.%${searchQuery}%,make.ilike.%${searchQuery}%,model.ilike.%${searchQuery}%`)
+        query = query.or(`plate_number.ilike.%${searchQuery}%,vehicle_make.ilike.%${searchQuery}%,vehicle_model.ilike.%${searchQuery}%`)
       }
 
       if (statusFilter === 'compliant') {
@@ -240,10 +240,10 @@ export default function VehicleManagement() {
         // Update vehicle in database with enriched data using correct column names
         const { error: updateError } = await (supabase.from('canonical_vehicles') as any)
           .update({
-            make: data.make,
-            model: data.model,
+            vehicle_make: data.make,
+            vehicle_model: data.model,
             year: data.year,
-            colour: data.colour,
+            vehicle_color: data.colour,
             owner_first_name: data.owner_name?.split(' ')[0],
             owner_last_name: data.owner_name?.split(' ').slice(1).join(' '),
             owner_address: data.owner_address,
@@ -473,11 +473,11 @@ export default function VehicleManagement() {
                       {vehicle.plate_number}
                     </CardTitle>
                     <CardDescription>
-                      {[vehicle.make, vehicle.model, vehicle.year && `(${vehicle.year})`].filter(Boolean).join(' ') || 'Details unknown'}
+                      {[vehicle.vehicle_make, vehicle.vehicle_model, vehicle.year && `(${vehicle.year})`].filter(Boolean).join(' ') || 'Details unknown'}
                     </CardDescription>
                   </div>
-                  {vehicle.colour && (
-                    <Badge variant="outline" className="text-xs shrink-0">{vehicle.colour}</Badge>
+                  {vehicle.vehicle_color && (
+                    <Badge variant="outline" className="text-xs shrink-0">{vehicle.vehicle_color}</Badge>
                   )}
                 </div>
               </CardHeader>
@@ -559,7 +559,7 @@ export default function VehicleManagement() {
               {selectedVehicle?.plate_number}
             </DialogTitle>
             <DialogDescription>
-              {[selectedVehicle?.make, selectedVehicle?.model, selectedVehicle?.year && `(${selectedVehicle.year})`].filter(Boolean).join(' ') || 'Vehicle details unknown'}
+              {[selectedVehicle?.vehicle_make, selectedVehicle?.vehicle_model, selectedVehicle?.year && `(${selectedVehicle.year})`].filter(Boolean).join(' ') || 'Vehicle details unknown'}
             </DialogDescription>
           </DialogHeader>
 
@@ -579,7 +579,7 @@ export default function VehicleManagement() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <div className="text-sm text-gray-600">Colour</div>
-                  <div className="font-medium">{selectedVehicle.colour || 'Unknown'}</div>
+                  <div className="font-medium">{selectedVehicle.vehicle_color || 'Unknown'}</div>
                 </div>
                 
                 <div>
