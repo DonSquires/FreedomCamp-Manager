@@ -54,3 +54,7 @@ grep_requested_output.txt
 .npm-cache/
 .home/
 .local/
+
+# E2E test artifacts
+playwright-report/
+test-results/
