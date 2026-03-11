@@ -52,6 +52,7 @@ const navigationItems = [
   { path: '/', icon: Home, label: 'Home', roles: ['admin', 'admin_officer', 'master', 'officer'] },
   { path: '/search', icon: Search, label: 'Universal Search', roles: ['admin', 'admin_officer', 'master', 'officer'] },
   { path: '/compliance', icon: BarChart3, label: 'Compliance Dashboard', roles: ['admin', 'admin_officer', 'master', 'officer'] },
+  { path: '/observation-records', icon: ImageIcon, label: 'Observation Records', roles: ['admin', 'admin_officer', 'master', 'officer'] },
   { path: '/compliance-recalculation', icon: Shield, label: 'Manual Recalculation', roles: ['admin', 'admin_officer', 'master'] },
   { path: '/breaches', icon: AlertTriangle, label: 'Breach & Safety Alerts', roles: ['admin', 'admin_officer', 'master', 'officer'] },
   { path: '/enforcement-actions', icon: Gavel, label: 'Enforcement Actions', roles: ['admin', 'admin_officer', 'master', 'officer'] },

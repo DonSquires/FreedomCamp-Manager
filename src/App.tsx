@@ -42,6 +42,7 @@ import SpatialComplianceAdmin from '@/pages/SpatialComplianceAdmin'
 import ComplianceAnalytics from '@/pages/ComplianceAnalytics'
 import IncidentReports from '@/pages/IncidentReports'
 import ObservationsView from '@/pages/ObservationsView'
+import ObservationRecords from '@/pages/ObservationRecords'
 import UniversalSearch from '@/pages/UniversalSearch'
 import NoticeToVacate from '@/pages/NoticeToVacate'
 import OfficerWelfareSettings from '@/pages/OfficerWelfareSettings'
@@ -525,6 +526,15 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <ObservationsView />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/observation-records"
+            element={
+              <ProtectedRoute>
+                <ObservationRecords />
               </ProtectedRoute>
             }
           />
