@@ -42,6 +42,7 @@ import { nzDateToUTCStart, nzDateToUTCEnd } from '@/lib/timezone'
 import { AppLayout } from '@/components/features/AppLayout'
 import { GlobalFilterRibbon } from '@/components/features/GlobalFilterRibbon'
 import { enrichVehicleFromMotorWeb } from '@/lib/railwayServices'
+import { isPhotoUrlExpired, parseStorageUrl } from '@/lib/photoUtils'
 
 // Schema-aligned BreachAlert type
 // breach_alerts table columns (from 20260218_rebuild_breach_alerts_system.sql):
@@ -86,17 +87,69 @@ function getBreachObservationId(breach: BreachAlert | null): string | null {
   )
 }
 
-function resolveEvidencePhotoUrl(rawUrl: string | null | undefined): string | null {
+async function resolveEvidencePhotoUrl(rawUrl: string | null | undefined): Promise<string | null> {
   if (!rawUrl) return null
   const url = rawUrl.trim()
   if (!url) return null
 
-  if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:')) {
+  if (url.startsWith('data:')) {
+    return url
+  }
+
+  const maybeParsed = parseStorageUrl(url)
+  if (maybeParsed) {
+    if (url.includes('/storage/v1/object/sign/')) {
+      const { data, error } = await supabase.storage
+        .from(maybeParsed.bucket)
+        .createSignedUrl(maybeParsed.path, 60 * 60)
+
+      if (!error && data?.signedUrl) {
+        return data.signedUrl
+      }
+
+      const { data: publicData } = supabase.storage.from(maybeParsed.bucket).getPublicUrl(maybeParsed.path)
+      return publicData.publicUrl || url
+    }
+
+    if (url.includes('/storage/v1/object/public/')) {
+      return url
+    }
+
+    if (isPhotoUrlExpired(url)) {
+      const { data, error } = await supabase.storage
+        .from(maybeParsed.bucket)
+        .createSignedUrl(maybeParsed.path, 60 * 60)
+
+      if (!error && data?.signedUrl) {
+        return data.signedUrl
+      }
+    }
+
+    return url
+  }
+
+  if (url.startsWith('http://') || url.startsWith('https://')) {
     return url
   }
 
   if (url.startsWith('/storage/v1/object/')) {
-    return SUPABASE_URL ? `${SUPABASE_URL}${url}` : null
+    const absoluteStorageUrl = SUPABASE_URL ? `${SUPABASE_URL}${url}` : null
+    if (!absoluteStorageUrl) return null
+
+    const parsedAbsolute = parseStorageUrl(absoluteStorageUrl)
+    if (!parsedAbsolute) return absoluteStorageUrl
+
+    if (absoluteStorageUrl.includes('/storage/v1/object/sign/')) {
+      const { data, error } = await supabase.storage
+        .from(parsedAbsolute.bucket)
+        .createSignedUrl(parsedAbsolute.path, 60 * 60)
+
+      if (!error && data?.signedUrl) {
+        return data.signedUrl
+      }
+    }
+
+    return absoluteStorageUrl
   }
 
   const normalizedPath = url.replace(/^\/+/, '')
@@ -104,12 +157,22 @@ function resolveEvidencePhotoUrl(rawUrl: string | null | undefined): string | nu
   const bucketPrefixed = normalizedPath.match(/^(scans|evidence|incident-evidence)\/(.+)$/)
   if (bucketPrefixed) {
     const [, bucket, path] = bucketPrefixed
-    const { data } = supabase.storage.from(bucket).getPublicUrl(path)
-    return data.publicUrl || null
+    const { data: signedData, error } = await supabase.storage.from(bucket).createSignedUrl(path, 60 * 60)
+    if (!error && signedData?.signedUrl) {
+      return signedData.signedUrl
+    }
+
+    const { data: publicData } = supabase.storage.from(bucket).getPublicUrl(path)
+    return publicData.publicUrl || null
   }
 
-  const { data } = supabase.storage.from('scans').getPublicUrl(normalizedPath)
-  return data.publicUrl || null
+  const { data: signedData, error } = await supabase.storage.from('scans').createSignedUrl(normalizedPath, 60 * 60)
+  if (!error && signedData?.signedUrl) {
+    return signedData.signedUrl
+  }
+
+  const { data: publicData } = supabase.storage.from('scans').getPublicUrl(normalizedPath)
+  return publicData.publicUrl || null
 }
 
 function formatVehicleDescription(make: string | null, model: string | null, year: number | null, color: string | null): string {
@@ -325,17 +388,20 @@ export default function BreachAlerts() {
 
   // Fetch evidence photos from observations for the active breach
   const { data: evidencePhotos } = useQuery({
-    queryKey: ['breach-evidence-photos', activeBreach?.plate_number],
+    queryKey: ['breach-evidence-photos', activeBreach?.id, activeBreach?.plate_number, activeBreach?.created_at],
     queryFn: async () => {
       if (!activeBreach?.plate_number) return []
 
-      const normalizePhotos = (rows: any[]) =>
-        (rows || [])
-          .map((row: any) => ({
+      const normalizePhotos = async (rows: any[]) => {
+        const resolved = await Promise.all(
+          (rows || []).map(async (row: any) => ({
             ...row,
-            display_url: resolveEvidencePhotoUrl(row.photo_url),
+            display_url: await resolveEvidencePhotoUrl(row.photo_url),
           }))
-          .filter((row: any) => !!row.display_url)
+        )
+
+        return resolved.filter((row: any) => !!row.display_url)
+      }
 
       const observationId = getBreachObservationId(activeBreach)
       if (observationId) {
@@ -344,7 +410,7 @@ export default function BreachAlerts() {
           .eq('id', observationId)
           .limit(1)
 
-        const normalized = normalizePhotos(byId.data || [])
+        const normalized = await normalizePhotos(byId.data || [])
         if (normalized.length > 0) {
           return normalized
         }
@@ -360,7 +426,7 @@ export default function BreachAlerts() {
         .limit(12)
 
       const strict = await strictQuery
-      const strictNormalized = normalizePhotos(strict.data || [])
+      const strictNormalized = await normalizePhotos(strict.data || [])
       if (strictNormalized.length > 0) {
         return strictNormalized
       }
@@ -373,7 +439,7 @@ export default function BreachAlerts() {
         .order('recorded_at', { ascending: false })
         .limit(12)
 
-      return normalizePhotos(fallback.data || [])
+      return await normalizePhotos(fallback.data || [])
     },
     enabled: !!activeBreach?.plate_number,
   })
