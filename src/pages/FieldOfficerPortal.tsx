@@ -11,7 +11,7 @@ import { CameraCapture } from '@/components/features/CameraCapture'
 import { LocationAuthorizationStatus } from '@/components/features/LocationAuthorizationStatus'
 import { QRCheckpointScanner } from '@/components/features/QRCheckpointScanner'
 import { useManDownDetection } from '@/hooks/useManDownDetection'
-import { Camera, Map, FileText, History, AlertTriangle, MapPin, QrCode, ShieldAlert, CheckCircle, Shield, Megaphone, FileWarning } from 'lucide-react'
+import { Camera, Map, FileText, History, AlertTriangle, MapPin, QrCode, ShieldAlert, CheckCircle, Shield, Megaphone, FileWarning, XCircle, Clock, Home, X } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
@@ -24,6 +24,12 @@ const WORKFLOW_LABELS: Record<string, string> = {
   admin_first:    'Admin First',
   officer_direct: 'Officer Direct',
   hybrid:         'Hybrid',
+}
+
+/** Converts snake_case breach type keys to human-readable labels. */
+const formatBreachType = (breachType: string | null | undefined): string => {
+  if (!breachType) return 'Breach'
+  return breachType.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
 }
 
 const isTransientNetworkError = (errorMessage?: string | null) => {
@@ -72,6 +78,17 @@ export default function FieldOfficerPortal() {
   const [isProcessing, setIsProcessing] = useState(false)
   const [currentPatrolZone, setCurrentPatrolZone] = useState<string | null>(zoneId)
   const [currentLocation, setCurrentLocation] = useState<{ latitude: number; longitude: number } | null>(null)
+  const [lastScanResult, setLastScanResult] = useState<{
+    observationId: string | null
+    photoUrl: string | null
+    plateNumber: string | null
+    isCompliant: boolean | null
+    breachType: string | null
+    processingPending: boolean
+    zoneName: string | null
+    recordedAt: string
+  } | null>(null)
+  const [scanTabFilter, setScanTabFilter] = useState<'all' | 'compliant' | 'breach' | 'at_risk' | 'homeless'>('all')
 
   // Man-Down Detection — records GPS updates and fires alert if stationary too long
   const { recordGPSUpdate, isManDownActive } = useManDownDetection()
@@ -103,10 +120,15 @@ export default function FieldOfficerPortal() {
       if (!user?.id) return []
       const { data, error } = await supabase
         .from('observations')
-        .select('id, plate_number, recorded_at, is_compliant, processing_status, photo_url, zone_id, zone:zones!zone_id(name)')
+        .select([
+          'id, plate_number, recorded_at, is_compliant, processing_status',
+          'photo_url, zone_id, breach_type, consecutive_nights, nights_stayed_this_month',
+          'zone:zones!zone_id(name)',
+          'vehicle:canonical_vehicles!plate_number(homeless_status)',
+        ].join(', '))
         .eq('recorded_by', user.id)
         .order('recorded_at', { ascending: false })
-        .limit(10)
+        .limit(20)
       if (error) return []
       return data as any[]
     },
@@ -169,6 +191,21 @@ export default function FieldOfficerPortal() {
     const interval = setInterval(checkGeofence, 30000)
     return () => clearInterval(interval)
   }, [user, currentPatrolZone, setZone])
+
+  // Sync lastScanResult with live compliance data once AI processing completes
+  useEffect(() => {
+    if (!lastScanResult?.observationId || !lastScanResult.processingPending) return
+    const matched = recentScans.find((s: any) => s.id === lastScanResult.observationId)
+    if (matched && matched.processing_status !== 'pending') {
+      setLastScanResult(prev => prev ? {
+        ...prev,
+        isCompliant: matched.is_compliant,
+        breachType: matched.breach_type ?? null,
+        processingPending: false,
+        zoneName: matched.zone?.name ?? null,
+      } : null)
+    }
+  }, [recentScans, lastScanResult])
 
   const fileToDataUrl = (file: File) =>
     new Promise<string>((resolve, reject) => {
@@ -368,6 +405,17 @@ export default function FieldOfficerPortal() {
           : `Plate detected: ${ingestData?.plate ?? 'Unknown'}`,
       })
 
+      setLastScanResult({
+        observationId: ingestData?.observation_id ?? null,
+        photoUrl: photoUrl,
+        plateNumber: ingestData?.plate ?? detectedPlate ?? null,
+        isCompliant: null, // will update when recentScans refreshes
+        breachType: null,
+        processingPending: true,
+        zoneName: null,
+        recordedAt: new Date().toISOString(),
+      })
+
       setShowScanner(false)
       refetchScans()
 
@@ -390,6 +438,7 @@ export default function FieldOfficerPortal() {
       toast.error('Camera not available on this device')
       return
     }
+    setLastScanResult(null)
     setShowScanner(true)
   }
 
@@ -433,7 +482,132 @@ export default function FieldOfficerPortal() {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        <>
+          {/* ── Last Scan Result Panel ──────────────────────────────────── */}
+          {lastScanResult && (
+            <Card className={`mb-4 border-2 ${
+              lastScanResult.processingPending
+                ? 'border-gray-300 bg-gray-50 dark:bg-gray-900'
+                : lastScanResult.isCompliant === false
+                ? 'border-red-400 bg-red-50 dark:bg-red-950/40'
+                : 'border-green-400 bg-green-50 dark:bg-green-950/40'
+            }`}>
+              <CardHeader className="pb-2 pt-3 px-4">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-sm flex items-center gap-2">
+                    <Camera className="h-4 w-4" />
+                    Last Scan Result
+                    {lastScanResult.processingPending && (
+                      <Badge variant="secondary" className="text-[10px] animate-pulse">
+                        <Clock className="h-2.5 w-2.5 mr-1" />
+                        Processing…
+                      </Badge>
+                    )}
+                  </CardTitle>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6"
+                    onClick={() => setLastScanResult(null)}
+                  >
+                    <X className="h-3 w-3" />
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent className="px-4 pb-3">
+                <div className="flex gap-3 items-start">
+                  {/* Photo */}
+                  {lastScanResult.photoUrl ? (
+                    <img
+                      src={lastScanResult.photoUrl}
+                      alt="Scan"
+                      className="h-24 w-24 rounded-lg object-cover shrink-0 border"
+                    />
+                  ) : (
+                    <div className="h-24 w-24 rounded-lg bg-gray-100 dark:bg-gray-800 flex items-center justify-center shrink-0 border">
+                      <Camera className="h-8 w-8 text-gray-400" />
+                    </div>
+                  )}
+
+                  {/* Details */}
+                  <div className="flex-1 min-w-0 space-y-2">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-mono font-bold text-lg">
+                        {lastScanResult.plateNumber || '—'}
+                      </span>
+                      {!lastScanResult.processingPending && lastScanResult.isCompliant !== null && (
+                        lastScanResult.isCompliant ? (
+                          <Badge className="bg-green-600 text-white">
+                            <CheckCircle className="h-3 w-3 mr-1" />
+                            Compliant
+                          </Badge>
+                        ) : (
+                          <Badge variant="destructive">
+                            <XCircle className="h-3 w-3 mr-1" />
+                            {formatBreachType(lastScanResult.breachType)}
+                          </Badge>
+                        )
+                      )}
+                    </div>
+                    {lastScanResult.zoneName && (
+                      <p className="text-xs text-muted-foreground">
+                        <MapPin className="h-3 w-3 inline mr-1" />
+                        {lastScanResult.zoneName}
+                      </p>
+                    )}
+
+                    {/* Quick action buttons for breach */}
+                    {!lastScanResult.processingPending && lastScanResult.isCompliant === false && (
+                      <div className="flex gap-2 flex-wrap mt-1">
+                        {(orgWorkflow === 'officer_direct' || orgWorkflow === 'hybrid') && lastScanResult.observationId && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 text-[11px] border-yellow-400 text-yellow-700 hover:bg-yellow-50"
+                            disabled={issueAction.isPending}
+                            onClick={() => issueAction.mutate({
+                              observationId: lastScanResult.observationId!,
+                              zoneId: recentScans.find((s: any) => s.id === lastScanResult.observationId)?.zone_id || '',
+                              plateNumber: lastScanResult.plateNumber || '',
+                              actionType: 'warning',
+                            })}
+                          >
+                            <FileWarning className="h-3 w-3 mr-1" />
+                            Issue Warning
+                          </Button>
+                        )}
+                        {orgWorkflow === 'officer_direct' && lastScanResult.observationId && (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 text-[11px] border-red-400 text-red-700 hover:bg-red-50"
+                            disabled={issueAction.isPending}
+                            onClick={() => issueAction.mutate({
+                              observationId: lastScanResult.observationId!,
+                              zoneId: recentScans.find((s: any) => s.id === lastScanResult.observationId)?.zone_id || '',
+                              plateNumber: lastScanResult.plateNumber || '',
+                              actionType: 'notice_to_vacate',
+                            })}
+                          >
+                            <Megaphone className="h-3 w-3 mr-1" />
+                            Notice to Vacate
+                          </Button>
+                        )}
+                        {(!orgWorkflow || orgWorkflow === 'admin_first') && (
+                          <Badge variant="secondary" className="text-[10px]">
+                            <Shield className="h-2.5 w-2.5 mr-1" />
+                            Reported to Admin
+                          </Badge>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
           {/* Main Action: Scan */}
           <Card className="hover:shadow-lg transition-shadow border-blue-200 dark:border-blue-900 border-2">
             <CardHeader>
@@ -574,6 +748,7 @@ export default function FieldOfficerPortal() {
             </CardContent>
           </Card>
         </div>
+        </>
       )}
 
       {/* Location Authorization Status */}
@@ -635,9 +810,43 @@ export default function FieldOfficerPortal() {
               {orgWorkflow === 'hybrid' && 'Hybrid mode — you can issue warnings on-site; notices require admin approval.'}
               {(!orgWorkflow || orgWorkflow === 'admin_first') && 'Admin First mode — breaches are automatically reported to admin.'}
             </CardDescription>
+            {/* Compliance filter tabs */}
+            <div className="flex gap-1 flex-wrap mt-2">
+              {([
+                { key: 'all', label: 'All', icon: null, style: '' },
+                { key: 'compliant', label: 'Compliant', icon: CheckCircle, style: 'text-green-700 border-green-400 bg-green-50 dark:bg-green-950/40' },
+                { key: 'breach', label: 'Breach', icon: XCircle, style: 'text-red-700 border-red-400 bg-red-50 dark:bg-red-950/40' },
+                { key: 'at_risk', label: 'At Risk', icon: AlertTriangle, style: 'text-yellow-700 border-yellow-400 bg-yellow-50 dark:bg-yellow-950/40' },
+                { key: 'homeless', label: 'Homeless/Exempt', icon: Home, style: 'text-purple-700 border-purple-400 bg-purple-50 dark:bg-purple-950/40' },
+              ] as const).map(({ key, label, icon: Icon, style }) => (
+                <button
+                  key={key}
+                  onClick={() => setScanTabFilter(key)}
+                  className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-[11px] font-medium transition-colors ${
+                    scanTabFilter === key
+                      ? style || 'bg-gray-900 text-white border-gray-900 dark:bg-white dark:text-gray-900'
+                      : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-400'
+                  }`}
+                >
+                  {Icon && <Icon className="h-2.5 w-2.5" />}
+                  {label}
+                </button>
+              ))}
+            </div>
           </CardHeader>
           <CardContent className="space-y-2 pt-0">
-            {recentScans.map((scan: any) => {
+            {recentScans.filter((scan: any) => {
+              if (scanTabFilter === 'all') return true
+              const isProcessingAI = scan.processing_status === 'pending'
+              if (scanTabFilter === 'compliant') return scan.is_compliant && !isProcessingAI
+              if (scanTabFilter === 'breach') return !scan.is_compliant && !isProcessingAI
+              if (scanTabFilter === 'at_risk') return isProcessingAI || (scan.is_compliant && (scan.consecutive_nights ?? 0) >= 2)
+              if (scanTabFilter === 'homeless') {
+                const homelessStatus = (scan.vehicle as any)?.homeless_status
+                return homelessStatus === 'confirmed' || homelessStatus === 'claimed'
+              }
+              return true
+            }).map((scan: any) => {
               const isProcessingAI = scan.processing_status === 'pending'
               const inBreach = !scan.is_compliant && !isProcessingAI
               return (
