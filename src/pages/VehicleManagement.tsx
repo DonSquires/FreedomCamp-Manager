@@ -99,62 +99,85 @@ export default function VehicleManagement() {
   const { data: vehicles, isLoading, error: vehiclesError } = useQuery({
     queryKey: ['vehicles', effectiveOrganizationId, zoneId, statusFilter, searchQuery],
     queryFn: async () => {
-      let query = supabase
-        .from('canonical_vehicles')
-        .select('*')
-        .order('plate_number', { ascending: true })
-
-      // Scope to org/zone via matching observations (no date filter on the list).
-      // Use a high limit to override Supabase's 1000-row default, and exclude
-      // placeholder values set by the async scan pipeline ('PROCESSING...').
-      if (effectiveOrganizationId || zoneId) {
+      const fetchScopedPlates = async (scopeOrgId: string | null, scopeZoneId: string | null) => {
         let obsQuery = supabase
           .from('observations')
           .select('plate_number')
           .neq('plate_number', 'PROCESSING...')
           .limit(10000)
 
-        if (effectiveOrganizationId) {
-          obsQuery = obsQuery.eq('organization_id', effectiveOrganizationId)
+        if (scopeOrgId) {
+          obsQuery = obsQuery.eq('organization_id', scopeOrgId)
         }
-        if (zoneId) {
-          obsQuery = obsQuery.eq('zone_id', zoneId)
+        if (scopeZoneId) {
+          obsQuery = obsQuery.eq('zone_id', scopeZoneId)
         }
 
         const { data: matchingObs, error: obsError } = await obsQuery
         if (obsError) throw obsError
 
-        const matchingPlates = [
-          ...new Set(
-            (matchingObs ?? [])
-              .map((o: any) => o.plate_number)
-              .filter((p: any) => p && typeof p === 'string' && p.trim()) as string[]
-          ),
-        ]
-        if (matchingPlates.length === 0) return [] as Vehicle[]
-        query = query.in('plate_number', matchingPlates)
-      }
-
-      if (searchQuery) {
-        query = query.or(
-          `plate_number.ilike.%${searchQuery}%,vehicle_make.ilike.%${searchQuery}%,vehicle_model.ilike.%${searchQuery}%`
+        return new Set(
+          (matchingObs ?? [])
+            .map((o: any) => o.plate_number)
+            .filter((p: any) => p && typeof p === 'string' && p.trim()) as string[]
         )
       }
 
-      if (statusFilter === 'compliant') {
-        query = query.eq('total_breaches', 0)
-      } else if (statusFilter === 'breaches') {
-        query = query.gt('total_breaches', 0)
-      } else if (statusFilter === 'homeless') {
-        query = query.in('homeless_status', HOMELESS_UI_STATUSES)
-      } else if (statusFilter === 'exempt') {
-        query = query.eq('is_exempt', true)
+      const applyVehicleFilters = (query: any) => {
+        query = query.order('plate_number', { ascending: true })
+
+        if (searchQuery) {
+          query = query.or(
+            `plate_number.ilike.%${searchQuery}%,vehicle_make.ilike.%${searchQuery}%,vehicle_model.ilike.%${searchQuery}%`
+          )
+        }
+
+        if (statusFilter === 'compliant') {
+          query = query.eq('total_breaches', 0)
+        } else if (statusFilter === 'breaches') {
+          query = query.gt('total_breaches', 0)
+        } else if (statusFilter === 'homeless') {
+          query = query.in('homeless_status', HOMELESS_UI_STATUSES)
+        } else if (statusFilter === 'exempt') {
+          query = query.eq('is_exempt', true)
+        }
+
+        return query
       }
 
-      const { data, error } = await query
-      if (error) throw error
+      let rows: Vehicle[] = []
 
-      const rows = (data ?? []) as Vehicle[]
+      // Primary path: scope canonical vehicles by organization_id directly (if available).
+      let primaryQuery = applyVehicleFilters(
+        supabase.from('canonical_vehicles').select('*')
+      )
+
+      if (effectiveOrganizationId) {
+        primaryQuery = primaryQuery.eq('organization_id', effectiveOrganizationId)
+      }
+
+      const primary = await primaryQuery
+
+      if (!primary.error) {
+        rows = (primary.data ?? []) as Vehicle[]
+      } else if (effectiveOrganizationId) {
+        // Fallback for schema variants where canonical_vehicles has no organization_id.
+        const fallback = await applyVehicleFilters(supabase.from('canonical_vehicles').select('*'))
+        if (fallback.error) throw fallback.error
+
+        const orgPlates = await fetchScopedPlates(effectiveOrganizationId, null)
+        rows = ((fallback.data ?? []) as Vehicle[]).filter((v) => orgPlates.has(v.plate_number))
+      } else {
+        throw primary.error
+      }
+
+      // Apply zone scoping in-memory to avoid massive IN(...) URL queries.
+      if (zoneId) {
+        const zonePlates = await fetchScopedPlates(effectiveOrganizationId, zoneId)
+        rows = rows.filter((v) => zonePlates.has(v.plate_number))
+      }
+
+      if (rows.length === 0) return rows
 
       // Backfill profile_photo from latest observation photo when missing
       const missingPhotoPlates = rows
@@ -163,23 +186,34 @@ export default function VehicleManagement() {
 
       if (missingPhotoPlates.length === 0) return rows
 
-      let photoQuery = (supabase.from('observations') as any)
-        .select('plate_number, photo_url, recorded_at')
-        .in('plate_number', missingPhotoPlates)
-        .not('photo_url', 'is', null)
-        .order('recorded_at', { ascending: false })
-        .limit(Math.max(600, missingPhotoPlates.length * 5))
-      if (effectiveOrganizationId) {
-        photoQuery = photoQuery.eq('organization_id', effectiveOrganizationId)
-      }
-      const { data: latestPhotos } = await photoQuery
-
+      // Chunk plate filters to avoid oversized query URLs.
       const photoByPlate: Record<string, string> = {}
-      for (const row of latestPhotos ?? []) {
-        const plate = row.plate_number as string | null
-        if (!plate || photoByPlate[plate]) continue
-        const resolved = getObservationPhotoUrl(row as any)
-        if (resolved) photoByPlate[plate] = resolved
+
+      const plateChunks: string[][] = []
+      for (let i = 0; i < missingPhotoPlates.length; i += 200) {
+        plateChunks.push(missingPhotoPlates.slice(i, i + 200))
+      }
+
+      for (const chunk of plateChunks) {
+        let photoQuery = (supabase.from('observations') as any)
+          .select('plate_number, photo_url, recorded_at')
+          .in('plate_number', chunk)
+          .not('photo_url', 'is', null)
+          .order('recorded_at', { ascending: false })
+          .limit(Math.max(300, chunk.length * 4))
+
+        if (effectiveOrganizationId) {
+          photoQuery = photoQuery.eq('organization_id', effectiveOrganizationId)
+        }
+
+        const { data: latestPhotos } = await photoQuery
+
+        for (const row of latestPhotos ?? []) {
+          const plate = row.plate_number as string | null
+          if (!plate || photoByPlate[plate]) continue
+          const resolved = getObservationPhotoUrl(row as any)
+          if (resolved) photoByPlate[plate] = resolved
+        }
       }
 
       return rows.map((v) => ({
@@ -187,6 +221,7 @@ export default function VehicleManagement() {
         profile_photo: getVehiclePhotoUrl(v, photoByPlate[v.plate_number] ?? null),
       }))
     },
+    retry: 1,
   })
 
   // ─── Dialog: open & reset ────────────────────────────────────────────────
