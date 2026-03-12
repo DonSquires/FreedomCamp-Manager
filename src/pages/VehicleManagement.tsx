@@ -123,6 +123,8 @@ export default function VehicleManagement() {
         synthesizedCount: 0,
       }
 
+      try {
+
       const isUuid = (value: string | null) =>
         !!value && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)
 
@@ -149,7 +151,7 @@ export default function VehicleManagement() {
 
         const { data, error } = await (supabase.from('organizations') as any)
           .select('id, name')
-          .or(`name.ilike.${normalized},name.ilike.%${normalized}%`)
+          .ilike('name', `%${normalized}%`)
           .limit(1)
 
         if (error) throw error
@@ -166,7 +168,7 @@ export default function VehicleManagement() {
         let zoneQuery = (supabase.from('zones') as any)
           .select('id, name, organization_id')
           .eq('is_active', true)
-          .or(`name.ilike.${normalized},name.ilike.%${normalized}%`)
+          .ilike('name', `%${normalized}%`)
           .limit(1)
 
         if (scopeOrgId) {
@@ -414,6 +416,16 @@ export default function VehicleManagement() {
 
       setVehicleQueryDebug(debug)
       return finalRows
+      } catch (error: any) {
+        setVehicleQueryDebug(debug)
+        const message =
+          error?.message ||
+          error?.error_description ||
+          error?.details ||
+          (typeof error === 'string' ? error : null) ||
+          'Vehicle query failed'
+        throw new Error(message)
+      }
     },
     retry: 1,
   })
