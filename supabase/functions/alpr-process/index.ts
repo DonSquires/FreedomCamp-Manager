@@ -370,7 +370,7 @@ Deno.serve(async (req) => {
     Deno.env.get('SUPABASE_URL') ?? '',
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
   );
-  // Tracks an observation id that has been marked 'processing' so the catch
+  // Tracks an observation_id that has been marked 'processing' so the catch
   // block can flip it to 'failed' if an unhandled exception aborts the pipeline.
   let processingObservationId: string | null = null;
   let processingObservationKey: 'observation_id' | 'id' = 'observation_id';
