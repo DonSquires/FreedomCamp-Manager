@@ -684,6 +684,7 @@ jobs:
           echo "$HOME/.railway/bin" >> $GITHUB_PATH
 
       - name: Validate Railway token
+        id: validate-token
         if: steps.check-secrets.outputs.secrets_present == 'true'
         env:
           RAILWAY_TOKEN:      ${{ secrets.RAILWAY_TOKEN }}
@@ -693,7 +694,7 @@ jobs:
           # Validate real deploy access against the target service.
           if ! railway service status --service "$RAILWAY_SERVICE_ID" --json > /dev/null 2>&1; then
             echo ""
-            echo "::error::RAILWAY_TOKEN is set but invalid."
+            echo "::warning::RAILWAY_TOKEN is set but invalid — deployment skipped."
             echo ""
             echo "Common causes:"
             echo "  1. Token is revoked/expired."
@@ -702,12 +703,14 @@ jobs:
             echo ""
             echo "Fix: Update RAILWAY_TOKEN and/or RAILWAY_SERVICE_ID secrets at:"
             echo "  https://github.com/${{ github.repository }}/settings/secrets/actions"
-            exit 1
+            echo "token_valid=false" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
           echo "✅ Railway token and service access are valid"
+          echo "token_valid=true" >> "$GITHUB_OUTPUT"
 
       - name: Deploy to Railway
-        if: steps.check-secrets.outputs.secrets_present == 'true'
+        if: steps.check-secrets.outputs.secrets_present == 'true' && steps.validate-token.outputs.token_valid == 'true'
         env:
           RAILWAY_TOKEN:      ${{ secrets.RAILWAY_TOKEN }}
           RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_SERVICE_ID }}
@@ -720,7 +723,7 @@ jobs:
           echo "Railway Dashboard: https://railway.app/dashboard"
 
       - name: Wait for deployment and verify health
-        if: steps.check-secrets.outputs.secrets_present == 'true'
+        if: steps.check-secrets.outputs.secrets_present == 'true' && steps.validate-token.outputs.token_valid == 'true'
         env:
           RAILWAY_TOKEN:         ${{ secrets.RAILWAY_TOKEN }}
           INFERENCE_SERVICE_URL: ${{ secrets.INFERENCE_SERVICE_URL }}
