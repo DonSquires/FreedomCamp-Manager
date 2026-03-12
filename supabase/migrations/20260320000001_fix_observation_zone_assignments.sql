@@ -47,7 +47,9 @@ COMMENT ON COLUMN public.zones.needs_admin_review  IS 'TRUE when auto-created by
 -- always re-derive the correct zone even after zones are reorganised.
 ALTER TABLE public.observations
   ADD COLUMN IF NOT EXISTS zone_name_at_import TEXT DEFAULT NULL,
-  ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ DEFAULT NULL;
+  ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS is_legacy_import BOOLEAN DEFAULT false,
+  ADD COLUMN IF NOT EXISTS legacy_source_tag TEXT DEFAULT NULL;
 
 COMMENT ON COLUMN public.observations.zone_name_at_import IS
   'Zone name exactly as it appeared in the Excel import file (Column B). '
@@ -55,6 +57,12 @@ COMMENT ON COLUMN public.observations.zone_name_at_import IS
 
 COMMENT ON COLUMN public.observations.deleted_at IS
   'Soft-delete timestamp. NULL means active row.';
+
+COMMENT ON COLUMN public.observations.is_legacy_import IS
+  'TRUE when row originated from historical import pipelines.';
+
+COMMENT ON COLUMN public.observations.legacy_source_tag IS
+  'Source tag for historical import provenance.';
 
 -- ── 1. Pre-flight diagnostic ─────────────────────────────────────────────────
 
