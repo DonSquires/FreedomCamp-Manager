@@ -604,8 +604,8 @@ export default function FieldOfficerPortal() {
             consecutive_nights: 0,
           }
 
-          const fallbackInsertWithIdempotency = await supabase
-            .from('observations')
+          const fallbackInsertWithIdempotency = await (supabase
+            .from('observations') as any)
             .insert({
               ...fallbackBasePayload,
               idempotency_key: idempotencyKey,
@@ -618,8 +618,8 @@ export default function FieldOfficerPortal() {
 
           const fallbackInsertMessage = fallbackError?.message || ''
           if (fallbackError && /idempotency_key/i.test(fallbackInsertMessage)) {
-            const fallbackInsertWithoutIdempotency = await supabase
-              .from('observations')
+            const fallbackInsertWithoutIdempotency = await (supabase
+              .from('observations') as any)
               .insert(fallbackBasePayload)
               .select('id, observation_id, plate_number, is_compliant, breach_type')
               .single()
