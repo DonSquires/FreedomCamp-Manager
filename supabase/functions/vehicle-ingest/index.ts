@@ -248,6 +248,12 @@ Deno.serve(async (req) => {
     let officerNotes: string | null = null;
     let weatherConditions: string | null = null;
     let photoUrlInput: string | null = null;
+    // Pre-detected plate hint from an upstream ALPR call (e.g. alpr-process).
+    // Inference always runs — the hint is only used as a fallback for the plate
+    // field when the inference service returns no plate or is unavailable.
+    let hintPlate: string | null = null;
+    let hintConfidence: number | null = null;
+    let hintRequiresManualEntry: boolean | null = null;
 
     const contentType = req.headers.get("content-type") ?? "";
     console.log('📋 Content-Type header:', contentType);
@@ -269,6 +275,12 @@ Deno.serve(async (req) => {
       officerNotes = body.notes ?? body.officer_notes;
       weatherConditions = body.weather ?? body.weather_conditions;
       photoUrlInput = body.photo_url ?? body.photoUrl ?? null;
+      // Pre-detected ALPR hint (optional — sent by FieldOfficerPortal after the
+      // upstream alpr-process call). Inference always runs; the hint is only
+      // applied as a plate fallback when inference returns no plate.
+      hintPlate = body.plate ?? body.plate_number ?? null;
+      hintConfidence = body.confidence ?? null;
+      hintRequiresManualEntry = body.requires_manual_entry ?? null;
     } else if (contentType.includes("multipart/form-data")) {
       console.log('🔄 Parsing as FormData...');
       const formData = await req.formData();
@@ -289,6 +301,11 @@ Deno.serve(async (req) => {
       officerNotes = formData.get("notes") as string;
       weatherConditions = formData.get("weather") as string;
       photoUrlInput = (formData.get("photo_url") as string) || (formData.get("photoUrl") as string) || null;
+      hintPlate = (formData.get("plate") as string) || (formData.get("plate_number") as string) || null;
+      const rawConfidence = formData.get("confidence");
+      hintConfidence = rawConfidence ? parseFloat(rawConfidence as string) : null;
+      const rawManual = formData.get("requires_manual_entry");
+      hintRequiresManualEntry = rawManual ? rawManual === 'true' : null;
     } else {
       // Unknown content type - log and return error
       console.error('❌ Unsupported Content-Type:', contentType);
@@ -442,7 +459,7 @@ Deno.serve(async (req) => {
       .from("evidence")
       .upload(photoFileName, imageBytes!, {
         contentType: "image/jpeg",
-        upsert: false,
+        upsert: true,
       });
 
     if (uploadError) {
@@ -462,7 +479,10 @@ Deno.serve(async (req) => {
     console.log("📸 Photo uploaded:", { path: photoFileName, hash: photoHash });
 
     // ========================================================================
-    // INFERENCE ROUTING — Railway inference service with graceful fallback
+    // INFERENCE — always run for sticker detection, movement analysis, and
+    // plate recognition.  The pre-detected plate hint (hintPlate) is only
+    // used as a fallback for the plate field when inference itself returns
+    // no plate — it never bypasses the inference call.
     // ========================================================================
     let inferenceResult: {
       success: boolean;
@@ -476,16 +496,19 @@ Deno.serve(async (req) => {
     // Railway inference mode - Call standalone service
     console.log('🚂 Using Railway inference service');
     const inferenceUrl = Deno.env.get('INFERENCE_SERVICE_URL');
-    const inferenceTimeoutMs = Number(Deno.env.get('INFERENCE_TIMEOUT_MS') ?? '8000');
+    // Default to 5 s (was 8 s) so the total edge-function wall-clock time
+    // (auth + photo download + evidence upload + inference + DB) stays within
+    // the Supabase ~10 s limit.  Override via INFERENCE_TIMEOUT_MS env var.
+    const inferenceTimeoutMs = Number(Deno.env.get('INFERENCE_TIMEOUT_MS') ?? '5000');
 
     if (!inferenceUrl) {
-      console.warn('⚠️ INFERENCE_SERVICE_URL not configured — flagging for manual entry');
+      console.warn('⚠️ INFERENCE_SERVICE_URL not configured — falling back to hint plate');
       inferenceResult = {
         success: false,
         path: 'no_inference_service',
-        plate: null,
-        requires_manual_entry: true,
-        confidence: null,
+        plate: hintPlate,
+        requires_manual_entry: !hintPlate,
+        confidence: hintConfidence,
       };
     } else {
       try {
@@ -509,31 +532,34 @@ Deno.serve(async (req) => {
         }
 
         const inferenceData = await inferenceResponse.json();
+        // Use inference plate when available; fall back to the pre-detected hint
+        // only for the plate field (sticker / movement data always comes from inference).
+        const resolvedPlate = inferenceData.plate ?? hintPlate;
         inferenceResult = {
           success: true,
           path: 'railway_inference',
-          plate: inferenceData.plate,
-          requires_manual_entry: !inferenceData.plate,
-          confidence: inferenceData.confidence,
+          plate: resolvedPlate,
+          requires_manual_entry: !resolvedPlate,
+          confidence: inferenceData.plate ? inferenceData.confidence : hintConfidence,
         };
 
         console.log('🚂 Railway inference success:', {
           plate: inferenceResult.plate,
           confidence: inferenceResult.confidence,
+          plate_from_hint: !inferenceData.plate && !!hintPlate,
         });
       } catch (error: any) {
         console.error('❌ Railway inference failed:', error.message);
-        // Fallback to manual entry
+        // Inference failed — fall back to hint plate so the scan is not lost.
         inferenceResult = {
           success: false,
           path: 'railway_failed',
-          plate: null,
-          requires_manual_entry: true,
-          confidence: null,
+          plate: hintPlate,
+          requires_manual_entry: !hintPlate,
+          confidence: hintConfidence,
         };
       }
     }
-    // ========================================================================
 
     const plateNumber = normalizePlateNumber(inferenceResult.plate);
     const requiresManualEntry = inferenceResult.requires_manual_entry;
