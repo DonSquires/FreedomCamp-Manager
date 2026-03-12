@@ -103,7 +103,15 @@ export default function FieldOfficerPortal() {
 
   const copyScanDebug = async () => {
     try {
-      const text = scanDebugLines.join('\n')
+      const text = scanDebugLines.length > 0
+        ? scanDebugLines.join('\n')
+        : [
+            `[${new Date().toISOString()}] No scan diagnostics captured yet`,
+            `status=${scanDebugStatus}`,
+            `officer_email=${user?.email ?? 'unknown'}`,
+            `officer_id=${user?.id ?? 'unknown'}`,
+            `organization_id=${user?.organization_id ?? 'unknown'}`,
+          ].join('\n')
       await navigator.clipboard.writeText(text)
       toast.success('Scan diagnostics copied')
     } catch {
@@ -644,7 +652,15 @@ export default function FieldOfficerPortal() {
     }
     setLastScanResult(null)
     setScanDebugStatus('idle')
-    setScanDebugLines([])
+    setScanDebugLines([
+      `[${new Date().toISOString()}] Scanner opened`,
+      `[${new Date().toISOString()}] Officer context ${JSON.stringify({
+        officer_email: user?.email ?? null,
+        officer_id: user?.id ?? null,
+        org_id: user?.organization_id ?? null,
+      })}`,
+      `[${new Date().toISOString()}] Waiting for capture`,
+    ])
     setShowScanner(true)
   }
 
@@ -681,7 +697,6 @@ export default function FieldOfficerPortal() {
               {
                 label: 'Copy Scan Diagnostics',
                 onClick: copyScanDebug,
-                disabled: scanDebugLines.length === 0,
               },
               {
                 label: 'Close Scanner',
