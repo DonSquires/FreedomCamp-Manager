@@ -12,14 +12,13 @@
 // ============================================================================
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.7";
+import { corsHeaders } from "../_shared/cors.ts";
 
 const PHOTO_FETCH_TIMEOUT_MS = Number(Deno.env.get("INGEST_PHOTO_FETCH_TIMEOUT_MS") ?? "8000");
 
 function getCorsHeaders(_req?: Request) {
   return {
-    "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Methods": "POST, GET, OPTIONS, PUT, DELETE",
-    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-client-timezone",
+    ...corsHeaders,
     "Access-Control-Max-Age": "3600",
   };
 }
@@ -74,6 +73,16 @@ function normalizePlateNumber(raw: string | null | undefined): string | null {
     .replace(/\s+/g, '')
     .replace(/[^A-Z0-9]/g, '');
   return normalized || null;
+}
+
+function isMissingIdempotencyColumnError(error: unknown): boolean {
+  const message =
+    typeof error === "string"
+      ? error
+      : (error as any)?.message || (error as any)?.error || "";
+
+  return /idempotency_key/i.test(String(message))
+    && /schema cache|does not exist|column/i.test(String(message));
 }
 
 async function downloadPhotoBytes(
@@ -187,6 +196,8 @@ Deno.serve(async (req) => {
   // ============================================================================
 
   try {
+    let supportsIdempotencyKeyColumn = true;
+
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
@@ -419,11 +430,20 @@ Deno.serve(async (req) => {
     });
 
     // Check for duplicate (idempotency)
-    const { data: existing } = await supabase
+    const { data: existing, error: existingError } = await supabase
       .from("observations")
       .select("*")
       .eq("idempotency_key", idempotencyKey)
       .maybeSingle();
+
+    if (existingError && isMissingIdempotencyColumnError(existingError)) {
+      supportsIdempotencyKeyColumn = false;
+      console.warn("⚠️ observations.idempotency_key unavailable in schema cache; duplicate pre-check skipped", {
+        error: existingError.message,
+      });
+    } else if (existingError) {
+      throw existingError;
+    }
 
     if (existing) {
       const existingObservationId = (existing as any).observation_id ?? (existing as any).id;
@@ -608,7 +628,6 @@ Deno.serve(async (req) => {
 
     // Step 4: Insert observation into observations table
     const observationData = {
-      idempotency_key: idempotencyKey,
       plate_number: plateNumber || "MANUAL_REQUIRED",
       photo_url: photoUrl,
       photo_hash: photoHash,
@@ -636,9 +655,13 @@ Deno.serve(async (req) => {
       consecutive_nights: 0,
     };
 
+    const insertPayload = supportsIdempotencyKeyColumn
+      ? { ...observationData, idempotency_key: idempotencyKey }
+      : observationData;
+
     const { data: observation, error: obsError } = await supabase
       .from("observations")
-      .insert(observationData)
+      .insert(insertPayload)
       .select()
       .single();
 

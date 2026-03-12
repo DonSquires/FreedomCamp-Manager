@@ -173,6 +173,16 @@ interface ALPRResponse {
   warnings?: string[];
 }
 
+function isMissingIdempotencyColumnError(error: unknown): boolean {
+  const message =
+    typeof error === 'string'
+      ? error
+      : (error as any)?.message || (error as any)?.error || '';
+
+  return /idempotency_key/i.test(String(message))
+    && /schema cache|does not exist|column/i.test(String(message));
+}
+
 Deno.serve(async (req) => {
   // ============================================================================
   // STEP 1: CORS PREFLIGHT
@@ -195,6 +205,7 @@ Deno.serve(async (req) => {
   let processingObservationKey: 'id' | 'observation_id' = 'id';
 
   try {
+    let supportsIdempotencyKeyColumn = true;
 
     // ==========================================================================
     // STEP 3: VALIDATE REQUEST PAYLOAD
@@ -237,12 +248,21 @@ Deno.serve(async (req) => {
         );
       }
 
-      // Check for duplicate
-      const { data: existingObs } = await supabase
+      // Check for duplicate (best effort; tolerate deployments where schema cache
+      // does not currently expose observations.idempotency_key).
+      const { data: existingObs, error: duplicateCheckError } = await supabase
         .from('observations')
         .select('*')
         .eq('idempotency_key', body.idempotencyKey)
         .maybeSingle();
+
+      if (duplicateCheckError && isMissingIdempotencyColumnError(duplicateCheckError)) {
+        supportsIdempotencyKeyColumn = false;
+        warnings.push('idempotency_key unavailable in schema cache; duplicate pre-check skipped');
+        console.warn('⚠️ observations.idempotency_key unavailable during duplicate pre-check:', duplicateCheckError.message);
+      } else if (duplicateCheckError) {
+        throw duplicateCheckError;
+      }
 
       if (existingObs) {
         console.log('⚠️ Duplicate observation detected:', body.idempotencyKey);
@@ -590,7 +610,6 @@ Deno.serve(async (req) => {
     } else {
       // CREATE MODE: Insert new observation
       const observationData = {
-        idempotency_key: body.idempotencyKey,
         recorded_by: body.officerId,
         organization_id: body.organizationId,
         zone_id: body.zoneId,
@@ -616,6 +635,10 @@ Deno.serve(async (req) => {
         is_compliant: true,
       };
 
+      const insertPayload = supportsIdempotencyKeyColumn
+        ? { ...observationData, idempotency_key: body.idempotencyKey }
+        : observationData;
+
       console.log('💾 Creating observation:', {
         plate: observationData.plate_number,
         stage,
@@ -623,7 +646,7 @@ Deno.serve(async (req) => {
 
       const { data: newObs, error: obsError } = await supabase
         .from('observations')
-        .insert(observationData)
+        .insert(insertPayload)
         .select('*')
         .single();
 
