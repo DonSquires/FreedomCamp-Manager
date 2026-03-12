@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { getEffectiveOrgId } from '@/lib/orgUtils'
+import { nzDateToUTCStart, nzDateToUTCEnd } from '@/lib/timezone'
 
 interface DashboardStatsParams {
   organizationId?: string | null
@@ -79,8 +80,8 @@ async function calculateStatsManually(
     breachQuery = breachQuery.eq('zone_id', zoneId)
   }
 
-  const startDate = dateFrom ? `${dateFrom}T00:00:00Z` : null
-  const endDate = dateTo ? `${dateTo}T23:59:59Z` : null
+  const startDate = dateFrom ? nzDateToUTCStart(dateFrom) : null
+  const endDate = dateTo ? nzDateToUTCEnd(dateTo) : null
 
   if (startDate) {
     totalObsQuery = totalObsQuery.gte('recorded_at', startDate)

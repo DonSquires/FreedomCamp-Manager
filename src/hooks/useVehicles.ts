@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { HOMELESS_UI_STATUSES, isHomelessForUi } from '@/lib/homelessStatus'
+import { nzDateToUTCStart, nzDateToUTCEnd } from '@/lib/timezone'
 import { toast } from 'sonner'
 import type { Vehicle } from '@/types'
 
@@ -51,10 +52,10 @@ export function useVehicles(options: UseVehiclesOptions = {}) {
           matchingObservationsQuery = matchingObservationsQuery.eq('zone_id', zoneId)
         }
         if (dateFrom) {
-          matchingObservationsQuery = matchingObservationsQuery.gte('recorded_at', `${dateFrom}T00:00:00Z`)
+          matchingObservationsQuery = matchingObservationsQuery.gte('recorded_at', nzDateToUTCStart(dateFrom))
         }
         if (dateTo) {
-          matchingObservationsQuery = matchingObservationsQuery.lte('recorded_at', `${dateTo}T23:59:59Z`)
+          matchingObservationsQuery = matchingObservationsQuery.lte('recorded_at', nzDateToUTCEnd(dateTo))
         }
 
         const { data: matchingObservations, error: matchingObsError } = await matchingObservationsQuery

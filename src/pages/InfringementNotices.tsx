@@ -27,6 +27,7 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select'
+import { nzDateToUTCStart, nzDateToUTCEnd } from '@/lib/timezone'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   FileText, Plus, Search, RefreshCw, Printer, CheckCircle,
@@ -89,8 +90,8 @@ export default function InfringementNotices() {
   const queryClient = useQueryClient()
   const effectiveOrganizationId =
     user?.role === 'master' ? organizationId || null : user?.organization_id || null
-  const startDate = dateFrom ? `${dateFrom}T00:00:00Z` : null
-  const endDate = dateTo ? `${dateTo}T23:59:59Z` : null
+  const startDate = dateFrom ? nzDateToUTCStart(dateFrom) : null
+  const endDate = dateTo ? nzDateToUTCEnd(dateTo) : null
 
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
+import { nzDateToUTCStart, nzDateToUTCEnd } from '@/lib/timezone'
 import { useAuthStore } from '@/stores/authStore'
 import { useGlobalFiltersStore } from '@/stores/globalFiltersStore'
 import { AppLayout } from '@/components/features/AppLayout'
@@ -68,8 +69,8 @@ export default function HotspotsMap() {
   const { organizationId, zoneId, dateFrom, dateTo } = useGlobalFiltersStore()
   const effectiveOrganizationId =
     user?.role === 'master' ? organizationId || null : user?.organization_id || null
-  const startDate = dateFrom ? `${dateFrom}T00:00:00Z` : null
-  const endDate = dateTo ? `${dateTo}T23:59:59Z` : null
+  const startDate = dateFrom ? nzDateToUTCStart(dateFrom) : null
+  const endDate = dateTo ? nzDateToUTCEnd(dateTo) : null
   const [showBreachesOnly, setShowBreachesOnly] = useState(false)
   const [selectedZone, setSelectedZone] = useState<string | null>(null)
 

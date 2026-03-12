@@ -9,6 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { AlertCircle, Search, FileText, Image, MapPin, Calendar } from 'lucide-react'
 import { formatDateTime } from '@/lib/utils'
+import { nzDateToUTCStart, nzDateToUTCEnd } from '@/lib/timezone'
 import { AppLayout } from '@/components/features/AppLayout'
 
 interface Incident {
@@ -32,8 +33,8 @@ export default function IncidentManagement() {
   const { dateFrom, dateTo, organizationId, zoneId } = useGlobalFiltersStore()
   const effectiveOrganizationId =
     user?.role === 'master' ? organizationId || null : user?.organization_id || null
-  const startDate = dateFrom ? `${dateFrom}T00:00:00Z` : null
-  const endDate = dateTo ? `${dateTo}T23:59:59Z` : null
+  const startDate = dateFrom ? nzDateToUTCStart(dateFrom) : null
+  const endDate = dateTo ? nzDateToUTCEnd(dateTo) : null
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('all')
 

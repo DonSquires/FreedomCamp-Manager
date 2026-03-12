@@ -30,6 +30,7 @@ import {
   Eye,
 } from 'lucide-react'
 import { formatDateTime } from '@/lib/utils'
+import { nzDateToUTCStart, nzDateToUTCEnd } from '@/lib/timezone'
 import { getObservationPhotoUrl } from '@/lib/photoUtils'
 
 interface Observation {
@@ -59,8 +60,8 @@ export default function ObservationsView() {
   const { organizationId, zoneId, dateFrom, dateTo } = useGlobalFiltersStore()
   const effectiveOrganizationId =
     user?.role === 'master' ? organizationId || null : user?.organization_id || null
-  const startDate = dateFrom ? `${dateFrom}T00:00:00Z` : null
-  const endDate = dateTo ? `${dateTo}T23:59:59Z` : null
+  const startDate = dateFrom ? nzDateToUTCStart(dateFrom) : null
+  const endDate = dateTo ? nzDateToUTCEnd(dateTo) : null
   const [searchPlate, setSearchPlate] = useState('')
   const [activeTab, setActiveTab] = useState('list')
   const [heatmapMode, setHeatmapMode] = useState(false)

@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
+import { nzDateToUTCStart, nzDateToUTCEnd } from '@/lib/timezone'
 import { 
   AlertTriangle, 
   Bell, 
@@ -72,8 +73,8 @@ export default function EnforcementActions() {
   const { organizationId, zoneId, dateFrom, dateTo } = useGlobalFiltersStore()
   const effectiveOrganizationId =
     user?.role !== 'master' ? user?.organization_id || null : organizationId || null
-  const startDate = dateFrom ? `${dateFrom}T00:00:00Z` : null
-  const endDate = dateTo ? `${dateTo}T23:59:59Z` : null
+  const startDate = dateFrom ? nzDateToUTCStart(dateFrom) : null
+  const endDate = dateTo ? nzDateToUTCEnd(dateTo) : null
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [actionTypeFilter, setActionTypeFilter] = useState<string>('all')

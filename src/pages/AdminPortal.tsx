@@ -308,11 +308,11 @@ export default function AdminPortal() {
     let trendData: TrendDataPoint[] = []
 
     if (normalizedDateFrom && normalizedDateTo) {
-      const start = new Date(`${normalizedDateFrom}T00:00:00Z`)
-      const end = new Date(`${normalizedDateTo}T00:00:00Z`)
+      const start = new Date(nzDateToUTCStart(normalizedDateFrom))
+      const end = new Date(nzDateToUTCStart(normalizedDateTo))
 
       for (let cursor = new Date(start); cursor <= end; cursor.setUTCDate(cursor.getUTCDate() + 1)) {
-        const key = cursor.toISOString().slice(0, 10)
+        const key = cursor.toLocaleDateString('en-CA', { timeZone: 'Pacific/Auckland' })
         const value = byDate.get(key) || { compliant: 0, breaches: 0, homeless: 0, total: 0 }
         trendData.push({ date: key, ...value })
       }
@@ -334,8 +334,8 @@ export default function AdminPortal() {
 
   const periodLabel = useMemo(() => {
     if (!dateFrom || !dateTo) return '30d'
-    const start = new Date(`${dateFrom}T00:00:00Z`).getTime()
-    const end = new Date(`${dateTo}T23:59:59Z`).getTime()
+    const start = new Date(nzDateToUTCStart(dateFrom)).getTime()
+    const end = new Date(nzDateToUTCEnd(dateTo)).getTime()
     const days = Math.max(1, Math.round((end - start) / 86400000) + 1)
     return `${days}d`
   }, [dateFrom, dateTo])

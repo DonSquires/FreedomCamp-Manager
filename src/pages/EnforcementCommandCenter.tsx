@@ -24,6 +24,7 @@ import {
   MoreHorizontal
 } from 'lucide-react'
 import { formatDateTime, formatDate } from '@/lib/utils'
+import { nzDateToUTCStart, nzDateToUTCEnd } from '@/lib/timezone'
 import { toast } from 'sonner'
 
 interface EnforcementStats {
@@ -83,15 +84,15 @@ export default function EnforcementCommandCenter() {
   const [selectedView, setSelectedView] = useState<'all' | 'urgent' | 'pending'>('all')
   const effectiveOrganizationId =
     user?.role !== 'master' ? user?.organization_id || null : organizationId || null
-  const startDate = dateFrom ? `${dateFrom}T00:00:00Z` : null
-  const endDate = dateTo ? `${dateTo}T23:59:59Z` : null
+  const startDate = dateFrom ? nzDateToUTCStart(dateFrom) : null
+  const endDate = dateTo ? nzDateToUTCEnd(dateTo) : null
+  const todayNz = new Date().toLocaleDateString('en-CA', { timeZone: 'Pacific/Auckland' })
+  const todayStart = nzDateToUTCStart(todayNz)
 
   // Fetch enforcement stats
   const { data: stats } = useQuery({
     queryKey: ['enforcement-stats', effectiveOrganizationId, zoneId, dateFrom, dateTo],
     queryFn: async () => {
-      const today = new Date().toISOString().split('T')[0]
-      
       // Active breaches
       let breachQuery = supabase
         .from('breach_alerts')
@@ -135,7 +136,7 @@ export default function EnforcementCommandCenter() {
         .from('enforcement_actions')
         .select('*', { count: 'exact', head: true })
         .eq('action_type', 'notice_to_vacate')
-        .gte('created_at', today)
+        .gte('created_at', todayStart)
 
       // Pending actions
       let pendingActionQuery = supabase
@@ -165,7 +166,7 @@ export default function EnforcementCommandCenter() {
         .from('breach_alerts')
         .select('*', { count: 'exact', head: true })
         .eq('status', 'resolved')
-        .gte('resolved_at', `${today}T00:00:00Z`)
+        .gte('resolved_at', todayStart)
 
       if (effectiveOrganizationId) {
         resolutionsQuery = resolutionsQuery.eq('organization_id', effectiveOrganizationId)
@@ -248,8 +249,6 @@ export default function EnforcementCommandCenter() {
   const { data: actions } = useQuery({
     queryKey: ['enforcement-actions', effectiveOrganizationId, zoneId, dateFrom, dateTo],
     queryFn: async () => {
-      const today = new Date().toISOString().split('T')[0]
-      
       let query = supabase
         .from('enforcement_actions')
         .select(`
@@ -265,7 +264,7 @@ export default function EnforcementCommandCenter() {
           ),
           user_profile:user_profiles(first_name, last_name)
         `)
-        .gte('created_at', startDate || `${today}T00:00:00Z`)
+        .gte('created_at', startDate || todayStart)
         .order('created_at', { ascending: false })
         .limit(10)
 

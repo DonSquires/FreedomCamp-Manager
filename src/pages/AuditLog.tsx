@@ -9,6 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { nzDateToUTCStart, nzDateToUTCEnd } from '@/lib/timezone'
 import { 
   Activity, 
   Search, 
@@ -44,8 +45,8 @@ interface AuditLogEntry {
 export default function AuditLog() {
   const { user } = useAuthStore()
   const { organizationId, dateFrom, dateTo } = useGlobalFiltersStore()
-  const startDate = dateFrom ? `${dateFrom}T00:00:00Z` : null
-  const endDate = dateTo ? `${dateTo}T23:59:59Z` : null
+  const startDate = dateFrom ? nzDateToUTCStart(dateFrom) : null
+  const endDate = dateTo ? nzDateToUTCEnd(dateTo) : null
   const [searchQuery, setSearchQuery] = useState('')
   const [actionFilter, setActionFilter] = useState<string>('all')
   const [entityFilter, setEntityFilter] = useState<string>('all')

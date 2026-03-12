@@ -17,6 +17,7 @@ import {
   MapPin, Clock, BarChart3, ZoomIn,
 } from 'lucide-react'
 import { formatDateTime } from '@/lib/utils'
+import { nzDateToUTCStart, nzDateToUTCEnd } from '@/lib/timezone'
 import { HOMELESS_UI_STATUSES, isHomelessForUi, normalizeHomelessStatus } from '@/lib/homelessStatus'
 import { checkNZSCVCertification, enrichVehicleFromMotorWeb } from '@/lib/railwayServices'
 import { getObservationPhotoUrl, getVehiclePhotoUrl } from '@/lib/photoUtils'
@@ -185,8 +186,8 @@ export default function VehicleManagement() {
       const scopeZoneId = await resolveScopeZoneId(zoneId, scopeOrgId)
       debug.resolvedZoneId = scopeZoneId
 
-      const startISO = dateFrom ? `${dateFrom}T00:00:00Z` : null
-      const endISO = dateTo ? `${dateTo}T23:59:59Z` : null
+      const startISO = dateFrom ? nzDateToUTCStart(dateFrom) : null
+      const endISO = dateTo ? nzDateToUTCEnd(dateTo) : null
 
       const applyObservationScope = (query: any) => {
         if (scopeOrgId) query = query.eq('organization_id', scopeOrgId)
@@ -219,7 +220,7 @@ export default function VehicleManagement() {
       }
 
       const fetchScopedPlates = async (scopeOrgId: string | null, scopeZoneId: string | null) => {
-        let obsQuery = applyObservationScope(supabase
+        const obsQuery = applyObservationScope(supabase
           .from('observations')
           .select('plate_number')
           .neq('plate_number', 'PROCESSING...')
@@ -524,7 +525,7 @@ export default function VehicleManagement() {
           }
 
           if (selfContainedColumn) {
-            let selfContainedObsQuery = applyObservationScope((supabase.from('observations') as any)
+            const selfContainedObsQuery = applyObservationScope((supabase.from('observations') as any)
               .select(`plate_number, ${selfContainedColumn}`)
               .in('plate_number', chunk)
               .eq(selfContainedColumn, true)
@@ -646,8 +647,8 @@ export default function VehicleManagement() {
 
       if (effectiveOrganizationId) q = q.eq('organization_id', effectiveOrganizationId)
       if (zoneId) q = q.eq('zone_id', zoneId)
-      if (dateFrom) q = q.gte('recorded_at', `${dateFrom}T00:00:00Z`)
-      if (dateTo) q = q.lte('recorded_at', `${dateTo}T23:59:59Z`)
+      if (dateFrom) q = q.gte('recorded_at', nzDateToUTCStart(dateFrom))
+      if (dateTo) q = q.lte('recorded_at', nzDateToUTCEnd(dateTo))
 
       const { data: baseRows, error: baseError } = await q
       if (baseError) throw baseError

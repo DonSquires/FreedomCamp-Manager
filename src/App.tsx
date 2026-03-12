@@ -236,7 +236,9 @@ export default function App() {
             path="/compliance"
             element={
               <ProtectedRoute>
-                <CompliancePage />
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <CompliancePage />
+                </RoleRoute>
               </ProtectedRoute>
             }
           />

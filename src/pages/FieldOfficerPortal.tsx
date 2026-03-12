@@ -11,7 +11,7 @@ import { CameraCapture } from '@/components/features/CameraCapture'
 import { LocationAuthorizationStatus } from '@/components/features/LocationAuthorizationStatus'
 import { QRCheckpointScanner } from '@/components/features/QRCheckpointScanner'
 import { useManDownDetection } from '@/hooks/useManDownDetection'
-import { Camera, Map, FileText, History, AlertTriangle, MapPin, QrCode, ShieldAlert, CheckCircle, Shield, Megaphone, FileWarning, XCircle, Clock, Home, X } from 'lucide-react'
+import { Camera, Map, FileText, History, AlertTriangle, MapPin, QrCode, ShieldAlert, CheckCircle, Shield, Megaphone, FileWarning, XCircle, Clock, Home, X, Copy } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
@@ -90,6 +90,26 @@ export default function FieldOfficerPortal() {
     recordedAt: string
   } | null>(null)
   const [scanTabFilter, setScanTabFilter] = useState<'all' | 'compliant' | 'breach' | 'at_risk' | 'homeless'>('all')
+  const [scanDebugLines, setScanDebugLines] = useState<string[]>([])
+  const [scanDebugStatus, setScanDebugStatus] = useState<'idle' | 'running' | 'success' | 'error'>('idle')
+
+  const appendScanDebug = (label: string, payload?: unknown) => {
+    const ts = new Date().toISOString()
+    const text = payload === undefined
+      ? `[${ts}] ${label}`
+      : `[${ts}] ${label} ${JSON.stringify(payload)}`
+    setScanDebugLines((prev) => [...prev, text])
+  }
+
+  const copyScanDebug = async () => {
+    try {
+      const text = scanDebugLines.join('\n')
+      await navigator.clipboard.writeText(text)
+      toast.success('Scan diagnostics copied')
+    } catch {
+      toast.error('Failed to copy diagnostics')
+    }
+  }
 
   // Man-Down Detection — records GPS updates and fires alert if stationary too long
   const { recordGPSUpdate, isManDownActive } = useManDownDetection()
@@ -119,19 +139,65 @@ export default function FieldOfficerPortal() {
     queryKey: ['my-recent-scans', user?.id],
     queryFn: async () => {
       if (!user?.id) return []
-      const { data, error } = await supabase
-        .from('observations')
-        .select([
+      const historyCutoffIso = new Date(Date.now() - (24 * 60 * 60 * 1000)).toISOString()
+
+      const selectCandidates = [
+        [
           'id, plate_number, recorded_at, is_compliant, processing_status',
           'photo_url, zone_id, breach_type, consecutive_nights, nights_stayed_this_month',
           'zone:zones!zone_id(name)',
           'vehicle:canonical_vehicles!plate_number(homeless_status, is_exempt)',
-        ].join(', '))
-        .eq('recorded_by', user.id)
-        .order('recorded_at', { ascending: false })
-        .limit(20)
-      if (error) return []
-      return data as any[]
+        ].join(', '),
+        [
+          'id:observation_id, plate_number, recorded_at, is_compliant, processing_status',
+          'photo_url, zone_id, breach_type, consecutive_nights, nights_stayed_this_month',
+          'zone:zones!zone_id(name)',
+          'vehicle:canonical_vehicles!plate_number(homeless_status, is_exempt)',
+        ].join(', '),
+        [
+          'id:observation_id, plate_number, recorded_at, is_compliant',
+          'photo_url, zone_id, breach_type, consecutive_nights, nights_stayed_this_month',
+          'zone:zones!zone_id(name)',
+          'vehicle:canonical_vehicles!plate_number(homeless_status, is_exempt)',
+        ].join(', '),
+        [
+          'id:observation_id, plate_number, recorded_at, is_compliant',
+          'zone_id, breach_type, consecutive_nights, nights_stayed_this_month',
+          'photo:image_url',
+          'zone:zones!zone_id(name)',
+          'vehicle:canonical_vehicles!plate_number(homeless_status, is_exempt)',
+        ].join(', '),
+        [
+          'id:observation_id, plate_number, recorded_at, is_compliant',
+          'zone_id, breach_type, consecutive_nights, nights_stayed_this_month',
+          'photo',
+          'zone:zones!zone_id(name)',
+          'vehicle:canonical_vehicles!plate_number(homeless_status, is_exempt)',
+        ].join(', '),
+      ]
+
+      for (const selectClause of selectCandidates) {
+        const { data, error } = await supabase
+          .from('observations')
+          .select(selectClause)
+          .eq('recorded_by', user.id)
+          .gte('recorded_at', historyCutoffIso)
+          .order('recorded_at', { ascending: false })
+          .limit(20)
+
+        if (error) continue
+
+        const rows = (data || []).map((row: any) => ({
+          ...row,
+          id: row.id ?? row.observation_id,
+          processing_status: row.processing_status ?? null,
+          photo_url: row.photo_url ?? row.image_url ?? row.photo ?? null,
+        }))
+
+        return rows as any[]
+      }
+
+      return []
     },
     enabled: !!user?.id,
     refetchInterval: 15000,  // auto-refresh every 15 s so AI results appear
@@ -209,6 +275,99 @@ export default function FieldOfficerPortal() {
     }
   }, [recentScans, lastScanResult?.observationId, lastScanResult?.processingPending])
 
+  // Fallback polling: ensure officers get a final compliance/breach result even if list refresh misses the update.
+  useEffect(() => {
+    if (!lastScanResult?.observationId || !lastScanResult.processingPending) return
+
+    let cancelled = false
+    let timer: ReturnType<typeof setTimeout> | null = null
+    let attempts = 0
+    const maxAttempts = 12
+
+    const fetchObservation = async (observationId: string) => {
+      const lookupCandidates = [
+        { select: 'id, is_compliant, breach_type, processing_status, zone_id, zone:zones!zone_id(name)', key: 'id' },
+        { select: 'observation_id, is_compliant, breach_type, processing_status, zone_id, zone:zones!zone_id(name)', key: 'observation_id' },
+        { select: 'id, is_compliant, breach_type, zone_id, zone:zones!zone_id(name)', key: 'id' },
+        { select: 'observation_id, is_compliant, breach_type, zone_id, zone:zones!zone_id(name)', key: 'observation_id' },
+      ] as const
+
+      for (const candidate of lookupCandidates) {
+        const res = await (supabase.from('observations') as any)
+          .select(candidate.select)
+          .eq(candidate.key, observationId)
+          .maybeSingle()
+
+        if (!res.error && res.data) {
+          return {
+            ...res.data,
+            id: (res.data as any).id ?? (res.data as any).observation_id,
+            processing_status: (res.data as any).processing_status ?? null,
+          } as any
+        }
+      }
+
+      return null
+    }
+
+    const poll = async () => {
+      if (cancelled) return
+      attempts += 1
+
+      const obs = await fetchObservation(lastScanResult.observationId!)
+      const resolved =
+        !!obs &&
+        (obs.processing_status !== 'pending' || typeof obs.is_compliant === 'boolean' || !!obs.breach_type)
+
+      if (resolved) {
+        const compliant = typeof obs.is_compliant === 'boolean' ? obs.is_compliant : null
+        setLastScanResult((prev) =>
+          prev
+            ? {
+                ...prev,
+                isCompliant: compliant,
+                breachType: obs.breach_type ?? null,
+                processingPending: false,
+                zoneName: obs.zone?.name ?? prev.zoneName,
+                observationZoneId: obs.zone_id ?? prev.observationZoneId,
+              }
+            : null
+        )
+
+        if (compliant === true) {
+          toast.success('Compliant')
+        } else if (compliant === false) {
+          toast.warning(`Breach detected: ${formatBreachType(obs.breach_type)}`)
+        } else {
+          toast.info('Scan captured. Compliance result pending review.')
+        }
+        return
+      }
+
+      if (attempts < maxAttempts) {
+        timer = setTimeout(poll, 1500)
+        return
+      }
+
+      setLastScanResult((prev) =>
+        prev
+          ? {
+              ...prev,
+              processingPending: false,
+            }
+          : null
+      )
+      toast.info('Scan captured. Compliance result is still processing.')
+    }
+
+    poll()
+
+    return () => {
+      cancelled = true
+      if (timer) clearTimeout(timer)
+    }
+  }, [lastScanResult?.observationId, lastScanResult?.processingPending])
+
   const fileToDataUrl = (file: File) =>
     new Promise<string>((resolve, reject) => {
       const reader = new FileReader()
@@ -225,13 +384,24 @@ export default function FieldOfficerPortal() {
 
   const handleCapture = async (file: File) => {
     setIsProcessing(true)
+    setScanDebugStatus('running')
+    setScanDebugLines([])
+    appendScanDebug('Scan started', {
+      officer_email: user?.email ?? null,
+      officer_id: user?.id ?? null,
+      org_id: user?.organization_id ?? null,
+      file_size: file.size,
+      file_type: file.type,
+    })
     try {
       // ============================================================================
       // STEP 1: SESSION VALIDATION (Pre-flight Check)
       // ============================================================================
       if (!user?.id || !user?.organization_id) {
+        appendScanDebug('Session validation failed')
         throw new Error('Session expired. Please log out and log back in.')
       }
+      appendScanDebug('Session validated')
 
       console.log('🔒 Pre-flight Check:', {
         user_id: user.id,
@@ -249,6 +419,11 @@ export default function FieldOfficerPortal() {
           enableHighAccuracy: true,
           timeout: 10000,
         })
+      })
+      appendScanDebug('GPS acquired', {
+        latitude: position.coords.latitude,
+        longitude: position.coords.longitude,
+        accuracy: position.coords.accuracy,
       })
 
       console.log('📍 GPS Location:', {
@@ -281,11 +456,14 @@ export default function FieldOfficerPortal() {
         if (!weatherError && weatherData?.weather) {
           weatherConditions = weatherData.weather;
           console.log('🌤️ Weather:', weatherConditions);
+          appendScanDebug('Weather fetched', { weather: weatherConditions })
         } else {
           console.warn('⚠️ Weather fetch failed, using fallback');
+          appendScanDebug('Weather fetch failed; fallback used')
         }
       } catch (err) {
         console.warn('⚠️ Weather API error (non-critical):', err);
+        appendScanDebug('Weather API error; fallback used')
       }
 
       // ============================================================================
@@ -297,6 +475,7 @@ export default function FieldOfficerPortal() {
         .join('')
       const idempotencyKey = `scan-${user.id}-${timestamp}`
       const imageDataUrl = await fileToDataUrl(file)
+      appendScanDebug('Image converted to data URL', { length: imageDataUrl.length })
 
       console.log('📸 Photo Metadata:', {
         size_bytes: file.size,
@@ -320,6 +499,7 @@ export default function FieldOfficerPortal() {
         })
 
       if (uploadError) throw new Error(`Upload failed: ${uploadError.message}`)
+      appendScanDebug('Photo uploaded to scans bucket', { filePath })
 
       const { data: urlData } = supabase.storage.from('scans').getPublicUrl(filePath)
       const photoUrl = urlData.publicUrl
@@ -333,6 +513,7 @@ export default function FieldOfficerPortal() {
         user.organization_id,
         zoneId
       )
+      appendScanDebug('Zone resolved', { zone_id: finalZoneId, source: zoneSource })
 
       if (zoneSource !== 'preferred') {
         console.log('✅ Resolved fallback zone:', { finalZoneId, zoneSource })
@@ -361,6 +542,11 @@ export default function FieldOfficerPortal() {
 
       const detectedPlate = alprData?.plate || alprData?.plate_number || null
       const detectedConfidence = alprData?.confidence || null
+      appendScanDebug('ALPR pre-detection complete', {
+        plate: detectedPlate,
+        confidence: detectedConfidence,
+        alpr_error: alprError,
+      })
 
       // ============================================================================
       // STEP 8: CREATE OBSERVATION VIA UNIFIED INGEST PIPELINE
@@ -387,8 +573,15 @@ export default function FieldOfficerPortal() {
       )
 
       if (ingestError) {
+        appendScanDebug('vehicle-ingest failed', { error: ingestError })
         throw new Error(`Save failed: ${ingestError}`)
       }
+      appendScanDebug('vehicle-ingest success', {
+        observation_id: ingestData?.observation_id ?? null,
+        plate: ingestData?.plate ?? null,
+        requires_manual_entry: ingestData?.requires_manual_entry ?? null,
+        source: ingestData?.source ?? null,
+      })
 
       console.log('✅ Observation created via vehicle-ingest:', {
         observation_id: ingestData?.observation_id,
@@ -411,9 +604,11 @@ export default function FieldOfficerPortal() {
         observationId: ingestData?.observation_id ?? null,
         photoUrl: photoUrl,
         plateNumber: ingestData?.plate ?? detectedPlate ?? null,
-        isCompliant: null, // will update when recentScans refreshes
-        breachType: null,
-        processingPending: true,
+        isCompliant: typeof (ingestData as any)?.is_compliant === 'boolean' ? (ingestData as any).is_compliant : null,
+        breachType: (ingestData as any)?.breach_type ?? null,
+        processingPending:
+          typeof (ingestData as any)?.is_compliant !== 'boolean' &&
+          !(ingestData as any)?.breach_type,
         zoneName: null,
         observationZoneId: finalZoneId ?? null,
         recordedAt: new Date().toISOString(),
@@ -421,9 +616,15 @@ export default function FieldOfficerPortal() {
 
       setShowScanner(false)
       refetchScans()
+      setScanDebugStatus('success')
+      appendScanDebug('Scan completed successfully')
 
     } catch (error: any) {
       console.error('❌ Scan Pipeline Failed:', error)
+      appendScanDebug('Scan failed', {
+        message: error?.message || 'Unknown error',
+      })
+      setScanDebugStatus('error')
       toast.error(error.message || 'Scan failed', {
         description: 'Please try again or contact support if issue persists'
       })
@@ -442,7 +643,18 @@ export default function FieldOfficerPortal() {
       return
     }
     setLastScanResult(null)
+    setScanDebugStatus('idle')
+    setScanDebugLines([])
     setShowScanner(true)
+  }
+
+  const handleViewHistory = () => {
+    if (user?.role === 'officer') {
+      const panel = document.getElementById('recent-scans-panel')
+      panel?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      return
+    }
+    navigate('/compliance')
   }
 
   return (
@@ -486,6 +698,43 @@ export default function FieldOfficerPortal() {
         </Card>
       ) : (
         <>
+          {/* ── Scan Diagnostics ─────────────────────────────────────── */}
+          {scanDebugLines.length > 0 && (
+            <Card className="mb-4 border-blue-300 bg-blue-50/70 dark:bg-blue-950/30">
+              <CardHeader className="pb-2 pt-3 px-4">
+                <div className="flex items-center justify-between gap-2">
+                  <CardTitle className="text-sm">Scan Diagnostics</CardTitle>
+                  <div className="flex items-center gap-2">
+                    <Badge
+                      variant="secondary"
+                      className={
+                        scanDebugStatus === 'error'
+                          ? 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300'
+                          : scanDebugStatus === 'success'
+                          ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300'
+                          : 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300'
+                      }
+                    >
+                      {scanDebugStatus === 'error' ? 'Error' : scanDebugStatus === 'success' ? 'Success' : 'Running'}
+                    </Badge>
+                    <Button size="sm" variant="outline" className="h-7 text-[11px]" onClick={copyScanDebug}>
+                      <Copy className="h-3 w-3 mr-1" />
+                      Copy
+                    </Button>
+                  </div>
+                </div>
+                <CardDescription className="text-xs">
+                  Copy and paste this block into chat for scan troubleshooting.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="px-4 pb-3">
+                <pre className="max-h-48 overflow-auto rounded border bg-white/70 dark:bg-slate-900 p-2 text-[11px] leading-4 whitespace-pre-wrap break-words">
+                  {scanDebugLines.join('\n')}
+                </pre>
+              </CardContent>
+            </Card>
+          )}
+
           {/* ── Last Scan Result Panel ──────────────────────────────────── */}
           {lastScanResult && (
             <Card className={`mb-4 border-2 ${
@@ -694,8 +943,8 @@ export default function FieldOfficerPortal() {
               <CardDescription>Recent observations</CardDescription>
             </CardHeader>
             <CardContent>
-              <Button className="w-full" variant="outline" onClick={() => navigate('/compliance')}>
-                View History
+              <Button className="w-full" variant="outline" onClick={handleViewHistory}>
+                {user?.role === 'officer' ? 'View 24h History' : 'View History'}
               </Button>
             </CardContent>
           </Card>
@@ -802,12 +1051,17 @@ export default function FieldOfficerPortal() {
 
       {/* ── Recent Scans with enforcement actions ─────────────────────────── */}
       {!showScanner && !showCheckpoint && recentScans.length > 0 && (
-        <Card className="mt-6">
+        <Card className="mt-6" id="recent-scans-panel">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm flex items-center gap-2">
               <History className="h-4 w-4" />
               Recent Scans
             </CardTitle>
+            {user?.role === 'officer' && (
+              <div className="inline-flex items-center w-fit rounded-full border border-orange-300 bg-orange-50 px-2 py-0.5 text-[11px] font-medium text-orange-700 dark:border-orange-700 dark:bg-orange-950/40 dark:text-orange-300">
+                Showing last 24 hours only
+              </div>
+            )}
             <CardDescription className="text-xs">
               {orgWorkflow === 'officer_direct' && 'Officer Direct mode — you can issue warnings and notices on-site.'}
               {orgWorkflow === 'hybrid' && 'Hybrid mode — you can issue warnings on-site; notices require admin approval.'}
@@ -841,8 +1095,8 @@ export default function FieldOfficerPortal() {
             {recentScans.filter((scan: any) => {
               if (scanTabFilter === 'all') return true
               const isProcessingAI = scan.processing_status === 'pending'
-              if (scanTabFilter === 'compliant') return scan.is_compliant && !isProcessingAI
-              if (scanTabFilter === 'breach') return !scan.is_compliant && !isProcessingAI
+              if (scanTabFilter === 'compliant') return scan.is_compliant === true && !isProcessingAI
+              if (scanTabFilter === 'breach') return scan.is_compliant === false && !isProcessingAI
               if (scanTabFilter === 'at_risk') return isProcessingAI || (scan.is_compliant && (scan.consecutive_nights ?? 0) >= 2)
               if (scanTabFilter === 'homeless') {
                 const vehicle = scan.vehicle as any
@@ -853,7 +1107,7 @@ export default function FieldOfficerPortal() {
               return true
             }).map((scan: any) => {
               const isProcessingAI = scan.processing_status === 'pending'
-              const inBreach = !scan.is_compliant && !isProcessingAI
+              const inBreach = scan.is_compliant === false && !isProcessingAI
               return (
                 <div
                   key={scan.id}
@@ -880,12 +1134,17 @@ export default function FieldOfficerPortal() {
                       <span className="font-mono font-bold text-sm">
                         {isProcessingAI ? '⏳ Scanning...' : (scan.plate_number || '—')}
                       </span>
-                      {!isProcessingAI && (
+                      {!isProcessingAI && scan.is_compliant !== null && (
                         <Badge
                           variant={scan.is_compliant ? 'default' : 'destructive'}
                           className="text-[10px] px-1.5 py-0"
                         >
                           {scan.is_compliant ? 'Compliant' : 'Breach'}
+                        </Badge>
+                      )}
+                      {!isProcessingAI && scan.is_compliant === null && (
+                        <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                          Pending
                         </Badge>
                       )}
                     </div>

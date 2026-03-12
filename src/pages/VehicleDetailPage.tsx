@@ -28,6 +28,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatDateTime } from '@/lib/utils'
+import { nzDateToUTCStart, nzDateToUTCEnd } from '@/lib/timezone'
 import { checkNZSCVCertification, enrichVehicleFromMotorWeb } from '@/lib/railwayServices'
 import { getObservationPhotoUrl, getVehiclePhotoUrl } from '@/lib/photoUtils'
 import { PhotoWithFallback } from '@/components/features/PhotoWithFallback'
@@ -98,8 +99,8 @@ export default function VehicleDetailPage() {
   const queryClient = useQueryClient()
   const effectiveOrganizationId =
     organizationId || (user?.role !== 'master' ? user?.organization_id || null : null)
-  const startDate = dateFrom ? `${dateFrom}T00:00:00Z` : null
-  const endDate = dateTo ? `${dateTo}T23:59:59Z` : null
+  const startDate = dateFrom ? nzDateToUTCStart(dateFrom) : null
+  const endDate = dateTo ? nzDateToUTCEnd(dateTo) : null
 
   // Fetch vehicle
   const { data: vehicle, isLoading: loadingVehicle, error: vehicleError, refetch: refetchVehicle } = useQuery({
