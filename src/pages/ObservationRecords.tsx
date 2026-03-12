@@ -49,6 +49,36 @@ interface CanonicalVehicleRow {
   is_exempt: boolean | null
 }
 
+function normalizeNote(note: string | null | undefined): string {
+  return (note || '').trim()
+}
+
+function observationDedupKey(row: ObservationRow): string {
+  const lat = row.gps_latitude == null ? '' : Number(row.gps_latitude).toFixed(5)
+  const lng = row.gps_longitude == null ? '' : Number(row.gps_longitude).toFixed(5)
+  return [
+    row.plate_number || '',
+    row.recorded_at || '',
+    row.zone_id || '',
+    row.is_compliant === true ? '1' : row.is_compliant === false ? '0' : 'n',
+    lat,
+    lng,
+  ].join('|')
+}
+
+function observationPriorityScore(row: ObservationRow): number {
+  const note = normalizeNote(row.officer_notes)
+  const hasPhoto = !!getObservationPhotoUrl(row)
+  const hasUsefulNote = !!note && note !== '-'
+
+  return (
+    (hasPhoto ? 100 : 0) +
+    (hasUsefulNote ? 20 : 0) +
+    Math.min(note.length, 20) +
+    (row.zone?.name ? 5 : 0)
+  )
+}
+
 function formatVehicleSummary(v: CanonicalVehicleRow | undefined): string {
   if (!v) return 'No canonical metadata'
   const base = [v.year, v.make, v.model, v.colour].filter(Boolean).join(' ')
@@ -70,7 +100,7 @@ export default function ObservationRecords() {
   const endDate = dateTo ? nzDateToUTCEnd(dateTo) : null
 
   const {
-    data: observations = [],
+    data: rawObservations = [],
     isLoading: observationsLoading,
     isError: observationsIsError,
     error: observationsError,
@@ -150,6 +180,30 @@ export default function ObservationRecords() {
       })) as ObservationRow[]
     },
   })
+
+  const observations = useMemo(() => {
+    if (!rawObservations || rawObservations.length === 0) return [] as ObservationRow[]
+
+    const bestByKey = new Map<string, ObservationRow>()
+    for (const row of rawObservations) {
+      const key = observationDedupKey(row)
+      const current = bestByKey.get(key)
+      if (!current) {
+        bestByKey.set(key, row)
+        continue
+      }
+
+      if (observationPriorityScore(row) > observationPriorityScore(current)) {
+        bestByKey.set(key, row)
+      }
+    }
+
+    return Array.from(bestByKey.values()).sort((a, b) =>
+      a.recorded_at < b.recorded_at ? 1 : -1
+    )
+  }, [rawObservations])
+
+  const duplicateCount = Math.max(0, (rawObservations?.length || 0) - observations.length)
 
   const groupedByPlate = useMemo(() => {
     const map = new Map<string, ObservationRow[]>()
@@ -253,6 +307,9 @@ export default function ObservationRecords() {
           <CardContent className="pt-4">
             <p className="text-xs text-muted-foreground">Observations in filter</p>
             <p className="text-2xl font-bold">{observations.length}</p>
+            {duplicateCount > 0 && (
+              <p className="text-xs text-muted-foreground mt-1">{duplicateCount} duplicates removed</p>
+            )}
           </CardContent>
         </Card>
         <Card>
