@@ -22,8 +22,11 @@ CREATE TABLE breach_alerts (
   organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
   zone_id UUID NOT NULL REFERENCES zones(id) ON DELETE CASCADE,
   plate_number TEXT REFERENCES canonical_vehicles(plate_number) ON DELETE SET NULL,
-  observation_id UUID REFERENCES vehicle_observations_v2(observation_id) ON DELETE CASCADE,
-  vehicle_record_id UUID REFERENCES vehicle_records(id) ON DELETE CASCADE,
+  -- Added as plain UUID; FK to observations is attached conditionally below
+  -- to handle environments where observation PK column differs (id vs observation_id).
+  observation_id UUID,
+  -- Legacy table in some environments; FK added conditionally below when present.
+  vehicle_record_id UUID,
   patrol_id UUID REFERENCES patrols(id) ON DELETE SET NULL,
   
   -- Breach Information
@@ -92,6 +95,62 @@ COMMENT ON COLUMN breach_alerts.breach_type IS 'Type of breach: consecutive_nigh
 COMMENT ON COLUMN breach_alerts.breach_details IS 'JSON details: {message, severity, consecutiveNights, monthNights, etc}';
 COMMENT ON COLUMN breach_alerts.status IS 'Workflow status: pending → acknowledged → enforcement_started → resolved/dismissed';
 
+-- Attach observation FK only when observations table exists and has a UUID PK column.
+DO $$
+DECLARE
+  v_obs_id_col TEXT;
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'observations'
+      AND column_name = 'id'
+  ) THEN
+    v_obs_id_col := 'id';
+  ELSIF EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'observations'
+      AND column_name = 'observation_id'
+  ) THEN
+    v_obs_id_col := 'observation_id';
+  END IF;
+
+  IF v_obs_id_col IS NOT NULL THEN
+    EXECUTE format(
+      'ALTER TABLE public.breach_alerts
+         ADD CONSTRAINT breach_alerts_observation_id_fkey
+         FOREIGN KEY (observation_id)
+         REFERENCES public.observations(%I)
+         ON DELETE CASCADE',
+      v_obs_id_col
+    );
+  ELSE
+    RAISE NOTICE 'Skipping breach_alerts observation FK: public.observations id column not found';
+  END IF;
+
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'vehicle_records'
+      AND column_name = 'id'
+  ) THEN
+    ALTER TABLE public.breach_alerts
+      ADD CONSTRAINT breach_alerts_vehicle_record_id_fkey
+      FOREIGN KEY (vehicle_record_id)
+      REFERENCES public.vehicle_records(id)
+      ON DELETE CASCADE;
+  ELSE
+    RAISE NOTICE 'Skipping breach_alerts vehicle_record FK: public.vehicle_records(id) not found';
+  END IF;
+EXCEPTION
+  WHEN duplicate_object THEN
+    NULL;
+END $$;
+
 -- ============================================================
 -- STEP 4: Create RLS policies
 -- ============================================================
@@ -151,6 +210,7 @@ DECLARE
   v_violation_type TEXT;
   v_violation_severity TEXT;
   v_breach_message TEXT;
+  v_obs_id_col TEXT;
 BEGIN
   -- Only create breach alert if non-compliant
   IF NEW.is_compliant = true THEN
@@ -158,19 +218,42 @@ BEGIN
   END IF;
 
   -- Get observation details
-  SELECT 
-    obs.plate_number,
-    obs.zone_id,
-    obs.organization_id,
-    cv.homeless_status
-  INTO 
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'observations'
+      AND column_name = 'id'
+  ) THEN
+    v_obs_id_col := 'id';
+  ELSIF EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'observations'
+      AND column_name = 'observation_id'
+  ) THEN
+    v_obs_id_col := 'observation_id';
+  END IF;
+
+  IF v_obs_id_col IS NULL THEN
+    RAISE WARNING 'Skipping breach alert creation: public.observations id column not found for observation lookup';
+    RETURN NEW;
+  END IF;
+
+  EXECUTE format(
+    'SELECT obs.plate_number, obs.zone_id, obs.organization_id, cv.homeless_status
+       FROM public.observations obs
+       LEFT JOIN public.canonical_vehicles cv ON cv.plate_number = obs.plate_number
+      WHERE obs.%I = $1',
+    v_obs_id_col
+  )
+  INTO
     v_plate_number,
     v_zone_id,
     v_org_id,
     v_homeless_status
-  FROM vehicle_observations_v2 obs
-  LEFT JOIN canonical_vehicles cv ON cv.plate_number = obs.plate_number
-  WHERE obs.observation_id = NEW.observation_id;
+  USING NEW.observation_id;
 
   -- Check if FC Act exempt (homeless)
   v_fc_exempt := (v_homeless_status IN ('claimed', 'confirmed'));
@@ -295,5 +378,3 @@ GRANT SELECT, INSERT, UPDATE ON breach_alerts TO service_role;
 -- ============================================================
 -- Done
 -- ============================================================
-
-COMMENT ON MIGRATION IS 'Complete rebuild of breach_alerts system with proper constraints and auto-population from compliance_results';
