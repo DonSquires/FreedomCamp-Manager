@@ -677,6 +677,17 @@ export default function FieldOfficerPortal() {
             onCancel={() => setShowScanner(false)} 
             facing="environment" 
             showControls={true} 
+            menuItems={[
+              {
+                label: 'Copy Scan Diagnostics',
+                onClick: copyScanDebug,
+                disabled: scanDebugLines.length === 0,
+              },
+              {
+                label: 'Close Scanner',
+                onClick: () => setShowScanner(false),
+              },
+            ]}
           />
 
           <Card className="mt-4 border-blue-300 bg-blue-50/70 dark:bg-blue-950/30">

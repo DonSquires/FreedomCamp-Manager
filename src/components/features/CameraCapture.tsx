@@ -12,6 +12,7 @@ import {
   Zap, 
   ZapOff, 
   Focus,
+  Menu,
   X,
   MapPin,
   Calendar,
@@ -28,6 +29,11 @@ interface CameraCaptureProps {
   onCancel: () => void
   facing?: 'user' | 'environment'
   showControls?: boolean
+  menuItems?: Array<{
+    label: string
+    onClick: () => void
+    disabled?: boolean
+  }>
 }
 
 interface CameraMetadata {
@@ -44,6 +50,7 @@ export function CameraCapture({
   onCancel,
   facing = 'environment',
   showControls = true,
+  menuItems = [],
 }: CameraCaptureProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -56,6 +63,7 @@ export function CameraCapture({
   const [zoom, setZoom] = useState(1)
   const [hasFlash, setHasFlash] = useState(false)
   const [hasZoom, setHasZoom] = useState(false)
+  const [menuOpen, setMenuOpen] = useState(false)
 
   // Context data for overlay
   const { user } = useAuthStore()
@@ -324,7 +332,49 @@ export function CameraCapture({
       {/* Top controls — rendered above metadata overlay (z-30) */}
       {showControls && (
         <div className="absolute top-0 left-0 right-0 p-4 bg-gradient-to-b from-black/50 to-transparent z-30">
-          <div className="flex items-center justify-end gap-2">
+          <div className="flex items-center justify-between gap-2">
+            <div className="relative">
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setMenuOpen((v) => !v)}
+                className="text-white"
+                style={{ zIndex: 10 }}
+              >
+                <Menu className="h-6 w-6" />
+              </Button>
+
+              {menuOpen && (
+                <div className="absolute left-0 mt-2 min-w-[220px] rounded-md border bg-black/85 p-1 shadow-lg backdrop-blur z-40">
+                  {menuItems.length === 0 ? (
+                    <button
+                      type="button"
+                      disabled
+                      className="w-full rounded px-3 py-2 text-left text-sm text-gray-300 opacity-70"
+                    >
+                      No actions available
+                    </button>
+                  ) : (
+                    menuItems.map((item) => (
+                      <button
+                        key={item.label}
+                        type="button"
+                        disabled={item.disabled}
+                        onClick={() => {
+                          item.onClick()
+                          setMenuOpen(false)
+                        }}
+                        className="w-full rounded px-3 py-2 text-left text-sm text-white hover:bg-white/10 disabled:opacity-50 disabled:hover:bg-transparent"
+                      >
+                        {item.label}
+                      </button>
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center justify-end gap-2">
             {/* Flash toggle */}
             {hasFlash && (
               <Button
@@ -356,6 +406,7 @@ export function CameraCapture({
             >
               <X className="h-6 w-6" />
             </Button>
+            </div>
           </div>
         </div>
       )}
