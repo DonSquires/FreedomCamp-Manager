@@ -529,233 +529,188 @@ export default function FieldOfficerPortal() {
       }
 
       // ============================================================================
-      // STEP 7: CREATE OBSERVATION VIA alpr-process
-      // alpr-process is the purpose-built scan pipeline: it downloads the photo
-      // from storage server-side, runs 3-stage inference (Plate Recognizer →
-      // Railway → MANUAL_REQUIRED fallback), and creates the observation row.
+      // STEP 7: PHOTO-FIRST APPROACH - Create observation directly
       // ============================================================================
-      appendScanDebug('ALPR pre-detection skipped', {
-        reason: 'alpr-process handles inference',
-      })
-
+      // The simplified "photo-first" approach:
+      // 1. Insert observation with minimal fields (photo, location, zone)
+      // 2. Let the database trigger `trg_auto_evaluate_compliance` run compliance
+      // 3. Fire-and-forget alpr-process in UPDATE mode for plate recognition
+      //
+      // Benefits:
+      // - Immediate feedback to officer (no waiting for ALPR)
+      // - Compliance runs automatically via existing trigger
+      // - No schema cache issues (trigger handles compliance, not edge function)
+      // - Decoupled concerns: evidence capture separate from plate recognition
       // ============================================================================
-      // STEP 8: CREATE OBSERVATION VIA UNIFIED INGEST PIPELINE
-      // ============================================================================
+      
       toast.info('Saving observation...')
-      let { data: ingestData, error: ingestError } = await retryEdgeCall(() =>
-        edgeFunctions.processALPR({
-          photo_url: photoUrl,
-          gpsLatitude: position.coords.latitude,
-          gpsLongitude: position.coords.longitude,
-          gpsAccuracy: position.coords.accuracy,
-          recordedAt: new Date().toISOString(),
-          officerId: user.id,
-          organizationId: user.organization_id,
-          zoneId: finalZoneId,
-          idempotencyKey,
-          weatherConditions,
-        }),
-        2,
-        1000
-      )
-
-      // Normalise alpr-process response to the shape the rest of the handler
-      // expects: convert the 'MANUAL_REQUIRED' sentinel plate to null and
-      // populate requires_manual_entry so downstream UI code works correctly.
-      if (ingestData && !ingestError) {
-        const raw = ingestData as any
-        if (!('requires_manual_entry' in raw)) {
-          raw.requires_manual_entry = !raw.plate || raw.plate === 'MANUAL_REQUIRED'
-        }
-        if (raw.plate === 'MANUAL_REQUIRED') {
-          raw.plate = null
-        }
-      }
-
-      if (ingestError) {
-        // Safety net: if Edge Function transport fails OR the edge function
-        // returned a PostgREST schema-cache miss (e.g. a newly-added column
-        // is not yet visible to PostgREST), save the observation directly so
-        // officers can continue scanning without data loss.  The direct insert
-        // code below already strips unrecognised columns adaptively.
-        if (isTransientNetworkError(ingestError) || isAlprSchemaCacheError(ingestError)) {
-          appendScanDebug('alpr-process transport failure, trying direct insert fallback', {
-            error: ingestError,
-          })
-
-          const fallbackPlateNumber = 'MANUAL_REQUIRED'
-
-          // Legacy schemas may enforce observations.plate_number -> canonical_vehicles.
-          // Best effort: ensure fallback plate exists before direct insert.
-          try {
-            const existingVehicleLookup = await (supabase
-              .from('canonical_vehicles') as any)
-              .select('plate_number')
-              .eq('plate_number', fallbackPlateNumber)
-              .maybeSingle()
-
-            if (!existingVehicleLookup.error && !existingVehicleLookup.data) {
-              const nowIso = new Date().toISOString()
-              const insertVehicleAttempt = await (supabase
-                .from('canonical_vehicles') as any)
-                .insert({
-                  plate_number: fallbackPlateNumber,
-                  first_seen_at: nowIso,
-                  last_seen_at: nowIso,
-                  total_observations: 0,
-                })
-
-              if (insertVehicleAttempt.error) {
-                appendScanDebug('Fallback canonical vehicle ensure failed', {
-                  plate_number: fallbackPlateNumber,
-                  error: insertVehicleAttempt.error.message || 'Unknown error',
-                })
-              } else {
-                appendScanDebug('Fallback canonical vehicle ensured', {
-                  plate_number: fallbackPlateNumber,
-                })
-              }
-            }
-          } catch (vehicleEnsureErr: any) {
-            appendScanDebug('Fallback canonical vehicle ensure failed', {
-              plate_number: fallbackPlateNumber,
-              error: vehicleEnsureErr?.message || 'Unknown error',
-            })
-          }
-
-          const nowIso = new Date().toISOString()
-          // Canonical payload based on LIVE observations table schema:
-          // - Primary key: observation_id (uuid, NOT NULL, auto-generated)
-          // - Photo column: photo (text, nullable) - NOT photo_url
-          // - Also has: photo_url (text, nullable), id (uuid, nullable)
-          const fallbackPayload: Record<string, any> = {
-            idempotency_key: idempotencyKey,
-            plate_number: fallbackPlateNumber,
-            photo: photoUrl, // Live schema uses 'photo' as the main column
-            photo_url: photoUrl, // Also populate photo_url for compatibility
-            photo_hash: `fallback:${idempotencyKey}`,
-            recorded_at: nowIso,
-            zone_id: finalZoneId,
-            organization_id: user.organization_id,
-            gps_latitude: position.coords.latitude,
-            gps_longitude: position.coords.longitude,
-            gps_accuracy: position.coords.accuracy,
-            recorded_by: user.id,
-            // Note: is_compliant is intentionally omitted - let trigger compute it
-          }
-
-          let fallbackData: any = null
-          let fallbackError: any = null
-
-          // Adaptive insert with up to 8 retries to handle schema cache misses
-          const adaptivePayload: Record<string, any> = { ...fallbackPayload }
-          for (let attempt = 0; attempt < 8; attempt += 1) {
-            const fallbackInsertAttempt = await (supabase
-              .from('observations') as any)
-                .insert(adaptivePayload)
-                .select('*')
-                .single()
-
-            fallbackData = fallbackInsertAttempt.data
-            fallbackError = fallbackInsertAttempt.error
-
-            if (!fallbackError) {
-              appendScanDebug('Direct insert fallback succeeded', {
-                attempt: attempt + 1,
-              })
-              break
-            }
-
-            const message = String(fallbackError?.message || '')
-            const missingColumnMatch = message.match(/Could not find the '([^']+)' column/i)
-            const missingColumn = missingColumnMatch?.[1]
-
-            if (missingColumn && (missingColumn in adaptivePayload)) {
-              delete adaptivePayload[missingColumn]
-              appendScanDebug('Direct insert fallback adjusted payload', {
-                removed_column: missingColumn,
-                attempt: attempt + 1,
-              })
-              continue
-            }
-
-            if (/coalesce types .* integer and text/i.test(message)) {
-              // COALESCE type mismatch in trigger - the trigger function should
-              // handle this but if column types have drifted, we can't fix it here
-              appendScanDebug('Direct insert fallback COALESCE type error', {
-                attempt: attempt + 1,
-                error: message,
-              })
-              break
-            }
-
-            // Unknown error - stop retrying
-            break
-          }
-
-          if (!fallbackError && fallbackData) {
-            const fallbackObservation: any = fallbackData
-            // Live schema: observation_id is the canonical PK
-            ingestData = {
-              observation_id: fallbackObservation.observation_id ?? fallbackObservation.id,
-              plate: fallbackObservation.plate_number === 'MANUAL_REQUIRED' ? null : fallbackObservation.plate_number,
-              requires_manual_entry: fallbackObservation.plate_number === 'MANUAL_REQUIRED',
-              source: 'client_fallback_insert',
-              is_compliant: fallbackObservation.is_compliant,
-              breach_type: fallbackObservation.breach_type,
-            } as any
-            ingestError = null
-            appendScanDebug('Direct insert fallback succeeded', {
-              observation_id: ingestData?.observation_id ?? null,
-            })
-          } else {
-            appendScanDebug('Direct insert fallback failed', {
-              error: fallbackError?.message || 'Unknown insert error',
-            })
-          }
-        }
-      }
-
-      if (ingestError) {
-        appendScanDebug('alpr-process failed', { error: ingestError })
-        throw new Error(`Save failed: ${ingestError}`)
-      }
-      appendScanDebug('alpr-process success', {
-        observation_id: ingestData?.observation_id ?? null,
-        plate: ingestData?.plate ?? null,
-        requires_manual_entry: ingestData?.requires_manual_entry ?? null,
-        source: ingestData?.source ?? null,
+      appendScanDebug('Creating observation (photo-first)', {
+        zone_id: finalZoneId,
+        photo_url: photoUrl,
       })
 
-      console.log('✅ Observation created via alpr-process:', {
-        observation_id: ingestData?.observation_id,
-        source: ingestData?.source,
-        plate: ingestData?.plate,
-        requires_manual_entry: ingestData?.requires_manual_entry,
+      const nowIso = new Date().toISOString()
+      const photoHash = `sha256:${uniqueId}` // Placeholder hash - could compute real SHA if needed
+
+      // Minimal payload - let trigger handle compliance
+      const observationPayload: Record<string, any> = {
+        idempotency_key: idempotencyKey,
+        plate_number: 'PROCESSING...', // Placeholder until async ALPR completes
+        photo: photoUrl,
+        photo_url: photoUrl,
+        photo_hash: photoHash,
+        recorded_at: nowIso,
+        zone_id: finalZoneId,
+        organization_id: user.organization_id,
+        gps_latitude: position.coords.latitude,
+        gps_longitude: position.coords.longitude,
+        gps_accuracy: position.coords.accuracy,
+        recorded_by: user.id,
+        weather_conditions: weatherConditions,
+        processing_status: 'pending', // Mark for async ALPR processing
+      }
+
+      let ingestData: any = null
+      let ingestError: string | null = null
+
+      // Adaptive insert with retries to handle schema cache misses
+      const adaptivePayload: Record<string, any> = { ...observationPayload }
+      for (let attempt = 0; attempt < 8; attempt += 1) {
+        const insertAttempt = await (supabase
+          .from('observations') as any)
+          .insert(adaptivePayload)
+          .select('*')
+          .single()
+
+        if (!insertAttempt.error) {
+          ingestData = insertAttempt.data
+          appendScanDebug('Observation created', {
+            observation_id: ingestData?.id ?? ingestData?.observation_id,
+            is_compliant: ingestData?.is_compliant,
+            attempt: attempt + 1,
+          })
+          break
+        }
+
+        const message = String(insertAttempt.error?.message || '')
+        
+        // Handle missing column errors - remove column and retry
+        const missingColumnMatch = message.match(/Could not find the '([^']+)' column/i)
+        const missingColumn = missingColumnMatch?.[1]
+
+        if (missingColumn && (missingColumn in adaptivePayload)) {
+          delete adaptivePayload[missingColumn]
+          appendScanDebug('Adjusting payload - removed column', {
+            removed_column: missingColumn,
+            attempt: attempt + 1,
+          })
+          continue
+        }
+
+        // Handle COALESCE type mismatch (older trigger versions)
+        if (/coalesce types .* integer and text/i.test(message)) {
+          const complianceColumns = [
+            'nights_stayed_this_month',
+            'consecutive_nights',
+            'is_compliant',
+            'self_contained',
+          ]
+          let removedAny = false
+          for (const col of complianceColumns) {
+            if (col in adaptivePayload) {
+              delete adaptivePayload[col]
+              removedAny = true
+            }
+          }
+          if (removedAny) {
+            appendScanDebug('Adjusting payload - removed compliance columns', { attempt: attempt + 1 })
+            continue
+          }
+        }
+
+        // Can't recover - set error and break
+        ingestError = insertAttempt.error.message
+        appendScanDebug('Insert failed', { error: ingestError, attempt: attempt + 1 })
+        break
+      }
+
+      if (ingestError || !ingestData) {
+        throw new Error(`Save failed: ${ingestError || 'Unknown error'}`)
+      }
+
+      // Extract observation ID (handle both `id` and `observation_id` schemas)
+      const observationId = ingestData.id ?? ingestData.observation_id
+
+      // ============================================================================
+      // STEP 8: FIRE-AND-FORGET ALPR (UPDATE mode)
+      // ============================================================================
+      // Now that the observation is saved, trigger plate recognition asynchronously.
+      // This updates the observation with plate_number once ALPR completes.
+      // We don't await this - the officer gets immediate feedback.
+      // If ALPR fails, the observation will have plate_number='PROCESSING...' or
+      // 'MANUAL_REQUIRED' and the existing polling mechanism will update the UI.
+      appendScanDebug('Triggering async ALPR', { observation_id: observationId })
+
+      edgeFunctions.processALPR({
+        observation_id: observationId,
+        photo_url: photoUrl,
+      }).then(({ data: alprResult, error: alprError }) => {
+        if (alprError) {
+          console.warn('⚠️ Async ALPR failed:', alprError)
+          // The observation will remain with plate_number='PROCESSING...' 
+          // The existing polling mechanism will still update the UI when complete
+          // Officer can manually edit the plate via the scan history view
+        } else {
+          console.log('✅ Async ALPR completed:', {
+            plate: alprResult?.plate,
+            confidence: alprResult?.confidence,
+          })
+          // Trigger refetch to update UI with plate number
+          refetchScans()
+        }
+      }).catch((err) => {
+        console.warn('⚠️ Async ALPR error:', err)
+      })
+
+      console.log('✅ Observation created (photo-first):', {
+        observation_id: observationId,
+        is_compliant: ingestData.is_compliant,
+        breach_type: ingestData.breach_type,
+        plate: 'PROCESSING...',
       })
 
       // ============================================================================
       // STEP 9: IMMEDIATE SUCCESS (User can scan next vehicle)
       // ============================================================================
-      toast.success('✅ Observation captured and processed', {
+      // With photo-first approach, we show compliance result immediately
+      // (from trigger) and plate is being processed in background.
+      // The compliance trigger defaults to is_compliant=true for new observations
+      // without prior history, but breach_type indicates actual violations.
+      const isCompliant = typeof ingestData.is_compliant === 'boolean' 
+        ? ingestData.is_compliant 
+        : null // Keep as null if unknown - let UI handle pending state
+      
+      const hasBreachType = !!ingestData.breach_type
+
+      toast.success('✅ Observation captured', {
         duration: 5000,
-        description: ingestData?.requires_manual_entry
-          ? 'Manual plate entry required for this scan.'
-          : `Plate detected: ${ingestData?.plate ?? 'Unknown'}`,
+        description: hasBreachType 
+          ? `Breach detected: ${formatBreachType(ingestData.breach_type)}`
+          : isCompliant === false
+            ? 'Non-compliant observation recorded'
+            : 'Photo saved. Plate detection in progress...',
       })
 
       setLastScanResult({
-        observationId: ingestData?.observation_id ?? null,
+        observationId: observationId,
         photoUrl: photoUrl,
-        plateNumber: ingestData?.plate ?? null,
-        isCompliant: typeof (ingestData as any)?.is_compliant === 'boolean' ? (ingestData as any).is_compliant : null,
-        breachType: (ingestData as any)?.breach_type ?? null,
-        processingPending:
-          typeof (ingestData as any)?.is_compliant !== 'boolean' &&
-          !(ingestData as any)?.breach_type,
+        plateNumber: null, // Will be populated when ALPR completes
+        isCompliant: isCompliant,
+        breachType: ingestData.breach_type ?? null,
+        processingPending: true, // ALPR is running in background
         zoneName: null,
         observationZoneId: finalZoneId ?? null,
-        recordedAt: new Date().toISOString(),
+        recordedAt: nowIso,
       })
 
       setShowScanner(false)

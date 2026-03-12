@@ -220,6 +220,9 @@ const COMPLIANCE_DRIFT_COLUMNS = new Set([
   'nights_stayed_this_month',
   'consecutive_nights',
   'is_compliant',
+  'self_contained',
+  'breach_type',
+  'breach_reason',
 ]);
 
 /**
@@ -818,7 +821,13 @@ Deno.serve(async (req) => {
         incident_id: body.incident_id ?? null,
         processing_status: 'completed',
         processing_completed_at: new Date().toISOString(),
+        // Explicitly provide compliance columns with correct types to prevent
+        // COALESCE type mismatch errors in the trigger function when column
+        // types have drifted (TEXT vs INTEGER).
+        nights_stayed_this_month: 0,
+        consecutive_nights: 0,
         is_compliant: true,
+        self_contained: false,
       };
 
       const insertPayload = supportsIdempotencyKeyColumn
