@@ -226,17 +226,40 @@ export default function VehicleManagement() {
           query = query.eq('total_breaches', 0)
         } else if (statusFilter === 'breaches') {
           query = query.gt('total_breaches', 0)
-        } else if (statusFilter === 'homeless') {
-          query = query.in('homeless_status', HOMELESS_UI_STATUSES)
-        } else if (statusFilter === 'exempt') {
-          query = query.eq('is_exempt', true)
         }
 
         return query
       }
 
+      const applyStatusFilterInMemory = (rows: Vehicle[]) => {
+        if (statusFilter === 'compliant') {
+          return rows.filter((v) => v.total_breaches === 0)
+        }
+        if (statusFilter === 'breaches') {
+          return rows.filter((v) => v.total_breaches > 0)
+        }
+        if (statusFilter === 'homeless') {
+          return rows.filter((v) => isHomelessForUi(v.homeless_status))
+        }
+        if (statusFilter === 'exempt') {
+          return rows.filter((v) => v.is_exempt)
+        }
+        return rows
+      }
+
       const pickObservationPhotoColumn = async () => {
         const candidates: Array<'photo_url' | 'image_url' | 'photo'> = ['photo_url', 'image_url', 'photo']
+        for (const col of candidates) {
+          const { error } = await (supabase.from('observations') as any)
+            .select(`id, ${col}`)
+            .limit(1)
+          if (!error) return col
+        }
+        return null
+      }
+
+      const pickObservationSelfContainedColumn = async () => {
+        const candidates: Array<'self_contained' | 'is_self_contained'> = ['self_contained', 'is_self_contained']
         for (const col of candidates) {
           const { error } = await (supabase.from('observations') as any)
             .select(`id, ${col}`)
@@ -380,15 +403,6 @@ export default function VehicleManagement() {
           )
         }
 
-        if (statusFilter === 'compliant') {
-          rows = rows.filter((v) => v.total_breaches === 0)
-        } else if (statusFilter === 'breaches') {
-          rows = rows.filter((v) => v.total_breaches > 0)
-        } else if (statusFilter === 'homeless') {
-          rows = rows.filter((v) => isHomelessForUi(v.homeless_status))
-        } else if (statusFilter === 'exempt') {
-          rows = rows.filter((v) => v.is_exempt)
-        }
       }
 
       if (rows.length === 0) {
@@ -396,12 +410,103 @@ export default function VehicleManagement() {
         return rows
       }
 
+      // Enrich rows with organization-scoped homeless status + exemption + self-contained
+      // data so KPI cards and filters stay accurate even on synthesized rows.
+      const uniquePlates = Array.from(
+        new Set(rows.map((v) => v.plate_number).filter((plate) => !!plate && plate.trim()))
+      )
+
+      if (uniquePlates.length > 0) {
+        const homelessByPlate: Record<string, string | null> = {}
+        const exemptByPlate: Record<string, boolean> = {}
+        const selfContainedByPlate: Record<string, boolean> = {}
+        const selfContainedColumn = await pickObservationSelfContainedColumn()
+
+        for (let i = 0; i < uniquePlates.length; i += 200) {
+          const chunk = uniquePlates.slice(i, i + 200)
+
+          let homelessQuery = (supabase.from('homeless_records') as any)
+            .select('plate_number, status, organization_id, is_active, last_reported_at')
+            .eq('is_active', true)
+            .in('plate_number', chunk)
+            .order('last_reported_at', { ascending: false })
+
+          if (scopeOrgId) {
+            homelessQuery = homelessQuery.eq('organization_id', scopeOrgId)
+          }
+
+          const { data: homelessRows } = await homelessQuery
+          for (const row of homelessRows ?? []) {
+            const plate = (row.plate_number || '').trim()
+            if (!plate || homelessByPlate[plate] !== undefined) continue
+            homelessByPlate[plate] = row.status ?? null
+          }
+
+          const { data: canonicalRows } = await (supabase.from('canonical_vehicles') as any)
+            .select('plate_number, self_contained, is_exempt, homeless_status')
+            .in('plate_number', chunk)
+
+          for (const row of canonicalRows ?? []) {
+            const plate = (row.plate_number || '').trim()
+            if (!plate) continue
+            if (homelessByPlate[plate] === undefined && row.homeless_status) {
+              homelessByPlate[plate] = row.homeless_status
+            }
+            if (row.is_exempt === true) {
+              exemptByPlate[plate] = true
+            }
+            if (row.self_contained === true) {
+              selfContainedByPlate[plate] = true
+            }
+          }
+
+          if (selfContainedColumn) {
+            let selfContainedObsQuery = (supabase.from('observations') as any)
+              .select(`plate_number, ${selfContainedColumn}`)
+              .in('plate_number', chunk)
+              .eq(selfContainedColumn, true)
+              .limit(10000)
+
+            if (scopeOrgId) {
+              selfContainedObsQuery = selfContainedObsQuery.eq('organization_id', scopeOrgId)
+            }
+            if (scopeZoneId) {
+              selfContainedObsQuery = selfContainedObsQuery.eq('zone_id', scopeZoneId)
+            }
+
+            const { data: selfContainedObsRows } = await selfContainedObsQuery
+            for (const row of selfContainedObsRows ?? []) {
+              const plate = (row.plate_number || '').trim()
+              if (plate) selfContainedByPlate[plate] = true
+            }
+          }
+        }
+
+        rows = rows.map((v) => {
+          const enrichedHomelessStatus = homelessByPlate[v.plate_number] ?? v.homeless_status
+          const homelessStatusNormalized = normalizeHomelessStatus(enrichedHomelessStatus)
+
+          return {
+            ...v,
+            homeless_status: enrichedHomelessStatus,
+            is_exempt:
+              v.is_exempt ||
+              !!exemptByPlate[v.plate_number] ||
+              homelessStatusNormalized === 'confirmed',
+            self_contained: v.self_contained || !!selfContainedByPlate[v.plate_number],
+          }
+        })
+      }
+
       // Backfill profile_photo from latest observation photo when missing
       const missingPhotoPlates = rows
         .filter((v) => !getVehiclePhotoUrl(v))
         .map((v) => v.plate_number)
 
-      if (missingPhotoPlates.length === 0) return rows
+      if (missingPhotoPlates.length === 0) {
+        setVehicleQueryDebug(debug)
+        return applyStatusFilterInMemory(rows)
+      }
 
       // Chunk plate filters to avoid oversized query URLs.
       const photoByPlate: Record<string, string> = {}
@@ -444,7 +549,7 @@ export default function VehicleManagement() {
       }))
 
       setVehicleQueryDebug(debug)
-      return finalRows
+      return applyStatusFilterInMemory(finalRows)
       } catch (error: any) {
         setVehicleQueryDebug(debug)
         const message =
