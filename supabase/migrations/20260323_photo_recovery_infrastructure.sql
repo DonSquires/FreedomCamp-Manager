@@ -19,7 +19,9 @@
 
 -- Ensure observations has a stable UUID key for FK references used below.
 ALTER TABLE public.observations
-  ADD COLUMN IF NOT EXISTS id UUID DEFAULT gen_random_uuid();
+  ADD COLUMN IF NOT EXISTS id UUID DEFAULT gen_random_uuid(),
+  ADD COLUMN IF NOT EXISTS photo_url TEXT DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS photo_hash TEXT DEFAULT NULL;
 
 UPDATE public.observations
 SET id = gen_random_uuid()
