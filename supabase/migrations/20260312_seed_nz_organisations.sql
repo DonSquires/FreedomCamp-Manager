@@ -130,14 +130,16 @@ BEGIN
       organization_level,
       parent_organization_id,
       is_active
-    ) VALUES (
+    )
+    SELECT
       'First Security',
       'service_provider',
       2,
       v_owner_org_id,
       true
-    )
-    ON CONFLICT (name) DO NOTHING;
+    WHERE NOT EXISTS (
+      SELECT 1 FROM organizations WHERE name = 'First Security'
+    );
 
     SELECT id INTO v_first_security_id
     FROM organizations
