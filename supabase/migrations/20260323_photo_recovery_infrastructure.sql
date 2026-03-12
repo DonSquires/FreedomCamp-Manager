@@ -375,7 +375,7 @@ BEGIN
   RAISE NOTICE 'Total observations : %', v_total;
   RAISE NOTICE 'With photo+hash    : %', v_with;
   RAISE NOTICE 'Missing photo/hash : %', v_missing;
-  RAISE NOTICE 'Coverage           : %% (Target: ≥99.95%%)', v_pct;
+  RAISE NOTICE 'Coverage           : % (Target: >=99.95%%)', v_pct;
   RAISE NOTICE '=========================================';
 
   IF v_missing > 0 THEN
