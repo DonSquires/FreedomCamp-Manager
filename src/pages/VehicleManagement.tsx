@@ -25,6 +25,7 @@ import { toast } from 'sonner'
 
 interface Vehicle {
   id: string
+  source?: 'canonical' | 'observations'
   plate_number: string
   vehicle_make: string | null
   vehicle_model: string | null
@@ -99,6 +100,28 @@ export default function VehicleManagement() {
   const { data: vehicles, isLoading, error: vehiclesError } = useQuery({
     queryKey: ['vehicles', effectiveOrganizationId, zoneId, statusFilter, searchQuery],
     queryFn: async () => {
+      const isUuid = (value: string | null) =>
+        !!value && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)
+
+      const resolveScopeOrgId = async (rawOrgId: string | null) => {
+        if (!rawOrgId) return null
+        if (isUuid(rawOrgId)) return rawOrgId
+
+        const normalized = rawOrgId.replace(/\s*\(current\)\s*$/i, '').trim()
+        if (!normalized) return null
+
+        const { data, error } = await supabase
+          .from('organizations')
+          .select('id, name')
+          .ilike('name', normalized)
+          .limit(1)
+
+        if (error) throw error
+        return data?.[0]?.id ?? null
+      }
+
+      const scopeOrgId = await resolveScopeOrgId(effectiveOrganizationId)
+
       const fetchScopedPlates = async (scopeOrgId: string | null, scopeZoneId: string | null) => {
         let obsQuery = supabase
           .from('observations')
@@ -152,8 +175,8 @@ export default function VehicleManagement() {
         supabase.from('canonical_vehicles').select('*')
       )
 
-      if (effectiveOrganizationId) {
-        primaryQuery = primaryQuery.eq('organization_id', effectiveOrganizationId)
+      if (scopeOrgId) {
+        primaryQuery = primaryQuery.eq('organization_id', scopeOrgId)
       }
 
       const primary = await primaryQuery
@@ -164,20 +187,20 @@ export default function VehicleManagement() {
         // Some environments have canonical_vehicles.organization_id present but
         // sparsely populated; if org-scoped query returns empty while there are
         // observed plates for the org, switch to plate-based scoping.
-        if (effectiveOrganizationId && rows.length === 0) {
-          const orgPlates = await fetchScopedPlates(effectiveOrganizationId, null)
+        if (scopeOrgId && rows.length === 0) {
+          const orgPlates = await fetchScopedPlates(scopeOrgId, null)
           if (orgPlates.size > 0) {
             const fallback = await applyVehicleFilters(supabase.from('canonical_vehicles').select('*'))
             if (fallback.error) throw fallback.error
             rows = ((fallback.data ?? []) as Vehicle[]).filter((v) => orgPlates.has(v.plate_number))
           }
         }
-      } else if (effectiveOrganizationId) {
+      } else if (scopeOrgId) {
         // Fallback for schema variants where canonical_vehicles has no organization_id.
         const fallback = await applyVehicleFilters(supabase.from('canonical_vehicles').select('*'))
         if (fallback.error) throw fallback.error
 
-        const orgPlates = await fetchScopedPlates(effectiveOrganizationId, null)
+        const orgPlates = await fetchScopedPlates(scopeOrgId, null)
         rows = ((fallback.data ?? []) as Vehicle[]).filter((v) => orgPlates.has(v.plate_number))
       } else {
         throw primary.error
@@ -185,8 +208,92 @@ export default function VehicleManagement() {
 
       // Apply zone scoping in-memory to avoid massive IN(...) URL queries.
       if (zoneId) {
-        const zonePlates = await fetchScopedPlates(effectiveOrganizationId, zoneId)
+        const zonePlates = await fetchScopedPlates(scopeOrgId, zoneId)
         rows = rows.filter((v) => zonePlates.has(v.plate_number))
+      }
+
+      // Final fallback: if canonical records are unavailable for this scope,
+      // synthesize vehicle cards directly from observations.
+      if (rows.length === 0) {
+        let synthQuery = (supabase.from('observations') as any)
+          .select('plate_number, vehicle_make, vehicle_model, vehicle_year, vehicle_color, self_contained, is_compliant, photo_url, recorded_at')
+          .neq('plate_number', 'PROCESSING...')
+          .order('recorded_at', { ascending: false })
+          .limit(10000)
+
+        if (scopeOrgId) {
+          synthQuery = synthQuery.eq('organization_id', scopeOrgId)
+        }
+        if (zoneId) {
+          synthQuery = synthQuery.eq('zone_id', zoneId)
+        }
+
+        const synth = await synthQuery
+        if (synth.error) throw synth.error
+
+        const byPlate = new Map<string, Vehicle>()
+
+        for (const obs of (synth.data ?? []) as any[]) {
+          const plate = (obs.plate_number || '').trim()
+          if (!plate) continue
+
+          const existing = byPlate.get(plate)
+          const isBreach = obs.is_compliant === false
+
+          if (!existing) {
+            byPlate.set(plate, {
+              id: `obs:${plate}`,
+              source: 'observations',
+              plate_number: plate,
+              vehicle_make: obs.vehicle_make ?? null,
+              vehicle_model: obs.vehicle_model ?? null,
+              year: obs.vehicle_year ?? null,
+              vehicle_color: obs.vehicle_color ?? null,
+              self_contained: !!obs.self_contained,
+              self_contained_expiry: null,
+              homeless_status: null,
+              is_exempt: false,
+              enforcement_count: 0,
+              last_enforcement_at: null,
+              profile_photo: getObservationPhotoUrl(obs),
+              total_observations: 1,
+              total_breaches: isBreach ? 1 : 0,
+            })
+            continue
+          }
+
+          existing.total_observations += 1
+          if (isBreach) existing.total_breaches += 1
+          if (!existing.profile_photo) {
+            existing.profile_photo = getObservationPhotoUrl(obs)
+          }
+          if (!existing.vehicle_make && obs.vehicle_make) existing.vehicle_make = obs.vehicle_make
+          if (!existing.vehicle_model && obs.vehicle_model) existing.vehicle_model = obs.vehicle_model
+          if (!existing.year && obs.vehicle_year) existing.year = obs.vehicle_year
+          if (!existing.vehicle_color && obs.vehicle_color) existing.vehicle_color = obs.vehicle_color
+          existing.self_contained = existing.self_contained || !!obs.self_contained
+        }
+
+        rows = Array.from(byPlate.values())
+
+        if (searchQuery) {
+          const term = searchQuery.toLowerCase()
+          rows = rows.filter((v) =>
+            v.plate_number.toLowerCase().includes(term) ||
+            (v.vehicle_make || '').toLowerCase().includes(term) ||
+            (v.vehicle_model || '').toLowerCase().includes(term)
+          )
+        }
+
+        if (statusFilter === 'compliant') {
+          rows = rows.filter((v) => v.total_breaches === 0)
+        } else if (statusFilter === 'breaches') {
+          rows = rows.filter((v) => v.total_breaches > 0)
+        } else if (statusFilter === 'homeless') {
+          rows = rows.filter((v) => isHomelessForUi(v.homeless_status))
+        } else if (statusFilter === 'exempt') {
+          rows = rows.filter((v) => v.is_exempt)
+        }
       }
 
       if (rows.length === 0) return rows
@@ -214,8 +321,8 @@ export default function VehicleManagement() {
           .order('recorded_at', { ascending: false })
           .limit(Math.max(300, chunk.length * 4))
 
-        if (effectiveOrganizationId) {
-          photoQuery = photoQuery.eq('organization_id', effectiveOrganizationId)
+        if (scopeOrgId) {
+          photoQuery = photoQuery.eq('organization_id', scopeOrgId)
         }
 
         const { data: latestPhotos } = await photoQuery
@@ -519,11 +626,15 @@ export default function VehicleManagement() {
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {vehicles.map((vehicle) => {
             const profileUrl = vehicle.profile_photo
+            const canDrillDown = !vehicle.id.startsWith('obs:')
             return (
               <Card
                 key={vehicle.id}
                 className="hover:shadow-lg transition-shadow overflow-hidden cursor-pointer group"
-                onClick={() => navigate(`/vehicles/${vehicle.id}`)}
+                onClick={() => {
+                  if (canDrillDown) navigate(`/vehicles/${vehicle.id}`)
+                  else openDetails(vehicle)
+                }}
               >
                 {/* Profile Photo — prominent, clickable to enlarge */}
                 <div
@@ -630,10 +741,12 @@ export default function VehicleManagement() {
                         className="flex-1"
                         onClick={(e) => {
                           e.stopPropagation()
-                          navigate(`/vehicles/${vehicle.id}`)
+                          if (canDrillDown) navigate(`/vehicles/${vehicle.id}`)
+                          else openDetails(vehicle)
                         }}
+                        title={canDrillDown ? 'Open full vehicle detail' : 'Canonical record not available for this vehicle'}
                       >
-                        Drill Down
+                        {canDrillDown ? 'Drill Down' : 'Open'}
                       </Button>
                     </div>
                   </div>
