@@ -76,6 +76,15 @@ export function CameraCapture({
   const [gpsLocation, setGpsLocation] = useState<{ lat: number; lng: number } | null>(null)
   const [autoDetectedZone, setAutoDetectedZone] = useState<string | null>(null)
 
+  // Stable refs for props that change every render — prevents useEffect/useCallback
+  // from creating new references and triggering camera restarts.
+  const onCancelRef = useRef(onCancel)
+  const onDiagnosticEventRef = useRef(onDiagnosticEvent)
+  const zonesRef = useRef(zones)
+  useEffect(() => { onCancelRef.current = onCancel }, [onCancel])
+  useEffect(() => { onDiagnosticEventRef.current = onDiagnosticEvent }, [onDiagnosticEvent])
+  useEffect(() => { zonesRef.current = zones }, [zones])
+
   // Start camera stream
   const startCamera = useCallback(async () => {
     try {
@@ -90,7 +99,7 @@ export function CameraCapture({
 
       const stream = await navigator.mediaDevices.getUserMedia(constraints)
       streamRef.current = stream
-      onDiagnosticEvent?.('camera.stream.started', {
+      onDiagnosticEventRef.current?.('camera.stream.started', {
         facingMode,
       })
 
@@ -114,13 +123,13 @@ export function CameraCapture({
       setIsStreaming(true)
     } catch (error: any) {
       console.error('Camera access failed:', error)
-      onDiagnosticEvent?.('camera.stream.error', {
+      onDiagnosticEventRef.current?.('camera.stream.error', {
         message: error?.message || 'Unknown camera error',
       })
       toast.error('Camera access denied or unavailable')
-      onCancel()
+      onCancelRef.current()
     }
-  }, [facingMode, onCancel])
+  }, [facingMode])
 
   // Stop camera stream
   const stopCamera = useCallback(() => {
@@ -230,7 +239,11 @@ export function CameraCapture({
     }, 'image/jpeg', 0.95)
   }
 
-  // Initialize camera and metadata
+  // Initialize camera and metadata on mount only.
+  // Props (onCancel, onDiagnosticEvent) and zones are accessed via stable refs,
+  // so this effect never re-runs due to prop identity changes — preventing the
+  // infinite camera-restart loop that occurred when parent state updates
+  // (e.g. scan diagnostics) triggered new function references on every render.
   useEffect(() => {
     startCamera()
     
@@ -248,9 +261,11 @@ export function CameraCapture({
             lng: position.coords.longitude,
           })
           
-          // Auto-detect zone based on GPS
-          if (zones) {
-            const nearbyZone = zones.find((zone: any) => {
+          // Auto-detect zone based on GPS — read from ref so we always get the
+          // latest zones data without this effect depending on zones directly.
+          const currentZones = zonesRef.current
+          if (currentZones) {
+            const nearbyZone = currentZones.find((zone: any) => {
               // Simple distance check (can be improved with proper geofence)
               if (!zone.location_lat || !zone.location_lng) return false
               const distance = Math.sqrt(
@@ -282,7 +297,8 @@ export function CameraCapture({
       clearInterval(timeInterval)
       stopCamera()
     }
-  }, [zones, startCamera, stopCamera])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   return (
     <div className="fixed inset-0 z-50 bg-black">
