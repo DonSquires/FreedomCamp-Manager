@@ -186,19 +186,33 @@ BEGIN
   -- 3. Backfill hierarchy fields for any orgs that already existed but were
   --    not yet linked to First Security as Level-3 clients
   -- -------------------------------------------------------------------------
-  UPDATE organizations
-  SET
-    organization_type      = 'client',
-    organization_level     = 3,
-    parent_organization_id = v_first_security_id
-  WHERE name = ANY(v_orgs)
-    AND (
-      organization_level     IS DISTINCT FROM 3
-      OR organization_type   IS DISTINCT FROM 'client'
-      OR parent_organization_id IS DISTINCT FROM v_first_security_id
-    );
+  FOR v_org IN
+    SELECT id, name
+    FROM organizations
+    WHERE name = ANY(v_orgs)
+      AND (
+        organization_level IS DISTINCT FROM 3
+        OR organization_type IS DISTINCT FROM 'client'
+        OR parent_organization_id IS DISTINCT FROM v_first_security_id
+      )
+    ORDER BY name
+  LOOP
+    BEGIN
+      UPDATE organizations
+      SET
+        organization_type      = 'client',
+        organization_level     = 3,
+        parent_organization_id = v_first_security_id
+      WHERE id = v_org.id;
 
-  GET DIAGNOSTICS v_backfilled = ROW_COUNT;
+      IF FOUND THEN
+        v_backfilled := v_backfilled + 1;
+      END IF;
+    EXCEPTION WHEN OTHERS THEN
+      RAISE NOTICE 'Skipped hierarchy backfill for %: %', v_org.name, SQLERRM;
+    END;
+  END LOOP;
+
   IF v_backfilled > 0 THEN
     RAISE NOTICE '✅ Backfilled hierarchy for % pre-existing organisations', v_backfilled;
   END IF;
