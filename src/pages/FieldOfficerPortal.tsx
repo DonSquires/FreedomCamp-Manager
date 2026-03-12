@@ -515,14 +515,13 @@ export default function FieldOfficerPortal() {
       }
 
       // ============================================================================
-      // STEP 7: PRE-DETECT PLATE (Temporarily skipped)
+      // STEP 7: CREATE OBSERVATION VIA alpr-process
+      // alpr-process is the purpose-built scan pipeline: it downloads the photo
+      // from storage server-side, runs 3-stage inference (Plate Recognizer →
+      // Railway → MANUAL_REQUIRED fallback), and creates the observation row.
       // ============================================================================
-      // vehicle-ingest already performs inference. Skipping this extra round-trip
-      // avoids a non-blocking failure path causing noisy scan diagnostics.
-      const detectedPlate = null
-      const detectedConfidence = null
       appendScanDebug('ALPR pre-detection skipped', {
-        reason: 'vehicle-ingest handles inference',
+        reason: 'alpr-process handles inference',
       })
 
       // ============================================================================
@@ -530,7 +529,7 @@ export default function FieldOfficerPortal() {
       // ============================================================================
       toast.info('Saving observation...')
       let { data: ingestData, error: ingestError } = await retryEdgeCall(() =>
-        edgeFunctions.ingestVehicleObservation({
+        edgeFunctions.processALPR({
           photo_url: photoUrl,
           gpsLatitude: position.coords.latitude,
           gpsLongitude: position.coords.longitude,
@@ -540,28 +539,34 @@ export default function FieldOfficerPortal() {
           organizationId: user.organization_id,
           zoneId: finalZoneId,
           idempotencyKey,
-          weather: weatherConditions,
-          plate: detectedPlate,
-          confidence: detectedConfidence,
-          requires_manual_entry: !detectedPlate,
+          weatherConditions,
         }),
         2,
         1000
       )
 
+      // Normalise alpr-process response to the shape the rest of the handler
+      // expects: convert the 'MANUAL_REQUIRED' sentinel plate to null and
+      // populate requires_manual_entry so downstream UI code works correctly.
+      if (ingestData && !ingestError) {
+        const raw = ingestData as any
+        if (!('requires_manual_entry' in raw)) {
+          raw.requires_manual_entry = !raw.plate || raw.plate === 'MANUAL_REQUIRED'
+        }
+        if (raw.plate === 'MANUAL_REQUIRED') {
+          raw.plate = null
+        }
+      }
+
       if (ingestError) {
         // Safety net: if Edge Function transport fails, save observation directly
         // so officers can continue scanning without data loss.
         if (isTransientNetworkError(ingestError)) {
-          appendScanDebug('vehicle-ingest transport failure, trying direct insert fallback', {
+          appendScanDebug('alpr-process transport failure, trying direct insert fallback', {
             error: ingestError,
           })
 
-          const normalizedFallbackPlate = detectedPlate
-            ? String(detectedPlate).trim().toUpperCase().replace(/\s+/g, '').replace(/[^A-Z0-9]/g, '')
-            : null
-
-          const fallbackPlateNumber = normalizedFallbackPlate || 'MANUAL_REQUIRED'
+          const fallbackPlateNumber = 'MANUAL_REQUIRED'
 
           // Legacy schemas may enforce observations.plate_number -> canonical_vehicles.
           // Best effort: ensure fallback plate exists before direct insert.
