@@ -46,11 +46,15 @@ COMMENT ON COLUMN public.zones.needs_admin_review  IS 'TRUE when auto-created by
 -- Observations: store the original zone text from the Excel file so we can
 -- always re-derive the correct zone even after zones are reorganised.
 ALTER TABLE public.observations
-  ADD COLUMN IF NOT EXISTS zone_name_at_import TEXT DEFAULT NULL;
+  ADD COLUMN IF NOT EXISTS zone_name_at_import TEXT DEFAULT NULL,
+  ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ DEFAULT NULL;
 
 COMMENT ON COLUMN public.observations.zone_name_at_import IS
   'Zone name exactly as it appeared in the Excel import file (Column B). '
   'Used to re-resolve zone_id if zones are later reorganised.';
+
+COMMENT ON COLUMN public.observations.deleted_at IS
+  'Soft-delete timestamp. NULL means active row.';
 
 -- ── 1. Pre-flight diagnostic ─────────────────────────────────────────────────
 
