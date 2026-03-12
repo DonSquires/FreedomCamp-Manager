@@ -373,6 +373,7 @@ Deno.serve(async (req) => {
   // Tracks an observation id that has been marked 'processing' so the catch
   // block can flip it to 'failed' if an unhandled exception aborts the pipeline.
   let processingObservationId: string | null = null;
+  let processingObservationKey: 'observation_id' | 'id' = 'observation_id';
 
   try {
     let supportsIdempotencyKeyColumn = true;
@@ -436,11 +437,12 @@ Deno.serve(async (req) => {
 
       if (existingObs) {
         console.log('⚠️ Duplicate observation detected:', body.idempotencyKey);
+        // Live schema: observation_id is the canonical PK
         return new Response(
           JSON.stringify({
             success: true,
             duplicate: true,
-            observation_id: existingObs.id,
+            observation_id: existingObs.observation_id ?? existingObs.id,
             plate: existingObs.plate_number,
             is_compliant: existingObs.is_compliant,
           }),
@@ -449,12 +451,41 @@ Deno.serve(async (req) => {
       }
     } else {
       // UPDATE mode validation
-      // Schema uses `id` as the primary key (not `observation_id`)
-      const { data: existingObs, error: obsError } = await supabase
-        .from('observations')
-        .select('*')
-        .eq('id', body.observation_id)
-        .maybeSingle();
+      // Live schema: observation_id is the NOT NULL primary key, id is nullable
+      // Try observation_id first (canonical PK), then id as fallback
+      let existingObs: any | null = null;
+      let obsError: any = null;
+      let observationKey: 'observation_id' | 'id' = 'observation_id';
+
+      // Try observation_id first (the actual PK in live DB)
+      {
+        const r = await supabase
+          .from('observations')
+          .select('*')
+          .eq('observation_id', body.observation_id)
+          .maybeSingle();
+        if (r.data) {
+          existingObs = r.data;
+          observationKey = 'observation_id';
+        } else {
+          obsError = r.error;
+        }
+      }
+
+      // Fallback to id column if observation_id lookup failed
+      if (!existingObs) {
+        const r = await supabase
+          .from('observations')
+          .select('*')
+          .eq('id', body.observation_id)
+          .maybeSingle();
+        if (r.data) {
+          existingObs = r.data;
+          observationKey = 'id';
+        } else if (!obsError) {
+          obsError = r.error;
+        }
+      }
 
       if (obsError || !existingObs) {
         return new Response(
@@ -463,7 +494,8 @@ Deno.serve(async (req) => {
         );
       }
 
-      const existingObservationId = existingObs.id;
+      // Use the canonical observation_id from the row, falling back to id
+      const existingObservationId = existingObs.observation_id ?? existingObs.id;
 
       if (existingObs.processing_status === 'completed') {
         console.log('⚠️ Observation already processed:', existingObservationId);
@@ -480,10 +512,11 @@ Deno.serve(async (req) => {
           processing_status: 'processing',
           processing_started_at: new Date().toISOString()
         })
-        .eq('id', existingObservationId);
+        .eq(observationKey, existingObservationId);
 
       // Track so the outer catch can mark it 'failed' on unexpected errors.
       processingObservationId = existingObservationId;
+      processingObservationKey = observationKey;
     }
 
     const photoHash = body.photo_hash || `sha256-${Date.now()}-${Math.random().toString(36).substring(7)}`;
@@ -724,7 +757,7 @@ Deno.serve(async (req) => {
         droppedColumns: updateDropped,
       } = await adaptiveObservationUpdate(
         supabase,
-        'id',
+        processingObservationKey,
         processingObservationId!,
         updateData,
       );
@@ -745,7 +778,7 @@ Deno.serve(async (req) => {
             processing_error: updateError.message,
             processing_completed_at: new Date().toISOString()
           })
-          .eq('id', processingObservationId);
+          .eq(processingObservationKey, processingObservationId);
 
         return new Response(
           JSON.stringify({
@@ -760,11 +793,13 @@ Deno.serve(async (req) => {
 
     } else {
       // CREATE MODE: Insert new observation
+      // Live schema: photo column is 'photo', photo_url also exists
       const observationData = {
         recorded_by: body.officerId,
         organization_id: body.organizationId,
         zone_id: body.zoneId,
-        photo_url: body.photo_url,
+        photo: body.photo_url, // Live schema uses 'photo' as main column
+        photo_url: body.photo_url, // Also populate photo_url for compatibility
         photo_hash: photoHash,
         plate_number: plateNumber,
         plate_confidence: plateConfidence > 0 ? plateConfidence : null,
@@ -825,8 +860,9 @@ Deno.serve(async (req) => {
     // ==========================================================================
     const responseTime = Date.now() - requestStartTime;
     
+    // Live schema: observation_id is the canonical PK
     console.log('✅ Observation created:', {
-      id: observation.id,
+      observation_id: observation.observation_id ?? observation.id,
       plate: observation.plate_number,
       stage,
       response_time_ms: responseTime
@@ -834,7 +870,7 @@ Deno.serve(async (req) => {
 
     const response: ALPRResponse = {
       success: true,
-      observation_id: observation.id,
+      observation_id: observation.observation_id ?? observation.id,
       plate: plateNumber,
       confidence: plateConfidence,
       stage,
@@ -864,7 +900,7 @@ Deno.serve(async (req) => {
             processing_error: error.message || 'Pipeline failed unexpectedly',
             processing_completed_at: new Date().toISOString(),
           })
-          .eq('id', processingObservationId);
+          .eq(processingObservationKey, processingObservationId);
       } catch (cleanupErr: any) {
         console.error('❌ Failed to mark observation as failed:', cleanupErr.message);
       }

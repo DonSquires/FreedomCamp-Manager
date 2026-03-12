@@ -624,15 +624,15 @@ export default function FieldOfficerPortal() {
           }
 
           const nowIso = new Date().toISOString()
-          // Single canonical payload based on definitive observations table schema:
-          // - Primary key: id (uuid, auto-generated)
-          // - Photo column: photo_url (NOT photo)
-          // - All required columns: plate_number, photo_url, photo_hash, recorded_at, zone_id,
-          //   organization_id, gps_latitude, gps_longitude, recorded_by
+          // Canonical payload based on LIVE observations table schema:
+          // - Primary key: observation_id (uuid, NOT NULL, auto-generated)
+          // - Photo column: photo (text, nullable) - NOT photo_url
+          // - Also has: photo_url (text, nullable), id (uuid, nullable)
           const fallbackPayload: Record<string, any> = {
             idempotency_key: idempotencyKey,
             plate_number: fallbackPlateNumber,
-            photo_url: photoUrl,
+            photo: photoUrl, // Live schema uses 'photo' as the main column
+            photo_url: photoUrl, // Also populate photo_url for compatibility
             photo_hash: `fallback:${idempotencyKey}`,
             recorded_at: nowIso,
             zone_id: finalZoneId,
@@ -695,8 +695,9 @@ export default function FieldOfficerPortal() {
 
           if (!fallbackError && fallbackData) {
             const fallbackObservation: any = fallbackData
+            // Live schema: observation_id is the canonical PK
             ingestData = {
-              observation_id: fallbackObservation.id,
+              observation_id: fallbackObservation.observation_id ?? fallbackObservation.id,
               plate: fallbackObservation.plate_number === 'MANUAL_REQUIRED' ? null : fallbackObservation.plate_number,
               requires_manual_entry: fallbackObservation.plate_number === 'MANUAL_REQUIRED',
               source: 'client_fallback_insert',
