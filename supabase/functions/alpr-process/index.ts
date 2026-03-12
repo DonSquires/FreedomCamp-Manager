@@ -199,6 +199,30 @@ function extractMissingSchemaColumn(error: unknown): string | null {
 }
 
 /**
+ * Detects COALESCE type mismatch errors from database triggers.
+ * These occur when the trigger function expects INTEGER but the column is TEXT.
+ * Error pattern: "COALESCE types integer and text cannot be matched"
+ */
+function isCoalesceTypeMismatchError(error: unknown): boolean {
+  const message =
+    typeof error === 'string'
+      ? error
+      : (error as any)?.message || (error as any)?.error || '';
+  return /coalesce types .* integer and text cannot be matched/i.test(String(message));
+}
+
+/**
+ * Columns that may cause COALESCE type mismatch errors in triggers when
+ * the column types have drifted. These are safe to omit from the payload
+ * (the trigger function will use defaults).
+ */
+const COMPLIANCE_DRIFT_COLUMNS = new Set([
+  'nights_stayed_this_month',
+  'consecutive_nights',
+  'is_compliant',
+]);
+
+/**
  * Optional AI inference columns that may not yet be present in the PostgREST
  * schema cache when the migration adding them has not been applied (or the
  * cache has not been refreshed).  These columns are safe to drop from the
@@ -242,6 +266,7 @@ async function adaptiveObservationUpdate(
   id: string,
   data: Record<string, any>,
   dropped: string[] = [],
+  coalesceRetried: boolean = false,
 ): Promise<{ data: any; error: any; droppedColumns: string[] }> {
   const { data: result, error } = await supabase
     .from('observations')
@@ -252,12 +277,30 @@ async function adaptiveObservationUpdate(
 
   if (!error) return { data: result, error: null, droppedColumns: dropped };
 
+  // Handle missing schema column errors
   const missingCol = extractMissingSchemaColumn(error);
   if (missingCol && OPTIONAL_INFERENCE_COLUMNS.has(missingCol) && (missingCol in data)) {
     console.warn(`⚠️ Schema cache missing column '${missingCol}' — dropping from UPDATE and retrying`);
     const next = { ...data };
     delete next[missingCol];
-    return adaptiveObservationUpdate(supabase, key, id, next, [...dropped, missingCol]);
+    return adaptiveObservationUpdate(supabase, key, id, next, [...dropped, missingCol], coalesceRetried);
+  }
+
+  // Handle COALESCE type mismatch errors (trigger expects INTEGER but column is TEXT)
+  // Remove compliance-related columns and let the trigger use defaults
+  if (!coalesceRetried && isCoalesceTypeMismatchError(error)) {
+    console.warn('⚠️ COALESCE type mismatch detected — dropping compliance columns and retrying');
+    const next = { ...data };
+    const droppedForCoalesce: string[] = [];
+    for (const col of COMPLIANCE_DRIFT_COLUMNS) {
+      if (col in next) {
+        delete next[col];
+        droppedForCoalesce.push(col);
+      }
+    }
+    if (droppedForCoalesce.length > 0) {
+      return adaptiveObservationUpdate(supabase, key, id, next, [...dropped, ...droppedForCoalesce], true);
+    }
   }
 
   return { data: null, error, droppedColumns: dropped };
@@ -272,6 +315,7 @@ async function adaptiveObservationInsert(
   supabase: ReturnType<typeof createClient>,
   data: Record<string, any>,
   dropped: string[] = [],
+  coalesceRetried: boolean = false,
 ): Promise<{ data: any; error: any; droppedColumns: string[] }> {
   const { data: result, error } = await supabase
     .from('observations')
@@ -281,12 +325,30 @@ async function adaptiveObservationInsert(
 
   if (!error) return { data: result, error: null, droppedColumns: dropped };
 
+  // Handle missing schema column errors
   const missingCol = extractMissingSchemaColumn(error);
   if (missingCol && OPTIONAL_INFERENCE_COLUMNS.has(missingCol) && (missingCol in data)) {
     console.warn(`⚠️ Schema cache missing column '${missingCol}' — dropping from INSERT and retrying`);
     const next = { ...data };
     delete next[missingCol];
-    return adaptiveObservationInsert(supabase, next, [...dropped, missingCol]);
+    return adaptiveObservationInsert(supabase, next, [...dropped, missingCol], coalesceRetried);
+  }
+
+  // Handle COALESCE type mismatch errors (trigger expects INTEGER but column is TEXT)
+  // Remove compliance-related columns and let the trigger use defaults
+  if (!coalesceRetried && isCoalesceTypeMismatchError(error)) {
+    console.warn('⚠️ COALESCE type mismatch detected — dropping compliance columns and retrying');
+    const next = { ...data };
+    const droppedForCoalesce: string[] = [];
+    for (const col of COMPLIANCE_DRIFT_COLUMNS) {
+      if (col in next) {
+        delete next[col];
+        droppedForCoalesce.push(col);
+      }
+    }
+    if (droppedForCoalesce.length > 0) {
+      return adaptiveObservationInsert(supabase, next, [...dropped, ...droppedForCoalesce], true);
+    }
   }
 
   return { data: null, error, droppedColumns: dropped };

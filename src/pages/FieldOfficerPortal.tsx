@@ -722,6 +722,16 @@ export default function FieldOfficerPortal() {
               }
 
               if (/coalesce types .* integer and text/i.test(message)) {
+                // COALESCE type mismatch in trigger - remove is_compliant and let
+                // the trigger compute compliance values
+                if ('is_compliant' in adaptivePayload) {
+                  delete adaptivePayload.is_compliant
+                  appendScanDebug('Direct insert fallback removed is_compliant due to COALESCE error', {
+                    variant: variantIndex + 1,
+                    attempt: attempt + 1,
+                  })
+                  continue
+                }
                 appendScanDebug('Direct insert fallback moving to stricter payload variant', {
                   variant: variantIndex + 1,
                   attempt: attempt + 1,
