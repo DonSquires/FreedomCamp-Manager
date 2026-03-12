@@ -17,6 +17,28 @@
 -- was subsequently dropped.
 -- ---------------------------------------------------------------------------
 
+-- Ensure observations has a stable UUID key for FK references used below.
+ALTER TABLE public.observations
+  ADD COLUMN IF NOT EXISTS id UUID DEFAULT gen_random_uuid();
+
+UPDATE public.observations
+SET id = gen_random_uuid()
+WHERE id IS NULL;
+
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conrelid = 'public.observations'::regclass
+      AND conname = 'observations_id_key'
+  ) THEN
+    ALTER TABLE public.observations
+      ADD CONSTRAINT observations_id_key UNIQUE (id);
+  END IF;
+END;
+$$;
+
 CREATE TABLE IF NOT EXISTS missing_photo_queue (
   id                 UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
   -- FK to the live observations table
