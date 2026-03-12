@@ -740,17 +740,17 @@ export default function FieldOfficerPortal() {
       }
 
       if (ingestError) {
-        appendScanDebug('vehicle-ingest failed', { error: ingestError })
+        appendScanDebug('alpr-process failed', { error: ingestError })
         throw new Error(`Save failed: ${ingestError}`)
       }
-      appendScanDebug('vehicle-ingest success', {
+      appendScanDebug('alpr-process success', {
         observation_id: ingestData?.observation_id ?? null,
         plate: ingestData?.plate ?? null,
         requires_manual_entry: ingestData?.requires_manual_entry ?? null,
         source: ingestData?.source ?? null,
       })
 
-      console.log('✅ Observation created via vehicle-ingest:', {
+      console.log('✅ Observation created via alpr-process:', {
         observation_id: ingestData?.observation_id,
         source: ingestData?.source,
         plate: ingestData?.plate,
@@ -770,7 +770,7 @@ export default function FieldOfficerPortal() {
       setLastScanResult({
         observationId: ingestData?.observation_id ?? null,
         photoUrl: photoUrl,
-        plateNumber: ingestData?.plate ?? detectedPlate ?? null,
+        plateNumber: ingestData?.plate ?? null,
         isCompliant: typeof (ingestData as any)?.is_compliant === 'boolean' ? (ingestData as any).is_compliant : null,
         breachType: (ingestData as any)?.breach_type ?? null,
         processingPending:
