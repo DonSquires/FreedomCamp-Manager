@@ -629,10 +629,10 @@ export default function FieldOfficerPortal() {
           // - Photo column: photo (text, nullable) - NOT photo_url
           // - Also has: photo_url (text, nullable), id (uuid, nullable)
           //
-          // NOTE: We explicitly provide integer compliance columns (nights_stayed_this_month,
-          // consecutive_nights) with value 0 to avoid COALESCE type mismatch errors in the
-          // trigger function when the column type has drifted to TEXT. The trigger uses
-          // COALESCE(NEW.nights_stayed_this_month, 0) which fails if the column is TEXT.
+          // NOTE: We explicitly provide compliance columns to avoid type conversion
+          // issues in databases where the trigger function or column types may not
+          // yet be updated. This is defensive code for backward compatibility with
+          // pre-migration databases.
           const fallbackPayload: Record<string, any> = {
             idempotency_key: idempotencyKey,
             plate_number: fallbackPlateNumber,
@@ -646,8 +646,7 @@ export default function FieldOfficerPortal() {
             gps_longitude: position.coords.longitude,
             gps_accuracy: position.coords.accuracy,
             recorded_by: user.id,
-            // Explicitly provide compliance columns to prevent COALESCE type mismatch
-            // These values are passed as integers which should coerce correctly
+            // Explicit compliance columns for backward compatibility with older triggers
             nights_stayed_this_month: 0,
             consecutive_nights: 0,
             is_compliant: true,
@@ -690,9 +689,11 @@ export default function FieldOfficerPortal() {
             }
 
             if (/coalesce types .* integer and text/i.test(message)) {
-              // COALESCE type mismatch in trigger - try removing all compliance columns
-              // and letting the trigger use its defaults. This is a last-ditch effort
-              // when the trigger function has type issues.
+              // COALESCE type mismatch error from older trigger function versions.
+              // This is defensive code for backward compatibility with pre-migration
+              // databases. Try removing compliance columns and let the trigger use
+              // its defaults. Once migration 20260401000001 is applied, the trigger
+              // uses exception handling and this error should no longer occur.
               const complianceColumns = [
                 'nights_stayed_this_month',
                 'consecutive_nights',
