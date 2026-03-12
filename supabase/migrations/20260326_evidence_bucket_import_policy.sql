@@ -26,47 +26,54 @@ BEGIN
 END
 $$;
 
--- Ensure RLS is enabled on storage.objects
-ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;
+DO $$
+BEGIN
+  -- Ensure RLS is enabled on storage.objects
+  ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;
 
--- ============================================================================
--- INSERT – authenticated users upload import files to their own folder
--- ============================================================================
-DROP POLICY IF EXISTS "evidence_import_insert" ON storage.objects;
-CREATE POLICY "evidence_import_insert" ON storage.objects
-  FOR INSERT
-  TO authenticated
-  WITH CHECK (
-    bucket_id = 'evidence'
-    AND starts_with(name, 'imports/')
-    AND split_part(name, '/', 2) = (auth.uid())::text
-  );
+  -- ========================================================================
+  -- INSERT – authenticated users upload import files to their own folder
+  -- ========================================================================
+  DROP POLICY IF EXISTS "evidence_import_insert" ON storage.objects;
+  CREATE POLICY "evidence_import_insert" ON storage.objects
+    FOR INSERT
+    TO authenticated
+    WITH CHECK (
+      bucket_id = 'evidence'
+      AND starts_with(name, 'imports/')
+      AND split_part(name, '/', 2) = (auth.uid())::text
+    );
 
--- ============================================================================
--- SELECT – authenticated users can read files they uploaded
--- ============================================================================
-DROP POLICY IF EXISTS "evidence_import_select" ON storage.objects;
-CREATE POLICY "evidence_import_select" ON storage.objects
-  FOR SELECT
-  TO authenticated
-  USING (
-    bucket_id = 'evidence'
-    AND starts_with(name, 'imports/')
-    AND split_part(name, '/', 2) = (auth.uid())::text
-  );
+  -- ========================================================================
+  -- SELECT – authenticated users can read files they uploaded
+  -- ========================================================================
+  DROP POLICY IF EXISTS "evidence_import_select" ON storage.objects;
+  CREATE POLICY "evidence_import_select" ON storage.objects
+    FOR SELECT
+    TO authenticated
+    USING (
+      bucket_id = 'evidence'
+      AND starts_with(name, 'imports/')
+      AND split_part(name, '/', 2) = (auth.uid())::text
+    );
 
--- ============================================================================
--- DELETE – authenticated users can clean up their own import files
--- ============================================================================
-DROP POLICY IF EXISTS "evidence_import_delete" ON storage.objects;
-CREATE POLICY "evidence_import_delete" ON storage.objects
-  FOR DELETE
-  TO authenticated
-  USING (
-    bucket_id = 'evidence'
-    AND starts_with(name, 'imports/')
-    AND split_part(name, '/', 2) = (auth.uid())::text
-  );
+  -- ========================================================================
+  -- DELETE – authenticated users can clean up their own import files
+  -- ========================================================================
+  DROP POLICY IF EXISTS "evidence_import_delete" ON storage.objects;
+  CREATE POLICY "evidence_import_delete" ON storage.objects
+    FOR DELETE
+    TO authenticated
+    USING (
+      bucket_id = 'evidence'
+      AND starts_with(name, 'imports/')
+      AND split_part(name, '/', 2) = (auth.uid())::text
+    );
+EXCEPTION
+  WHEN insufficient_privilege THEN
+    RAISE WARNING 'Skipping storage.objects policy updates: insufficient privileges for current role.';
+END
+$$;
 
 -- ============================================================================
 -- Verification
