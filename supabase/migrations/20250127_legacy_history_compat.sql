@@ -1,0 +1,10 @@
+-- Legacy migration history compatibility shim
+--
+-- Some linked Supabase projects recorded migration version `20250127`
+-- in supabase_migrations.schema_migrations. This repository now uses
+-- timestamped versions like `20250127000001_*`.
+--
+-- This no-op migration exists only to make `supabase db push` and CI
+-- history reconciliation succeed across environments with that legacy entry.
+--
+-- Intentionally no SQL statements.
