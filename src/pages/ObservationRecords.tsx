@@ -27,6 +27,7 @@ interface ObservationRow {
   id: string
   plate_number: string
   recorded_at: string
+  zone_id: string
   photo_url: string | null
   is_compliant: boolean
   officer_notes: string | null
@@ -77,19 +78,51 @@ export default function ObservationRecords() {
   } = useQuery({
     queryKey: ['observation-records-observations', effectiveOrganizationId, zoneId, dateFrom, dateTo],
     queryFn: async () => {
-      let q = (supabase.from('observations') as any)
-        .select('id, plate_number, recorded_at, photo_url, is_compliant, officer_notes, gps_latitude, gps_longitude, zone:zones!observations_zone_id_fkey(name)')
+      const applyFilters = (query: any) => {
+        if (effectiveOrganizationId) query = query.eq('organization_id', effectiveOrganizationId)
+        if (zoneId) query = query.eq('zone_id', zoneId)
+        if (startDate) query = query.gte('recorded_at', startDate)
+        if (endDate) query = query.lte('recorded_at', endDate)
+        return query
+      }
+
+      // Primary path: use relationship join when schema cache has it.
+      let primaryQuery = (supabase.from('observations') as any)
+        .select('id, plate_number, recorded_at, zone_id, photo_url, is_compliant, officer_notes, gps_latitude, gps_longitude, zone:zones!observations_zone_id_fkey(name)')
         .order('recorded_at', { ascending: false })
         .limit(2500)
 
-      if (effectiveOrganizationId) q = q.eq('organization_id', effectiveOrganizationId)
-      if (zoneId) q = q.eq('zone_id', zoneId)
-      if (startDate) q = q.gte('recorded_at', startDate)
-      if (endDate) q = q.lte('recorded_at', endDate)
+      primaryQuery = applyFilters(primaryQuery)
+      const primary = await primaryQuery
+      if (!primary.error) {
+        return (primary.data || []) as ObservationRow[]
+      }
 
-      const { data, error } = await q
-      if (error) throw error
-      return (data || []) as ObservationRow[]
+      // Fallback path: fetch observations without join and resolve zone names manually.
+      let fallbackQuery = (supabase.from('observations') as any)
+        .select('id, plate_number, recorded_at, zone_id, photo_url, is_compliant, officer_notes, gps_latitude, gps_longitude')
+        .order('recorded_at', { ascending: false })
+        .limit(2500)
+
+      fallbackQuery = applyFilters(fallbackQuery)
+      const fallback = await fallbackQuery
+      if (fallback.error) throw fallback.error
+
+      const rawRows = (fallback.data || []) as any[]
+      const zoneIds = Array.from(new Set(rawRows.map((r) => r.zone_id).filter(Boolean)))
+
+      let zoneNameById = new Map<string, string>()
+      if (zoneIds.length > 0) {
+        const zonesRes = await (supabase.from('zones') as any).select('id, name').in('id', zoneIds)
+        if (!zonesRes.error && zonesRes.data) {
+          zoneNameById = new Map((zonesRes.data as any[]).map((z) => [z.id, z.name]))
+        }
+      }
+
+      return rawRows.map((row) => ({
+        ...row,
+        zone: row.zone_id ? { name: zoneNameById.get(row.zone_id) || 'Unknown zone' } : null,
+      })) as ObservationRow[]
     },
   })
 
