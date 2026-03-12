@@ -18,6 +18,7 @@ export interface TrendDataPoint {
   date: string
   compliant: number
   breaches: number
+  homeless?: number
   total: number
 }
 
@@ -37,12 +38,16 @@ export function ComplianceTrendChart({
   // Calculate trend direction
   const trend = useMemo(() => {
     if (data.length < 2) return 'neutral'
+
+    const complianceRatio = (d: TrendDataPoint) => (d.total > 0 ? d.compliant / d.total : 0)
     
     const recent = data.slice(-7) // Last 7 days
     const earlier = data.slice(-14, -7) // Previous 7 days
+
+    if (earlier.length === 0) return 'neutral'
     
-    const recentAvg = recent.reduce((sum, d) => sum + (d.compliant / d.total), 0) / recent.length
-    const earlierAvg = earlier.reduce((sum, d) => sum + (d.compliant / d.total), 0) / earlier.length
+    const recentAvg = recent.reduce((sum, d) => sum + complianceRatio(d), 0) / recent.length
+    const earlierAvg = earlier.reduce((sum, d) => sum + complianceRatio(d), 0) / earlier.length
     
     const change = recentAvg - earlierAvg
     
@@ -59,6 +64,7 @@ export function ComplianceTrendChart({
       ...d,
       compliant: Math.round((d.compliant / d.total) * 100),
       breaches: Math.round((d.breaches / d.total) * 100),
+      homeless: Math.round(((d.homeless ?? 0) / d.total) * 100),
     }))
   }, [data, showPercentage])
 
@@ -115,6 +121,10 @@ export function ComplianceTrendChart({
                 <stop offset="5%" stopColor="#ef4444" stopOpacity={0.3}/>
                 <stop offset="95%" stopColor="#ef4444" stopOpacity={0}/>
               </linearGradient>
+              <linearGradient id="colorHomeless" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor="#f97316" stopOpacity={0.3}/>
+                <stop offset="95%" stopColor="#f97316" stopOpacity={0}/>
+              </linearGradient>
             </defs>
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis 
@@ -156,6 +166,14 @@ export function ComplianceTrendChart({
               strokeWidth={2}
               fill="url(#colorBreaches)"
               name="Breaches"
+            />
+            <Area
+              type="monotone"
+              dataKey="homeless"
+              stroke="#f97316"
+              strokeWidth={2}
+              fill="url(#colorHomeless)"
+              name="Homeless"
             />
           </AreaChart>
         </ResponsiveContainer>

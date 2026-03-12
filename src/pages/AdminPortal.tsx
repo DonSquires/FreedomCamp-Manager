@@ -11,6 +11,7 @@ import { AppLayout } from '@/components/features/AppLayout'
 import { GlobalFilterRibbon } from '@/components/features/GlobalFilterRibbon'
 import { ComplianceTrendChart, type TrendDataPoint } from '@/components/features/ComplianceTrendChart'
 import { nzDateToUTCStart, nzDateToUTCEnd } from '@/lib/timezone'
+import { HOMELESS_UI_STATUSES } from '@/lib/homelessStatus'
 import { toast } from 'sonner'
 import { 
   AlertTriangle,
@@ -186,14 +187,73 @@ export default function AdminPortal() {
       }
 
       // ── 4. Trend data rows (for the chart only — limited fetch is fine) ──
-      const { data: trendRows, error: trendErr } = await applyFilters(
-        supabase
-          .from('observations')
-          .select('plate_number, is_compliant, recorded_at')
-          .order('recorded_at', { ascending: true })
-          .limit(10000)
-      )
-      if (trendErr) diagnostics.push(`observations_trend: ${trendErr.message || 'unknown error'}`)
+      const trendRows: Array<{ plate_number: string | null; is_compliant: boolean | null; recorded_at: string }> = []
+      const trendPageSize = 5000
+      const trendMaxRows = 100000
+      let trendOffset = 0
+
+      while (trendOffset < trendMaxRows) {
+        const trendPageQuery = applyFilters(
+          supabase
+            .from('observations')
+            .select('plate_number, is_compliant, recorded_at')
+            .order('recorded_at', { ascending: true })
+            .range(trendOffset, trendOffset + trendPageSize - 1)
+        )
+
+        const { data: trendPageRows, error: trendErr } = await trendPageQuery
+        if (trendErr) {
+          diagnostics.push(`observations_trend: ${trendErr.message || 'unknown error'}`)
+          break
+        }
+
+        const rows = (trendPageRows ?? []) as Array<{ plate_number: string | null; is_compliant: boolean | null; recorded_at: string }>
+        trendRows.push(...rows)
+
+        if (rows.length < trendPageSize) break
+        trendOffset += trendPageSize
+      }
+
+      if (trendRows.length >= trendMaxRows) {
+        diagnostics.push(`observations_trend: capped at ${trendMaxRows} rows for dashboard performance`)
+      }
+
+      const homelessPlates = new Set<string>()
+      {
+        let homelessQuery = (supabase.from('homeless_records') as any)
+          .select('plate_number, status')
+          .eq('is_active', true)
+          .in('status', HOMELESS_UI_STATUSES)
+
+        if (effectiveOrganizationId) {
+          homelessQuery = homelessQuery.eq('organization_id', effectiveOrganizationId)
+        }
+
+        const { data: homelessRows, error: homelessErr } = await homelessQuery
+        if (homelessErr) {
+          diagnostics.push(`homeless_records_trend: ${homelessErr.message || 'unknown error'}`)
+        } else {
+          ;(homelessRows ?? []).forEach((row: any) => {
+            const plate = String(row?.plate_number ?? '').trim().toUpperCase()
+            if (plate) homelessPlates.add(plate)
+          })
+        }
+      }
+
+      {
+        const { data: canonicalHomelessRows, error: canonicalHomelessErr } = await (supabase.from('canonical_vehicles') as any)
+          .select('plate_number, homeless_status')
+          .in('homeless_status', HOMELESS_UI_STATUSES)
+
+        if (canonicalHomelessErr) {
+          diagnostics.push(`canonical_homeless_trend: ${canonicalHomelessErr.message || 'unknown error'}`)
+        } else {
+          ;(canonicalHomelessRows ?? []).forEach((row: any) => {
+            const plate = String(row?.plate_number ?? '').trim().toUpperCase()
+            if (plate) homelessPlates.add(plate)
+          })
+        }
+      }
 
       // ── 5. Active breaches (COUNT, filtered by date range + active status) ─
       let breachesQuery = (supabase.from('breach_alerts') as any)
@@ -212,7 +272,8 @@ export default function AdminPortal() {
         totalObservations: totalObservations ?? 0,
         compliantCount:    compliantCount    ?? 0,
         activeVehicles,
-        trendRows:         trendRows         ?? [],
+        trendRows,
+        homelessPlates: Array.from(homelessPlates),
         activeBreaches:    activeBreaches    ?? 0,
         diagnostics,
       }
@@ -227,21 +288,40 @@ export default function AdminPortal() {
       : 0
     const activeVehicles    = data?.activeVehicles ?? 0
 
-    // Build trend data from the limited row fetch (chart only)
-    const byDate = new globalThis.Map<string, { compliant: number; breaches: number; total: number }>()
+    const toNzDayKey = (isoDateTime: string) =>
+      new Date(isoDateTime).toLocaleDateString('en-CA', { timeZone: 'Pacific/Auckland' })
+
+    // Build trend data from filtered observation rows.
+    const homelessPlateSet = new Set<string>((data as any)?.homelessPlates ?? [])
+    const byDate = new globalThis.Map<string, { compliant: number; breaches: number; homeless: number; total: number }>()
     ;(data?.trendRows ?? []).forEach((o: any) => {
-      const key = new Date(o.recorded_at).toISOString().slice(0, 10)
-      const current = byDate.get(key) || { compliant: 0, breaches: 0, total: 0 }
+      const key = toNzDayKey(o.recorded_at)
+      const current = byDate.get(key) || { compliant: 0, breaches: 0, homeless: 0, total: 0 }
       current.total += 1
       if (o.is_compliant) current.compliant += 1
       else current.breaches += 1
+      const plate = String(o.plate_number ?? '').trim().toUpperCase()
+      if (plate && homelessPlateSet.has(plate)) current.homeless += 1
       byDate.set(key, current)
     })
 
-    const trendData: TrendDataPoint[] = Array.from(byDate.entries())
-      .sort(([a], [b]) => a.localeCompare(b))
-      .slice(-30)
-      .map(([date, value]) => ({ date, ...value }))
+    let trendData: TrendDataPoint[] = []
+
+    if (normalizedDateFrom && normalizedDateTo) {
+      const start = new Date(`${normalizedDateFrom}T00:00:00Z`)
+      const end = new Date(`${normalizedDateTo}T00:00:00Z`)
+
+      for (let cursor = new Date(start); cursor <= end; cursor.setUTCDate(cursor.getUTCDate() + 1)) {
+        const key = cursor.toISOString().slice(0, 10)
+        const value = byDate.get(key) || { compliant: 0, breaches: 0, homeless: 0, total: 0 }
+        trendData.push({ date: key, ...value })
+      }
+    } else {
+      trendData = Array.from(byDate.entries())
+        .sort(([a], [b]) => a.localeCompare(b))
+        .slice(-30)
+        .map(([date, value]) => ({ date, ...value }))
+    }
 
     return {
       totalObservations,
@@ -250,7 +330,7 @@ export default function AdminPortal() {
       activeBreaches: data?.activeBreaches ?? 0,
       trendData,
     }
-  }, [data])
+  }, [data, normalizedDateFrom, normalizedDateTo])
 
   const periodLabel = useMemo(() => {
     if (!dateFrom || !dateTo) return '30d'

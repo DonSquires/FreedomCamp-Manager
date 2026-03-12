@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
@@ -8,7 +8,7 @@ import { GlobalFilterRibbon } from '@/components/features/GlobalFilterRibbon'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { MapContainer, TileLayer, CircleMarker, Popup } from 'react-leaflet'
+import { MapContainer, TileLayer, CircleMarker, Popup, useMap } from 'react-leaflet'
 import { 
   MapPin, 
   TrendingUp,
@@ -31,6 +31,36 @@ interface HotspotData {
   breach_rate: number
   center_lat: number
   center_lng: number
+}
+
+function HotspotsViewportController({
+  points,
+  selectedZone,
+}: {
+  points: HotspotData[]
+  selectedZone: string | null
+}) {
+  const map = useMap()
+
+  useEffect(() => {
+    if (!points.length) return
+
+    const selected = selectedZone
+      ? points.find((p) => p.zone_id === selectedZone) ?? null
+      : null
+
+    if (selected) {
+      map.setView([selected.center_lat, selected.center_lng], Math.max(map.getZoom(), 13), {
+        animate: true,
+      })
+      return
+    }
+
+    const bounds = points.map((p) => [p.center_lat, p.center_lng] as [number, number])
+    map.fitBounds(bounds, { padding: [24, 24], maxZoom: 13, animate: true })
+  }, [map, points, selectedZone])
+
+  return null
 }
 
 export default function HotspotsMap() {
@@ -158,7 +188,12 @@ export default function HotspotsMap() {
 
   const defaultCenter: [number, number] = mappedHotspots.length > 0
     ? [mappedHotspots[0].center_lat, mappedHotspots[0].center_lng]
-    : [-36.848, 174.763]
+    : [-41.2865, 174.7762]
+
+  const sortedMappedHotspots = useMemo(
+    () => [...mappedHotspots].sort((a, b) => b.total_observations - a.total_observations),
+    [mappedHotspots]
+  )
 
   const hotspotRadius = (count: number) => {
     if (count > 100) return 20
@@ -261,6 +296,11 @@ export default function HotspotsMap() {
                 zoom={11}
                 style={{ height: '100%', width: '100%' }}
               >
+                <HotspotsViewportController
+                  points={sortedMappedHotspots}
+                  selectedZone={selectedZone}
+                />
+
                 <TileLayer
                   attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
                   url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
