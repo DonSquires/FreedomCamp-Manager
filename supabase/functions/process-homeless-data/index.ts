@@ -240,18 +240,49 @@ Extract and include the EXACT text describing the behavior in "safety_descriptio
           console.log(`⏭️ Skipped ${plateNumber}: already up-to-date`);
         }
 
+        // Find most recent observation once so we can scope downstream records.
+        const { data: recentObs } = await supabaseAdmin
+          .from('observations')
+          .select('organization_id, zone_id, recorded_at')
+          .eq('plate_number', plateNumber)
+          .order('recorded_at', { ascending: false })
+          .limit(1)
+          .single();
+
+        // Maintain an auditable homeless_records row for compliance/reporting.
+        if (recentObs?.organization_id && ['claimed', 'confirmed', 'suspected', 'declined'].includes(homelessStatus)) {
+          const nowIso = new Date().toISOString();
+          const { error: homelessUpsertError } = await supabaseAdmin
+            .from('homeless_records')
+            .upsert(
+              {
+                organization_id: recentObs.organization_id,
+                plate_number: plateNumber,
+                status: homelessStatus,
+                source: 'process-homeless-data',
+                notes: `Auto-imported from homeless status list. Site: ${record.last_known_site || 'Unknown'}. Original status: "${record.raw_status}". Contact: ${record.name_contact || 'Unknown'}.`,
+                first_reported_at: recentObs.recorded_at || nowIso,
+                last_reported_at: nowIso,
+                is_active: true,
+                created_by: systemUserId || null,
+                updated_by: systemUserId || null,
+                updated_at: nowIso,
+              },
+              {
+                onConflict: 'organization_id,plate_number',
+                ignoreDuplicates: false,
+              }
+            );
+
+          if (homelessUpsertError) {
+            console.error(`Failed to upsert homeless record for ${plateNumber}:`, homelessUpsertError);
+            results.errors.push(`${plateNumber} homeless record: ${homelessUpsertError.message}`);
+          }
+        }
+
         // 🚨 SAFETY CONCERN PROCESSING
         if (record.safety_concern && record.safety_description) {
           console.log(`⚠️ SAFETY CONCERN detected for ${plateNumber}: ${record.safety_description}`);
-
-          // Get the most recent observation for this vehicle to determine org/zone
-          const { data: recentObs } = await supabaseAdmin
-            .from('observations')
-            .select('organization_id, zone_id')
-            .eq('plate_number', plateNumber)
-            .order('recorded_at', { ascending: false })
-            .limit(1)
-            .single();
 
           if (!recentObs) {
             console.log(`⚠️ No observations found for ${plateNumber}, skipping safety processing`);
