@@ -108,9 +108,9 @@ export default function VehicleManagement() {
 
   // ─── Vehicle List Query ───────────────────────────────────────────────────
   // Queries canonical_vehicles, scoped by org/zone via observations lookup.
-  // Date range is intentionally NOT applied here so all known vehicles show up.
+  // Counts are recalculated from observations scoped to current org/zone/date filters.
   const { data: vehicles, isLoading, error: vehiclesError } = useQuery({
-    queryKey: ['vehicles', effectiveOrganizationId, zoneId, statusFilter, searchQuery],
+    queryKey: ['vehicles', effectiveOrganizationId, zoneId, dateFrom, dateTo, statusFilter, searchQuery],
     queryFn: async () => {
       const debug: VehicleQueryDebug = {
         rawOrgId: effectiveOrganizationId,
@@ -185,19 +185,45 @@ export default function VehicleManagement() {
       const scopeZoneId = await resolveScopeZoneId(zoneId, scopeOrgId)
       debug.resolvedZoneId = scopeZoneId
 
+      const startISO = dateFrom ? `${dateFrom}T00:00:00Z` : null
+      const endISO = dateTo ? `${dateTo}T23:59:59Z` : null
+
+      const applyObservationScope = (query: any) => {
+        if (scopeOrgId) query = query.eq('organization_id', scopeOrgId)
+        if (scopeZoneId) query = query.eq('zone_id', scopeZoneId)
+        if (startISO) query = query.gte('recorded_at', startISO)
+        if (endISO) query = query.lte('recorded_at', endISO)
+        return query
+      }
+
+      const normalizeVehicleRow = (row: any): Vehicle => {
+        const plate = String(row?.plate_number ?? '').trim()
+        return {
+          id: row?.id ?? `canonical:${plate}`,
+          source: 'canonical',
+          plate_number: plate,
+          vehicle_make: row?.vehicle_make ?? row?.make ?? null,
+          vehicle_model: row?.vehicle_model ?? row?.model ?? null,
+          year: row?.year ?? row?.vehicle_year ?? null,
+          vehicle_color: row?.vehicle_color ?? row?.colour ?? null,
+          self_contained: !!(row?.self_contained ?? false),
+          self_contained_expiry: row?.self_contained_expiry ?? null,
+          homeless_status: row?.homeless_status ?? null,
+          is_exempt: !!(row?.is_exempt ?? false),
+          enforcement_count: Number(row?.enforcement_count ?? 0),
+          last_enforcement_at: row?.last_enforcement_at ?? null,
+          profile_photo: row?.profile_photo ?? null,
+          total_observations: Number(row?.total_observations ?? 0),
+          total_breaches: Number(row?.total_breaches ?? 0),
+        }
+      }
+
       const fetchScopedPlates = async (scopeOrgId: string | null, scopeZoneId: string | null) => {
-        let obsQuery = supabase
+        let obsQuery = applyObservationScope(supabase
           .from('observations')
           .select('plate_number')
           .neq('plate_number', 'PROCESSING...')
-          .limit(10000)
-
-        if (scopeOrgId) {
-          obsQuery = obsQuery.eq('organization_id', scopeOrgId)
-        }
-        if (scopeZoneId) {
-          obsQuery = obsQuery.eq('zone_id', scopeZoneId)
-        }
+          .limit(10000))
 
         const { data: matchingObs, error: obsError } = await obsQuery
         if (obsError) throw obsError
@@ -220,12 +246,6 @@ export default function VehicleManagement() {
           query = query.or(
             `plate_number.ilike.%${searchQuery}%,vehicle_make.ilike.%${searchQuery}%,vehicle_model.ilike.%${searchQuery}%`
           )
-        }
-
-        if (statusFilter === 'compliant') {
-          query = query.eq('total_breaches', 0)
-        } else if (statusFilter === 'breaches') {
-          query = query.gt('total_breaches', 0)
         }
 
         return query
@@ -283,7 +303,7 @@ export default function VehicleManagement() {
       const primary = await primaryQuery
 
       if (!primary.error) {
-        rows = (primary.data ?? []) as Vehicle[]
+        rows = ((primary.data ?? []) as any[]).map(normalizeVehicleRow)
         debug.primaryCanonicalCount = rows.length
 
         // Some environments have canonical_vehicles.organization_id present but
@@ -294,7 +314,9 @@ export default function VehicleManagement() {
           if (orgPlates.size > 0) {
             const fallback = await applyVehicleFilters(supabase.from('canonical_vehicles').select('*'))
             if (fallback.error) throw fallback.error
-            rows = ((fallback.data ?? []) as Vehicle[]).filter((v) => orgPlates.has(v.plate_number))
+            rows = ((fallback.data ?? []) as any[])
+              .map(normalizeVehicleRow)
+              .filter((v) => orgPlates.has(v.plate_number))
             debug.fallbackCanonicalCount = rows.length
           }
         }
@@ -304,7 +326,9 @@ export default function VehicleManagement() {
         if (fallback.error) throw fallback.error
 
         const orgPlates = await fetchScopedPlates(scopeOrgId, null)
-        rows = ((fallback.data ?? []) as Vehicle[]).filter((v) => orgPlates.has(v.plate_number))
+        rows = ((fallback.data ?? []) as any[])
+          .map(normalizeVehicleRow)
+          .filter((v) => orgPlates.has(v.plate_number))
         debug.fallbackCanonicalCount = rows.length
       } else {
         throw primary.error
@@ -338,12 +362,7 @@ export default function VehicleManagement() {
           .order('recorded_at', { ascending: false })
           .limit(10000)
 
-        if (scopeOrgId) {
-          synthQuery = synthQuery.eq('organization_id', scopeOrgId)
-        }
-        if (scopeZoneId) {
-          synthQuery = synthQuery.eq('zone_id', scopeZoneId)
-        }
+        synthQuery = applyObservationScope(synthQuery)
 
         const synth = await synthQuery
         if (synth.error) throw synth.error
@@ -410,6 +429,50 @@ export default function VehicleManagement() {
         return rows
       }
 
+      // Recalculate per-vehicle totals from observations in current filter scope so
+      // KPI cards and list rows match the dashboard's org/zone/date context.
+      const metricsByPlate: Record<string, { total: number; breaches: number }> = {}
+      const metricPlates = Array.from(new Set(rows.map((v) => v.plate_number).filter(Boolean)))
+
+      for (let i = 0; i < metricPlates.length; i += 200) {
+        const chunk = metricPlates.slice(i, i + 200)
+        if (chunk.length === 0) continue
+
+        const metricQuery = applyObservationScope(
+          (supabase.from('observations') as any)
+            .select('plate_number, is_compliant')
+            .in('plate_number', chunk)
+            .neq('plate_number', 'PROCESSING...')
+            .limit(10000)
+        )
+
+        const { data: metricRows, error: metricError } = await metricQuery
+        if (metricError) throw metricError
+
+        for (const obs of metricRows ?? []) {
+          const plate = String(obs.plate_number ?? '').trim()
+          if (!plate) continue
+          if (!metricsByPlate[plate]) {
+            metricsByPlate[plate] = { total: 0, breaches: 0 }
+          }
+          metricsByPlate[plate].total += 1
+          if (obs.is_compliant === false) {
+            metricsByPlate[plate].breaches += 1
+          }
+        }
+      }
+
+      rows = rows
+        .map((v) => {
+          const metric = metricsByPlate[v.plate_number] ?? { total: 0, breaches: 0 }
+          return {
+            ...v,
+            total_observations: metric.total,
+            total_breaches: metric.breaches,
+          }
+        })
+        .filter((v) => v.total_observations > 0)
+
       // Enrich rows with organization-scoped homeless status + exemption + self-contained
       // data so KPI cards and filters stay accurate even on synthesized rows.
       const uniquePlates = Array.from(
@@ -461,18 +524,11 @@ export default function VehicleManagement() {
           }
 
           if (selfContainedColumn) {
-            let selfContainedObsQuery = (supabase.from('observations') as any)
+            let selfContainedObsQuery = applyObservationScope((supabase.from('observations') as any)
               .select(`plate_number, ${selfContainedColumn}`)
               .in('plate_number', chunk)
               .eq(selfContainedColumn, true)
-              .limit(10000)
-
-            if (scopeOrgId) {
-              selfContainedObsQuery = selfContainedObsQuery.eq('organization_id', scopeOrgId)
-            }
-            if (scopeZoneId) {
-              selfContainedObsQuery = selfContainedObsQuery.eq('zone_id', scopeZoneId)
-            }
+              .limit(10000))
 
             const { data: selfContainedObsRows } = await selfContainedObsQuery
             for (const row of selfContainedObsRows ?? []) {
@@ -529,9 +585,7 @@ export default function VehicleManagement() {
           .order('recorded_at', { ascending: false })
           .limit(Math.max(300, chunk.length * 4))
 
-        if (scopeOrgId) {
-          photoQuery = photoQuery.eq('organization_id', scopeOrgId)
-        }
+        photoQuery = applyObservationScope(photoQuery)
 
         const { data: latestPhotos } = await photoQuery
 
@@ -900,7 +954,10 @@ export default function VehicleManagement() {
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {vehicles.map((vehicle) => {
             const profileUrl = vehicle.profile_photo
-            const canDrillDown = !vehicle.id.startsWith('obs:')
+            const canDrillDown =
+              !!vehicle.id &&
+              !vehicle.id.startsWith('obs:') &&
+              !vehicle.id.startsWith('canonical:')
             return (
               <Card
                 key={vehicle.id}
