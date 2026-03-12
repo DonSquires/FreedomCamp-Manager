@@ -76,6 +76,22 @@ function cosineSimilarity(a: number[], b: number[]): number {
   return dot / (Math.sqrt(normA) * Math.sqrt(normB));
 }
 
+function normalizePlateKey(value?: string | null): string {
+  return String(value ?? '')
+    .trim()
+    .toUpperCase()
+    .replace(/\s+/g, '')
+    .replace(/[^A-Z0-9]/g, '');
+}
+
+function normalizeHomelessCategory(status?: string | null): 'confirmed' | 'claimed' | 'declined' | 'freedom_camper' {
+  const s = String(status ?? '').toLowerCase();
+  if (s === 'confirmed') return 'confirmed';
+  if (s === 'claimed') return 'claimed';
+  if (s === 'declined') return 'declined';
+  return 'freedom_camper';
+}
+
 /**
  * STRICT ZONE-BASED COMPLIANCE RECALCULATION
  * 
@@ -213,6 +229,48 @@ Deno.serve(async (req) => {
       bucket.sort((a, b) => new Date(a.recorded_at).getTime() - new Date(b.recorded_at).getTime());
     }
 
+    const plateKeys = [...new Set(
+      observations
+        .map((o: any) => normalizePlateKey(o.plate_number))
+        .filter(Boolean),
+    )];
+
+    const homelessStatusByOrgPlate = new Map<string, string>();
+    if (plateKeys.length > 0 && orgIds.length > 0) {
+      const { data: homelessRows } = await (supabaseAdmin.from('homeless_records') as any)
+        .select('organization_id, plate_number, status, last_reported_at, updated_at, created_at')
+        .eq('is_active', true)
+        .in('organization_id', orgIds)
+        .in('plate_number', plateKeys);
+
+      const latestByOrgPlate = new Map<string, { status: string; ts: number }>();
+      for (const row of homelessRows ?? []) {
+        const key = `${row.organization_id}:${normalizePlateKey(row.plate_number)}`;
+        const ts = new Date(
+          row.last_reported_at ?? row.updated_at ?? row.created_at ?? '1970-01-01T00:00:00Z',
+        ).getTime();
+        const existing = latestByOrgPlate.get(key);
+        if (!existing || ts >= existing.ts) {
+          latestByOrgPlate.set(key, { status: String(row.status ?? ''), ts });
+        }
+      }
+      for (const [key, value] of latestByOrgPlate) {
+        homelessStatusByOrgPlate.set(key, value.status);
+      }
+    }
+
+    const homelessStatusByPlate = new Map<string, string>();
+    if (plateKeys.length > 0) {
+      const { data: canonicalRows } = await supabaseAdmin
+        .from('canonical_vehicles')
+        .select('plate_number, homeless_status')
+        .in('plate_number', plateKeys);
+
+      for (const row of canonicalRows ?? []) {
+        homelessStatusByPlate.set(normalizePlateKey((row as any).plate_number), String((row as any).homeless_status ?? ''));
+      }
+    }
+
     // Track zone matrices (cache to avoid re-querying)
     const zoneMatrices = new Map<string, any>();
     const zonesWithoutMatrix = new Set<string>();
@@ -280,13 +338,13 @@ Deno.serve(async (req) => {
         let breachType: string | null = null;
         let breachReason: string | null = null;
 
-        // Check homeless exemption
-        const { data: cv } = await supabaseAdmin
-          .from('canonical_vehicles')
-          .select('homeless_status')
-          .eq('plate_number', plateNumber)
-          .maybeSingle();
-        const isHomeless = cv?.homeless_status === 'confirmed';
+        // Check homeless exemption. Prefer org-scoped homeless_records, fallback to canonical status.
+        const plateKey = normalizePlateKey(plateNumber);
+        const homelessCategory = normalizeHomelessCategory(
+          homelessStatusByOrgPlate.get(`${obs.organization_id}:${plateKey}`)
+            ?? homelessStatusByPlate.get(plateKey),
+        );
+        const isHomeless = homelessCategory === 'confirmed' || homelessCategory === 'claimed';
         const overnightMode = overnightModeByOrg.get(String(obs.organization_id)) ?? 'two_photo_verification';
 
         const hasTwoPhotoOvernightEvidence = (() => {

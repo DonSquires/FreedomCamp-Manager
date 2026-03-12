@@ -169,6 +169,58 @@ function normalizeHomelessCategory(status?: string | null): 'confirmed' | 'claim
   return 'freedom_camper';
 }
 
+async function buildHomelessStatusMaps(
+  supabaseAdmin: ReturnType<typeof createClient>,
+  observations: any[],
+): Promise<{ byOrgPlate: Map<string, string>; byPlate: Map<string, string> }> {
+  const plateKeys = [...new Set(
+    observations
+      .map((o: any) => normalizePlateKey(o.plate_number))
+      .filter(Boolean),
+  )];
+  const orgIds = [...new Set(observations.map((o: any) => o.organization_id).filter(Boolean))];
+
+  const byOrgPlate = new Map<string, { status: string; ts: number }>();
+
+  if (plateKeys.length > 0 && orgIds.length > 0) {
+    const { data: homelessRows } = await (supabaseAdmin.from('homeless_records') as any)
+      .select('organization_id, plate_number, status, last_reported_at, updated_at, created_at')
+      .eq('is_active', true)
+      .in('organization_id', orgIds)
+      .in('plate_number', plateKeys);
+
+    for (const row of homelessRows ?? []) {
+      const key = `${row.organization_id}:${normalizePlateKey(row.plate_number)}`;
+      const ts = new Date(
+        row.last_reported_at ?? row.updated_at ?? row.created_at ?? '1970-01-01T00:00:00Z',
+      ).getTime();
+      const existing = byOrgPlate.get(key);
+      if (!existing || ts >= existing.ts) {
+        byOrgPlate.set(key, { status: String(row.status ?? ''), ts });
+      }
+    }
+  }
+
+  const byPlate = new Map<string, string>();
+  if (plateKeys.length > 0) {
+    const { data: canonicalRows } = await supabaseAdmin
+      .from('canonical_vehicles')
+      .select('plate_number, homeless_status')
+      .in('plate_number', plateKeys);
+
+    for (const row of canonicalRows ?? []) {
+      byPlate.set(normalizePlateKey((row as any).plate_number), String((row as any).homeless_status ?? ''));
+    }
+  }
+
+  return {
+    byOrgPlate: new Map<string, string>(
+      [...byOrgPlate.entries()].map(([key, value]) => [key, value.status]),
+    ),
+    byPlate,
+  };
+}
+
 async function detectObservationKeyColumn(
   supabaseAdmin: ReturnType<typeof createClient>,
 ): Promise<'observation_id' | 'id'> {
@@ -358,19 +410,8 @@ serve(async (req: Request) => {
       });
     }
 
-    const plates = [...new Set(
-      observations
-        .map((o: any) => normalizePlateKey(o.plate_number))
-        .filter(Boolean),
-    )];
-    const { data: homelessRows } = await supabaseAdmin
-      .from('canonical_vehicles')
-      .select('plate_number, homeless_status')
-      .in('plate_number', plates);
-
-    const homelessStatusByPlate = new Map<string, string>(
-      (homelessRows ?? []).map((r: any) => [normalizePlateKey(r.plate_number), String(r.homeless_status ?? '')]),
-    );
+    const { byOrgPlate: homelessStatusByOrgPlate, byPlate: homelessStatusByPlate } =
+      await buildHomelessStatusMaps(supabaseAdmin, observations as any[]);
 
     const orgIds = [...new Set(observations.map((o: any) => o.organization_id).filter(Boolean))];
     const { data: orgRows } = await supabaseAdmin
@@ -480,8 +521,10 @@ serve(async (req: Request) => {
         continue;
       }
 
+      const plateKey = normalizePlateKey(obs.plate_number);
       const homelessCategory = normalizeHomelessCategory(
-        homelessStatusByPlate.get(normalizePlateKey(obs.plate_number)),
+        homelessStatusByOrgPlate.get(`${obs.organization_id}:${plateKey}`)
+          ?? homelessStatusByPlate.get(plateKey),
       );
       // Four-category model: confirmed / claimed / declined / freedom_camper.
       // confirmed + claimed are exempt-eligible. declined and freedom_camper are non-exempt.
