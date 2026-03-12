@@ -532,39 +532,21 @@ export default function FieldOfficerPortal() {
       }
 
       // ============================================================================
-      // STEP 7: PRE-DETECT PLATE (Non-blocking hint for ingest)
+      // STEP 7: PRE-DETECT PLATE (Temporarily skipped)
       // ============================================================================
-      toast.info('Running plate detection...')
-      const { data: alprData, error: alprError } = await retryEdgeCall(() =>
-        edgeFunctions.processALPR({
-          photo_url: photoUrl,
-          gpsLatitude: position.coords.latitude,
-          gpsLongitude: position.coords.longitude,
-          gpsAccuracy: position.coords.accuracy,
-          officerId: user.id,
-          organizationId: user.organization_id,
-          zoneId: finalZoneId,
-          idempotencyKey,
-        })
-      )
-
-      if (alprError) {
-        console.warn('⚠️ ALPR pre-detection failed, continuing with manual flow:', alprError)
-      }
-
-      const detectedPlate = alprData?.plate || alprData?.plate_number || null
-      const detectedConfidence = alprData?.confidence || null
-      appendScanDebug('ALPR pre-detection complete', {
-        plate: detectedPlate,
-        confidence: detectedConfidence,
-        alpr_error: alprError,
+      // vehicle-ingest already performs inference. Skipping this extra round-trip
+      // avoids a non-blocking failure path causing noisy scan diagnostics.
+      const detectedPlate = null
+      const detectedConfidence = null
+      appendScanDebug('ALPR pre-detection skipped', {
+        reason: 'vehicle-ingest handles inference',
       })
 
       // ============================================================================
       // STEP 8: CREATE OBSERVATION VIA UNIFIED INGEST PIPELINE
       // ============================================================================
       toast.info('Saving observation...')
-      const { data: ingestData, error: ingestError } = await retryEdgeCall(() =>
+      let { data: ingestData, error: ingestError } = await retryEdgeCall(() =>
         edgeFunctions.ingestVehicleObservation({
           photo_url: photoUrl,
           gpsLatitude: position.coords.latitude,
@@ -583,6 +565,84 @@ export default function FieldOfficerPortal() {
         2,
         1000
       )
+
+      if (ingestError) {
+        // Safety net: if Edge Function transport fails, save observation directly
+        // so officers can continue scanning without data loss.
+        if (isTransientNetworkError(ingestError)) {
+          appendScanDebug('vehicle-ingest transport failure, trying direct insert fallback', {
+            error: ingestError,
+          })
+
+          const normalizedFallbackPlate = detectedPlate
+            ? String(detectedPlate).trim().toUpperCase().replace(/\s+/g, '').replace(/[^A-Z0-9]/g, '')
+            : null
+
+          const fallbackBasePayload: Record<string, any> = {
+            plate_number: normalizedFallbackPlate || 'MANUAL_REQUIRED',
+            photo_url: photoUrl,
+            photo_hash: `fallback:${idempotencyKey}`,
+            recorded_at: new Date().toISOString(),
+            zone_id: finalZoneId,
+            organization_id: user.organization_id,
+            gps_latitude: position.coords.latitude,
+            gps_longitude: position.coords.longitude,
+            gps_accuracy: position.coords.accuracy,
+            recorded_by: user.id,
+            weather_conditions: weatherConditions,
+            officer_notes: null,
+            vehicle_make: null,
+            vehicle_model: null,
+            vehicle_year: null,
+            vehicle_color: null,
+            self_contained: false,
+            self_contained_expiry: null,
+            is_compliant: true,
+            breach_type: null,
+            breach_reason: null,
+            nights_stayed_this_month: 0,
+            consecutive_nights: 0,
+          }
+
+          let fallbackInsert = await supabase
+            .from('observations')
+            .insert({
+              ...fallbackBasePayload,
+              idempotency_key: idempotencyKey,
+            })
+            .select('id, observation_id, plate_number, is_compliant, breach_type')
+            .single()
+
+          const fallbackInsertMessage = fallbackInsert.error?.message || ''
+          if (fallbackInsert.error && /idempotency_key/i.test(fallbackInsertMessage)) {
+            fallbackInsert = await supabase
+              .from('observations')
+              .insert(fallbackBasePayload)
+              .select('id, observation_id, plate_number, is_compliant, breach_type')
+              .single()
+          }
+
+          if (!fallbackInsert.error && fallbackInsert.data) {
+            const fallbackObservation: any = fallbackInsert.data
+            ingestData = {
+              observation_id: fallbackObservation.observation_id ?? fallbackObservation.id,
+              plate: fallbackObservation.plate_number === 'MANUAL_REQUIRED' ? null : fallbackObservation.plate_number,
+              requires_manual_entry: fallbackObservation.plate_number === 'MANUAL_REQUIRED',
+              source: 'client_fallback_insert',
+              is_compliant: fallbackObservation.is_compliant,
+              breach_type: fallbackObservation.breach_type,
+            } as any
+            ingestError = null
+            appendScanDebug('Direct insert fallback succeeded', {
+              observation_id: ingestData?.observation_id ?? null,
+            })
+          } else {
+            appendScanDebug('Direct insert fallback failed', {
+              error: fallbackInsert.error?.message || 'Unknown insert error',
+            })
+          }
+        }
+      }
 
       if (ingestError) {
         appendScanDebug('vehicle-ingest failed', { error: ingestError })
