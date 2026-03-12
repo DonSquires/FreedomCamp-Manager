@@ -22,6 +22,7 @@ import { corsHeaders } from '../_shared/cors.ts';
 
 const OPENAI_BASE_URL = Deno.env.get('OPENAI_BASE_URL') || 'https://api.openai.com/v1';
 const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
+const OPENAI_MODEL = Deno.env.get('OPENAI_MODEL') || 'gpt-4o';
 
 interface AIAnalysisResult {
   make: string | null;
@@ -118,7 +119,7 @@ Respond ONLY with valid JSON (no markdown, no explanations):
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: 'google/gemini-3-flash-preview',
+          model: OPENAI_MODEL,
           messages: [
             {
               role: 'user',

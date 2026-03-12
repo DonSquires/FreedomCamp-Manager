@@ -53,7 +53,7 @@ serve(async (req) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'google/gemini-3-flash-preview',
+        model: Deno.env.get('OPENAI_MODEL') || 'gpt-4o-mini',
         messages: [
           {
             role: 'system',

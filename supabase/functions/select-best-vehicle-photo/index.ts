@@ -9,6 +9,7 @@ import { corsHeaders } from '../_shared/cors.ts';
 
 const OPENAI_BASE_URL = Deno.env.get('OPENAI_BASE_URL') || 'https://api.openai.com/v1';
 const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
+const OPENAI_MODEL = Deno.env.get('OPENAI_MODEL') || 'gpt-4o';
 const MIN_WEIGHTED_SCORE = Number(Deno.env.get('MIN_PROFILE_PHOTO_SCORE') ?? '70');
 const MIN_CLARITY_SCORE = Number(Deno.env.get('MIN_PROFILE_PHOTO_CLARITY') ?? '60');
 const REQUIRE_FULL_VEHICLE = (Deno.env.get('REQUIRE_FULL_VEHICLE_IN_FRAME') ?? '1') !== '0';
@@ -228,7 +229,7 @@ Return strict JSON:
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            model: 'google/gemini-3-flash-preview',
+            model: OPENAI_MODEL,
             messages: [
               {
                 role: 'user',

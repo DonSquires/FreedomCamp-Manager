@@ -143,7 +143,7 @@ Return ONLY a valid JSON object with these exact field names. Use null for missi
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'google/gemini-3-flash-preview',
+        model: Deno.env.get('OPENAI_MODEL') || 'gpt-4o-mini',
         messages: aiMessages,
         temperature: 0.1, // Low temperature for consistent extraction
         max_tokens: 2000,

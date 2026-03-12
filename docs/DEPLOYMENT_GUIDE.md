@@ -199,6 +199,12 @@ ALPR_API_URL=https://api.parkpow.com/v1
 #     Azure:       https://<resource>.openai.azure.com/openai/deployments/<deployment>
 OPENAI_API_KEY=sk-...your-key-here
 OPENAI_BASE_URL=
+# OPENAI_MODEL — optional, controls which model is used across all AI edge functions.
+#   Vision tasks (analyze-vehicle-photo, select-best-vehicle-photo) default to: gpt-4o
+#   Text tasks (get-weather, import-data, process-* functions)    default to: gpt-4o-mini
+#   Set this to override the default for all functions at once,
+#   or to use an alternative provider's model (e.g. llama-3.3-70b-versatile for Groq).
+OPENAI_MODEL=
 ```
 
 ### 2. Custom Domain (Optional)

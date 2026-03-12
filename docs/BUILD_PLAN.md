@@ -441,6 +441,7 @@ PLATERECOGNIZER_TOKEN=<plate-recognizer-api-key>
 # Get key: https://platform.openai.com/api-keys  → Create new secret key
 OPENAI_API_KEY=<openai-api-key>
 OPENAI_BASE_URL=                              # Leave blank for OpenAI; set for alternative providers
+OPENAI_MODEL=                                 # Optional: override default model (gpt-4o / gpt-4o-mini)
 PARKPOW_API_TOKEN=<parkpow-token>             # Optional: parking enforcement
 
 # Feature Flags
@@ -1599,6 +1600,7 @@ supabase secrets set INFERENCE_SERVICE_URL=https://...
 supabase secrets set PLATERECOGNIZER_TOKEN=...
 supabase secrets set OPENAI_API_KEY=sk-...         # https://platform.openai.com/api-keys
 supabase secrets set OPENAI_BASE_URL=              # Optional: leave blank to use OpenAI default
+supabase secrets set OPENAI_MODEL=                 # Optional: override model (default gpt-4o / gpt-4o-mini)
 ```
 
 ### Frontend Deployment

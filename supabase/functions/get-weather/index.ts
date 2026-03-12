@@ -24,6 +24,7 @@ serve(async (req) => {
       throw new Error('AI service not configured');
     }
 
+    const aiModel = Deno.env.get('OPENAI_MODEL') || 'gpt-4o-mini';
     const aiResponse = await fetch(`${aiBaseUrl}/chat/completions`, {
       method: 'POST',
       headers: {
@@ -31,7 +32,7 @@ serve(async (req) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'google/gemini-3-flash-preview',
+        model: aiModel,
         messages: [
           {
             role: 'system',
