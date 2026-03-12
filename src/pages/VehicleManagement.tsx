@@ -160,6 +160,18 @@ export default function VehicleManagement() {
 
       if (!primary.error) {
         rows = (primary.data ?? []) as Vehicle[]
+
+        // Some environments have canonical_vehicles.organization_id present but
+        // sparsely populated; if org-scoped query returns empty while there are
+        // observed plates for the org, switch to plate-based scoping.
+        if (effectiveOrganizationId && rows.length === 0) {
+          const orgPlates = await fetchScopedPlates(effectiveOrganizationId, null)
+          if (orgPlates.size > 0) {
+            const fallback = await applyVehicleFilters(supabase.from('canonical_vehicles').select('*'))
+            if (fallback.error) throw fallback.error
+            rows = ((fallback.data ?? []) as Vehicle[]).filter((v) => orgPlates.has(v.plate_number))
+          }
+        }
       } else if (effectiveOrganizationId) {
         // Fallback for schema variants where canonical_vehicles has no organization_id.
         const fallback = await applyVehicleFilters(supabase.from('canonical_vehicles').select('*'))
