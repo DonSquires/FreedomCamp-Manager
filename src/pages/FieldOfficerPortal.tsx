@@ -624,130 +624,79 @@ export default function FieldOfficerPortal() {
           }
 
           const nowIso = new Date().toISOString()
-          const fallbackPayloadVariants: Array<Record<string, any>> = [
-            {
-              // Preferred canonical payload
-              idempotency_key: idempotencyKey,
-              plate_number: fallbackPlateNumber,
-              photo_url: photoUrl,
-              photo_hash: `fallback:${idempotencyKey}`,
-              recorded_at: nowIso,
-              zone_id: finalZoneId,
-              organization_id: user.organization_id,
-              gps_latitude: position.coords.latitude,
-              gps_longitude: position.coords.longitude,
-              gps_accuracy: position.coords.accuracy,
-              recorded_by: user.id,
-              is_compliant: true,
-            },
-            {
-              // Legacy variant without idempotency_key
-              plate_number: fallbackPlateNumber,
-              photo_url: photoUrl,
-              photo_hash: `fallback:${idempotencyKey}`,
-              recorded_at: nowIso,
-              zone_id: finalZoneId,
-              organization_id: user.organization_id,
-              gps_latitude: position.coords.latitude,
-              gps_longitude: position.coords.longitude,
-              gps_accuracy: position.coords.accuracy,
-              recorded_by: user.id,
-              is_compliant: true,
-            },
-            {
-              // Minimal strict payload
-              plate_number: fallbackPlateNumber,
-              photo_url: photoUrl,
-              recorded_at: nowIso,
-              zone_id: finalZoneId,
-              organization_id: user.organization_id,
-              gps_latitude: position.coords.latitude,
-              gps_longitude: position.coords.longitude,
-              recorded_by: user.id,
-            },
-            {
-              // Minimal payload with legacy `photo` alias
-              plate_number: fallbackPlateNumber,
-              photo: photoUrl,
-              recorded_at: nowIso,
-              zone_id: finalZoneId,
-              organization_id: user.organization_id,
-              gps_latitude: position.coords.latitude,
-              gps_longitude: position.coords.longitude,
-              recorded_by: user.id,
-            },
-          ]
+          // Single canonical payload based on definitive observations table schema:
+          // - Primary key: id (uuid, auto-generated)
+          // - Photo column: photo_url (NOT photo)
+          // - All required columns: plate_number, photo_url, photo_hash, recorded_at, zone_id,
+          //   organization_id, gps_latitude, gps_longitude, recorded_by
+          const fallbackPayload: Record<string, any> = {
+            idempotency_key: idempotencyKey,
+            plate_number: fallbackPlateNumber,
+            photo_url: photoUrl,
+            photo_hash: `fallback:${idempotencyKey}`,
+            recorded_at: nowIso,
+            zone_id: finalZoneId,
+            organization_id: user.organization_id,
+            gps_latitude: position.coords.latitude,
+            gps_longitude: position.coords.longitude,
+            gps_accuracy: position.coords.accuracy,
+            recorded_by: user.id,
+            // Note: is_compliant is intentionally omitted - let trigger compute it
+          }
 
           let fallbackData: any = null
           let fallbackError: any = null
 
-          variantLoop:
-          for (let variantIndex = 0; variantIndex < fallbackPayloadVariants.length; variantIndex += 1) {
-            const adaptivePayload: Record<string, any> = { ...fallbackPayloadVariants[variantIndex] }
-
-            for (let attempt = 0; attempt < 8; attempt += 1) {
-              const fallbackInsertAttempt = await (supabase
-                .from('observations') as any)
+          // Adaptive insert with up to 8 retries to handle schema cache misses
+          const adaptivePayload: Record<string, any> = { ...fallbackPayload }
+          for (let attempt = 0; attempt < 8; attempt += 1) {
+            const fallbackInsertAttempt = await (supabase
+              .from('observations') as any)
                 .insert(adaptivePayload)
                 .select('*')
                 .single()
 
-              fallbackData = fallbackInsertAttempt.data
-              fallbackError = fallbackInsertAttempt.error
+            fallbackData = fallbackInsertAttempt.data
+            fallbackError = fallbackInsertAttempt.error
 
-              if (!fallbackError) {
-                appendScanDebug('Direct insert fallback variant succeeded', {
-                  variant: variantIndex + 1,
-                  attempt: attempt + 1,
-                })
-                break variantLoop
-              }
-
-              const message = String(fallbackError?.message || '')
-              const missingColumnMatch = message.match(/Could not find the '([^']+)' column/i)
-              const missingColumn = missingColumnMatch?.[1]
-
-              if (missingColumn && (missingColumn in adaptivePayload)) {
-                if (missingColumn === 'photo_url' && !('photo' in adaptivePayload)) {
-                  adaptivePayload.photo = photoUrl
-                }
-
-                delete adaptivePayload[missingColumn]
-                appendScanDebug('Direct insert fallback adjusted payload', {
-                  removed_column: missingColumn,
-                  variant: variantIndex + 1,
-                  attempt: attempt + 1,
-                })
-                continue
-              }
-
-              if (/coalesce types .* integer and text/i.test(message)) {
-                // COALESCE type mismatch in trigger - remove is_compliant and let
-                // the trigger compute compliance values
-                if ('is_compliant' in adaptivePayload) {
-                  delete adaptivePayload.is_compliant
-                  appendScanDebug('Direct insert fallback removed is_compliant due to COALESCE error', {
-                    variant: variantIndex + 1,
-                    attempt: attempt + 1,
-                  })
-                  continue
-                }
-                appendScanDebug('Direct insert fallback moving to stricter payload variant', {
-                  variant: variantIndex + 1,
-                  attempt: attempt + 1,
-                  error: message,
-                })
-                break
-              }
-
+            if (!fallbackError) {
+              appendScanDebug('Direct insert fallback succeeded', {
+                attempt: attempt + 1,
+              })
               break
             }
+
+            const message = String(fallbackError?.message || '')
+            const missingColumnMatch = message.match(/Could not find the '([^']+)' column/i)
+            const missingColumn = missingColumnMatch?.[1]
+
+            if (missingColumn && (missingColumn in adaptivePayload)) {
+              delete adaptivePayload[missingColumn]
+              appendScanDebug('Direct insert fallback adjusted payload', {
+                removed_column: missingColumn,
+                attempt: attempt + 1,
+              })
+              continue
+            }
+
+            if (/coalesce types .* integer and text/i.test(message)) {
+              // COALESCE type mismatch in trigger - the trigger function should
+              // handle this but if column types have drifted, we can't fix it here
+              appendScanDebug('Direct insert fallback COALESCE type error', {
+                attempt: attempt + 1,
+                error: message,
+              })
+              break
+            }
+
+            // Unknown error - stop retrying
+            break
           }
 
           if (!fallbackError && fallbackData) {
             const fallbackObservation: any = fallbackData
             ingestData = {
-              observation_id: fallbackObservation.observation_id ?? fallbackObservation.id,
+              observation_id: fallbackObservation.id,
               plate: fallbackObservation.plate_number === 'MANUAL_REQUIRED' ? null : fallbackObservation.plate_number,
               requires_manual_entry: fallbackObservation.plate_number === 'MANUAL_REQUIRED',
               source: 'client_fallback_insert',
