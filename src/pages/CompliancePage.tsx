@@ -167,7 +167,7 @@ function OverviewTab({
         applyObs(supabase.from('observations').select('*', { count: 'exact', head: true })),
         applyObs(supabase.from('observations').select('*', { count: 'exact', head: true }).eq('is_compliant', false)),
         supabase.from('canonical_vehicles').select('*', { count: 'exact', head: true }).eq('is_flagged', true),
-        supabase.from('canonical_vehicles').select('*', { count: 'exact', head: true }).in('homeless_status', ['confirmed', 'claimed', 'suspected', 'declined']),
+        supabase.from('canonical_vehicles').select('*', { count: 'exact', head: true }).in('homeless_status', HOMELESS_UI_STATUSES),
       ]);
 
       const total    = totalRes.count  ?? 0;
@@ -659,19 +659,21 @@ function ZonesTab({
 // ============================================================================
 
 function HomelessTab() {
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, error } = useQuery({
     queryKey: ['homeless-list'],
     queryFn: async () => {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('canonical_vehicles')
         .select('id, plate_number, make, model, colour, homeless_status, homeless_notes, total_observations, last_seen_at')
         .in('homeless_status', HOMELESS_UI_STATUSES)
         .order('last_seen_at', { ascending: false });
+      if (error) throw error;
       return data ?? [];
     },
   });
 
   if (isLoading) return <Spinner />;
+  if (error) return <Empty msg="Unable to load homeless records" />;
   if (!data?.length) return <Empty msg="No homeless vehicles on record" />;
 
   return (
@@ -710,6 +712,8 @@ function HomelessTab() {
                         ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300'
                         : normalizeHomelessStatus(v.homeless_status) === 'claimed'
                         ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300'
+                        : normalizeHomelessStatus(v.homeless_status) === 'suspected'
+                        ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300'
                         : normalizeHomelessStatus(v.homeless_status) === 'declined'
                         ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300'
                         : 'bg-slate-100 dark:bg-slate-900/30 text-slate-700 dark:text-slate-300'
