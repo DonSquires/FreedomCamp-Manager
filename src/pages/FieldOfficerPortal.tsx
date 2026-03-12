@@ -604,7 +604,7 @@ export default function FieldOfficerPortal() {
             consecutive_nights: 0,
           }
 
-          let fallbackInsert = await supabase
+          const fallbackInsertWithIdempotency = await supabase
             .from('observations')
             .insert({
               ...fallbackBasePayload,
@@ -613,17 +613,22 @@ export default function FieldOfficerPortal() {
             .select('id, observation_id, plate_number, is_compliant, breach_type')
             .single()
 
-          const fallbackInsertMessage = fallbackInsert.error?.message || ''
-          if (fallbackInsert.error && /idempotency_key/i.test(fallbackInsertMessage)) {
-            fallbackInsert = await supabase
+          let fallbackData: any = fallbackInsertWithIdempotency.data
+          let fallbackError: any = fallbackInsertWithIdempotency.error
+
+          const fallbackInsertMessage = fallbackError?.message || ''
+          if (fallbackError && /idempotency_key/i.test(fallbackInsertMessage)) {
+            const fallbackInsertWithoutIdempotency = await supabase
               .from('observations')
               .insert(fallbackBasePayload)
               .select('id, observation_id, plate_number, is_compliant, breach_type')
               .single()
+            fallbackData = fallbackInsertWithoutIdempotency.data
+            fallbackError = fallbackInsertWithoutIdempotency.error
           }
 
-          if (!fallbackInsert.error && fallbackInsert.data) {
-            const fallbackObservation: any = fallbackInsert.data
+          if (!fallbackError && fallbackData) {
+            const fallbackObservation: any = fallbackData
             ingestData = {
               observation_id: fallbackObservation.observation_id ?? fallbackObservation.id,
               plate: fallbackObservation.plate_number === 'MANUAL_REQUIRED' ? null : fallbackObservation.plate_number,
@@ -638,7 +643,7 @@ export default function FieldOfficerPortal() {
             })
           } else {
             appendScanDebug('Direct insert fallback failed', {
-              error: fallbackInsert.error?.message || 'Unknown insert error',
+              error: fallbackError?.message || 'Unknown insert error',
             })
           }
         }
