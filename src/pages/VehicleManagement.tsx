@@ -235,6 +235,17 @@ export default function VehicleManagement() {
         return query
       }
 
+      const pickObservationPhotoColumn = async () => {
+        const candidates: Array<'photo_url' | 'image_url' | 'photo'> = ['photo_url', 'image_url', 'photo']
+        for (const col of candidates) {
+          const { error } = await (supabase.from('observations') as any)
+            .select(`id, ${col}`)
+            .limit(1)
+          if (!error) return col
+        }
+        return null
+      }
+
       let rows: Vehicle[] = []
 
       // Primary path: scope canonical vehicles by organization_id directly (if available).
@@ -285,8 +296,21 @@ export default function VehicleManagement() {
       // Final fallback: if canonical records are unavailable for this scope,
       // synthesize vehicle cards directly from observations.
       if (rows.length === 0) {
+        const synthPhotoColumn = await pickObservationPhotoColumn()
+        const synthSelectParts = [
+          'plate_number',
+          'vehicle_make',
+          'vehicle_model',
+          'vehicle_year',
+          'vehicle_color',
+          'self_contained',
+          'is_compliant',
+          'recorded_at',
+        ]
+        if (synthPhotoColumn) synthSelectParts.push(synthPhotoColumn)
+
         let synthQuery = (supabase.from('observations') as any)
-          .select('plate_number, vehicle_make, vehicle_model, vehicle_year, vehicle_color, self_contained, is_compliant, photo_url, recorded_at')
+          .select(synthSelectParts.join(', '))
           .neq('plate_number', 'PROCESSING...')
           .order('recorded_at', { ascending: false })
           .limit(10000)
@@ -381,6 +405,11 @@ export default function VehicleManagement() {
 
       // Chunk plate filters to avoid oversized query URLs.
       const photoByPlate: Record<string, string> = {}
+      const backfillPhotoColumn = await pickObservationPhotoColumn()
+      if (!backfillPhotoColumn) {
+        setVehicleQueryDebug(debug)
+        return rows
+      }
 
       const plateChunks: string[][] = []
       for (let i = 0; i < missingPhotoPlates.length; i += 200) {
@@ -389,9 +418,9 @@ export default function VehicleManagement() {
 
       for (const chunk of plateChunks) {
         let photoQuery = (supabase.from('observations') as any)
-          .select('plate_number, photo_url, recorded_at')
+          .select(`plate_number, ${backfillPhotoColumn}, recorded_at`)
           .in('plate_number', chunk)
-          .not('photo_url', 'is', null)
+          .not(backfillPhotoColumn, 'is', null)
           .order('recorded_at', { ascending: false })
           .limit(Math.max(300, chunk.length * 4))
 
@@ -451,13 +480,7 @@ export default function VehicleManagement() {
     queryFn: async () => {
       let q = supabase
         .from('observations')
-        .select(`
-          id, recorded_at, photo_url, is_compliant, breach_type,
-          nights_stayed_this_month, organization_id,
-          zone:zones!zone_id(id, name),
-          recorded_by_user:user_profiles!recorded_by(first_name, last_name),
-          org:organizations!organization_id(name)
-        `)
+        .select('id, recorded_at, is_compliant, breach_type, nights_stayed_this_month, organization_id, zone_id, recorded_by')
         .eq('plate_number', selectedVehicle!.plate_number)
         .order('recorded_at', { ascending: false })
         .limit(100)
@@ -467,9 +490,58 @@ export default function VehicleManagement() {
       if (dateFrom) q = q.gte('recorded_at', `${dateFrom}T00:00:00Z`)
       if (dateTo) q = q.lte('recorded_at', `${dateTo}T23:59:59Z`)
 
-      const { data, error } = await q
-      if (error) throw error
-      return (data || []) as any[]
+      const { data: baseRows, error: baseError } = await q
+      if (baseError) throw baseError
+
+      const obsRows = (baseRows || []) as any[]
+      if (obsRows.length === 0) return []
+
+      // Optional enrichment: zone/org names and photo fields vary by environment.
+      const zoneIds = Array.from(new Set(obsRows.map((o: any) => o.zone_id).filter(Boolean)))
+      const orgIds = Array.from(new Set(obsRows.map((o: any) => o.organization_id).filter(Boolean)))
+
+      let zoneNames: Record<string, string> = {}
+      if (zoneIds.length > 0) {
+        const { data: z } = await (supabase.from('zones') as any).select('id, name').in('id', zoneIds)
+        zoneNames = Object.fromEntries((z || []).map((row: any) => [row.id, row.name]))
+      }
+
+      let orgNames: Record<string, string> = {}
+      if (orgIds.length > 0) {
+        const { data: o } = await (supabase.from('organizations') as any).select('id, name').in('id', orgIds)
+        orgNames = Object.fromEntries((o || []).map((row: any) => [row.id, row.name]))
+      }
+
+      const photoColumn = await (async () => {
+        const candidates: Array<'photo_url' | 'image_url' | 'photo'> = ['photo_url', 'image_url', 'photo']
+        for (const col of candidates) {
+          const { error } = await (supabase.from('observations') as any).select(`id, ${col}`).limit(1)
+          if (!error) return col
+        }
+        return null
+      })()
+
+      let photosById: Record<string, string | null> = {}
+      if (photoColumn) {
+        const ids = obsRows.map((o: any) => o.id).filter(Boolean)
+        if (ids.length > 0) {
+          const { data: p } = await (supabase.from('observations') as any)
+            .select(`id, ${photoColumn}`)
+            .in('id', ids)
+          photosById = Object.fromEntries(
+            (p || []).map((row: any) => [row.id, row[photoColumn] ?? null])
+          )
+        }
+      }
+
+      return obsRows.map((row: any) => ({
+        ...row,
+        zone: row.zone_id ? { id: row.zone_id, name: zoneNames[row.zone_id] || 'Unknown Zone' } : null,
+        org: row.organization_id
+          ? { name: orgNames[row.organization_id] || 'Unknown Org' }
+          : null,
+        photo_url: photosById[row.id] ?? null,
+      }))
     },
     enabled: showDetailsDialog && !!selectedVehicle?.plate_number,
   })
