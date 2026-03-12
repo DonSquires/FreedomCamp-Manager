@@ -618,72 +618,115 @@ export default function FieldOfficerPortal() {
             })
           }
 
-          const fallbackBasePayload: Record<string, any> = {
-            plate_number: fallbackPlateNumber,
-            photo_url: photoUrl,
-            photo_hash: `fallback:${idempotencyKey}`,
-            recorded_at: new Date().toISOString(),
-            zone_id: finalZoneId,
-            organization_id: user.organization_id,
-            gps_latitude: position.coords.latitude,
-            gps_longitude: position.coords.longitude,
-            gps_accuracy: position.coords.accuracy,
-            recorded_by: user.id,
-            weather_conditions: weatherConditions,
-            officer_notes: null,
-            vehicle_make: null,
-            vehicle_model: null,
-            vehicle_year: null,
-            vehicle_color: null,
-            self_contained: false,
-            self_contained_expiry: null,
-            is_compliant: true,
-            breach_type: null,
-            breach_reason: null,
-            nights_stayed_this_month: 0,
-            consecutive_nights: 0,
-          }
-
-          // Some deployments may have stale PostgREST schema cache or legacy
-          // observations shapes. Retry insert after removing unknown columns.
-          const adaptivePayload: Record<string, any> = {
-            ...fallbackBasePayload,
-            idempotency_key: idempotencyKey,
-          }
+          const nowIso = new Date().toISOString()
+          const fallbackPayloadVariants: Array<Record<string, any>> = [
+            {
+              // Preferred canonical payload
+              idempotency_key: idempotencyKey,
+              plate_number: fallbackPlateNumber,
+              photo_url: photoUrl,
+              photo_hash: `fallback:${idempotencyKey}`,
+              recorded_at: nowIso,
+              zone_id: finalZoneId,
+              organization_id: user.organization_id,
+              gps_latitude: position.coords.latitude,
+              gps_longitude: position.coords.longitude,
+              gps_accuracy: position.coords.accuracy,
+              recorded_by: user.id,
+              is_compliant: true,
+            },
+            {
+              // Legacy variant without idempotency_key
+              plate_number: fallbackPlateNumber,
+              photo_url: photoUrl,
+              photo_hash: `fallback:${idempotencyKey}`,
+              recorded_at: nowIso,
+              zone_id: finalZoneId,
+              organization_id: user.organization_id,
+              gps_latitude: position.coords.latitude,
+              gps_longitude: position.coords.longitude,
+              gps_accuracy: position.coords.accuracy,
+              recorded_by: user.id,
+              is_compliant: true,
+            },
+            {
+              // Minimal strict payload
+              plate_number: fallbackPlateNumber,
+              photo_url: photoUrl,
+              recorded_at: nowIso,
+              zone_id: finalZoneId,
+              organization_id: user.organization_id,
+              gps_latitude: position.coords.latitude,
+              gps_longitude: position.coords.longitude,
+              recorded_by: user.id,
+            },
+            {
+              // Minimal payload with legacy `photo` alias
+              plate_number: fallbackPlateNumber,
+              photo: photoUrl,
+              recorded_at: nowIso,
+              zone_id: finalZoneId,
+              organization_id: user.organization_id,
+              gps_latitude: position.coords.latitude,
+              gps_longitude: position.coords.longitude,
+              recorded_by: user.id,
+            },
+          ]
 
           let fallbackData: any = null
           let fallbackError: any = null
-          const maxFallbackAttempts = 12
 
-          for (let attempt = 0; attempt < maxFallbackAttempts; attempt += 1) {
-            const fallbackInsertAttempt = await (supabase
-              .from('observations') as any)
-              .insert(adaptivePayload)
-              .select('*')
-              .single()
+          variantLoop:
+          for (let variantIndex = 0; variantIndex < fallbackPayloadVariants.length; variantIndex += 1) {
+            const adaptivePayload: Record<string, any> = { ...fallbackPayloadVariants[variantIndex] }
 
-            fallbackData = fallbackInsertAttempt.data
-            fallbackError = fallbackInsertAttempt.error
+            for (let attempt = 0; attempt < 8; attempt += 1) {
+              const fallbackInsertAttempt = await (supabase
+                .from('observations') as any)
+                .insert(adaptivePayload)
+                .select('*')
+                .single()
 
-            if (!fallbackError) break
+              fallbackData = fallbackInsertAttempt.data
+              fallbackError = fallbackInsertAttempt.error
 
-            const message = String(fallbackError?.message || '')
-            const missingColumnMatch = message.match(/Could not find the '([^']+)' column/i)
-            const missingColumn = missingColumnMatch?.[1]
+              if (!fallbackError) {
+                appendScanDebug('Direct insert fallback variant succeeded', {
+                  variant: variantIndex + 1,
+                  attempt: attempt + 1,
+                })
+                break variantLoop
+              }
 
-            if (!missingColumn) break
-            if (!(missingColumn in adaptivePayload)) break
+              const message = String(fallbackError?.message || '')
+              const missingColumnMatch = message.match(/Could not find the '([^']+)' column/i)
+              const missingColumn = missingColumnMatch?.[1]
 
-            // Legacy compatibility: older schema variants use `photo`.
-            if (missingColumn === 'photo_url' && !('photo' in adaptivePayload)) {
-              adaptivePayload.photo = photoUrl
+              if (missingColumn && (missingColumn in adaptivePayload)) {
+                if (missingColumn === 'photo_url' && !('photo' in adaptivePayload)) {
+                  adaptivePayload.photo = photoUrl
+                }
+
+                delete adaptivePayload[missingColumn]
+                appendScanDebug('Direct insert fallback adjusted payload', {
+                  removed_column: missingColumn,
+                  variant: variantIndex + 1,
+                  attempt: attempt + 1,
+                })
+                continue
+              }
+
+              if (/coalesce types .* integer and text/i.test(message)) {
+                appendScanDebug('Direct insert fallback moving to stricter payload variant', {
+                  variant: variantIndex + 1,
+                  attempt: attempt + 1,
+                  error: message,
+                })
+                break
+              }
+
+              break
             }
-
-            delete adaptivePayload[missingColumn]
-            appendScanDebug('Direct insert fallback adjusted payload', {
-              removed_column: missingColumn,
-              attempt: attempt + 1,
-            })
           }
 
           if (!fallbackError && fallbackData) {
