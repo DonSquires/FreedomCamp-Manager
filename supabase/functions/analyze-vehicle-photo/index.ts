@@ -20,8 +20,8 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
 import { corsHeaders } from '../_shared/cors.ts';
 
-const ONSPACE_AI_BASE_URL = Deno.env.get('ONSPACE_AI_BASE_URL');
-const ONSPACE_AI_API_KEY = Deno.env.get('ONSPACE_AI_API_KEY');
+const OPENAI_BASE_URL = Deno.env.get('OPENAI_BASE_URL') || 'https://api.openai.com/v1';
+const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
 
 interface AIAnalysisResult {
   make: string | null;
@@ -72,7 +72,7 @@ Deno.serve(async (req) => {
     console.log(`🤖 [AI ANALYSIS] Starting analysis for ${plateNumber}`);
 
     // STEP 1: AI Photo Analysis (including sticker detection)
-    console.log('🔍 [AI ANALYSIS] Analyzing photo with OnSpace AI...');
+    console.log('🔍 [AI ANALYSIS] Analyzing photo...');
     
     const analysisPrompt = `Analyze this vehicle photo and extract the following details in JSON format:
 
@@ -111,10 +111,10 @@ Respond ONLY with valid JSON (no markdown, no explanations):
     };
 
     try {
-      const aiResponse = await fetch(`${ONSPACE_AI_BASE_URL}/chat/completions`, {
+      const aiResponse = await fetch(`${OPENAI_BASE_URL}/chat/completions`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${ONSPACE_AI_API_KEY}`,
+          'Authorization': `Bearer ${OPENAI_API_KEY}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
@@ -136,7 +136,7 @@ Respond ONLY with valid JSON (no markdown, no explanations):
 
       if (!aiResponse.ok) {
         const errorText = await aiResponse.text();
-        console.error(`❌ [AI ANALYSIS] OnSpace AI request failed:`, errorText);
+        console.error(`❌ [AI ANALYSIS] AI request failed:`, errorText);
         throw new Error(`AI API error: ${aiResponse.status}`);
       }
 

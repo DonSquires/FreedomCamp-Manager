@@ -223,6 +223,7 @@ export const edgeFunctions = {
     officer_id?: string
     organization_id?: string
     zone_id?: string
+    idempotency_key?: string
     /** UUID of an existing observation being updated (background processing mode) */
     observation_id?: string
     /** Optional incident/case to link this observation to */
@@ -240,6 +241,7 @@ export const edgeFunctions = {
     const {
       latitude, longitude, accuracy,
       officer_id, organization_id, zone_id,
+      idempotency_key,
       ...rest
     } = params
     return callEdgeFunction('alpr-process', {
@@ -250,6 +252,7 @@ export const edgeFunctions = {
       officerId: rest.officerId ?? officer_id,
       organizationId: rest.organizationId ?? organization_id,
       zoneId: rest.zoneId ?? zone_id,
+      idempotencyKey: rest.idempotencyKey ?? idempotency_key,
     })
   },
 
@@ -945,9 +948,9 @@ export const edgeFunctions = {
   },
 
   /**
-   * AI chat for bug analysis
+   * AI chat for analysis and suggestions
    */
-  onspaceAIChat: async (params: {
+  aiChat: async (params: {
     message: string
     context?: any
   }) => {

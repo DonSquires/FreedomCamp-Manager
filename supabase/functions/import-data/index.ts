@@ -55,8 +55,8 @@ Deno.serve(async (req) => {
     console.log('Processing import:', { fileName, contentLength: fileContent.length });
 
     // Use AI to analyze and extract data
-    const aiBaseUrl = Deno.env.get('ONSPACE_AI_BASE_URL');
-    const aiApiKey = Deno.env.get('ONSPACE_AI_API_KEY');
+    const aiBaseUrl = Deno.env.get('OPENAI_BASE_URL') || 'https://api.openai.com/v1';
+    const aiApiKey = Deno.env.get('OPENAI_API_KEY');
 
     if (!aiBaseUrl || !aiApiKey) {
       return new Response(JSON.stringify({ error: 'AI service not configured' }), {
