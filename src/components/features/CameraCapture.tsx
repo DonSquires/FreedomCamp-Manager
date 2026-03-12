@@ -29,6 +29,7 @@ interface CameraCaptureProps {
   onCancel: () => void
   facing?: 'user' | 'environment'
   showControls?: boolean
+  onDiagnosticEvent?: (label: string, payload?: Record<string, unknown>) => void
   menuItems?: Array<{
     label: string
     onClick: () => void
@@ -50,6 +51,7 @@ export function CameraCapture({
   onCancel,
   facing = 'environment',
   showControls = true,
+  onDiagnosticEvent,
   menuItems = [],
 }: CameraCaptureProps) {
   const videoRef = useRef<HTMLVideoElement>(null)
@@ -88,6 +90,9 @@ export function CameraCapture({
 
       const stream = await navigator.mediaDevices.getUserMedia(constraints)
       streamRef.current = stream
+      onDiagnosticEvent?.('camera.stream.started', {
+        facingMode,
+      })
 
       if (videoRef.current) {
         videoRef.current.srcObject = stream
@@ -109,6 +114,9 @@ export function CameraCapture({
       setIsStreaming(true)
     } catch (error: any) {
       console.error('Camera access failed:', error)
+      onDiagnosticEvent?.('camera.stream.error', {
+        message: error?.message || 'Unknown camera error',
+      })
       toast.error('Camera access denied or unavailable')
       onCancel()
     }
@@ -173,6 +181,8 @@ export function CameraCapture({
 
   // Capture photo
   const capturePhoto = () => {
+    onDiagnosticEvent?.('camera.capture.button_pressed')
+
     if (!videoRef.current || !canvasRef.current) return
 
     const video = videoRef.current
@@ -191,6 +201,7 @@ export function CameraCapture({
     // Convert to blob
     canvas.toBlob((blob) => {
       if (!blob) {
+        onDiagnosticEvent?.('camera.capture.blob_failed')
         toast.error('Failed to capture photo')
         return
       }
@@ -207,6 +218,12 @@ export function CameraCapture({
         width: canvas.width,
         height: canvas.height,
       }
+
+      onDiagnosticEvent?.('camera.capture.blob_created', {
+        fileSize: file.size,
+        width: canvas.width,
+        height: canvas.height,
+      })
 
       onCapture(file, metadata)
       stopCamera()

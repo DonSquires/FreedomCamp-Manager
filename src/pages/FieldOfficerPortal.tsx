@@ -693,6 +693,7 @@ export default function FieldOfficerPortal() {
             onCancel={() => setShowScanner(false)} 
             facing="environment" 
             showControls={true} 
+            onDiagnosticEvent={(label, payload) => appendScanDebug(label, payload)}
             menuItems={[
               {
                 label: 'Copy Scan Diagnostics',
