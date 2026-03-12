@@ -451,32 +451,46 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Step 1: Upload photo to evidence bucket with SHA-256 hash
+    // Step 1: Compute SHA-256 hash; re-upload to evidence only when the caller
+    // did NOT supply a pre-uploaded photo URL (i.e. raw bytes were sent).
+    // When the frontend has already uploaded the photo to the "scans" bucket and
+    // passed its URL via photo_url, we skip the redundant evidence-bucket upload.
+    // This keeps the edge function well within the Supabase 10-second wall-clock
+    // limit and avoids a hard dependency on the "evidence" bucket being available.
     const photoHash = await sha256Hash(imageBytes!);
-    const photoFileName = `${officerId}/${Date.now()}-${photoHash.substring(0, 8)}.jpg`;
-    
-    const { data: uploadData, error: uploadError } = await supabase.storage
-      .from("evidence")
-      .upload(photoFileName, imageBytes!, {
-        contentType: "image/jpeg",
-        upsert: true,
-      });
 
-    if (uploadError) {
-      console.error("❌ Photo upload failed:", uploadError);
-      return new Response(JSON.stringify({ error: "Photo upload failed: " + uploadError.message }), {
-        status: 500,
-        headers: { ...getCorsHeaders(req), "content-type": "application/json" },
-      });
+    let photoUrl: string;
+
+    if (photoUrlInput) {
+      // Photo already in storage — use the existing URL directly.
+      photoUrl = photoUrlInput;
+      console.log("📸 Using pre-uploaded photo URL:", { url: photoUrl, hash: photoHash });
+    } else {
+      // Raw bytes provided by caller — upload to evidence bucket.
+      const photoFileName = `${officerId}/${Date.now()}-${photoHash.substring(0, 8)}.jpg`;
+
+      const { error: uploadError } = await supabase.storage
+        .from("evidence")
+        .upload(photoFileName, imageBytes!, {
+          contentType: "image/jpeg",
+          upsert: true,
+        });
+
+      if (uploadError) {
+        console.error("❌ Photo upload failed:", uploadError);
+        return new Response(JSON.stringify({ error: "Photo upload failed: " + uploadError.message }), {
+          status: 500,
+          headers: { ...getCorsHeaders(req), "content-type": "application/json" },
+        });
+      }
+
+      const { data: publicUrlData } = supabase.storage
+        .from("evidence")
+        .getPublicUrl(photoFileName);
+
+      photoUrl = publicUrlData.publicUrl;
+      console.log("📸 Photo uploaded to evidence bucket:", { path: photoFileName, hash: photoHash });
     }
-
-    const { data: publicUrlData } = supabase.storage
-      .from("evidence")
-      .getPublicUrl(photoFileName);
-
-    const photoUrl = publicUrlData.publicUrl;
-
-    console.log("📸 Photo uploaded:", { path: photoFileName, hash: photoHash });
 
     // ========================================================================
     // INFERENCE — always run for sticker detection, movement analysis, and
