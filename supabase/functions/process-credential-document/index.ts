@@ -1,6 +1,6 @@
 
 // AI-Powered Credential Document Processing
-// Extracts COA/Warrant details from uploaded documents using OnSpace AI
+// Extracts COA/Warrant details from uploaded documents using AI vision
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
@@ -41,12 +41,12 @@ serve(async (req) => {
     // If PDF, we'll need to process it (for now, assume images or use first page)
     // In production, you might use pdf2image converter
     
-    // Step 2: Call OnSpace AI with vision model to extract text
-    const onspaceAIUrl = Deno.env.get('ONSPACE_AI_BASE_URL') || 'https://api.onspace.ai/v1';
-    const onspaceAIKey = Deno.env.get('ONSPACE_AI_API_KEY');
+    // Step 2: Call AI with vision model to extract text
+    const aiUrl = Deno.env.get('OPENAI_BASE_URL') || 'https://api.openai.com/v1';
+    const aiKey = Deno.env.get('OPENAI_API_KEY');
 
-    if (!onspaceAIKey) {
-      throw new Error('OnSpace AI API key not configured');
+    if (!aiKey) {
+      throw new Error('AI API key not configured');
     }
 
     // Build extraction prompt based on document type
@@ -228,10 +228,10 @@ If back says "Freedom Camping Act 2011":
 
 If you cannot find a field, set it to null.`
       ; // The semicolon was missing here
-    const aiResponse = await fetch(`${onspaceAIUrl}/chat/completions`, {
+    const aiResponse = await fetch(`${aiUrl}/chat/completions`, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${onspaceAIKey}`,
+        'Authorization': `Bearer ${aiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
@@ -260,7 +260,7 @@ If you cannot find a field, set it to null.`
 
     if (!aiResponse.ok) {
       const errorText = await aiResponse.text();
-      throw new Error(`OnSpace AI error: ${aiResponse.status} - ${errorText}`);
+      throw new Error(`AI error: ${aiResponse.status} - ${errorText}`);
     }
 
     const aiResult = await aiResponse.json();

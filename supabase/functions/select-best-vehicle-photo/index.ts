@@ -1,14 +1,15 @@
 /**
  * Edge Function: select-best-vehicle-photo - UPDATED FOR NEW SCHEMA
- * Uses OnSpace AI to analyze vehicle photos and select the best one as profile photo
+ * Uses AI to analyze vehicle photos and select the best one as profile photo
  * Updates canonical_vehicles.profile_photo
  */
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
 import { corsHeaders } from '../_shared/cors.ts';
 
-const ONSPACE_AI_BASE_URL = Deno.env.get('ONSPACE_AI_BASE_URL');
-const ONSPACE_AI_API_KEY = Deno.env.get('ONSPACE_AI_API_KEY');
+const OPENAI_BASE_URL = Deno.env.get('OPENAI_BASE_URL') || 'https://api.openai.com/v1';
+const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY');
+const OPENAI_MODEL = Deno.env.get('OPENAI_MODEL') || 'gpt-4o';
 const MIN_WEIGHTED_SCORE = Number(Deno.env.get('MIN_PROFILE_PHOTO_SCORE') ?? '70');
 const MIN_CLARITY_SCORE = Number(Deno.env.get('MIN_PROFILE_PHOTO_CLARITY') ?? '60');
 const REQUIRE_FULL_VEHICLE = (Deno.env.get('REQUIRE_FULL_VEHICLE_IN_FRAME') ?? '1') !== '0';
@@ -188,7 +189,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Analyze each photo using OnSpace AI with explicit emphasis on:
+    // Analyze each photo using AI with explicit emphasis on:
     // - Full vehicle in frame
     // - Clear/sharp image
     // - Distinct, unobstructed view
@@ -221,14 +222,14 @@ Return strict JSON:
   "reasons": ["short reason", "short reason"]
 }`;
 
-        const aiResponse = await fetch(`${ONSPACE_AI_BASE_URL}/chat/completions`, {
+        const aiResponse = await fetch(`${OPENAI_BASE_URL}/chat/completions`, {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${ONSPACE_AI_API_KEY}`,
+            'Authorization': `Bearer ${OPENAI_API_KEY}`,
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            model: 'google/gemini-3-flash-preview',
+            model: OPENAI_MODEL,
             messages: [
               {
                 role: 'user',

@@ -538,9 +538,13 @@ export default function FieldOfficerPortal() {
       const { data: alprData, error: alprError } = await retryEdgeCall(() =>
         edgeFunctions.processALPR({
           photo_url: photoUrl,
-          latitude: position.coords.latitude,
-          longitude: position.coords.longitude,
-          accuracy: position.coords.accuracy,
+          gpsLatitude: position.coords.latitude,
+          gpsLongitude: position.coords.longitude,
+          gpsAccuracy: position.coords.accuracy,
+          officerId: user.id,
+          organizationId: user.organization_id,
+          zoneId: finalZoneId,
+          idempotencyKey,
         })
       )
 
@@ -562,7 +566,7 @@ export default function FieldOfficerPortal() {
       toast.info('Saving observation...')
       const { data: ingestData, error: ingestError } = await retryEdgeCall(() =>
         edgeFunctions.ingestVehicleObservation({
-          image: imageDataUrl,
+          photo_url: photoUrl,
           gpsLatitude: position.coords.latitude,
           gpsLongitude: position.coords.longitude,
           gpsAccuracy: position.coords.accuracy,

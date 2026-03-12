@@ -1,6 +1,6 @@
 /**
- * OnSpace AI Chat Integration
- * Provides AI-powered bug analysis and code suggestions via OnSpace AI API
+ * AI Chat Integration
+ * Provides AI-powered analysis and suggestions via OpenAI-compatible API
  */
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
@@ -55,43 +55,43 @@ serve(async (req) => {
       );
     }
 
-    // Get OnSpace AI credentials
-    const ONSPACE_AI_API_KEY = Deno.env.get('ONSPACE_AI_API_KEY');
-    const ONSPACE_AI_BASE_URL = Deno.env.get('ONSPACE_AI_BASE_URL') || 'https://api.onspace.ai';
+    // Get AI credentials
+    const AI_API_KEY = Deno.env.get('OPENAI_API_KEY');
+    const AI_BASE_URL = Deno.env.get('OPENAI_BASE_URL') || 'https://api.openai.com/v1';
 
-    if (!ONSPACE_AI_API_KEY) {
-      console.error('ONSPACE_AI_API_KEY not configured');
+    if (!AI_API_KEY) {
+      console.error('OPENAI_API_KEY not configured');
       return new Response(
         JSON.stringify({ error: 'AI service not configured' }),
         { status: 500, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
       );
     }
 
-    console.log(`[OnSpace AI Chat] User: ${user.email}, Model: ${model}, Messages: ${messages.length}`);
+    console.log(`[AI Chat] User: ${user.email}, Model: ${model}, Messages: ${messages.length}`);
 
-    // Call OnSpace AI API
-    const aiResponse = await fetch(`${ONSPACE_AI_BASE_URL}/v1/chat/completions`, {
+    // Call AI API
+    const aiResponse = await fetch(`${AI_BASE_URL}/chat/completions`, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${ONSPACE_AI_API_KEY}`,
+        'Authorization': `Bearer ${AI_API_KEY}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
         model,
         messages,
         temperature,
-        max_tokens: 4000, // Sufficient for detailed bug analysis
+        max_tokens: 4000,
       }),
     });
 
     if (!aiResponse.ok) {
       const errorText = await aiResponse.text();
-      console.error(`[OnSpace AI] API Error (${aiResponse.status}):`, errorText);
-      
+      console.error(`[AI Chat] API Error (${aiResponse.status}):`, errorText);
+
       return new Response(
-        JSON.stringify({ 
-          error: `OnSpace AI error: ${aiResponse.status} ${aiResponse.statusText}`,
-          details: errorText 
+        JSON.stringify({
+          error: `AI service error: ${aiResponse.status} ${aiResponse.statusText}`,
+          details: errorText
         }),
         { status: aiResponse.status, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
       );
@@ -101,14 +101,14 @@ serve(async (req) => {
     const responseText = aiData.choices?.[0]?.message?.content;
 
     if (!responseText) {
-      console.error('[OnSpace AI] No response content in API result:', aiData);
+      console.error('[AI Chat] No response content in API result:', aiData);
       return new Response(
         JSON.stringify({ error: 'No response from AI' }),
         { status: 500, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' } }
       );
     }
 
-    console.log(`[OnSpace AI Chat] Success - Response length: ${responseText.length} chars`);
+    console.log(`[AI Chat] Success - Response length: ${responseText.length} chars`);
 
     return new Response(
       JSON.stringify({
@@ -120,7 +120,7 @@ serve(async (req) => {
     );
 
   } catch (error: any) {
-    console.error('[OnSpace AI Chat] Error:', error);
+    console.error('[AI Chat] Error:', error);
     return new Response(
       JSON.stringify({
         error: 'Internal server error',

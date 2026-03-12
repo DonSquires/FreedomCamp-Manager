@@ -437,9 +437,12 @@ INFERENCE_SERVICE_URL=https://<inference>.up.railway.app
 
 # External APIs
 PLATERECOGNIZER_TOKEN=<plate-recognizer-api-key>
-ONSPACE_AI_API_KEY=<onspace-ai-key>
-OPENAI_API_KEY=<openai-key>          # Optional: plate extraction in inference
-PARKPOW_API_TOKEN=<parkpow-token>     # Optional: parking enforcement
+# OpenAI-compatible AI (vehicle analysis, weather, document extraction, AI chat)
+# Get key: https://platform.openai.com/api-keys  → Create new secret key
+OPENAI_API_KEY=<openai-api-key>
+OPENAI_BASE_URL=                              # Leave blank for OpenAI; set for alternative providers
+OPENAI_MODEL=                                 # Optional: override default model (gpt-4o / gpt-4o-mini)
+PARKPOW_API_TOKEN=<parkpow-token>             # Optional: parking enforcement
 
 # Feature Flags
 DEV_CORS=false                        # true = wildcard CORS (dev only)
@@ -1595,7 +1598,9 @@ supabase secrets set PROXY_SERVER_URL=https://...
 supabase secrets set PROXY_SECRET=...
 supabase secrets set INFERENCE_SERVICE_URL=https://...
 supabase secrets set PLATERECOGNIZER_TOKEN=...
-supabase secrets set ONSPACE_AI_API_KEY=...
+supabase secrets set OPENAI_API_KEY=sk-...         # https://platform.openai.com/api-keys
+supabase secrets set OPENAI_BASE_URL=              # Optional: leave blank to use OpenAI default
+supabase secrets set OPENAI_MODEL=                 # Optional: override model (default gpt-4o / gpt-4o-mini)
 ```
 
 ### Frontend Deployment

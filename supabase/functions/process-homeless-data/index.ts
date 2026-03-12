@@ -35,12 +35,12 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    // Use OnSpace AI to intelligently parse and normalize the data
-    const aiApiKey = Deno.env.get('ONSPACE_AI_API_KEY');
-    const aiBaseUrl = Deno.env.get('ONSPACE_AI_BASE_URL');
+    // Use AI to intelligently parse and normalize the data
+    const aiApiKey = Deno.env.get('OPENAI_API_KEY');
+    const aiBaseUrl = Deno.env.get('OPENAI_BASE_URL') || 'https://api.openai.com/v1';
 
     if (!aiApiKey || !aiBaseUrl) {
-      throw new Error('OnSpace AI not configured');
+      throw new Error('AI service not configured');
     }
 
     console.log('🤖 Using AI to parse and normalize data...');
@@ -53,7 +53,7 @@ serve(async (req) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'google/gemini-3-flash-preview',
+        model: Deno.env.get('OPENAI_MODEL') || 'gpt-4o-mini',
         messages: [
           {
             role: 'system',

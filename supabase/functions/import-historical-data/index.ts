@@ -454,12 +454,12 @@ Return ONLY a JSON object with this structure:
 
     try {
       const aiResponse = await fetch(
-        `${Deno.env.get('ONSPACE_AI_BASE_URL')}/chat/completions`,
+        `${Deno.env.get('OPENAI_BASE_URL') || 'https://api.openai.com/v1'}/chat/completions`,
         {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${Deno.env.get('ONSPACE_AI_API_KEY')}`,
+            'Authorization': `Bearer ${Deno.env.get('OPENAI_API_KEY')}`,
           },
           body: JSON.stringify({
             model: 'gpt-4o',

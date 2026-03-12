@@ -1,45 +1,23 @@
 // ============================================================================
-// Unified Vehicle Ingest - Production Pipeline with Onspace AI Fallback
+// Unified Vehicle Ingest - Production Pipeline with Railway Inference
 // ============================================================================
 // Purpose: Production-ready vehicle observation ingest pipeline
-//
-// DEPLOYMENT MODES:
-// - Onspace AI Fallback (current): UI provides pre-processed plate data
-// - Railway Inference (future): Edge Function calls standalone service
 //
 // Features:
 // - Direct insert to observations table
 // - Photo upload with SHA-256 hashing
 // - GPS validation and offline sync support
 // - Idempotency for reliable offline-first architecture
+// - Railway inference for plate detection (graceful fallback to manual entry)
 // ============================================================================
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.7";
 
-// ============================================================================
-// DEPLOYMENT MODE FLAG
-// ============================================================================
-// Set to true for temporary Onspace AI fallback mode (ALPR/ORC handled by UI)
-// Set to false to re-enable Railway inference service
-const USE_ONSPACE_AI = true;
-// ============================================================================
-
-const ALLOWED_LOCALHOST_ORIGINS = new Set([
-  "http://localhost:5173",
-  "http://localhost:3000",
-]);
 const PHOTO_FETCH_TIMEOUT_MS = Number(Deno.env.get("INGEST_PHOTO_FETCH_TIMEOUT_MS") ?? "8000");
 
-function getCorsHeaders(req: Request) {
-  const origin = req.headers.get("origin") ?? "";
-  
-  // Allow all OnSpace domains (production + preview URLs)
-  const isOnspaceDomain = origin.endsWith('.onspace.build');
-  const isAllowed = ALLOWED_LOCALHOST_ORIGINS.has(origin) || isOnspaceDomain;
-  
+function getCorsHeaders(_req?: Request) {
   return {
-    ...(isAllowed ? { "Access-Control-Allow-Origin": origin } : {}),
-    "Vary": "Origin",
+    "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Methods": "POST, OPTIONS",
     "Access-Control-Allow-Headers": "authorization, apikey, x-client-info, content-type",
     "Access-Control-Max-Age": "3600",
@@ -270,12 +248,6 @@ Deno.serve(async (req) => {
     let officerNotes: string | null = null;
     let weatherConditions: string | null = null;
     let photoUrlInput: string | null = null;
-    
-    // Onspace AI fallback mode - plate data from client
-    let clientPlate: string | null = null;
-    let clientConfidence: number | null = null;
-    let clientRequiresManualEntry = false;
-    let clientRawCandidates: string[] | null = null;
 
     const contentType = req.headers.get("content-type") ?? "";
     console.log('📋 Content-Type header:', contentType);
@@ -297,14 +269,6 @@ Deno.serve(async (req) => {
       officerNotes = body.notes ?? body.officer_notes;
       weatherConditions = body.weather ?? body.weather_conditions;
       photoUrlInput = body.photo_url ?? body.photoUrl ?? null;
-      
-      // Onspace AI provided plate data
-      if (USE_ONSPACE_AI) {
-        clientPlate = body.plate;
-        clientConfidence = body.confidence;
-        clientRequiresManualEntry = body.requires_manual_entry ?? false;
-        clientRawCandidates = body.raw_candidates;
-      }
     } else if (contentType.includes("multipart/form-data")) {
       console.log('🔄 Parsing as FormData...');
       const formData = await req.formData();
@@ -325,14 +289,6 @@ Deno.serve(async (req) => {
       officerNotes = formData.get("notes") as string;
       weatherConditions = formData.get("weather") as string;
       photoUrlInput = (formData.get("photo_url") as string) || (formData.get("photoUrl") as string) || null;
-      
-      // Onspace AI provided plate data
-      if (USE_ONSPACE_AI) {
-        clientPlate = formData.get("plate") as string;
-        const confStr = formData.get("confidence") as string;
-        clientConfidence = confStr ? parseFloat(confStr) : null;
-        clientRequiresManualEntry = (formData.get("requires_manual_entry") as string) === "true";
-      }
     } else {
       // Unknown content type - log and return error
       console.error('❌ Unsupported Content-Type:', contentType);
@@ -439,7 +395,7 @@ Deno.serve(async (req) => {
       org: organizationId,
       zone: zoneId,
       idempotency: idempotencyKey,
-      mode: USE_ONSPACE_AI ? "onspace_fallback" : "railway_inference",
+      mode: "railway_inference",
       hasBytes: !!imageBytes,
       hasDataUrl: !!imageDataUrl,
       hasPhotoUrlInput: !!photoUrlInput,
@@ -506,7 +462,7 @@ Deno.serve(async (req) => {
     console.log("📸 Photo uploaded:", { path: photoFileName, hash: photoHash });
 
     // ========================================================================
-    // INFERENCE ROUTING
+    // INFERENCE ROUTING — Railway inference service with graceful fallback
     // ========================================================================
     let inferenceResult: {
       success: boolean;
@@ -517,34 +473,21 @@ Deno.serve(async (req) => {
       raw_candidates?: string[];
     };
 
-    if (USE_ONSPACE_AI) {
-      // Onspace AI mode - Accept pre-processed plate data from client
-      console.log('📱 Using Onspace AI fallback mode');
-      inferenceResult = {
-        success: true,
-        path: 'onspace_fallback',
-        plate: clientPlate,
-        requires_manual_entry: clientRequiresManualEntry,
-        confidence: clientConfidence,
-        raw_candidates: clientRawCandidates ?? undefined,
-      };
-      
-      // Log for debugging
-      console.log('Onspace inference result:', {
-        plate: inferenceResult.plate,
-        confidence: inferenceResult.confidence,
-        requires_manual_entry: inferenceResult.requires_manual_entry,
-      });
-    } else {
-      // Railway inference mode - Call standalone service
-      console.log('🚂 Using Railway inference service');
-      const inferenceUrl = Deno.env.get('INFERENCE_SERVICE_URL');
-      const inferenceTimeoutMs = Number(Deno.env.get('INFERENCE_TIMEOUT_MS') ?? '8000');
-      
-      if (!inferenceUrl) {
-        throw new Error('INFERENCE_SERVICE_URL not configured');
-      }
+    // Railway inference mode - Call standalone service
+    console.log('🚂 Using Railway inference service');
+    const inferenceUrl = Deno.env.get('INFERENCE_SERVICE_URL');
+    const inferenceTimeoutMs = Number(Deno.env.get('INFERENCE_TIMEOUT_MS') ?? '8000');
 
+    if (!inferenceUrl) {
+      console.warn('⚠️ INFERENCE_SERVICE_URL not configured — flagging for manual entry');
+      inferenceResult = {
+        success: false,
+        path: 'no_inference_service',
+        plate: null,
+        requires_manual_entry: true,
+        confidence: null,
+      };
+    } else {
       try {
         const imageBase64 = imageDataUrl?.split(',')[1] ?? (imageBytes ? bytesToBase64(imageBytes) : null);
         if (!imageBase64) {
@@ -573,7 +516,7 @@ Deno.serve(async (req) => {
           requires_manual_entry: !inferenceData.plate,
           confidence: inferenceData.confidence,
         };
-        
+
         console.log('🚂 Railway inference success:', {
           plate: inferenceResult.plate,
           confidence: inferenceResult.confidence,

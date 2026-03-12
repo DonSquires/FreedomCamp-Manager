@@ -98,15 +98,15 @@ serve(async (req: Request) => {
       throw new Error(`Unsupported file type: ${fileType}. Please upload PDF, Word (.doc/.docx), images (.jpg/.png), or text files.`);
     }
 
-    // Call OnSpace AI to extract job information
-    const aiApiKey = Deno.env.get('ONSPACE_AI_API_KEY');
-    const aiBaseUrl = Deno.env.get('ONSPACE_AI_BASE_URL');
+    // Call AI to extract job information
+    const aiApiKey = Deno.env.get('OPENAI_API_KEY');
+    const aiBaseUrl = Deno.env.get('OPENAI_BASE_URL') || 'https://api.openai.com/v1';
 
     if (!aiApiKey || !aiBaseUrl) {
-      throw new Error('OnSpace AI credentials not configured');
+      throw new Error('AI credentials not configured');
     }
 
-    console.log('Calling OnSpace AI for document extraction...');
+    console.log('Calling AI for document extraction...');
 
     const systemPrompt = `You are a document processing assistant that extracts job information from investigation briefing documents, work orders, and emails.
 
@@ -143,7 +143,7 @@ Return ONLY a valid JSON object with these exact field names. Use null for missi
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'google/gemini-3-flash-preview',
+        model: Deno.env.get('OPENAI_MODEL') || 'gpt-4o-mini',
         messages: aiMessages,
         temperature: 0.1, // Low temperature for consistent extraction
         max_tokens: 2000,

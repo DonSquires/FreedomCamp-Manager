@@ -16,14 +16,15 @@ serve(async (req) => {
 
     console.log('🌤️ Fetching weather for:', latitude, longitude);
 
-    // Use OnSpace AI to get current weather description
-    const aiApiKey = Deno.env.get('ONSPACE_AI_API_KEY');
-    const aiBaseUrl = Deno.env.get('ONSPACE_AI_BASE_URL');
+    // Use AI to get current weather description
+    const aiApiKey = Deno.env.get('OPENAI_API_KEY');
+    const aiBaseUrl = Deno.env.get('OPENAI_BASE_URL') || 'https://api.openai.com/v1';
 
     if (!aiApiKey || !aiBaseUrl) {
-      throw new Error('OnSpace AI not configured');
+      throw new Error('AI service not configured');
     }
 
+    const aiModel = Deno.env.get('OPENAI_MODEL') || 'gpt-4o-mini';
     const aiResponse = await fetch(`${aiBaseUrl}/chat/completions`, {
       method: 'POST',
       headers: {
@@ -31,7 +32,7 @@ serve(async (req) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'google/gemini-3-flash-preview',
+        model: aiModel,
         messages: [
           {
             role: 'system',

@@ -228,9 +228,10 @@
 
 ### **1. Environment Variables (Supabase Secrets)**
 ```bash
-PLATE_RECOGNIZER_API_KEY=sk_xxx...    # ALPR service
-ONSPACE_AI_API_KEY=sk-xxx...          # OnSpace AI
-ONSPACE_AI_BASE_URL=https://api.onspace.ai/v1
+PLATE_RECOGNIZER_API_KEY=sk_xxx...    # ALPR service (Plate Recognizer)
+# AI features — get key at https://platform.openai.com/api-keys
+OPENAI_API_KEY=sk-...
+OPENAI_BASE_URL=                      # Leave blank for OpenAI; set for alternative providers
 ```
 
 ### **2. Database Tables Involved**
@@ -270,9 +271,10 @@ ONSPACE_AI_BASE_URL=https://api.onspace.ai/v1
    - **Cause:** API key invalid or rate limit exceeded
    - **Fix:** Verify `PLATE_RECOGNIZER_API_KEY` in Supabase secrets
 
-4. **"OnSpace AI error"**
+4. **"AI service error"**
    - **Cause:** API key missing or invalid
-   - **Fix:** Verify `ONSPACE_AI_API_KEY` and `ONSPACE_AI_BASE_URL`
+   - **Fix:** Verify `OPENAI_API_KEY` in Supabase secrets
+     (get key at https://platform.openai.com/api-keys)
 
 5. **"Zone not selected"**
    - **Cause:** User didn't select zone or zones not loaded
