@@ -45,7 +45,7 @@ CHECK (status IN (
 ### **Trigger Flow:**
 ```
 1. Vehicle scanned (zoom scan or normal capture)
-   └─ observation created in vehicle_observations_v2
+   └─ observation created in observations
 
 2. process-field-scan calls calculate_vehicle_compliance_with_results()
    └─ compliance_results record created

@@ -125,7 +125,7 @@ These are **hard validation rules** - the database will reject any values not in
 
 ## 📋 Required Fields by Table
 
-### vehicle_observations_v2 (Main Observation Entry)
+### observations (Main Observation Entry)
 **REQUIRED (NOT NULL):**
 - `plate_number` (text) - Must be uppercase, alphanumeric only
 - `recorded_at` (timestamp) - ISO 8601 format
@@ -497,14 +497,14 @@ Before inserting records, ensure these foreign keys exist:
 ### What Mobile App Can Do:
 
 **INSERT** (authenticated users):
-- `vehicle_observations_v2` - ✅ Any authenticated user
+- `observations` - ✅ Any authenticated user
 - `incidents` - ✅ Any authenticated user
 - `health_safety_reports` - ✅ Any authenticated user
 - `enforcement_actions` - ✅ Any authenticated user (own org)
 - `plate_scans` - ✅ Any authenticated user (own org)
 
 **SELECT** (read):
-- `vehicle_observations_v2` - ✅ Own organization OR master users see all
+- `observations` - ✅ Own organization OR master users see all
 - `incidents` - ✅ Own organization OR master users see all
 - `health_safety_reports` - ✅ Own organization OR master users see all
 - `enforcement_actions` - ✅ Own organization OR master users see all
@@ -514,14 +514,14 @@ Before inserting records, ensure these foreign keys exist:
 - `patrols` - ✅ Own organization OR master users see all
 
 **UPDATE** (modify):
-- `vehicle_observations_v2` - ❌ Immutable (admins only, within 24h)
+- `observations` - ❌ Immutable (admins only, within 24h)
 - `incidents` - ✅ Own incidents only (officers), own org (admins)
 - `enforcement_actions` - ✅ Own org (admins), assigned jobs (officers)
 - `patrols` - ✅ Own patrols only
 
 **DELETE**:
 - ❌ Most tables: Super-delete permission only (`don.squire@firstsecurity.co.nz`)
-- ⚠️ `vehicle_observations_v2`: Officers can delete own observations within 24 hours
+- ⚠️ `observations`: Officers can delete own observations within 24 hours
 
 ---
 

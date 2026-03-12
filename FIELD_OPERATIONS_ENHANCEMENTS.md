@@ -109,7 +109,7 @@ const canModifyScan = (scan: SessionScan, userId: string) => {
 ```sql
 -- Officers can delete their own recent scans
 CREATE POLICY officers_delete_recent_scans
-  ON vehicle_observations_v2 FOR DELETE
+  ON observations FOR DELETE
   USING (
     recorded_by = auth.uid() 
     AND recorded_at >= (nz_now() - INTERVAL '24 hours')
@@ -117,7 +117,7 @@ CREATE POLICY officers_delete_recent_scans
 
 -- Officers can edit their own recent scans
 CREATE POLICY officers_edit_recent_scans
-  ON vehicle_observations_v2 FOR UPDATE
+  ON observations FOR UPDATE
   USING (
     recorded_by = auth.uid() 
     AND recorded_at >= (nz_now() - INTERVAL '24 hours')
@@ -141,7 +141,7 @@ const [filterAtRisk, setFilterAtRisk] = useState(false);
 
 const loadOrgScans = async () => {
   const { data: scans, error } = await supabase
-    .from('vehicle_observations_v2')
+    .from('observations')
     .select(`
       *,
       zones(name),

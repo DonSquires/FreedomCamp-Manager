@@ -205,7 +205,7 @@ SELECT
   embedding_quality,
   embedding_model_version,
   created_at
-FROM vehicle_observations_v2
+FROM observations
 WHERE created_at > now() - interval '10 minutes'
 ORDER BY created_at DESC
 LIMIT 5;
@@ -283,7 +283,7 @@ ERROR: column "plate_number" does not exist
 **Fix:**
 ```sql
 -- Run in Supabase SQL Editor
-ALTER TABLE vehicle_observations_v2
+ALTER TABLE observations
   ADD COLUMN IF NOT EXISTS plate_number text,
   ADD COLUMN IF NOT EXISTS plate_confidence real;
 ```

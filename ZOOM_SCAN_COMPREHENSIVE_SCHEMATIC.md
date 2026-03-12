@@ -175,7 +175,7 @@ const streamRef = useRef<MediaStream | null>(null);
 │ Backend Process:                                            │
 │ 1. Normalize plate → "ABC123"                               │
 │ 2. Get/create canonical vehicle (upsert)                    │
-│ 3. Create observation in vehicle_observations_v2            │
+│ 3. Create observation in observations            │
 │ 4. Run compliance check (calculate_vehicle_compliance)      │
 │ 5. Check flagged status                                     │
 │ 6. Return result                                             │
@@ -310,7 +310,7 @@ const streamRef = useRef<MediaStream | null>(null);
    - First/last seen timestamps
    - Total observations count
 
-2. vehicle_observations_v2
+2. observations
    - Observation ID (UUID)
    - Plate number (FK → canonical_vehicles)
    - Organization ID (FK → organizations)
@@ -325,7 +325,7 @@ const streamRef = useRef<MediaStream | null>(null);
 
 3. compliance_results
    - Compliance result ID (UUID)
-   - Observation ID (FK → vehicle_observations_v2)
+   - Observation ID (FK → observations)
    - Zone ID (FK → zones)
    - Matrix ID (FK → zone_compliance_matrix)
    - Is compliant (boolean)
@@ -335,7 +335,7 @@ const streamRef = useRef<MediaStream | null>(null);
 
 4. breach_alerts (AUTO-POPULATED BY TRIGGER)
    - Breach alert ID (UUID)
-   - Observation ID (FK → vehicle_observations_v2)
+   - Observation ID (FK → observations)
    - Plate number (FK → canonical_vehicles)
    - Organization ID (FK → organizations)
    - Zone ID (FK → zones)
@@ -367,15 +367,15 @@ const streamRef = useRef<MediaStream | null>(null);
 -- TRIGGERS THAT FIRE DURING ZOOM SCAN
 
 1. trigger_populate_observation_from_canonical
-   - Fires: BEFORE INSERT on vehicle_observations_v2
+   - Fires: BEFORE INSERT on observations
    - Action: Auto-fills vehicle details from canonical_vehicles
    
 2. trigger_update_canonical_stats_v2
-   - Fires: AFTER INSERT on vehicle_observations_v2
+   - Fires: AFTER INSERT on observations
    - Action: Updates canonical_vehicles stats (total_observations, last_seen_at)
 
 3. trigger_auto_create_compliance_result
-   - Fires: AFTER INSERT on vehicle_observations_v2
+   - Fires: AFTER INSERT on observations
    - Action: Creates compliance_results record automatically
    
 4. trigger_auto_create_breach_alert
@@ -383,7 +383,7 @@ const streamRef = useRef<MediaStream | null>(null);
    - Action: Creates breach_alerts if non-compliant + not homeless
    
 5. trigger_update_monthly_stays_on_observation
-   - Fires: AFTER INSERT on vehicle_observations_v2
+   - Fires: AFTER INSERT on observations
    - Action: Updates vehicle_monthly_stays counters
 ```
 
@@ -971,7 +971,7 @@ supabase/functions/_shared/cors.ts (CORS headers)
 
 Database:
 canonical_vehicles (Vehicle master data)
-vehicle_observations_v2 (Scan records)
+observations (Scan records)
 compliance_results (Auto-created by trigger)
 breach_alerts (Auto-created by trigger)
 vehicle_monthly_stays (Updated by trigger)

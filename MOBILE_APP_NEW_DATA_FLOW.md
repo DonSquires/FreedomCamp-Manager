@@ -21,7 +21,7 @@ The vehicle data architecture has been completely rebuilt with a **plate-number-
   - `last_note_preview` (first 100 chars of last note)
   - `total_observations`, `total_breaches`, `total_incidents`
 
-### **2. `vehicle_observations_v2` - Independent Observation Records**
+### **2. `observations` - Independent Observation Records**
 - **Primary Key**: `observation_id` (UUID)
 - **Foreign Key**: `plate_number` → `canonical_vehicles(plate_number)`
 - **Purpose**: Every sighting is a complete, independent record
@@ -58,7 +58,7 @@ sequenceDiagram
     participant Officer as 📱 Mobile App
     participant ALPR as 🤖 ALPR API
     participant Canonical as 🗄️ canonical_vehicles
-    participant Observations as 📝 vehicle_observations_v2
+    participant Observations as 📝 observations
     participant Monthly as 📅 vehicle_monthly_stays
 
     Officer->>ALPR: 1. Capture photo + scan plate
@@ -78,7 +78,7 @@ sequenceDiagram
     Officer->>Officer: 7. Add officer notes (optional)
     Officer->>Officer: 8. Review previous notes (if any)
     
-    Officer->>Observations: 9. Create vehicle_observations_v2 record
+    Officer->>Observations: 9. Create observations record
     Note over Observations: AUTO-POPULATE:<br/>- vehicle_make from canonical<br/>- vehicle_model from canonical<br/>- self_contained from canonical<br/>- etc.
     
     Observations->>Canonical: 10. Update canonical stats (trigger)
@@ -219,7 +219,7 @@ async function submitObservation(data: {
 
   // 2. Create observation record
   const { data: observation, error } = await supabase
-    .from('vehicle_observations_v2')
+    .from('observations')
     .insert({
       plate_number: data.plate_number,
       // Vehicle details will AUTO-POPULATE from canonical via trigger
@@ -310,7 +310,7 @@ async function updateCanonicalVehicle(plateNumber: string, updates: {
 
 ### **Required Changes:**
 
-- [ ] Update observation submission to use `vehicle_observations_v2` table
+- [ ] Update observation submission to use `observations` table
 - [ ] Add "View Previous Notes" button in vehicle details modal
 - [ ] Implement `get_vehicle_notes_history()` RPC call
 - [ ] Show `total_notes` count in vehicle details
@@ -334,7 +334,7 @@ async function updateCanonicalVehicle(plateNumber: string, updates: {
 
 1. **Phase 1** (Now): SQL migration applied, new tables created
 2. **Phase 2** (Next): Update mobile app to use new schema
-3. **Phase 3** (After mobile update): Migrate old observations to `vehicle_observations_v2`
+3. **Phase 3** (After mobile update): Migrate old observations to `observations`
 4. **Phase 4** (Final): Deprecate old `vehicle_observations` table
 
 ---
@@ -342,10 +342,10 @@ async function updateCanonicalVehicle(plateNumber: string, updates: {
 ## ❓ FAQ
 
 **Q: What happens to existing observations?**
-A: They remain in the old `vehicle_observations` table. A migration script will copy them to `vehicle_observations_v2` after the mobile app is updated.
+A: They remain in the old `vehicle_observations` table. A migration script will copy them to `observations` after the mobile app is updated.
 
 **Q: Do I need to update Edge Functions?**
-A: Yes, Edge Functions like `process-field-scan` should be updated to insert into `vehicle_observations_v2` instead of `vehicle_observations`.
+A: Yes, Edge Functions like `process-field-scan` should be updated to insert into `observations` instead of `vehicle_observations`.
 
 **Q: How do I test the new schema?**
 A: Create a test observation using the mobile app. Verify that:

@@ -4,7 +4,7 @@
 
 ### 1️⃣ **Clean Architecture**
 
-**Old System (vehicle_observations_v2):**
+**Old System (observations):**
 - ❌ Complex joins to canonical_vehicles, photo_metadata, compliance_results
 - ❌ 50+ columns with confusing relationships
 - ❌ Multiple nullable fields causing data inconsistencies
@@ -94,7 +94,7 @@ consecutive_nights          integer
 
 ### **Database Migration**
 - `20260221_rebuild_observations_clean.sql`
-- Drops old vehicle_observations_v2, compliance_results, scan_idempotency_keys
+- Drops old observations, compliance_results, scan_idempotency_keys
 - Creates new observations table
 - RLS policies for officers, users, admins
 - Helper function: `get_observation_summary()`
@@ -139,7 +139,7 @@ consecutive_nights          integer
 ```
 
 **This will:**
-- Drop old vehicle_observations_v2 table
+- Drop old observations table
 - Create new observations table
 - Set up RLS policies
 - Create helper functions
@@ -156,7 +156,7 @@ The new `ObservationsReport.tsx` is ready to use immediately.
 ### **3. Update Edge Functions**
 
 **Files to modify:**
-- `vehicle-ingest/index.ts` - Change insert target from `vehicle_observations_v2` to `observations`
+- `vehicle-ingest/index.ts` - Change insert target from `observations` to `observations`
 - `process-field-scan/index.ts` - Update table reference
 - Any other functions that write to observations
 
@@ -164,7 +164,7 @@ The new `ObservationsReport.tsx` is ready to use immediately.
 ```typescript
 // Old
 const { data, error } = await supabase
-  .from('vehicle_observations_v2')
+  .from('observations')
   .insert({ ... });
 
 // New
@@ -190,7 +190,7 @@ const { data, error } = await supabase
 
 ## ⚠️ **Data Migration (Manual)**
 
-The migration **does not** automatically copy data from `vehicle_observations_v2`.
+The migration **does not** automatically copy data from `observations`.
 
 **If you need to preserve historical data:**
 
@@ -243,7 +243,7 @@ SELECT
   v.breach_type,
   gen_random_uuid()::text, -- Generate unique idempotency keys
   v.created_at
-FROM vehicle_observations_v2 v
+FROM observations v
 LEFT JOIN photo_metadata pm ON pm.observation_id = v.observation_id
 WHERE v.recorded_at >= '2025-01-01'; -- Adjust date range as needed
 ```

@@ -26,7 +26,7 @@ Homeless vehicle data is currently scattered across **4 different locations**:
 - homeless_confirmation_notes: text
 ```
 
-### 4. `vehicle_observations_v2` (❌ REDUNDANT)
+### 4. `observations` (❌ REDUNDANT)
 ```sql
 - has_homeless_claim: boolean
 - homeless_claim_notes: text
@@ -64,7 +64,7 @@ END;
 $$ LANGUAGE plpgsql;
 
 CREATE TRIGGER trigger_sync_homeless_to_canonical
-  AFTER INSERT OR UPDATE ON vehicle_observations_v2
+  AFTER INSERT OR UPDATE ON observations
   FOR EACH ROW
   WHEN (NEW.has_homeless_claim = true)
   EXECUTE FUNCTION sync_homeless_status_to_canonical();
@@ -84,7 +84,7 @@ SET
     string_agg(vo.homeless_claim_notes, E'\n---\n')
   ),
   updated_at = now()
-FROM vehicle_observations_v2 vo
+FROM observations vo
 WHERE vo.plate_number = cv.plate_number
   AND vo.has_homeless_claim = true
   AND cv.homeless_status = 'none'
@@ -310,7 +310,7 @@ const { data: homelessClaims } = await supabase
 
 1. **Deprecate redundant fields** (but keep for audit trail):
    - Mark `vehicle_records.homeless_*` fields as deprecated in docs
-   - Mark `vehicle_observations_v2.has_homeless_claim` as deprecated
+   - Mark `observations.has_homeless_claim` as deprecated
    - Mark `flagged_vehicles.confirmed_homeless` as deprecated
 
 2. **Add database comments**:

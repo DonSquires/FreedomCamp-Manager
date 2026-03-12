@@ -328,7 +328,7 @@ export const edgeFunctions = {
 
   /**
    * Fresh compliance recalculation path for current observations schema.
-   * This function is independent from legacy vehicle_observations_v2 logic.
+  * This function is independent from legacy observation-table logic.
    */
   recalculateComplianceV3: async (params: {
     zone_id?: string

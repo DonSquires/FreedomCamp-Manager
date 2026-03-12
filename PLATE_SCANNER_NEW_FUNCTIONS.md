@@ -65,7 +65,7 @@ supabase/functions/plate-scanner-complete/index.ts
 ┌─────────────────────────────────────────────────────────┐
 │ 4. CREATE OBSERVATION                                   │
 ├─────────────────────────────────────────────────────────┤
-│ Table: vehicle_observations_v2                         │
+│ Table: observations                         │
 │ - plate_number (normalized)                            │
 │ - vehicle_make, model, color, year (from ALPR)         │
 │ - photo (public URL)                                   │
@@ -176,7 +176,7 @@ supabase/functions/plate-scanner-complete/index.ts
   - `first_seen_at`, `last_seen_at`
   - `total_observations` (incremented)
 
-### 2. vehicle_observations_v2
+### 2. observations
 - **Always created:** One record per scan
 - **Fields set:**
   - `observation_id` (UUID, generated)
@@ -192,7 +192,7 @@ supabase/functions/plate-scanner-complete/index.ts
 
 ### 3. compliance_results (Auto-created by trigger)
 - **Trigger:** `trigger_auto_create_compliance_result`
-- **When:** After INSERT on vehicle_observations_v2
+- **When:** After INSERT on observations
 - **Fields:**
   - `observation_id` (FK)
   - `zone_id`, `organization_id`
@@ -218,7 +218,7 @@ supabase/functions/plate-scanner-complete/index.ts
 
 ### 5. vehicle_monthly_stays (Updated by trigger)
 - **Trigger:** `trigger_update_monthly_stays_on_observation`
-- **When:** After INSERT on vehicle_observations_v2
+- **When:** After INSERT on observations
 - **Updates:**
   - `nights_stayed` (incremented if overnight)
   - `consecutive_nights` (tracked via GPS)
@@ -321,7 +321,7 @@ if (scanResult.success) {
 **Input:** New plate, no previous observations, compliant zone  
 **Expected:**
 - Creates canonical_vehicles record
-- Creates vehicle_observations_v2 record
+- Creates observations record
 - Creates compliance_results (is_compliant = true)
 - NO breach_alerts created
 - Response: `is_compliant: true, alerts: ["✅ Compliant"]`
@@ -381,7 +381,7 @@ After deployment, verify:
 - ✅ Photos uploaded successfully (evidence bucket)
 - ✅ ALPR detects plates (Plate Recognizer API)
 - ✅ Canonical vehicles created/updated
-- ✅ Observations created in vehicle_observations_v2
+- ✅ Observations created in observations
 - ✅ Compliance_results auto-created by trigger
 - ✅ Breach_alerts auto-created when non-compliant (excluding homeless)
 - ✅ Monthly_stays updated by trigger

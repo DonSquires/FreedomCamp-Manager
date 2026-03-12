@@ -28,7 +28,7 @@
 **Solution**:
 - **Already Working Correctly**: User profiles use foreign key relationships
 - All tables reference `user_profiles.id` via foreign keys:
-  - `vehicle_observations_v2.recorded_by`
+  - `observations.recorded_by`
   - `enforcement_actions.user_id`
   - `incidents.user_id`
   - `breach_alerts.notified_by`, `assigned_by`, `resolved_by`
@@ -85,7 +85,7 @@
 
 ```sql
 -- Track which portal created each observation
-ALTER TABLE vehicle_observations_v2 
+ALTER TABLE observations 
 ADD COLUMN portal_used TEXT CHECK (portal_used IN ('field', 'admin', 'api'));
 
 -- Track homeless exemptions

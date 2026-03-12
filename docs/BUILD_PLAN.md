@@ -308,7 +308,7 @@ The v2 rebuild applies strict separation of concerns to eliminate the root cause
 of accumulated bugs:
 
 1. **One pipeline, one table** — `alpr-process` is the single ALPR entrypoint.
-   `observations` is the only operational table. `vehicle_observations_v2` is a
+   `observations` is the only operational table. `observations` is a
    legacy mirror — never write to or read from it for operational data.
 2. **No observation queue** — `observation_jobs` has been permanently removed.
    The ALPR pipeline uses `observations.processing_status` directly.
@@ -590,7 +590,7 @@ Master vehicle registry — one row per plate number.
 #### `observations`
 Individual vehicle sightings — **the only operational table** for ALPR data.
 
-> **⚠️ NEVER use `vehicle_observations_v2` for operational queries.** That table
+> **⚠️ NEVER use `observations` for operational queries.** That table
 > is a legacy mirror only. All writes and reads go through `observations`.
 >
 > **⚠️ `observation_jobs` has been permanently removed.** Use
@@ -965,7 +965,7 @@ Privacy Act 2020 – who viewed each record and when.
 
 | Table | Reason |
 |---|---|
-| `vehicle_observations_v2` | Legacy mirror — `observations` is the source of truth |
+| `observations` | Legacy mirror — `observations` is the source of truth |
 | `vehicle_records` | Merged into `canonical_vehicles` |
 | `flagged_vehicles` | Merged into `canonical_vehicles.is_flagged` |
 | `observation_jobs` | Removed — use `observations.processing_status` |
@@ -1676,9 +1676,9 @@ Deploy the `dist/` folder to any static host:
    - Then: supporting tables (audit_log, bug_reports, etc.)
    - Finally: RLS policies, triggers, helper functions
 
-   > **⚠️ CRITICAL**: The `vehicle_observations_v2` table is a mirror/backup only.
+   > **⚠️ CRITICAL**: The `observations` table is a mirror/backup only.
    > All operational queries must target the `observations` table. Never use
-   > `vehicle_observations_v2` for search, queries, or inserts.
+   > `observations` for search, queries, or inserts.
 
 4. **Create RLS helper functions** (SECURITY DEFINER):
    - `get_user_role(uid)`
@@ -1806,7 +1806,7 @@ Build in parallel with pages:
 
 ### Critical Lessons from the Current Build
 
-1. **Never query `vehicle_observations_v2`** — it is a legacy mirror only.
+1. **Never query `observations`** — it is a legacy mirror only.
    All operational writes and reads must target the `observations` table.
 
 2. **`observation_jobs` has been permanently removed** — do not recreate it.

@@ -59,7 +59,7 @@
 - [ ] Refresh button works
 
 **Critical Functions:**
-- `vehicle_observations_v2` breach detection queries
+- `observations` breach detection queries
 - `enforcement_actions` CRUD operations
 - `canonical_vehicles` homeless/flagged status joins
 - Officer assignment workflow (insert → assign → complete)

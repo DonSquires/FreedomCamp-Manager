@@ -9,7 +9,7 @@ Rebuild the entire Freedom Camping Compliance System from the ground up using cl
 
 ### ✅ Core Tables (Keep As-Is)
 1. **canonical_vehicles** - 17,000+ vehicle records (plate_number PK)
-2. **vehicle_observations_v2** - All observation history
+2. **observations** - All observation history
 3. **zones** - Location definitions with compliance rules
 4. **organizations** - Tenant data
 5. **user_profiles** - User accounts and permissions
@@ -35,7 +35,7 @@ Rebuild the entire Freedom Camping Compliance System from the ground up using cl
 
 ### 1. **Single Source of Truth**
 - `canonical_vehicles` = Master vehicle registry (permanent data)
-- `vehicle_observations_v2` = Event stream (time-series data)
+- `observations` = Event stream (time-series data)
 - NO duplicate storage of vehicle attributes
 
 ### 2. **Simplified Data Flow**
@@ -63,7 +63,7 @@ SCAN → Plate Recognizer API → Edge Function → Database → Real-time UI
 ### Step 1.1: Backup Current State
 ```sql
 -- Create full database backup BEFORE any changes
--- Export to CSV: canonical_vehicles, vehicle_observations_v2, all critical tables
+-- Export to CSV: canonical_vehicles, observations, all critical tables
 ```
 
 ### Step 1.2: Remove Deprecated Tables
@@ -83,9 +83,9 @@ CREATE INDEX IF NOT EXISTS idx_canonical_vehicles_plate_number ON canonical_vehi
 CREATE INDEX IF NOT EXISTS idx_canonical_vehicles_updated_at ON canonical_vehicles(updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_canonical_vehicles_flagged_homeless ON canonical_vehicles(is_flagged, homeless_status);
 
--- vehicle_observations_v2: Add composite indexes for common queries
-CREATE INDEX IF NOT EXISTS idx_observations_v2_plate_zone_date ON vehicle_observations_v2(plate_number, zone_id, recorded_at DESC);
-CREATE INDEX IF NOT EXISTS idx_observations_v2_org_date ON vehicle_observations_v2(organization_id, recorded_at DESC);
+-- observations: Add composite indexes for common queries
+CREATE INDEX IF NOT EXISTS idx_observations_v2_plate_zone_date ON observations(plate_number, zone_id, recorded_at DESC);
+CREATE INDEX IF NOT EXISTS idx_observations_v2_org_date ON observations(organization_id, recorded_at DESC);
 ```
 
 ### Step 1.4: Rebuild Compliance Architecture
@@ -135,7 +135,7 @@ CREATE FUNCTION check_vehicle_compliance_v3(
    
 2. **process-field-scan** (Observation creation + compliance)
    - Upserts canonical_vehicles
-   - Creates vehicle_observations_v2
+   - Creates observations
    - Runs compliance check
    - Returns: all vehicle data + compliance status
    

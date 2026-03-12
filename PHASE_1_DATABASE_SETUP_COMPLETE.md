@@ -12,7 +12,7 @@
 - ✅ Enabled `vector` extension for cosine similarity search
 - ✅ Supports 256-1024 dimensional embeddings
 
-### **2. Embedding Columns** (vehicle_observations_v2)
+### **2. Embedding Columns** (observations)
 ```sql
 vehicle_embedding vector(384)          -- 384D vector fingerprint
 embedding_quality real                 -- Quality score 0-1
@@ -106,7 +106,7 @@ select * from pg_extension where extname = 'vector';
 ### **Step 3: Verify Columns**
 ```sql
 -- Check new columns exist
-\d vehicle_observations_v2
+\d observations
 
 -- Should show:
 -- vehicle_embedding | vector(384)
@@ -119,7 +119,7 @@ select * from pg_extension where extname = 'vector';
 ```sql
 -- Test function (will return empty until embeddings exist)
 select * from match_vehicle(
-  p_obs_id := (select observation_id from vehicle_observations_v2 limit 1),
+  p_obs_id := (select observation_id from observations limit 1),
   p_k := 5
 );
 
@@ -174,7 +174,7 @@ select * from check_embedding_readiness();
 
 -- 2. If ready_for_index = true, create index:
 create index idx_obs_embed_ivfflat
-  on vehicle_observations_v2 using ivfflat (vehicle_embedding vector_cosine_ops)
+  on observations using ivfflat (vehicle_embedding vector_cosine_ops)
   with (lists = 100);
 
 -- 3. Monitor query performance
@@ -195,7 +195,7 @@ Before proceeding to Phase 2, verify:
 
 - [x] Migration applied successfully
 - [x] pgvector extension enabled
-- [x] 4 new columns added to vehicle_observations_v2
+- [x] 4 new columns added to observations
 - [x] 3 indices created
 - [x] match_vehicle() function works (even if returns empty)
 - [x] check_embedding_readiness() function works

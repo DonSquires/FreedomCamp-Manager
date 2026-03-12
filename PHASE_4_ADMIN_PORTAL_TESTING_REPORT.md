@@ -204,7 +204,7 @@ The Admin Portal is organized into **5 consolidated hubs**:
 
 **Expected Results:**
 - Scans from `plate_scans` table where `reviewed = false`
-- Approval creates vehicle_observations_v2 record
+- Approval creates observations record
 - Rejection logs reason in review_notes
 
 ---
@@ -333,7 +333,7 @@ The Admin Portal is organized into **5 consolidated hubs**:
 
 **Expected Results:**
 - Charts render with recharts library
-- Data aggregates from vehicle_observations_v2
+- Data aggregates from observations
 - Filters update charts in real-time
 - CSV export includes all visible data
 

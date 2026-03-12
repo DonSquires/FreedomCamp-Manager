@@ -899,7 +899,7 @@ Deno.serve(async (req) => {
 
   // Fetch recent observations (last N days)
   const { data: recent_observations } = await supabase
-    .from('vehicle_observations_v2')
+    .from('observations')
     .select('*')
     .eq('organization_id', organization_id)
     .gte('recorded_at', startDate.toISOString())

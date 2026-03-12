@@ -27,7 +27,7 @@
   - Owner information
   - Permanent notes
   - Aggregate statistics
-- ✅ Established **vehicle_observations_v2** as event records only:
+- ✅ Established **observations** as event records only:
   - Event timestamp and GPS location
   - Compliance status at time of observation
   - Officer notes for specific event
@@ -74,7 +74,7 @@ CREATE OR REPLACE FUNCTION nz_now() RETURNS TIMESTAMPTZ AS $$
 $$ LANGUAGE SQL IMMUTABLE;
 
 -- Use in defaults
-ALTER TABLE vehicle_observations_v2 
+ALTER TABLE observations 
   ALTER COLUMN recorded_at SET DEFAULT nz_now();
 ```
 
@@ -189,7 +189,7 @@ supabase.rpc('set_config', {
 **CURRENT:** Session scans stored in:
 1. Component state (`sessionScans`)
 2. LocalStorage (persistence)
-3. Database (vehicle_observations_v2)
+3. Database (observations)
 
 **FIX:** Single source of truth:
 - Database is primary
@@ -235,7 +235,7 @@ SELECT
     AND ea.breach_status IN ('active', 'assigned', 'in_progress')
   ) AS has_active_enforcement
 FROM compliance_results cr
-JOIN vehicle_observations_v2 vo ON vo.observation_id = cr.observation_id
+JOIN observations vo ON vo.observation_id = cr.observation_id
 WHERE cr.is_compliant = FALSE
   AND cr.violation_reasons IS NOT NULL
 ORDER BY vo.recorded_at DESC;
@@ -244,8 +244,8 @@ ORDER BY vo.recorded_at DESC;
 #### **B. Homeless Tracking Simplification**
 **CURRENT:** Multiple fields across tables
 - `canonical_vehicles.homeless_status` ('none', 'claimed', 'confirmed')
-- `vehicle_observations_v2.has_homeless_claim`
-- `vehicle_observations_v2.homeless_claim_notes`
+- `observations.has_homeless_claim`
+- `observations.homeless_claim_notes`
 
 **FIX:** Single source of truth
 ```sql
@@ -279,7 +279,7 @@ SELECT
   COUNT(*) FILTER (WHERE vo.is_breach) AS breach_count,
   ROUND(AVG(CASE WHEN vo.is_compliant THEN 100 ELSE 0 END)) AS compliance_rate
 FROM zones z
-LEFT JOIN vehicle_observations_v2 vo ON vo.zone_id = z.id
+LEFT JOIN observations vo ON vo.zone_id = z.id
 WHERE vo.recorded_at >= CURRENT_DATE - INTERVAL '30 days'
 GROUP BY z.id, z.name, z.organization_id, DATE_TRUNC('hour', vo.recorded_at);
 
@@ -334,7 +334,7 @@ CREATE INDEX ON zone_stats_hourly(organization_id, stat_hour DESC);
 ### **Batch 2: Data Architecture Consolidation (COMPLETED)**
 - ✅ Created SQL migration `20250211_data_architecture_consolidation.sql`
 - ✅ Established **canonical_vehicles** as single source of truth
-- ✅ Established **vehicle_observations_v2** as event records only
+- ✅ Established **observations** as event records only
 - ✅ Consolidated functions:
   - `log_officer_gps_update()` - Single GPS tracking
   - `get_vehicle_master_data()` - Single vehicle data lookup

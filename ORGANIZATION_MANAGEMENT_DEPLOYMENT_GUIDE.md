@@ -268,7 +268,7 @@ WHERE name = 'Nelson City Council';
 ```sql
 -- Should use indexes, not sequential scans
 EXPLAIN ANALYZE
-SELECT * FROM vehicle_observations_v2
+SELECT * FROM observations
 WHERE organization_id = ANY(get_user_organization_ids());
 ```
 

@@ -31,14 +31,14 @@ Run this SQL in Supabase SQL Editor:
 
 ```sql
 -- Add ALPR columns (if missing)
-ALTER TABLE vehicle_observations_v2
+ALTER TABLE observations
   ADD COLUMN IF NOT EXISTS plate_number text,
   ADD COLUMN IF NOT EXISTS plate_confidence real;
 
 -- Verify all columns exist
 SELECT column_name, data_type 
 FROM information_schema.columns 
-WHERE table_name = 'vehicle_observations_v2'
+WHERE table_name = 'observations'
   AND column_name IN (
     'plate_number', 
     'plate_confidence', 

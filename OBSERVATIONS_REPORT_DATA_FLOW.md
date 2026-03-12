@@ -1,6 +1,6 @@
 # 📊 Observations Report - Data Flow Review
 
-## ✅ **Data Source: 100% From vehicle_observations_v2**
+## ✅ **Data Source: 100% From observations**
 
 The ObservationsReport now pulls **exclusively from the observation snapshot** - no dependencies on canonical_vehicles for vehicle details.
 
@@ -8,7 +8,7 @@ The ObservationsReport now pulls **exclusively from the observation snapshot** -
 
 ## 🗂️ **Schema Overview**
 
-### **vehicle_observations_v2 Table Structure**
+### **observations Table Structure**
 
 All observation data is **embedded directly** in the observation record:
 
@@ -61,7 +61,7 @@ officer_notes              text
 zone:zones(name, location_lat, location_lng)
 
 -- Officer name
-officer:user_profiles!vehicle_observations_v2_recorded_by_fkey(first_name, last_name)
+officer:user_profiles!observations_recorded_by_fkey(first_name, last_name)
 
 -- Organization name
 organization:organizations(name)
@@ -73,7 +73,7 @@ photo_metadata:photo_metadata!photo_metadata_observation_id_fkey(photo_url)
 ### **❌ Removed Joins (redundant)**
 
 ```diff
-- canonical:canonical_vehicles!vehicle_observations_v2_plate_number_fkey(
+- canonical:canonical_vehicles!observations_plate_number_fkey(
 -   vehicle_make, vehicle_model, vehicle_year, vehicle_color,
 -   self_contained, self_contained_expiry, homeless_status
 - )
@@ -89,7 +89,7 @@ photo_metadata:photo_metadata!photo_metadata_observation_id_fkey(photo_url)
 
 ## 🔒 **RLS Policy Check**
 
-### **vehicle_observations_v2**
+### **observations**
 
 ```sql
 users_view_observations_v2 (SELECT, PERMISSIVE):
@@ -278,7 +278,7 @@ Only shows observations user has permission to access.
 ### **At Report View Time**
 
 ```typescript
-1. Query vehicle_observations_v2 (filtered by date/org/zone/KPI)
+1. Query observations (filtered by date/org/zone/KPI)
 2. Join to zones/users/orgs/photos for labels
 3. Apply fallbacks for missing data
 4. Render cards with snapshot data
@@ -335,7 +335,7 @@ idx_obs_plate_org
 
 The ObservationsReport now:
 
-1. ✅ Pulls 100% from `vehicle_observations_v2` snapshot
+1. ✅ Pulls 100% from `observations` snapshot
 2. ✅ Has no dependencies on `canonical_vehicles` for vehicle details
 3. ✅ Uses placeholders for all missing data
 4. ✅ Supports historical/legacy records without photos or GPS

@@ -61,7 +61,7 @@
 └─────────────────────────────────────────────────────────────────┘
                               ↓
 ┌─────────────────────────────────────────────────────────────────┐
-│ DATABASE: vehicle_observations_v2 (pgvector)                     │
+│ DATABASE: observations (pgvector)                     │
 │ ┌────────────────────────────────────────────────────────────┐  │
 │ │ + vehicle_embedding vector(384)                            │  │
 │ │ + embedding_quality real                                   │  │
@@ -123,8 +123,8 @@
 -- Enable pgvector extension
 create extension if not exists vector;
 
--- Add embedding fields to vehicle_observations_v2
-alter table vehicle_observations_v2
+-- Add embedding fields to observations
+alter table observations
   add column if not exists vehicle_embedding vector(384),
   add column if not exists embedding_quality real,
   add column if not exists embedding_model_version text,
@@ -132,12 +132,12 @@ alter table vehicle_observations_v2
 
 -- Similarity index for fast top-k (requires populated table)
 create index if not exists idx_obs_embed_ivfflat
-  on vehicle_observations_v2 using ivfflat (vehicle_embedding vector_cosine_ops)
+  on observations using ivfflat (vehicle_embedding vector_cosine_ops)
   with (lists = 100);
 
 -- Plain index for time filtering
 create index if not exists idx_obs_recorded_at 
-  on vehicle_observations_v2(recorded_at);
+  on observations(recorded_at);
 ```
 
 ### **Match Function (Top-K Similarity)**
@@ -157,7 +157,7 @@ create or replace function match_vehicle(
 ) language sql stable as $$
   with q as (
     select vehicle_embedding emb
-    from vehicle_observations_v2
+    from observations
     where id = p_obs_id and vehicle_embedding is not null
   )
   select 
@@ -165,7 +165,7 @@ create or replace function match_vehicle(
     1 - (o.vehicle_embedding <=> q.emb) as score,
     o.recorded_at,
     o.zone_id
-  from vehicle_observations_v2 o, q
+  from observations o, q
   where o.id <> p_obs_id
     and o.vehicle_embedding is not null
     and o.recorded_at >= p_since
@@ -212,7 +212,7 @@ Deno.serve(async (req) => {
 
     // 3. Insert observation with embedding
     const { data: obs, error: obsError } = await supabaseClient
-      .from('vehicle_observations_v2')
+      .from('observations')
       .insert({
         photo: photoUrl,
         photo_hash: photoHash,

@@ -160,7 +160,7 @@ organizations
 
 ### **No Legacy Dependencies**
 
-- ❌ Removed: vehicle_observations_v2
+- ❌ Removed: observations
 - ❌ Removed: compliance_results
 - ❌ Removed: scan_idempotency_keys
 - ✅ Uses: observations (clean rebuild)
@@ -469,7 +469,7 @@ The Admin Portal has been completely rebuilt as a **modern BI-style command cent
 - ✅ **Real-time monitoring** via React Query auto-refresh
 - ✅ **Actionable insights** with 2-click navigation to details
 - ✅ **Clean data model** using new observations table
-- ✅ **No legacy dependencies** (removed vehicle_observations_v2 references)
+- ✅ **No legacy dependencies** (removed observations references)
 - ✅ **Performance optimized** queries with proper indexing
 - ✅ **Mobile-responsive** layout for field use
 - ✅ **Severity indicators** for critical alerts

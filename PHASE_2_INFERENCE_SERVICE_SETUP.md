@@ -343,7 +343,7 @@ select
   embedding_quality,
   embedding_model_version,
   recorded_at
-from vehicle_observations_v2
+from observations
 order by recorded_at desc
 limit 5;
 ```
