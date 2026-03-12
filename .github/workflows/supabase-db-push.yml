@@ -77,6 +77,7 @@ jobs:
 
             grep -oE 'supabase/migrations/[0-9][^[:space:]]*\.sql' "$LOG_FILE" \
               | sed 's#supabase/migrations/##; s#\.sql$##' \
+              | awk -F'_' '{print $1}' \
               | while read -r version; do
                   if [ -n "$version" ]; then
                     echo "Marking migration as applied: $version"
