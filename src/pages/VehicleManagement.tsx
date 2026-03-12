@@ -44,6 +44,17 @@ interface Vehicle {
 
 type StatusFilter = 'all' | 'compliant' | 'breaches' | 'homeless' | 'exempt'
 
+interface VehicleQueryDebug {
+  rawOrgId: string | null
+  resolvedOrgId: string | null
+  rawZoneId: string | null
+  resolvedZoneId: string | null
+  scopedObservationCount: number
+  primaryCanonicalCount: number
+  fallbackCanonicalCount: number
+  synthesizedCount: number
+}
+
 export default function VehicleManagement() {
   const { user } = useAuthStore()
   const {
@@ -73,6 +84,7 @@ export default function VehicleManagement() {
   // Photo lightbox state
   const [enlargedPhoto, setEnlargedPhoto] = useState<string | null>(null)
   const [detailTab, setDetailTab] = useState('info')
+  const [vehicleQueryDebug, setVehicleQueryDebug] = useState<VehicleQueryDebug | null>(null)
 
   // Handle URL search params (status, search, dates, org, zone)
   useEffect(() => {
@@ -100,27 +112,77 @@ export default function VehicleManagement() {
   const { data: vehicles, isLoading, error: vehiclesError } = useQuery({
     queryKey: ['vehicles', effectiveOrganizationId, zoneId, statusFilter, searchQuery],
     queryFn: async () => {
+      const debug: VehicleQueryDebug = {
+        rawOrgId: effectiveOrganizationId,
+        resolvedOrgId: null,
+        rawZoneId: zoneId,
+        resolvedZoneId: null,
+        scopedObservationCount: 0,
+        primaryCanonicalCount: 0,
+        fallbackCanonicalCount: 0,
+        synthesizedCount: 0,
+      }
+
       const isUuid = (value: string | null) =>
         !!value && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)
 
+      const isAllLike = (value: string | null) => {
+        if (!value) return true
+        const normalized = value.trim().toLowerCase()
+        return (
+          !normalized ||
+          normalized === '__all__' ||
+          normalized === 'all' ||
+          normalized === 'all zones' ||
+          normalized === 'all organizations' ||
+          normalized === 'null' ||
+          normalized === 'undefined'
+        )
+      }
+
       const resolveScopeOrgId = async (rawOrgId: string | null) => {
-        if (!rawOrgId) return null
+        if (isAllLike(rawOrgId)) return null
         if (isUuid(rawOrgId)) return rawOrgId
 
-        const normalized = rawOrgId.replace(/\s*\(current\)\s*$/i, '').trim()
+        const normalized = rawOrgId!.replace(/\s*\(current\)\s*$/i, '').trim()
         if (!normalized) return null
 
         const { data, error } = await supabase
           .from('organizations')
           .select('id, name')
-          .ilike('name', normalized)
+          .or(`name.ilike.${normalized},name.ilike.%${normalized}%`)
           .limit(1)
 
         if (error) throw error
         return data?.[0]?.id ?? null
       }
 
+      const resolveScopeZoneId = async (rawZoneId: string | null, scopeOrgId: string | null) => {
+        if (isAllLike(rawZoneId)) return null
+        if (isUuid(rawZoneId)) return rawZoneId
+
+        const normalized = rawZoneId!.trim()
+        if (!normalized) return null
+
+        let zoneQuery = (supabase.from('zones') as any)
+          .select('id, name, organization_id')
+          .eq('is_active', true)
+          .or(`name.ilike.${normalized},name.ilike.%${normalized}%`)
+          .limit(1)
+
+        if (scopeOrgId) {
+          zoneQuery = zoneQuery.eq('organization_id', scopeOrgId)
+        }
+
+        const { data, error } = await zoneQuery
+        if (error) throw error
+        return data?.[0]?.id ?? null
+      }
+
       const scopeOrgId = await resolveScopeOrgId(effectiveOrganizationId)
+      debug.resolvedOrgId = scopeOrgId
+      const scopeZoneId = await resolveScopeZoneId(zoneId, scopeOrgId)
+      debug.resolvedZoneId = scopeZoneId
 
       const fetchScopedPlates = async (scopeOrgId: string | null, scopeZoneId: string | null) => {
         let obsQuery = supabase
@@ -138,6 +200,10 @@ export default function VehicleManagement() {
 
         const { data: matchingObs, error: obsError } = await obsQuery
         if (obsError) throw obsError
+
+        if ((scopeOrgId || scopeZoneId) && debug.scopedObservationCount === 0) {
+          debug.scopedObservationCount = (matchingObs ?? []).length
+        }
 
         return new Set(
           (matchingObs ?? [])
@@ -183,6 +249,7 @@ export default function VehicleManagement() {
 
       if (!primary.error) {
         rows = (primary.data ?? []) as Vehicle[]
+        debug.primaryCanonicalCount = rows.length
 
         // Some environments have canonical_vehicles.organization_id present but
         // sparsely populated; if org-scoped query returns empty while there are
@@ -193,6 +260,7 @@ export default function VehicleManagement() {
             const fallback = await applyVehicleFilters(supabase.from('canonical_vehicles').select('*'))
             if (fallback.error) throw fallback.error
             rows = ((fallback.data ?? []) as Vehicle[]).filter((v) => orgPlates.has(v.plate_number))
+            debug.fallbackCanonicalCount = rows.length
           }
         }
       } else if (scopeOrgId) {
@@ -202,13 +270,14 @@ export default function VehicleManagement() {
 
         const orgPlates = await fetchScopedPlates(scopeOrgId, null)
         rows = ((fallback.data ?? []) as Vehicle[]).filter((v) => orgPlates.has(v.plate_number))
+        debug.fallbackCanonicalCount = rows.length
       } else {
         throw primary.error
       }
 
       // Apply zone scoping in-memory to avoid massive IN(...) URL queries.
-      if (zoneId) {
-        const zonePlates = await fetchScopedPlates(scopeOrgId, zoneId)
+      if (scopeZoneId) {
+        const zonePlates = await fetchScopedPlates(scopeOrgId, scopeZoneId)
         rows = rows.filter((v) => zonePlates.has(v.plate_number))
       }
 
@@ -224,8 +293,8 @@ export default function VehicleManagement() {
         if (scopeOrgId) {
           synthQuery = synthQuery.eq('organization_id', scopeOrgId)
         }
-        if (zoneId) {
-          synthQuery = synthQuery.eq('zone_id', zoneId)
+        if (scopeZoneId) {
+          synthQuery = synthQuery.eq('zone_id', scopeZoneId)
         }
 
         const synth = await synthQuery
@@ -275,6 +344,7 @@ export default function VehicleManagement() {
         }
 
         rows = Array.from(byPlate.values())
+  debug.synthesizedCount = rows.length
 
         if (searchQuery) {
           const term = searchQuery.toLowerCase()
@@ -296,7 +366,10 @@ export default function VehicleManagement() {
         }
       }
 
-      if (rows.length === 0) return rows
+      if (rows.length === 0) {
+        setVehicleQueryDebug(debug)
+        return rows
+      }
 
       // Backfill profile_photo from latest observation photo when missing
       const missingPhotoPlates = rows
@@ -335,10 +408,13 @@ export default function VehicleManagement() {
         }
       }
 
-      return rows.map((v) => ({
+      const finalRows = rows.map((v) => ({
         ...v,
         profile_photo: getVehiclePhotoUrl(v, photoByPlate[v.plate_number] ?? null),
       }))
+
+      setVehicleQueryDebug(debug)
+      return finalRows
     },
     retry: 1,
   })
@@ -620,6 +696,11 @@ export default function VehicleManagement() {
                 ? 'No vehicles have been observed for the current organisation / zone filters.'
                 : 'No canonical vehicle records exist yet.'}
             </p>
+            {vehicleQueryDebug && (
+              <p className="text-xs text-gray-400 mt-3">
+                Debug: org {vehicleQueryDebug.rawOrgId || 'none'} -> {vehicleQueryDebug.resolvedOrgId || 'none'} | zone {vehicleQueryDebug.rawZoneId || 'none'} -> {vehicleQueryDebug.resolvedZoneId || 'none'} | scoped obs {vehicleQueryDebug.scopedObservationCount} | canonical {vehicleQueryDebug.primaryCanonicalCount}/{vehicleQueryDebug.fallbackCanonicalCount} | synth {vehicleQueryDebug.synthesizedCount}
+              </p>
+            )}
           </CardContent>
         </Card>
       ) : (
