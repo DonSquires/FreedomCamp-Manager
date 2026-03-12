@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/stores/authStore'
@@ -668,6 +668,10 @@ export default function FieldOfficerPortal() {
     setShowScanner(true)
   }
 
+  const handleCloseScanner = useCallback(() => {
+    setShowScanner(false)
+  }, [])
+
   const handleViewHistory = () => {
     if (user?.role === 'officer') {
       const panel = document.getElementById('recent-scans-panel')
@@ -694,7 +698,7 @@ export default function FieldOfficerPortal() {
         <>
           <CameraCapture 
             onCapture={handleCapture} 
-            onCancel={() => setShowScanner(false)} 
+            onCancel={handleCloseScanner} 
             facing="environment" 
             showControls={true} 
             onDiagnosticEvent={(label, payload) => appendScanDebug(label, payload)}
@@ -705,7 +709,7 @@ export default function FieldOfficerPortal() {
               },
               {
                 label: 'Close Scanner',
-                onClick: () => setShowScanner(false),
+                onClick: handleCloseScanner,
               },
             ]}
           />

@@ -418,7 +418,7 @@ export default function BreachAlerts() {
         }
       }
 
-      let strictQuery = (supabase.from('observations') as any)
+      const strictQuery = (supabase.from('observations') as any)
         .select('id, photo_url, recorded_at, gps_latitude, gps_longitude, zones!observations_zone_id_fkey(name)')
         .eq('plate_number', activeBreach.plate_number)
         .eq('organization_id', activeBreach.organization_id)

@@ -57,6 +57,8 @@ export function CameraCapture({
   const videoRef = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const streamRef = useRef<MediaStream | null>(null)
+  const onCancelRef = useRef(onCancel)
+  const onDiagnosticEventRef = useRef(onDiagnosticEvent)
 
   const [isStreaming, setIsStreaming] = useState(false)
   const [facingMode, setFacingMode] = useState<'user' | 'environment'>(facing)
@@ -78,16 +80,27 @@ export function CameraCapture({
 
   // Stable refs for props that change every render — prevents useEffect/useCallback
   // from creating new references and triggering camera restarts.
-  const onCancelRef = useRef(onCancel)
-  const onDiagnosticEventRef = useRef(onDiagnosticEvent)
   const zonesRef = useRef(zones)
-  useEffect(() => { onCancelRef.current = onCancel }, [onCancel])
-  useEffect(() => { onDiagnosticEventRef.current = onDiagnosticEvent }, [onDiagnosticEvent])
-  useEffect(() => { zonesRef.current = zones }, [zones])
+  useEffect(() => {
+    onCancelRef.current = onCancel
+  }, [onCancel])
+
+  useEffect(() => {
+    onDiagnosticEventRef.current = onDiagnosticEvent
+  }, [onDiagnosticEvent])
+
+  useEffect(() => {
+    zonesRef.current = zones
+  }, [zones])
 
   // Start camera stream
   const startCamera = useCallback(async () => {
     try {
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(track => track.stop())
+        streamRef.current = null
+      }
+
       const constraints: MediaStreamConstraints = {
         video: {
           facingMode,
@@ -190,7 +203,7 @@ export function CameraCapture({
 
   // Capture photo
   const capturePhoto = () => {
-    onDiagnosticEvent?.('camera.capture.button_pressed')
+    onDiagnosticEventRef.current?.('camera.capture.button_pressed')
 
     if (!videoRef.current || !canvasRef.current) return
 
@@ -210,7 +223,7 @@ export function CameraCapture({
     // Convert to blob
     canvas.toBlob((blob) => {
       if (!blob) {
-        onDiagnosticEvent?.('camera.capture.blob_failed')
+        onDiagnosticEventRef.current?.('camera.capture.blob_failed')
         toast.error('Failed to capture photo')
         return
       }
@@ -228,7 +241,7 @@ export function CameraCapture({
         height: canvas.height,
       }
 
-      onDiagnosticEvent?.('camera.capture.blob_created', {
+      onDiagnosticEventRef.current?.('camera.capture.blob_created', {
         fileSize: file.size,
         width: canvas.width,
         height: canvas.height,
@@ -246,7 +259,14 @@ export function CameraCapture({
   // (e.g. scan diagnostics) triggered new function references on every render.
   useEffect(() => {
     startCamera()
-    
+
+    return () => {
+      stopCamera()
+    }
+  }, [startCamera, stopCamera])
+
+  // Metadata side-effects only.
+  useEffect(() => {
     // Update time every second
     const timeInterval = setInterval(() => {
       setCurrentTime(new Date())
@@ -292,10 +312,9 @@ export function CameraCapture({
     
     // Fetch weather (placeholder)
     setWeather('Clear') // TODO: Integrate real weather API
-    
+
     return () => {
       clearInterval(timeInterval)
-      stopCamera()
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
