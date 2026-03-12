@@ -343,12 +343,21 @@ Deno.serve(async (req) => {
           bytes: imageBytes.length,
         });
       } catch (photoErr: any) {
-        console.error("❌ Failed to load photo_url input:", photoErr?.message || photoErr);
+        // Download failed but the photo is already persisted at photoUrlInput —
+        // log the error and continue without bytes.  Inference will fall back to
+        // hintPlate and the observation will still be saved with the correct URL.
+        console.warn("⚠️ Could not re-download bytes from photo_url; proceeding without inference", {
+          photoUrlInput,
+          error: photoErr?.message || photoErr,
+        });
       }
     }
 
     // Validate required fields
-    if (!imageBytes && !imageDataUrl) {
+    // When photoUrlInput is supplied the image is already in storage; we don't
+    // need raw bytes to create the observation (inference simply falls back to
+    // hintPlate when bytes are unavailable).
+    if (!imageBytes && !imageDataUrl && !photoUrlInput) {
       console.error('❌ Missing image data. Received:', {
         hasImageBytes: !!imageBytes,
         hasImageDataUrl: !!imageDataUrl,
@@ -485,7 +494,22 @@ Deno.serve(async (req) => {
     // passed its URL via photo_url, we skip the redundant evidence-bucket upload.
     // This keeps the edge function well within the Supabase 10-second wall-clock
     // limit and avoids a hard dependency on the "evidence" bucket being available.
-    const photoHash = await sha256Hash(imageBytes!);
+    //
+    // When imageBytes is unavailable (photo_url path with failed re-download),
+    // derive the hash from the URL string so the NOT NULL constraint is satisfied.
+    let photoHash: string;
+    if (imageBytes) {
+      photoHash = await sha256Hash(imageBytes);
+    } else {
+      // No raw bytes available — derive a stable hash from the pre-uploaded URL.
+      // At this point photoUrlInput is always set: the guard above (line ~360)
+      // rejects requests that have neither bytes nor a photo URL.
+      const te = new TextEncoder();
+      const hashBuf = await crypto.subtle.digest("SHA-256", te.encode(photoUrlInput!));
+      photoHash = Array.from(new Uint8Array(hashBuf))
+        .map((b) => b.toString(16).padStart(2, "0"))
+        .join("");
+    }
 
     let photoUrl: string;
 
