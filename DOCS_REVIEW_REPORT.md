@@ -43,7 +43,7 @@ The vast majority of root-level files are **AI-generated session artifacts** cre
 | `ORC_AI_ARCHITECTURE_BLUEPRINT.md` | 497 | 🟢 Current | Best architectural doc; vehicle fingerprinting design |
 | `ORC_AI_SYSTEM_STATUS.md` | 229 | 🟡 Partially current | Status as of 2026-02-20; 60% complete |
 | `MOBILE_APK_OFFLINE_ARCHITECTURE.md` | 1094 | 🟢 Useful | Detailed offline-first APK design; aligns with current direction |
-| `MOBILE_APP_NEW_DATA_FLOW.md` | 370 | 🟡 Mixed | References `vehicle_observations_v2` as the "new" system; now superseded by `observations` |
+| `MOBILE_APP_NEW_DATA_FLOW.md` | 370 | 🟡 Mixed | References `observations` as the "new" system; now superseded by `observations` |
 | `MOBILE_APP_FIELD_MAPPINGS.md` | 581 | 🟢 Useful | DB CHECK constraint reference for mobile app; keep and maintain |
 | `ONSPACE_AI_FALLBACK_MODE.md` | 484 | 🟡 Transitional | Documents the temporary fallback period; partially superseded |
 
@@ -94,8 +94,8 @@ The vast majority of root-level files are **AI-generated session artifacts** cre
 | `STORAGE_RLS_SETUP.md` | — | 🟢 Useful | Storage bucket RLS policies |
 | `SCHEMA_ALIGNMENT_FIXES_REQUIRED.md` | — | 🟡 Session note | Point-in-time fix list |
 | `SCHEMA_MIGRATION_FIXES.md` | — | 🟡 Session note | Point-in-time migration fixes |
-| `OBSERVATIONS_REBUILD_SUMMARY.md` | 287 | 🟢 Current | Explains why `vehicle_observations_v2` → `observations`; important context |
-| `OBSERVATIONS_REPORT_DATA_FLOW.md` | 346 | 🔴 Contradictory | Claims data comes "100% from `vehicle_observations_v2`" but rebuild dropped that table |
+| `OBSERVATIONS_REBUILD_SUMMARY.md` | 287 | 🟢 Current | Explains why `observations` → `observations`; important context |
+| `OBSERVATIONS_REPORT_DATA_FLOW.md` | 346 | 🔴 Contradictory | Claims data comes "100% from `observations`" but rebuild dropped that table |
 | `PHOTO_INTEGRITY_MONITORING.md` | 388 | 🟢 Useful | SLO queries and monitoring SQL; well structured |
 | `PHOTO_BACKFILL_GUIDE.md` | 336 | 🟢 Useful | Backfill runbook for photos missing hashes |
 | `BREACH_ALERTS_SYSTEM_REBUILD.md` | 217 | 🟡 Historical | Describes the Feb 2026 rebuild; context doc |
@@ -223,13 +223,13 @@ The vast majority of root-level files are **AI-generated session artifacts** cre
 
 **Recommendation:** Prefix these files with `_ARCHIVED_` or move them to `docs/archive/` to prevent confusion.
 
-### 3.2 🔴 Contradictory documents — `vehicle_observations_v2` vs `observations`
+### 3.2 🔴 Contradictory documents — `observations` vs `observations`
 
-`OBSERVATIONS_REBUILD_SUMMARY.md` explains the migration from `vehicle_observations_v2` to the new `observations` table. But:
+`OBSERVATIONS_REBUILD_SUMMARY.md` explains the migration from `observations` to the new `observations` table. But:
 
-- `OBSERVATIONS_REPORT_DATA_FLOW.md` still says data comes "100% from `vehicle_observations_v2`"
-- `MOBILE_APP_NEW_DATA_FLOW.md` introduces `vehicle_observations_v2` as the "New System"
-- `PHASE_1_DATABASE_SETUP_COMPLETE.md` adds embedding columns to `vehicle_observations_v2`
+- `OBSERVATIONS_REPORT_DATA_FLOW.md` still says data comes "100% from `observations`"
+- `MOBILE_APP_NEW_DATA_FLOW.md` introduces `observations` as the "New System"
+- `PHASE_1_DATABASE_SETUP_COMPLETE.md` adds embedding columns to `observations`
 
 ### 3.3 🔴 Missing `README.md` at repository root
 
@@ -328,7 +328,7 @@ These are one-time session artifacts, resolved bug reports, or superseded plans 
 
 4. **Add an `_ARCHIVED` prefix or `docs/archive/` folder** for the ~30 session-log documents. Keeping them in root next to real reference docs makes it hard to find authoritative information.
 
-5. **Resolve the `observations` vs `vehicle_observations_v2` narrative conflict** by updating `OBSERVATIONS_REPORT_DATA_FLOW.md` and `MOBILE_APP_NEW_DATA_FLOW.md` to reflect that `vehicle_observations_v2` was replaced by `observations`.
+5. **Resolve the `observations` vs `observations` narrative conflict** by updating `OBSERVATIONS_REPORT_DATA_FLOW.md` and `MOBILE_APP_NEW_DATA_FLOW.md` to reflect that `observations` was replaced by `observations`.
 
 ### Medium priority
 

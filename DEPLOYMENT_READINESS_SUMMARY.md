@@ -29,7 +29,7 @@ The ClosedFreedomCamp Manager system has completed a **comprehensive 4-phase reb
 
 ### Core Tables
 - ✅ **canonical_vehicles** - 6,616+ records preserved
-- ✅ **vehicle_observations_v2** - Event stream active
+- ✅ **observations** - Event stream active
 - ✅ **vehicle_monthly_stays** - Compliance tracking operational
 - ✅ **compliance_results** - Compliance history versioned
 - ✅ **zone_compliance_matrix** - Rules versioning with drift detection
@@ -179,14 +179,14 @@ SELECT COUNT(*) FROM canonical_vehicles;
 -- Expected: 6,616+
 
 -- Verify observations linked correctly
-SELECT COUNT(*) FROM vehicle_observations_v2
+SELECT COUNT(*) FROM observations
 WHERE plate_number IN (SELECT plate_number FROM canonical_vehicles);
 -- Expected: 100% match
 
 -- Verify triggers active
 SELECT COUNT(*) FROM information_schema.triggers
 WHERE trigger_schema = 'public'
-  AND event_object_table IN ('vehicle_observations_v2', 'canonical_vehicles');
+  AND event_object_table IN ('observations', 'canonical_vehicles');
 -- Expected: 3
 ```
 

@@ -4,21 +4,21 @@
 
 **OLD SCHEMA → NEW SCHEMA**
 - `canonical_vehicles_backup_20250203` (vehicle_id UUID PK) → `canonical_vehicles` (plate_number TEXT PK)
-- `vehicle_observations` (references vehicle_id) → `vehicle_observations_v2` (references plate_number)
-- `vehicle_records` (deprecated) → use `vehicle_observations_v2` instead
+- `vehicle_observations` (references vehicle_id) → `observations` (references plate_number)
+- `vehicle_records` (deprecated) → use `observations` instead
 - `vehicle_monthly_stays` (new table, references plate_number)
 
 ## ✅ WORKING Edge Functions (No Changes Needed)
 
-1. **recalculate-compliance-v2** - ✅ Uses vehicle_observations_v2 + canonical_vehicles correctly
-2. **check-zone-corrections** - ✅ Uses vehicle_observations_v2 correctly  
-3. **check-data-integrity** - ✅ Uses canonical_vehicles + vehicle_observations_v2 correctly
+1. **recalculate-compliance-v2** - ✅ Uses observations + canonical_vehicles correctly
+2. **check-zone-corrections** - ✅ Uses observations correctly  
+3. **check-data-integrity** - ✅ Uses canonical_vehicles + observations correctly
 
 ## ❌ BROKEN Edge Functions (Require Fixes)
 
 ### 1. scan-breaches
 **Issue**: Line 53 - Uses `vehicle_records` table (deprecated)
-**Fix**: Replace with query to `vehicle_observations_v2` table
+**Fix**: Replace with query to `observations` table
 **Impact**: CRITICAL - Breach scanning completely broken
 
 ### 2. process-homeless-data  
@@ -28,38 +28,38 @@
 
 ### 3. import-data
 **Issue**: Line 244 - Creates records in `vehicle_records` table
-**Fix**: Update to create records in `vehicle_observations_v2` table using plate_number
+**Fix**: Update to create records in `observations` table using plate_number
 **Impact**: CRITICAL - All data imports broken
 
 ### 4. recalculate-compliance (OLD VERSION)
 **Issue**: Lines 184-185, 222, 239, 285, 292, 306 - Uses `vehicle_observations` table
-**Fix**: Replace with `vehicle_observations_v2` and update foreign key references
+**Fix**: Replace with `observations` and update foreign key references
 **Impact**: HIGH - Old recalculation process broken (but v2 works)
 **Recommendation**: DELETE this file, use recalculate-compliance-v2 exclusively
 
 ### 5. correct-zone-assignments
 **Issue**: Lines 180, 235, 252 - Uses `vehicle_records` table  
-**Fix**: Replace with `vehicle_observations_v2` table
+**Fix**: Replace with `observations` table
 **Impact**: HIGH - Zone correction workflow broken
 
 ### 6. get-compliance-statistics
 **Issue**: Line 57 - Uses `vehicle_records` table
-**Fix**: Replace with `vehicle_observations_v2` table, update aggregation logic
+**Fix**: Replace with `observations` table, update aggregation logic
 **Impact**: HIGH - Compliance reporting broken
 
 ### 7. update-compliance-policy
 **Issue**: Lines 28, 96 - Uses `vehicle_records` table
-**Fix**: Replace with `vehicle_observations_v2` table
+**Fix**: Replace with `observations` table
 **Impact**: MEDIUM - Policy updates won't apply
 
 ### 8. stream-webhook
 **Issue**: Lines 104, 126, 204, 248 - Uses `vehicle_records` table
-**Fix**: Replace with `vehicle_observations_v2` table
+**Fix**: Replace with `observations` table
 **Impact**: CRITICAL - Real-time ALPR stream processing broken
 
 ### 9. generate-leadership-pack
 **Issue**: Line 71 - Uses `vehicle_observations` table
-**Fix**: Replace with `vehicle_observations_v2` table
+**Fix**: Replace with `observations` table
 **Impact**: LOW - PDF reporting broken
 
 ## 🔍 DATABASE FUNCTION ISSUES

@@ -152,7 +152,7 @@ SELECT
   embedding_quality,
   idempotency_key,
   created_at
-FROM vehicle_observations_v2
+FROM observations
 WHERE idempotency_key LIKE 'prod-test:%'
 ORDER BY created_at DESC
 LIMIT 5;

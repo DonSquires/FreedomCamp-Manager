@@ -24,7 +24,7 @@ Validate that the complete system rebuild (Phases 1-3) maintains 100% functional
 - ✅ Indexes: 8 performance indexes created
 
 **Observations Table:**
-- ✅ `vehicle_observations_v2` active
+- ✅ `observations` active
 - ✅ Foreign key: `plate_number` → `canonical_vehicles.plate_number`
 - ✅ Auto-population trigger active
 
@@ -76,7 +76,7 @@ SELECT
   event_object_table
 FROM information_schema.triggers
 WHERE trigger_schema = 'public'
-  AND event_object_table IN ('vehicle_observations_v2', 'canonical_vehicles')
+  AND event_object_table IN ('observations', 'canonical_vehicles')
 ORDER BY event_object_table, trigger_name;
 ```
 **Expected:** 3 essential triggers visible
@@ -95,7 +95,7 @@ ORDER BY event_object_table, trigger_name;
 
 **2. process-field-scan**
 - ✅ Uses `canonical_vehicles` (plate_number PK)
-- ✅ Creates `vehicle_observations_v2` records
+- ✅ Creates `observations` records
 - ✅ Calls `check_vehicle_compliance_v3()`
 - ✅ Duplicate detection (409 on same-day re-scan)
 - ✅ GPS accuracy enforcement (>100m rejected)
@@ -233,7 +233,7 @@ curl -X POST 'https://xbfnlzmpumthnjmtqufp.supabase.co/functions/v1/check-almost
 1. ☐ Officer captures plate photo
 2. ☐ `recognize-plate` detects plate + vehicle details
 3. ☐ `process-field-scan` creates canonical_vehicles record
-4. ☐ Observation created in vehicle_observations_v2
+4. ☐ Observation created in observations
 5. ☐ Compliance check runs (first observation = compliant)
 6. ☐ Response includes: `is_new_vehicle: true`
 7. ☐ Alert: "✨ New vehicle detected"

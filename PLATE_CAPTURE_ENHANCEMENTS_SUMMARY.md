@@ -131,12 +131,12 @@ User uploads file → ALPR processing → Success?
 
 3. **supabase/functions/process-field-scan/index.ts**
    - Already accepts `officerNotes` parameter
-   - Stores in `vehicle_observations_v2.officer_notes`
+   - Stores in `observations.officer_notes`
    - No changes needed (working as intended)
 
 ### Database Schema:
-- ✅ `vehicle_observations_v2.officer_notes` field already exists
-- ✅ `vehicle_observations_v2.has_notes` boolean flag tracks presence
+- ✅ `observations.officer_notes` field already exists
+- ✅ `observations.has_notes` boolean flag tracks presence
 - ✅ All metadata preserved and searchable
 
 ---

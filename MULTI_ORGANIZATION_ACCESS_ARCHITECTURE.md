@@ -163,7 +163,7 @@ USING (organization_id = ANY(get_user_organization_ids()));
 
 ### **Tables Requiring RLS Updates:**
 - ✅ `zones`
-- ✅ `vehicle_observations_v2`
+- ✅ `observations`
 - ✅ `compliance_results`
 - ✅ `breach_alerts`
 - ✅ `enforcement_actions`

@@ -55,7 +55,7 @@ Replace with:
 4. **Watermark photo** with zone name, GPS coords, date/time, patrol shift
 5. **Upload to storage** (RETAIN BEFORE ALPR)
 6. **ALPR recognition** via recognize-plate Edge Function
-7. **Process field scan** via process-field-scan Edge Function (creates observation in vehicle_observations_v2)
+7. **Process field scan** via process-field-scan Edge Function (creates observation in observations)
 8. **Display result** in queue with status badge:
    - 🟢 Compliant → Auto-dismiss after 5s
    - 🔴 Breach → Manual dismiss

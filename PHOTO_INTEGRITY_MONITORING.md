@@ -4,7 +4,7 @@
 # ============================================
 #
 # Schema note: queries use the `observations` table (photo_url + photo_hash
-# columns). The legacy `vehicle_observations_v2` table no longer exists.
+# columns). The legacy `observations` table no longer exists.
 # Views photo_integrity_health and recent_observations_photo_status are
 # created by migration 20260323_photo_recovery_infrastructure.sql.
 # ============================================

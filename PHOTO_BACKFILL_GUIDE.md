@@ -34,7 +34,7 @@ SELECT
     WHEN obs.photo_original_bytes IS NULL OR obs.photo_original_bytes <= 0 THEN 'null_hash'
     ELSE 'unknown'
   END AS reason
-FROM vehicle_observations_v2 obs
+FROM observations obs
 WHERE 
   obs.photo_original_sha256 IS NULL
   OR obs.photo_original_bytes IS NULL
@@ -72,7 +72,7 @@ for (const path of legacyPaths) {
     
     // Update observation
     await supabase
-      .from('vehicle_observations_v2')
+      .from('observations')
       .update({
         photo_original_sha256: hash,
         photo_original_bytes: data.size,
@@ -189,7 +189,7 @@ SET
 WHERE id = '{queue_item_id}';
 
 -- Or abandon observation (delete or mark non-evidential)
-UPDATE vehicle_observations_v2
+UPDATE observations
 SET review_blocked = true
 WHERE observation_id = '{observation_id}';
 
@@ -210,7 +210,7 @@ SELECT * FROM photo_integrity_health;
 
 -- Check for remaining orphaned observations
 SELECT COUNT(*) AS remaining_orphans
-FROM vehicle_observations_v2
+FROM observations
 WHERE photo_original_sha256 IS NULL;
 
 -- Check missing_photo_queue status breakdown
@@ -236,7 +236,7 @@ psql $DATABASE_URL -f supabase/migrations/20260219_enforce_photo_not_null.sql
 This will:
 - Enforce NOT NULL on photo_original_sha256
 - Enforce NOT NULL on photo_original_bytes
-- Revoke DELETE permission on vehicle_observations_v2
+- Revoke DELETE permission on observations
 - Remove temporary indexes
 
 ## Monitoring

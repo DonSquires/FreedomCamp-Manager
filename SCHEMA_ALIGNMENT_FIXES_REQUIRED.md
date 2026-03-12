@@ -44,12 +44,12 @@ vehicle:canonical_vehicles!breach_alerts_plate_number_fkey(
 
 ---
 
-### 3. **Multiple Files Using vehicle_observations_v2**
+### 3. **Multiple Files Using observations**
 **Impact:** High - 50+ occurrences  
-**Issue:** Database table is named `vehicle_observations_v2` but should be `observations`  
+**Issue:** Database table is named `observations` but should be `observations`  
 **Schema Status:** Database has BOTH tables:
 - ✅ `observations` (new simplified table - PRIMARY)
-- ⚠️ `vehicle_observations_v2` (legacy table - should migrate away)
+- ⚠️ `observations` (legacy table - should migrate away)
 
 **Affected Files:**
 - `src/components/features/ComplianceMetricsSummary.tsx`
@@ -65,7 +65,7 @@ vehicle:canonical_vehicles!breach_alerts_plate_number_fkey(
 - `supabase/functions/check-zone-corrections/index.ts`
 
 **Strategy:** 
-1. Keep using `vehicle_observations_v2` for NOW (it has data)
+1. Keep using `observations` for NOW (it has data)
 2. Create migration plan to move to `observations`
 3. Add to migration backlog
 
@@ -97,7 +97,7 @@ canonical_vehicles:
 ```sql
 breach_alerts:
   - plate_number → canonical_vehicles(plate_number) ON DELETE SET NULL
-  - observation_id → vehicle_observations_v2(observation_id) ON DELETE CASCADE
+  - observation_id → observations(observation_id) ON DELETE CASCADE
   - vehicle_record_id → vehicle_records(id) ON DELETE CASCADE
   - zone_id → zones(id) ON DELETE CASCADE
 ```
@@ -171,7 +171,7 @@ observations:
 
 ### 🟡 HIGH (This Week)
 3. Audit all `canonical_vehicles` queries for correct column names (make/model/colour)
-4. Create migration plan for `vehicle_observations_v2` → `observations`
+4. Create migration plan for `observations` → `observations`
 
 ### 🟢 MEDIUM (Next Sprint)
 5. Schema migration to remove `vehicle_records` foreign keys from `breach_alerts` and `enforcement_actions`

@@ -119,7 +119,7 @@ Once inference service is deployed:
 
 1. **orc-ingest Edge Function** receives photos from frontend
 2. Calls your inference service to generate 384D embedding
-3. Stores observation + embedding in `vehicle_observations_v2`
+3. Stores observation + embedding in `observations`
 4. Runs `match_vehicle()` to find similar vehicles
 5. Returns results with similarity scores to frontend
 

@@ -218,7 +218,7 @@ COMMENT ON FUNCTION get_user_organization_ids() IS
 
 **Tables with Updated RLS (17 total):**
 - ✅ zones
-- ✅ vehicle_observations_v2
+- ✅ observations
 - ✅ compliance_results
 - ✅ breach_alerts
 - ✅ enforcement_actions
@@ -421,7 +421,7 @@ USING (
 ```typescript
 // RLS automatically filters - optimal
 const { data } = await supabase
-  .from('vehicle_observations_v2')
+  .from('observations')
   .select('*');
 ```
 

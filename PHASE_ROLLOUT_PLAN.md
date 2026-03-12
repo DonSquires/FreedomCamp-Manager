@@ -2,7 +2,7 @@
 
 > **Current Completion**: 72%  
 > **Target**: 100% BUILD_PLAN alignment  
-> **Critical Note**: `vehicle_observations_v2` is **backup only** — never query, never reference
+> **Critical Note**: `observations` is **backup only** — never query, never reference
 
 ---
 
@@ -301,7 +301,7 @@ AppLayout, GlobalFilterRibbon, PlateScanner, VehicleCard, VehicleDetailsModal, B
 
 ## Critical Constraints
 
-1. **NEVER query vehicle_observations_v2** — backup table only
+1. **NEVER query observations** — backup table only
 2. **ALWAYS query observations table** — single source of truth
 3. **TypeScript stays lenient** — strict: false, noImplicitAny: false
 4. **NZ timezone everywhere** — Pacific/Auckland

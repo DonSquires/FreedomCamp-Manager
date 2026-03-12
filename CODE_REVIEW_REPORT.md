@@ -50,8 +50,8 @@ FreedomCamp-Manager is a **multi-tenant vehicle-observation and compliance enfor
 | `user_profiles` | Linked to `auth.users`; stores role (`officer`, `admin`, `master`), organization membership |
 | `patrols` | Scheduled patrol sessions (zone + shift + officer assignment) |
 | `canonical_vehicles` | Master vehicle registry – plate number is the key; stores homeless status, compliance history, photo URL, NZSCV/MotorWeb enrichment data |
-| `vehicle_observations_v2` | Primary observation table (photo-first evidence record); **being migrated to `observations`** |
-| `observations` | New simplified observation table (migration `20260221_rebuild_observations_clean.sql`); replaces `vehicle_observations_v2` |
+| `observations` | Primary observation table (photo-first evidence record); **being migrated to `observations`** |
+| `observations` | New simplified observation table (migration `20260221_rebuild_observations_clean.sql`); replaces `observations` |
 | `compliance_results` | Per-observation compliance evaluation result with per-rule breakdown (JSONB) |
 | `breach_alerts` | Active breach records; status: `pending → notified → resolved/escalated` |
 | `enforcement_actions` | Formal enforcement actions taken against a vehicle |
@@ -79,15 +79,15 @@ FreedomCamp-Manager is a **multi-tenant vehicle-observation and compliance enfor
 
 | Migration | Change |
 |-----------|--------|
-| `20250203_rebuild_vehicle_architecture` | Introduced `vehicle_observations_v2`; deprecated `vehicle_records` |
-| `20250214_auto_create_compliance_results` | Trigger on `vehicle_observations_v2` → auto-creates `compliance_results` |
+| `20250203_rebuild_vehicle_architecture` | Introduced `observations`; deprecated `vehicle_records` |
+| `20250214_auto_create_compliance_results` | Trigger on `observations` → auto-creates `compliance_results` |
 | `20260215_multi_organization_hierarchy` | Added multi-org support |
 | `20260218_rebuild_breach_alerts_system` | Full rebuild of breach detection |
 | `20260220_core_pipeline_rebuild` | 4-layer compliance pipeline; added `evaluate_compliance_v4`, cohort functions |
-| `20260221_rebuild_observations_clean` | **Drops `vehicle_observations_v2` and creates new `observations` table** |
+| `20260221_rebuild_observations_clean` | **Drops `observations` and creates new `observations` table** |
 | `20260224_admin_dashboard_views` | New materialised-style views for admin dashboard |
 
-> ⚠️ **Schema alignment gap:** Migration `20260221` drops `vehicle_observations_v2` and creates `observations`, but the majority of the frontend (`src/pages/`) and many edge functions still reference `vehicle_observations_v2`. See Section 7.
+> ⚠️ **Schema alignment gap:** Migration `20260221` drops `observations` and creates `observations`, but the majority of the frontend (`src/pages/`) and many edge functions still reference `observations`. See Section 7.
 
 ---
 
@@ -209,8 +209,8 @@ These are called by the frontend but have no corresponding directory – they ma
 
 | Function | Trigger |
 |---------|---------|
-| `auto_create_compliance_result` | After INSERT on `vehicle_observations_v2` |
-| `auto_evaluate_compliance_and_create_breach` | After INSERT on `vehicle_observations_v2` |
+| `auto_create_compliance_result` | After INSERT on `observations` |
+| `auto_evaluate_compliance_and_create_breach` | After INSERT on `observations` |
 | `update_monthly_stays_on_observation` | After INSERT/UPDATE on observations |
 | `upsert_canonical_vehicle` | After INSERT on observations |
 | `sync_homeless_to_canonical` | After INSERT on homeless data |
@@ -263,17 +263,17 @@ Present in repo at `supabase/.env.functions.local` – should only contain dev v
 
 ## 7. Findings & Issues
 
-### 7.1 🔴 Critical: Schema mismatch – `vehicle_observations_v2` vs `observations`
+### 7.1 🔴 Critical: Schema mismatch – `observations` vs `observations`
 
-Migration `20260221_rebuild_observations_clean.sql` **drops `vehicle_observations_v2`** with `CASCADE` and replaces it with a new `observations` table. However:
+Migration `20260221_rebuild_observations_clean.sql` **drops `observations`** with `CASCADE` and replaces it with a new `observations` table. However:
 
-- **30+ frontend pages** still call `.from('vehicle_observations_v2')` (OrganizationDashboard, VehicleEvidenceReport, ComplianceHeatMap, AnalyticsHub, ObservationDetailModal, VehicleActivityReport, etc.)
-- **Multiple edge functions** still reference `vehicle_observations_v2` (`recalculate-compliance`, `recalculate-compliance-v2`, `scan-breaches`, `cleanup-and-recalculate`, `alpr-process`)
-- **`evaluate_compliance_v4`** (defined in `20260220_core_pipeline_rebuild`) still uses `vehicle_observations_v2%ROWTYPE`
+- **30+ frontend pages** still call `.from('observations')` (OrganizationDashboard, VehicleEvidenceReport, ComplianceHeatMap, AnalyticsHub, ObservationDetailModal, VehicleActivityReport, etc.)
+- **Multiple edge functions** still reference `observations` (`recalculate-compliance`, `recalculate-compliance-v2`, `scan-breaches`, `cleanup-and-recalculate`, `alpr-process`)
+- **`evaluate_compliance_v4`** (defined in `20260220_core_pipeline_rebuild`) still uses `observations%ROWTYPE`
 
 **Impact:** If migration `20260221` is applied to production, the application will break immediately across all observation-related pages and edge functions.
 
-**Recommendation:** Either revert migration `20260221` and do a rolling migration that keeps `vehicle_observations_v2` as a view over `observations`, or update all frontend pages and edge functions before applying this migration.
+**Recommendation:** Either revert migration `20260221` and do a rolling migration that keeps `observations` as a view over `observations`, or update all frontend pages and edge functions before applying this migration.
 
 ### 7.2 🔴 Critical: Missing edge functions called from frontend
 
@@ -339,7 +339,7 @@ The 4-layer pipeline architecture (Ingest → Enrichment → Compliance Engine �
 
 ### 7.9 🟢 Note: Evidence integrity is enforced at DB level
 
-Migration `20260219_enforce_photo_not_null.sql` adds `NOT NULL` constraints and SHA-256 columns to `vehicle_observations_v2`, with explicit `REVOKE DELETE` to prevent deletion. This is good for Evidence Act 2006 (NZ) compliance.
+Migration `20260219_enforce_photo_not_null.sql` adds `NOT NULL` constraints and SHA-256 columns to `observations`, with explicit `REVOKE DELETE` to prevent deletion. This is good for Evidence Act 2006 (NZ) compliance.
 
 ---
 
@@ -358,9 +358,9 @@ Migration `20260219_enforce_photo_not_null.sql` adds `NOT NULL` constraints and 
 
 | Page | Key tables / RPCs used |
 |------|----------------------|
-| `FieldOfficerPortal.tsx` | `vehicle-ingest`, `alpr-process`, `zones`, `patrols`, `vehicle_observations_v2` |
+| `FieldOfficerPortal.tsx` | `vehicle-ingest`, `alpr-process`, `zones`, `patrols`, `observations` |
 | `ComplianceDashboard.tsx` | `canonical_vehicles`, `compliance_results`, `calculate_vehicle_compliance` RPC |
-| `ObservationsPage.tsx` | `vehicle_observations_v2` / `observations`, `observations-list` edge fn |
+| `ObservationsPage.tsx` | `observations` / `observations`, `observations-list` edge fn |
 | `BreachAlertsReport.tsx` | `breach_alerts`, `scan-breaches` edge fn |
 | `AdminPortal.tsx` | `get_admin_dashboard_stats` RPC, `recalculate-compliance-v2` edge fn |
 | `VehicleEnrichmentMaintenance.tsx` | `canonical_vehicles`, `enrich-from-motorweb` edge fn |
@@ -372,7 +372,7 @@ Migration `20260219_enforce_photo_not_null.sql` adds `NOT NULL` constraints and 
 
 ## 10. Next Steps
 
-- [ ] **Resolve schema mismatch** (issue 7.1): decide whether `observations` replaces `vehicle_observations_v2` immediately or via a compatibility view; update all affected code accordingly.
+- [ ] **Resolve schema mismatch** (issue 7.1): decide whether `observations` replaces `observations` immediately or via a compatibility view; update all affected code accordingly.
 - [ ] **Create missing edge functions** (issue 7.2): `enrich-vehicle-worker`, `plate-scanner-photo-first`, `process-field-scan`, `test-alpr-credentials`.
 - [ ] **Remove hardcoded credentials** (issue 7.3): replace fallback values with empty strings; add `.env` to `.gitignore`; provide `.env.example`.
 - [ ] **Delete backup/temp files** (issue 7.4): remove `*_BACKUP.tsx`, `*_PARTIAL.tsx` files from `src/pages/`.

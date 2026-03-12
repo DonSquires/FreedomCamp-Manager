@@ -90,7 +90,7 @@ let errors = 0;
 for (const row of legacyData) {
   try {
     const { data, error } = await supabase
-      .from('vehicle_observations_v2')
+      .from('observations')
       .insert({
         observation_id: row.id || crypto.randomUUID(),
         plate_number: row.plate_number?.toUpperCase().trim(),
@@ -180,7 +180,7 @@ const storagePaths = [
 
 // Check which observations have recoverable photo references
 const { data: recoveryCandidates } = await supabase
-  .from('vehicle_observations_v2')
+  .from('observations')
   .select('observation_id, legacy_note, recorded_at')
   .eq('is_legacy_import', true)
   .eq('evidence_state', 'legacy_no_photo')
@@ -262,7 +262,7 @@ for (const obs of recoveryCandidates) {
   
   // Update observation with recovered photo
   const { error: updateError } = await supabase
-    .from('vehicle_observations_v2')
+    .from('observations')
     .update({
       photo_original_sha256: hash,
       photo_original_bytes: arrayBuffer.byteLength,
@@ -295,7 +295,7 @@ for (const obs of candidatesWithWatermarkedOnly) {
   
   // Mark as reconstructed (not fully evidential)
   await supabase
-    .from('vehicle_observations_v2')
+    .from('observations')
     .update({
       photo_url: derivedUrl,
       evidence_state: 'reconstructed',
@@ -310,7 +310,7 @@ for (const obs of candidatesWithWatermarkedOnly) {
 
 ```sql
 -- After recovery attempts, mark unrecoverable observations
-UPDATE vehicle_observations_v2
+UPDATE observations
 SET 
   legacy_note = legacy_note || E'\n\n[UNRECOVERABLE] Photo not found in any legacy storage location. Field re-capture recommended if vehicle seen again.',
   review_blocked = true
@@ -362,7 +362,7 @@ LIMIT 20;
 ```sql
 -- Test: Verify legacy_no_photo observations are NOT enforceable
 SELECT is_observation_enforceable(observation_id)
-FROM vehicle_observations_v2
+FROM observations
 WHERE is_legacy_import = true
 AND evidence_state = 'legacy_no_photo'
 LIMIT 5;
@@ -371,7 +371,7 @@ LIMIT 5;
 
 -- Test: Verify recovered observations ARE enforceable
 SELECT is_observation_enforceable(observation_id)
-FROM vehicle_observations_v2
+FROM observations
 WHERE is_legacy_import = true
 AND evidence_state = 'original_present'
 LIMIT 5;
@@ -463,7 +463,7 @@ async function handleCreateNotice(observationId: string) {
 // PDF Export function
 async function generateCourtReadyPDF(observationId: string) {
   const { data: obs } = await supabase
-    .from('vehicle_observations_v2')
+    .from('observations')
     .select('*')
     .eq('observation_id', observationId)
     .single();
@@ -504,7 +504,7 @@ SELECT
   COUNT(CASE WHEN is_legacy_import = true THEN 1 END) AS legacy_observations,
   COUNT(CASE WHEN is_legacy_import = false THEN 1 END) AS live_observations,
   COUNT(CASE WHEN evidence_state = 'original_present' THEN 1 END) AS enforceable_observations
-FROM vehicle_observations_v2;
+FROM observations;
 
 -- Breach trend including legacy (for longitudinal analysis)
 SELECT 
@@ -513,7 +513,7 @@ SELECT
   COUNT(CASE WHEN is_compliant = false THEN 1 END) AS breaches,
   COUNT(CASE WHEN is_legacy_import = true THEN 1 END) AS legacy_count,
   ROUND(100.0 * COUNT(CASE WHEN is_compliant = false THEN 1 END) / COUNT(*), 2) AS breach_rate_pct
-FROM vehicle_observations_v2
+FROM observations
 WHERE recorded_at >= '2023-01-01'
 GROUP BY month
 ORDER BY month;
@@ -533,7 +533,7 @@ ORDER BY month;
 
 // Apply filter in queries
 const { data } = await supabase
-  .from('vehicle_observations_v2')
+  .from('observations')
   .select('*')
   .eq('is_legacy_import', !includeLegacy ? false : undefined) // Exclude legacy when toggle off
   .gte('recorded_at', dateFrom)
@@ -565,7 +565,7 @@ After import complete, verify:
 // (In case old backups are restored or files rediscovered)
 
 const { data: stillMissing } = await supabase
-  .from('vehicle_observations_v2')
+  .from('observations')
   .select('observation_id, legacy_note')
   .eq('evidence_state', 'legacy_no_photo')
   .limit(100);

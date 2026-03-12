@@ -3,7 +3,7 @@
 ## Status
 - Date: 2026-03-07
 - Architecture: `observations` is the operational source of truth.
-- Legacy note: `vehicle_observations_v2` is historical/legacy and is not the primary operational table.
+- Legacy note: `observations` is historical/legacy and is not the primary operational table.
 
 ## Current Function Inventory
 - Source of truth: `supabase/functions/`

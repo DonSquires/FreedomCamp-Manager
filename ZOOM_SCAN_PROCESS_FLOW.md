@@ -42,7 +42,7 @@ Edge Function: process-field-scan
 │  ├─ Match GPS to polygon geofences
 │  ├─ Fallback to point+radius (100m)
 │  └─ If no match → Assign to "Other Location"
-├─ Insert into vehicle_observations_v2 table
+├─ Insert into observations table
 └─ Status: ✅ Observation created
 ```
 
@@ -93,7 +93,7 @@ Edge Function: process-field-scan → calculate_vehicle_compliance_with_results
 ```
 
 **Compliance Results Table:**
-- `observation_id` → Links to vehicle_observations_v2
+- `observation_id` → Links to observations
 - `matrix_id` → Which zone_compliance_matrix was used
 - `is_compliant` → True/false
 - `violation_reasons` → Array of breach reasons
@@ -224,7 +224,7 @@ interface QueueItem {
   complianceDetails: string;           // Human-readable summary
   timestamp: Date;                     // Scan time
   vehicleId?: string;                  // canonical_vehicles ID
-  observationId?: string;              // vehicle_observations_v2 ID
+  observationId?: string;              // observations ID
 }
 ```
 
@@ -279,7 +279,7 @@ interface QueueItem {
 
 - [x] **Step 1:** User scans vehicle (photo captured)
 - [x] **Step 2:** ALPR reads plate (or manual entry fallback)
-- [x] **Step 3:** Creates observation (vehicle_observations_v2)
+- [x] **Step 3:** Creates observation (observations)
 - [x] **Step 4:** Enriches from canonical_vehicles (upsert + auto-populate)
 - [x] **Step 5:** Measures against monthly stays + zone matrix
 - [x] **Step 6A:** If breach → Red badge, alert modal, manual dismiss

@@ -37,17 +37,17 @@ detect_table() {
   fi
 
   status_v2="$(curl -sS -o /dev/null -w "%{http_code}" \
-    "$SUPABASE_URL/rest/v1/vehicle_observations_v2?select=observation_id&limit=1" \
+    "$SUPABASE_URL/rest/v1/observations?select=observation_id&limit=1" \
     -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
     -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY")"
 
   if [ "$status_v2" = "200" ]; then
-    OBS_TABLE="vehicle_observations_v2"
+    OBS_TABLE="observations"
     OBS_ID_COL="observation_id"
     return 0
   fi
 
-  echo "Could not find observations table (checked observations and vehicle_observations_v2)." >&2
+  echo "Could not find observations table (checked observations and observations)." >&2
   return 1
 }
 
