@@ -204,7 +204,7 @@ WITH best_zone AS (
     z_all.id ASC
 )
 SELECT
-  o.id                                              AS observation_id,
+  o.ctid::text                                      AS observation_id,
   o.plate_number,
   o.recorded_at::date                               AS observed_date,
   o.zone_name_at_import,
