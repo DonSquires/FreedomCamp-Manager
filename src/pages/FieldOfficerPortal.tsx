@@ -42,6 +42,20 @@ const isTransientNetworkError = (errorMessage?: string | null) => {
   )
 }
 
+/**
+ * Returns true when alpr-process returned a 500 because a column is missing
+ * from the PostgREST schema cache (i.e. the migration ran but the cache
+ * hasn't refreshed yet).  In this case we can still save the observation
+ * via a direct Supabase insert, which the fallback code below already
+ * handles by stripping unrecognised columns adaptively.
+ */
+const isAlprSchemaCacheError = (errorMessage?: string | null) => {
+  const msg = (errorMessage || '').toLowerCase()
+  // PostgREST schema-cache miss: "Could not find the '<col>' column of '<table>' in the schema cache"
+  return msg.includes('schema cache') ||
+    (msg.includes('could not find the') && msg.includes('column'))
+}
+
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
 
 async function retryEdgeCall<T>(
@@ -559,9 +573,12 @@ export default function FieldOfficerPortal() {
       }
 
       if (ingestError) {
-        // Safety net: if Edge Function transport fails, save observation directly
-        // so officers can continue scanning without data loss.
-        if (isTransientNetworkError(ingestError)) {
+        // Safety net: if Edge Function transport fails OR the edge function
+        // returned a PostgREST schema-cache miss (e.g. a newly-added column
+        // is not yet visible to PostgREST), save the observation directly so
+        // officers can continue scanning without data loss.  The direct insert
+        // code below already strips unrecognised columns adaptively.
+        if (isTransientNetworkError(ingestError) || isAlprSchemaCacheError(ingestError)) {
           appendScanDebug('alpr-process transport failure, trying direct insert fallback', {
             error: ingestError,
           })
