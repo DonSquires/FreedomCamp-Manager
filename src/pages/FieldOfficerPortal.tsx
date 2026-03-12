@@ -671,12 +671,58 @@ export default function FieldOfficerPortal() {
       )}
 
       {showScanner ? (
-        <CameraCapture 
-          onCapture={handleCapture} 
-          onCancel={() => setShowScanner(false)} 
-          facing="environment" 
-          showControls={true} 
-        />
+        <>
+          <CameraCapture 
+            onCapture={handleCapture} 
+            onCancel={() => setShowScanner(false)} 
+            facing="environment" 
+            showControls={true} 
+          />
+
+          <Card className="mt-4 border-blue-300 bg-blue-50/70 dark:bg-blue-950/30">
+            <CardHeader className="pb-2 pt-3 px-4">
+              <div className="flex items-center justify-between gap-2">
+                <CardTitle className="text-sm">Scan Diagnostics</CardTitle>
+                <div className="flex items-center gap-2">
+                  <Badge
+                    variant="secondary"
+                    className={
+                      scanDebugStatus === 'error'
+                        ? 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300'
+                        : scanDebugStatus === 'success'
+                        ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300'
+                        : 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300'
+                    }
+                  >
+                    {scanDebugStatus === 'error' ? 'Error' : scanDebugStatus === 'success' ? 'Success' : 'Running'}
+                  </Badge>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 text-[11px]"
+                    onClick={copyScanDebug}
+                    disabled={scanDebugLines.length === 0}
+                  >
+                    <Copy className="h-3 w-3 mr-1" />
+                    Copy
+                  </Button>
+                </div>
+              </div>
+              <CardDescription className="text-xs">
+                {scanDebugLines.length > 0
+                  ? 'Copy and paste this block into chat for scan troubleshooting.'
+                  : 'Start a scan to populate diagnostics logs.'}
+              </CardDescription>
+            </CardHeader>
+            {scanDebugLines.length > 0 && (
+              <CardContent className="px-4 pb-3">
+                <pre className="max-h-48 overflow-auto rounded border bg-white/70 dark:bg-slate-900 p-2 text-[11px] leading-4 whitespace-pre-wrap break-words">
+                  {scanDebugLines.join('\n')}
+                </pre>
+              </CardContent>
+            )}
+          </Card>
+        </>
       ) : showCheckpoint ? (
         <Card>
           <CardHeader>
