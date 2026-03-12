@@ -47,7 +47,7 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 AS $$
 DECLARE
-  v_obs vehicle_observations_v2%ROWTYPE;
+  v_obs observations%ROWTYPE;
   v_zone zones%ROWTYPE;
   v_matrix zone_compliance_matrix%ROWTYPE;
   v_canonical canonical_vehicles%ROWTYPE;
@@ -70,7 +70,7 @@ DECLARE
   v_exempt_reason text;
 BEGIN
   -- Load observation with all enriched data
-  SELECT * INTO v_obs FROM vehicle_observations_v2 WHERE observation_id = p_observation_id;
+  SELECT * INTO v_obs FROM observations WHERE observation_id = p_observation_id;
   
   IF NOT FOUND THEN
     RAISE EXCEPTION 'Observation % not found', p_observation_id;
@@ -285,10 +285,10 @@ BEGIN
 END;
 $$;
 
--- Attach trigger to vehicle_observations_v2
-DROP TRIGGER IF EXISTS trigger_pipeline_layer_2_and_3 ON vehicle_observations_v2;
+-- Attach trigger to observations
+DROP TRIGGER IF EXISTS trigger_pipeline_layer_2_and_3 ON observations;
 CREATE TRIGGER trigger_pipeline_layer_2_and_3
-AFTER INSERT ON vehicle_observations_v2
+AFTER INSERT ON observations
 FOR EACH ROW
 EXECUTE FUNCTION pipeline_layer_2_and_3();
 
@@ -306,7 +306,7 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 AS $$
 DECLARE
-  v_obs vehicle_observations_v2%ROWTYPE;
+  v_obs observations%ROWTYPE;
   v_zone zones%ROWTYPE;
   v_compliance compliance_results%ROWTYPE;
   v_result jsonb;
@@ -317,7 +317,7 @@ DECLARE
   v_recommended_action text;
 BEGIN
   -- Load observation
-  SELECT * INTO v_obs FROM vehicle_observations_v2 WHERE observation_id = p_observation_id;
+  SELECT * INTO v_obs FROM observations WHERE observation_id = p_observation_id;
   
   IF NOT FOUND THEN
     RETURN jsonb_build_object('error', 'Observation not found');
@@ -486,7 +486,7 @@ BEGIN
     obs.zone_id,
     z.name AS zone_name,
     cr.violation_reasons
-  FROM vehicle_observations_v2 obs
+  FROM observations obs
   JOIN compliance_results cr ON cr.observation_id = obs.observation_id
   JOIN zones z ON z.id = obs.zone_id
   WHERE obs.recorded_at BETWEEN p_from AND p_to
@@ -530,7 +530,7 @@ BEGIN
     obs.zone_id,
     z.name AS zone_name,
     cr.violation_reasons
-  FROM vehicle_observations_v2 obs
+  FROM observations obs
   JOIN compliance_results cr ON cr.observation_id = obs.observation_id
   JOIN zones z ON z.id = obs.zone_id
   WHERE obs.recorded_at BETWEEN p_from AND p_to
@@ -571,7 +571,7 @@ BEGIN
     z.name AS zone_name,
     cr.violation_reasons,
     cr.is_homeless_exempt
-  FROM vehicle_observations_v2 obs
+  FROM observations obs
   JOIN compliance_results cr ON cr.observation_id = obs.observation_id
   JOIN zones z ON z.id = obs.zone_id
   WHERE obs.recorded_at BETWEEN p_from AND p_to
@@ -606,7 +606,7 @@ DECLARE
 BEGIN
   -- Count total observations to process
   SELECT COUNT(*) INTO v_obs_count
-  FROM vehicle_observations_v2
+  FROM observations
   WHERE recorded_at >= (p_effective_from::timestamp AT TIME ZONE 'Pacific/Auckland');
   
   RAISE NOTICE 'Starting recomputation for % observations since %', v_obs_count, p_effective_from;
@@ -614,7 +614,7 @@ BEGIN
   -- Process in batches
   FOR v_obs_record IN 
     SELECT observation_id
-    FROM vehicle_observations_v2
+    FROM observations
     WHERE recorded_at >= (p_effective_from::timestamp AT TIME ZONE 'Pacific/Auckland')
     ORDER BY recorded_at
   LOOP
@@ -661,7 +661,7 @@ COMMENT ON FUNCTION recompute_all_compliance_since_effective_date(date) IS
 
 CREATE TABLE IF NOT EXISTS enforcement_cases (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  observation_id uuid REFERENCES vehicle_observations_v2(observation_id) ON DELETE SET NULL,
+  observation_id uuid REFERENCES observations(observation_id) ON DELETE SET NULL,
   plate_number text NOT NULL,
   organization_id uuid REFERENCES organizations(id) ON DELETE CASCADE,
   zone_id uuid REFERENCES zones(id) ON DELETE CASCADE,

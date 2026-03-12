@@ -41,9 +41,9 @@ BEGIN
     obs_table := 'observations';
   ELSIF EXISTS (
     SELECT 1 FROM information_schema.tables
-    WHERE table_schema = 'public' AND table_name = 'vehicle_observations_v2'
+    WHERE table_schema = 'public' AND table_name = 'observations'
   ) THEN
-    obs_table := 'vehicle_observations_v2';
+    obs_table := 'observations';
   ELSE
     RAISE NOTICE 'No observations table found; skipping observations policy updates.';
     RETURN;

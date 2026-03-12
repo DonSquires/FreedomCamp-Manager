@@ -21,7 +21,7 @@ DECLARE
   users_count INTEGER;
 BEGIN
   SELECT COUNT(*) INTO canonical_count FROM canonical_vehicles;
-  SELECT COUNT(*) INTO observations_count FROM vehicle_observations_v2;
+  SELECT COUNT(*) INTO observations_count FROM observations;
   SELECT COUNT(*) INTO zones_count FROM zones;
   SELECT COUNT(*) INTO orgs_count FROM organizations;
   SELECT COUNT(*) INTO users_count FROM user_profiles;
@@ -51,7 +51,7 @@ DROP TABLE IF EXISTS vehicle_observations CASCADE;
 DROP TABLE IF EXISTS vehicle_records CASCADE;
 DROP TABLE IF EXISTS verification_results CASCADE;
 DROP TABLE IF EXISTS plate_history CASCADE;
-DROP TABLE IF EXISTS vehicle_observations_v2_backup_20250213 CASCADE;
+DROP TABLE IF EXISTS observations_backup_20250213 CASCADE;
 
 RAISE NOTICE '✅ Removed deprecated tables (backups and old schemas)';
 
@@ -65,10 +65,10 @@ CREATE INDEX IF NOT EXISTS idx_canonical_vehicles_updated_at ON canonical_vehicl
 CREATE INDEX IF NOT EXISTS idx_canonical_vehicles_flagged_homeless ON canonical_vehicles(is_flagged, homeless_status);
 CREATE INDEX IF NOT EXISTS idx_canonical_vehicles_last_seen ON canonical_vehicles(last_seen_at DESC);
 
--- vehicle_observations_v2: Composite indexes for common queries
-CREATE INDEX IF NOT EXISTS idx_observations_v2_plate_zone_date ON vehicle_observations_v2(plate_number, zone_id, recorded_at DESC);
-CREATE INDEX IF NOT EXISTS idx_observations_v2_org_date ON vehicle_observations_v2(organization_id, recorded_at DESC);
-CREATE INDEX IF NOT EXISTS idx_observations_v2_compliance ON vehicle_observations_v2(plate_number, is_compliant, recorded_at DESC);
+-- observations: Composite indexes for common queries
+CREATE INDEX IF NOT EXISTS idx_observations_v2_plate_zone_date ON observations(plate_number, zone_id, recorded_at DESC);
+CREATE INDEX IF NOT EXISTS idx_observations_v2_org_date ON observations(organization_id, recorded_at DESC);
+CREATE INDEX IF NOT EXISTS idx_observations_v2_compliance ON observations(plate_number, is_compliant, recorded_at DESC);
 
 -- vehicle_monthly_stays: Optimize month queries
 CREATE INDEX IF NOT EXISTS idx_monthly_stays_plate_zone_month ON vehicle_monthly_stays(plate_number, zone_id, calendar_month);
@@ -231,10 +231,10 @@ RAISE NOTICE '✅ Rebuilt compliance function (v3 - clean)';
 -- =====================================================
 
 -- Drop all old triggers
-DROP TRIGGER IF EXISTS trigger_populate_observation_from_canonical ON vehicle_observations_v2;
-DROP TRIGGER IF EXISTS trigger_update_canonical_notes ON vehicle_observations_v2;
-DROP TRIGGER IF EXISTS trigger_update_canonical_stats_v2 ON vehicle_observations_v2;
-DROP TRIGGER IF EXISTS trigger_sync_homeless_to_canonical ON vehicle_observations_v2;
+DROP TRIGGER IF EXISTS trigger_populate_observation_from_canonical ON observations;
+DROP TRIGGER IF EXISTS trigger_update_canonical_notes ON observations;
+DROP TRIGGER IF EXISTS trigger_update_canonical_stats_v2 ON observations;
+DROP TRIGGER IF EXISTS trigger_sync_homeless_to_canonical ON observations;
 
 -- TRIGGER 1: Auto-populate observation from canonical vehicle
 CREATE OR REPLACE FUNCTION populate_observation_from_canonical()
@@ -262,7 +262,7 @@ END;
 $$ LANGUAGE plpgsql;
 
 CREATE TRIGGER trigger_populate_observation_from_canonical
-  BEFORE INSERT ON vehicle_observations_v2
+  BEFORE INSERT ON observations
   FOR EACH ROW
   EXECUTE FUNCTION populate_observation_from_canonical();
 
@@ -285,7 +285,7 @@ END;
 $$ LANGUAGE plpgsql;
 
 CREATE TRIGGER trigger_update_canonical_stats_v2
-  AFTER INSERT ON vehicle_observations_v2
+  AFTER INSERT ON observations
   FOR EACH ROW
   EXECUTE FUNCTION update_canonical_stats_v2();
 
@@ -311,7 +311,7 @@ END;
 $$ LANGUAGE plpgsql;
 
 CREATE TRIGGER trigger_sync_homeless_to_canonical
-  AFTER INSERT ON vehicle_observations_v2
+  AFTER INSERT ON observations
   FOR EACH ROW
   WHEN (NEW.has_homeless_claim = TRUE)
   EXECUTE FUNCTION sync_homeless_to_canonical();
@@ -331,7 +331,7 @@ DECLARE
   users_count INTEGER;
 BEGIN
   SELECT COUNT(*) INTO canonical_count FROM canonical_vehicles;
-  SELECT COUNT(*) INTO observations_count FROM vehicle_observations_v2;
+  SELECT COUNT(*) INTO observations_count FROM observations;
   SELECT COUNT(*) INTO zones_count FROM zones;
   SELECT COUNT(*) INTO orgs_count FROM organizations;
   SELECT COUNT(*) INTO users_count FROM user_profiles;

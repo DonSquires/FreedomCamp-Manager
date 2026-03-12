@@ -16,7 +16,7 @@ COMMENT ON EXTENSION postgis IS 'PostGIS geometry and geography spatial types an
 -- ===========================================
 
 -- Add evidence integrity columns
-ALTER TABLE vehicle_observations_v2
+ALTER TABLE observations
   ADD COLUMN IF NOT EXISTS photo_original_sha256 TEXT,
   ADD COLUMN IF NOT EXISTS photo_original_bytes INTEGER,
   ADD COLUMN IF NOT EXISTS photo_exif JSONB DEFAULT '{}'::jsonb,
@@ -29,22 +29,22 @@ ALTER TABLE vehicle_observations_v2
   ADD COLUMN IF NOT EXISTS geom geography(POINT, 4326); -- PostGIS point for real distance calculations
 
 -- Comments explaining Evidence Act 2006 compliance
-COMMENT ON COLUMN vehicle_observations_v2.photo_original_sha256 IS 'SHA-256 hash of original photo bytes for authenticity verification (Evidence Act s8)';
-COMMENT ON COLUMN vehicle_observations_v2.photo_exif IS 'EXIF metadata from original photo (GPS, device time, camera settings) for reliability assessment';
-COMMENT ON COLUMN vehicle_observations_v2.device_time IS 'Device-reported timestamp (may differ from server time due to clock skew)';
-COMMENT ON COLUMN vehicle_observations_v2.server_received_at IS 'Trusted server timestamp when evidence was received';
-COMMENT ON COLUMN vehicle_observations_v2.trusted_time_signature IS 'HMAC signature of (hash + server_received_at) for Evidence Act machine-generated evidence';
-COMMENT ON COLUMN vehicle_observations_v2.gps_accuracy_m IS 'GPS horizontal accuracy in meters (HDOP) for boundary challenge defense';
-COMMENT ON COLUMN vehicle_observations_v2.distance_to_zone_m IS 'Calculated distance from GPS point to nearest zone boundary (PostGIS geodesic)';
-COMMENT ON COLUMN vehicle_observations_v2.location_confidence IS 'GPS confidence: high (<5m), medium (5-15m), low (>15m) for s30 risk assessment';
-COMMENT ON COLUMN vehicle_observations_v2.geom IS 'PostGIS geography point (SRID 4326) for accurate geodesic distance calculations';
+COMMENT ON COLUMN observations.photo_original_sha256 IS 'SHA-256 hash of original photo bytes for authenticity verification (Evidence Act s8)';
+COMMENT ON COLUMN observations.photo_exif IS 'EXIF metadata from original photo (GPS, device time, camera settings) for reliability assessment';
+COMMENT ON COLUMN observations.device_time IS 'Device-reported timestamp (may differ from server time due to clock skew)';
+COMMENT ON COLUMN observations.server_received_at IS 'Trusted server timestamp when evidence was received';
+COMMENT ON COLUMN observations.trusted_time_signature IS 'HMAC signature of (hash + server_received_at) for Evidence Act machine-generated evidence';
+COMMENT ON COLUMN observations.gps_accuracy_m IS 'GPS horizontal accuracy in meters (HDOP) for boundary challenge defense';
+COMMENT ON COLUMN observations.distance_to_zone_m IS 'Calculated distance from GPS point to nearest zone boundary (PostGIS geodesic)';
+COMMENT ON COLUMN observations.location_confidence IS 'GPS confidence: high (<5m), medium (5-15m), low (>15m) for s30 risk assessment';
+COMMENT ON COLUMN observations.geom IS 'PostGIS geography point (SRID 4326) for accurate geodesic distance calculations';
 
 -- Performance index for BI/reports
 CREATE INDEX IF NOT EXISTS idx_observations_plate_date 
-  ON vehicle_observations_v2(plate_number, recorded_at DESC);
+  ON observations(plate_number, recorded_at DESC);
 
 CREATE INDEX IF NOT EXISTS idx_observations_geom
-  ON vehicle_observations_v2 USING GIST(geom);
+  ON observations USING GIST(geom);
 
 -- ===========================================
 -- SECTION 3: COMPLIANCE RESULTS - LEGAL BASIS & PROVENANCE
@@ -63,7 +63,7 @@ COMMENT ON COLUMN compliance_results.source_docs IS 'Array of {url, hash, type, 
 
 CREATE TABLE IF NOT EXISTS evidence_access_log (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  observation_id UUID REFERENCES vehicle_observations_v2(observation_id) ON DELETE CASCADE,
+  observation_id UUID REFERENCES observations(observation_id) ON DELETE CASCADE,
   actor UUID REFERENCES user_profiles(id) ON DELETE SET NULL,
   action TEXT NOT NULL CHECK(action IN ('VIEW', 'EXPORT', 'REDACT', 'DELETE_REQUEST', 'PRINT', 'DOWNLOAD', 'SHARE', 'MODIFY')),
   action_details JSONB DEFAULT '{}'::jsonb,
@@ -96,7 +96,7 @@ CREATE POLICY "admins_view_evidence_access_log"
     AND (
       get_user_role(auth.uid()) = 'master'
       OR EXISTS (
-        SELECT 1 FROM vehicle_observations_v2 obs
+        SELECT 1 FROM observations obs
         WHERE obs.observation_id = evidence_access_log.observation_id
         AND obs.organization_id = get_user_organization_id(auth.uid())
       )
@@ -381,7 +381,7 @@ CREATE INDEX IF NOT EXISTS idx_notice_templates_active ON notice_templates(is_ac
 CREATE TABLE IF NOT EXISTS infringement_notices (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
-  observation_id UUID REFERENCES vehicle_observations_v2(observation_id) ON DELETE SET NULL,
+  observation_id UUID REFERENCES observations(observation_id) ON DELETE SET NULL,
   breach_alert_id UUID REFERENCES breach_alerts(id) ON DELETE SET NULL,
   template_id UUID REFERENCES notice_templates(id) ON DELETE SET NULL,
   notice_number TEXT UNIQUE NOT NULL,
@@ -468,7 +468,7 @@ CREATE POLICY "officers_view_infringement_notices"
 
 CREATE TABLE IF NOT EXISTS boundary_review_queue (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  observation_id UUID NOT NULL REFERENCES vehicle_observations_v2(observation_id) ON DELETE CASCADE,
+  observation_id UUID NOT NULL REFERENCES observations(observation_id) ON DELETE CASCADE,
   distance_to_boundary_m NUMERIC(10,2) NOT NULL,
   gps_accuracy_m NUMERIC(10,2),
   confidence TEXT CHECK(confidence IN ('high', 'medium', 'low')),
@@ -496,7 +496,7 @@ CREATE POLICY "admins_manage_boundary_review"
     AND (
       get_user_role(auth.uid()) = 'master'
       OR EXISTS (
-        SELECT 1 FROM vehicle_observations_v2 obs
+        SELECT 1 FROM observations obs
         WHERE obs.observation_id = boundary_review_queue.observation_id
         AND obs.organization_id = get_user_organization_id(auth.uid())
       )
@@ -568,9 +568,9 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
-DROP TRIGGER IF EXISTS trigger_calculate_boundary_distance ON vehicle_observations_v2;
+DROP TRIGGER IF EXISTS trigger_calculate_boundary_distance ON observations;
 CREATE TRIGGER trigger_calculate_boundary_distance
-  BEFORE INSERT OR UPDATE ON vehicle_observations_v2
+  BEFORE INSERT OR UPDATE ON observations
   FOR EACH ROW
   EXECUTE FUNCTION calculate_boundary_distance();
 
@@ -621,9 +621,9 @@ DECLARE
   obs_count INT;
   evidence_count INT;
 BEGIN
-  SELECT COUNT(*) INTO obs_count FROM vehicle_observations_v2;
+  SELECT COUNT(*) INTO obs_count FROM observations;
   SELECT COUNT(*) INTO evidence_count 
-  FROM vehicle_observations_v2 
+  FROM observations 
   WHERE photo_original_sha256 IS NOT NULL;
   
   RAISE NOTICE 'Total observations: %, With evidence integrity: %', obs_count, evidence_count;

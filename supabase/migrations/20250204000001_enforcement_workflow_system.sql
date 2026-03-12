@@ -20,7 +20,7 @@ COMMENT ON COLUMN canonical_vehicles.last_enforcement_type IS 'Type of last enfo
 
 -- Add breach/job linking fields to enforcement_actions
 ALTER TABLE enforcement_actions
-  ADD COLUMN IF NOT EXISTS observation_id UUID REFERENCES vehicle_observations_v2(observation_id) ON DELETE SET NULL,
+  ADD COLUMN IF NOT EXISTS observation_id UUID REFERENCES observations(observation_id) ON DELETE SET NULL,
   ADD COLUMN IF NOT EXISTS compliance_result_id UUID REFERENCES compliance_results(id) ON DELETE SET NULL,
   ADD COLUMN IF NOT EXISTS plate_number TEXT,
   ADD COLUMN IF NOT EXISTS assigned_to UUID REFERENCES user_profiles(id) ON DELETE SET NULL,
@@ -59,7 +59,7 @@ BEGIN
   -- Get plate from observation if not already set
   IF NEW.plate_number IS NULL AND NEW.observation_id IS NOT NULL THEN
     SELECT plate_number INTO NEW.plate_number
-    FROM vehicle_observations_v2
+    FROM observations
     WHERE observation_id = NEW.observation_id;
   END IF;
   
@@ -158,7 +158,7 @@ BEGIN
       COUNT(*) FILTER (WHERE vo.is_breach) AS breach_count,
       MAX(vo.recorded_at) FILTER (WHERE vo.is_breach) AS last_breach_date,
       (ARRAY_AGG(vo.breach_type ORDER BY vo.recorded_at DESC) FILTER (WHERE vo.is_breach))[1] AS last_breach_type
-    FROM vehicle_observations_v2 vo
+    FROM observations vo
     WHERE vo.recorded_at >= p_date_from AND vo.recorded_at <= p_date_to
     GROUP BY vo.plate_number, vo.zone_id
   ),

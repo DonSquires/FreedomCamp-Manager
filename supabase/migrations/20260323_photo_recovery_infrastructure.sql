@@ -12,7 +12,7 @@
 -- ---------------------------------------------------------------------------
 -- SECTION 1: MISSING PHOTO QUEUE (observations-based)
 -- ---------------------------------------------------------------------------
--- Replaces the vehicle_observations_v2 version from
+-- Replaces the observations version from
 -- 20260219000004_photo_first_enforcement.sql which referenced a table that
 -- was subsequently dropped.
 -- ---------------------------------------------------------------------------
@@ -183,7 +183,7 @@ CREATE POLICY "admins_view_photo_audit_log"
 -- ---------------------------------------------------------------------------
 -- SECTION 3: PHOTO INTEGRITY VIEWS (based on observations)
 -- ---------------------------------------------------------------------------
--- Drop and recreate views that previously referenced vehicle_observations_v2.
+-- Drop and recreate views that previously referenced observations.
 -- ---------------------------------------------------------------------------
 
 DROP VIEW IF EXISTS photo_integrity_health;

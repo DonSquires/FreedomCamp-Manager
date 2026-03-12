@@ -40,7 +40,7 @@ BEGIN
     v_plate_number,
     v_zone_id,
     v_recorded_at
-  FROM vehicle_observations_v2 o
+  FROM observations o
   WHERE o.observation_id = p_obs_id;
 
   IF NOT FOUND THEN
@@ -184,7 +184,7 @@ SELECT
   (r).sort_order
 FROM (
   SELECT evaluate_observation_requirements(o.observation_id) as r
-  FROM vehicle_observations_v2 o
+  FROM observations o
 ) t;
 
 COMMENT ON VIEW observation_requirements IS 
@@ -193,7 +193,7 @@ COMMENT ON VIEW observation_requirements IS
 -- Recreate RLS policy
 -- NOTE: observation_requirements is a VIEW (not a table). PostgreSQL does not
 -- support row-level security policies on views. Access is governed by RLS on
--- the underlying vehicle_observations_v2 and related tables. No policy needed here.
+-- the underlying observations and related tables. No policy needed here.
 
 -- Grant permissions
 GRANT EXECUTE ON FUNCTION evaluate_observation_requirements(uuid) TO authenticated;

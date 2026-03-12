@@ -9,16 +9,16 @@
 
 -- Fast lookup for photo hash verification
 CREATE INDEX IF NOT EXISTS idx_obs_photo_hash 
-  ON vehicle_observations_v2(photo_original_sha256) 
+  ON observations(photo_original_sha256) 
   WHERE photo_original_sha256 IS NOT NULL;
 
 -- Fast lookup for review UI (org + date)
 CREATE INDEX IF NOT EXISTS idx_obs_org_date 
-  ON vehicle_observations_v2(organization_id, recorded_at DESC);
+  ON observations(organization_id, recorded_at DESC);
 
 -- Fast lookup for photo-less observations (temporary, for backfill)
 CREATE INDEX IF NOT EXISTS idx_obs_missing_photo 
-  ON vehicle_observations_v2(organization_id, recorded_at DESC) 
+  ON observations(organization_id, recorded_at DESC) 
   WHERE photo_original_sha256 IS NULL;
 
 -- ===========================================
@@ -27,7 +27,7 @@ CREATE INDEX IF NOT EXISTS idx_obs_missing_photo
 
 CREATE TABLE IF NOT EXISTS missing_photo_queue (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  observation_id UUID NOT NULL REFERENCES vehicle_observations_v2(observation_id) ON DELETE CASCADE,
+  observation_id UUID NOT NULL REFERENCES observations(observation_id) ON DELETE CASCADE,
   organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
   plate_number TEXT,
   recorded_at TIMESTAMPTZ NOT NULL,
@@ -74,14 +74,14 @@ CREATE POLICY "admins_manage_missing_photo_queue"
 -- ===========================================
 
 -- Flag observations that cannot proceed to enforcement until photo verified
-ALTER TABLE vehicle_observations_v2
+ALTER TABLE observations
   ADD COLUMN IF NOT EXISTS review_blocked BOOLEAN DEFAULT false;
 
 CREATE INDEX IF NOT EXISTS idx_obs_review_blocked 
-  ON vehicle_observations_v2(review_blocked, organization_id) 
+  ON observations(review_blocked, organization_id) 
   WHERE review_blocked = true;
 
-COMMENT ON COLUMN vehicle_observations_v2.review_blocked IS 'Soft block: observation exists but cannot proceed to enforcement until photo verified (UI guardrail)';
+COMMENT ON COLUMN observations.review_blocked IS 'Soft block: observation exists but cannot proceed to enforcement until photo verified (UI guardrail)';
 
 -- ===========================================
 -- SECTION 4: NZSCV WARRANT CACHE (LIVE VALIDATION)
@@ -144,7 +144,7 @@ CREATE POLICY "users_view_nzscv_cache"
 -- ===========================================
 
 -- Ensure photo_original_bytes is positive if set
-ALTER TABLE vehicle_observations_v2
+ALTER TABLE observations
   ADD CONSTRAINT IF NOT EXISTS chk_photo_bytes_positive
   CHECK (photo_original_bytes IS NULL OR photo_original_bytes > 0);
 
@@ -154,7 +154,7 @@ ALTER TABLE vehicle_observations_v2
 
 CREATE TABLE IF NOT EXISTS scan_idempotency_keys (
   idempotency_key TEXT PRIMARY KEY,
-  observation_id UUID REFERENCES vehicle_observations_v2(observation_id) ON DELETE CASCADE,
+  observation_id UUID REFERENCES observations(observation_id) ON DELETE CASCADE,
   device_id TEXT NOT NULL,
   local_capture_id TEXT NOT NULL,
   created_at TIMESTAMPTZ DEFAULT now(),
@@ -201,7 +201,7 @@ BEGIN
       WHEN obs.photo_original_bytes <= 0 THEN 'null_hash'
       ELSE 'unknown'
     END AS reason
-  FROM vehicle_observations_v2 obs
+  FROM observations obs
   WHERE 
     obs.photo_original_sha256 IS NULL
     OR obs.photo_original_bytes IS NULL
@@ -231,7 +231,7 @@ BEGIN
     photo_url,
     review_blocked
   INTO obs_record
-  FROM vehicle_observations_v2
+  FROM observations
   WHERE observation_id = obs_id;
 
   IF NOT FOUND THEN
@@ -330,7 +330,7 @@ SELECT
   COUNT(CASE WHEN o.review_blocked = true THEN 1 END) AS review_blocked,
   ROUND(100.0 * COUNT(o.photo_original_sha256) / NULLIF(COUNT(*), 0), 2) AS hash_coverage_pct,
   MAX(o.recorded_at) AS latest_observation
-FROM vehicle_observations_v2 o
+FROM observations o
 JOIN organizations org ON org.id = o.organization_id
 GROUP BY o.organization_id, org.name
 ORDER BY missing_hash DESC;
@@ -353,7 +353,7 @@ SELECT
     WHEN o.review_blocked = true THEN 'blocked'
     ELSE 'ok'
   END AS status
-FROM vehicle_observations_v2 o
+FROM observations o
 WHERE o.recorded_at >= now() - INTERVAL '7 days'
 ORDER BY o.recorded_at DESC;
 
@@ -400,7 +400,7 @@ BEGIN
     COUNT(photo_original_sha256),
     COUNT(*) - COUNT(photo_original_sha256)
   INTO total_count, with_hash, missing_hash
-  FROM vehicle_observations_v2;
+  FROM observations;
   
   IF total_count > 0 THEN
     coverage_pct := ROUND(100.0 * with_hash / total_count, 2);

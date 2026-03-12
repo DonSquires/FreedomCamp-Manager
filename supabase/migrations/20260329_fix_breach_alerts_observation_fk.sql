@@ -3,9 +3,9 @@
 -- ============================================================================
 -- Background:
 --   The breach_alerts table was created in 20260218000005_rebuild_breach_alerts_system.sql
---   with: observation_id UUID REFERENCES vehicle_observations_v2(observation_id) ON DELETE CASCADE
+--   with: observation_id UUID REFERENCES observations(observation_id) ON DELETE CASCADE
 --
---   Migration 20260221_rebuild_observations_clean.sql dropped vehicle_observations_v2
+--   Migration 20260221_rebuild_observations_clean.sql dropped observations
 --   with CASCADE, which removed the FK constraint from breach_alerts.observation_id.
 --   The column itself survived but is now an unlinked UUID column.
 --

@@ -30,7 +30,7 @@ BEGIN
   
   -- Get the date of the most recent observation for this vehicle in this zone
   SELECT recorded_at::DATE INTO v_last_observation_date
-  FROM vehicle_observations_v2
+  FROM observations
   WHERE plate_number = p_plate_number
     AND zone_id = p_zone_id
     AND recorded_at < p_recorded_at
@@ -140,7 +140,7 @@ BEGIN
   
   -- Update observation breach flags
   IF v_current_nights > COALESCE(v_max_consecutive, 3) THEN
-    UPDATE vehicle_observations_v2
+    UPDATE observations
     SET 
       is_breach = true,
       breach_type = 'too_many_nights',
@@ -153,7 +153,7 @@ BEGIN
     WHERE observation_id = NEW.observation_id;
   ELSIF v_current_nights = COALESCE(v_max_consecutive, 3) THEN
     -- About to breach - set warning
-    UPDATE vehicle_observations_v2
+    UPDATE observations
     SET 
       breach_warning = true,
       breach_warning_reason = 'Will breach if vehicle stays tonight'
@@ -167,9 +167,9 @@ $$ LANGUAGE plpgsql;
 -- ----------------------------------------------------------------------------
 -- Replace trigger with new calendar day logic
 -- ----------------------------------------------------------------------------
-DROP TRIGGER IF EXISTS trigger_update_monthly_stays ON vehicle_observations_v2;
+DROP TRIGGER IF EXISTS trigger_update_monthly_stays ON observations;
 CREATE TRIGGER trigger_update_monthly_stays
-  AFTER INSERT ON vehicle_observations_v2
+  AFTER INSERT ON observations
   FOR EACH ROW
   EXECUTE FUNCTION update_monthly_stays_calendar_day();
 
@@ -199,7 +199,7 @@ BEGIN
   SELECT 
     -- Check if already scanned today
     EXISTS (
-      SELECT 1 FROM vehicle_observations_v2
+      SELECT 1 FROM observations
       WHERE plate_number = p_plate_number
         AND zone_id = p_zone_id
         AND recorded_at::DATE = v_today

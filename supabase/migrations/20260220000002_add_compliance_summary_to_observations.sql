@@ -8,7 +8,7 @@
  * - Court-ready documentation (clear explanations)
  * 
  * Changes:
- * 1. Add compliance_summary JSONB column to vehicle_observations_v2
+ * 1. Add compliance_summary JSONB column to observations
  * 2. Create function to generate compliance explanation blurb
  * 3. Update compliance trigger to populate this data
  */
@@ -17,14 +17,14 @@
 -- 1. ADD COMPLIANCE_SUMMARY COLUMN
 -- =====================================================================
 
-ALTER TABLE public.vehicle_observations_v2
+ALTER TABLE public.observations
 ADD COLUMN IF NOT EXISTS compliance_summary JSONB DEFAULT NULL;
 
-COMMENT ON COLUMN public.vehicle_observations_v2.compliance_summary IS 
+COMMENT ON COLUMN public.observations.compliance_summary IS 
 'Pre-calculated compliance metrics and explanation stored at observation time for legal audit trail and performance';
 
 CREATE INDEX IF NOT EXISTS idx_observations_compliance_summary 
-ON public.vehicle_observations_v2 USING gin(compliance_summary);
+ON public.observations USING gin(compliance_summary);
 
 -- =====================================================================
 -- 2. FUNCTION TO GENERATE COMPLIANCE EXPLANATION
@@ -58,7 +58,7 @@ BEGIN
     cv.self_contained_expiry as canonical_sc_expiry,
     cr.is_homeless_exempt
   INTO v_obs
-  FROM vehicle_observations_v2 obs
+  FROM observations obs
   LEFT JOIN zones z ON z.id = obs.zone_id
   LEFT JOIN canonical_vehicles cv ON cv.plate_number = obs.plate_number
   LEFT JOIN compliance_results cr ON cr.observation_id = obs.observation_id
@@ -248,16 +248,16 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- Drop existing trigger if exists
-DROP TRIGGER IF EXISTS trigger_populate_compliance_summary ON public.vehicle_observations_v2;
+DROP TRIGGER IF EXISTS trigger_populate_compliance_summary ON public.observations;
 
 -- Create new trigger
 CREATE TRIGGER trigger_populate_compliance_summary
   BEFORE INSERT OR UPDATE OF is_compliant, breach_type, breach_details
-  ON public.vehicle_observations_v2
+  ON public.observations
   FOR EACH ROW
   EXECUTE FUNCTION populate_compliance_summary();
 
-COMMENT ON TRIGGER trigger_populate_compliance_summary ON public.vehicle_observations_v2 IS 
+COMMENT ON TRIGGER trigger_populate_compliance_summary ON public.observations IS 
 'Automatically populates compliance_summary with pre-calculated metrics and explanation whenever compliance status changes';
 
 -- =====================================================================
@@ -265,7 +265,7 @@ COMMENT ON TRIGGER trigger_populate_compliance_summary ON public.vehicle_observa
 -- =====================================================================
 
 -- Backfill compliance summaries for existing observations that have compliance results
-UPDATE vehicle_observations_v2
+UPDATE observations
 SET compliance_summary = generate_compliance_explanation(observation_id)
 WHERE is_compliant IS NOT NULL
   AND compliance_summary IS NULL

@@ -17,7 +17,7 @@ DECLARE
 BEGIN
   -- Check for observations still missing photos
   SELECT COUNT(*) INTO missing_count
-  FROM vehicle_observations_v2
+  FROM observations
   WHERE photo_original_sha256 IS NULL;
   
   -- Check for pending repairs in queue
@@ -44,15 +44,15 @@ END $$;
 -- ===========================================
 
 -- This is the golden rule: No observation can exist without a verifiable photo
-ALTER TABLE vehicle_observations_v2
+ALTER TABLE observations
   ALTER COLUMN photo_original_sha256 SET NOT NULL;
 
 -- Also enforce photo_original_bytes
-ALTER TABLE vehicle_observations_v2
+ALTER TABLE observations
   ALTER COLUMN photo_original_bytes SET NOT NULL;
 
-COMMENT ON COLUMN vehicle_observations_v2.photo_original_sha256 IS 'SHA-256 hash of original photo (NOT NULL - Evidence Act s8 authenticity requirement)';
-COMMENT ON COLUMN vehicle_observations_v2.photo_original_bytes IS 'Original photo file size in bytes (NOT NULL - integrity verification)';
+COMMENT ON COLUMN observations.photo_original_sha256 IS 'SHA-256 hash of original photo (NOT NULL - Evidence Act s8 authenticity requirement)';
+COMMENT ON COLUMN observations.photo_original_bytes IS 'Original photo file size in bytes (NOT NULL - integrity verification)';
 
 -- ===========================================
 -- SECTION 3: REMOVE TEMPORARY INDEXES
@@ -67,9 +67,9 @@ DROP INDEX IF EXISTS idx_obs_missing_photo;
 
 -- Prevent application-layer deletion of photo-backed observations
 -- Only legal retention/archival workflows can delete via service role
-REVOKE DELETE ON vehicle_observations_v2 FROM PUBLIC;
+REVOKE DELETE ON observations FROM PUBLIC;
 
-COMMENT ON TABLE vehicle_observations_v2 IS 'Vehicle observations with mandatory photo evidence (Evidence Act 2006 compliance - deletion restricted to retention workflows)';
+COMMENT ON TABLE observations IS 'Vehicle observations with mandatory photo evidence (Evidence Act 2006 compliance - deletion restricted to retention workflows)';
 
 -- ===========================================
 -- SECTION 5: FINAL VERIFICATION
@@ -86,7 +86,7 @@ BEGIN
     COUNT(photo_original_sha256),
     COUNT(photo_original_bytes)
   INTO total_count, with_hash, with_bytes
-  FROM vehicle_observations_v2;
+  FROM observations;
   
   RAISE NOTICE '===========================================';
   RAISE NOTICE 'NOT NULL ENFORCEMENT COMPLETE';

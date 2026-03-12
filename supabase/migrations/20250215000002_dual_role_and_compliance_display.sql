@@ -11,10 +11,10 @@
 -- ============================================================================
 
 -- Add portal_used column to track which portal was used to create records
-ALTER TABLE vehicle_observations_v2 
+ALTER TABLE observations 
 ADD COLUMN IF NOT EXISTS portal_used TEXT CHECK (portal_used IN ('field', 'admin', 'api'));
 
-COMMENT ON COLUMN vehicle_observations_v2.portal_used IS 'Which portal was used to create this observation: field, admin, or api';
+COMMENT ON COLUMN observations.portal_used IS 'Which portal was used to create this observation: field, admin, or api';
 
 -- ============================================================================
 -- 2. PREVENT SELF-APPROVAL FUNCTION
@@ -38,7 +38,7 @@ BEGIN
   -- Get observation details
   SELECT recorded_by, portal_used, created_at
   INTO v_recorded_by, v_portal_used, v_created_at
-  FROM vehicle_observations_v2
+  FROM observations
   WHERE observation_id = p_observation_id;
   
   -- Get user role
@@ -88,11 +88,11 @@ COMMENT ON FUNCTION can_user_modify_observation IS 'Check if user can modify obs
 -- ============================================================================
 
 -- Drop existing policies that check for admin/officer
-DROP POLICY IF EXISTS admins_manage_observations_v2 ON vehicle_observations_v2;
-DROP POLICY IF EXISTS officers_update_own_observations ON vehicle_observations_v2;
+DROP POLICY IF EXISTS admins_manage_observations_v2 ON observations;
+DROP POLICY IF EXISTS officers_update_own_observations ON observations;
 
 -- Recreate with dual role support
-CREATE POLICY admins_manage_observations_v2 ON vehicle_observations_v2
+CREATE POLICY admins_manage_observations_v2 ON observations
   FOR ALL
   USING (
     (get_user_role(auth.uid()) IN ('admin', 'admin_officer', 'master')) 
@@ -102,7 +102,7 @@ CREATE POLICY admins_manage_observations_v2 ON vehicle_observations_v2
 
 -- Field officers and admin_officers can update their own records within 24 hours
 -- But admin_officers CANNOT approve their own field observations
-CREATE POLICY officers_update_own_observations ON vehicle_observations_v2
+CREATE POLICY officers_update_own_observations ON observations
   FOR UPDATE
   USING (
     recorded_by = auth.uid() 
@@ -251,7 +251,7 @@ $$;
 
 -- User profiles table already has proper foreign keys
 -- The user_profiles table is referenced by:
--- - vehicle_observations_v2.recorded_by
+-- - observations.recorded_by
 -- - enforcement_actions.user_id
 -- - incidents.user_id
 -- - etc.
@@ -294,8 +294,8 @@ $$;
 DO $$
 BEGIN
   IF EXISTS (SELECT 1 FROM information_schema.columns 
-             WHERE table_name = 'vehicle_observations_v2' AND column_name = 'portal_used') THEN
-    RAISE NOTICE '✅ portal_used column added to vehicle_observations_v2';
+             WHERE table_name = 'observations' AND column_name = 'portal_used') THEN
+    RAISE NOTICE '✅ portal_used column added to observations';
   END IF;
   
   IF EXISTS (SELECT 1 FROM information_schema.columns 

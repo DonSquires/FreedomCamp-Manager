@@ -8,7 +8,7 @@
 -- ===========================================
 
 -- Add legacy import flags to observations
-ALTER TABLE vehicle_observations_v2
+ALTER TABLE observations
   ADD COLUMN IF NOT EXISTS is_legacy_import BOOLEAN DEFAULT false,
   ADD COLUMN IF NOT EXISTS evidence_state TEXT 
     CHECK(evidence_state IN ('original_present', 'legacy_no_photo', 'reconstructed', 'external_reference'))
@@ -18,20 +18,20 @@ ALTER TABLE vehicle_observations_v2
   ADD COLUMN IF NOT EXISTS external_evidence_uri TEXT,
   ADD COLUMN IF NOT EXISTS external_evidence_hash TEXT;
 
-COMMENT ON COLUMN vehicle_observations_v2.is_legacy_import IS 'True if imported from pre-photo-first system (v1 export, historical data)';
-COMMENT ON COLUMN vehicle_observations_v2.evidence_state IS 'Evidence quality: original_present (court-ready), legacy_no_photo (non-enforceable), reconstructed (derived only), external_reference (3rd-party proof)';
-COMMENT ON COLUMN vehicle_observations_v2.legacy_source_tag IS 'Source identifier for legacy import (e.g., "v1_export_2024Q4", "manual_migration_2025")';
-COMMENT ON COLUMN vehicle_observations_v2.legacy_note IS 'Free text explanation: where photo went missing, why no original, recovery attempts made';
-COMMENT ON COLUMN vehicle_observations_v2.external_evidence_uri IS 'URI to external evidence when original photo unavailable (scanned paper notice, 3rd-party docket)';
-COMMENT ON COLUMN vehicle_observations_v2.external_evidence_hash IS 'SHA-256 hash of external evidence document (for integrity)';
+COMMENT ON COLUMN observations.is_legacy_import IS 'True if imported from pre-photo-first system (v1 export, historical data)';
+COMMENT ON COLUMN observations.evidence_state IS 'Evidence quality: original_present (court-ready), legacy_no_photo (non-enforceable), reconstructed (derived only), external_reference (3rd-party proof)';
+COMMENT ON COLUMN observations.legacy_source_tag IS 'Source identifier for legacy import (e.g., "v1_export_2024Q4", "manual_migration_2025")';
+COMMENT ON COLUMN observations.legacy_note IS 'Free text explanation: where photo went missing, why no original, recovery attempts made';
+COMMENT ON COLUMN observations.external_evidence_uri IS 'URI to external evidence when original photo unavailable (scanned paper notice, 3rd-party docket)';
+COMMENT ON COLUMN observations.external_evidence_hash IS 'SHA-256 hash of external evidence document (for integrity)';
 
 -- Create indexes for filtering/reporting
 CREATE INDEX IF NOT EXISTS idx_obs_legacy_import 
-  ON vehicle_observations_v2(is_legacy_import, evidence_state) 
+  ON observations(is_legacy_import, evidence_state) 
   WHERE is_legacy_import = true;
 
 CREATE INDEX IF NOT EXISTS idx_obs_evidence_state 
-  ON vehicle_observations_v2(evidence_state, organization_id);
+  ON observations(evidence_state, organization_id);
 
 -- ===========================================
 -- SECTION 2: AUTO-SET EVIDENCE STATE ON INSERT
@@ -68,9 +68,9 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-DROP TRIGGER IF EXISTS trigger_set_evidence_state ON vehicle_observations_v2;
+DROP TRIGGER IF EXISTS trigger_set_evidence_state ON observations;
 CREATE TRIGGER trigger_set_evidence_state
-  BEFORE INSERT OR UPDATE ON vehicle_observations_v2
+  BEFORE INSERT OR UPDATE ON observations
   FOR EACH ROW
   EXECUTE FUNCTION set_evidence_state();
 
@@ -80,7 +80,7 @@ CREATE TRIGGER trigger_set_evidence_state
 
 CREATE TABLE IF NOT EXISTS legacy_evidence_reviews (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  observation_id UUID NOT NULL REFERENCES vehicle_observations_v2(observation_id) ON DELETE CASCADE,
+  observation_id UUID NOT NULL REFERENCES observations(observation_id) ON DELETE CASCADE,
   reviewer_id UUID NOT NULL REFERENCES user_profiles(id) ON DELETE SET NULL,
   
   -- Review Decision
@@ -121,7 +121,7 @@ CREATE POLICY "admins_manage_legacy_reviews"
     AND (
       get_user_role(auth.uid()) = 'master'
       OR EXISTS (
-        SELECT 1 FROM vehicle_observations_v2 obs
+        SELECT 1 FROM observations obs
         WHERE obs.observation_id = legacy_evidence_reviews.observation_id
         AND obs.organization_id = get_user_organization_id(auth.uid())
       )
@@ -146,7 +146,7 @@ SELECT
   ROUND(100.0 * COUNT(CASE WHEN o.evidence_state = 'original_present' THEN 1 END) / NULLIF(COUNT(*), 0), 2) AS recovery_rate_pct,
   MIN(o.recorded_at) AS oldest_legacy_observation,
   MAX(o.recorded_at) AS newest_legacy_observation
-FROM vehicle_observations_v2 o
+FROM observations o
 JOIN organizations org ON org.id = o.organization_id
 WHERE o.is_legacy_import = true
 GROUP BY o.organization_id, org.name
@@ -162,7 +162,7 @@ SELECT
   COUNT(*) AS observation_count,
   COUNT(CASE WHEN review_blocked = true THEN 1 END) AS blocked_count,
   ROUND(100.0 * COUNT(*) / SUM(COUNT(*)) OVER(), 2) AS percentage_of_total
-FROM vehicle_observations_v2
+FROM observations
 GROUP BY evidence_state, is_legacy_import
 ORDER BY observation_count DESC;
 
@@ -185,7 +185,7 @@ SELECT
     WHEN o.recorded_at >= now() - INTERVAL '90 days' THEN 'recent_legacy'
     ELSE 'low_priority'
   END AS recovery_priority
-FROM vehicle_observations_v2 o
+FROM observations o
 LEFT JOIN canonical_vehicles cv ON cv.plate_number = o.plate_number
 WHERE 
   o.is_legacy_import = true
@@ -223,7 +223,7 @@ BEGIN
     photo_original_sha256,
     plate_number
   INTO obs_record
-  FROM vehicle_observations_v2
+  FROM observations
   WHERE observation_id = obs_id;
 
   IF NOT FOUND THEN
@@ -294,7 +294,7 @@ RETURNS TRIGGER AS $$
 BEGIN
   -- Skip breach alert creation for legacy observations without original photos
   IF EXISTS (
-    SELECT 1 FROM vehicle_observations_v2
+    SELECT 1 FROM observations
     WHERE observation_id = NEW.observation_id
     AND is_legacy_import = true
     AND evidence_state != 'original_present'
@@ -331,9 +331,9 @@ DECLARE
   legacy_obs INT;
   enforceable_obs INT;
 BEGIN
-  SELECT COUNT(*) INTO total_obs FROM vehicle_observations_v2;
-  SELECT COUNT(*) INTO legacy_obs FROM vehicle_observations_v2 WHERE is_legacy_import = true;
-  SELECT COUNT(*) INTO enforceable_obs FROM vehicle_observations_v2 WHERE evidence_state = 'original_present' AND review_blocked = false;
+  SELECT COUNT(*) INTO total_obs FROM observations;
+  SELECT COUNT(*) INTO legacy_obs FROM observations WHERE is_legacy_import = true;
+  SELECT COUNT(*) INTO enforceable_obs FROM observations WHERE evidence_state = 'original_present' AND review_blocked = false;
   
   RAISE NOTICE '===========================================';
   RAISE NOTICE 'LEGACY IMPORT SUPPORT ENABLED';

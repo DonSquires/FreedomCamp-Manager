@@ -87,7 +87,7 @@ CREATE INDEX IF NOT EXISTS idx_canonical_vehicles_last_seen ON canonical_vehicle
 -- ----------------------------------------------------------------------------
 -- 2. VEHICLE OBSERVATIONS TABLE (Independent Records)
 -- ----------------------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS vehicle_observations_v2 (
+CREATE TABLE IF NOT EXISTS observations (
   -- Primary Key
   observation_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   
@@ -150,12 +150,12 @@ CREATE TABLE IF NOT EXISTS vehicle_observations_v2 (
   updated_at TIMESTAMPTZ DEFAULT now()
 );
 
-CREATE INDEX IF NOT EXISTS idx_observations_v2_plate ON vehicle_observations_v2(plate_number);
-CREATE INDEX IF NOT EXISTS idx_observations_v2_zone ON vehicle_observations_v2(zone_id);
-CREATE INDEX IF NOT EXISTS idx_observations_v2_org ON vehicle_observations_v2(organization_id);
-CREATE INDEX IF NOT EXISTS idx_observations_v2_recorded_at ON vehicle_observations_v2(recorded_at DESC);
-CREATE INDEX IF NOT EXISTS idx_observations_v2_breach ON vehicle_observations_v2(is_breach) WHERE is_breach = true;
-CREATE INDEX IF NOT EXISTS idx_observations_v2_notes ON vehicle_observations_v2(has_notes) WHERE has_notes = true;
+CREATE INDEX IF NOT EXISTS idx_observations_v2_plate ON observations(plate_number);
+CREATE INDEX IF NOT EXISTS idx_observations_v2_zone ON observations(zone_id);
+CREATE INDEX IF NOT EXISTS idx_observations_v2_org ON observations(organization_id);
+CREATE INDEX IF NOT EXISTS idx_observations_v2_recorded_at ON observations(recorded_at DESC);
+CREATE INDEX IF NOT EXISTS idx_observations_v2_breach ON observations(is_breach) WHERE is_breach = true;
+CREATE INDEX IF NOT EXISTS idx_observations_v2_notes ON observations(has_notes) WHERE has_notes = true;
 
 -- ----------------------------------------------------------------------------
 -- 3. MONTHLY STAY TRACKING TABLE
@@ -284,24 +284,24 @@ $$ LANGUAGE plpgsql;
 -- ============================================================================
 
 -- Auto-populate observation from canonical
-DROP TRIGGER IF EXISTS trigger_populate_observation_from_canonical ON vehicle_observations_v2;
+DROP TRIGGER IF EXISTS trigger_populate_observation_from_canonical ON observations;
 CREATE TRIGGER trigger_populate_observation_from_canonical
-  BEFORE INSERT ON vehicle_observations_v2
+  BEFORE INSERT ON observations
   FOR EACH ROW
   EXECUTE FUNCTION populate_observation_from_canonical();
 
 -- Update canonical notes tracking
-DROP TRIGGER IF EXISTS trigger_update_canonical_notes ON vehicle_observations_v2;
+DROP TRIGGER IF EXISTS trigger_update_canonical_notes ON observations;
 CREATE TRIGGER trigger_update_canonical_notes
-  AFTER INSERT ON vehicle_observations_v2
+  AFTER INSERT ON observations
   FOR EACH ROW
   WHEN (NEW.has_notes = true)
   EXECUTE FUNCTION update_canonical_notes_tracking();
 
 -- Update canonical statistics
-DROP TRIGGER IF EXISTS trigger_update_canonical_stats_v2 ON vehicle_observations_v2;
+DROP TRIGGER IF EXISTS trigger_update_canonical_stats_v2 ON observations;
 CREATE TRIGGER trigger_update_canonical_stats_v2
-  AFTER INSERT ON vehicle_observations_v2
+  AFTER INSERT ON observations
   FOR EACH ROW
   EXECUTE FUNCTION update_canonical_stats_v2();
 
@@ -333,18 +333,18 @@ CREATE POLICY admins_manage_canonical_vehicles ON canonical_vehicles
 -- ----------------------------------------------------------------------------
 -- Vehicle Observations V2 RLS
 -- ----------------------------------------------------------------------------
-ALTER TABLE vehicle_observations_v2 ENABLE ROW LEVEL SECURITY;
+ALTER TABLE observations ENABLE ROW LEVEL SECURITY;
 
-DROP POLICY IF EXISTS users_view_observations_v2 ON vehicle_observations_v2;
-CREATE POLICY users_view_observations_v2 ON vehicle_observations_v2
+DROP POLICY IF EXISTS users_view_observations_v2 ON observations;
+CREATE POLICY users_view_observations_v2 ON observations
   FOR SELECT
   USING (
     get_user_role(auth.uid()) = 'master'
     OR organization_id = get_user_organization_id(auth.uid())
   );
 
-DROP POLICY IF EXISTS users_create_observations_v2 ON vehicle_observations_v2;
-CREATE POLICY users_create_observations_v2 ON vehicle_observations_v2
+DROP POLICY IF EXISTS users_create_observations_v2 ON observations;
+CREATE POLICY users_create_observations_v2 ON observations
   FOR INSERT
   WITH CHECK (
     EXISTS (
@@ -353,8 +353,8 @@ CREATE POLICY users_create_observations_v2 ON vehicle_observations_v2
     )
   );
 
-DROP POLICY IF EXISTS admins_manage_observations_v2 ON vehicle_observations_v2;
-CREATE POLICY admins_manage_observations_v2 ON vehicle_observations_v2
+DROP POLICY IF EXISTS admins_manage_observations_v2 ON observations;
+CREATE POLICY admins_manage_observations_v2 ON observations
   FOR ALL
   USING (
     get_user_role(auth.uid()) IN ('admin', 'master')
@@ -474,7 +474,7 @@ BEGIN
     vo.recorded_at,
     up.first_name || ' ' || up.last_name as recorded_by_name,
     z.name as zone_name
-  FROM vehicle_observations_v2 vo
+  FROM observations vo
   LEFT JOIN user_profiles up ON vo.recorded_by = up.id
   LEFT JOIN zones z ON vo.zone_id = z.id
   WHERE vo.plate_number = p_plate_number
@@ -539,7 +539,7 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 -- ============================================================================
 
 GRANT SELECT ON canonical_vehicles TO authenticated;
-GRANT SELECT ON vehicle_observations_v2 TO authenticated;
+GRANT SELECT ON observations TO authenticated;
 GRANT SELECT ON vehicle_monthly_stays TO authenticated;
 
 -- ============================================================================
@@ -552,7 +552,7 @@ BEGIN
   RAISE NOTICE '';
   RAISE NOTICE '📋 NEW TABLES CREATED:';
   RAISE NOTICE '  1. canonical_vehicles - Master vehicle registry (plate_number primary key)';
-  RAISE NOTICE '  2. vehicle_observations_v2 - Independent observation records with notes';
+  RAISE NOTICE '  2. observations - Independent observation records with notes';
   RAISE NOTICE '  3. vehicle_monthly_stays - Calendar month tracking with auto-reset';
   RAISE NOTICE '';
   RAISE NOTICE '🎯 NEW FEATURES:';
@@ -563,8 +563,8 @@ BEGIN
   RAISE NOTICE '  ✅ AI profile photo selection';
   RAISE NOTICE '';
   RAISE NOTICE '🔧 NEXT STEPS:';
-  RAISE NOTICE '  1. Update mobile app to use new vehicle_observations_v2 table';
-  RAISE NOTICE '  2. Migrate existing observations from vehicle_observations to vehicle_observations_v2';
+  RAISE NOTICE '  1. Update mobile app to use new observations table';
+  RAISE NOTICE '  2. Migrate existing observations from vehicle_observations to observations';
   RAISE NOTICE '  3. Update Edge Functions to reference new schema';
   RAISE NOTICE '  4. Test note-taking workflow in Field Officer Portal';
 END $$;

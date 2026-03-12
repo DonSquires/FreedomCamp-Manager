@@ -61,7 +61,7 @@ BEGIN
     cr.is_homeless_exempt,
     up.first_name || ' ' || up.last_name as officer_name
   INTO v_obs
-  FROM vehicle_observations_v2 obs
+  FROM observations obs
   LEFT JOIN zones z ON z.id = obs.zone_id
   LEFT JOIN canonical_vehicles cv ON cv.plate_number = obs.plate_number
   LEFT JOIN compliance_results cr ON cr.observation_id = obs.observation_id
@@ -123,7 +123,7 @@ BEGIN
       officer_notes,
       has_homeless_claim,
       up.first_name || ' ' || up.last_name as officer_name
-    FROM vehicle_observations_v2 obs
+    FROM observations obs
     LEFT JOIN user_profiles up ON up.id = obs.recorded_by
     WHERE obs.plate_number = v_obs.plate_number
       AND obs.zone_id = v_obs.zone_id
@@ -413,7 +413,7 @@ COMMENT ON FUNCTION generate_compliance_explanation IS
 -- =====================================================================
 
 -- Backfill compliance summaries for existing observations
-UPDATE vehicle_observations_v2
+UPDATE observations
 SET compliance_summary = generate_compliance_explanation(observation_id)
 WHERE is_compliant IS NOT NULL
   AND observation_id IN (

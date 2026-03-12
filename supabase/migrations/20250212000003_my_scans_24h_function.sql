@@ -63,7 +63,7 @@ BEGIN
     COALESCE(obs.has_hs_incident, FALSE) AS has_hs_issue,
     COALESCE(cv.total_observations, 0) - 1 AS prior_observations_count, -- Subtract current observation
     obs.gps_accuracy
-  FROM vehicle_observations_v2 obs
+  FROM observations obs
   LEFT JOIN zones z ON z.id = obs.zone_id
   LEFT JOIN canonical_vehicles cv ON cv.plate_number = obs.plate_number
   WHERE obs.recorded_by = p_user_id

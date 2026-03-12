@@ -8,7 +8,7 @@ import { corsHeaders } from '../_shared/cors.ts';
  * Recalculates is_compliant, breach_type, breach_reason directly on the
  * `observations` table in batches of 150.
  *
- * The old vehicle_observations_v2 and compliance_results tables were dropped in
+ * The old observations and compliance_results tables were dropped in
  * 20260221_rebuild_observations_clean.sql. This function operates solely on the
  * new `observations` table and reads zone rules from `zone_compliance_matrix`
  * (falling back to the `zones` table when no matrix row exists).

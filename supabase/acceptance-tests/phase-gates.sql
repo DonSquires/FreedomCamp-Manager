@@ -52,7 +52,7 @@ AND grantee = 'authenticated';
 WITH latencies AS (
   SELECT 
     EXTRACT(EPOCH FROM (cr.created_at - obs.recorded_at)) AS latency_seconds
-  FROM vehicle_observations_v2 obs
+  FROM observations obs
   JOIN compliance_results cr ON cr.observation_id = obs.observation_id
   WHERE obs.recorded_at >= now() - interval '24 hours'
     AND cr.analytics_only = false  -- Only live observations
@@ -73,7 +73,7 @@ WITH uploads AS (
       ELSE 'failed'
     END AS status,
     EXTRACT(EPOCH FROM (created_at - recorded_at)) AS upload_time_seconds
-  FROM vehicle_observations_v2
+  FROM observations
   WHERE recorded_at >= now() - interval '24 hours'
     AND is_legacy_import = false
 )
@@ -248,7 +248,7 @@ ORDER BY s.observation_id, r.requirement_code;
 SELECT 
   'ROLLOUT ACCEPTANCE SUMMARY' AS report,
   (SELECT COUNT(*) = 7 FROM pg_proc WHERE proname IN ('cohort_overstayers', 'cohort_homeless_exempt', 'cohort_all_breaches', 'evaluate_observation_requirements', 'get_observation_result', 'log_mode_switch', 'recompute_all_compliance_since_effective_date')) AS phase0_rpcs_exist,
-  (SELECT percentile_cont(0.95) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM (cr.created_at - obs.recorded_at))) <= 5 FROM vehicle_observations_v2 obs JOIN compliance_results cr ON cr.observation_id = obs.observation_id WHERE obs.recorded_at >= now() - interval '24 hours' AND cr.analytics_only = false) AS phase1_latency_p95_ok,
+  (SELECT percentile_cont(0.95) WITHIN GROUP (ORDER BY EXTRACT(EPOCH FROM (cr.created_at - obs.recorded_at))) <= 5 FROM observations obs JOIN compliance_results cr ON cr.observation_id = obs.observation_id WHERE obs.recorded_at >= now() - interval '24 hours' AND cr.analytics_only = false) AS phase1_latency_p95_ok,
   (SELECT COUNT(*) > 0 FROM session_mode_switch_log WHERE occurred_at >= now() - interval '2 hours') AS phase3_mode_switch_logged,
   true AS phase6_kpi_subset_validated,  -- Manual check required with test date
   true AS phase6_requirements_present;  -- Manual check required with test date

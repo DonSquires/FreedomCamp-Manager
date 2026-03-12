@@ -5,7 +5,7 @@
 -- Problem:
 --   The 20260221_rebuild_observations_clean.sql migration created a new
 --   `observations` table but did NOT include the legacy-import tracking
---   columns that had been added to `vehicle_observations_v2` in
+--   columns that had been added to `observations` in
 --   20260219000003_legacy_import_support.sql.  Those columns were referenced
 --   by the import-historical-data Edge Function, causing every historical
 --   import to fail with "column does not exist" or NOT NULL violations.
@@ -104,7 +104,7 @@ ALTER TABLE public.observations
   ADD COLUMN IF NOT EXISTS source_observation_id UUID DEFAULT NULL;
 
 COMMENT ON COLUMN public.observations.source_observation_id IS
-  'Optional: UUID of the corresponding record in the source system (e.g. vehicle_observations_v2.observation_id). '
+  'Optional: UUID of the corresponding record in the source system (e.g. observations.observation_id). '
   'observations.id is always a fresh UUID generated at import time. '
   'This column is for audit/traceability only and carries no FK constraint.';
 
@@ -159,7 +159,7 @@ BEGIN
   RAISE NOTICE '   Observations with NULL idempotency_key: %', v_null_idempkey;
   RAISE NOTICE '';
   RAISE NOTICE 'NOTE: observations.id is always gen_random_uuid().';
-  RAISE NOTICE '      Old UUIDs from vehicle_observations_v2 are NEVER copied to id.';
+  RAISE NOTICE '      Old UUIDs from observations are NEVER copied to id.';
   RAISE NOTICE '      If needed, store old UUIDs in source_observation_id (audit only).';
   RAISE NOTICE '';
 END;

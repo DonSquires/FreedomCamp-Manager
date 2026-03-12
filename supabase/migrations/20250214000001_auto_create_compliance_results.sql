@@ -9,7 +9,7 @@
 --
 -- Tables affected: compliance_results
 -- Functions created: auto_create_compliance_result()
--- Triggers created: trigger_auto_create_compliance_result on vehicle_observations_v2
+-- Triggers created: trigger_auto_create_compliance_result on observations
 
 -- =====================================================
 -- FUNCTION: auto_create_compliance_result()
@@ -186,10 +186,10 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
 -- TRIGGER: trigger_auto_create_compliance_result
 -- =====================================================
 -- Fire AFTER INSERT to ensure all related data is committed first
-DROP TRIGGER IF EXISTS trigger_auto_create_compliance_result ON vehicle_observations_v2;
+DROP TRIGGER IF EXISTS trigger_auto_create_compliance_result ON observations;
 
 CREATE TRIGGER trigger_auto_create_compliance_result
-  AFTER INSERT ON vehicle_observations_v2
+  AFTER INSERT ON observations
   FOR EACH ROW
   EXECUTE FUNCTION auto_create_compliance_result();
 
@@ -201,5 +201,5 @@ COMMENT ON FUNCTION auto_create_compliance_result() IS
 Evaluates all zone compliance rules (self-contained, monthly limits, consecutive nights, allowed days) 
 and stores matrix snapshot for audit trail. Handles homeless exemptions if enabled.';
 
-COMMENT ON TRIGGER trigger_auto_create_compliance_result ON vehicle_observations_v2 IS 
+COMMENT ON TRIGGER trigger_auto_create_compliance_result ON observations IS 
 'Automatically creates compliance result record for every new observation, ensuring dashboards show real-time compliance data without manual recalculation.';

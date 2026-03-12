@@ -71,7 +71,7 @@ SELECT DISTINCT
       AND ea.breach_status IN ('active', 'assigned', 'in_progress')
   ) AS has_enforcement_assigned
 FROM canonical_vehicles cv
-JOIN vehicle_observations_v2 vo ON vo.plate_number = cv.plate_number
+JOIN observations vo ON vo.plate_number = cv.plate_number
 JOIN zones z ON z.id = vo.zone_id
 LEFT JOIN vehicle_monthly_stays vms ON vms.plate_number = cv.plate_number AND vms.zone_id = vo.zone_id
 LEFT JOIN zone_compliance_matrix zcm ON zcm.zone_id = vo.zone_id AND zcm.effective_to IS NULL

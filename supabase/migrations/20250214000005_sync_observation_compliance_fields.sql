@@ -7,7 +7,7 @@
 -- This ensures observation records always reflect the
 -- authoritative compliance evaluation from compliance_results.
 --
--- Tables affected: vehicle_observations_v2
+-- Tables affected: observations
 -- Functions created: sync_observation_compliance_fields()
 -- Triggers created: trigger_sync_observation_compliance on compliance_results
 
@@ -34,7 +34,7 @@ BEGIN
   END IF;
 
   -- Update the observation record
-  UPDATE vehicle_observations_v2
+  UPDATE observations
   SET 
     is_compliant = NEW.is_compliant,
     is_breach = NOT NEW.is_compliant,
@@ -78,7 +78,7 @@ BEGIN
 
   -- Update observations from compliance_results
   WITH updates AS (
-    UPDATE vehicle_observations_v2 o
+    UPDATE observations o
     SET 
       is_compliant = cr.is_compliant,
       is_breach = NOT cr.is_compliant,
@@ -121,7 +121,7 @@ BEGIN
   -- Check for any remaining mismatches
   SELECT COUNT(*)
   INTO v_mismatch_count
-  FROM vehicle_observations_v2 o
+  FROM observations o
   JOIN compliance_results cr ON cr.observation_id = o.observation_id
   WHERE o.is_compliant != cr.is_compliant;
 

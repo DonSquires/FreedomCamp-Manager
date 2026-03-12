@@ -221,7 +221,7 @@ DECLARE
 BEGIN
   -- Get observation details
   SELECT * INTO v_obs
-  FROM vehicle_observations_v2
+  FROM observations
   WHERE observation_id = p_observation_id;
   
   IF NOT FOUND THEN
@@ -337,7 +337,7 @@ BEGIN
   
   -- If AT RISK, update observation
   IF v_compliance.at_risk THEN
-    UPDATE vehicle_observations_v2
+    UPDATE observations
     SET 
       breach_warning = TRUE,
       breach_warning_reason = array_to_string(v_compliance.violation_reasons, '; ')
@@ -350,10 +350,10 @@ END;
 $$;
 
 -- STEP 3: Create trigger to auto-run compliance check on new observations
-DROP TRIGGER IF EXISTS trigger_auto_compliance_check ON vehicle_observations_v2;
+DROP TRIGGER IF EXISTS trigger_auto_compliance_check ON observations;
 
 CREATE TRIGGER trigger_auto_compliance_check
-  AFTER INSERT ON vehicle_observations_v2
+  AFTER INSERT ON observations
   FOR EACH ROW
   EXECUTE FUNCTION auto_evaluate_compliance_and_create_breach(NEW.observation_id);
 
@@ -379,5 +379,5 @@ COMMENT ON FUNCTION calculate_vehicle_compliance_v3 IS
 COMMENT ON FUNCTION auto_evaluate_compliance_and_create_breach IS 
   'Triggered on new observations - evaluates compliance, populates compliance_results table, creates breach_alerts for non-compliant vehicles (respecting homeless FC Act exemption), and routes to admin vs officer based on organization enforcement_workflow setting.';
 
-COMMENT ON TRIGGER trigger_auto_compliance_check ON vehicle_observations_v2 IS
+COMMENT ON TRIGGER trigger_auto_compliance_check ON observations IS
   'Auto-evaluates compliance and creates breach alerts when new observation is recorded';

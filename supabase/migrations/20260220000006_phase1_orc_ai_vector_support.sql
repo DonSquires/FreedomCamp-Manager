@@ -7,7 +7,7 @@
 --
 -- What This Does:
 -- 1. Enables pgvector extension for vector similarity search
--- 2. Adds embedding columns to vehicle_observations_v2
+-- 2. Adds embedding columns to observations
 -- 3. Creates IVFFlat index for fast top-k similarity queries
 -- 4. Creates match_vehicle() RPC for finding similar vehicles
 --
@@ -31,43 +31,43 @@ create extension if not exists vector;
 comment on extension vector is 'ORC/AI vehicle fingerprinting - cosine similarity search';
 
 
--- Step 2: Add embedding columns to vehicle_observations_v2
+-- Step 2: Add embedding columns to observations
 -- ============================================================================
 -- Using 384 dimensions (default MobileNetV3 output size)
 -- Can be changed to 256, 512, or 1024 based on model selection
-alter table vehicle_observations_v2
+alter table observations
   add column if not exists vehicle_embedding vector(384),
   add column if not exists embedding_quality real check (embedding_quality >= 0 and embedding_quality <= 1),
   add column if not exists embedding_model_version text,
   add column if not exists embedding_created_at timestamptz;
 
 -- Add comments for documentation
-comment on column vehicle_observations_v2.vehicle_embedding is 'Vehicle visual fingerprint (384D vector from MobileNetV3)';
-comment on column vehicle_observations_v2.embedding_quality is 'Quality score 0-1 (based on detection confidence + embedding norm)';
-comment on column vehicle_observations_v2.embedding_model_version is 'Model version string (e.g., yolov8n_mobilenetv3_v1.0)';
-comment on column vehicle_observations_v2.embedding_created_at is 'When the embedding was generated';
+comment on column observations.vehicle_embedding is 'Vehicle visual fingerprint (384D vector from MobileNetV3)';
+comment on column observations.embedding_quality is 'Quality score 0-1 (based on detection confidence + embedding norm)';
+comment on column observations.embedding_model_version is 'Model version string (e.g., yolov8n_mobilenetv3_v1.0)';
+comment on column observations.embedding_created_at is 'When the embedding was generated';
 
 
 -- Step 3: Create indices for vector similarity search
 -- ============================================================================
 -- NOTE: IVFFlat index requires populated table - uncomment after data exists
 -- create index if not exists idx_obs_embed_ivfflat
---   on vehicle_observations_v2 using ivfflat (vehicle_embedding vector_cosine_ops)
+--   on observations using ivfflat (vehicle_embedding vector_cosine_ops)
 --   with (lists = 100);
 
 -- Time-based filtering index (for match_vehicle time bounds)
 create index if not exists idx_obs_embedding_created_at 
-  on vehicle_observations_v2(embedding_created_at)
+  on observations(embedding_created_at)
   where vehicle_embedding is not null;
 
 -- Quality filtering index (for excluding low-quality embeddings)
 create index if not exists idx_obs_embedding_quality
-  on vehicle_observations_v2(embedding_quality)
+  on observations(embedding_quality)
   where vehicle_embedding is not null;
 
 -- Composite index for common queries (org + time + quality)
 create index if not exists idx_obs_embed_composite
-  on vehicle_observations_v2(organization_id, embedding_created_at)
+  on observations(organization_id, embedding_created_at)
   where vehicle_embedding is not null and embedding_quality >= 0.7;
 
 
@@ -97,7 +97,7 @@ create or replace function match_vehicle(
       vehicle_embedding as emb,
       gps_latitude as q_lat,
       gps_longitude as q_lng
-    from vehicle_observations_v2
+    from observations
     where observation_id = p_obs_id 
       and vehicle_embedding is not null
   )
@@ -123,7 +123,7 @@ create or replace function match_vehicle(
       )
       else null
     end as distance_m
-  from vehicle_observations_v2 o, q
+  from observations o, q
   where o.observation_id <> p_obs_id
     and o.vehicle_embedding is not null
     and o.embedding_quality >= p_min_quality
@@ -154,7 +154,7 @@ create or replace function check_embedding_readiness(
     select 
       count(*) as total,
       count(vehicle_embedding) as with_emb
-    from vehicle_observations_v2
+    from observations
   )
   select 
     total,
@@ -162,7 +162,7 @@ create or replace function check_embedding_readiness(
     with_emb >= p_lists as ready,
     case 
       when with_emb >= p_lists then 
-        'Ready! Run: CREATE INDEX idx_obs_embed_ivfflat ON vehicle_observations_v2 USING ivfflat (vehicle_embedding vector_cosine_ops) WITH (lists = 100);'
+        'Ready! Run: CREATE INDEX idx_obs_embed_ivfflat ON observations USING ivfflat (vehicle_embedding vector_cosine_ops) WITH (lists = 100);'
       else 
         'Need ' || (p_lists - with_emb)::text || ' more observations with embeddings before creating IVFFlat index'
     end as rec
@@ -181,8 +181,8 @@ begin
   
   -- Recreate with current optimal lists value (sqrt of embedding count)
   execute format(
-    'create index idx_obs_embed_ivfflat on vehicle_observations_v2 using ivfflat (vehicle_embedding vector_cosine_ops) with (lists = %s)',
-    greatest(10, least(1000, floor(sqrt((select count(*) from vehicle_observations_v2 where vehicle_embedding is not null)))))
+    'create index idx_obs_embed_ivfflat on observations using ivfflat (vehicle_embedding vector_cosine_ops) with (lists = %s)',
+    greatest(10, least(1000, floor(sqrt((select count(*) from observations where vehicle_embedding is not null)))))
   );
   
   return 'IVFFlat index rebuilt successfully';
@@ -206,7 +206,7 @@ select
   count(*) filter (where embedding_quality >= 0.7 and embedding_quality < 0.9) as good_count,
   count(*) filter (where embedding_quality < 0.7) as poor_count,
   embedding_model_version
-from vehicle_observations_v2
+from observations
 where vehicle_embedding is not null
 group by organization_id, date_trunc('day', embedding_created_at), embedding_model_version
 order by date desc;
@@ -223,14 +223,14 @@ comment on view embedding_quality_stats is 'Daily embedding quality metrics by o
 -- select * from pg_extension where extname = 'vector';
 
 -- 2. Check new columns exist
--- \d vehicle_observations_v2
+-- \d observations
 
 -- 3. Check index readiness
 -- select * from check_embedding_readiness();
 
 -- 4. Test match_vehicle function (will return empty until embeddings exist)
 -- select * from match_vehicle(
---   p_obs_id := (select observation_id from vehicle_observations_v2 limit 1),
+--   p_obs_id := (select observation_id from observations limit 1),
 --   p_k := 5
 -- );
 
@@ -240,7 +240,7 @@ comment on view embedding_quality_stats is 'Daily embedding quality metrics by o
 -- ============================================================================
 -- WARNING: This will delete all embedding data!
 --
--- alter table vehicle_observations_v2 
+-- alter table observations 
 --   drop column vehicle_embedding,
 --   drop column embedding_quality,
 --   drop column embedding_model_version,

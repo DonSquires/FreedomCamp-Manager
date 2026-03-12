@@ -3,7 +3,7 @@
 -- =====================================================
 -- Consolidate vehicle data around two core tables:
 -- 1. canonical_vehicles - Single source of truth for vehicle master data
--- 2. vehicle_observations_v2 - Event records only (time-series data)
+-- 2. observations - Event records only (time-series data)
 --
 -- This migration:
 -- - Ensures canonical_vehicles holds all permanent vehicle data
@@ -59,7 +59,7 @@ COMMENT ON COLUMN canonical_vehicles.nzscv_source IS 'Source of NZSCV data (nzsc
 -- STEP 2: Remove duplicate fields from observations
 -- =====================================================
 
--- vehicle_observations_v2 should NOT store:
+-- observations should NOT store:
 -- - Permanent vehicle attributes (make, model, year, color) - these come from canonical_vehicles
 -- - Homeless status - this is permanent vehicle data
 -- - Flagged status - this is permanent vehicle data
@@ -74,10 +74,10 @@ COMMENT ON COLUMN canonical_vehicles.nzscv_source IS 'Source of NZSCV data (nzsc
 -- - Photos taken during THIS observation
 
 -- Add observation-specific note field
-ALTER TABLE vehicle_observations_v2
+ALTER TABLE observations
   ADD COLUMN IF NOT EXISTS observation_notes TEXT;
 
-COMMENT ON COLUMN vehicle_observations_v2.observation_notes IS 'Notes specific to this observation event (not permanent vehicle notes)';
+COMMENT ON COLUMN observations.observation_notes IS 'Notes specific to this observation event (not permanent vehicle notes)';
 
 -- =====================================================
 -- STEP 3: Consolidate homeless tracking
@@ -101,7 +101,7 @@ DECLARE
 BEGIN
   FOR obs_record IN
     SELECT DISTINCT plate_number, homeless_claim_notes
-    FROM vehicle_observations_v2
+    FROM observations
     WHERE has_homeless_claim = TRUE
       AND plate_number IS NOT NULL
   LOOP
@@ -153,7 +153,7 @@ SELECT DISTINCT
       AND ea.breach_status IN ('active', 'assigned', 'in_progress')
   ) AS has_enforcement_assigned
 FROM canonical_vehicles cv
-JOIN vehicle_observations_v2 vo ON vo.plate_number = cv.plate_number
+JOIN observations vo ON vo.plate_number = cv.plate_number
 JOIN zones z ON z.id = vo.zone_id
 LEFT JOIN vehicle_monthly_stays vms ON vms.plate_number = cv.plate_number AND vms.zone_id = vo.zone_id
 LEFT JOIN zone_compliance_matrix zcm ON zcm.zone_id = vo.zone_id AND zcm.effective_to IS NULL

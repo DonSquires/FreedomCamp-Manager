@@ -3,7 +3,7 @@
 -- ============================================
 -- PURPOSE: Recover deleted observations from vehicle_monthly_stays table
 -- SOURCE: observation_ids array in vehicle_monthly_stays
--- TARGET: vehicle_observations_v2
+-- TARGET: observations
 -- 
 -- WHAT THIS RECOVERS:
 --   ✅ Observation UUIDs (maintains referential integrity)
@@ -48,9 +48,9 @@ BEGIN
   RAISE NOTICE '📊 RECOVERY ANALYSIS: Found % unique observation IDs to recover', v_count;
 END $$;
 
--- Step 3: Insert recovered observations into vehicle_observations_v2
+-- Step 3: Insert recovered observations into observations
 -- Use UPSERT (ON CONFLICT DO NOTHING) to avoid duplicates
-INSERT INTO vehicle_observations_v2 (
+INSERT INTO observations (
   observation_id,
   plate_number,
   organization_id,
@@ -109,7 +109,7 @@ DECLARE
 BEGIN
   -- Count how many were successfully inserted
   SELECT COUNT(*) INTO v_recovered
-  FROM vehicle_observations_v2
+  FROM observations
   WHERE officer_notes LIKE '%RECOVERED DATA%';
   
   -- Count total available for recovery
@@ -145,7 +145,7 @@ BEGIN
       COUNT(*) as obs_count,
       MIN(recorded_at) as first_obs,
       MAX(recorded_at) as last_obs
-    FROM vehicle_observations_v2
+    FROM observations
     GROUP BY plate_number
   )
   UPDATE canonical_vehicles cv
@@ -173,7 +173,7 @@ DECLARE
   v_canonical_count INTEGER;
   v_monthly_stays_count INTEGER;
 BEGIN
-  SELECT COUNT(*) INTO v_obs_count FROM vehicle_observations_v2;
+  SELECT COUNT(*) INTO v_obs_count FROM observations;
   SELECT COUNT(*) INTO v_canonical_count FROM canonical_vehicles;
   SELECT COUNT(*) INTO v_monthly_stays_count FROM vehicle_monthly_stays;
   
@@ -181,7 +181,7 @@ BEGIN
   RAISE NOTICE '========================================';
   RAISE NOTICE '📊 FINAL DATABASE STATE';
   RAISE NOTICE '========================================';
-  RAISE NOTICE 'vehicle_observations_v2:      % records', v_obs_count;
+  RAISE NOTICE 'observations:      % records', v_obs_count;
   RAISE NOTICE 'canonical_vehicles:           % records', v_canonical_count;
   RAISE NOTICE 'vehicle_monthly_stays:        % records', v_monthly_stays_count;
   RAISE NOTICE '========================================';

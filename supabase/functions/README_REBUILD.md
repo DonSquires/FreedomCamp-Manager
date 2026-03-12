@@ -136,7 +136,7 @@ SELECT
   photo_hash,
   zone_id,
   recorded_at
-FROM vehicle_observations_v2
+FROM observations
 ORDER BY recorded_at DESC
 LIMIT 10;
 ```

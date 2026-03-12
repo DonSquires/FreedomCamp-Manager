@@ -11,7 +11,7 @@
 
 -- Officers can DELETE their own recent scans (within 24 hours)
 CREATE POLICY officers_delete_recent_scans
-  ON vehicle_observations_v2 FOR DELETE
+  ON observations FOR DELETE
   USING (
     recorded_by = auth.uid() 
     AND recorded_at >= (nz_now() - INTERVAL '24 hours')
@@ -19,7 +19,7 @@ CREATE POLICY officers_delete_recent_scans
 
 -- Officers can UPDATE their own recent scans (within 24 hours)
 CREATE POLICY officers_update_recent_scans
-  ON vehicle_observations_v2 FOR UPDATE
+  ON observations FOR UPDATE
   USING (
     recorded_by = auth.uid() 
     AND recorded_at >= (nz_now() - INTERVAL '24 hours')
@@ -29,8 +29,8 @@ CREATE POLICY officers_update_recent_scans
     AND recorded_at >= (nz_now() - INTERVAL '24 hours')
   );
 
-COMMENT ON POLICY officers_delete_recent_scans ON vehicle_observations_v2 IS 'Officers can delete their own scans within 24 hours';
-COMMENT ON POLICY officers_update_recent_scans ON vehicle_observations_v2 IS 'Officers can edit their own scans within 24 hours';
+COMMENT ON POLICY officers_delete_recent_scans ON observations IS 'Officers can delete their own scans within 24 hours';
+COMMENT ON POLICY officers_update_recent_scans ON observations IS 'Officers can edit their own scans within 24 hours';
 
 -- =====================================================
 -- HELPER FUNCTION: Calculate Edit Window Remaining
@@ -56,7 +56,7 @@ BEGIN
     recorded_by,
     recorded_at
   INTO v_observation
-  FROM vehicle_observations_v2
+  FROM observations
   WHERE observation_id = p_observation_id;
   
   IF NOT FOUND THEN
@@ -148,7 +148,7 @@ BEGIN
     vo.photo,
     vo.gps_latitude,
     vo.gps_longitude
-  FROM vehicle_observations_v2 vo
+  FROM observations vo
   JOIN zones z ON z.id = vo.zone_id
   LEFT JOIN user_profiles up ON up.id = vo.recorded_by
   LEFT JOIN canonical_vehicles cv ON cv.plate_number = vo.plate_number
@@ -219,13 +219,13 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
-DROP TRIGGER IF EXISTS trigger_log_observation_deletion ON vehicle_observations_v2;
+DROP TRIGGER IF EXISTS trigger_log_observation_deletion ON observations;
 CREATE TRIGGER trigger_log_observation_deletion
-  BEFORE DELETE ON vehicle_observations_v2
+  BEFORE DELETE ON observations
   FOR EACH ROW
   EXECUTE FUNCTION log_observation_deletion();
 
-COMMENT ON TRIGGER trigger_log_observation_deletion ON vehicle_observations_v2 IS 'Audit trail for observation deletions';
+COMMENT ON TRIGGER trigger_log_observation_deletion ON observations IS 'Audit trail for observation deletions';
 
 -- RLS for observation_deletions
 ALTER TABLE observation_deletions ENABLE ROW LEVEL SECURITY;
@@ -250,7 +250,7 @@ DECLARE
   recent_scans_count INTEGER;
 BEGIN
   SELECT COUNT(*) INTO recent_scans_count
-  FROM vehicle_observations_v2
+  FROM observations
   WHERE recorded_at >= (nz_now() - INTERVAL '24 hours');
   
   RAISE NOTICE '✅ Session History 24-Hour Window Migration Complete';

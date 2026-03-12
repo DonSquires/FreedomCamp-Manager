@@ -58,7 +58,7 @@ BEGIN
       -- Calculate consecutive nights
       -- Get previous observation date (most recent before this one)
       SELECT DATE(recorded_at) INTO v_prev_obs_date
-      FROM vehicle_observations_v2
+      FROM observations
       WHERE plate_number = NEW.plate_number
         AND zone_id = NEW.zone_id
         AND organization_id = NEW.organization_id
@@ -115,7 +115,7 @@ BEGIN
     
     -- Calculate consecutive nights from previous observations
     SELECT DATE(recorded_at) INTO v_prev_obs_date
-    FROM vehicle_observations_v2
+    FROM observations
     WHERE plate_number = NEW.plate_number
       AND zone_id = NEW.zone_id
       AND organization_id = NEW.organization_id
@@ -184,13 +184,13 @@ COMMENT ON FUNCTION update_monthly_stays_on_observation IS
 -- TRIGGER: Update Monthly Stays on Observation Insert
 -- ============================================================================
 
-DROP TRIGGER IF EXISTS trigger_update_monthly_stays ON vehicle_observations_v2;
+DROP TRIGGER IF EXISTS trigger_update_monthly_stays ON observations;
 CREATE TRIGGER trigger_update_monthly_stays
-  AFTER INSERT ON vehicle_observations_v2
+  AFTER INSERT ON observations
   FOR EACH ROW
   EXECUTE FUNCTION update_monthly_stays_on_observation();
 
-COMMENT ON TRIGGER trigger_update_monthly_stays ON vehicle_observations_v2 IS
+COMMENT ON TRIGGER trigger_update_monthly_stays ON observations IS
 'Automatically updates vehicle_monthly_stays when new observations are recorded';
 
 -- ============================================================================
@@ -225,7 +225,7 @@ BEGIN
       organization_id,
       zone_id,
       DATE_TRUNC('month', recorded_at)::DATE as calendar_month
-    FROM vehicle_observations_v2
+    FROM observations
     ORDER BY plate_number, calendar_month
   LOOP
     v_plates_count := v_plates_count + 1;
@@ -244,7 +244,7 @@ BEGIN
         ARRAY_AGG(DISTINCT DATE(recorded_at) ORDER BY DATE(recorded_at)),
         ARRAY_AGG(observation_id)
       INTO v_unique_dates, v_obs_ids
-      FROM vehicle_observations_v2
+      FROM observations
       WHERE plate_number = v_plate
         AND organization_id = v_org
         AND zone_id = v_zone
@@ -309,7 +309,7 @@ END;
 $$ LANGUAGE plpgsql;
 
 COMMENT ON FUNCTION backfill_monthly_stays_from_observations IS
-'Backfills vehicle_monthly_stays table from existing observations in vehicle_observations_v2';
+'Backfills vehicle_monthly_stays table from existing observations in observations';
 
 -- ============================================================================
 -- EXECUTE BACKFILL
@@ -353,7 +353,7 @@ INSERT INTO audit_log (
     'critical_fix', TRUE,
     'changes', jsonb_build_array(
       'Created update_monthly_stays_on_observation() function',
-      'Added trigger on vehicle_observations_v2 to auto-update monthly stays',
+      'Added trigger on observations to auto-update monthly stays',
       'Calculates nights_stayed and consecutive_nights automatically',
       'Created backfill_monthly_stays_from_observations() function',
       'Backfilled all existing observations into monthly stays table',
@@ -377,7 +377,7 @@ BEGIN
   RAISE NOTICE '';
   RAISE NOTICE '🎯 WHAT WAS FIXED:';
   RAISE NOTICE '  ✅ vehicle_monthly_stays now auto-populates from observations';
-  RAISE NOTICE '  ✅ Trigger fires after every INSERT on vehicle_observations_v2';
+  RAISE NOTICE '  ✅ Trigger fires after every INSERT on observations';
   RAISE NOTICE '  ✅ Calculates nights_stayed (unique dates per month)';
   RAISE NOTICE '  ✅ Calculates consecutive_nights (unbroken sequence)';
   RAISE NOTICE '  ✅ Backfilled ALL existing observations';

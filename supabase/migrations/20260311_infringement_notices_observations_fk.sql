@@ -2,7 +2,7 @@
 -- INFRINGEMENT NOTICES: FK FIX + COLUMN ENRICHMENT + ADMIN_OFFICER RLS
 -- ============================================================================
 -- The 20260220_core_pipeline_rebuild.sql created enforcement_cases with a FK
--- to vehicle_observations_v2, which was dropped by 20260221_rebuild_observations_clean.sql
+-- to observations, which was dropped by 20260221_rebuild_observations_clean.sql
 -- (CASCADE propagation means the FK is already gone; this migration re-adds it
 -- pointing to the current `observations` table and enriches infringement_notices).
 -- ============================================================================

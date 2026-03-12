@@ -37,7 +37,7 @@ CREATE TABLE IF NOT EXISTS alert_queue (
   vehicle_id TEXT REFERENCES canonical_vehicles(plate_number) ON DELETE SET NULL,
   zone_id UUID REFERENCES zones(id) ON DELETE SET NULL,
   person_id UUID REFERENCES person_records(id) ON DELETE SET NULL,
-  observation_id UUID REFERENCES vehicle_observations_v2(observation_id) ON DELETE SET NULL,
+  observation_id UUID REFERENCES observations(observation_id) ON DELETE SET NULL,
   
   -- Alert state
   status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'acknowledged', 'actioned', 'expired')),

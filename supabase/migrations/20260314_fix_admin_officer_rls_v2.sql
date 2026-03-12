@@ -7,7 +7,7 @@
 --
 -- This migration covers the remaining tables that still gate on
 --   ARRAY['admin', 'master'] without 'admin_officer', and also fixes two
---   policies that reference the dropped vehicle_observations_v2 table.
+--   policies that reference the dropped observations table.
 --
 -- Pattern applied:
 --   BEFORE: get_user_role(auth.uid()) = ANY (ARRAY['admin', 'master'])
@@ -53,7 +53,7 @@ CREATE POLICY admins_manage_persons
   );
 
 -- ── 4. evidence_access_log ───────────────────────────────────────────────────
--- Also fixes reference to dropped vehicle_observations_v2 → now uses observations
+-- Also fixes reference to dropped observations → now uses observations
 
 DROP POLICY IF EXISTS "admins_view_evidence_access_log" ON evidence_access_log;
 
@@ -142,7 +142,7 @@ CREATE POLICY "admins_manage_infringement_notices"
   );
 
 -- ── 10. boundary_review_queue ────────────────────────────────────────────────
--- Also fixes reference to dropped vehicle_observations_v2 → now uses observations
+-- Also fixes reference to dropped observations → now uses observations
 
 DROP POLICY IF EXISTS "admins_manage_boundary_review" ON boundary_review_queue;
 

@@ -26,7 +26,7 @@ BEGIN
     -- Get observation details
     SELECT *
     INTO v_observation
-    FROM vehicle_observations_v2
+    FROM observations
     WHERE observation_id = NEW.observation_id;
     
     IF NOT FOUND THEN
@@ -135,7 +135,7 @@ BEGIN
         o.vehicle_color,
         o.self_contained
       FROM compliance_results cr
-      JOIN vehicle_observations_v2 o ON o.observation_id = cr.observation_id
+      JOIN observations o ON o.observation_id = cr.observation_id
       WHERE cr.is_compliant = false
         AND NOT EXISTS (
           SELECT 1 

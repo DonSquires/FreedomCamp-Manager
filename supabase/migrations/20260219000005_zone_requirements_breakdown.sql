@@ -41,7 +41,7 @@ BEGIN
     cv.nzscv_warrant_expires_on,
     cv.homeless_status
   INTO obs, zone_rules, csc_warrant, csc_expiry, homeless_status
-  FROM vehicle_observations_v2 o
+  FROM observations o
   LEFT JOIN zone_compliance_matrix zcm ON zcm.zone_id = o.zone_id AND zcm.effective_to IS NULL
   LEFT JOIN canonical_vehicles cv ON cv.plate_number = o.plate_number
   WHERE o.observation_id = p_obs_id;
@@ -158,7 +158,7 @@ SELECT
   (r).sort_order
 FROM (
   SELECT evaluate_observation_requirements(o.observation_id) as r
-  FROM vehicle_observations_v2 o
+  FROM observations o
 ) t;
 
 COMMENT ON VIEW observation_requirements IS 
@@ -168,7 +168,7 @@ COMMENT ON VIEW observation_requirements IS
 
 -- NOTE: observation_requirements is a VIEW (not a table). PostgreSQL does not
 -- support row-level security policies on views. Access is governed by RLS on
--- the underlying vehicle_observations_v2 and related tables. No policy needed here.
+-- the underlying observations and related tables. No policy needed here.
 
 -- ==================== KPI DRILL-DOWN RPC ====================
 
@@ -201,7 +201,7 @@ AS $$
     cv.homeless_status,
     o.breach_type,
     o.organization_id
-  FROM vehicle_observations_v2 o
+  FROM observations o
   JOIN zones z ON z.id = o.zone_id
   JOIN canonical_vehicles cv ON cv.plate_number = o.plate_number
   WHERE o.recorded_at BETWEEN p_from AND p_to
@@ -218,8 +218,8 @@ COMMENT ON FUNCTION observations_homeless_exempt(timestamptz, timestamptz, uuid,
 -- ==================== INDEXES ====================
 
 -- Index on observation_id for fast lookups in the view
-CREATE INDEX IF NOT EXISTS idx_vehicle_observations_v2_obs_id 
-  ON vehicle_observations_v2(observation_id);
+CREATE INDEX IF NOT EXISTS idx_observations_obs_id 
+  ON observations(observation_id);
 
 -- ==================== GRANTS ====================
 

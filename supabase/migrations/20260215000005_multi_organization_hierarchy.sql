@@ -106,10 +106,10 @@ using (
   (organization_id = any(get_user_organization_ids()))
 );
 
--- vehicle_observations_v2 table
-drop policy if exists "users_view_observations_v2" on vehicle_observations_v2;
+-- observations table
+drop policy if exists "users_view_observations_v2" on observations;
 create policy "users_view_observations_v2"
-on vehicle_observations_v2 for select
+on observations for select
 to authenticated
 using (
   (get_user_role(auth.uid()) = 'master') or

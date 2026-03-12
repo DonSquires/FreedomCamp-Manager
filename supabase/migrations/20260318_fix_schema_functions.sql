@@ -3,7 +3,7 @@
 -- Date: 2026-03-18
 --
 -- The 20260221_rebuild_observations_clean.sql migration dropped:
---   • vehicle_observations_v2   (CASCADE removed all dependent FK/triggers)
+--   • observations   (CASCADE removed all dependent FK/triggers)
 --   • compliance_results        (CASCADE removed all dependent FK/triggers)
 --
 -- This migration replaces every SQL function and trigger that still
@@ -172,7 +172,7 @@ COMMENT ON TRIGGER trg_auto_evaluate_compliance ON public.observations IS
 
 -- ============================================================================
 -- 3. get_observation_result() – Layer-4 RPC
---    Previously queried vehicle_observations_v2 + compliance_results.
+--    Previously queried observations + compliance_results.
 --    Rewritten to use observations table directly.
 -- ============================================================================
 
@@ -250,7 +250,7 @@ COMMENT ON FUNCTION public.get_observation_result(uuid) IS
 
 -- ============================================================================
 -- 4. evaluate_observation_requirements() – simplified RPC
---    Previously queried vehicle_observations_v2 + compliance_results.
+--    Previously queried observations + compliance_results.
 -- ============================================================================
 
 CREATE OR REPLACE FUNCTION public.evaluate_observation_requirements(p_observation_id uuid)
@@ -441,7 +441,7 @@ COMMENT ON FUNCTION public.cohort_all_breaches IS
 
 -- ============================================================================
 -- 8. recompute_all_compliance_since_effective_date()
---    Old version looped over vehicle_observations_v2 rows and called
+--    Old version looped over observations rows and called
 --    evaluate_compliance_v4. Now delegates to SQL-level re-evaluation.
 -- ============================================================================
 
@@ -581,11 +581,11 @@ GRANT EXECUTE ON FUNCTION public.recompute_all_compliance_since_effective_date(d
 
 COMMENT ON FUNCTION public.recompute_all_compliance_since_effective_date(date) IS
   'Recomputes compliance for all active observations since the given date. '
-  'Replaces old version that used evaluate_compliance_v4 / vehicle_observations_v2.';
+  'Replaces old version that used evaluate_compliance_v4 / observations.';
 
 -- ============================================================================
 -- 9. Drop stale functions that reference dropped tables
---    (Their triggers on vehicle_observations_v2 were auto-dropped by CASCADE)
+--    (Their triggers on observations were auto-dropped by CASCADE)
 -- ============================================================================
 
 DROP FUNCTION IF EXISTS public.evaluate_compliance_v4(uuid);

@@ -2,11 +2,11 @@
 -- OBSERVATIONS SYSTEM REBUILD - Clean Architecture
 -- ============================================================================
 -- Purpose: Replace complex observations_v2 with simplified evidence-focused table
--- Affected: vehicle_observations_v2, ObservationsReport frontend
+-- Affected: observations, ObservationsReport frontend
 -- ============================================================================
 
 -- Drop old observation table and dependencies
-DROP TABLE IF EXISTS vehicle_observations_v2 CASCADE;
+DROP TABLE IF EXISTS observations CASCADE;
 DROP TABLE IF EXISTS compliance_results CASCADE;
 DROP TABLE IF EXISTS scan_idempotency_keys CASCADE;
 
