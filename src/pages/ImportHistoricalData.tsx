@@ -58,6 +58,8 @@ export default function ImportHistoricalData() {
   const [tab, setTab] = useState('upload')
   const [file, setFile] = useState<File | null>(null)
   const [batchName, setBatchName] = useState('')
+  const [storageSource, setStorageSource] = useState('')
+  const [storageBatchName, setStorageBatchName] = useState('')
   const [uploading, setUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
   const [activeBatchId, setActiveBatchId] = useState<string | null>(null)
@@ -168,6 +170,55 @@ export default function ImportHistoricalData() {
       if (fileRef.current) fileRef.current.value = ''
     } catch (err: any) {
       toast.error(err.message || 'Import failed')
+    } finally {
+      setUploading(false)
+      setUploadProgress(0)
+    }
+  }
+
+  const handleImportFromStorage = async () => {
+    if (!storageSource.trim()) {
+      toast.error('Please enter a storage URL or file path')
+      return
+    }
+    if (missingMasterOrg) {
+      toast.error('Please select an organisation in the global filter bar before importing')
+      return
+    }
+
+    setUploading(true)
+    setUploadProgress(20)
+
+    try {
+      const { data, error } = await supabase.functions.invoke('import-historical-data', {
+        body: {
+          fileUrl: storageSource.trim(),
+          batchName: storageBatchName.trim() || `Storage import ${new Date().toISOString().slice(0, 10)}`,
+          organizationId: orgId,
+        },
+      })
+
+      setUploadProgress(100)
+
+      if (error) throw new Error(error.message)
+
+      if (data?.batchId) {
+        setActiveBatchId(data.batchId)
+        toast.success(`✅ Storage import started — batch ${data.batchId.slice(0, 8)}…`)
+        setTab('history')
+        queryClient.invalidateQueries({ queryKey: ['historical-batches'] })
+      } else if (data?.success) {
+        const imported = data?.summary?.successful ?? data?.successful ?? 0
+        toast.success(`✅ Storage import complete — ${imported} records imported`)
+        queryClient.invalidateQueries({ queryKey: ['historical-batches'] })
+      } else {
+        toast.warning(data?.message || 'Import started but no batch ID returned')
+      }
+
+      setStorageSource('')
+      setStorageBatchName('')
+    } catch (err: any) {
+      toast.error(err.message || 'Storage import failed')
     } finally {
       setUploading(false)
       setUploadProgress(0)
@@ -311,6 +362,55 @@ export default function ImportHistoricalData() {
                 </span>
               )}
             </Button>
+
+            <Card className="border-dashed">
+              <CardHeader>
+                <CardTitle className="text-base">Import From Existing Storage File</CardTitle>
+                <CardDescription>
+                  Paste a Supabase Storage URL or a file path already in storage to trigger backend import directly.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="space-y-1.5">
+                  <Label>Storage URL or Path *</Label>
+                  <input
+                    className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                    value={storageSource}
+                    onChange={e => setStorageSource(e.target.value)}
+                    placeholder="https://.../storage/v1/object/public/<bucket>/<file>.xlsx or imports/user/file.xlsx"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label>Batch Name (optional)</Label>
+                  <input
+                    className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                    value={storageBatchName}
+                    onChange={e => setStorageBatchName(e.target.value)}
+                    placeholder="e.g. Downer LINZ Vehicle Log 10-3-26"
+                  />
+                </div>
+
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  onClick={handleImportFromStorage}
+                  disabled={!storageSource.trim() || uploading || missingMasterOrg}
+                >
+                  {uploading ? (
+                    <span className="flex items-center gap-2">
+                      <span className="h-4 w-4 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                      Starting…
+                    </span>
+                  ) : (
+                    <span className="flex items-center gap-2">
+                      <Database className="h-4 w-4" />
+                      Import From Storage URL
+                    </span>
+                  )}
+                </Button>
+              </CardContent>
+            </Card>
           </div>
         </TabsContent>
 

@@ -56,6 +56,39 @@ interface ProcessedRecord extends ParsedRecord {
   status: 'pending' | 'success' | 'error';
 }
 
+function parseStorageInputToBucketAndPath(input: string): { bucket: string; filePath: string } {
+  const trimmed = input.trim();
+
+  const publicMarker = '/storage/v1/object/public/';
+  const signMarker = '/storage/v1/object/sign/';
+
+  const marker = trimmed.includes(publicMarker)
+    ? publicMarker
+    : trimmed.includes(signMarker)
+    ? signMarker
+    : null;
+
+  if (marker) {
+    const tail = trimmed.split(marker)[1] || '';
+    const noQuery = tail.split('?')[0] || '';
+    const parts = noQuery.split('/').filter(Boolean);
+    if (parts.length < 2) {
+      throw new Error('Invalid storage URL: missing bucket/path');
+    }
+
+    const [bucket, ...pathParts] = parts;
+    return {
+      bucket,
+      filePath: decodeURIComponent(pathParts.join('/')),
+    };
+  }
+
+  return {
+    bucket: 'evidence',
+    filePath: trimmed.replace(/^\/+/, ''),
+  };
+}
+
 type ZoneRow = {
   id: string;
   name: string;
@@ -195,13 +228,17 @@ Deno.serve(async (req) => {
 
     // Parse request body – accept both camelCase (UI) and snake_case (legacy) param names
     const body = await req.json();
-    const file_path = body.file_path || body.filePath;
+    const file_path = body.file_path || body.filePath || null;
+    const file_url = body.file_url || body.fileUrl || body.storage_url || body.storageUrl || null;
+    const input_bucket = body.bucket || body.storage_bucket || null;
     const batch_name = body.batch_name || body.batchName || null;
     const organization_id = body.organization_id || body.organizationId;
 
-    if (!file_path) {
+    const inputFile = (file_url || file_path || '').trim();
+
+    if (!inputFile) {
       return new Response(
-        JSON.stringify({ error: 'Missing file_path (or filePath)' }),
+        JSON.stringify({ error: 'Missing filePath/file_path or fileUrl/file_url' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -250,13 +287,23 @@ Deno.serve(async (req) => {
 
     console.log('✅ [IMPORT] Organization validated:', orgExists.name);
 
-    console.log('📂 [IMPORT] File path:', file_path);
+    const parsedStorage = parseStorageInputToBucketAndPath(inputFile);
+    const bucket = input_bucket || parsedStorage.bucket;
+    const resolvedFilePath = parsedStorage.filePath;
+
+    if (!bucket || !resolvedFilePath) {
+      return new Response(
+        JSON.stringify({ error: 'Could not resolve storage bucket and file path' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    console.log('📂 [IMPORT] File bucket/path:', bucket, resolvedFilePath);
 
     // Download file from storage
-    const bucket = 'evidence'; // Using existing bucket
     const { data: fileData, error: downloadError } = await supabaseAdmin.storage
       .from(bucket)
-      .download(file_path);
+      .download(resolvedFilePath);
 
     if (downloadError || !fileData) {
       console.error('❌ [IMPORT] File download failed:', downloadError);
@@ -272,7 +319,7 @@ Deno.serve(async (req) => {
     console.log('📝 [IMPORT] Creating import batch record...');
     console.log('   - Organization ID:', targetOrganizationId);
     console.log('   - Uploaded by:', user.id);
-    console.log('   - File name:', file_path.split('/').pop());
+    console.log('   - File name:', resolvedFilePath.split('/').pop());
 
     const { data: importRecord, error: importError } = await supabaseAdmin
       .from('import_batches')
@@ -280,7 +327,7 @@ Deno.serve(async (req) => {
         organization_id: targetOrganizationId,
         uploaded_by: user.id,
         batch_name: batch_name || `Import ${new Date().toISOString().split('T')[0]}`,
-        file_name: file_path.split('/').pop(),
+        file_name: resolvedFilePath.split('/').pop(),
         status: 'parsing',
         total_records: 0,
         processed_records: 0,
@@ -879,12 +926,16 @@ Return ONLY a JSON object with this structure:
 
           // ============================================================
           // IDEMPOTENCY KEY
-          // Live scans use "deviceId:captureId".  Legacy imports use a
-          // deterministic key so the same file can be re-imported safely
-          // without creating duplicates:
-          //   import:<importBatchId>:<plate>:<date>
+          // Live scans use "deviceId:captureId". Historical imports use a
+          // deterministic key that is stable across batches so repeated imports
+          // of the same source rows remain idempotent:
+          //   import:historical:<org_id>:<zone_id>:<plate>:<date>
           // ============================================================
-          const idempotencyKey = `import:${importBatchId}:${record.plate}:${record.date}`;
+          const observationOrgId = record.matchedOrgId ?? targetOrganizationId;
+          const recordedAtNz = `${record.date}T08:00:00+13:00`;
+          const dayStartNz = `${record.date}T00:00:00+13:00`;
+          const dayEndNz = `${record.date}T23:59:59+13:00`;
+          const idempotencyKey = `import:historical:${observationOrgId}:${record.zoneId}:${record.plate}:${record.date}`;
 
           // Check whether this record was already imported (idempotency guard)
           const { data: existing } = await supabaseAdmin
@@ -896,6 +947,28 @@ Return ONLY a JSON object with this structure:
           if (existing) {
             const existingObservationId = (existing as any).observation_id ?? (existing as any).id;
             console.log(`⏭️ [IMPORT] Skipping duplicate – already imported: ${record.plate} ${record.date} (obs ${existingObservationId})`);
+            record.status = 'success';
+            successful++;
+            continue;
+          }
+
+          // Backward-compatible duplicate guard for historical rows imported
+          // before deterministic cross-batch keys were introduced.
+          const { data: legacyExisting } = await supabaseAdmin
+            .from('observations')
+            .select('id, observation_id')
+            .eq('organization_id', observationOrgId)
+            .eq('zone_id', record.zoneId)
+            .eq('plate_number', record.plate)
+            .eq('is_legacy_import', true)
+            .gte('recorded_at', dayStartNz)
+            .lte('recorded_at', dayEndNz)
+            .limit(1)
+            .maybeSingle();
+
+          if (legacyExisting) {
+            const existingObservationId = (legacyExisting as any).observation_id ?? (legacyExisting as any).id;
+            console.log(`⏭️ [IMPORT] Skipping duplicate – legacy match found: ${record.plate} ${record.date} (obs ${existingObservationId})`);
             record.status = 'success';
             successful++;
             continue;
@@ -924,12 +997,12 @@ Return ONLY a JSON object with this structure:
               plate_number: record.plate,
               // Use the zone's owning org (may differ from the importer's target org
               // when the zone was found in a different council's org).
-              organization_id: record.matchedOrgId ?? targetOrganizationId,
+              organization_id: observationOrgId,
               zone_id: record.zoneId,
               recorded_by: user.id,
               // Use +13:00 for NZDT (Oct-Apr) - PostgreSQL converts to UTC automatically
               // Excel date "2026-02-16" → "2026-02-16T08:00:00+13:00" → displays as "16 Feb 2026 08:00 NZDT" ✓
-              recorded_at: `${record.date}T08:00:00+13:00`,
+              recorded_at: recordedAtNz,
               officer_notes: officerNotes,
               has_notes: hasNotes,
               
@@ -956,7 +1029,7 @@ Return ONLY a JSON object with this structure:
               is_legacy_import: true,
               evidence_state: 'legacy_no_photo',
               legacy_source_tag: 'excel_import',
-              legacy_note: `Imported from Excel file: ${file_path.split('/').pop()} on ${new Date().toISOString().split('T')[0]}`,
+              legacy_note: `Imported from Excel file: ${resolvedFilePath.split('/').pop()} on ${new Date().toISOString().split('T')[0]}`,
               photo_url: `legacy/placeholder_${record.plate}_${record.date}.jpg`,
               photo_hash: 'LEGACY_IMPORT_NO_PHOTO',
               review_blocked: true, // Block from enforcement until recalculation completes
@@ -1042,6 +1115,8 @@ Return ONLY a JSON object with this structure:
       JSON.stringify({
         success: true,
         batchId: importBatchId,
+        bucket,
+        filePath: resolvedFilePath,
         summary: {
           total: processedRecords.length,
           successful,
