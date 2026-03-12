@@ -578,8 +578,48 @@ export default function FieldOfficerPortal() {
             ? String(detectedPlate).trim().toUpperCase().replace(/\s+/g, '').replace(/[^A-Z0-9]/g, '')
             : null
 
+          const fallbackPlateNumber = normalizedFallbackPlate || 'MANUAL_REQUIRED'
+
+          // Legacy schemas may enforce observations.plate_number -> canonical_vehicles.
+          // Best effort: ensure fallback plate exists before direct insert.
+          try {
+            const existingVehicleLookup = await (supabase
+              .from('canonical_vehicles') as any)
+              .select('plate_number')
+              .eq('plate_number', fallbackPlateNumber)
+              .maybeSingle()
+
+            if (!existingVehicleLookup.error && !existingVehicleLookup.data) {
+              const nowIso = new Date().toISOString()
+              const insertVehicleAttempt = await (supabase
+                .from('canonical_vehicles') as any)
+                .insert({
+                  plate_number: fallbackPlateNumber,
+                  first_seen_at: nowIso,
+                  last_seen_at: nowIso,
+                  total_observations: 0,
+                })
+
+              if (insertVehicleAttempt.error) {
+                appendScanDebug('Fallback canonical vehicle ensure failed', {
+                  plate_number: fallbackPlateNumber,
+                  error: insertVehicleAttempt.error.message || 'Unknown error',
+                })
+              } else {
+                appendScanDebug('Fallback canonical vehicle ensured', {
+                  plate_number: fallbackPlateNumber,
+                })
+              }
+            }
+          } catch (vehicleEnsureErr: any) {
+            appendScanDebug('Fallback canonical vehicle ensure failed', {
+              plate_number: fallbackPlateNumber,
+              error: vehicleEnsureErr?.message || 'Unknown error',
+            })
+          }
+
           const fallbackBasePayload: Record<string, any> = {
-            plate_number: normalizedFallbackPlate || 'MANUAL_REQUIRED',
+            plate_number: fallbackPlateNumber,
             photo_url: photoUrl,
             photo_hash: `fallback:${idempotencyKey}`,
             recorded_at: new Date().toISOString(),
