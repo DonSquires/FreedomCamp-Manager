@@ -177,7 +177,7 @@ BEGIN
           CASE
             WHEN nights_stayed_this_month IS NULL THEN 0
             WHEN btrim(nights_stayed_this_month::text) = '' THEN 0
-            WHEN btrim(nights_stayed_this_month::text) ~ '^-?[0-9]+$'
+            WHEN btrim(nights_stayed_this_month::text) ~ '^[0-9]+$'
               THEN btrim(nights_stayed_this_month::text)::integer
             ELSE 0
           END
@@ -201,7 +201,7 @@ BEGIN
           CASE
             WHEN consecutive_nights IS NULL THEN 0
             WHEN btrim(consecutive_nights::text) = '' THEN 0
-            WHEN btrim(consecutive_nights::text) ~ '^-?[0-9]+$'
+            WHEN btrim(consecutive_nights::text) ~ '^[0-9]+$'
               THEN btrim(consecutive_nights::text)::integer
             ELSE 0
           END
@@ -305,9 +305,11 @@ BEGIN
   BEGIN
     v_raw_nights := COALESCE(NEW.nights_stayed_this_month::text, '');
     v_nights_stayed := COALESCE(
-      NULLIF(regexp_replace(v_raw_nights, '[^0-9-]', '', 'g'), '')::integer,
+      NULLIF(regexp_replace(v_raw_nights, '[^0-9]', '', 'g'), '')::integer,
       0
     );
+    -- Ensure non-negative
+    IF v_nights_stayed < 0 THEN v_nights_stayed := 0; END IF;
   EXCEPTION WHEN OTHERS THEN
     v_nights_stayed := 0;
   END;
@@ -315,9 +317,11 @@ BEGIN
   BEGIN
     v_raw_consecutive := COALESCE(NEW.consecutive_nights::text, '');
     v_consecutive := COALESCE(
-      NULLIF(regexp_replace(v_raw_consecutive, '[^0-9-]', '', 'g'), '')::integer,
+      NULLIF(regexp_replace(v_raw_consecutive, '[^0-9]', '', 'g'), '')::integer,
       0
     );
+    -- Ensure non-negative
+    IF v_consecutive < 0 THEN v_consecutive := 0; END IF;
   EXCEPTION WHEN OTHERS THEN
     v_consecutive := 0;
   END;
