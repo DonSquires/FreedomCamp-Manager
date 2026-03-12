@@ -18,6 +18,7 @@ DO $$
 DECLARE
   v_first_security_id  uuid;
   v_owner_org_id       uuid;
+  v_has_ensure_zone_fn boolean := false;
   v_org                record;
   v_inserted           integer := 0;
   v_zones_called       integer := 0;
@@ -156,6 +157,14 @@ BEGIN
 
   RAISE NOTICE 'First Security ID: %', v_first_security_id;
 
+  SELECT EXISTS (
+    SELECT 1
+    FROM pg_proc p
+    JOIN pg_namespace n ON n.oid = p.pronamespace
+    WHERE n.nspname = 'public'
+      AND p.proname = 'ensure_other_location_zone'
+  ) INTO v_has_ensure_zone_fn;
+
   -- -------------------------------------------------------------------------
   -- 2. Insert organisations that do not already exist (by name)
   -- -------------------------------------------------------------------------
@@ -218,19 +227,23 @@ BEGIN
   END IF;
 
   -- -------------------------------------------------------------------------
-  -- 4. Ensure every org has an "Other Location" zone
+  -- 4. Ensure every org has an "Other Location" zone (if helper exists)
   -- -------------------------------------------------------------------------
-  FOR v_org IN
-    SELECT id, name
-    FROM organizations
-    WHERE name = ANY(v_orgs)
-    ORDER BY name
-  LOOP
-    PERFORM ensure_other_location_zone(v_org.id);
-    v_zones_called := v_zones_called + 1;
-  END LOOP;
+  IF v_has_ensure_zone_fn THEN
+    FOR v_org IN
+      SELECT id, name
+      FROM organizations
+      WHERE name = ANY(v_orgs)
+      ORDER BY name
+    LOOP
+      PERFORM ensure_other_location_zone(v_org.id);
+      v_zones_called := v_zones_called + 1;
+    END LOOP;
 
-  RAISE NOTICE '✅ ensure_other_location_zone() called for % organisations', v_zones_called;
+    RAISE NOTICE '✅ ensure_other_location_zone() called for % organisations', v_zones_called;
+  ELSE
+    RAISE NOTICE '⚠️ ensure_other_location_zone(uuid) not found; skipping zone bootstrap step.';
+  END IF;
   RAISE NOTICE '✅ 20260312_seed_nz_organisations applied successfully';
 
 END;
