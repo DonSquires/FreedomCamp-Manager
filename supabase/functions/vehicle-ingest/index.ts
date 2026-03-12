@@ -13,6 +13,7 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.7";
 import { corsHeaders } from "../_shared/cors.ts";
+import { alprWithBytes } from "../_shared/alpr.ts";
 
 const PHOTO_FETCH_TIMEOUT_MS = Number(Deno.env.get("INGEST_PHOTO_FETCH_TIMEOUT_MS") ?? "8000");
 
@@ -595,9 +596,39 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Stage 2 backup: if Railway/hint produced no plate, try cloud ALPR.
+    if (!normalizePlateNumber(inferenceResult.plate)) {
+      try {
+        const alprTimeoutMs = Number(Deno.env.get('ALPR_TIMEOUT_MS') ?? '3500');
+        const alprResult = await alprWithBytes(imageBytes!, {
+          regions: Deno.env.get('ALPR_REGIONS') ?? 'nz',
+          mmc: true,
+          timeout: alprTimeoutMs,
+        });
+
+        if (alprResult.plate) {
+          inferenceResult = {
+            success: true,
+            path: 'alpr_backup',
+            plate: alprResult.plate,
+            requires_manual_entry: false,
+            confidence: alprResult.confidence,
+          };
+          console.log('🧠 ALPR backup success:', {
+            plate: inferenceResult.plate,
+            confidence: inferenceResult.confidence,
+          });
+        } else {
+          console.log('⚠️ ALPR backup returned no plate');
+        }
+      } catch (alprError: any) {
+        console.warn('⚠️ ALPR backup failed:', alprError?.message || alprError);
+      }
+    }
+
     const plateNumber = normalizePlateNumber(inferenceResult.plate);
-    const requiresManualEntry = inferenceResult.requires_manual_entry;
-    const plateConfidence = inferenceResult.confidence;
+    const requiresManualEntry = !plateNumber;
+    const plateConfidence = plateNumber ? (inferenceResult.confidence ?? null) : null;
 
     // Step 3: Get or create canonical vehicle
     if (plateNumber && plateNumber !== "MANUAL_REQUIRED") {
@@ -681,11 +712,13 @@ Deno.serve(async (req) => {
         success: true,
         observation_id: newObservationId,
         source: inferenceResult.path,
-        plate: plateNumber !== "MANUAL_REQUIRED" ? plateNumber : null,
+        plate: plateNumber,
         confidence: plateConfidence,
         photo_url: photoUrl,
         photo_hash: photoHash,
         requires_manual_entry: requiresManualEntry,
+        is_compliant: (observation as any)?.is_compliant ?? null,
+        breach_type: (observation as any)?.breach_type ?? null,
       }),
       {
         status: 200,

@@ -548,6 +548,7 @@ export default function FieldOfficerPortal() {
       toast.info('Saving observation...')
       let { data: ingestData, error: ingestError } = await retryEdgeCall(() =>
         edgeFunctions.ingestVehicleObservation({
+          photoDataUrl: imageDataUrl,
           photo_url: photoUrl,
           gpsLatitude: position.coords.latitude,
           gpsLongitude: position.coords.longitude,
