@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
@@ -35,6 +35,7 @@ import {
   History,
   Keyboard,
   Info,
+  ExternalLink,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatDateTime } from '@/lib/utils'
@@ -189,6 +190,7 @@ const CANNED_REJECTION_REASONS = [
 ]
 
 export default function BreachAlerts() {
+  const navigate = useNavigate()
   const { user } = useAuthStore()
   const {
     organizationId,
@@ -681,6 +683,14 @@ export default function BreachAlerts() {
     setActiveTab('evidence')
   }
 
+  const openObservationRecords = useCallback(
+    (plateNumber: string | null) => {
+      if (!plateNumber) return
+      navigate(`/observation-records?plate=${encodeURIComponent(plateNumber)}`)
+    },
+    [navigate]
+  )
+
   // ── Multi-select helpers ──────────────────────────────────────────────────
 
   const toggleSelect = (id: string, e: React.MouseEvent) => {
@@ -994,6 +1004,19 @@ export default function BreachAlerts() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5 mb-0.5 flex-wrap">
                       <span className="font-mono font-bold text-sm">{breach.plate_number || 'Unknown'}</span>
+                      {breach.plate_number && (
+                        <button
+                          type="button"
+                          className="text-[11px] text-blue-600 hover:underline inline-flex items-center gap-1"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            openObservationRecords(breach.plate_number)
+                          }}
+                        >
+                          <ExternalLink className="h-3 w-3" />
+                          Open Records
+                        </button>
+                      )}
                       <Badge className={`${getStatusColor(breach.status)} text-xs px-1.5 py-0 flex items-center gap-1`}>
                         {getStatusIcon(breach.status)}
                         <span className="capitalize">{breach.status?.replace(/_/g, ' ')}</span>
@@ -1048,6 +1071,17 @@ export default function BreachAlerts() {
                 <p className="text-sm font-medium text-orange-700 dark:text-orange-400 mt-1">
                   {getBreachTypeLabel(activeBreach.breach_type)}
                 </p>
+                {activeBreach.plate_number && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="mt-2 h-7 text-xs"
+                    onClick={() => openObservationRecords(activeBreach.plate_number)}
+                  >
+                    <ExternalLink className="h-3.5 w-3.5 mr-1" />
+                    Open Observation Records
+                  </Button>
+                )}
               </div>
 
               {/* Tabs */}

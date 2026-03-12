@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
@@ -54,10 +55,12 @@ function formatVehicleSummary(v: CanonicalVehicleRow | undefined): string {
 }
 
 export default function ObservationRecords() {
+  const [searchParams] = useSearchParams()
   const { user } = useAuthStore()
   const { organizationId, zoneId, dateFrom, dateTo } = useGlobalFiltersStore()
   const [searchPlate, setSearchPlate] = useState('')
   const [selectedPlate, setSelectedPlate] = useState<string | null>(null)
+  const requestedPlate = (searchParams.get('plate') || '').trim().toUpperCase()
 
   const effectiveOrganizationId =
     user?.role === 'master' ? organizationId || null : user?.organization_id || null
@@ -117,14 +120,29 @@ export default function ObservationRecords() {
   }, [groupedByPlate, searchPlate])
 
   useEffect(() => {
+    if (requestedPlate) {
+      setSearchPlate(requestedPlate)
+    }
+  }, [requestedPlate])
+
+  useEffect(() => {
     if (plateRecords.length === 0) {
       setSelectedPlate(null)
       return
     }
+
+    if (requestedPlate) {
+      const matched = plateRecords.find((r) => r.plate.toUpperCase() === requestedPlate)
+      if (matched) {
+        setSelectedPlate(matched.plate)
+        return
+      }
+    }
+
     if (!selectedPlate || !plateRecords.some((r) => r.plate === selectedPlate)) {
       setSelectedPlate(plateRecords[0].plate)
     }
-  }, [plateRecords, selectedPlate])
+  }, [plateRecords, selectedPlate, requestedPlate])
 
   const selectedRows = selectedPlate ? groupedByPlate.get(selectedPlate) || [] : []
 
