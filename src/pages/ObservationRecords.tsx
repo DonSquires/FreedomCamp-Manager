@@ -88,7 +88,11 @@ export default function ObservationRecords() {
 
       const primarySelects = [
         'id, plate_number, recorded_at, zone_id, photo_url, is_compliant, officer_notes, gps_latitude, gps_longitude, zone:zones!observations_zone_id_fkey(name)',
+        'id, plate_number, recorded_at, zone_id, photo_url:image_url, is_compliant, officer_notes, gps_latitude, gps_longitude, zone:zones!observations_zone_id_fkey(name)',
+        'id, plate_number, recorded_at, zone_id, photo_url:photo, is_compliant, officer_notes, gps_latitude, gps_longitude, zone:zones!observations_zone_id_fkey(name)',
         'id:observation_id, plate_number, recorded_at, zone_id, photo_url, is_compliant, officer_notes, gps_latitude, gps_longitude, zone:zones!observations_zone_id_fkey(name)',
+        'id:observation_id, plate_number, recorded_at, zone_id, photo_url:image_url, is_compliant, officer_notes, gps_latitude, gps_longitude, zone:zones!observations_zone_id_fkey(name)',
+        'id:observation_id, plate_number, recorded_at, zone_id, photo_url:photo, is_compliant, officer_notes, gps_latitude, gps_longitude, zone:zones!observations_zone_id_fkey(name)',
       ]
 
       // Primary path: use relationship join when schema cache has it.
@@ -109,7 +113,11 @@ export default function ObservationRecords() {
       let fallback: any = null
       const fallbackSelects = [
         'id, plate_number, recorded_at, zone_id, photo_url, is_compliant, officer_notes, gps_latitude, gps_longitude',
+        'id, plate_number, recorded_at, zone_id, photo_url:image_url, is_compliant, officer_notes, gps_latitude, gps_longitude',
+        'id, plate_number, recorded_at, zone_id, photo_url:photo, is_compliant, officer_notes, gps_latitude, gps_longitude',
         'id:observation_id, plate_number, recorded_at, zone_id, photo_url, is_compliant, officer_notes, gps_latitude, gps_longitude',
+        'id:observation_id, plate_number, recorded_at, zone_id, photo_url:image_url, is_compliant, officer_notes, gps_latitude, gps_longitude',
+        'id:observation_id, plate_number, recorded_at, zone_id, photo_url:photo, is_compliant, officer_notes, gps_latitude, gps_longitude',
       ]
 
       for (const selectClause of fallbackSelects) {
