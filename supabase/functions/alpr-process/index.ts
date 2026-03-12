@@ -199,6 +199,30 @@ function extractMissingSchemaColumn(error: unknown): string | null {
 }
 
 /**
+ * Detects COALESCE type mismatch errors from database triggers.
+ * These occur when the trigger function expects INTEGER but the column is TEXT.
+ * Error pattern: "COALESCE types integer and text cannot be matched"
+ */
+function isCoalesceTypeMismatchError(error: unknown): boolean {
+  const message =
+    typeof error === 'string'
+      ? error
+      : (error as any)?.message || (error as any)?.error || '';
+  return /coalesce types .* integer and text cannot be matched/i.test(String(message));
+}
+
+/**
+ * Columns that may cause COALESCE type mismatch errors in triggers when
+ * the column types have drifted. These are safe to omit from the payload
+ * (the trigger function will use defaults).
+ */
+const COMPLIANCE_DRIFT_COLUMNS = new Set([
+  'nights_stayed_this_month',
+  'consecutive_nights',
+  'is_compliant',
+]);
+
+/**
  * Optional AI inference columns that may not yet be present in the PostgREST
  * schema cache when the migration adding them has not been applied (or the
  * cache has not been refreshed).  These columns are safe to drop from the
@@ -242,6 +266,7 @@ async function adaptiveObservationUpdate(
   id: string,
   data: Record<string, any>,
   dropped: string[] = [],
+  coalesceRetried: boolean = false,
 ): Promise<{ data: any; error: any; droppedColumns: string[] }> {
   const { data: result, error } = await supabase
     .from('observations')
@@ -252,12 +277,30 @@ async function adaptiveObservationUpdate(
 
   if (!error) return { data: result, error: null, droppedColumns: dropped };
 
+  // Handle missing schema column errors
   const missingCol = extractMissingSchemaColumn(error);
   if (missingCol && OPTIONAL_INFERENCE_COLUMNS.has(missingCol) && (missingCol in data)) {
     console.warn(`⚠️ Schema cache missing column '${missingCol}' — dropping from UPDATE and retrying`);
     const next = { ...data };
     delete next[missingCol];
-    return adaptiveObservationUpdate(supabase, key, id, next, [...dropped, missingCol]);
+    return adaptiveObservationUpdate(supabase, key, id, next, [...dropped, missingCol], coalesceRetried);
+  }
+
+  // Handle COALESCE type mismatch errors (trigger expects INTEGER but column is TEXT)
+  // Remove compliance-related columns and let the trigger use defaults
+  if (!coalesceRetried && isCoalesceTypeMismatchError(error)) {
+    console.warn('⚠️ COALESCE type mismatch detected — dropping compliance columns and retrying');
+    const next = { ...data };
+    const droppedForCoalesce: string[] = [];
+    for (const col of COMPLIANCE_DRIFT_COLUMNS) {
+      if (col in next) {
+        delete next[col];
+        droppedForCoalesce.push(col);
+      }
+    }
+    if (droppedForCoalesce.length > 0) {
+      return adaptiveObservationUpdate(supabase, key, id, next, [...dropped, ...droppedForCoalesce], true);
+    }
   }
 
   return { data: null, error, droppedColumns: dropped };
@@ -272,6 +315,7 @@ async function adaptiveObservationInsert(
   supabase: ReturnType<typeof createClient>,
   data: Record<string, any>,
   dropped: string[] = [],
+  coalesceRetried: boolean = false,
 ): Promise<{ data: any; error: any; droppedColumns: string[] }> {
   const { data: result, error } = await supabase
     .from('observations')
@@ -281,12 +325,30 @@ async function adaptiveObservationInsert(
 
   if (!error) return { data: result, error: null, droppedColumns: dropped };
 
+  // Handle missing schema column errors
   const missingCol = extractMissingSchemaColumn(error);
   if (missingCol && OPTIONAL_INFERENCE_COLUMNS.has(missingCol) && (missingCol in data)) {
     console.warn(`⚠️ Schema cache missing column '${missingCol}' — dropping from INSERT and retrying`);
     const next = { ...data };
     delete next[missingCol];
-    return adaptiveObservationInsert(supabase, next, [...dropped, missingCol]);
+    return adaptiveObservationInsert(supabase, next, [...dropped, missingCol], coalesceRetried);
+  }
+
+  // Handle COALESCE type mismatch errors (trigger expects INTEGER but column is TEXT)
+  // Remove compliance-related columns and let the trigger use defaults
+  if (!coalesceRetried && isCoalesceTypeMismatchError(error)) {
+    console.warn('⚠️ COALESCE type mismatch detected — dropping compliance columns and retrying');
+    const next = { ...data };
+    const droppedForCoalesce: string[] = [];
+    for (const col of COMPLIANCE_DRIFT_COLUMNS) {
+      if (col in next) {
+        delete next[col];
+        droppedForCoalesce.push(col);
+      }
+    }
+    if (droppedForCoalesce.length > 0) {
+      return adaptiveObservationInsert(supabase, next, [...dropped, ...droppedForCoalesce], true);
+    }
   }
 
   return { data: null, error, droppedColumns: dropped };
@@ -311,7 +373,7 @@ Deno.serve(async (req) => {
   // Tracks an observation_id that has been marked 'processing' so the catch
   // block can flip it to 'failed' if an unhandled exception aborts the pipeline.
   let processingObservationId: string | null = null;
-  let processingObservationKey: 'id' | 'observation_id' = 'id';
+  let processingObservationKey: 'observation_id' | 'id' = 'observation_id';
 
   try {
     let supportsIdempotencyKeyColumn = true;
@@ -375,12 +437,12 @@ Deno.serve(async (req) => {
 
       if (existingObs) {
         console.log('⚠️ Duplicate observation detected:', body.idempotencyKey);
-        const existingObservationId = (existingObs as any).observation_id ?? (existingObs as any).id;
+        // Live schema: observation_id is the canonical PK
         return new Response(
           JSON.stringify({
             success: true,
             duplicate: true,
-            observation_id: existingObservationId,
+            observation_id: existingObs.observation_id ?? existingObs.id,
             plate: existingObs.plate_number,
             is_compliant: existingObs.is_compliant,
           }),
@@ -389,11 +451,13 @@ Deno.serve(async (req) => {
       }
     } else {
       // UPDATE mode validation
+      // Live schema: observation_id is the NOT NULL primary key, id is nullable
+      // Try observation_id first (canonical PK), then id as fallback
       let existingObs: any | null = null;
       let obsError: any = null;
-      let observationKey: 'id' | 'observation_id' = 'id';
+      let observationKey: 'observation_id' | 'id' = 'observation_id';
 
-      // Try observation_id first for compatibility with deployments that still expose it.
+      // Try observation_id first (the actual PK in live DB)
       {
         const r = await supabase
           .from('observations')
@@ -408,6 +472,7 @@ Deno.serve(async (req) => {
         }
       }
 
+      // Fallback to id column if observation_id lookup failed
       if (!existingObs) {
         const r = await supabase
           .from('observations')
@@ -417,7 +482,7 @@ Deno.serve(async (req) => {
         if (r.data) {
           existingObs = r.data;
           observationKey = 'id';
-        } else {
+        } else if (!obsError) {
           obsError = r.error;
         }
       }
@@ -429,7 +494,8 @@ Deno.serve(async (req) => {
         );
       }
 
-      const existingObservationId = (existingObs as any).observation_id ?? (existingObs as any).id;
+      // Use the canonical observation_id from the row, falling back to id
+      const existingObservationId = existingObs.observation_id ?? existingObs.id;
 
       if (existingObs.processing_status === 'completed') {
         console.log('⚠️ Observation already processed:', existingObservationId);
@@ -727,11 +793,13 @@ Deno.serve(async (req) => {
 
     } else {
       // CREATE MODE: Insert new observation
+      // Live schema: photo column is 'photo', photo_url also exists
       const observationData = {
         recorded_by: body.officerId,
         organization_id: body.organizationId,
         zone_id: body.zoneId,
-        photo_url: body.photo_url,
+        photo: body.photo_url, // Live schema uses 'photo' as main column
+        photo_url: body.photo_url, // Also populate photo_url for compatibility
         photo_hash: photoHash,
         plate_number: plateNumber,
         plate_confidence: plateConfidence > 0 ? plateConfidence : null,
@@ -792,8 +860,9 @@ Deno.serve(async (req) => {
     // ==========================================================================
     const responseTime = Date.now() - requestStartTime;
     
+    // Live schema: observation_id is the canonical PK
     console.log('✅ Observation created:', {
-      id: (observation as any).observation_id ?? (observation as any).id,
+      observation_id: observation.observation_id ?? observation.id,
       plate: observation.plate_number,
       stage,
       response_time_ms: responseTime
@@ -801,7 +870,7 @@ Deno.serve(async (req) => {
 
     const response: ALPRResponse = {
       success: true,
-      observation_id: (observation as any).observation_id ?? (observation as any).id,
+      observation_id: observation.observation_id ?? observation.id,
       plate: plateNumber,
       confidence: plateConfidence,
       stage,
