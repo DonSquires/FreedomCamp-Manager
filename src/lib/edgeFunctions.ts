@@ -199,12 +199,27 @@ async function callEdgeFunction<T = any>(
 export const edgeFunctions = {
   /**
    * Process ALPR - Plate Recognizer pipeline
+   *
+   * UPDATE mode: pass `observation_id` to update an existing observation.
+   * CREATE mode: pass identity fields (`officerId`, `organizationId`, `zoneId`,
+   *              `idempotencyKey`) to create a new observation.
    */
   processALPR: async (params: {
     photo_url: string
-    latitude: number
-    longitude: number
+    // GPS coordinates — preferred camelCase names
+    gpsLatitude?: number
+    gpsLongitude?: number
+    gpsAccuracy?: number
+    // GPS backward-compat aliases (latitude/longitude/accuracy)
+    latitude?: number
+    longitude?: number
     accuracy?: number
+    // Identity fields for CREATE mode (camelCase, matching alpr-process interface)
+    officerId?: string
+    organizationId?: string
+    zoneId?: string
+    idempotencyKey?: string
+    // Identity backward-compat aliases (snake_case)
     officer_id?: string
     organization_id?: string
     zone_id?: string
@@ -214,8 +229,28 @@ export const edgeFunctions = {
     incident_id?: string
     /** Previous observation in the same incident for movement comparison */
     previous_observation_id?: string
+    regions?: string[]
+    mmc?: boolean
+    officerNotes?: string
+    weatherConditions?: string
+    recordedAt?: string
   }) => {
-    return callEdgeFunction('alpr-process', params)
+    // Destructure backward-compat aliases and map to the field names that
+    // alpr-process expects so that both old and new callers work correctly.
+    const {
+      latitude, longitude, accuracy,
+      officer_id, organization_id, zone_id,
+      ...rest
+    } = params
+    return callEdgeFunction('alpr-process', {
+      ...rest,
+      gpsLatitude: rest.gpsLatitude ?? latitude,
+      gpsLongitude: rest.gpsLongitude ?? longitude,
+      gpsAccuracy: rest.gpsAccuracy ?? accuracy,
+      officerId: rest.officerId ?? officer_id,
+      organizationId: rest.organizationId ?? organization_id,
+      zoneId: rest.zoneId ?? zone_id,
+    })
   },
 
   /**
@@ -489,6 +524,7 @@ export const edgeFunctions = {
     image?: string
     photo_base64?: string
     photoDataUrl?: string
+    photo_url?: string
     gpsLatitude?: number
     gps_latitude?: number
     gps?: { lat: number; lng: number; accuracy?: number }

@@ -24,22 +24,11 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.7";
 const USE_ONSPACE_AI = true;
 // ============================================================================
 
-const ALLOWED_LOCALHOST_ORIGINS = new Set([
-  "http://localhost:5173",
-  "http://localhost:3000",
-]);
 const PHOTO_FETCH_TIMEOUT_MS = Number(Deno.env.get("INGEST_PHOTO_FETCH_TIMEOUT_MS") ?? "8000");
 
-function getCorsHeaders(req: Request) {
-  const origin = req.headers.get("origin") ?? "";
-  
-  // Allow all OnSpace domains (production + preview URLs)
-  const isOnspaceDomain = origin.endsWith('.onspace.build');
-  const isAllowed = ALLOWED_LOCALHOST_ORIGINS.has(origin) || isOnspaceDomain;
-  
+function getCorsHeaders(_req?: Request) {
   return {
-    ...(isAllowed ? { "Access-Control-Allow-Origin": origin } : {}),
-    "Vary": "Origin",
+    "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Methods": "POST, OPTIONS",
     "Access-Control-Allow-Headers": "authorization, apikey, x-client-info, content-type",
     "Access-Control-Max-Age": "3600",
