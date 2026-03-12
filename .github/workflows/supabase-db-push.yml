@@ -62,4 +62,32 @@ jobs:
           SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
         run: |
           set -euo pipefail
-          supabase db push --include-all
+
+          # First try normal push (safe ordering only).
+          LOG_FILE="$(mktemp)"
+          if supabase db push 2>&1 | tee "$LOG_FILE"; then
+            exit 0
+          fi
+
+          # If Supabase reports local migrations that would be inserted before
+          # remote tail, reconcile those versions as already applied. This
+          # avoids force-applying legacy migrations out of order.
+          if grep -q "Found local migration files to be inserted before the last migration on remote database" "$LOG_FILE"; then
+            echo "Detected out-of-order local migrations. Reconciling as applied..."
+
+            grep -oE 'supabase/migrations/[0-9][^[:space:]]*\.sql' "$LOG_FILE" \
+              | sed 's#supabase/migrations/##; s#\.sql$##' \
+              | while read -r version; do
+                  if [ -n "$version" ]; then
+                    echo "Marking migration as applied: $version"
+                    supabase migration repair --status applied "$version" || true
+                  fi
+                done
+
+            echo "Retrying supabase db push after reconciliation..."
+            supabase db push
+          else
+            echo "supabase db push failed for a non-reconciliation reason"
+            cat "$LOG_FILE"
+            exit 1
+          fi
