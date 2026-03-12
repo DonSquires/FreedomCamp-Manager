@@ -245,8 +245,8 @@ These are called by the frontend but have no corresponding directory – they ma
 | `SUPABASE_URL` | All functions | Service client init |
 | `SUPABASE_SERVICE_ROLE_KEY` | All functions | Service-role DB access |
 | `SUPABASE_ANON_KEY` | Some functions | Anon-role operations |
-| `ONSPACE_AI_API_KEY` | `vehicle-ingest`, `analyze-vehicle-photo`, `orc-ingest`, `get-weather`, `select-best-vehicle-photo`, `process-credential-document` | OnSpace AI API authentication |
-| `ONSPACE_AI_BASE_URL` | Same as above | Defaults to `https://api.onspace.ai` |
+| `OPENAI_API_KEY` | `onspace-ai-chat`, `analyze-vehicle-photo`, `get-weather`, `select-best-vehicle-photo`, `process-credential-document`, `process-investigation-document`, `process-homeless-data`, `import-data`, `import-historical-data` | OpenAI-compatible API key — get at https://platform.openai.com/api-keys |
+| `OPENAI_BASE_URL` | Same as above | OpenAI API base URL. Leave unset to use `https://api.openai.com/v1` (default). Set to an alternative provider base URL (Groq, Together AI, Azure, etc.) if not using OpenAI directly. |
 | `ALPR_API_TOKEN` | `alpr-process`, `stream-webhook` | Plate Recognizer API key |
 | `ALPR_API_URL` | `alpr-process` | Plate Recognizer endpoint |
 | `NZSCV_PROXY_URL` | `check-nzscv-status` | Proxy for NZSCV registry queries |

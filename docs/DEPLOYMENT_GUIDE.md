@@ -178,13 +178,27 @@ Before deploying, ensure all requirements are met:
 
 ### 1. Supabase Edge Function Secrets
 
-Set these via Supabase Dashboard → Edge Functions → Manage Secrets:
+Set these via **Supabase Dashboard → Project Settings → Edge Functions → Manage Secrets**
+(or via `supabase secrets set KEY=value` in the CLI):
 
 ```bash
 PROXY_SERVER_URL=https://your-proxy-server.railway.app
 INFERENCE_SERVICE_URL=https://your-inference-service.railway.app
 ALPR_API_TOKEN=your-parkpow-token
 ALPR_API_URL=https://api.parkpow.com/v1
+
+# AI features (vehicle photo analysis, weather, document extraction, AI chat)
+# OPENAI_API_KEY — where to get it:
+#   1. Go to https://platform.openai.com/api-keys
+#   2. Sign in (or create a free account)
+#   3. Click "Create new secret key" — copy the value immediately
+# OPENAI_BASE_URL — leave unset to use OpenAI directly.
+#   Only needed when using an alternative OpenAI-compatible provider:
+#     Groq:        https://api.groq.com/openai/v1
+#     Together AI: https://api.together.xyz/v1
+#     Azure:       https://<resource>.openai.azure.com/openai/deployments/<deployment>
+OPENAI_API_KEY=sk-...your-key-here
+OPENAI_BASE_URL=
 ```
 
 ### 2. Custom Domain (Optional)
