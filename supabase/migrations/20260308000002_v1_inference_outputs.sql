@@ -61,9 +61,19 @@ ALTER TABLE public.observations
   ADD COLUMN IF NOT EXISTS sticker_detection_confidence real,
   ADD COLUMN IF NOT EXISTS sticker_color_confidence    real;
 
-ALTER TABLE public.observations
-  ADD CONSTRAINT observations_sticker_color_check
-    CHECK (sticker_color IS NULL OR sticker_color IN ('blue', 'green', 'unknown'));
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conrelid = 'public.observations'::regclass
+      AND conname  = 'observations_sticker_color_check'
+  ) THEN
+    ALTER TABLE public.observations
+      ADD CONSTRAINT observations_sticker_color_check
+        CHECK (sticker_color IS NULL OR sticker_color IN ('blue', 'green', 'unknown'));
+  END IF;
+END;
+$$;
 
 COMMENT ON COLUMN public.observations.sticker_presence IS
   'Tri-state: true = sticker present, false = absent, null = inference inconclusive (requires manual review).';
@@ -102,6 +112,14 @@ COMMENT ON COLUMN public.observations.movement_decision IS
 CREATE INDEX IF NOT EXISTS idx_observations_previous_observation_id
   ON public.observations (previous_observation_id)
   WHERE previous_observation_id IS NOT NULL;
+
+-- ── Force PostgREST schema cache reload ──────────────────────────────────
+-- Without this, newly-added columns are invisible to PostgREST until it
+-- reloads its cache, causing "Could not find the 'plate_confidence' column
+-- of 'observations' in the schema cache" errors at scan time.
+
+NOTIFY pgrst, 'reload schema';
+SELECT pg_notify('pgrst', 'reload schema');
 
 -- ── Verification notice ───────────────────────────────────────────────────
 
