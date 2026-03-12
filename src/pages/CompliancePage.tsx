@@ -289,25 +289,82 @@ function BreachesTab({
       }
 
       // Default source: observations where is_compliant = false
-      let q = supabase
-        .from('observations')
-        .select(
-          'id, plate_number, recorded_at, breach_type, breach_reason, zones!observations_zone_id_fkey(name), organizations!observations_organization_id_fkey(name)',
-          { count: 'exact' }
-        )
-        .eq('is_compliant', false)
-        .gte('recorded_at', startISO)
-        .lte('recorded_at', endISO)
-        .order('recorded_at', { ascending: false })
-        .range(page * PAGE, (page + 1) * PAGE - 1);
+      const applyObsFilters = (query: any) => {
+        query = query
+          .eq('is_compliant', false)
+          .gte('recorded_at', startISO)
+          .lte('recorded_at', endISO)
+          .order('recorded_at', { ascending: false })
+          .range(page * PAGE, (page + 1) * PAGE - 1);
 
-      if (search.trim()) q = q.ilike('plate_number', `%${search.trim()}%`);
-      if (orgId) q = q.eq('organization_id', orgId);
-      if (zoneId) q = q.eq('zone_id', zoneId);
+        if (search.trim()) query = query.ilike('plate_number', `%${search.trim()}%`);
+        if (orgId) query = query.eq('organization_id', orgId);
+        if (zoneId) query = query.eq('zone_id', zoneId);
+        return query;
+      };
 
-      const { data, count, error } = await q;
-      if (error) throw error;
-      return { rows: (data ?? []) as BreachObservation[], total: count ?? 0 };
+      const joinSelects = [
+        'id, plate_number, recorded_at, breach_type, breach_reason, zone_id, zones!observations_zone_id_fkey(name), organizations!observations_organization_id_fkey(name)',
+        'id:observation_id, plate_number, recorded_at, breach_type, breach_reason, zone_id, zones!observations_zone_id_fkey(name), organizations!observations_organization_id_fkey(name)',
+        'id, plate_number, recorded_at, breach_type, zone_id, zones!observations_zone_id_fkey(name), organizations!observations_organization_id_fkey(name)',
+        'id:observation_id, plate_number, recorded_at, breach_type, zone_id, zones!observations_zone_id_fkey(name), organizations!observations_organization_id_fkey(name)',
+      ];
+
+      for (const selectClause of joinSelects) {
+        let q = supabase.from('observations').select(selectClause, { count: 'exact' });
+        q = applyObsFilters(q);
+        const joined = await q;
+        if (!joined.error) {
+          return { rows: (joined.data ?? []) as BreachObservation[], total: joined.count ?? 0 };
+        }
+      }
+
+      const plainSelects = [
+        'id, plate_number, recorded_at, breach_type, breach_reason, zone_id',
+        'id:observation_id, plate_number, recorded_at, breach_type, breach_reason, zone_id',
+        'id, plate_number, recorded_at, breach_type, zone_id',
+        'id:observation_id, plate_number, recorded_at, breach_type, zone_id',
+      ];
+
+      let fallbackData: any[] = [];
+      let fallbackCount = 0;
+      let fallbackError: any = null;
+
+      for (const selectClause of plainSelects) {
+        let q = supabase.from('observations').select(selectClause, { count: 'exact' });
+        q = applyObsFilters(q);
+        const plain = await q;
+        if (!plain.error) {
+          fallbackData = plain.data ?? [];
+          fallbackCount = plain.count ?? 0;
+          fallbackError = null;
+          break;
+        }
+        fallbackError = plain.error;
+      }
+
+      if (fallbackError) throw fallbackError;
+
+      const zoneIds = Array.from(new Set((fallbackData || []).map((r: any) => r.zone_id).filter(Boolean)));
+      let zoneNameById = new Map<string, string>();
+      if (zoneIds.length > 0) {
+        const zoneRes = await supabase.from('zones').select('id, name').in('id', zoneIds);
+        if (!zoneRes.error && zoneRes.data) {
+          zoneNameById = new Map((zoneRes.data as any[]).map((z: any) => [z.id, z.name]));
+        }
+      }
+
+      const mappedRows: BreachObservation[] = (fallbackData || []).map((row: any) => ({
+        id: row.id,
+        plate_number: row.plate_number,
+        recorded_at: row.recorded_at,
+        breach_type: row.breach_type ?? null,
+        breach_reason: row.breach_reason ?? null,
+        zones: row.zone_id ? { name: zoneNameById.get(row.zone_id) ?? '—' } : null,
+        organizations: null,
+      }));
+
+      return { rows: mappedRows, total: fallbackCount };
     },
     placeholderData: (p) => p,
   });
