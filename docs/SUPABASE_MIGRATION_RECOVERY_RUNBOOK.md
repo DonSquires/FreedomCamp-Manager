@@ -1,5 +1,13 @@
 # Supabase Migration Recovery Runbook
 
+This document is retained for historical context.
+
+Canonical operator guide now lives in:
+
+- `docs/DEPLOYMENT_GUIDE.md` under `Supabase DB Push And Drift Recovery (Canonical)`
+
+Use that section as the primary source of truth.
+
 Purpose: fast recovery when `supabase db push` fails due migration-history drift or schema variance between local migrations and remote database.
 
 ## 1) Pre-checks

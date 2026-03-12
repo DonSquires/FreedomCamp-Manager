@@ -31,6 +31,73 @@ Before deploying, ensure all requirements are met:
 
 ---
 
+## Supabase DB Push And Drift Recovery (Canonical)
+
+Use this section as the single operational guide for applying migrations and recovering from history drift.
+
+### Required Auth
+
+Use a Supabase Personal Access Token that starts with `sbp_`.
+
+```bash
+export SUPABASE_ACCESS_TOKEN='sbp_...'
+```
+
+Do not use a project JWT (`eyJ...`) for CLI auth.
+
+### Standard Push Flow
+
+```bash
+/tmp/supabase migration list
+/tmp/supabase db push --include-all --yes
+```
+
+### If You See "Remote migration versions not found"
+
+1. Re-check migration history:
+
+```bash
+/tmp/supabase migration list
+```
+
+2. Repair obsolete short versions (known drift set):
+
+```bash
+/tmp/supabase migration repair --status reverted 20250127 20260309 20260312 20260316 20260320 --yes
+```
+
+3. Retry push:
+
+```bash
+/tmp/supabase db push --include-all --yes
+```
+
+### Migration Naming Rules
+
+1. Keep every migration version unique.
+2. Prefer full timestamp versions (`YYYYMMDDHHMMSS`) when there are multiple migrations on one day.
+3. Avoid mixing short date-only and multiple same-day timestamp versions in active chains.
+
+### Known Non-Blocking Warning
+
+During `20260326_evidence_bucket_import_policy.sql`, this warning can appear and still finish green:
+
+- `Skipping storage.objects policy updates: insufficient privileges for current role.`
+
+### Post-Push Validation
+
+```bash
+/tmp/supabase migration list
+```
+
+Then run smoke tests for:
+
+1. Scan ingest and observation writes
+2. Breach alert generation
+3. Photo recovery views and functions (if enabled)
+
+---
+
 ## 🚀 Deployment Options
 
 ### Option 1: Vercel (Recommended)
