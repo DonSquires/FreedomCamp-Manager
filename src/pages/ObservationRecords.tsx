@@ -86,27 +86,44 @@ export default function ObservationRecords() {
         return query
       }
 
-      // Primary path: use relationship join when schema cache has it.
-      let primaryQuery = (supabase.from('observations') as any)
-        .select('id, plate_number, recorded_at, zone_id, photo_url, is_compliant, officer_notes, gps_latitude, gps_longitude, zone:zones!observations_zone_id_fkey(name)')
-        .order('recorded_at', { ascending: false })
-        .limit(2500)
+      const primarySelects = [
+        'id, plate_number, recorded_at, zone_id, photo_url, is_compliant, officer_notes, gps_latitude, gps_longitude, zone:zones!observations_zone_id_fkey(name)',
+        'id:observation_id, plate_number, recorded_at, zone_id, photo_url, is_compliant, officer_notes, gps_latitude, gps_longitude, zone:zones!observations_zone_id_fkey(name)',
+      ]
 
-      primaryQuery = applyFilters(primaryQuery)
-      const primary = await primaryQuery
-      if (!primary.error) {
-        return (primary.data || []) as ObservationRow[]
+      // Primary path: use relationship join when schema cache has it.
+      for (const selectClause of primarySelects) {
+        let primaryQuery = (supabase.from('observations') as any)
+          .select(selectClause)
+          .order('recorded_at', { ascending: false })
+          .limit(2500)
+
+        primaryQuery = applyFilters(primaryQuery)
+        const primary = await primaryQuery
+        if (!primary.error) {
+          return (primary.data || []) as ObservationRow[]
+        }
       }
 
       // Fallback path: fetch observations without join and resolve zone names manually.
-      let fallbackQuery = (supabase.from('observations') as any)
-        .select('id, plate_number, recorded_at, zone_id, photo_url, is_compliant, officer_notes, gps_latitude, gps_longitude')
-        .order('recorded_at', { ascending: false })
-        .limit(2500)
+      let fallback: any = null
+      const fallbackSelects = [
+        'id, plate_number, recorded_at, zone_id, photo_url, is_compliant, officer_notes, gps_latitude, gps_longitude',
+        'id:observation_id, plate_number, recorded_at, zone_id, photo_url, is_compliant, officer_notes, gps_latitude, gps_longitude',
+      ]
 
-      fallbackQuery = applyFilters(fallbackQuery)
-      const fallback = await fallbackQuery
-      if (fallback.error) throw fallback.error
+      for (const selectClause of fallbackSelects) {
+        let fallbackQuery = (supabase.from('observations') as any)
+          .select(selectClause)
+          .order('recorded_at', { ascending: false })
+          .limit(2500)
+
+        fallbackQuery = applyFilters(fallbackQuery)
+        fallback = await fallbackQuery
+        if (!fallback.error) break
+      }
+
+      if (!fallback || fallback.error) throw fallback?.error
 
       const rawRows = (fallback.data || []) as any[]
       const zoneIds = Array.from(new Set(rawRows.map((r) => r.zone_id).filter(Boolean)))
