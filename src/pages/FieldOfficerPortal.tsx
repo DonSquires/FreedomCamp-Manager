@@ -604,27 +604,46 @@ export default function FieldOfficerPortal() {
             consecutive_nights: 0,
           }
 
-          const fallbackInsertWithIdempotency = await (supabase
-            .from('observations') as any)
-            .insert({
-              ...fallbackBasePayload,
-              idempotency_key: idempotencyKey,
-            })
-            .select('id, observation_id, plate_number, is_compliant, breach_type')
-            .single()
+          // Some deployments may have stale PostgREST schema cache or legacy
+          // observations shapes. Retry insert after removing unknown columns.
+          const adaptivePayload: Record<string, any> = {
+            ...fallbackBasePayload,
+            idempotency_key: idempotencyKey,
+          }
 
-          let fallbackData: any = fallbackInsertWithIdempotency.data
-          let fallbackError: any = fallbackInsertWithIdempotency.error
+          let fallbackData: any = null
+          let fallbackError: any = null
+          const maxFallbackAttempts = 12
 
-          const fallbackInsertMessage = fallbackError?.message || ''
-          if (fallbackError && /idempotency_key/i.test(fallbackInsertMessage)) {
-            const fallbackInsertWithoutIdempotency = await (supabase
+          for (let attempt = 0; attempt < maxFallbackAttempts; attempt += 1) {
+            const fallbackInsertAttempt = await (supabase
               .from('observations') as any)
-              .insert(fallbackBasePayload)
-              .select('id, observation_id, plate_number, is_compliant, breach_type')
+              .insert(adaptivePayload)
+              .select('*')
               .single()
-            fallbackData = fallbackInsertWithoutIdempotency.data
-            fallbackError = fallbackInsertWithoutIdempotency.error
+
+            fallbackData = fallbackInsertAttempt.data
+            fallbackError = fallbackInsertAttempt.error
+
+            if (!fallbackError) break
+
+            const message = String(fallbackError?.message || '')
+            const missingColumnMatch = message.match(/Could not find the '([^']+)' column/i)
+            const missingColumn = missingColumnMatch?.[1]
+
+            if (!missingColumn) break
+            if (!(missingColumn in adaptivePayload)) break
+
+            // Legacy compatibility: older schema variants use `photo`.
+            if (missingColumn === 'photo_url' && !('photo' in adaptivePayload)) {
+              adaptivePayload.photo = photoUrl
+            }
+
+            delete adaptivePayload[missingColumn]
+            appendScanDebug('Direct insert fallback adjusted payload', {
+              removed_column: missingColumn,
+              attempt: attempt + 1,
+            })
           }
 
           if (!fallbackError && fallbackData) {
