@@ -3,7 +3,8 @@
 -- Date: 2026-03-12
 --
 -- Iron Eagle Security (Level 1 Owner) and First Security (Level 2 Service
--- Provider) are assumed to already exist in the database.
+-- Provider) may already exist. If First Security is missing, this migration
+-- will create it before seeding client organisations.
 --
 -- This migration idempotently inserts all 78+ NZ organisations as Level-3
 -- client organisations whose parent is First Security, then calls
@@ -16,6 +17,7 @@ BEGIN;
 DO $$
 DECLARE
   v_first_security_id  uuid;
+  v_owner_org_id       uuid;
   v_org                record;
   v_inserted           integer := 0;
   v_zones_called       integer := 0;
@@ -108,7 +110,7 @@ DECLARE
 
 BEGIN
   -- -------------------------------------------------------------------------
-  -- 1. Resolve First Security ID (hard error if missing)
+  -- 1. Resolve First Security ID (create if missing)
   -- -------------------------------------------------------------------------
   SELECT id INTO v_first_security_id
   FROM organizations
@@ -116,9 +118,38 @@ BEGIN
   LIMIT 1;
 
   IF v_first_security_id IS NULL THEN
-    RAISE EXCEPTION
-      'First Security organisation not found. '
-      'Ensure it is created before running this migration.';
+    SELECT id INTO v_owner_org_id
+    FROM organizations
+    WHERE name IN ('Iron Eagle Security', 'Iron Eagle')
+    ORDER BY name
+    LIMIT 1;
+
+    INSERT INTO organizations (
+      name,
+      organization_type,
+      organization_level,
+      parent_organization_id,
+      is_active
+    ) VALUES (
+      'First Security',
+      'service_provider',
+      2,
+      v_owner_org_id,
+      true
+    )
+    ON CONFLICT (name) DO NOTHING;
+
+    SELECT id INTO v_first_security_id
+    FROM organizations
+    WHERE name = 'First Security'
+    LIMIT 1;
+
+    IF v_first_security_id IS NULL THEN
+      RAISE EXCEPTION
+        'Unable to resolve or create First Security organisation.';
+    END IF;
+
+    RAISE NOTICE 'Created missing First Security organisation: %', v_first_security_id;
   END IF;
 
   RAISE NOTICE 'First Security ID: %', v_first_security_id;
