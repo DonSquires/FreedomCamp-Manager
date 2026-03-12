@@ -183,6 +183,115 @@ function isMissingIdempotencyColumnError(error: unknown): boolean {
     && /schema cache|does not exist|column/i.test(String(message));
 }
 
+/**
+ * Extracts the name of a missing column from a PostgREST schema-cache error
+ * message of the form:
+ *   "Could not find the '<column>' column of '<table>' in the schema cache"
+ * Returns null when the error is not of this form.
+ */
+function extractMissingSchemaColumn(error: unknown): string | null {
+  const message =
+    typeof error === 'string'
+      ? error
+      : (error as any)?.message || (error as any)?.error || '';
+  const match = String(message).match(/Could not find the '([^']+)' column/i);
+  return match ? match[1] : null;
+}
+
+/**
+ * Optional AI inference columns that may not yet be present in the PostgREST
+ * schema cache when the migration adding them has not been applied (or the
+ * cache has not been refreshed).  These columns are safe to drop from the
+ * INSERT / UPDATE payload and retry — the observation is still recorded with
+ * core fields; the AI enrichment can be re-run once the schema is up to date.
+ */
+const OPTIONAL_INFERENCE_COLUMNS = new Set([
+  'plate_confidence',
+  'vehicle_make_confidence',
+  'vehicle_model_confidence',
+  'vehicle_color_confidence',
+  'sticker_presence',
+  'sticker_color',
+  'sticker_bbox',
+  'sticker_detection_confidence',
+  'sticker_color_confidence',
+  'movement_moved',
+  'movement_background_similarity',
+  'movement_vehicle_bbox_iou',
+  'movement_decision',
+  'incident_id',
+  'previous_observation_id',
+  'processing_status',
+  'processing_started_at',
+  'processing_completed_at',
+  'processing_error',
+  'vehicle_embedding',
+  'embedding_quality',
+  'embedding_model_version',
+  'embedding_created_at',
+]);
+
+/**
+ * Perform a .update() on the observations table, adaptively dropping optional
+ * inference columns that the schema cache does not yet know about, until the
+ * update succeeds or only required columns remain.
+ */
+async function adaptiveObservationUpdate(
+  supabase: ReturnType<typeof createClient>,
+  key: string,
+  id: string,
+  data: Record<string, any>,
+  dropped: string[] = [],
+): Promise<{ data: any; error: any; droppedColumns: string[] }> {
+  const { data: result, error } = await supabase
+    .from('observations')
+    .update(data)
+    .eq(key, id)
+    .select('*')
+    .single();
+
+  if (!error) return { data: result, error: null, droppedColumns: dropped };
+
+  const missingCol = extractMissingSchemaColumn(error);
+  if (missingCol && OPTIONAL_INFERENCE_COLUMNS.has(missingCol) && (missingCol in data)) {
+    console.warn(`⚠️ Schema cache missing column '${missingCol}' — dropping from UPDATE and retrying`);
+    const next = { ...data };
+    delete next[missingCol];
+    return adaptiveObservationUpdate(supabase, key, id, next, [...dropped, missingCol]);
+  }
+
+  return { data: null, error, droppedColumns: dropped };
+}
+
+/**
+ * Perform an .insert() on the observations table, adaptively dropping optional
+ * inference columns that the schema cache does not yet know about, until the
+ * insert succeeds or only required columns remain.
+ */
+async function adaptiveObservationInsert(
+  supabase: ReturnType<typeof createClient>,
+  data: Record<string, any>,
+  dropped: string[] = [],
+): Promise<{ data: any; error: any; droppedColumns: string[] }> {
+  const { data: result, error } = await supabase
+    .from('observations')
+    .insert(data)
+    .select('*')
+    .single();
+
+  if (!error) return { data: result, error: null, droppedColumns: dropped };
+
+  const missingCol = extractMissingSchemaColumn(error);
+  if (missingCol && OPTIONAL_INFERENCE_COLUMNS.has(missingCol) && (missingCol in data)) {
+    console.warn(`⚠️ Schema cache missing column '${missingCol}' — dropping from INSERT and retrying`);
+    const next = { ...data };
+    delete next[missingCol];
+    return adaptiveObservationInsert(supabase, next, [...dropped, missingCol]);
+  }
+
+  return { data: null, error, droppedColumns: dropped };
+}
+
 Deno.serve(async (req) => {
   // ============================================================================
   // STEP 1: CORS PREFLIGHT
@@ -576,12 +685,21 @@ Deno.serve(async (req) => {
         stage,
       });
 
-      const { data: updatedObs, error: updateError } = await supabase
-        .from('observations')
-        .update(updateData)
-        .eq(processingObservationKey, processingObservationId)
-        .select('*')
-        .single();
+      const {
+        data: updatedObs,
+        error: updateError,
+        droppedColumns: updateDropped,
+      } = await adaptiveObservationUpdate(
+        supabase,
+        processingObservationKey,
+        processingObservationId!,
+        updateData,
+      );
+
+      if (updateDropped.length > 0) {
+        warnings.push(`Schema cache missing columns (UPDATE) — dropped: ${updateDropped.join(', ')}`);
+        console.warn('⚠️ UPDATE succeeded after dropping columns:', updateDropped);
+      }
 
       if (updateError) {
         console.error('❌ Database UPDATE failed:', updateError);
@@ -644,11 +762,16 @@ Deno.serve(async (req) => {
         stage,
       });
 
-      const { data: newObs, error: obsError } = await supabase
-        .from('observations')
-        .insert(insertPayload)
-        .select('*')
-        .single();
+      const {
+        data: newObs,
+        error: obsError,
+        droppedColumns: insertDropped,
+      } = await adaptiveObservationInsert(supabase, insertPayload);
+
+      if (insertDropped.length > 0) {
+        warnings.push(`Schema cache missing columns (INSERT) — dropped: ${insertDropped.join(', ')}`);
+        console.warn('⚠️ INSERT succeeded after dropping columns:', insertDropped);
+      }
 
       if (obsError) {
         console.error('❌ Database INSERT failed:', obsError);
