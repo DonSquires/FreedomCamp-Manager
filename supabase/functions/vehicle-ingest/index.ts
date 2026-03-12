@@ -18,8 +18,8 @@ const PHOTO_FETCH_TIMEOUT_MS = Number(Deno.env.get("INGEST_PHOTO_FETCH_TIMEOUT_M
 function getCorsHeaders(_req?: Request) {
   return {
     "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Methods": "POST, OPTIONS",
-    "Access-Control-Allow-Headers": "authorization, apikey, x-client-info, content-type",
+    "Access-Control-Allow-Methods": "POST, GET, OPTIONS, PUT, DELETE",
+    "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-client-timezone",
     "Access-Control-Max-Age": "3600",
   };
 }
