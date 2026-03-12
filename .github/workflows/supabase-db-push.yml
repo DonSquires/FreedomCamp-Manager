@@ -63,53 +63,50 @@ jobs:
         run: |
           set -euo pipefail
 
-          # First try normal push (safe ordering only).
           LOG_FILE="$(mktemp)"
-          if supabase db push 2>&1 | tee "$LOG_FILE"; then
-            exit 0
-          fi
 
-          # If Supabase reports local migrations that would be inserted before
-          # remote tail, reconcile those versions as already applied. This
-          # avoids force-applying legacy migrations out of order.
-          if grep -q "Found local migration files to be inserted before the last migration on remote database" "$LOG_FILE"; then
-            echo "Detected out-of-order local migrations. Reconciling as applied..."
-
-            grep -oE 'supabase/migrations/[0-9][^[:space:]]*\.sql' "$LOG_FILE" \
-              | sed 's#supabase/migrations/##; s#\.sql$##' \
-              | awk -F'_' '{print $1}' \
-              | sort -u \
-              | while read -r version; do
-                  if [ -n "$version" ]; then
-                    echo "Marking migration as applied: $version"
-                    supabase migration repair --status applied "$version" || true
-                  fi
-                done
-
-            echo "Retrying supabase db push after reconciliation..."
+          for attempt in 1 2 3; do
+            echo "supabase db push attempt $attempt..."
             if supabase db push 2>&1 | tee "$LOG_FILE"; then
               exit 0
             fi
 
-            # If remote history now contains versions not represented locally,
-            # Supabase prints an explicit repair suggestion. Apply it and retry.
+            handled=false
+
+            # Case 1: local migrations appear before remote tail.
+            if grep -q "Found local migration files to be inserted before the last migration on remote database" "$LOG_FILE"; then
+              echo "Detected out-of-order local migrations. Reconciling as applied..."
+              grep -oE 'supabase/migrations/[0-9][^[:space:]]*\.sql' "$LOG_FILE" \
+                | sed 's#supabase/migrations/##; s#\.sql$##' \
+                | awk -F'_' '{print $1}' \
+                | sort -u \
+                | while read -r version; do
+                    if [ -n "$version" ]; then
+                      echo "Marking migration as applied: $version"
+                      supabase migration repair --status applied "$version" || true
+                    fi
+                  done
+              handled=true
+            fi
+
+            # Case 2: remote history contains versions absent locally.
             if grep -q "Remote migration versions not found in local migrations directory" "$LOG_FILE"; then
-              REVERT_VERSIONS=$(grep -oE 'supabase migration repair --status reverted [0-9 ]+' "$LOG_FILE" | sed -E 's/^supabase migration repair --status reverted //')
+              REVERT_VERSIONS=$(grep -oE 'supabase migration repair --status reverted [0-9 ]+' "$LOG_FILE" | sed -E 's/^supabase migration repair --status reverted //' | head -n1)
               if [ -n "${REVERT_VERSIONS:-}" ]; then
                 echo "Reverting remote-only migration versions: $REVERT_VERSIONS"
                 # shellcheck disable=SC2086
                 supabase migration repair --status reverted $REVERT_VERSIONS || true
+                handled=true
               fi
+            fi
 
-              echo "Retrying supabase db push after remote-version reconciliation..."
-              supabase db push
-            else
-              echo "supabase db push failed after reconciliation"
+            if [ "$handled" = false ]; then
+              echo "supabase db push failed for a non-reconciliation reason"
               cat "$LOG_FILE"
               exit 1
             fi
-          else
-            echo "supabase db push failed for a non-reconciliation reason"
-            cat "$LOG_FILE"
-            exit 1
-          fi
+          done
+
+          echo "supabase db push failed after reconciliation attempts"
+          cat "$LOG_FILE"
+          exit 1
