@@ -52,6 +52,8 @@ grep_requested_output.txt
 .vercel
 .env*.local
 .npm-cache/
+.npm-global/
+.npmrc
 .home/
 .local/
 .venv-migrate/
