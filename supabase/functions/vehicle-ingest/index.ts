@@ -368,7 +368,14 @@ Deno.serve(async (req) => {
       });
     }
 
-    if (!gpsLatitude || !gpsLongitude) {
+    if (
+      gpsLatitude === null
+      || gpsLatitude === undefined
+      || Number.isNaN(gpsLatitude)
+      || gpsLongitude === null
+      || gpsLongitude === undefined
+      || Number.isNaN(gpsLongitude)
+    ) {
       return new Response(JSON.stringify({ error: "Missing GPS coordinates" }), {
         status: 400,
         headers: { ...getCorsHeaders(req), "content-type": "application/json" },

@@ -292,7 +292,7 @@ If OnSpace = this application (FreedomCamp Manager / Iron Eagle Security product
 
 ## See Also
 
-- [`NEW_PROJECT_SETUP.md`](./NEW_PROJECT_SETUP.md) — full step-by-step provisioning guide
-- [`DEPLOYMENT_GUIDE.md`](./docs/DEPLOYMENT_GUIDE.md) — deployment guide
-- [`DATABASE_ARCHITECTURE.md`](./DATABASE_ARCHITECTURE.md) — schema reference
-- [`EDGE_FUNCTION_DEPLOYMENT_CHECKLIST.md`](./EDGE_FUNCTION_DEPLOYMENT_CHECKLIST.md) — edge function reference
+- [docs/NEW_PROJECT_SETUP.md](docs/NEW_PROJECT_SETUP.md) — original baseline plan for full provisioning
+- [docs/DEPLOYMENT_GUIDE.md](docs/DEPLOYMENT_GUIDE.md) — operational deployment companion
+- [DATABASE_ARCHITECTURE.md](DATABASE_ARCHITECTURE.md) — schema reference
+- [EDGE_FUNCTION_DEPLOYMENT_CHECKLIST.md](EDGE_FUNCTION_DEPLOYMENT_CHECKLIST.md) — edge function reference

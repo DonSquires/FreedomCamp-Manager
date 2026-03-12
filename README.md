@@ -18,7 +18,8 @@ bun install
 bun run dev                   # http://localhost:5173
 ```
 
-For a full deployment walkthrough see [`ONLINE_DEPLOYMENT_GUIDE.md`](ONLINE_DEPLOYMENT_GUIDE.md).
+For the original full from-zero baseline, use [docs/NEW_PROJECT_SETUP.md](docs/NEW_PROJECT_SETUP.md).
+For browser-only deployment steps, use [ONLINE_DEPLOYMENT_GUIDE.md](ONLINE_DEPLOYMENT_GUIDE.md).
 
 ---
 
@@ -119,12 +120,9 @@ Vercel's integration handles the deployment independently.
 
 ## Further reading
 
-- [`ONLINE_DEPLOYMENT_GUIDE.md`](ONLINE_DEPLOYMENT_GUIDE.md) — complete
-  browser-only deployment walkthrough (Supabase + Vercel + Railway)
-- [`docs/DEPLOYMENT_GUIDE.md`](docs/DEPLOYMENT_GUIDE.md) — detailed deployment
-  options including Railway and manual hosting
-- [`docs/NEW_PROJECT_SETUP.md`](docs/NEW_PROJECT_SETUP.md) — full new-project
-  setup guide
+- [docs/NEW_PROJECT_SETUP.md](docs/NEW_PROJECT_SETUP.md) — original baseline plan for full new-project provisioning
+- [docs/DEPLOYMENT_GUIDE.md](docs/DEPLOYMENT_GUIDE.md) — operational companion for rollout checks and drift recovery
+- [ONLINE_DEPLOYMENT_GUIDE.md](ONLINE_DEPLOYMENT_GUIDE.md) — browser-only deployment walkthrough (Supabase + Vercel + Railway)
 - [`docs/JURISDICTION_BOUNDARY_SETUP.md`](docs/JURISDICTION_BOUNDARY_SETUP.md) —
   bulk setup for NZ jurisdiction boundaries (GeoBoundaries/Stats NZ source)
 - [Vercel token management](https://vercel.com/account/tokens)

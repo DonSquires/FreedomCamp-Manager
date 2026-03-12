@@ -376,20 +376,6 @@ export default function FieldOfficerPortal() {
     }
   }, [lastScanResult?.observationId, lastScanResult?.processingPending])
 
-  const fileToDataUrl = (file: File) =>
-    new Promise<string>((resolve, reject) => {
-      const reader = new FileReader()
-      reader.onload = () => {
-        if (typeof reader.result === 'string') {
-          resolve(reader.result)
-          return
-        }
-        reject(new Error('Failed to convert photo to data URL'))
-      }
-      reader.onerror = () => reject(new Error('Failed to read captured photo'))
-      reader.readAsDataURL(file)
-    })
-
   const handleCapture = async (file: File) => {
     setIsProcessing(true)
     setScanDebugStatus('running')
@@ -475,20 +461,17 @@ export default function FieldOfficerPortal() {
       }
 
       // ============================================================================
-      // STEP 4: GENERATE METADATA + IMAGE DATA URL
+      // STEP 4: GENERATE METADATA
       // ============================================================================
       const timestamp = Date.now()
       const uniqueId = Array.from(crypto.getRandomValues(new Uint8Array(8)))
         .map((b) => b.toString(16).padStart(2, '0'))
         .join('')
       const idempotencyKey = `scan-${user.id}-${timestamp}`
-      const imageDataUrl = await fileToDataUrl(file)
-      appendScanDebug('Image converted to data URL', { length: imageDataUrl.length })
 
       console.log('📸 Photo Metadata:', {
         size_bytes: file.size,
         type: file.type,
-        image_data_url_length: imageDataUrl.length,
         idempotency_key: idempotencyKey,
         weather: weatherConditions
       })
@@ -548,7 +531,6 @@ export default function FieldOfficerPortal() {
       toast.info('Saving observation...')
       let { data: ingestData, error: ingestError } = await retryEdgeCall(() =>
         edgeFunctions.ingestVehicleObservation({
-          photoDataUrl: imageDataUrl,
           photo_url: photoUrl,
           gpsLatitude: position.coords.latitude,
           gpsLongitude: position.coords.longitude,

@@ -1,5 +1,11 @@
 # 🚀 **Phase 1 Deployment Guide**
 
+> Historical phase-specific guide.
+>
+> For current deployment baseline and operations, use:
+> - [docs/NEW_PROJECT_SETUP.md](docs/NEW_PROJECT_SETUP.md)
+> - [docs/DEPLOYMENT_GUIDE.md](docs/DEPLOYMENT_GUIDE.md)
+
 **Migration:** `20260220_phase1_orc_ai_vector_support.sql`  
 **Status:** Ready to Deploy  
 **Estimated Time:** 2-3 minutes

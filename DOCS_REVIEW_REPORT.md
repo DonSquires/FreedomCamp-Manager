@@ -1,5 +1,12 @@
 # FreedomCamp-Manager – Documentation Review Report
 
+> Historical review snapshot from 2026-02-25.
+>
+> Current canonical docs:
+> - [docs/NEW_PROJECT_SETUP.md](docs/NEW_PROJECT_SETUP.md) for original from-zero baseline
+> - [docs/DEPLOYMENT_GUIDE.md](docs/DEPLOYMENT_GUIDE.md) for operational rollout and migration drift recovery
+> - [docs/SCAN_INGEST_SCHEMA_MAP.md](docs/SCAN_INGEST_SCHEMA_MAP.md) for current scan ingest dependencies and schema mapping
+
 **Reviewed:** 2026-02-25  
 **Reviewer:** Copilot Coding Agent  
 **Scope:** All Markdown files in the repository root (90 files) + `docs/` directory (2 files)

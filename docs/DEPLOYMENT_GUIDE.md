@@ -2,6 +2,12 @@
 
 This guide provides step-by-step instructions for deploying the rebuilt FreedomCamp Manager application to production.
 
+## Baseline Plan (Original)
+
+Use [docs/NEW_PROJECT_SETUP.md](docs/NEW_PROJECT_SETUP.md) as the baseline for full from-zero provisioning (new Supabase project, migrations, edge functions, Railway services, web portal, and mobile app).
+
+This deployment guide is the operational companion for production rollout checks and drift recovery procedures.
+
 ---
 
 ## 📋 Pre-Deployment Checklist

@@ -3,6 +3,9 @@
 > **For users who cannot run commands locally** (locked-down / managed computer).
 > Everything in this guide is done via a web browser — no local software installation needed.
 
+Canonical baseline for full provisioning is [docs/NEW_PROJECT_SETUP.md](docs/NEW_PROJECT_SETUP.md).
+This document is the browser-only execution variant of that plan.
+
 ---
 
 ## What you need (browser tabs)
