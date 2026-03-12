@@ -147,8 +147,7 @@ export default function VehicleManagement() {
         const normalized = rawOrgId!.replace(/\s*\(current\)\s*$/i, '').trim()
         if (!normalized) return null
 
-        const { data, error } = await supabase
-          .from('organizations')
+        const { data, error } = await (supabase.from('organizations') as any)
           .select('id, name')
           .or(`name.ilike.${normalized},name.ilike.%${normalized}%`)
           .limit(1)
@@ -698,7 +697,12 @@ export default function VehicleManagement() {
             </p>
             {vehicleQueryDebug && (
               <p className="text-xs text-gray-400 mt-3">
-                Debug: org {vehicleQueryDebug.rawOrgId || 'none'} -> {vehicleQueryDebug.resolvedOrgId || 'none'} | zone {vehicleQueryDebug.rawZoneId || 'none'} -> {vehicleQueryDebug.resolvedZoneId || 'none'} | scoped obs {vehicleQueryDebug.scopedObservationCount} | canonical {vehicleQueryDebug.primaryCanonicalCount}/{vehicleQueryDebug.fallbackCanonicalCount} | synth {vehicleQueryDebug.synthesizedCount}
+                Debug: org {vehicleQueryDebug.rawOrgId || 'none'}{' -> '}
+                {vehicleQueryDebug.resolvedOrgId || 'none'} | zone {vehicleQueryDebug.rawZoneId || 'none'}
+                {' -> '}
+                {vehicleQueryDebug.resolvedZoneId || 'none'} | scoped obs {vehicleQueryDebug.scopedObservationCount}
+                {' | '}canonical {vehicleQueryDebug.primaryCanonicalCount}/{vehicleQueryDebug.fallbackCanonicalCount}
+                {' | '}synth {vehicleQueryDebug.synthesizedCount}
               </p>
             )}
           </CardContent>
