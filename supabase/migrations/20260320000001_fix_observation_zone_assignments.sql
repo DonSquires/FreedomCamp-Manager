@@ -142,7 +142,7 @@ best_zone AS (
 -- Step B: identify every observation row that needs changing
 to_update AS (
   SELECT
-    o.id                AS obs_id,
+    o.ctid              AS obs_tid,
     bz.best_zone_id     AS new_zone_id,
     bz.best_org_id      AS new_org_id
   FROM   public.observations o
@@ -159,7 +159,7 @@ SET
   organization_id = upd.new_org_id,
   updated_at      = now()
 FROM to_update upd
-WHERE o.id = upd.obs_id;
+WHERE o.ctid = upd.obs_tid;
 
 -- ── 4. Deactivate superseded auto-created import zones ───────────────────────
 -- A zone is superseded when a DIFFERENT active zone now has the same name
