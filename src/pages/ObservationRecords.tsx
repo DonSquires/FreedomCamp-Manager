@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
@@ -55,6 +55,7 @@ function formatVehicleSummary(v: CanonicalVehicleRow | undefined): string {
 }
 
 export default function ObservationRecords() {
+  const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const { user } = useAuthStore()
   const { organizationId, zoneId, dateFrom, dateTo } = useGlobalFiltersStore()
@@ -173,6 +174,7 @@ export default function ObservationRecords() {
   }, [canonicalVehicles])
 
   const selectedCanonical = selectedPlate ? canonicalByPlate.get(selectedPlate) : undefined
+  const breachSearchPlate = selectedPlate || requestedPlate
 
   return (
     <AppLayout
@@ -215,6 +217,18 @@ export default function ObservationRecords() {
         </div>
         <Button variant="outline" size="icon" onClick={() => refetch()}>
           <RefreshCw className="h-4 w-4" />
+        </Button>
+        <Button
+          variant="outline"
+          onClick={() =>
+            navigate(
+              breachSearchPlate
+                ? `/breaches?search=${encodeURIComponent(breachSearchPlate)}`
+                : '/breaches'
+            )
+          }
+        >
+          Back to Breaches
         </Button>
       </div>
 
