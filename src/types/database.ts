@@ -253,19 +253,23 @@ export interface Database {
         }
       }
       canonical_vehicles: {
+        // Live schema verified 2026-03-13 — PK is plate_number, UUID is vehicle_id
         Row: {
           plate_number: string
-          id: string
-          make: string | null
-          model: string | null
-          year: number | null
-          colour: string | null
-          body_style: string | null
+          vehicle_id: string
+          vehicle_make: string | null
+          vehicle_model: string | null
+          vehicle_color: string | null
+          vehicle_year: string | null        // TEXT in live DB, not integer
           self_contained: boolean
           self_contained_expiry: string | null
+          nzscv_warrant_type: string | null
+          nzscv_lookup_at: string | null
           homeless_status: string
-          homeless_confirmed_at: string | null
+          is_homeless: boolean
+          homeless_confirmed: boolean
           homeless_confirmed_by: string | null
+          homeless_confirmed_at: string | null
           homeless_notes: string | null
           is_flagged: boolean
           flagged_priority: string | null
@@ -273,13 +277,15 @@ export interface Database {
           flagged_notes: string | null
           flagged_at: string | null
           flagged_by: string | null
-          is_exempt: boolean
           owner_first_name: string | null
           owner_last_name: string | null
           owner_company_name: string | null
           owner_address: string | null
           owner_address_verified: boolean
           profile_photo: string | null
+          profile_photo_url: string | null
+          profile_photo_score: number | null
+          profile_photo_updated_at: string | null
           profile_photo_selected_at: string | null
           profile_photo_metadata: any
           total_notes: number
@@ -296,26 +302,28 @@ export interface Database {
           last_enforcement_type: string | null
           nzscv_last_checked: string | null
           nzscv_source: string | null
-          nzscv_warrant_type: string | null
-          nzscv_warrant_number: string | null
-          nzscv_warrant_expires_on: string | null
+          fc_act_exempt: boolean
+          is_exempt: boolean
           parkpow_vehicle_id: number | null
           created_at: string
           updated_at: string
         }
         Insert: {
           plate_number: string
-          id?: string
-          make?: string | null
-          model?: string | null
-          year?: number | null
-          colour?: string | null
-          body_style?: string | null
+          vehicle_id?: string
+          vehicle_make?: string | null
+          vehicle_model?: string | null
+          vehicle_color?: string | null
+          vehicle_year?: string | null
           self_contained?: boolean
           self_contained_expiry?: string | null
+          nzscv_warrant_type?: string | null
+          nzscv_lookup_at?: string | null
           homeless_status?: string
-          homeless_confirmed_at?: string | null
+          is_homeless?: boolean
+          homeless_confirmed?: boolean
           homeless_confirmed_by?: string | null
+          homeless_confirmed_at?: string | null
           homeless_notes?: string | null
           is_flagged?: boolean
           flagged_priority?: string | null
@@ -323,13 +331,15 @@ export interface Database {
           flagged_notes?: string | null
           flagged_at?: string | null
           flagged_by?: string | null
-          is_exempt?: boolean
           owner_first_name?: string | null
           owner_last_name?: string | null
           owner_company_name?: string | null
           owner_address?: string | null
           owner_address_verified?: boolean
           profile_photo?: string | null
+          profile_photo_url?: string | null
+          profile_photo_score?: number | null
+          profile_photo_updated_at?: string | null
           profile_photo_selected_at?: string | null
           profile_photo_metadata?: any
           total_notes?: number
@@ -346,26 +356,28 @@ export interface Database {
           last_enforcement_type?: string | null
           nzscv_last_checked?: string | null
           nzscv_source?: string | null
-          nzscv_warrant_type?: string | null
-          nzscv_warrant_number?: string | null
-          nzscv_warrant_expires_on?: string | null
+          fc_act_exempt?: boolean
+          is_exempt?: boolean
           parkpow_vehicle_id?: number | null
           created_at?: string
           updated_at?: string
         }
         Update: {
           plate_number?: string
-          id?: string
-          make?: string | null
-          model?: string | null
-          year?: number | null
-          colour?: string | null
-          body_style?: string | null
+          vehicle_id?: string
+          vehicle_make?: string | null
+          vehicle_model?: string | null
+          vehicle_color?: string | null
+          vehicle_year?: string | null
           self_contained?: boolean
           self_contained_expiry?: string | null
+          nzscv_warrant_type?: string | null
+          nzscv_lookup_at?: string | null
           homeless_status?: string
-          homeless_confirmed_at?: string | null
+          is_homeless?: boolean
+          homeless_confirmed?: boolean
           homeless_confirmed_by?: string | null
+          homeless_confirmed_at?: string | null
           homeless_notes?: string | null
           is_flagged?: boolean
           flagged_priority?: string | null
@@ -373,13 +385,15 @@ export interface Database {
           flagged_notes?: string | null
           flagged_at?: string | null
           flagged_by?: string | null
-          is_exempt?: boolean
           owner_first_name?: string | null
           owner_last_name?: string | null
           owner_company_name?: string | null
           owner_address?: string | null
           owner_address_verified?: boolean
           profile_photo?: string | null
+          profile_photo_url?: string | null
+          profile_photo_score?: number | null
+          profile_photo_updated_at?: string | null
           profile_photo_selected_at?: string | null
           profile_photo_metadata?: any
           total_notes?: number
@@ -396,183 +410,187 @@ export interface Database {
           last_enforcement_type?: string | null
           nzscv_last_checked?: string | null
           nzscv_source?: string | null
-          nzscv_warrant_type?: string | null
-          nzscv_warrant_number?: string | null
-          nzscv_warrant_expires_on?: string | null
+          fc_act_exempt?: boolean
+          is_exempt?: boolean
           parkpow_vehicle_id?: number | null
           created_at?: string
           updated_at?: string
         }
       }
       observations: {
+        // Live schema verified 2026-03-13 — PK is observation_id, id is nullable secondary
         Row: {
-          id: string
-          idempotency_key: string
+          observation_id: string              // PRIMARY KEY (NOT NULL)
+          id: string | null                   // nullable secondary UUID
+          idempotency_key: string | null      // nullable; partial unique index (WHERE NOT NULL)
           plate_number: string
-          photo_url: string
-          photo_hash: string
+          photo: string | null               // primary photo column (legacy)
+          photo_url: string | null           // secondary photo column (added later)
+          photo_hash: string | null
           recorded_at: string
           zone_id: string
           organization_id: string
-          gps_latitude: number
-          gps_longitude: number
+          gps_latitude: number | null
+          gps_longitude: number | null
           gps_accuracy: number | null
-          recorded_by: string
+          recorded_by: string | null
           officer_notes: string | null
-          weather_conditions: string | null
+          observation_notes: string | null
+          portal_used: string | null
+          has_notes: boolean
+          notes_reference_previous: boolean
+          has_hs_incident: boolean
+          hs_incident_id: string | null
+          has_incident: boolean
+          incident_id: string | null
+          has_homeless_claim: boolean
+          homeless_claim_notes: string | null
+          breach_warning: boolean
+          breach_warning_reason: string | null
           vehicle_make: string | null
           vehicle_model: string | null
-          vehicle_year: number | null
+          vehicle_year: string | null        // stored as text
           vehicle_color: string | null
           self_contained: boolean
           self_contained_expiry: string | null
+          is_breach: boolean
           is_compliant: boolean
           breach_type: string | null
           breach_reason: string | null
+          breach_details: any | null
+          breach_detected_at: string | null
+          compliance_snapshot: any | null
           nights_stayed_this_month: number
           consecutive_nights: number
-          vehicle_embedding: any
+          vehicle_embedding: any | null
           embedding_quality: number | null
           embedding_model_version: string | null
           embedding_created_at: string | null
           parkpow_session_id: number | null
           parkpow_violation_id: number | null
-          incident_id: string | null
-          plate_confidence: number | null
-          vehicle_make_confidence: number | null
-          vehicle_model_confidence: number | null
-          vehicle_color_confidence: number | null
-          sticker_presence: boolean | null
-          sticker_color: string | null
-          sticker_bbox: any | null
-          sticker_detection_confidence: number | null
-          sticker_color_confidence: number | null
-          previous_observation_id: string | null
-          movement_moved: boolean | null
-          movement_background_similarity: number | null
-          movement_vehicle_bbox_iou: number | null
-          movement_decision: string | null
+          zone_name_at_import: string | null
+          is_legacy_import: boolean
+          legacy_source_tag: string | null
           deleted_at: string | null
-          processing_status: string | null
-          processing_started_at: string | null
-          processing_completed_at: string | null
-          processing_error: string | null
           created_at: string
           updated_at: string
         }
         Insert: {
-          id?: string
-          idempotency_key: string
+          observation_id?: string
+          id?: string | null
+          idempotency_key?: string | null
           plate_number: string
-          photo_url: string
-          photo_hash: string
+          photo?: string | null
+          photo_url?: string | null
+          photo_hash?: string | null
           recorded_at: string
           zone_id: string
           organization_id: string
-          gps_latitude: number
-          gps_longitude: number
+          gps_latitude?: number | null
+          gps_longitude?: number | null
           gps_accuracy?: number | null
-          recorded_by: string
+          recorded_by?: string | null
           officer_notes?: string | null
-          weather_conditions?: string | null
+          observation_notes?: string | null
+          portal_used?: string | null
+          has_notes?: boolean
+          notes_reference_previous?: boolean
+          has_hs_incident?: boolean
+          hs_incident_id?: string | null
+          has_incident?: boolean
+          incident_id?: string | null
+          has_homeless_claim?: boolean
+          homeless_claim_notes?: string | null
+          breach_warning?: boolean
+          breach_warning_reason?: string | null
           vehicle_make?: string | null
           vehicle_model?: string | null
-          vehicle_year?: number | null
+          vehicle_year?: string | null
           vehicle_color?: string | null
           self_contained?: boolean
           self_contained_expiry?: string | null
+          is_breach?: boolean
           is_compliant?: boolean
           breach_type?: string | null
           breach_reason?: string | null
+          breach_details?: any | null
+          breach_detected_at?: string | null
+          compliance_snapshot?: any | null
           nights_stayed_this_month?: number
           consecutive_nights?: number
-          vehicle_embedding?: any
+          vehicle_embedding?: any | null
           embedding_quality?: number | null
           embedding_model_version?: string | null
           embedding_created_at?: string | null
           parkpow_session_id?: number | null
           parkpow_violation_id?: number | null
-          incident_id?: string | null
-          plate_confidence?: number | null
-          vehicle_make_confidence?: number | null
-          vehicle_model_confidence?: number | null
-          vehicle_color_confidence?: number | null
-          sticker_presence?: boolean | null
-          sticker_color?: string | null
-          sticker_bbox?: any | null
-          sticker_detection_confidence?: number | null
-          sticker_color_confidence?: number | null
-          previous_observation_id?: string | null
-          movement_moved?: boolean | null
-          movement_background_similarity?: number | null
-          movement_vehicle_bbox_iou?: number | null
-          movement_decision?: string | null
+          zone_name_at_import?: string | null
+          is_legacy_import?: boolean
+          legacy_source_tag?: string | null
           deleted_at?: string | null
-          processing_status?: string | null
-          processing_started_at?: string | null
-          processing_completed_at?: string | null
-          processing_error?: string | null
           created_at?: string
           updated_at?: string
         }
         Update: {
-          id?: string
-          idempotency_key?: string
+          observation_id?: string
+          id?: string | null
+          idempotency_key?: string | null
           plate_number?: string
-          photo_url?: string
-          photo_hash?: string
+          photo?: string | null
+          photo_url?: string | null
+          photo_hash?: string | null
           recorded_at?: string
           zone_id?: string
           organization_id?: string
-          gps_latitude?: number
-          gps_longitude?: number
+          gps_latitude?: number | null
+          gps_longitude?: number | null
           gps_accuracy?: number | null
-          recorded_by?: string
+          recorded_by?: string | null
           officer_notes?: string | null
-          weather_conditions?: string | null
+          observation_notes?: string | null
+          portal_used?: string | null
+          has_notes?: boolean
+          notes_reference_previous?: boolean
+          has_hs_incident?: boolean
+          hs_incident_id?: string | null
+          has_incident?: boolean
+          incident_id?: string | null
+          has_homeless_claim?: boolean
+          homeless_claim_notes?: string | null
+          breach_warning?: boolean
+          breach_warning_reason?: string | null
           vehicle_make?: string | null
           vehicle_model?: string | null
-          vehicle_year?: number | null
+          vehicle_year?: string | null
           vehicle_color?: string | null
           self_contained?: boolean
           self_contained_expiry?: string | null
+          is_breach?: boolean
           is_compliant?: boolean
           breach_type?: string | null
           breach_reason?: string | null
+          breach_details?: any | null
+          breach_detected_at?: string | null
+          compliance_snapshot?: any | null
           nights_stayed_this_month?: number
           consecutive_nights?: number
-          vehicle_embedding?: any
+          vehicle_embedding?: any | null
           embedding_quality?: number | null
           embedding_model_version?: string | null
           embedding_created_at?: string | null
           parkpow_session_id?: number | null
           parkpow_violation_id?: number | null
-          incident_id?: string | null
-          plate_confidence?: number | null
-          vehicle_make_confidence?: number | null
-          vehicle_model_confidence?: number | null
-          vehicle_color_confidence?: number | null
-          sticker_presence?: boolean | null
-          sticker_color?: string | null
-          sticker_bbox?: any | null
-          sticker_detection_confidence?: number | null
-          sticker_color_confidence?: number | null
-          previous_observation_id?: string | null
-          movement_moved?: boolean | null
-          movement_background_similarity?: number | null
-          movement_vehicle_bbox_iou?: number | null
-          movement_decision?: string | null
+          zone_name_at_import?: string | null
+          is_legacy_import?: boolean
+          legacy_source_tag?: string | null
           deleted_at?: string | null
-          processing_status?: string | null
-          processing_started_at?: string | null
-          processing_completed_at?: string | null
-          processing_error?: string | null
           created_at?: string
           updated_at?: string
         }
       }
-      // NOTE: observation_jobs table has been removed (see 20260304_remove_observation_jobs_final.sql)
-      // The ALPR pipeline uses observations.processing_status + alpr-process edge function directly
+      // NOTE: observation_jobs table removed. ALPR writes directly to observations.plate_number via UPDATE.
+      // Missing AI columns (processing_status, plate_confidence, sticker_*, movement_*, weather_conditions)
+      // are added via migration 20260313000003_add_missing_observation_columns.sql
       breach_alerts: {
         Row: {
           id: string

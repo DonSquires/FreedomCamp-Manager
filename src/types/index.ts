@@ -36,50 +36,78 @@ export interface Zone {
 }
 
 export interface Vehicle {
-  id: string
+  /** UUID of the canonical vehicle record. Live DB column: `vehicle_id`. */
+  vehicle_id: string
   plate_number: string
-  make: string | null
-  model: string | null
-  year: number | null
-  colour: string | null
+  vehicle_make: string | null
+  vehicle_model: string | null
+  /** TEXT in the live DB, not an integer. */
+  vehicle_year: string | null
+  vehicle_color: string | null
   self_contained: boolean
   self_contained_expiry: string | null
   homeless_status: string | null
+  is_homeless: boolean
   is_exempt: boolean
+  fc_act_exempt: boolean
   enforcement_count: number
   last_enforcement_at: string | null
   profile_photo: string | null
+  profile_photo_url: string | null
   total_observations: number
   total_breaches: number
-  organization_id: string | null
+  total_incidents: number
+  total_hs_reports: number
+  is_flagged: boolean
+  flagged_priority: string | null
+  owner_first_name: string | null
+  owner_last_name: string | null
+  first_seen_at: string
+  last_seen_at: string
   created_at: string
+  updated_at: string
 }
 
 export interface Observation {
-  id: string
-  idempotency_key: string
+  /** PRIMARY KEY — live DB column: `observation_id`. */
+  observation_id: string
+  /** Nullable secondary UUID. */
+  id: string | null
+  idempotency_key: string | null
   plate_number: string
   zone_id: string
   organization_id: string
   recorded_at: string
-  recorded_by: string
-  gps_latitude: number
-  gps_longitude: number
+  recorded_by: string | null
+  gps_latitude: number | null
+  gps_longitude: number | null
   gps_accuracy: number | null
-  photo_url: string
-  photo_hash: string
+  /** Primary photo column in the live DB. */
+  photo: string | null
+  /** Secondary photo URL (added later; prefer `photo` when reading). */
+  photo_url: string | null
+  photo_hash: string | null
   is_compliant: boolean
+  is_breach: boolean
   breach_type: string | null
   breach_reason: string | null
+  breach_detected_at: string | null
   nights_stayed_this_month: number
   consecutive_nights: number
   vehicle_make: string | null
   vehicle_model: string | null
-  vehicle_year: number | null
+  /** TEXT in the live DB. */
+  vehicle_year: string | null
   vehicle_color: string | null
   self_contained: boolean
-  processing_status: string | null
-  weather_conditions: string | null
+  officer_notes: string | null
+  observation_notes: string | null
+  portal_used: string | null
+  has_notes: boolean
+  has_incident: boolean
+  incident_id: string | null
+  has_hs_incident: boolean
+  has_homeless_claim: boolean
   created_at: string
   updated_at: string
 }

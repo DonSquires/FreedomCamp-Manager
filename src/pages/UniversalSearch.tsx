@@ -53,18 +53,18 @@ export default function UniversalSearch() {
       // Run all searches in parallel
       const [vehiclesRes, observationsRes, incidentsRes, patrolsRes, breachesRes] =
         await Promise.all([
-          // Vehicles – plate, make, model, colour
+          // Vehicles – plate, vehicle_make, vehicle_model, vehicle_color
           supabase
             .from('canonical_vehicles')
-            .select('id, plate_number, make, model, year, colour, owner_first_name, owner_last_name')
-            .or(`plate_number.ilike.%${q}%,make.ilike.%${q}%,model.ilike.%${q}%,colour.ilike.%${q}%`)
+            .select('vehicle_id, plate_number, vehicle_make, vehicle_model, vehicle_year, vehicle_color, owner_first_name, owner_last_name')
+            .or(`plate_number.ilike.%${q}%,vehicle_make.ilike.%${q}%,vehicle_model.ilike.%${q}%`)
             .limit(20),
 
           // Observations – officer notes, plate
           (() => {
             let obsQuery = supabase
               .from('observations')
-              .select('id, officer_notes, recorded_at, is_compliant, plate_number')
+              .select('observation_id, officer_notes, recorded_at, is_compliant, plate_number')
               
               .or(`officer_notes.ilike.%${q}%,plate_number.ilike.%${q}%`)
               .order('recorded_at', { ascending: false })
@@ -187,12 +187,12 @@ export default function UniversalSearch() {
               </h2>
               <div className="space-y-2">
                 {results.vehicles.map((v: any) => (
-                  <Card key={v.id}>
+                  <Card key={v.vehicle_id}>
                     <CardContent className="py-3 flex items-center justify-between">
                       <div>
                         <span className="font-bold text-lg">{v.plate_number}</span>
                         <span className="ml-3 text-gray-600">
-                          {[v.year, v.make, v.model, v.colour].filter(Boolean).join(' ')}
+                          {[v.vehicle_year, v.vehicle_make, v.vehicle_model, v.vehicle_color].filter(Boolean).join(' ')}
                         </span>
                         {(v.owner_first_name || v.owner_last_name) && (
                           <span className="ml-3 text-sm text-gray-500">
@@ -217,7 +217,7 @@ export default function UniversalSearch() {
               </h2>
               <div className="space-y-2">
                 {results.observations.map((o: any) => (
-                  <Card key={o.id}>
+                  <Card key={o.observation_id}>
                     <CardContent className="py-3">
                       <div className="flex items-start justify-between">
                         <div className="flex-1 min-w-0">
@@ -384,7 +384,7 @@ export default function UniversalSearch() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm text-gray-600">
               <div className="flex items-start gap-2">
                 <Car className="h-4 w-4 mt-0.5 text-blue-600 shrink-0" />
-                <span>Vehicles – plate, make, model, colour, owner name</span>
+                <span>Vehicles – plate, vehicle make, vehicle model, owner name</span>
               </div>
               <div className="flex items-start gap-2">
                 <FileText className="h-4 w-4 mt-0.5 text-green-600 shrink-0" />

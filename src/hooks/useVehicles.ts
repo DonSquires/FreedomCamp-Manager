@@ -69,7 +69,7 @@ export function useVehicles(options: UseVehiclesOptions = {}) {
       }
 
       if (searchQuery) {
-        query = query.or(`plate_number.ilike.%${searchQuery}%,make.ilike.%${searchQuery}%,model.ilike.%${searchQuery}%`)
+        query = query.or(`plate_number.ilike.%${searchQuery}%,vehicle_make.ilike.%${searchQuery}%,vehicle_model.ilike.%${searchQuery}%`)
       }
 
       if (statusFilter === 'compliant') {
@@ -97,7 +97,7 @@ export function useVehicle(vehicleId: string) {
       const { data, error } = await supabase
         .from('canonical_vehicles')
         .select('*')
-        .eq('id', vehicleId)
+        .eq('vehicle_id', vehicleId)
         .single()
 
       if (error) throw error
@@ -114,7 +114,7 @@ export function useUpdateVehicle() {
     mutationFn: async ({ vehicleId, updates }: { vehicleId: string; updates: Partial<Vehicle> }) => {
       const { error } = await (supabase.from('canonical_vehicles') as any)
         .update(updates)
-        .eq('id', vehicleId)
+        .eq('vehicle_id', vehicleId)
 
       if (error) throw error
     },
