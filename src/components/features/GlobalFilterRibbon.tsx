@@ -197,10 +197,10 @@ export function GlobalFilterRibbon({
                 }}
               >
                 <SelectTrigger className="w-[200px] h-9">
-                  <SelectValue placeholder="All Organizations" />
+                  <SelectValue placeholder="All Organisations" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="__all__">All Organizations</SelectItem>
+                  <SelectItem value="__all__">All Organisations</SelectItem>
                   {organizations?.map((org) => (
                     <SelectItem key={org.id} value={org.id}>
                       {org.name}

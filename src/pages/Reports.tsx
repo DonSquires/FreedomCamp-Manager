@@ -202,7 +202,7 @@ export default function Reports() {
             <CardContent className="text-sm space-y-2">
               <p><strong>From:</strong> {reportDateFrom}</p>
               <p><strong>To:</strong> {reportDateTo}</p>
-              <p><strong>Organization:</strong> {effectiveOrganizationId || 'All available to user'}</p>
+              <p><strong>Organisation:</strong> {effectiveOrganizationId || 'All available to user'}</p>
               <p><strong>Zone:</strong> {zoneId || 'All zones'}</p>
             </CardContent>
           </Card>

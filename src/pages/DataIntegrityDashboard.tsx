@@ -155,12 +155,12 @@ export default function DataIntegrityDashboard() {
 
       checks.push({
         id: 'user-org',
-        title: 'Users with Organizations',
-        description: 'All users must belong to an organization',
+        title: 'Users with Organisations',
+        description: 'All users must belong to an organisation',
         status: usersWithoutOrg === 0 ? 'pass' : usersWithoutOrg > 5 ? 'fail' : 'warning',
         count: (totalUsers || 0) - (usersWithoutOrg || 0),
         total: totalUsers || 0,
-        details: usersWithoutOrg > 0 ? `${usersWithoutOrg} users not assigned to organization` : undefined,
+        details: usersWithoutOrg > 0 ? `${usersWithoutOrg} users not assigned to organisation` : undefined,
       })
 
       return checks

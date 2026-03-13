@@ -301,7 +301,7 @@ export function OrganizationBoundaryEditor({
 
       if (error) throw error
 
-      toast.success('✅ Organization boundary updated successfully', {
+      toast.success('✅ Organisation boundary updated successfully', {
         description: `Area: ${(data as any)?.area_km2?.toFixed(2) || 'N/A'} km²`,
         duration: 5000,
       })
@@ -342,7 +342,7 @@ export function OrganizationBoundaryEditor({
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <MapPin className="h-5 w-5 text-blue-600" />
-          Organization Boundary
+          Organisation Boundary
         </CardTitle>
         <CardDescription>
           Upload jurisdiction boundary for {organizationName}

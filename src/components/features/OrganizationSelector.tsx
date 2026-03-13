@@ -98,9 +98,9 @@ export function OrganizationSelector({
             {selectedOrg ? (
               <span>{selectedOrg.name}</span>
             ) : allowAll && !value ? (
-              <span>All Organizations</span>
+              <span>All Organisations</span>
             ) : (
-              <span className="text-muted-foreground">Select organization</span>
+              <span className="text-muted-foreground">Select organisation</span>
             )}
           </div>
           <ChevronDown className="h-4 w-4 ml-2" />
@@ -111,12 +111,12 @@ export function OrganizationSelector({
         <SheetHeader>
           <SheetTitle className="flex items-center gap-2">
             <Building2 className="h-5 w-5" />
-            Select Organization
+            Select Organisation
           </SheetTitle>
           <SheetDescription>
             {isMaster 
-              ? 'Choose an organization to filter data' 
-              : 'Select from your accessible organizations'
+              ? 'Choose an organisation to filter data' 
+              : 'Select from your accessible organisations'
             }
           </SheetDescription>
         </SheetHeader>
@@ -131,7 +131,7 @@ export function OrganizationSelector({
             >
               <div className="flex items-center gap-2">
                 <Building2 className="h-4 w-4" />
-                <span>All Organizations</span>
+                <span>All Organisations</span>
               </div>
               {!value && <Check className="h-4 w-4" />}
             </Button>
@@ -140,7 +140,7 @@ export function OrganizationSelector({
           {/* Organization list */}
           {isLoading ? (
             <div className="text-center py-8 text-muted-foreground">
-              Loading organizations...
+              Loading organisations...
             </div>
           ) : accessibleOrgs && accessibleOrgs.length > 0 ? (
             <div className="space-y-2">
@@ -167,7 +167,7 @@ export function OrganizationSelector({
           ) : (
             <div className="text-center py-8 text-muted-foreground">
               <Building2 className="h-12 w-12 mx-auto mb-2 opacity-20" />
-              <p>No organizations accessible</p>
+              <p>No organisations accessible</p>
             </div>
           )}
         </div>
@@ -175,9 +175,9 @@ export function OrganizationSelector({
         {/* Info for non-masters */}
         {!isMaster && (
           <div className="mt-6 p-3 bg-muted rounded-lg text-sm text-muted-foreground">
-            You have access to {accessibleOrgs?.length || 0} organization
+            You have access to {accessibleOrgs?.length || 0} organisation
             {accessibleOrgs?.length !== 1 ? 's' : ''}. Contact your administrator 
-            to request access to additional organizations.
+            to request access to additional organisations.
           </div>
         )}
       </SheetContent>

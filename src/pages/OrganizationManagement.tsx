@@ -102,7 +102,7 @@ export default function OrganizationManagement() {
   // Update organization mutation
   const updateOrgMutation = useMutation({
     mutationFn: async (updates: Partial<Organization>) => {
-      if (!selectedOrg) throw new Error('No organization selected')
+      if (!selectedOrg) throw new Error('No organisation selected')
       
       const { error } = await (supabase.from('organizations') as any)
         .update(updates)
@@ -111,21 +111,21 @@ export default function OrganizationManagement() {
       if (error) throw error
     },
     onSuccess: () => {
-      toast.success('Organization updated successfully')
+      toast.success('Organisation updated successfully')
       queryClient.invalidateQueries({ queryKey: ['organizations'] })
       setShowSettingsDialog(false)
       setSelectedOrg(null)
       resetForm()
     },
     onError: (error: any) => {
-      toast.error(error.message || 'Failed to update organization')
+      toast.error(error.message || 'Failed to update organisation')
     },
   })
 
   // Create organization mutation
   const createOrgMutation = useMutation({
     mutationFn: async () => {
-      if (!createName.trim()) throw new Error('Organization name is required')
+      if (!createName.trim()) throw new Error('Organisation name is required')
 
       // Derive level from type
       const levelMap: Record<string, number> = { owner: 1, service_provider: 2, client: 3 }
@@ -148,13 +148,13 @@ export default function OrganizationManagement() {
       if (error) throw error
     },
     onSuccess: () => {
-      toast.success('Organization created successfully')
+      toast.success('Organisation created successfully')
       queryClient.invalidateQueries({ queryKey: ['organizations'] })
       setShowCreateDialog(false)
       resetCreateForm()
     },
     onError: (error: any) => {
-      toast.error(error.message || 'Failed to create organization')
+      toast.error(error.message || 'Failed to create organisation')
     },
   })
 
@@ -194,7 +194,7 @@ export default function OrganizationManagement() {
 
   if (!isMaster) {
     return (
-      <AppLayout title="Organization Management" description="Manage organizational hierarchy and settings" showBackButton>
+      <AppLayout title="Organisation Management" description="Manage organisational hierarchy and settings" showBackButton>
         <Card>
           <CardHeader>
             <CardTitle>Access Denied</CardTitle>
@@ -208,13 +208,13 @@ export default function OrganizationManagement() {
   }
 
   return (
-    <AppLayout title="Organization Management" description="Manage organizational hierarchy and settings" showBackButton>
+    <AppLayout title="Organisation Management" description="Manage organisational hierarchy and settings" showBackButton>
       <GlobalFilterRibbon showDateFilter={false} />
 
       <div className="flex justify-end mb-6">
         <Button onClick={() => setShowCreateDialog(true)}>
           <Plus className="h-4 w-4 mr-2" />
-          New Organization
+          New Organisation
         </Button>
       </div>
 
@@ -223,7 +223,7 @@ export default function OrganizationManagement() {
         {isLoading ? (
           <Card>
             <CardContent className="pt-6">
-              <div className="text-center py-8 text-gray-600">Loading organizations...</div>
+              <div className="text-center py-8 text-gray-600">Loading organisations...</div>
             </CardContent>
           </Card>
         ) : organizations && organizations.length > 0 ? (
@@ -248,7 +248,7 @@ export default function OrganizationManagement() {
                       </div>
                       <CardDescription className="mt-2">
                         Level {org.organization_level} ({getOrgTypeLabel(org.organization_type)})
-                        {org.parent_organization_id && ' — Child organization'}
+                        {org.parent_organization_id && ' — Child organisation'}
                       </CardDescription>
                     </div>
                     <Button 
@@ -344,14 +344,14 @@ export default function OrganizationManagement() {
       <Dialog open={showSettingsDialog} onOpenChange={setShowSettingsDialog}>
         <DialogContent className="max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Organization Settings</DialogTitle>
+            <DialogTitle>Organisation Settings</DialogTitle>
             <DialogDescription>
-              Update organization details, type, and workflow
+              Update organisation details, type, and workflow
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div>
-              <Label htmlFor="editName">Organization Name</Label>
+              <Label htmlFor="editName">Organisation Name</Label>
               <Input
                 id="editName"
                 value={editName}
@@ -360,7 +360,7 @@ export default function OrganizationManagement() {
             </div>
 
             <div>
-              <Label htmlFor="editOrgType">Organization Type</Label>
+              <Label htmlFor="editOrgType">Organisation Type</Label>
               <Select value={editOrgType} onValueChange={(v: any) => setEditOrgType(v)}>
                 <SelectTrigger id="editOrgType">
                   <SelectValue />
@@ -374,7 +374,7 @@ export default function OrganizationManagement() {
             </div>
 
             <div>
-              <Label htmlFor="editParentOrg">Parent Organization</Label>
+              <Label htmlFor="editParentOrg">Parent Organisation</Label>
               <Select
                 value={editParentOrgId || 'none'}
                 onValueChange={(v) => setEditParentOrgId(v === 'none' ? null : v)}
@@ -484,14 +484,14 @@ export default function OrganizationManagement() {
       <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
         <DialogContent className="max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>New Organization</DialogTitle>
+            <DialogTitle>New Organisation</DialogTitle>
             <DialogDescription>
-              Create a new organization in the hierarchy
+              Create a new organisation in the hierarchy
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div>
-              <Label htmlFor="createName">Organization Name *</Label>
+              <Label htmlFor="createName">Organisation Name *</Label>
               <Input
                 id="createName"
                 value={createName}
@@ -501,7 +501,7 @@ export default function OrganizationManagement() {
             </div>
 
             <div>
-              <Label htmlFor="createOrgType">Organization Type</Label>
+              <Label htmlFor="createOrgType">Organisation Type</Label>
               <Select value={createOrgType} onValueChange={(v: any) => setCreateOrgType(v)}>
                 <SelectTrigger id="createOrgType">
                   <SelectValue />
@@ -515,7 +515,7 @@ export default function OrganizationManagement() {
             </div>
 
             <div>
-              <Label htmlFor="createParentOrg">Parent Organization</Label>
+              <Label htmlFor="createParentOrg">Parent Organisation</Label>
               <Select
                 value={createParentOrgId || 'none'}
                 onValueChange={(v) => setCreateParentOrgId(v === 'none' ? null : v)}
@@ -593,7 +593,7 @@ export default function OrganizationManagement() {
               onClick={() => createOrgMutation.mutate()}
               disabled={createOrgMutation.isPending || !createName.trim()}
             >
-              {createOrgMutation.isPending ? 'Creating...' : 'Create Organization'}
+              {createOrgMutation.isPending ? 'Creating...' : 'Create Organisation'}
             </Button>
           </DialogFooter>
         </DialogContent>

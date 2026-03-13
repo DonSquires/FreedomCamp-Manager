@@ -137,7 +137,7 @@ export default function VehicleManagement() {
           normalized === '__all__' ||
           normalized === 'all' ||
           normalized === 'all zones' ||
-          normalized === 'all organizations' ||
+          normalized === 'all organisations' ||
           normalized === 'null' ||
           normalized === 'undefined'
         )
