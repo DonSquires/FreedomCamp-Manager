@@ -27,8 +27,15 @@ function isValidStorageUrl(url: string | null | undefined): boolean {
   if (!url || typeof url !== 'string') return false
   
   const hasValidScheme = url.startsWith('http://') || url.startsWith('https://')
-  
-  return hasValidScheme
+  if (!hasValidScheme) return false
+
+  // Validate URL structure
+  try {
+    new URL(url)
+    return true
+  } catch {
+    return false
+  }
 }
 
 /**
