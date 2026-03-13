@@ -264,6 +264,11 @@ Deno.serve(async (req) => {
     let officerNotes: string | null = null;
     let weatherConditions: string | null = null;
     let photoUrlInput: string | null = null;
+    // Pre-computed SHA-256 hash sent by FieldOfficerPortal.
+    // When present alongside photo_url (no raw bytes), the function can skip
+    // downloading the photo entirely — eliminating the download + inference
+    // timeout chain that caused "Failed to send a request to the Edge Function".
+    let hintPhotoHash: string | null = null;
     // Pre-detected plate hint from an upstream ALPR call (e.g. alpr-process).
     // Inference always runs — the hint is only used as a fallback for the plate
     // field when the inference service returns no plate or is unavailable.
@@ -291,6 +296,7 @@ Deno.serve(async (req) => {
       officerNotes = body.notes ?? body.officer_notes;
       weatherConditions = body.weather ?? body.weather_conditions;
       photoUrlInput = body.photo_url ?? body.photoUrl ?? null;
+      hintPhotoHash = body.photo_hash ?? null;
       // Pre-detected ALPR hint (optional — sent by FieldOfficerPortal after the
       // upstream alpr-process call). Inference always runs; the hint is only
       // applied as a plate fallback when inference returns no plate.
@@ -337,32 +343,61 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Support ingest from existing photo URLs (storage-first) when raw image payload is absent.
-    if (!imageBytes && !imageDataUrl && photoUrlInput) {
-      try {
-        const photoDownload = await downloadPhotoBytes(supabase, photoUrlInput);
-        imageBytes = photoDownload.bytes;
-        console.log("✅ Loaded photo from URL for ingest", {
-          source: photoDownload.source,
-          bytes: imageBytes.length,
-        });
-      } catch (photoErr: any) {
-        console.error("❌ Failed to load photo_url input:", photoErr?.message || photoErr);
-      }
-    }
+    // ── Storage-first fast path ─────────────────────────────────────────────
+    // When the caller supplies both photo_url and photo_hash (no raw bytes),
+    // we are in "storage-first" mode: the photo is already in Supabase Storage
+    // and its hash was computed client-side.  Downloading the photo just to
+    // re-hash it AND then running Railway inference (5 s timeout) + ALPR backup
+    // (3.5 s timeout) sequentially pushes the total edge-function wall-clock
+    // time past Supabase's ~10 s limit, killing the function before it can
+    // return a CORS-decorated response.  The browser then sees a fetch
+    // TypeError → supabase-js converts it to "Failed to send a request to the
+    // Edge Function".
+    //
+    // In this mode we skip both the download and the inference.  Plate
+    // recognition is deferred to the fire-and-forget ALPR call that
+    // FieldOfficerPortal fires at STEP 8 after the observation is saved.
+    //
+    // Security note: the photo_hash is trusted from the authenticated client.
+    // The hash is stored as metadata for integrity auditing only; it does not
+    // gate any access-control decision.  The photo itself is already in the
+    // authenticated "scans" storage bucket so only legitimate officers can
+    // supply a URL.  Accepting the client-provided hash avoids the expensive
+    // download without meaningful additional risk for this use-case.
+    const storageFirstMode = !!(photoUrlInput && hintPhotoHash && !imageBytes && !imageDataUrl);
 
-    // Validate required fields
-    if (!imageBytes && !imageDataUrl) {
-      console.error('❌ Missing image data. Received:', {
-        hasImageBytes: !!imageBytes,
-        hasImageDataUrl: !!imageDataUrl,
-        imageDataUrlLength: imageDataUrl?.length,
-        hasPhotoUrlInput: !!photoUrlInput,
+    if (storageFirstMode) {
+      console.log("📸 Storage-first mode: skipping photo download and inference", {
+        photo_url: photoUrlInput,
+        photo_hash: hintPhotoHash,
       });
-      return new Response(JSON.stringify({ error: "Missing image data" }), {
-        status: 400,
-        headers: { ...getCorsHeaders(req), "content-type": "application/json" },
-      });
+    } else {
+      // Only download bytes when we need them for hashing + inference.
+      if (!imageBytes && !imageDataUrl && photoUrlInput) {
+        try {
+          const photoDownload = await downloadPhotoBytes(supabase, photoUrlInput);
+          imageBytes = photoDownload.bytes;
+          console.log("✅ Loaded photo from URL for ingest", {
+            source: photoDownload.source,
+            bytes: imageBytes.length,
+          });
+        } catch (photoErr: any) {
+          console.error("❌ Failed to load photo_url input:", photoErr?.message || photoErr);
+        }
+      }
+
+      if (!imageBytes && !imageDataUrl) {
+        console.error('❌ Missing image data. Received:', {
+          hasImageBytes: !!imageBytes,
+          hasImageDataUrl: !!imageDataUrl,
+          imageDataUrlLength: imageDataUrl?.length,
+          hasPhotoUrlInput: !!photoUrlInput,
+        });
+        return new Response(JSON.stringify({ error: "Missing image data" }), {
+          status: 400,
+          headers: { ...getCorsHeaders(req), "content-type": "application/json" },
+        });
+      }
     }
 
     if (!organizationId || !zoneId) {
@@ -474,7 +509,7 @@ Deno.serve(async (req) => {
     }
 
     // Convert imageDataUrl to bytes if needed
-    if (!imageBytes && imageDataUrl) {
+    if (!storageFirstMode && !imageBytes && imageDataUrl) {
       const base64Data = imageDataUrl.split(",")[1];
       const binaryString = atob(base64Data);
       imageBytes = new Uint8Array(binaryString.length);
@@ -483,13 +518,12 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Step 1: Compute SHA-256 hash; re-upload to evidence only when the caller
-    // did NOT supply a pre-uploaded photo URL (i.e. raw bytes were sent).
-    // When the frontend has already uploaded the photo to the "scans" bucket and
-    // passed its URL via photo_url, we skip the redundant evidence-bucket upload.
-    // This keeps the edge function well within the Supabase 10-second wall-clock
-    // limit and avoids a hard dependency on the "evidence" bucket being available.
-    const photoHash = await sha256Hash(imageBytes!);
+    // Step 1: Resolve photo hash and URL.
+    // In storage-first mode the caller already provides both — no need to
+    // re-download the photo or re-compute the hash.
+    const photoHash: string = storageFirstMode
+      ? hintPhotoHash!
+      : await sha256Hash(imageBytes!);
 
     let photoUrl: string;
 
@@ -525,10 +559,10 @@ Deno.serve(async (req) => {
     }
 
     // ========================================================================
-    // INFERENCE — always run for sticker detection, movement analysis, and
-    // plate recognition.  The pre-detected plate hint (hintPlate) is only
-    // used as a fallback for the plate field when inference itself returns
-    // no plate — it never bypasses the inference call.
+    // INFERENCE — skipped in storage-first mode (caller provides photo_url +
+    // photo_hash; plate recognition is deferred to the fire-and-forget ALPR
+    // call in FieldOfficerPortal STEP 8).  When raw bytes are available,
+    // inference runs as normal.
     // ========================================================================
     let inferenceResult: {
       success: boolean;
@@ -540,6 +574,19 @@ Deno.serve(async (req) => {
     };
 
     // Railway inference mode - Call standalone service
+    if (storageFirstMode) {
+      // Storage-first fallback: no image bytes available, skip inference entirely.
+      // Plate recognition is handled by the fire-and-forget ALPR in FieldOfficerPortal
+      // STEP 8 after the observation is saved.
+      console.log('⏭️ Storage-first mode: skipping inference (plate will be resolved by async ALPR)');
+      inferenceResult = {
+        success: false,
+        path: 'skipped_storage_first',
+        plate: hintPlate,
+        requires_manual_entry: !hintPlate,
+        confidence: hintConfidence ?? null,
+      };
+    } else {
     console.log('🚂 Using Railway inference service');
     const inferenceUrl = Deno.env.get('INFERENCE_SERVICE_URL');
     // Default to 5 s (was 8 s) so the total edge-function wall-clock time
@@ -606,9 +653,11 @@ Deno.serve(async (req) => {
         };
       }
     }
+    } // end !storageFirstMode inference block
 
     // Stage 2 backup: if Railway/hint produced no plate, try cloud ALPR.
-    if (!normalizePlateNumber(inferenceResult.plate)) {
+    // Skipped in storage-first mode (no image bytes available).
+    if (!storageFirstMode && !normalizePlateNumber(inferenceResult.plate)) {
       try {
         const alprTimeoutMs = Number(Deno.env.get('ALPR_TIMEOUT_MS') ?? '3500');
         const alprResult = await alprWithBytes(imageBytes!, {

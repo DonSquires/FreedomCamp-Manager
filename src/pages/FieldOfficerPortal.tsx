@@ -489,7 +489,32 @@ export default function FieldOfficerPortal() {
       // ============================================================================
       toast.info('Uploading photo...')
       const filePath = `${user.id}/${timestamp}-${uniqueId}.jpg`
-      
+
+      // Compute real SHA-256 hash from file bytes before upload.
+      // This serves two purposes:
+      //   1. Integrity verification — proves the stored photo hasn't been altered.
+      //   2. Avoids vehicle-ingest having to re-download the photo to hash it.
+      //      When photo_hash is passed alongside photo_url, vehicle-ingest can
+      //      skip the ~333 KB download + 5 s inference + 3.5 s ALPR backup that
+      //      collectively push the edge function past Supabase's ~10 s wall-clock
+      //      limit (the root cause of "Failed to send a request to the Edge Function").
+      //
+      // Note: File extends Blob. Calling file.arrayBuffer() does NOT consume the
+      // file — the browser keeps a copy of the data and it can be read again by
+      // the supabase.storage.upload() call below.
+      let photoHash: string
+      try {
+        const fileBytes = await file.arrayBuffer()
+        const hashBuffer = await crypto.subtle.digest('SHA-256', fileBytes)
+        const hashHex = Array.from(new Uint8Array(hashBuffer))
+          .map(b => b.toString(16).padStart(2, '0'))
+          .join('')
+        photoHash = `sha256:${hashHex}`
+      } catch {
+        // Fallback to a unique placeholder if the crypto API is unavailable.
+        photoHash = `sha256:${uniqueId}`
+      }
+
       const { error: uploadError } = await supabase.storage
         .from('scans')
         .upload(filePath, file, {
@@ -544,7 +569,7 @@ export default function FieldOfficerPortal() {
       })
 
       const nowIso = new Date().toISOString()
-      const photoHash = `sha256:${uniqueId}` // Placeholder hash - could compute real SHA if needed
+      // photoHash was already computed above (real SHA-256) before the upload.
 
       // Minimal payload - let trigger handle compliance
       const observationPayload: Record<string, any> = {
@@ -624,12 +649,17 @@ export default function FieldOfficerPortal() {
       // ── PATH 2: vehicle-ingest edge function (runs server-side with
       //    service_role key, includes compliance columns, creates canonical
       //    vehicles, and runs plate inference) ──
+      //
+      //    photo_hash is passed so the edge function can skip re-downloading the
+      //    photo for hashing — avoiding the download + inference timeout chain
+      //    that causes "Failed to send a request to the Edge Function".
       if (directInsertCoalesceFailed && !ingestData) {
         appendScanDebug('Trying vehicle-ingest edge function fallback')
         toast.info('Retrying via secure pipeline...')
 
         const { data: edgeResult, error: edgeErr } = await edgeFunctions.ingestVehicleObservation({
           photo_url: photoUrl,
+          photo_hash: photoHash,
           gps_latitude: position.coords.latitude,
           gps_longitude: position.coords.longitude,
           gps_accuracy: position.coords.accuracy,
@@ -653,7 +683,8 @@ export default function FieldOfficerPortal() {
           })
 
           // ── PATH 3: safe_insert_observation RPC (bypasses all triggers) ──
-          // This RPC is created by migration 20260404000001.
+          // Created by migration 20260313000001 (emergency fix) and updated
+          // by 20260404000002 (pipeline-complete version).
           try {
             const { data: rpcResult, error: rpcError } = await (supabase as any).rpc(
               'safe_insert_observation',
@@ -681,10 +712,12 @@ export default function FieldOfficerPortal() {
                 observation_id: rpcResult.observation_id ?? rpcResult.id,
               })
             } else {
-              ingestError = edgeErr || rpcError?.message || 'All insert paths failed'
+              // Report the RPC error first; fall back to the edge-function error
+              // only if the RPC produced no error of its own.
+              ingestError = rpcError?.message || edgeErr || 'All insert paths failed'
             }
           } catch (rpcCatchError: any) {
-            ingestError = edgeErr || rpcCatchError?.message || 'All insert paths failed'
+            ingestError = rpcCatchError?.message || edgeErr || 'All insert paths failed'
           }
         }
       }
