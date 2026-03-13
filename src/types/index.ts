@@ -144,15 +144,32 @@ export type Severity =
 
 export interface BreachAlert {
   id: string
-  plate_number: string
-  zone_id: string
   organization_id: string
+  zone_id: string
+  plate_number: string | null
+  observation_id: string | null
+  vehicle_record_id: string | null
+  patrol_id: string | null
   breach_type: BreachType
+  breach_details: any
+  due_date: string | null
+  notification_sent: boolean
+  notification_method: string | null
+  notified_at: string | null
+  notified_by: string | null
   status: BreachStatus
-  severity: Severity
-  /** `created_at` is the actual DB column; `detected_at` is a legacy alias. */
-  created_at: string
+  resolution_notes: string | null
   resolved_at: string | null
+  assigned_to: string | null
+  assigned_at: string | null
+  assigned_by: string | null
+  admin_reviewed_by: string | null
+  admin_reviewed_at: string | null
+  admin_review_notes: string | null
+  created_at: string
+  updated_at: string
+  /** Computed severity — not a DB column, derived in UI from breach_type / details. */
+  severity?: Severity
 }
 
 export type PatrolStatus = 
