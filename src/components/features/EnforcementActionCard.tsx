@@ -3,6 +3,7 @@
  * Single enforcement action display with status and details
  */
 
+import { formatDate } from '@/lib/utils'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -180,7 +181,7 @@ export function EnforcementActionCard({
             <div className="text-muted-foreground mb-1">Created</div>
             <div className="flex items-center gap-2">
               <Calendar className="h-3 w-3" />
-              <span>{new Date(action.recorded_at).toLocaleDateString()}</span>
+              <span>{formatDate(action.recorded_at)}</span>
             </div>
           </div>
 
@@ -189,7 +190,7 @@ export function EnforcementActionCard({
               <div className="text-muted-foreground mb-1">Delivered</div>
               <div className="flex items-center gap-2">
                 <Calendar className="h-3 w-3" />
-                <span>{new Date(action.delivered_at).toLocaleDateString()}</span>
+                <span>{formatDate(action.delivered_at)}</span>
               </div>
             </div>
           )}
@@ -199,7 +200,7 @@ export function EnforcementActionCard({
               <div className="text-muted-foreground mb-1">Completed</div>
               <div className="flex items-center gap-2">
                 <Calendar className="h-3 w-3" />
-                <span>{new Date(action.completed_at).toLocaleDateString()}</span>
+                <span>{formatDate(action.completed_at)}</span>
               </div>
             </div>
           )}

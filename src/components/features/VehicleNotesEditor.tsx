@@ -3,6 +3,7 @@
  * Add and edit vehicle notes
  */
 
+import { formatDateTime } from '@/lib/utils'
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -222,7 +223,7 @@ export function VehicleNotesEditor({
                         <span className="text-muted-foreground">•</span>
                         <Calendar className="h-3 w-3 text-muted-foreground" />
                         <span className="text-xs text-muted-foreground">
-                          {new Date(note.created_at).toLocaleString()}
+                          {formatDateTime(note.created_at)}
                         </span>
                       </div>
                     </div>

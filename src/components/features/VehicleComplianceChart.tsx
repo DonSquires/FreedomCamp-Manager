@@ -3,6 +3,7 @@
  * Visual compliance metrics using recharts
  */
 
+import { formatDate } from '@/lib/utils'
 import { useQuery } from '@tanstack/react-query'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -69,7 +70,7 @@ export function VehicleComplianceChart({
       const grouped: Record<string, { compliant: number; breach: number }> = {}
       
       observations.forEach((obs) => {
-        const date = new Date(obs.recorded_at).toLocaleDateString()
+        const date = formatDate(obs.recorded_at)
         
         if (!grouped[date]) {
           grouped[date] = { compliant: 0, breach: 0 }

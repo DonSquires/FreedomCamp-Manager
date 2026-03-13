@@ -3,6 +3,7 @@
  * Searchable audit trail with filters
  */
 
+import { formatDateTime } from '@/lib/utils'
 import { useState } from 'react'
 import { useAuditLogs } from '@/hooks/useAuditLogs'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -186,7 +187,7 @@ export function AuditLogViewer({
                         </div>
                         <div className="flex items-center gap-1">
                           <Calendar className="h-3 w-3" />
-                          <span>{new Date(log.created_at).toLocaleString()}</span>
+                          <span>{formatDateTime(log.created_at)}</span>
                         </div>
                       </div>
 

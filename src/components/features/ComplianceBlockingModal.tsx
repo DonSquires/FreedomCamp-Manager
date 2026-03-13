@@ -1,3 +1,4 @@
+import { formatDate } from '@/lib/utils'
 import { useState } from 'react'
 import { ShieldAlert, FileWarning, Calendar, Eye } from 'lucide-react'
 import {
@@ -93,7 +94,7 @@ export function ComplianceBlockingModal({
                 )}
                 {item.dueDate && (
                   <p className="text-xs text-orange-600 mt-0.5">
-                    Due: {new Date(item.dueDate).toLocaleDateString()}
+                    Due: {formatDate(item.dueDate)}
                   </p>
                 )}
               </div>

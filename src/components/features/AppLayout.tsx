@@ -58,7 +58,7 @@ const navigationItems = [
   { path: '/breaches', icon: AlertTriangle, label: 'Breach & Safety Alerts', roles: ['admin', 'admin_officer', 'master', 'officer'] },
   { path: '/enforcement-actions', icon: Gavel, label: 'Enforcement Actions', roles: ['admin', 'admin_officer', 'master', 'officer'] },
   { path: '/infringements', icon: Receipt, label: 'Infringement Notices', roles: ['admin', 'admin_officer', 'master', 'officer'] },
-  { path: '/enforcement-command-center', icon: MonitorPlay, label: 'Command Center', roles: ['admin', 'admin_officer', 'master'] },
+  { path: '/enforcement-command-center', icon: MonitorPlay, label: 'Command Centre', roles: ['admin', 'admin_officer', 'master'] },
   { path: '/vehicles', icon: Car, label: 'Vehicle Management', roles: ['admin', 'admin_officer', 'master', 'officer'] },
   { path: '/zones', icon: MapPin, label: 'Zone Management', roles: ['admin', 'admin_officer', 'master'] },
   { path: '/users', icon: Users, label: 'User Management', roles: ['admin', 'master'] },

@@ -3,6 +3,7 @@
  * Notification center with unread badge
  */
 
+import { formatDateTime } from '@/lib/utils'
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Button } from '@/components/ui/button'
@@ -172,7 +173,7 @@ export function NotificationBell({
                       </div>
                       <div className="flex items-center gap-2 text-xs text-muted-foreground mt-1">
                         <Calendar className="h-3 w-3" />
-                        <span>{new Date(notification.created_at).toLocaleString()}</span>
+                        <span>{formatDateTime(notification.created_at)}</span>
                       </div>
                     </div>
                     <div className="flex gap-1">

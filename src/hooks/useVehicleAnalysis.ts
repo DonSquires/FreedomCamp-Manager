@@ -82,7 +82,7 @@ export function useVehicleAnalysis(plateNumber?: string) {
       })
 
       if (error) {
-        toast.error('Failed to analyze photo')
+        toast.error('Failed to analyse photo')
         throw error
       }
 
@@ -115,7 +115,7 @@ export function useVehicleAnalysis(plateNumber?: string) {
     onSuccess: (results) => {
       const successCount = results.filter(r => r.success).length
       queryClient.invalidateQueries({ queryKey: ['vehicle-analysis'] })
-      toast.success(`Analyzed ${successCount}/${results.length} photos`)
+      toast.success(`Analysed ${successCount}/${results.length} photos`)
     },
   })
 
@@ -163,7 +163,7 @@ export function useAnalyzeObservation(observationId: string | null) {
       toast.success('Analysis complete')
     },
     onError: () => {
-      toast.error('Failed to analyze observation')
+      toast.error('Failed to analyse observation')
     },
   })
 }

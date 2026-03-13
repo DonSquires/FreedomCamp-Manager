@@ -664,7 +664,7 @@ function HomelessTab() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('canonical_vehicles')
-        .select('id, plate_number, make, model, colour, homeless_status, homeless_notes, total_observations, last_seen_at')
+        .select('vehicle_id, plate_number, vehicle_make, vehicle_model, vehicle_color, homeless_status, homeless_notes, total_observations, last_seen_at')
         .in('homeless_status', HOMELESS_UI_STATUSES)
         .order('last_seen_at', { ascending: false });
       if (error) throw error;
@@ -697,12 +697,12 @@ function HomelessTab() {
           </thead>
           <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
             {data.map((v: any) => (
-              <tr key={v.id} className="hover:bg-purple-50/50 dark:hover:bg-purple-950/10">
+              <tr key={v.plate_number} className="hover:bg-purple-50/50 dark:hover:bg-purple-950/10">
                 <td className="px-4 py-3 font-mono font-bold text-gray-900 dark:text-white">
                   {v.plate_number}
                 </td>
                 <td className="px-4 py-3 text-gray-500 hidden md:table-cell">
-                  {[v.make, v.model, v.colour].filter(Boolean).join(' ') || '—'}
+                  {[v.vehicle_make, v.vehicle_model, v.vehicle_color].filter(Boolean).join(' ') || '—'}
                 </td>
                 <td className="px-4 py-3">
                   <span

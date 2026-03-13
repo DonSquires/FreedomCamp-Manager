@@ -3,6 +3,7 @@
  * Display zone compliance rules and requirements
  */
 
+import { formatDate } from '@/lib/utils'
 import { useQuery } from '@tanstack/react-query'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -175,9 +176,9 @@ export function ComplianceRulesViewer({
               )}
               {matrix.accepted_warrant_effective_from && (
                 <div className="text-muted-foreground">
-                  Valid from: {new Date(matrix.accepted_warrant_effective_from).toLocaleDateString()}
+                  Valid from: {formatDate(matrix.accepted_warrant_effective_from)}
                   {matrix.accepted_warrant_effective_to && 
-                    ` to ${new Date(matrix.accepted_warrant_effective_to).toLocaleDateString()}`
+                    ` to ${formatDate(matrix.accepted_warrant_effective_to)}`
                   }
                 </div>
               )}
@@ -298,8 +299,8 @@ export function ComplianceRulesViewer({
         {/* Effective dates */}
         {matrix.effective_from && (
           <div className="text-xs text-muted-foreground pt-3 border-t">
-            Effective from: {new Date(matrix.effective_from).toLocaleDateString()}
-            {matrix.effective_to && ` until ${new Date(matrix.effective_to).toLocaleDateString()}`}
+            Effective from: {formatDate(matrix.effective_from)}
+            {matrix.effective_to && ` until ${formatDate(matrix.effective_to)}`}
             {matrix.change_reason && (
               <div className="mt-1">Reason: {matrix.change_reason}</div>
             )}

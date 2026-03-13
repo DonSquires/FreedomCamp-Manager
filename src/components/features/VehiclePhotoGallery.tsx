@@ -3,6 +3,7 @@
  * All vehicle photos with selection and profile photo setting
  */
 
+import { formatDate, formatDateTime } from '@/lib/utils'
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -181,7 +182,7 @@ export function VehiclePhotoGallery({
                       ) : (
                         <img
                           src={photo.photo_url}
-                          alt={`Photo from ${new Date(photo.recorded_at).toLocaleDateString()}`}
+                          alt={`Photo from ${formatDate(photo.recorded_at)}`}
                           className="w-full h-full object-cover transition-transform group-hover:scale-105"
                           onError={() => markPhotoError(photo.id)}
                         />
@@ -203,7 +204,7 @@ export function VehiclePhotoGallery({
                       {/* Hover overlay */}
                       <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-2 p-2">
                         <div className="text-white text-xs text-center">
-                          {new Date(photo.recorded_at).toLocaleDateString()}
+                          {formatDate(photo.recorded_at)}
                         </div>
                         {allowSetProfilePhoto && !isProfilePhoto(photo.photo_url) && (
                           <Button
@@ -260,7 +261,7 @@ export function VehiclePhotoGallery({
                           <div className="flex items-center gap-2">
                             <Calendar className="h-4 w-4 text-muted-foreground" />
                             <span className="text-sm">
-                              {new Date(photo.recorded_at).toLocaleString()}
+                              {formatDateTime(photo.recorded_at)}
                             </span>
                           </div>
                           

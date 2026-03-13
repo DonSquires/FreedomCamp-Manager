@@ -361,7 +361,7 @@ export default function EnforcementCommandCenter() {
 
   return (
     <AppLayout 
-      title="Enforcement Command Center" 
+      title="Enforcement Command Centre" 
       description="Real-time enforcement monitoring and action management"
       showBackButton
     >

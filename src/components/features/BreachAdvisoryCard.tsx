@@ -3,6 +3,7 @@
  * Quick breach summary with actions
  */
 
+import { formatDate } from '@/lib/utils'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -107,7 +108,7 @@ export function BreachAdvisoryCard({
           <div className="flex items-center gap-2 text-sm">
             <Calendar className="h-4 w-4 text-muted-foreground" />
             <span>
-              Detected: {new Date(breachDate).toLocaleDateString()} at{' '}
+              Detected: {formatDate(breachDate)} at{' '}
               {new Date(breachDate).toLocaleTimeString()}
             </span>
           </div>

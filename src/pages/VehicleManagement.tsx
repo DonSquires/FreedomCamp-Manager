@@ -16,7 +16,7 @@ import {
   Search, Car, AlertTriangle, CheckCircle, Calendar, RefreshCw, Database, Globe,
   MapPin, Clock, BarChart3, ZoomIn,
 } from 'lucide-react'
-import { formatDateTime } from '@/lib/utils'
+import { formatDate, formatDateTime } from '@/lib/utils'
 import { nzDateToUTCStart, nzDateToUTCEnd } from '@/lib/timezone'
 import { HOMELESS_UI_STATUSES, isHomelessForUi, normalizeHomelessStatus } from '@/lib/homelessStatus'
 import { checkNZSCVCertification, enrichVehicleFromMotorWeb } from '@/lib/railwayServices'
@@ -1195,7 +1195,7 @@ export default function VehicleManagement() {
                   {selectedVehicle.self_contained_expiry && (
                     <Badge variant="outline">
                       <Calendar className="h-3 w-3 mr-1" />
-                      Expires: {new Date(selectedVehicle.self_contained_expiry).toLocaleDateString()}
+                      Expires: {formatDate(selectedVehicle.self_contained_expiry)}
                     </Badge>
                   )}
                   {isHomelessForUi(selectedVehicle.homeless_status) && (
@@ -1264,7 +1264,7 @@ export default function VehicleManagement() {
                       )}
                       {nzscvResult.expires_on && (
                         <div className="text-gray-600">
-                          Expires: {new Date(nzscvResult.expires_on).toLocaleDateString()}
+                          Expires: {formatDate(nzscvResult.expires_on)}
                         </div>
                       )}
                     </div>

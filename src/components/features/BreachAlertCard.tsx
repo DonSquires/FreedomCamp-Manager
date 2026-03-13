@@ -3,6 +3,7 @@
  * Real-time breach notification card
  */
 
+import { formatDate, formatDateTime } from '@/lib/utils'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -175,14 +176,14 @@ export function BreachAlertCard({
 
           <div className="flex items-center gap-2 text-sm">
             <Calendar className="h-4 w-4 text-muted-foreground" />
-            <span>Detected: {new Date(alert.created_at).toLocaleString()}</span>
+            <span>Detected: {formatDateTime(alert.created_at)}</span>
           </div>
 
           {alert.due_date && (
             <div className="flex items-center gap-2 text-sm">
               <Clock className="h-4 w-4 text-muted-foreground" />
               <span>
-                Due: {new Date(alert.due_date).toLocaleDateString()}
+                Due: {formatDate(alert.due_date)}
                 {isOverdue && (
                   <Badge variant="destructive" className="ml-2 text-xs">
                     OVERDUE

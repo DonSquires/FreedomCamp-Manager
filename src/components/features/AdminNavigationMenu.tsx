@@ -29,7 +29,7 @@ const moreGroups = [
   {
     label: 'Enforcement',
     links: [
-      { to: '/enforcement-command-center', label: 'Command Center',   icon: Gavel },
+      { to: '/enforcement-command-center', label: 'Command Centre',   icon: Gavel },
       { to: '/enforcement-review',         label: 'Review',           icon: ScrollText },
       { to: '/notice-to-vacate',           label: 'Notice to Vacate', icon: FileText },
       { to: '/infringements',              label: 'Infringements',    icon: Gavel },

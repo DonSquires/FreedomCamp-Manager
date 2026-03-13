@@ -1,3 +1,4 @@
+import { formatDate } from '@/lib/utils'
 import { useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -93,11 +94,11 @@ function PersonRecordCard({
         <div className="flex gap-4 text-xs text-gray-500">
           <span className="flex items-center gap-1">
             <Calendar className="h-3 w-3" />
-            First seen: {new Date(record.first_seen).toLocaleDateString()}
+            First seen: {formatDate(record.first_seen)}
           </span>
           <span className="flex items-center gap-1">
             <Calendar className="h-3 w-3" />
-            Last seen: {new Date(record.last_seen).toLocaleDateString()}
+            Last seen: {formatDate(record.last_seen)}
           </span>
         </div>
 

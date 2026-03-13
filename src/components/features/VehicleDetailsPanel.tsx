@@ -3,6 +3,7 @@
  * Comprehensive vehicle profile with all details
  */
 
+import { formatDate as formatDateUtil } from '@/lib/utils'
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -110,7 +111,7 @@ export function VehicleDetailsPanel({
 
   const formatDate = (date: string | null) => {
     if (!date) return 'N/A'
-    return new Date(date).toLocaleDateString()
+    return formatDateUtil(date)
   }
 
   return (

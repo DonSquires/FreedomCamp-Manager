@@ -1,3 +1,4 @@
+import { formatDateTime } from '@/lib/utils'
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
@@ -327,7 +328,7 @@ export default function DataManagementHub() {
                         </Badge>
                       </div>
                       <div className="text-sm text-muted-foreground mt-1">
-                        {item.file_name} • {item.records_imported} records • {new Date(item.created_at).toLocaleString()}
+                        {item.file_name} • {item.records_imported} records • {formatDateTime(item.created_at)}
                       </div>
                     </div>
                     <div className="text-right">

@@ -77,7 +77,7 @@ export default function RecentScansScreen() {
   })
 
   const renderItem = ({ item }: { item: any }) => {
-    const pending = item.processing_status === 'pending'
+    const pending = item.plate_number === 'PROCESSING...'
     const inBreach = !item.is_compliant && !pending
     return (
       <View style={[styles.card, inBreach && styles.cardBreach]}>

@@ -2,7 +2,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Car, MapPin, Calendar, AlertTriangle, Shield, Eye } from 'lucide-react'
-import { formatDateTime } from '@/lib/utils'
+import { formatDate, formatDateTime } from '@/lib/utils'
 import { homelessStatusLabel, isHomelessForUi } from '@/lib/homelessStatus'
 import type { Vehicle } from '@/types'
 
@@ -67,7 +67,7 @@ export function VehicleCard({ vehicle, onViewDetails, showActions = true }: Vehi
               <span className="font-medium">
                 {vehicle.self_contained 
                   ? (vehicle.self_contained_expiry 
-                      ? `Yes (expires ${new Date(vehicle.self_contained_expiry).toLocaleDateString()})` 
+                      ? `Yes (expires ${formatDate(vehicle.self_contained_expiry)})` 
                       : 'Yes'
                     )
                   : 'No'

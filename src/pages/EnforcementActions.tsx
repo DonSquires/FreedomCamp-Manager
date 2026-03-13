@@ -340,7 +340,7 @@ export default function EnforcementActions() {
       <div className="flex justify-end mb-4">
         <Button variant="outline" onClick={() => navigate('/enforcement-command-center')}>
           <MonitorPlay className="h-4 w-4 mr-2" />
-          Command Center
+          Command Centre
         </Button>
       </div>
 

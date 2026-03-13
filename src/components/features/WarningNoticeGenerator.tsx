@@ -3,6 +3,7 @@
  * Generate and customize warning notices
  */
 
+import { formatDate } from '@/lib/utils'
 import { useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -153,7 +154,7 @@ export function WarningNoticeGenerator({
             <div className="flex items-center gap-2">
               <Calendar className="h-4 w-4 text-muted-foreground" />
               <span className="text-muted-foreground">Issue Date:</span>
-              <span className="font-medium">{new Date().toLocaleDateString()}</span>
+              <span className="font-medium">{formatDate(new Date().toISOString())}</span>
             </div>
           </div>
         </div>

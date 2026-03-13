@@ -3,6 +3,7 @@
  * Full notification list with filters
  */
 
+import { formatDateTime } from '@/lib/utils'
 import { useState } from 'react'
 import { useOfficerNotifications } from '@/hooks/useOfficerNotifications'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -195,7 +196,7 @@ export function NotificationList({
 
                         <div className="flex items-center gap-2 text-muted-foreground">
                           <Calendar className="h-3 w-3" />
-                          <span>{new Date(notification.created_at).toLocaleString()}</span>
+                          <span>{formatDateTime(notification.created_at)}</span>
                         </div>
 
                         {notification.breach_details && (

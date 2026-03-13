@@ -3,6 +3,7 @@
  * Offline scan queue viewer and retry management
  */
 
+import { formatDateTime } from '@/lib/utils'
 import { useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -199,7 +200,7 @@ export function ScanQueue({ onRetrySuccess }: ScanQueueProps) {
                   
                   <div className="text-sm text-muted-foreground">
                     {item.zone_id || 'Unknown Zone'} • {' '}
-                    {new Date(item.created_at).toLocaleString()}
+                    {formatDateTime(item.created_at)}
                   </div>
 
                   {item.status === 'failed' && item.sync_error && (

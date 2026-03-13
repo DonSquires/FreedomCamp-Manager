@@ -3,6 +3,7 @@
  * Enforcement action history with visual timeline
  */
 
+import { formatDate, formatDateTime } from '@/lib/utils'
 import { useQuery } from '@tanstack/react-query'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -176,7 +177,7 @@ export function EnforcementTimeline({
                             </div>
                             <div className="flex items-center gap-2 text-sm text-muted-foreground">
                               <Calendar className="h-3 w-3" />
-                              <span>{new Date(action.recorded_at).toLocaleString()}</span>
+                              <span>{formatDateTime(action.recorded_at)}</span>
                             </div>
                           </div>
                           {onViewDetails && (
@@ -225,7 +226,7 @@ export function EnforcementTimeline({
                               <span>{action.delivery_method}</span>
                               {action.delivered_at && (
                                 <span className="text-muted-foreground">
-                                  on {new Date(action.delivered_at).toLocaleDateString()}
+                                  on {formatDate(action.delivered_at)}
                                 </span>
                               )}
                             </div>
