@@ -18,6 +18,7 @@ import { supabase } from '@/lib/supabase'
 import { edgeFunctions } from '@/lib/edgeFunctions'
 import { resolveObservationZoneForOrg } from '@/lib/zoneResolution'
 import { formatDateTime } from '@/lib/utils'
+import { fetchWeatherOnDevice } from '@/lib/weather'
 
 // Enforcement workflow mode labels shown in the status card
 const WORKFLOW_LABELS: Record<string, string> = {
@@ -444,28 +445,30 @@ export default function FieldOfficerPortal() {
       recordGPSUpdate(position.coords.latitude, position.coords.longitude)
 
       // ============================================================================
-      // STEP 3: FETCH WEATHER CONDITIONS (Non-blocking)
+      // STEP 3: FETCH WEATHER CONDITIONS (Direct from phone via Open-Meteo)
       // ============================================================================
+      // Open-Meteo is a free weather API with no key required.  Calling it
+      // directly from the device is faster (one hop instead of two) and gives
+      // real forecast-model data instead of an AI guess.
       toast.info('Getting weather conditions...')
       let weatherConditions = 'Unknown';
       
       try {
-        const { data: weatherData, error: weatherError } = await edgeFunctions.getWeather({
-          latitude: position.coords.latitude,
-          longitude: position.coords.longitude,
-        })
-
-        if (!weatherError && weatherData?.weather) {
-          weatherConditions = weatherData.weather;
+        const weather = await fetchWeatherOnDevice(
+          position.coords.latitude,
+          position.coords.longitude,
+        )
+        if (weather) {
+          weatherConditions = weather;
           console.log('🌤️ Weather:', weatherConditions);
-          appendScanDebug('Weather fetched', { weather: weatherConditions })
+          appendScanDebug('Weather fetched (on-device)', { weather: weatherConditions })
         } else {
-          console.warn('⚠️ Weather fetch failed, using fallback');
-          appendScanDebug('Weather fetch failed; fallback used')
+          console.warn('⚠️ Weather returned no data, using fallback');
+          appendScanDebug('Weather fetch returned no data; fallback used')
         }
       } catch (err) {
         console.warn('⚠️ Weather API error (non-critical):', err);
-        appendScanDebug('Weather API error; fallback used')
+        appendScanDebug('Weather fetch failed; fallback used')
       }
 
       // ============================================================================
@@ -510,8 +513,9 @@ export default function FieldOfficerPortal() {
           .map(b => b.toString(16).padStart(2, '0'))
           .join('')
         photoHash = `sha256:${hashHex}`
-      } catch {
+      } catch (hashErr) {
         // Fallback to a unique placeholder if the crypto API is unavailable.
+        console.warn('⚠️ SHA-256 hash failed, using placeholder:', hashErr)
         photoHash = `sha256:${uniqueId}`
       }
 
