@@ -5,7 +5,7 @@
 export interface CSVColumn {
   key: string
   label: string
-  format?: (value: any) => string
+  format?: (value: any, row?: any) => string
 }
 
 /**
@@ -23,7 +23,7 @@ export function arrayToCSV<T extends Record<string, any>>(
     return columns
       .map(col => {
         const value = row[col.key]
-        const formattedValue = col.format ? col.format(value) : String(value ?? '')
+        const formattedValue = col.format ? col.format(value, row) : String(value ?? '')
         return escapeCSVValue(formattedValue)
       })
       .join(',')

@@ -28,9 +28,9 @@ interface PhotoAnalysis {
 }
 
 interface ObservationPhotoRow {
+  photo?: string | null;
   photo_url: string | null;
   recorded_at: string | null;
-  plate_confidence?: number | null;
   gps_accuracy?: number | null;
   embedding_quality?: number | null;
 }
@@ -83,11 +83,11 @@ Deno.serve(async (req) => {
       .map((u: unknown) => normalizePhotoUrl(typeof u === 'string' ? u : null))
       .filter((u: string | null): u is string => !!u);
 
-    // Source 1: observations.photo_url
+    // Source 1: observations.photo / photo_url
     if (plateNumber) {
       const { data: obsPhotos } = await supabaseClient
         .from('observations')
-        .select('photo_url, recorded_at, plate_confidence, gps_accuracy, embedding_quality')
+        .select('photo, photo_url, recorded_at, gps_accuracy, embedding_quality')
         .eq('plate_number', plateNumber)
         .not('photo_url', 'is', null)
         .order('recorded_at', { ascending: false })
@@ -95,7 +95,7 @@ Deno.serve(async (req) => {
 
       if (obsPhotos && obsPhotos.length > 0) {
         const validObsPhotos = (obsPhotos as ObservationPhotoRow[])
-          .map((o) => normalizePhotoUrl(o.photo_url))
+          .map((o) => normalizePhotoUrl(o.photo ?? o.photo_url))
           .filter((p: string | null): p is string => !!p);
         photoUrls.push(...validObsPhotos);
         console.log(`Found ${validObsPhotos.length} photos from observations`);

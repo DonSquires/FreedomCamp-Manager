@@ -114,16 +114,16 @@ export const smokeTests = {
     try {
       const { data, error } = await supabase
         .from('canonical_vehicles')
-        .select('plate_number, make, model, total_observations')
+        .select('plate_number, vehicle_make, vehicle_model, total_observations')
         .limit(5)
       
       if (error) throw error
       
-      const vehicles = data as Pick<CanonicalVehicle, 'plate_number' | 'make' | 'model' | 'total_observations'>[] | null
+      const vehicles = data as Pick<CanonicalVehicle, 'plate_number' | 'vehicle_make' | 'vehicle_model' | 'total_observations'>[] | null
       console.log('✅ Vehicle query successful')
       console.log(`   Found ${vehicles?.length || 0} vehicles`)
       if (vehicles && vehicles.length > 0) {
-        console.log('   Sample:', vehicles[0].plate_number, '-', vehicles[0].make, vehicles[0].model)
+        console.log('   Sample:', vehicles[0].plate_number, '-', vehicles[0].vehicle_make, vehicles[0].vehicle_model)
       }
       return { success: true, count: vehicles?.length || 0 }
     } catch (error: any) {

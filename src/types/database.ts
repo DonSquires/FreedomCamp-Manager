@@ -449,7 +449,7 @@ export interface Database {
           breach_warning_reason: string | null
           vehicle_make: string | null
           vehicle_model: string | null
-          vehicle_year: string | null        // stored as text
+          vehicle_year: number | null          // INTEGER in live DB
           vehicle_color: string | null
           self_contained: boolean
           self_contained_expiry: string | null
@@ -505,7 +505,7 @@ export interface Database {
           breach_warning_reason?: string | null
           vehicle_make?: string | null
           vehicle_model?: string | null
-          vehicle_year?: string | null
+          vehicle_year?: number | null
           vehicle_color?: string | null
           self_contained?: boolean
           self_contained_expiry?: string | null
@@ -561,7 +561,7 @@ export interface Database {
           breach_warning_reason?: string | null
           vehicle_make?: string | null
           vehicle_model?: string | null
-          vehicle_year?: string | null
+          vehicle_year?: number | null
           vehicle_color?: string | null
           self_contained?: boolean
           self_contained_expiry?: string | null

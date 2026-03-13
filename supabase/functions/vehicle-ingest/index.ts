@@ -685,7 +685,7 @@ Deno.serve(async (req) => {
       gps_accuracy: gpsAccuracy ?? null,
       recorded_by: officerId,
       officer_notes: officerNotes ?? null,
-      weather_conditions: weatherConditions ?? null,
+      // weather_conditions does not exist in the live observations schema
       // Vehicle details will be populated by frontend or later enrichment
       vehicle_make: null,
       vehicle_model: null,

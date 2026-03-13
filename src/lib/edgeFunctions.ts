@@ -228,12 +228,9 @@ export const edgeFunctions = {
     observation_id?: string
     /** Optional incident/case to link this observation to */
     incident_id?: string
-    /** Previous observation in the same incident for movement comparison */
-    previous_observation_id?: string
     regions?: string[]
     mmc?: boolean
     officerNotes?: string
-    weatherConditions?: string
     recordedAt?: string
   }) => {
     // Destructure backward-compat aliases and map to the field names that
@@ -548,8 +545,6 @@ export const edgeFunctions = {
     idempotency_key?: string
     notes?: string
     officer_notes?: string
-    weather?: string
-    weather_conditions?: string
     plate?: string | null
     confidence?: number | null
     requires_manual_entry?: boolean

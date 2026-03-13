@@ -565,11 +565,10 @@ export default function BreachAlerts() {
       if (data) {
         const { error: updateError } = await (supabase.from('canonical_vehicles') as any)
           .update({
-            make: data.make,
-            model: data.model,
-            year: data.year,
-            colour: data.colour,
-            body_style: data.body_style,
+            vehicle_make: data.make,
+            vehicle_model: data.model,
+            vehicle_year: data.year != null ? String(data.year) : null,
+            vehicle_color: data.colour,
             owner_first_name: data.owner_name?.split(' ')[0] || null,
             owner_last_name: data.owner_name?.split(' ').slice(1).join(' ') || null,
             owner_address: data.owner_address,
@@ -1203,7 +1202,7 @@ export default function BreachAlerts() {
                       <div className="bg-blue-50 dark:bg-blue-950/50 rounded-lg p-3 text-sm space-y-1">
                         <p className="font-bold text-lg">{detailVehicle.plate_number}</p>
                         <p>{
-                          formatVehicleDescription(detailVehicle.make, detailVehicle.model, detailVehicle.year, detailVehicle.colour) ||
+                          formatVehicleDescription(detailVehicle.vehicle_make, detailVehicle.vehicle_model, detailVehicle.vehicle_year, detailVehicle.vehicle_color) ||
                           (triggeringObservation ? formatVehicleDescription(triggeringObservation.vehicle_make, triggeringObservation.vehicle_model, triggeringObservation.vehicle_year, triggeringObservation.vehicle_color) : '') ||
                           'No vehicle description on file'
                         }</p>

@@ -5,13 +5,12 @@ import { Car, Shield, Calendar, Hash } from 'lucide-react'
 
 interface VehicleDetailsViewProps {
   vehicle: {
-    id: string
+    vehicle_id?: string
     plate_number: string
-    make?: string
-    model?: string
-    year?: number
-    colour?: string
-    vin?: string
+    vehicle_make?: string
+    vehicle_model?: string
+    vehicle_year?: string
+    vehicle_color?: string
     is_self_contained?: boolean
     total_observations?: number
     total_breaches?: number
@@ -63,26 +62,26 @@ export function VehicleDetailsView({ vehicle, onEdit, className }: VehicleDetail
         <div className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
           <div>
             <span className="text-muted-foreground">Make</span>
-            <p className="font-medium mt-0.5">{vehicle.make || '—'}</p>
+            <p className="font-medium mt-0.5">{vehicle.vehicle_make || '—'}</p>
           </div>
           <div>
             <span className="text-muted-foreground">Model</span>
-            <p className="font-medium mt-0.5">{vehicle.model || '—'}</p>
+            <p className="font-medium mt-0.5">{vehicle.vehicle_model || '—'}</p>
           </div>
           <div>
             <span className="text-muted-foreground">Year</span>
-            <p className="font-medium mt-0.5">{vehicle.year ?? '—'}</p>
+            <p className="font-medium mt-0.5">{vehicle.vehicle_year ?? '—'}</p>
           </div>
           <div>
             <span className="text-muted-foreground">Colour</span>
-            <p className="font-medium mt-0.5">{vehicle.colour || '—'}</p>
+            <p className="font-medium mt-0.5">{vehicle.vehicle_color || '—'}</p>
           </div>
           <div className="col-span-2">
             <span className="text-muted-foreground flex items-center gap-1">
               <Hash className="h-3 w-3" />
               VIN
             </span>
-            <p className="font-medium mt-0.5 font-mono text-xs">{vehicle.vin || '—'}</p>
+            <p className="font-medium mt-0.5 font-mono text-xs">—</p>
           </div>
         </div>
 

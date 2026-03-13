@@ -41,7 +41,7 @@ export interface Vehicle {
   plate_number: string
   vehicle_make: string | null
   vehicle_model: string | null
-  /** TEXT in the live DB, not an integer. */
+  /** TEXT in the live canonical_vehicles table. */
   vehicle_year: string | null
   vehicle_color: string | null
   self_contained: boolean
@@ -96,8 +96,8 @@ export interface Observation {
   consecutive_nights: number
   vehicle_make: string | null
   vehicle_model: string | null
-  /** TEXT in the live DB. */
-  vehicle_year: string | null
+  /** INTEGER in the live DB (observations.vehicle_year). */
+  vehicle_year: number | null  // INTEGER in live DB
   vehicle_color: string | null
   self_contained: boolean
   officer_notes: string | null

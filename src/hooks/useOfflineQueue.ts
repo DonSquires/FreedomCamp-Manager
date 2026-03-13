@@ -21,7 +21,6 @@ interface QueuedObservation {
   vehicle_model?: string
   vehicle_color?: string
   officer_notes?: string
-  weather_conditions?: string
   recorded_at: string
   created_at: string
   sync_attempts: number
@@ -205,7 +204,6 @@ export function useOfflineQueue() {
             gpsAccuracy: observation.gps_accuracy,
             recordedAt: observation.recorded_at,
             notes: observation.officer_notes,
-            weather_conditions: observation.weather_conditions,
             ...(imageDataUrl ? { image: imageDataUrl } : {}),
             requires_manual_entry: !observation.plate_number,
           },

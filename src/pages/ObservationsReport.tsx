@@ -27,14 +27,14 @@ import { toast } from 'sonner'
 import { formatDateTime } from '@/lib/utils'
 
 interface ObservationRow {
-  id: string
+  observation_id: string
   plate_number: string | null
   recorded_at: string
   is_compliant: boolean | null
   nights_stayed_this_month: number | null
-  processing_status: string | null
   gps_latitude: number | null
   gps_longitude: number | null
+  photo: string | null
   photo_url: string | null
   zone: { name: string } | null
   recorded_by_user: { first_name: string; last_name: string } | null
@@ -58,8 +58,8 @@ export default function ObservationsReport() {
       let q = supabase
         .from('observations')
         .select(`
-          id, plate_number, recorded_at, is_compliant, nights_stayed_this_month,
-          processing_status, gps_latitude, gps_longitude, photo_url,
+          observation_id, plate_number, recorded_at, is_compliant, nights_stayed_this_month,
+          gps_latitude, gps_longitude, photo, photo_url,
           zone:zones!zone_id(name),
           recorded_by_user:user_profiles!recorded_by(first_name, last_name)
         `)
@@ -229,7 +229,7 @@ export default function ObservationsReport() {
             </thead>
             <tbody className="divide-y">
               {filtered.map(obs => (
-                <tr key={obs.id} className="hover:bg-muted/30 transition-colors">
+                <tr key={obs.observation_id} className="hover:bg-muted/30 transition-colors">
                   <td className="px-3 py-2 font-mono font-semibold">
                     {obs.plate_number || '—'}
                   </td>
