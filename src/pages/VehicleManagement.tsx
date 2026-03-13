@@ -269,10 +269,19 @@ export default function VehicleManagement() {
       }
 
       const pickObservationPhotoColumn = async () => {
-        const candidates: Array<'photo_url' | 'image_url' | 'photo'> = ['photo_url', 'image_url', 'photo']
+        // Prioritize 'photo' (live schema primary), then 'photo_url', then 'image_url'
+        const candidates: Array<'photo' | 'photo_url' | 'image_url'> = ['photo', 'photo_url', 'image_url']
+        for (const col of candidates) {
+          const { data, error } = await (supabase.from('observations') as any)
+            .select(`plate_number, ${col}`)
+            .not(col, 'is', null)
+            .limit(1)
+          if (!error && data && data.length > 0) return col
+        }
+        // Fallback: return the first column that exists even if all values are null
         for (const col of candidates) {
           const { error } = await (supabase.from('observations') as any)
-            .select(`id, ${col}`)
+            .select(`plate_number, ${col}`)
             .limit(1)
           if (!error) return col
         }
@@ -573,6 +582,11 @@ export default function VehicleManagement() {
         return rows
       }
 
+      // Build select clause: always include all known photo columns so
+      // getObservationPhotoUrl() can pick the best available URL.
+      const allPhotoCols = new Set(['photo', 'photo_url', backfillPhotoColumn])
+      const photoSelectCols = ['plate_number', ...allPhotoCols, 'recorded_at'].join(', ')
+
       const plateChunks: string[][] = []
       for (let i = 0; i < missingPhotoPlates.length; i += 200) {
         plateChunks.push(missingPhotoPlates.slice(i, i + 200))
@@ -580,7 +594,7 @@ export default function VehicleManagement() {
 
       for (const chunk of plateChunks) {
         let photoQuery = (supabase.from('observations') as any)
-          .select(`plate_number, ${backfillPhotoColumn}, recorded_at`)
+          .select(photoSelectCols)
           .in('plate_number', chunk)
           .not(backfillPhotoColumn, 'is', null)
           .order('recorded_at', { ascending: false })

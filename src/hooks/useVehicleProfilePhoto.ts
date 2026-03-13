@@ -6,6 +6,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
+import { getObservationPhotoUrl } from '@/lib/photoUtils'
 import { toast } from 'sonner'
 
 interface ProfilePhoto {
@@ -121,16 +122,16 @@ export function useVehicleProfilePhoto(plateNumber?: string) {
       if (!plateNumber) return []
 
       const { data, error } = await (supabase.from('observations') as any)
-        .select('photo_url, recorded_at, embedding_quality, gps_accuracy')
+        .select('photo, photo_url, recorded_at, embedding_quality, gps_accuracy')
         .eq('plate_number', plateNumber)
-        .not('photo_url', 'is', null)
+        .or('photo.not.is.null,photo_url.not.is.null')
         
         .order('recorded_at', { ascending: false })
 
       if (error) throw error
 
-      return data.map(obs => ({
-        url: obs.photo_url,
+      return data.map((obs: any) => ({
+        url: getObservationPhotoUrl(obs) ?? obs.photo_url ?? obs.photo,
         recorded_at: obs.recorded_at,
         quality: obs.embedding_quality,
         gps_accuracy: obs.gps_accuracy,

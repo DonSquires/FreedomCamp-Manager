@@ -188,7 +188,7 @@ export default function AdminPortal() {
 
       // ── 4. Trend data rows (for the chart only — limited fetch is fine) ──
       const trendRows: Array<{ plate_number: string | null; is_compliant: boolean | null; recorded_at: string }> = []
-      const trendPageSize = 5000
+      const trendPageSize = 1000
       const trendMaxRows = 100000
       let trendOffset = 0
 
