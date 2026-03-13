@@ -539,17 +539,53 @@ export default function FieldOfficerPortal() {
         }
       )
 
+      // If safe_insert_observation doesn't exist yet (migration pending deployment),
+      // fall back to a direct insert into observations. ALPR (Step 8) will update
+      // plate_number and existing DB triggers handle compliance evaluation.
+      let finalObsData = ingestData
       if (rpcError || !ingestData) {
-        appendScanDebug('Observation save failed', { error: rpcError?.message })
-        throw new Error(`Save failed: ${rpcError?.message || 'Unknown error'}`)
+        const isFunctionMissing =
+          rpcError?.message?.includes('schema cache') ||
+          rpcError?.message?.includes('Could not find the function') ||
+          rpcError?.code === 'PGRST202'
+
+        if (isFunctionMissing) {
+          appendScanDebug('safe_insert_observation not available, using direct insert fallback')
+          const { data: directData, error: directError } = await (supabase.from('observations') as any)
+            .insert({
+              plate_number: 'PROCESSING...',
+              photo: photoUrl,
+              photo_url: photoUrl,
+              photo_hash: photoHash,
+              recorded_at: nowIso,
+              zone_id: finalZoneId,
+              organization_id: user.organization_id,
+              gps_latitude: position.coords.latitude,
+              gps_longitude: position.coords.longitude,
+              gps_accuracy: position.coords.accuracy,
+              recorded_by: user.id,
+              idempotency_key: idempotencyKey,
+            })
+            .select('observation_id, id, is_compliant, breach_type, plate_number')
+            .single()
+
+          if (directError || !directData) {
+            appendScanDebug('Observation save failed', { error: directError?.message })
+            throw new Error(`Save failed: ${directError?.message || 'Unknown error'}`)
+          }
+          finalObsData = directData
+        } else {
+          appendScanDebug('Observation save failed', { error: rpcError?.message })
+          throw new Error(`Save failed: ${rpcError?.message || 'Unknown error'}`)
+        }
       }
 
       appendScanDebug('Observation created', {
-        observation_id: ingestData.observation_id ?? ingestData.id,
-        is_compliant: ingestData.is_compliant,
+        observation_id: finalObsData.observation_id ?? finalObsData.id,
+        is_compliant: finalObsData.is_compliant,
       })
 
-      const observationId = ingestData.observation_id ?? ingestData.id
+      const observationId = finalObsData.observation_id ?? finalObsData.id
 
       // ============================================================================
       // STEP 8: FIRE-AND-FORGET ALPR (plate recognition runs in background)
@@ -575,9 +611,9 @@ export default function FieldOfficerPortal() {
 
       console.log('✅ Observation created:', {
         observation_id: observationId,
-        is_compliant: ingestData.is_compliant,
-        breach_type: ingestData.breach_type,
-        plate: ingestData.plate ?? ingestData.plate_number ?? 'PROCESSING...',
+        is_compliant: finalObsData.is_compliant,
+        breach_type: finalObsData.breach_type,
+        plate: finalObsData.plate ?? finalObsData.plate_number ?? 'PROCESSING...',
       })
 
       // ============================================================================
@@ -587,18 +623,18 @@ export default function FieldOfficerPortal() {
       // (from trigger) and plate is being processed in background.
       // The compliance trigger defaults to is_compliant=true for new observations
       // without prior history, but breach_type indicates actual violations.
-      const isCompliant = typeof ingestData.is_compliant === 'boolean' 
-        ? ingestData.is_compliant 
+      const isCompliant = typeof finalObsData.is_compliant === 'boolean' 
+        ? finalObsData.is_compliant 
         : null // Keep as null if unknown - let UI handle pending state
       
-      const hasBreachType = !!ingestData.breach_type
-      const detectedPlate = ingestData.plate ?? ingestData.plate_number ?? null
+      const hasBreachType = !!finalObsData.breach_type
+      const detectedPlate = finalObsData.plate ?? finalObsData.plate_number ?? null
       const plateStillProcessing = !detectedPlate || detectedPlate === 'PROCESSING...' || detectedPlate === 'MANUAL_REQUIRED'
 
       toast.success('✅ Observation captured', {
         duration: 5000,
         description: hasBreachType 
-          ? `Breach detected: ${formatBreachType(ingestData.breach_type)}`
+          ? `Breach detected: ${formatBreachType(finalObsData.breach_type)}`
           : isCompliant === false
             ? 'Non-compliant observation recorded'
             : plateStillProcessing
@@ -611,7 +647,7 @@ export default function FieldOfficerPortal() {
         photoUrl: photoUrl,
         plateNumber: plateStillProcessing ? null : detectedPlate,
         isCompliant: isCompliant,
-        breachType: ingestData.breach_type ?? null,
+        breachType: finalObsData.breach_type ?? null,
         processingPending: plateStillProcessing,
         zoneName: null,
         observationZoneId: finalZoneId ?? null,
