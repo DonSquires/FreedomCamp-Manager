@@ -5,6 +5,7 @@
  * - COALESCE type mismatch errors from triggers
  * - Schema cache misses for optional columns
  * - Adaptive retry logic
+ * - Last-resort RPC bypass when triggers are broken
  */
 
 /**
@@ -37,6 +38,13 @@ export function extractMissingSchemaColumn(error: unknown): string | null {
  * Columns that may cause COALESCE type mismatch errors in triggers when
  * the column types have drifted. These are safe to omit from the payload
  * (the trigger function will use defaults).
+ *
+ * NOTE: Removing these columns from the INSERT payload does NOT fix the
+ * error if the trigger function itself uses COALESCE(NEW.column, literal)
+ * on a drifted column type — the trigger still accesses NEW.column via the
+ * column DEFAULT, which has the same type mismatch.  When this happens,
+ * the safe_insert_observation RPC (which bypasses triggers) is the only
+ * recovery path.
  */
 export const COMPLIANCE_DRIFT_COLUMNS = new Set([
   "nights_stayed_this_month",
@@ -88,13 +96,18 @@ export const OPTIONAL_SCHEMA_COLUMNS = new Set([
 /**
  * Performs an adaptive insert into the observations table.
  * Handles COALESCE type mismatch errors and schema cache misses.
+ *
+ * Recovery chain:
+ *   1. Strip missing-schema columns and retry
+ *   2. Strip compliance-drift columns and retry
+ *   3. Call safe_insert_observation RPC (bypasses triggers entirely)
  * 
- * @param supabase - Supabase client
+ * @param supabase - Supabase client (must support .from() and .rpc())
  * @param data - Observation data to insert
  * @returns Object with data, error, and droppedColumns
  */
 export async function adaptiveObservationInsert(
-  supabase: { from: (table: string) => any },
+  supabase: { from: (table: string) => any; rpc?: (fn: string, params: any) => any },
   data: Record<string, unknown>,
   maxAttempts = 8,
 ): Promise<{
@@ -105,6 +118,7 @@ export async function adaptiveObservationInsert(
   const payload = { ...data };
   const droppedColumns: string[] = [];
   let coalesceRetried = false;
+  let lastError: unknown = null;
 
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     const { data: result, error } = await supabase
@@ -119,6 +133,8 @@ export async function adaptiveObservationInsert(
       }
       return { data: result, error: null, droppedColumns };
     }
+
+    lastError = error;
 
     // Handle missing schema column errors - drop column and retry
     const missingCol = extractMissingSchemaColumn(error);
@@ -142,14 +158,48 @@ export async function adaptiveObservationInsert(
       continue;
     }
 
-    // Can't recover - return error
-    console.error("❌ Observation insert failed after retries:", {
+    // Can't recover via payload changes — break and try RPC fallback below
+    console.error("❌ Observation insert failed:", {
       error: (error as any)?.message,
       attempt: attempt + 1,
       droppedColumns,
     });
-    return { data: null, error, droppedColumns };
+    break;
   }
 
-  return { data: null, error: new Error("Max retry attempts exceeded"), droppedColumns };
+  // ── Last-resort: safe_insert_observation RPC (bypasses triggers) ──
+  if (isCoalesceTypeMismatchError(lastError) && supabase.rpc) {
+    console.warn("⚠️ COALESCE trigger error persists — trying safe_insert_observation RPC");
+    try {
+      const rpcPayload: Record<string, unknown> = {
+        plate_number: payload.plate_number ?? data.plate_number ?? "PROCESSING...",
+        photo: payload.photo ?? payload.photo_url,
+        photo_url: payload.photo_url,
+        photo_hash: payload.photo_hash,
+        recorded_at: payload.recorded_at,
+        zone_id: payload.zone_id,
+        organization_id: payload.organization_id,
+        gps_latitude: payload.gps_latitude,
+        gps_longitude: payload.gps_longitude,
+        gps_accuracy: payload.gps_accuracy,
+        recorded_by: payload.recorded_by,
+        idempotency_key: payload.idempotency_key ?? null,
+      };
+
+      const { data: rpcResult, error: rpcError } = await supabase.rpc(
+        "safe_insert_observation",
+        { p_data: rpcPayload }
+      );
+
+      if (!rpcError && rpcResult) {
+        console.log("✅ Observation created via safe_insert_observation RPC");
+        return { data: rpcResult, error: null, droppedColumns };
+      }
+      console.error("❌ safe_insert_observation RPC failed:", rpcError);
+    } catch (rpcErr: any) {
+      console.error("❌ safe_insert_observation RPC exception:", rpcErr?.message);
+    }
+  }
+
+  return { data: null, error: lastError, droppedColumns };
 }

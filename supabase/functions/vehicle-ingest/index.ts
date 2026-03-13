@@ -745,7 +745,7 @@ Deno.serve(async (req) => {
         continue;
       }
 
-      // Can't recover - record error and break
+      // Can't recover via payload changes - record error and break
       obsError = error;
       console.error("❌ Insert failed after retries:", {
         error: (error as any)?.message,
@@ -757,6 +757,46 @@ Deno.serve(async (req) => {
 
     if (droppedColumns.length > 0) {
       console.log("📝 Adaptive insert dropped columns:", droppedColumns);
+    }
+
+    // ── Last-resort fallback: safe_insert_observation RPC ──
+    // When the COALESCE error persists after column-stripping, the trigger
+    // function itself is broken.  The safe_insert_observation RPC (created by
+    // migration 20260404000001) bypasses all triggers via
+    // session_replication_role = 'replica'.
+    if ((obsError || !observation) && isCoalesceTypeMismatchError(obsError)) {
+      console.warn("⚠️ COALESCE trigger error persists — trying safe_insert_observation RPC");
+      try {
+        const { data: rpcResult, error: rpcError } = await supabase.rpc(
+          "safe_insert_observation",
+          {
+            p_data: {
+              plate_number: insertPayload.plate_number ?? "MANUAL_REQUIRED",
+              photo: insertPayload.photo_url,
+              photo_url: insertPayload.photo_url,
+              photo_hash: insertPayload.photo_hash,
+              recorded_at: insertPayload.recorded_at,
+              zone_id: insertPayload.zone_id,
+              organization_id: insertPayload.organization_id,
+              gps_latitude: insertPayload.gps_latitude,
+              gps_longitude: insertPayload.gps_longitude,
+              gps_accuracy: insertPayload.gps_accuracy,
+              recorded_by: insertPayload.recorded_by,
+              idempotency_key: insertPayload.idempotency_key ?? null,
+            },
+          }
+        );
+
+        if (!rpcError && rpcResult) {
+          observation = rpcResult;
+          obsError = null;
+          console.log("✅ Observation created via safe_insert_observation RPC");
+        } else {
+          console.error("❌ safe_insert_observation RPC also failed:", rpcError);
+        }
+      } catch (rpcErr: any) {
+        console.error("❌ safe_insert_observation RPC exception:", rpcErr?.message);
+      }
     }
 
     if (obsError || !observation) {
