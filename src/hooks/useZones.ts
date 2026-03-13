@@ -80,7 +80,12 @@ export function useCreateZone() {
         .from('zones') as any)
         .insert(zone)
 
-      if (error) throw error
+      if (error) {
+        if (error.message?.includes('idx_zones_unique_org_name_active')) {
+          throw new Error(`A zone with this name already exists in this organisation`)
+        }
+        throw error
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['zones'] })

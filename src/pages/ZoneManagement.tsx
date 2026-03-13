@@ -244,6 +244,19 @@ export default function ZoneManagement() {
       const orgId = user?.role === 'master' ? createOrganizationId : user?.organization_id
       if (!orgId) throw new Error('Organisation is required')
 
+      // Check for existing zone with same name in this org
+      const { data: existing } = await supabase
+        .from('zones')
+        .select('id, name')
+        .eq('organization_id', orgId)
+        .eq('is_active', true)
+        .ilike('name', createName.trim())
+        .limit(1)
+
+      if (existing && existing.length > 0) {
+        throw new Error(`A zone named "${createName.trim()}" already exists in this organisation`)
+      }
+
       const { error } = await (supabase.from('zones') as any)
         .insert({
           name: createName.trim(),
@@ -258,7 +271,12 @@ export default function ZoneManagement() {
           is_active: true,
         })
 
-      if (error) throw error
+      if (error) {
+        if (error.message?.includes('idx_zones_unique_org_name_active')) {
+          throw new Error(`A zone named "${createName.trim()}" already exists in this organisation`)
+        }
+        throw error
+      }
     },
     onSuccess: () => {
       toast.success('Zone created successfully')

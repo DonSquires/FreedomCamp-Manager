@@ -142,6 +142,19 @@ export default function OrganizationProfile() {
       if (!organizationId) throw new Error('No organisation')
       if (!childName.trim()) throw new Error('Zone name is required')
 
+      // Check for existing zone with same name in this org
+      const { data: existing } = await supabase
+        .from('zones')
+        .select('id, name')
+        .eq('organization_id', organizationId)
+        .eq('is_active', true)
+        .ilike('name', childName.trim())
+        .limit(1)
+
+      if (existing && existing.length > 0) {
+        throw new Error(`A zone named "${childName.trim()}" already exists in this organisation`)
+      }
+
       const parentZone = parentZones[0] // Use first parent zone
 
       const { error } = await (supabase
@@ -158,7 +171,12 @@ export default function OrganizationProfile() {
           self_contained_required: childSelfContained,
         })
 
-      if (error) throw error
+      if (error) {
+        if (error.message?.includes('idx_zones_unique_org_name_active')) {
+          throw new Error(`A zone named "${childName.trim()}" already exists in this organisation`)
+        }
+        throw error
+      }
     },
     onSuccess: () => {
       toast.success('Child zone created successfully')
