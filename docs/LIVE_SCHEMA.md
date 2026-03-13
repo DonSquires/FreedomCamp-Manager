@@ -497,6 +497,22 @@ public.vehicle_monthly_stays.(plate_number, organization_id, zone_id)
 
 ---
 
+## Database Functions
+
+The live database functions (stored procedures, triggers, RPCs, extensions) are documented in a dedicated companion file:
+
+**[docs/LIVE_FUNCTIONS.md](LIVE_FUNCTIONS.md)** — complete authoritative reference for all functions.
+
+## Database Triggers
+
+The complete trigger inventory (all 54 live triggers, execution order, governance rules) is documented in:
+
+**[docs/LIVE_TRIGGERS.md](LIVE_TRIGGERS.md)** — complete authoritative reference for all triggers.
+
+Same governance applies: any new or modified function or trigger requires a migration, an update to the relevant doc file, and an approved PR reviewed by `@DonSquires`.
+
+---
+
 ## TypeScript Mapping
 
 The TypeScript types that must stay in sync with this document:

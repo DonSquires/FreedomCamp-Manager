@@ -30,6 +30,8 @@
 
 # ── Authoritative live schema document ───────────────────────────────────────
 /docs/LIVE_SCHEMA.md                   @DonSquires
+/docs/LIVE_FUNCTIONS.md                @DonSquires
+/docs/LIVE_TRIGGERS.md                 @DonSquires
 
 # ── Schema validation checklist and codebase audit ───────────────────────────
 /SCHEMA_VALIDATION_CHECKLIST.md        @DonSquires
