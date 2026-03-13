@@ -87,7 +87,7 @@ export default function EnforcementActions() {
 
   // Fetch enforcement actions
   const { data: actions, isLoading: actionsLoading } = useQuery({
-    queryKey: ['enforcement-actions', organizationId, zoneId, statusFilter, actionTypeFilter, searchQuery, dateFrom, dateTo],
+    queryKey: ['enforcement-actions', effectiveOrganizationId, zoneId, statusFilter, actionTypeFilter, searchQuery, dateFrom, dateTo],
     queryFn: async () => {
       let query = supabase
         .from('enforcement_actions')
