@@ -181,15 +181,22 @@ function OverviewTab({
       let homelessBreachCount = 0;
       if (homelessPlates.length > 0) {
         // Count non-compliant observations for homeless plates in the date/org/zone scope
+        const chunks: string[][] = [];
         for (let i = 0; i < homelessPlates.length; i += 200) {
-          const chunk = homelessPlates.slice(i, i + 200);
-          const { count: chunkCount } = await applyObs(
-            (supabase.from('observations') as any)
-              .select('*', { count: 'exact', head: true })
-              .eq('is_compliant', false)
-              .in('plate_number', chunk)
-          );
-          homelessBreachCount += chunkCount ?? 0;
+          chunks.push(homelessPlates.slice(i, i + 200));
+        }
+        const chunkResults = await Promise.all(
+          chunks.map((chunk) =>
+            applyObs(
+              (supabase.from('observations') as any)
+                .select('*', { count: 'exact', head: true })
+                .eq('is_compliant', false)
+                .in('plate_number', chunk)
+            )
+          )
+        );
+        for (const res of chunkResults) {
+          homelessBreachCount += res.count ?? 0;
         }
       }
 

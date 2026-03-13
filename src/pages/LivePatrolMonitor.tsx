@@ -184,18 +184,30 @@ export default function LivePatrolMonitor() {
         if (result.error) throw result.error
         patrolsData = result.data
 
-        // Manually enrich with zone name and officer info
+        // Manually enrich with zone name and officer info using bulk queries
+        const zoneIds = [...new Set((patrolsData ?? []).filter((p: any) => p.zone_id && !p.zone).map((p: any) => p.zone_id))]
+        const officerIds = [...new Set((patrolsData ?? []).filter((p: any) => p.assigned_to && !p.officer).map((p: any) => p.assigned_to))]
+
+        let zoneMap: Record<string, any> = {}
+        let officerMap: Record<string, any> = {}
+
+        if (zoneIds.length > 0) {
+          const { data: zones } = await (supabase.from('zones') as any).select('id, name').in('id', zoneIds)
+          zoneMap = Object.fromEntries((zones ?? []).map((z: any) => [z.id, z]))
+        }
+        if (officerIds.length > 0) {
+          const { data: officers } = await (supabase.from('user_profiles') as any)
+            .select('id, first_name, last_name, phone')
+            .in('id', officerIds)
+          officerMap = Object.fromEntries((officers ?? []).map((o: any) => [o.id, o]))
+        }
+
         for (const patrol of patrolsData ?? []) {
           if (patrol.zone_id && !patrol.zone) {
-            const { data: z } = await (supabase.from('zones') as any).select('id, name').eq('id', patrol.zone_id).single()
-            patrol.zone = z || { id: patrol.zone_id, name: 'Unknown Zone' }
+            patrol.zone = zoneMap[patrol.zone_id] || { id: patrol.zone_id, name: 'Unknown Zone' }
           }
           if (patrol.assigned_to && !patrol.officer) {
-            const { data: o } = await (supabase.from('user_profiles') as any)
-              .select('id, first_name, last_name, phone')
-              .eq('id', patrol.assigned_to)
-              .single()
-            patrol.officer = o || { id: patrol.assigned_to, first_name: 'Unknown', last_name: 'Officer', phone: null }
+            patrol.officer = officerMap[patrol.assigned_to] || { id: patrol.assigned_to, first_name: 'Unknown', last_name: 'Officer', phone: null }
           }
         }
       }

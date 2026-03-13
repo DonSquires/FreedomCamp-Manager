@@ -83,7 +83,10 @@ export default function HotspotsMap() {
       const allRows: any[] = []
       const pageSize = 1000
       let offset = 0
-      const maxRows = 50000 // Safety cap
+      // Safety cap to prevent runaway queries on very large datasets.
+      // 50k observations is sufficient for zone-level aggregation accuracy
+      // while keeping query time reasonable (~50 pages × ~200ms each ≈ 10s).
+      const maxRows = 50000
 
       while (offset < maxRows) {
         let pageQuery = supabase
