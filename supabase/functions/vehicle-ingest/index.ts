@@ -14,8 +14,15 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.7";
 import { corsHeaders } from "../_shared/cors.ts";
 import { alprWithBytes } from "../_shared/alpr.ts";
+import {
+  isCoalesceTypeMismatchError,
+  extractMissingSchemaColumn,
+  COMPLIANCE_DRIFT_COLUMNS,
+  OPTIONAL_SCHEMA_COLUMNS,
+} from "../_shared/observationInsert.ts";
 
 const PHOTO_FETCH_TIMEOUT_MS = Number(Deno.env.get("INGEST_PHOTO_FETCH_TIMEOUT_MS") ?? "8000");
+const MAX_INSERT_ATTEMPTS = 8;
 
 function getCorsHeaders(_req?: Request) {
   return {
@@ -85,62 +92,6 @@ function isMissingIdempotencyColumnError(error: unknown): boolean {
   return /idempotency_key/i.test(String(message))
     && /schema cache|does not exist|column/i.test(String(message));
 }
-
-/**
- * Detects COALESCE type mismatch errors from database triggers.
- * These occur when the trigger function expects INTEGER but the column is TEXT.
- * Error pattern: "COALESCE types integer and text cannot be matched"
- */
-function isCoalesceTypeMismatchError(error: unknown): boolean {
-  const message =
-    typeof error === "string"
-      ? error
-      : (error as any)?.message || (error as any)?.error || "";
-  return /coalesce types .* integer and text cannot be matched/i.test(String(message));
-}
-
-/**
- * Detects missing schema column errors.
- * Error pattern: "Could not find the 'column_name' column of 'table_name' in the schema cache"
- */
-function extractMissingSchemaColumn(error: unknown): string | null {
-  const message =
-    typeof error === "string"
-      ? error
-      : (error as any)?.message || (error as any)?.error || "";
-  const match = String(message).match(/Could not find the '([^']+)' column/i);
-  return match ? match[1] : null;
-}
-
-/**
- * Columns that may cause COALESCE type mismatch errors in triggers when
- * the column types have drifted. These are safe to omit from the payload
- * (the trigger function will use defaults).
- */
-const COMPLIANCE_DRIFT_COLUMNS = new Set([
-  "nights_stayed_this_month",
-  "consecutive_nights",
-  "is_compliant",
-  "self_contained",
-  "breach_type",
-  "breach_reason",
-]);
-
-/**
- * Optional columns that may not be in the schema cache yet.
- * Safe to drop and retry the insert.
- */
-const OPTIONAL_SCHEMA_COLUMNS = new Set([
-  "weather_conditions",
-  "processing_status",
-  "processing_started_at",
-  "processing_completed_at",
-  "processing_error",
-  "plate_confidence",
-  "vehicle_make_confidence",
-  "vehicle_model_confidence",
-  "vehicle_color_confidence",
-]);
 
 async function downloadPhotoBytes(
   supabase: ReturnType<typeof createClient>,
@@ -760,7 +711,7 @@ Deno.serve(async (req) => {
     let coalesceRetried = false;
     const droppedColumns: string[] = [];
 
-    for (let attempt = 0; attempt < 8; attempt++) {
+    for (let attempt = 0; attempt < MAX_INSERT_ATTEMPTS; attempt++) {
       const { data: result, error } = await supabase
         .from("observations")
         .insert(insertPayload)
