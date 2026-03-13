@@ -140,4 +140,13 @@ jobs:
 
           echo "supabase db push failed after reconciliation attempts"
           cat "$LOG_FILE"
+
+          # Final attempt: force-apply all local migrations with --include-all.
+          # This executes the SQL of any local files that appear before the remote
+          # head (idempotent migrations: CREATE OR REPLACE, DROP … IF EXISTS, etc.).
+          echo "Final attempt: supabase db push --include-all..."
+          if supabase db push --include-all 2>&1 | tee "$LOG_FILE"; then
+            exit 0
+          fi
+          cat "$LOG_FILE"
           exit 1
