@@ -24,6 +24,7 @@ import {
   RefreshCw,
   ShieldAlert,
   UserX,
+  UserCheck,
   Zap,
   Eye,
   MapPin,
@@ -42,6 +43,7 @@ import { formatDateTime } from '@/lib/utils'
 import { nzDateToUTCStart, nzDateToUTCEnd } from '@/lib/timezone'
 import { AppLayout } from '@/components/features/AppLayout'
 import { GlobalFilterRibbon } from '@/components/features/GlobalFilterRibbon'
+import { AdminFollowUpDrawer } from '@/components/features/AdminFollowUpDrawer'
 import { enrichVehicleFromMotorWeb } from '@/lib/railwayServices'
 import { isPhotoUrlExpired, parseStorageUrl } from '@/lib/photoUtils'
 
@@ -212,6 +214,7 @@ export default function BreachAlerts() {
   const [resolveNotes, setResolveNotes] = useState('')
   const [rejectionReason, setRejectionReason] = useState('')
   const [activeTab, setActiveTab] = useState<'evidence' | 'rapsheet'>('evidence')
+  const [showFollowUpDrawer, setShowFollowUpDrawer] = useState(false)
 
   // 3-Zone state
   const [activeBreachId, setActiveBreachId] = useState<string | null>(null)
@@ -1366,6 +1369,19 @@ export default function BreachAlerts() {
                   <span className="text-xs opacity-75">⌃↵</span>
                 </Button>
 
+                {/* Assign to Officer Follow-Up */}
+                <Button
+                  className="w-full bg-blue-600 hover:bg-blue-700 text-white justify-between"
+                  onClick={() => setShowFollowUpDrawer(true)}
+                  disabled={['resolved', 'dismissed'].includes(activeBreach.status)}
+                >
+                  <span className="flex items-center gap-2">
+                    <UserCheck className="h-4 w-4" />
+                    ASSIGN TO OFFICER
+                  </span>
+                  <span className="text-xs opacity-75">⌃A</span>
+                </Button>
+
                 <Button
                   className="w-full bg-yellow-500 hover:bg-yellow-600 text-white justify-between"
                   onClick={handleIssueWarning}
@@ -1389,6 +1405,19 @@ export default function BreachAlerts() {
                   </span>
                   <span className="text-xs opacity-75">⌃R</span>
                 </Button>
+
+                {/* Show current assignment if breach is assigned */}
+                {activeBreach.assigned_to && activeBreach.admin_review_notes && (
+                  <div className="rounded-lg border border-blue-200 bg-blue-50 dark:bg-blue-950/30 p-2.5 text-xs">
+                    <p className="font-semibold text-blue-700 dark:text-blue-300 flex items-center gap-1 mb-1">
+                      <UserCheck className="h-3 w-3" />
+                      Assigned to officer
+                    </p>
+                    <p className="text-blue-800 dark:text-blue-200 leading-snug line-clamp-2">
+                      {activeBreach.admin_review_notes}
+                    </p>
+                  </div>
+                )}
 
                 <div className="border-t dark:border-gray-700 pt-3">
                   <Label className="text-xs text-gray-500">Rejection Reason</Label>
@@ -1559,6 +1588,26 @@ export default function BreachAlerts() {
           </div>
         </div>
       )}
+
+      {/* ── Admin Follow-Up Drawer ─────────────────────────────────────────── */}
+      <AdminFollowUpDrawer
+        open={showFollowUpDrawer}
+        onClose={() => setShowFollowUpDrawer(false)}
+        breach={activeBreach
+          ? {
+              id:                activeBreach.id,
+              organization_id:   activeBreach.organization_id,
+              plate_number:      activeBreach.plate_number,
+              breach_type:       activeBreach.breach_type,
+              zone_id:           activeBreach.zone_id,
+              observation_id:    activeBreach.observation_id,
+              status:            activeBreach.status,
+              admin_review_notes: activeBreach.admin_review_notes,
+              assigned_to:       activeBreach.assigned_to,
+              due_date:          activeBreach.due_date,
+            }
+          : null}
+      />
     </AppLayout>
   )
 }

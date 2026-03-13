@@ -12,6 +12,7 @@ import { LocationAuthorizationStatus } from '@/components/features/LocationAutho
 import { QRCheckpointScanner } from '@/components/features/QRCheckpointScanner'
 import { ScanDetailPanel, type DetailScanData } from '@/components/features/ScanDetailPanel'
 import { BulkScanSession } from '@/components/features/BulkScanSession'
+import { OfficerFollowUpQueue } from '@/components/features/OfficerFollowUpQueue'
 import { captureAndSave } from '@/lib/scanPipeline'
 import { useManDownDetection } from '@/hooks/useManDownDetection'
 import {
@@ -58,6 +59,9 @@ export default function FieldOfficerPortal() {
   const [isProcessing,      setIsProcessing]       = useState(false)
   const [detailScanData,    setDetailScanData]     = useState<DetailScanData | null>(null)
   const [showDetailPanel,   setShowDetailPanel]    = useState(false)
+
+  // Admin-assigned follow-up count — used to show badge on the queue card header
+  const [followUpCount,     setFollowUpCount]      = useState(0)
 
   const [currentPatrolZone, setCurrentPatrolZone] = useState<string | null>(zoneId)
   const [currentLocation, setCurrentLocation] = useState<{ latitude: number; longitude: number } | null>(null)
@@ -264,7 +268,10 @@ export default function FieldOfficerPortal() {
   }
 
   return (
-    <AppLayout title="Field Officer Portal" description={`Welcome, ${user?.full_name || 'Officer'}`}>
+    <AppLayout
+      title="Field Officer Portal"
+      description={`Welcome, ${user?.full_name || 'Officer'}${followUpCount > 0 ? ` · ${followUpCount} follow-up${followUpCount > 1 ? 's' : ''} assigned` : ''}`}
+    >
 
       {/* ── Man-Down active warning banner ──────────────────────────── */}
       {isManDownActive && (
@@ -738,6 +745,17 @@ export default function FieldOfficerPortal() {
             })}
           </CardContent>
         </Card>
+      )}
+
+      {/* ── Admin-assigned follow-ups for this officer ────────────────── */}
+      {scanMode !== 'bulk' && !showCheckpoint && !detailCameraOpen && (
+        <OfficerFollowUpQueue
+          onCountChange={setFollowUpCount}
+          onActivity={() => recordGPSUpdate(
+            currentLocation?.latitude ?? 0,
+            currentLocation?.longitude ?? 0,
+          )}
+        />
       )}
 
       {/* ── Detail Scan result panel (bottom Sheet) ──────────────────── */}

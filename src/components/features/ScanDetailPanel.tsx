@@ -10,11 +10,14 @@
  *  - Officer notes field (saved to observations.officer_notes)
  *  - H&S incident quick-link (pre-fills zone + plate)
  *  - Enforcement actions: Warning, Notice to Vacate (workflow-gated)
+ *  - Shows admin-assigned follow-up instructions if admin has responded
+ *  - "Escalate to Admin" button when admin review is needed (admin_first / hybrid)
  *  - Welfare: every save/action resets the man-down timer via onActivity()
  */
 
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Sheet, SheetContent, SheetHeader, SheetTitle,
 } from '@/components/ui/sheet'
@@ -26,10 +29,11 @@ import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
+import { useAuthStore } from '@/stores/authStore'
 import {
   Camera, Car, CheckCircle, XCircle, Clock, Save, AlertTriangle,
   ShieldAlert, MapPin, FileWarning, Megaphone, Shield, ExternalLink,
-  Loader2, Edit3,
+  Loader2, Edit3, Bell, ClipboardList,
 } from 'lucide-react'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -104,6 +108,8 @@ export function ScanDetailPanel({
   onActivity,
 }: ScanDetailPanelProps) {
   const navigate  = useNavigate()
+  const { user }  = useAuthStore()
+  const qc        = useQueryClient()
 
   // Local enriched copy of the observation (starts with initialData, updated by poll)
   const [obs, setObs] = useState<DetailScanData | null>(initialData)
@@ -129,6 +135,59 @@ export function ScanDetailPanel({
     setEditNotes(initialData?.officerNotes  ?? '')
     setEditMode(false)
   }, [initialData?.observationId]) // reset only when a new observation opens
+
+  // ── Fetch breach_alert for this observation (admin response) ─────────────
+  const { data: breachAlert } = useQuery({
+    queryKey: ['scan-breach-alert', obs?.observationId],
+    queryFn: async () => {
+      if (!obs?.observationId) return null
+      const { data } = await (supabase.from('breach_alerts') as any)
+        .select('id, status, admin_review_notes, assigned_to, due_date, assigned_at')
+        .eq('observation_id', obs.observationId)
+        .maybeSingle()
+      return data || null
+    },
+    enabled: !!obs?.observationId && !obs?.processingPending,
+    refetchInterval: 15_000,
+  })
+
+  // Whether admin has responded and the instruction is for this officer
+  const adminHasResponded =
+    breachAlert?.admin_review_notes &&
+    (breachAlert.assigned_to === user?.id || !breachAlert.assigned_to)
+
+  // ── Escalate to admin mutation ────────────────────────────────────────────
+  const escalateMutation = useMutation({
+    mutationFn: async () => {
+      if (!obs?.observationId || !user) throw new Error('No observation')
+      if (breachAlert?.id) {
+        // Update existing breach_alert to signal it needs admin attention
+        const { error } = await (supabase.from('breach_alerts') as any)
+          .update({ status: 'pending' })
+          .eq('id', breachAlert.id)
+        if (error) throw error
+      } else {
+        // No breach_alert yet — create one to flag for admin
+        const { error } = await (supabase.from('breach_alerts') as any)
+          .insert({
+            organization_id: user.organization_id,
+            zone_id:         obs.observationZoneId,
+            plate_number:    obs.plateNumber,
+            breach_type:     obs.breachType || 'manual_review_requested',
+            breach_details:  { source: 'officer_escalation', observation_id: obs.observationId },
+            observation_id:  obs.observationId,
+            status:          'pending',
+          })
+        if (error) throw error
+      }
+    },
+    onSuccess: () => {
+      toast.success('Flagged for admin review — admin will be notified')
+      qc.invalidateQueries({ queryKey: ['scan-breach-alert', obs?.observationId] })
+      onActivity?.()
+    },
+    onError: (err: any) => toast.error(err.message || 'Failed to escalate'),
+  })
 
   // ── Poll until plate + compliance are resolved ───────────────────────────
   useEffect(() => {
@@ -528,6 +587,28 @@ export function ScanDetailPanel({
           {/* ── ACTIONS TAB ────────────────────────────────────────── */}
           <TabsContent value="actions" className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
 
+            {/* ── Admin response banner (highest priority) ─────────── */}
+            {adminHasResponded && (
+              <div className="rounded-xl border-2 border-blue-400 bg-blue-50 dark:bg-blue-950/40 p-3 space-y-1.5">
+                <p className="text-xs font-semibold text-blue-700 dark:text-blue-300 uppercase tracking-wide flex items-center gap-1.5">
+                  <ClipboardList className="h-3.5 w-3.5 shrink-0" />
+                  Admin Instructions
+                </p>
+                <p className="text-sm text-blue-900 dark:text-blue-200 leading-snug font-medium">
+                  {breachAlert.admin_review_notes}
+                </p>
+                {breachAlert.due_date && (
+                  <p className={`text-xs flex items-center gap-1 ${
+                    new Date(breachAlert.due_date) < new Date() ? 'text-red-700 font-semibold' : 'text-blue-700'
+                  }`}>
+                    <Clock className="h-3 w-3 shrink-0" />
+                    Due: {new Date(breachAlert.due_date).toLocaleDateString('en-NZ')}
+                    {new Date(breachAlert.due_date) < new Date() && ' ⚠️ Overdue'}
+                  </p>
+                )}
+              </div>
+            )}
+
             {pending ? (
               <div className="flex items-center gap-3 text-blue-600 text-sm py-6 justify-center">
                 <Loader2 className="h-5 w-5 animate-spin" />
@@ -592,11 +673,11 @@ export function ScanDetailPanel({
                   </Button>
                 )}
 
-                {/* Admin First — read-only */}
-                {(!orgWorkflow || orgWorkflow === 'admin_first') && (
+                {/* Admin First — auto-reported + escalate option */}
+                {(!orgWorkflow || orgWorkflow === 'admin_first' || orgWorkflow === 'hybrid') && (
                   <div className="flex items-start gap-3 rounded-xl border border-blue-200 bg-blue-50 dark:bg-blue-950/30 p-3">
                     <Shield className="h-4 w-4 text-blue-600 mt-0.5 shrink-0" />
-                    <div className="text-sm">
+                    <div className="text-sm flex-1">
                       <p className="font-semibold text-blue-800 dark:text-blue-300">Reported to Admin</p>
                       <p className="text-xs text-blue-700 dark:text-blue-400 mt-0.5">
                         This breach has been automatically flagged.
@@ -604,6 +685,26 @@ export function ScanDetailPanel({
                       </p>
                     </div>
                   </div>
+                )}
+
+                {/* Escalate to admin — shown when admin hasn't responded yet */}
+                {!adminHasResponded && (
+                  <Button
+                    variant="outline"
+                    className="w-full justify-start h-11 border-indigo-400 text-indigo-800 hover:bg-indigo-50"
+                    disabled={escalateMutation.isPending || !plate}
+                    onClick={() => { escalateMutation.mutate(); onActivity?.() }}
+                  >
+                    <Bell className="h-4 w-4 mr-2 text-indigo-600 shrink-0" />
+                    <div className="text-left">
+                      <div className="text-sm font-semibold">
+                        {escalateMutation.isPending ? 'Flagging…' : 'Escalate — Request Urgent Admin Review'}
+                      </div>
+                      <div className="text-[11px] font-normal opacity-70">
+                        Flags this scan for immediate admin attention
+                      </div>
+                    </div>
+                  </Button>
                 )}
               </>
             ) : compliant === true ? (

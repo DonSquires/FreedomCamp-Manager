@@ -45,7 +45,7 @@ interface SessionScan {
 interface BulkScanSessionProps {
   /** Called with (lat, lon) on every GPS fix — keeps man-down timer alive */
   recordGPSUpdate: (lat: number, lon: number) => void
-  /** Active patrol session ID for incrementing vehicles_checked / breaches_found */
+  /** Active patrol session ID for incrementing vehicles_checked / breaches_found. Optional — counters are silently skipped when absent. */
   activePatrolId?: string | null
   orgWorkflow: string
   onIssueAction: (params: {

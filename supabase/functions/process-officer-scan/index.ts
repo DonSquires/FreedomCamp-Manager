@@ -208,6 +208,8 @@ interface ComplianceResult {
   breachType: string | null;
   breachReason: string | null;
   violationReasons: string[];
+  nightsStayed: number;
+  consecutiveNights: number;
 }
 
 async function evaluateCompliance(
@@ -250,7 +252,7 @@ async function evaluateCompliance(
   }
 
   if (!matrix) {
-    return { isCompliant: true, breachType: null, breachReason: null, violationReasons: [] };
+    return { isCompliant: true, breachType: null, breachReason: null, violationReasons: [], nightsStayed: 0, consecutiveNights: 0 };
   }
 
   // Count nights for this vehicle in this zone
@@ -327,6 +329,8 @@ async function evaluateCompliance(
     breachType: breachType ? toValidBreachType(breachType) : null,
     breachReason,
     violationReasons: violations,
+    nightsStayed,
+    consecutiveNights,
   };
 }
 
@@ -587,10 +591,12 @@ Deno.serve(async (req: Request) => {
     await supabase
       .from('observations')
       .update({
-        is_compliant: compliance.isCompliant,
-        is_breach:    !compliance.isCompliant,
-        breach_type:  compliance.breachType,
-        breach_reason: compliance.breachReason,
+        is_compliant:              compliance.isCompliant,
+        is_breach:                 !compliance.isCompliant,
+        breach_type:               compliance.breachType,
+        breach_reason:             compliance.breachReason,
+        nights_stayed_this_month:  compliance.nightsStayed,
+        consecutive_nights:        compliance.consecutiveNights,
       })
       .eq('observation_id', observationId);
 
@@ -644,6 +650,15 @@ Deno.serve(async (req: Request) => {
             zone_id:         zoneId,
             organization_id: organizationId,
             breach_type:     compliance.breachType,
+            breach_details:  {
+              breach_reason:            compliance.breachReason,
+              violation_reasons:        compliance.violationReasons,
+              nights_stayed_this_month: compliance.nightsStayed,
+              consecutive_nights:       compliance.consecutiveNights,
+              is_self_contained:        nzscv?.isSelfContained ?? false,
+              csc_status:               nzscv?.certStatus ?? null,
+              source:                   'process_officer_scan',
+            },
             status:          'pending',
             created_at:      new Date().toISOString(),
           })
