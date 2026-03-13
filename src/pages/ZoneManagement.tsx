@@ -154,9 +154,18 @@ export default function ZoneManagement() {
       const { data, error } = await query
       if (error) throw error
 
+      // Deduplicate zones by (organization_id, name) — keep first occurrence
+      const seen = new Set<string>()
+      const uniqueZones = ((data || []) as Zone[]).filter((zone) => {
+        const key = `${zone.organization_id}::${zone.name.trim().toLowerCase()}`
+        if (seen.has(key)) return false
+        seen.add(key)
+        return true
+      })
+
       // Fetch counts for each zone
       const zonesWithCounts = await Promise.all(
-        ((data || []) as Zone[]).map(async (zone) => {
+        uniqueZones.map(async (zone) => {
           const [obsCount, breachCount] = await Promise.all([
             supabase.from('observations').select('observation_id', { count: 'exact', head: true }).eq('zone_id', zone.id),
             supabase.from('breach_alerts').select('id', { count: 'exact', head: true }).eq('zone_id', zone.id),
@@ -235,6 +244,19 @@ export default function ZoneManagement() {
       const orgId = user?.role === 'master' ? createOrganizationId : user?.organization_id
       if (!orgId) throw new Error('Organisation is required')
 
+      // Check for existing zone with same name in this org
+      const { data: existing } = await supabase
+        .from('zones')
+        .select('id, name')
+        .eq('organization_id', orgId)
+        .eq('is_active', true)
+        .ilike('name', createName.trim())
+        .limit(1)
+
+      if (existing && existing.length > 0) {
+        throw new Error(`A zone named "${createName.trim()}" already exists in this organisation`)
+      }
+
       const { error } = await (supabase.from('zones') as any)
         .insert({
           name: createName.trim(),
@@ -249,7 +271,12 @@ export default function ZoneManagement() {
           is_active: true,
         })
 
-      if (error) throw error
+      if (error) {
+        if (error.message?.includes('idx_zones_unique_org_name_active')) {
+          throw new Error(`A zone named "${createName.trim()}" already exists in this organisation`)
+        }
+        throw error
+      }
     },
     onSuccess: () => {
       toast.success('Zone created successfully')

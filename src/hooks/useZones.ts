@@ -39,7 +39,17 @@ export function useZones(options: UseZonesOptions = {}) {
       const { data, error } = await query
 
       if (error) throw error
-      return data as Zone[]
+
+      // Deduplicate zones by (organization_id, name) — keep first occurrence
+      const seen = new Set<string>()
+      const unique = ((data || []) as Zone[]).filter((zone) => {
+        const key = `${zone.organization_id}::${zone.name.trim().toLowerCase()}`
+        if (seen.has(key)) return false
+        seen.add(key)
+        return true
+      })
+
+      return unique as Zone[]
     },
   })
 }
@@ -70,7 +80,12 @@ export function useCreateZone() {
         .from('zones') as any)
         .insert(zone)
 
-      if (error) throw error
+      if (error) {
+        if (error.message?.includes('idx_zones_unique_org_name_active')) {
+          throw new Error(`A zone with this name already exists in this organisation`)
+        }
+        throw error
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['zones'] })

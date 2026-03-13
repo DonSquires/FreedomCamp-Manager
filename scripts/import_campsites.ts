@@ -207,7 +207,7 @@ async function upsertZone(
   existingZones: Map<string, string>,
   counters: { created: number; updated: number }
 ): Promise<void> {
-  const lookupKey = `${params.orgId}::${params.name}`;
+  const lookupKey = `${params.orgId}::${params.name.trim().toLowerCase()}`;
   const existingId = existingZones.get(lookupKey);
 
   if (existingId) {
@@ -282,7 +282,7 @@ async function fetchExistingZones(): Promise<Map<string, string>> {
 
   if (data) {
     for (const z of data) {
-      map.set(`${z.organization_id}::${z.name}`, z.id);
+      map.set(`${z.organization_id}::${z.name.trim().toLowerCase()}`, z.id);
     }
   }
   return map;

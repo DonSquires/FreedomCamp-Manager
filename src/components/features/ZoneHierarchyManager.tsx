@@ -10,6 +10,7 @@ import { ZoneGeofenceIndicator } from '@/components/features/ZoneGeofenceIndicat
 interface Zone {
   id: string
   name: string
+  organization_id: string
   zone_type: string
   parent_zone_id: string | null
   is_active: boolean
@@ -46,6 +47,7 @@ export function ZoneHierarchyManager({
         .select(`
           id,
           name,
+          organization_id,
           zone_type,
           parent_zone_id,
           is_active,
@@ -70,7 +72,15 @@ export function ZoneHierarchyManager({
       const { data, error } = await query
 
       if (error) throw error
-      return data as Zone[]
+
+      // Deduplicate zones by (organization_id, name) — keep first occurrence
+      const seen = new Set<string>()
+      return ((data || []) as Zone[]).filter((zone) => {
+        const key = `${zone.organization_id}::${zone.name.trim().toLowerCase()}`
+        if (seen.has(key)) return false
+        seen.add(key)
+        return true
+      })
     },
   })
 

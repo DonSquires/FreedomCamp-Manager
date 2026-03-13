@@ -673,7 +673,15 @@ function ZonesTab() {
         .order('is_active', { ascending: false })
         .order('name');
       if (error) throw error;
-      return (data ?? []) as Zone[];
+
+      // Deduplicate zones by (organization_id, name) — keep first occurrence
+      const seen = new Set<string>();
+      return ((data ?? []) as Zone[]).filter((zone) => {
+        const key = `${zone.organization_id}::${zone.name.trim().toLowerCase()}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
     },
   });
 
