@@ -14,8 +14,15 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.7";
 import { corsHeaders } from "../_shared/cors.ts";
 import { alprWithBytes } from "../_shared/alpr.ts";
+import {
+  isCoalesceTypeMismatchError,
+  extractMissingSchemaColumn,
+  COMPLIANCE_DRIFT_COLUMNS,
+  OPTIONAL_SCHEMA_COLUMNS,
+} from "../_shared/observationInsert.ts";
 
 const PHOTO_FETCH_TIMEOUT_MS = Number(Deno.env.get("INGEST_PHOTO_FETCH_TIMEOUT_MS") ?? "8000");
+const MAX_INSERT_ATTEMPTS = 8;
 
 function getCorsHeaders(_req?: Request) {
   return {
@@ -664,8 +671,9 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Step 4: Insert observation into observations table
-    const observationData = {
+    // Step 4: Insert observation into observations table with adaptive retry
+    // Handles COALESCE type mismatch errors and schema cache misses
+    const observationData: Record<string, unknown> = {
       plate_number: plateNumber || "MANUAL_REQUIRED",
       photo_url: photoUrl,
       photo_hash: photoHash,
@@ -693,19 +701,67 @@ Deno.serve(async (req) => {
       consecutive_nights: 0,
     };
 
-    const insertPayload = supportsIdempotencyKeyColumn
+    const insertPayload: Record<string, unknown> = supportsIdempotencyKeyColumn
       ? { ...observationData, idempotency_key: idempotencyKey }
       : observationData;
 
-    const { data: observation, error: obsError } = await supabase
-      .from("observations")
-      .insert(insertPayload)
-      .select()
-      .single();
+    // Adaptive insert with retry logic for schema drift and COALESCE errors
+    let observation: unknown = null;
+    let obsError: unknown = null;
+    let coalesceRetried = false;
+    const droppedColumns: string[] = [];
 
-    if (obsError) {
+    for (let attempt = 0; attempt < MAX_INSERT_ATTEMPTS; attempt++) {
+      const { data: result, error } = await supabase
+        .from("observations")
+        .insert(insertPayload)
+        .select()
+        .single();
+
+      if (!error) {
+        observation = result;
+        break;
+      }
+
+      // Handle missing schema column errors - drop column and retry
+      const missingCol = extractMissingSchemaColumn(error);
+      if (missingCol && OPTIONAL_SCHEMA_COLUMNS.has(missingCol) && (missingCol in insertPayload)) {
+        console.warn(`⚠️ Schema cache missing column '${missingCol}' — dropping from INSERT and retrying`);
+        delete insertPayload[missingCol];
+        droppedColumns.push(missingCol);
+        continue;
+      }
+
+      // Handle COALESCE type mismatch errors - drop compliance columns and retry
+      if (!coalesceRetried && isCoalesceTypeMismatchError(error)) {
+        console.warn("⚠️ COALESCE type mismatch detected — dropping compliance columns and retrying");
+        for (const col of COMPLIANCE_DRIFT_COLUMNS) {
+          if (col in insertPayload) {
+            delete insertPayload[col];
+            droppedColumns.push(col);
+          }
+        }
+        coalesceRetried = true;
+        continue;
+      }
+
+      // Can't recover - record error and break
+      obsError = error;
+      console.error("❌ Insert failed after retries:", {
+        error: (error as any)?.message,
+        attempt: attempt + 1,
+        droppedColumns,
+      });
+      break;
+    }
+
+    if (droppedColumns.length > 0) {
+      console.log("📝 Adaptive insert dropped columns:", droppedColumns);
+    }
+
+    if (obsError || !observation) {
       console.error("❌ Failed to create observation:", obsError);
-      return new Response(JSON.stringify({ error: "Failed to create observation: " + obsError.message }), {
+      return new Response(JSON.stringify({ error: "Failed to create observation: " + ((obsError as any)?.message || "Unknown error") }), {
         status: 500,
         headers: { ...getCorsHeaders(req), "content-type": "application/json" },
       });
