@@ -7,7 +7,7 @@ import { monitorGeofenceAndPatrol } from '@/lib/geofence'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { AppLayout } from '@/components/features/AppLayout'
-import { CameraCapture } from '@/components/features/CameraCapture'
+import { SplitScanCamera } from '@/components/features/SplitScanCamera'
 import { LocationAuthorizationStatus } from '@/components/features/LocationAuthorizationStatus'
 import { QRCheckpointScanner } from '@/components/features/QRCheckpointScanner'
 import { useManDownDetection } from '@/hooks/useManDownDetection'
@@ -33,55 +33,7 @@ const formatBreachType = (breachType: string | null | undefined): string => {
   return breachType.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
 }
 
-const isTransientNetworkError = (errorMessage?: string | null) => {
-  const msg = (errorMessage || '').toLowerCase()
-  return (
-    msg.includes('failed to send a request to the edge function') ||
-    msg.includes('fetch failed') ||
-    msg.includes('networkerror') ||
-    msg.includes('network request failed')
-  )
-}
 
-/**
- * Returns true when alpr-process returned a 500 because a column is missing
- * from the PostgREST schema cache (i.e. the migration ran but the cache
- * hasn't refreshed yet).  In this case we can still save the observation
- * via a direct Supabase insert, which the fallback code below already
- * handles by stripping unrecognised columns adaptively.
- */
-const isAlprSchemaCacheError = (errorMessage?: string | null) => {
-  const msg = (errorMessage || '').toLowerCase()
-  // PostgREST schema-cache miss: "Could not find the '<col>' column of '<table>' in the schema cache"
-  return msg.includes('schema cache') ||
-    (msg.includes('could not find the') && msg.includes('column'))
-}
-
-const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms))
-
-async function retryEdgeCall<T>(
-  fn: () => Promise<{ data: T | null; error: string | null }>,
-  retries = 2,
-  delayMs = 700
-) {
-  let attempt = 0
-  let lastError: string | null = null
-
-  while (attempt <= retries) {
-    const result = await fn()
-    if (!result.error) return result
-
-    lastError = result.error
-    if (!isTransientNetworkError(result.error) || attempt === retries) {
-      return result
-    }
-
-    await wait(delayMs * (attempt + 1))
-    attempt += 1
-  }
-
-  return { data: null, error: lastError || 'Unknown edge function failure' }
-}
 
 export default function FieldOfficerPortal() {
   const { user } = useAuthStore()
@@ -552,227 +504,74 @@ export default function FieldOfficerPortal() {
       }
 
       // ============================================================================
-      // STEP 7: PHOTO-FIRST APPROACH - Create observation directly
+      // STEP 7: SAVE OBSERVATION via safe_insert_observation RPC
       // ============================================================================
-      // The simplified "photo-first" approach:
-      // 1. Insert observation with minimal fields (photo, location, zone)
-      // 2. Let the database trigger `trg_auto_evaluate_compliance` run compliance
-      // 3. Fire-and-forget alpr-process in UPDATE mode for plate recognition
+      // Single-path: one RPC call that bypasses broken DB triggers and runs
+      // the full compliance pipeline inline:
+      //   canonical vehicle lookup → compliance eval → observation insert →
+      //   compliance_results → canonical stats → breach_alerts
       //
-      // Benefits:
-      // - Immediate feedback to officer (no waiting for ALPR)
-      // - Compliance runs automatically via existing trigger
-      // - No schema cache issues (trigger handles compliance, not edge function)
-      // - Decoupled concerns: evidence capture separate from plate recognition
+      // Migration: 20260313000001_emergency_coalesce_fix.sql
       // ============================================================================
-      
+
       toast.info('Saving observation...')
-      appendScanDebug('Creating observation (photo-first)', {
-        zone_id: finalZoneId,
-        photo_url: photoUrl,
-      })
+      appendScanDebug('Creating observation', { zone_id: finalZoneId, photo_url: photoUrl })
 
       const nowIso = new Date().toISOString()
-      // photoHash was already computed above (real SHA-256) before the upload.
 
-      // Minimal payload - let trigger handle compliance
-      const observationPayload: Record<string, any> = {
-        idempotency_key: idempotencyKey,
-        plate_number: 'PROCESSING...', // Placeholder until async ALPR completes
-        photo: photoUrl,    // primary photo column in live schema
-        photo_url: photoUrl, // secondary for compatibility
-        photo_hash: photoHash,
-        recorded_at: nowIso,
-        zone_id: finalZoneId,
-        organization_id: user.organization_id,
-        gps_latitude: position.coords.latitude,
-        gps_longitude: position.coords.longitude,
-        gps_accuracy: position.coords.accuracy,
-        recorded_by: user.id,
-        // weather_conditions and processing_status do NOT exist in the live schema
+      const { data: ingestData, error: rpcError } = await (supabase as any).rpc(
+        'safe_insert_observation',
+        {
+          p_data: {
+            plate_number: 'PROCESSING...',
+            photo: photoUrl,
+            photo_url: photoUrl,
+            photo_hash: photoHash,
+            recorded_at: nowIso,
+            zone_id: finalZoneId,
+            organization_id: user.organization_id,
+            gps_latitude: position.coords.latitude,
+            gps_longitude: position.coords.longitude,
+            gps_accuracy: position.coords.accuracy,
+            recorded_by: user.id,
+            idempotency_key: idempotencyKey,
+          },
+        }
+      )
+
+      if (rpcError || !ingestData) {
+        appendScanDebug('Observation save failed', { error: rpcError?.message })
+        throw new Error(`Save failed: ${rpcError?.message || 'Unknown error'}`)
       }
 
-      let ingestData: any = null
-      let ingestError: string | null = null
+      appendScanDebug('Observation created', {
+        observation_id: ingestData.observation_id ?? ingestData.id,
+        is_compliant: ingestData.is_compliant,
+      })
 
-      // ── PATH 1: Fast direct insert (works when DB trigger is healthy) ──
-      const adaptivePayload: Record<string, any> = { ...observationPayload }
-      let directInsertCoalesceFailed = false
-
-      for (let attempt = 0; attempt < 8; attempt += 1) {
-        const insertAttempt = await (supabase
-          .from('observations') as any)
-          .insert(adaptivePayload)
-          .select('*')
-          .single()
-
-        if (!insertAttempt.error) {
-          ingestData = insertAttempt.data
-          appendScanDebug('Observation created (direct)', {
-            observation_id: ingestData?.id ?? ingestData?.observation_id,
-            is_compliant: ingestData?.is_compliant,
-            attempt: attempt + 1,
-          })
-          break
-        }
-
-        const message = String(insertAttempt.error?.message || '')
-        
-        // Handle missing column errors - remove column and retry
-        const missingColumnMatch = message.match(/Could not find the '([^']+)' column/i)
-        const missingColumn = missingColumnMatch?.[1]
-
-        if (missingColumn && (missingColumn in adaptivePayload)) {
-          delete adaptivePayload[missingColumn]
-          appendScanDebug('Adjusting payload - removed column', {
-            removed_column: missingColumn,
-            attempt: attempt + 1,
-          })
-          continue
-        }
-
-        // COALESCE type mismatch = the DB trigger itself is broken (column
-        // type drifted from INTEGER to TEXT).  Removing columns from the
-        // payload cannot fix this because the trigger references NEW.column
-        // which uses the column's DEFAULT.  Break out and try the fallback
-        // paths below instead of looping uselessly.
-        if (/coalesce types/i.test(message)) {
-          directInsertCoalesceFailed = true
-          appendScanDebug('Direct insert COALESCE trigger error — falling back to edge function', {
-            attempt: attempt + 1,
-          })
-          break
-        }
-
-        // Other unrecoverable error
-        ingestError = insertAttempt.error.message
-        appendScanDebug('Insert failed', { error: ingestError, attempt: attempt + 1 })
-        break
-      }
-
-      // ── PATH 2: vehicle-ingest edge function (runs server-side with
-      //    service_role key, includes compliance columns, creates canonical
-      //    vehicles, and runs plate inference) ──
-      //
-      //    photo_hash is passed so the edge function can skip re-downloading the
-      //    photo for hashing — avoiding the download + inference timeout chain
-      //    that causes "Failed to send a request to the Edge Function".
-      if (directInsertCoalesceFailed && !ingestData) {
-        appendScanDebug('Trying vehicle-ingest edge function fallback')
-        toast.info('Retrying via secure pipeline...')
-
-        const { data: edgeResult, error: edgeErr } = await edgeFunctions.ingestVehicleObservation({
-          photo_url: photoUrl,
-          photo_hash: photoHash,
-          gps_latitude: position.coords.latitude,
-          gps_longitude: position.coords.longitude,
-          gps_accuracy: position.coords.accuracy,
-          recorded_at: nowIso,
-          officer_id: user.id,
-          organization_id: user.organization_id,
-          zone_id: finalZoneId,
-          idempotency_key: idempotencyKey,
-        })
-
-        if (!edgeErr && edgeResult) {
-          // vehicle-ingest returns { success, observation_id, plate, ... }
-          ingestData = edgeResult
-          appendScanDebug('Observation created via vehicle-ingest', {
-            observation_id: edgeResult.observation_id,
-            plate: edgeResult.plate,
-          })
-        } else {
-          appendScanDebug('vehicle-ingest also failed — trying safe insert RPC', {
-            error: edgeErr,
-          })
-
-          // ── PATH 3: safe_insert_observation RPC (bypasses all triggers) ──
-          // Created by migration 20260313000001 (emergency fix) and updated
-          // by 20260404000002 (pipeline-complete version).
-          try {
-            const { data: rpcResult, error: rpcError } = await (supabase as any).rpc(
-              'safe_insert_observation',
-              {
-                p_data: {
-                  plate_number: 'PROCESSING...',
-                  photo: photoUrl,
-                  photo_url: photoUrl,
-                  photo_hash: photoHash,
-                  recorded_at: nowIso,
-                  zone_id: finalZoneId,
-                  organization_id: user.organization_id,
-                  gps_latitude: position.coords.latitude,
-                  gps_longitude: position.coords.longitude,
-                  gps_accuracy: position.coords.accuracy,
-                  recorded_by: user.id,
-                  idempotency_key: idempotencyKey,
-                },
-              }
-            )
-
-            if (!rpcError && rpcResult) {
-              ingestData = rpcResult
-              appendScanDebug('Observation created via safe_insert_observation RPC', {
-                observation_id: rpcResult.observation_id ?? rpcResult.id,
-              })
-            } else {
-              // Report the RPC error first; fall back to the edge-function error
-              // only if the RPC produced no error of its own.
-              ingestError = rpcError?.message || edgeErr || 'All insert paths failed'
-            }
-          } catch (rpcCatchError: any) {
-            ingestError = rpcCatchError?.message || edgeErr || 'All insert paths failed'
-          }
-        }
-      }
-
-      if (ingestError || !ingestData) {
-        throw new Error(`Save failed: ${ingestError || 'Unknown error'}`)
-      }
-
-      // Extract observation ID (handle direct insert row, edge function response,
-      // and RPC response formats)
       const observationId = ingestData.observation_id ?? ingestData.id
 
-      // If created via vehicle-ingest (PATH 2), plate inference already ran
-      // inside the edge function — skip the separate ALPR call.
-      const alprAlreadyDone = !!ingestData.success // vehicle-ingest sets success:true
-
       // ============================================================================
-      // STEP 8: FIRE-AND-FORGET ALPR (UPDATE mode)
+      // STEP 8: FIRE-AND-FORGET ALPR (plate recognition runs in background)
       // ============================================================================
-      // Now that the observation is saved, trigger plate recognition asynchronously.
-      // This updates the observation with plate_number once ALPR completes.
-      // We don't await this - the officer gets immediate feedback.
-      // If ALPR fails, the observation will have plate_number='PROCESSING...' or
-      // 'MANUAL_REQUIRED' and the existing polling mechanism will update the UI.
-      if (!alprAlreadyDone) {
-        appendScanDebug('Triggering async ALPR', { observation_id: observationId })
+      appendScanDebug('Triggering async ALPR', { observation_id: observationId })
 
-        edgeFunctions.processALPR({
-          observation_id: observationId,
-          photo_url: photoUrl,
-        }).then(({ data: alprResult, error: alprError }) => {
-          if (alprError) {
-            console.warn('⚠️ Async ALPR failed:', alprError)
-          } else {
-            console.log('✅ Async ALPR completed:', {
-              plate: alprResult?.plate,
-              confidence: alprResult?.confidence,
-            })
-            refetchScans()
-          }
-        }).catch((err) => {
-          console.warn('⚠️ Async ALPR error:', err)
-        })
-      } else {
-        appendScanDebug('ALPR already completed by vehicle-ingest', {
-          plate: ingestData.plate ?? 'UNKNOWN',
-          confidence: ingestData.confidence ?? null,
-        })
-        // Plate was already detected by vehicle-ingest — refresh UI
-        refetchScans()
-      }
+      edgeFunctions.processALPR({
+        observation_id: observationId,
+        photo_url: photoUrl,
+      }).then(({ data: alprResult, error: alprError }) => {
+        if (alprError) {
+          console.warn('⚠️ Async ALPR failed:', alprError)
+        } else {
+          console.log('✅ Async ALPR completed:', {
+            plate: alprResult?.plate,
+            confidence: alprResult?.confidence,
+          })
+          refetchScans()
+        }
+      }).catch((err) => {
+        console.warn('⚠️ Async ALPR error:', err)
+      })
 
       console.log('✅ Observation created:', {
         observation_id: observationId,
@@ -888,69 +687,138 @@ export default function FieldOfficerPortal() {
       )}
 
       {showScanner ? (
-        <>
-          <CameraCapture 
-            onCapture={handleCapture} 
-            onCancel={handleCloseScanner} 
-            facing="environment" 
-            showControls={true} 
-            onDiagnosticEvent={(label, payload) => appendScanDebug(label, payload)}
-            menuItems={[
-              {
-                label: 'Copy Scan Diagnostics',
-                onClick: copyScanDebug,
-              },
-              {
-                label: 'Close Scanner',
-                onClick: handleCloseScanner,
-              },
-            ]}
-          />
+        /* ── Split-screen scan layout ──────────────────────────────────────
+           TOP  (¼): scan status + last result
+           BOTTOM (¾): live camera viewfinder + capture button
+        ──────────────────────────────────────────────────────────────────── */
+        <div className="flex flex-col gap-3">
 
-          <Card className="mt-4 border-blue-300 bg-blue-50/70 dark:bg-blue-950/30">
-            <CardHeader className="pb-2 pt-3 px-4">
-              <div className="flex items-center justify-between gap-2">
-                <CardTitle className="text-sm">Scan Diagnostics</CardTitle>
-                <div className="flex items-center gap-2">
-                  <Badge
-                    variant="secondary"
-                    className={
-                      scanDebugStatus === 'error'
-                        ? 'bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300'
-                        : scanDebugStatus === 'success'
-                        ? 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300'
-                        : 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300'
-                    }
-                  >
-                    {scanDebugStatus === 'error' ? 'Error' : scanDebugStatus === 'success' ? 'Success' : 'Running'}
-                  </Badge>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="h-7 text-[11px]"
-                    onClick={copyScanDebug}
-                    disabled={scanDebugLines.length === 0}
-                  >
-                    <Copy className="h-3 w-3 mr-1" />
-                    Copy
-                  </Button>
+          {/* ── TOP QUARTER: Results / status panel ── */}
+          <div
+            className="overflow-y-auto rounded-xl border bg-white dark:bg-gray-900 shadow-sm"
+            style={{ minHeight: '90px', maxHeight: '28vh' }}
+          >
+            {/* Processing indicator */}
+            {isProcessing && (
+              <div className="flex items-center gap-3 p-3 border-b border-blue-100 dark:border-blue-900 bg-blue-50 dark:bg-blue-950/30">
+                <div className="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-blue-500 border-t-transparent" />
+                <span className="text-sm font-medium text-blue-700 dark:text-blue-300">
+                  Saving observation…
+                </span>
+              </div>
+            )}
+
+            {/* Last scan result (compact row) */}
+            {lastScanResult ? (
+              <div className={`p-3 ${
+                lastScanResult.processingPending
+                  ? 'bg-gray-50 dark:bg-gray-900'
+                  : lastScanResult.isCompliant === false
+                  ? 'bg-red-50 dark:bg-red-950/40'
+                  : 'bg-green-50 dark:bg-green-950/40'
+              }`}>
+                <div className="flex items-start gap-3">
+                  {/* Thumbnail */}
+                  {lastScanResult.photoUrl ? (
+                    <img src={lastScanResult.photoUrl} alt="Scan"
+                      className="h-14 w-14 rounded-lg object-cover shrink-0 border" />
+                  ) : (
+                    <div className="h-14 w-14 rounded-lg bg-gray-100 dark:bg-gray-800 flex items-center justify-center shrink-0 border">
+                      <Camera className="h-6 w-6 text-gray-400" />
+                    </div>
+                  )}
+
+                  {/* Plate + compliance */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-mono font-bold text-base">
+                        {lastScanResult.plateNumber || '—'}
+                      </span>
+                      {lastScanResult.processingPending ? (
+                        <Badge variant="secondary" className="text-[10px] animate-pulse">
+                          <Clock className="h-2.5 w-2.5 mr-1" />Processing…
+                        </Badge>
+                      ) : lastScanResult.isCompliant === true ? (
+                        <Badge className="bg-green-600 text-white text-[10px]">
+                          <CheckCircle className="h-2.5 w-2.5 mr-1" />Compliant
+                        </Badge>
+                      ) : lastScanResult.isCompliant === false ? (
+                        <Badge variant="destructive" className="text-[10px]">
+                          <XCircle className="h-2.5 w-2.5 mr-1" />
+                          {formatBreachType(lastScanResult.breachType)}
+                        </Badge>
+                      ) : null}
+                      <Button variant="ghost" size="icon" className="h-5 w-5 ml-auto"
+                        onClick={() => setLastScanResult(null)}>
+                        <X className="h-3 w-3" />
+                      </Button>
+                    </div>
+                    {lastScanResult.zoneName && (
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        <MapPin className="h-3 w-3 inline mr-1" />{lastScanResult.zoneName}
+                      </p>
+                    )}
+                    {/* Quick enforcement actions */}
+                    {!lastScanResult.processingPending && lastScanResult.isCompliant === false && (
+                      <div className="flex gap-1.5 flex-wrap mt-1.5">
+                        {(orgWorkflow === 'officer_direct' || orgWorkflow === 'hybrid') && lastScanResult.observationId && (
+                          <Button size="sm" variant="outline"
+                            className="h-6 text-[10px] px-2 border-yellow-400 text-yellow-700 hover:bg-yellow-50"
+                            disabled={issueAction.isPending}
+                            onClick={() => issueAction.mutate({
+                              observationId: lastScanResult.observationId!,
+                              zoneId: lastScanResult.observationZoneId || '',
+                              plateNumber: lastScanResult.plateNumber || '',
+                              actionType: 'warning',
+                            })}>
+                            <FileWarning className="h-2.5 w-2.5 mr-1" />Warning
+                          </Button>
+                        )}
+                        {orgWorkflow === 'officer_direct' && lastScanResult.observationId && (
+                          <Button size="sm" variant="outline"
+                            className="h-6 text-[10px] px-2 border-red-400 text-red-700 hover:bg-red-50"
+                            disabled={issueAction.isPending}
+                            onClick={() => issueAction.mutate({
+                              observationId: lastScanResult.observationId!,
+                              zoneId: lastScanResult.observationZoneId || '',
+                              plateNumber: lastScanResult.plateNumber || '',
+                              actionType: 'notice_to_vacate',
+                            })}>
+                            <Megaphone className="h-2.5 w-2.5 mr-1" />NTV
+                          </Button>
+                        )}
+                        {(!orgWorkflow || orgWorkflow === 'admin_first') && (
+                          <Badge variant="secondary" className="text-[10px]">
+                            <Shield className="h-2.5 w-2.5 mr-1" />Admin notified
+                          </Badge>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
-              <CardDescription className="text-xs">
-                {scanDebugLines.length > 0
-                  ? 'Copy and paste this block into chat for scan troubleshooting.'
-                  : 'Start a scan to populate diagnostics logs.'}
-              </CardDescription>
-            </CardHeader>
-            {scanDebugLines.length > 0 && (
-              <CardContent className="px-4 pb-3">
-                <pre className="max-h-48 overflow-auto rounded border bg-white/70 dark:bg-slate-900 p-2 text-[11px] leading-4 whitespace-pre-wrap break-words">
-                  {scanDebugLines.join('\n')}
-                </pre>
-              </CardContent>
-            )}
-          </Card>
-        </>
+            ) : !isProcessing ? (
+              /* Idle state — prompt officer to take a photo */
+              <div className="flex items-center justify-center gap-2 p-4 text-sm text-muted-foreground">
+                <Camera className="h-4 w-4" />
+                <span>Point camera at vehicle and tap capture</span>
+              </div>
+            ) : null}
+          </div>
+
+          {/* ── BOTTOM THREE-QUARTERS: Live camera viewfinder ── */}
+          <div
+            className="w-full rounded-xl overflow-hidden border border-gray-700 shadow-lg"
+            style={{ height: '62vh', minHeight: '300px' }}
+          >
+            <SplitScanCamera
+              onCapture={handleCapture}
+              onCancel={handleCloseScanner}
+              isProcessing={isProcessing}
+            />
+          </div>
+
+        </div>
       ) : showCheckpoint ? (
         <Card>
           <CardHeader>
