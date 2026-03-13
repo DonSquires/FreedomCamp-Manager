@@ -323,11 +323,16 @@ export default function AdminPortal() {
         .map(([date, value]) => ({ date, ...value }))
     }
 
+    const totalBreaches = totalObservations - compliant
+    const homelessVehicleCount = data?.homelessPlates?.length ?? 0
+
     return {
       totalObservations,
       complianceRate,
       activeVehicles,
       activeBreaches: data?.activeBreaches ?? 0,
+      totalBreaches,
+      homelessVehicleCount,
       trendData,
     }
   }, [data, normalizedDateFrom, normalizedDateTo])
@@ -530,13 +535,13 @@ export default function AdminPortal() {
       config: { to: '/compliance', metric: 'compliance_rate', period: periodLabel, tab: 'zones', label: 'Compliance Rate KPI' },
     },
     {
-      title: 'Active Breaches',
-      value: isLoading ? '...' : metrics.activeBreaches,
+      title: 'Total Breaches',
+      value: isLoading ? '...' : metrics.totalBreaches,
       icon: AlertTriangle,
       iconBg: 'bg-red-100 dark:bg-red-900/40',
       iconColor: 'text-red-600 dark:text-red-400',
       accentColor: 'from-red-500 to-red-600',
-      config: { to: '/breaches', metric: 'active_breaches', period: periodLabel, status: 'pending', label: 'Active Breaches KPI' },
+      config: { to: '/compliance', metric: 'active_breaches', period: periodLabel, tab: 'breaches', label: 'Total Breaches KPI' },
     },
     {
       title: 'Active Vehicles',
@@ -546,6 +551,15 @@ export default function AdminPortal() {
       iconColor: 'text-violet-600 dark:text-violet-400',
       accentColor: 'from-violet-500 to-violet-600',
       config: { to: '/vehicles', metric: 'active_vehicles', period: periodLabel, status: 'all', label: 'Active Vehicles KPI' },
+    },
+    {
+      title: 'Homeless Vehicles',
+      value: isLoading ? '...' : metrics.homelessVehicleCount,
+      icon: Users,
+      iconBg: 'bg-orange-100 dark:bg-orange-900/40',
+      iconColor: 'text-orange-600 dark:text-orange-400',
+      accentColor: 'from-orange-500 to-orange-600',
+      config: { to: '/compliance', metric: 'homeless_status', period: periodLabel, tab: 'homeless', label: 'Homeless Vehicles KPI' },
     },
   ]
 
@@ -558,7 +572,7 @@ export default function AdminPortal() {
 
       <div className="space-y-6">
         {/* KPI Cards */}
-        <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
           {kpiDrilldowns.map((kpi) => {
             const Icon = kpi.icon
             return (

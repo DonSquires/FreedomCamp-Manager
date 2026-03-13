@@ -125,6 +125,10 @@ export function ComplianceTrendChart({
                 <stop offset="5%" stopColor="#f97316" stopOpacity={0.3}/>
                 <stop offset="95%" stopColor="#f97316" stopOpacity={0}/>
               </linearGradient>
+              <linearGradient id="colorTotal" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.2}/>
+                <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
+              </linearGradient>
             </defs>
             <CartesianGrid strokeDasharray="3 3" />
             <XAxis 
@@ -151,6 +155,15 @@ export function ComplianceTrendChart({
               }}
             />
             <Legend />
+            <Area
+              type="monotone"
+              dataKey="total"
+              stroke="#3b82f6"
+              strokeWidth={2}
+              strokeDasharray="4 2"
+              fill="url(#colorTotal)"
+              name="Total"
+            />
             <Area
               type="monotone"
               dataKey="compliant"
