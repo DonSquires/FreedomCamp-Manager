@@ -14,7 +14,7 @@ import {
   Printer,
   XCircle
 } from 'lucide-react'
-import { formatDateTime } from '@/lib/utils'
+import { formatDate, formatDateTime } from '@/lib/utils'
 import { useState } from 'react'
 import { toast } from 'sonner'
 
@@ -190,7 +190,7 @@ export function BreachAdvisoryModal({
                     <AlertTriangle className="h-4 w-4 text-orange-400" />
                     <span className="text-gray-600">Due Date:</span>
                     <span className="font-medium text-orange-600">
-                      {new Date(breach.due_date).toLocaleDateString()}
+                      {formatDate(breach.due_date)}
                     </span>
                   </div>
                 )}

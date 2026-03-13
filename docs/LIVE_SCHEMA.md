@@ -437,9 +437,11 @@ Columns: `id`, `batch_id`, `raw_data`, `enriched_data`, `status` (default 'pendi
 | audit_log | id | General audit trail |
 | flagged_vehicles | id | Flagged vehicle watchlist |
 | drift_events | id | Compliance drift tracking |
-| person_records | id | Person of interest records |
+| person_records | id | Person of interest records (legacy; columns: first_name, last_name — no full_name) |
+| canonical_persons | id | Canonical person records — Phase 5 (has full_name, homeless_claimed/confirmed, location) |
 | person_observations | id | Person observation log |
 | person_interactions | id | Officer–person interaction log |
+| person_vehicle_links | id | Many-to-many person↔vehicle relationships |
 | investigation_jobs | id | Investigation job queue |
 | investigation_job_types | id | Job type registry |
 | investigation_job_templates | id | Job templates |
@@ -518,6 +520,7 @@ Same governance applies: any new or modified function or trigger requires a migr
 The TypeScript types that must stay in sync with this document:
 
 - `src/types/database.ts` — generated Supabase types (`Database['public']['Tables']`)
-- `src/types/index.ts` — application-level interfaces (`Vehicle`, `Observation`, etc.)
+  - Tables with full Row/Insert/Update types: `organizations`, `user_profiles`, `zones`, `canonical_vehicles`, `observations`, `breach_alerts`, `patrols`, `patrol_checkpoints`, `checkpoint_visits`, `privacy_curtain_settings`, `privacy_access_log`, `import_batches`, `enforcement_actions`, `health_safety_reports`, `officer_welfare_alerts`, `compliance_results`, `incidents`
+- `src/types/index.ts` — application-level interfaces (`Vehicle`, `Observation`, `BreachAlert`, etc.)
 
 When this schema changes, **both files must be updated in the same PR** as the migration.

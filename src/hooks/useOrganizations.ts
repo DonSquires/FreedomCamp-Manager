@@ -76,10 +76,10 @@ export function useCreateOrganization() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['organizations'] })
-      toast.success('Organization created successfully')
+      toast.success('Organisation created successfully')
     },
     onError: (error: any) => {
-      toast.error(error.message || 'Failed to create organization')
+      toast.error(error.message || 'Failed to create organisation')
     },
   })
 }
@@ -101,10 +101,10 @@ export function useUpdateOrganization() {
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['organizations'] })
       queryClient.invalidateQueries({ queryKey: ['organization', variables.orgId] })
-      toast.success('Organization updated successfully')
+      toast.success('Organisation updated successfully')
     },
     onError: (error: any) => {
-      toast.error(error.message || 'Failed to update organization')
+      toast.error(error.message || 'Failed to update organisation')
     },
   })
 }
@@ -122,10 +122,10 @@ export function useToggleOrganizationStatus() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['organizations'] })
-      toast.success('Organization status updated')
+      toast.success('Organisation status updated')
     },
     onError: (error: any) => {
-      toast.error(error.message || 'Failed to update organization')
+      toast.error(error.message || 'Failed to update organisation')
     },
   })
 }

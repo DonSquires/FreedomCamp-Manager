@@ -275,10 +275,10 @@ export async function exportObservationsWithVehicles(
     .select(`
       *,
       canonical_vehicles!observations_plate_number_fkey (
-        make,
-        model,
-        year,
-        colour,
+        vehicle_make,
+        vehicle_model,
+        vehicle_year,
+        vehicle_color,
         self_contained,
         self_contained_expiry,
         homeless_status,

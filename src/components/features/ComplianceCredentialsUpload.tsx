@@ -2,7 +2,7 @@ import { useState, useRef } from 'react'
 import { Upload, FileText, Download, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { toast } from 'sonner'
-import { cn } from '@/lib/utils'
+import { cn, formatDate } from '@/lib/utils'
 import { supabase } from '@/lib/supabase'
 
 interface ExistingDocument {
@@ -155,7 +155,7 @@ export function ComplianceCredentialsUpload({
                     {DOC_TYPES.find((d) => d.value === doc.type)?.label ?? doc.type}
                   </p>
                   <p className="text-xs text-gray-400">
-                    Uploaded {new Date(doc.uploadedAt).toLocaleDateString()}
+                    Uploaded {formatDate(doc.uploadedAt)}
                   </p>
                 </div>
                 <a

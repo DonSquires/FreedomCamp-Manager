@@ -130,7 +130,7 @@ export function useZoneStats(organizationId?: string | null) {
     queryKey: ['zone-stats', organizationId],
     queryFn: async () => {
       let query = (supabase.from('zones') as any)
-        .select('is_active, is_day_visit_only, requires_self_contained', { count: 'exact' })
+        .select('is_active, day_visit_only, self_contained_required', { count: 'exact' })
 
       if (organizationId) {
         query = query.eq('organization_id', organizationId)
@@ -144,8 +144,8 @@ export function useZoneStats(organizationId?: string | null) {
         total: count || 0,
         active: data?.filter(z => z.is_active).length || 0,
         inactive: data?.filter(z => !z.is_active).length || 0,
-        dayVisitOnly: data?.filter(z => z.is_day_visit_only).length || 0,
-        requiresSC: data?.filter(z => z.requires_self_contained).length || 0,
+        dayVisitOnly: data?.filter(z => z.day_visit_only).length || 0,
+        requiresSC: data?.filter(z => z.self_contained_required).length || 0,
       }
 
       return stats

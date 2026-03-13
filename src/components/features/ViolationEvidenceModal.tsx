@@ -1,3 +1,4 @@
+import { formatDateTime } from '@/lib/utils'
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
@@ -156,7 +157,7 @@ export function ViolationEvidenceModal({ open, onClose, violation }: ViolationEv
 
                 <div>
                   <span className="text-gray-600">Date/Time:</span>
-                  <p className="font-medium">{new Date(violation.recorded_at).toLocaleString()}</p>
+                  <p className="font-medium">{formatDateTime(violation.recorded_at)}</p>
                 </div>
               </div>
             </CardContent>

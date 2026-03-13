@@ -141,7 +141,7 @@ export function ZoneHierarchyManager({
                 Parent Zones (Auto-Managed)
               </CardTitle>
               <CardDescription className="mt-1">
-                These zones are automatically synced from the organization boundary
+                These zones are automatically synced from the organisation boundary
               </CardDescription>
             </div>
             <Badge variant="outline" className="bg-purple-50 text-purple-700">
@@ -154,7 +154,7 @@ export function ZoneHierarchyManager({
             <div className="text-center py-8 text-gray-500">Loading...</div>
           ) : parentZones.length === 0 ? (
             <div className="text-center py-8 text-gray-500">
-              No parent zone found. Upload an organization boundary to auto-create.
+              No parent zone found. Upload an organisation boundary to auto-create.
             </div>
           ) : (
             <div className="space-y-3">

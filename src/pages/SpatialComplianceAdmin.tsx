@@ -130,7 +130,7 @@ export default function SpatialComplianceAdmin() {
       {/* Tabs */}
       <Tabs defaultValue="boundary" className="space-y-4">
         <TabsList>
-          <TabsTrigger value="boundary">Organization Boundary</TabsTrigger>
+          <TabsTrigger value="boundary">Organisation Boundary</TabsTrigger>
           <TabsTrigger value="zones">Zone Hierarchy</TabsTrigger>
           <TabsTrigger value="upload">Upload GeoJSON</TabsTrigger>
           <TabsTrigger value="jurisdictions">Jurisdictions</TabsTrigger>
@@ -141,7 +141,7 @@ export default function SpatialComplianceAdmin() {
         <TabsContent value="boundary">
           <OrganizationBoundaryEditor
             organizationId={user?.organization_id || ''}
-            organizationName={user?.email?.split('@')[0] || 'Organization'}
+            organizationName={user?.email?.split('@')[0] || 'Organisation'}
             currentBoundary={(orgBoundary as any)?.geom}
             onBoundaryUpdated={refetchBoundary}
           />

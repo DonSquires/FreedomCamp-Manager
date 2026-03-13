@@ -604,10 +604,10 @@ export default function UserManagement() {
 
               <Select value={filterOrg || 'all'} onValueChange={setFilterOrg}>
                 <SelectTrigger className="w-52">
-                  <SelectValue placeholder="Filter by organization" />
+                  <SelectValue placeholder="Filter by organisation" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Organizations</SelectItem>
+                  <SelectItem value="all">All Organisations</SelectItem>
                   {availableOrgs.map((org) => (
                     <SelectItem key={org.id} value={org.id}>{org.name}</SelectItem>
                   ))}
@@ -837,13 +837,13 @@ export default function UserManagement() {
               />
             </div>
             <div>
-              <Label htmlFor="createOrg">Organization</Label>
+              <Label htmlFor="createOrg">Organisation</Label>
               <Select value={organizationId || 'none'} onValueChange={(v) => setOrganizationId(v === 'none' ? '' : v)}>
                 <SelectTrigger id="createOrg">
-                  <SelectValue placeholder="Select organization" />
+                  <SelectValue placeholder="Select organisation" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">No Organization</SelectItem>
+                  <SelectItem value="none">No Organisation</SelectItem>
                   {availableOrgs.map((org) => (
                     <SelectItem key={org.id} value={org.id}>{org.name}</SelectItem>
                   ))}
@@ -851,13 +851,13 @@ export default function UserManagement() {
               </Select>
             </div>
             <div>
-              <Label htmlFor="createEmployerOrg">Employer Organization</Label>
+              <Label htmlFor="createEmployerOrg">Employer Organisation</Label>
               <Select value={employerOrgId || 'none'} onValueChange={(v) => setEmployerOrgId(v === 'none' ? '' : v)}>
                 <SelectTrigger id="createEmployerOrg">
-                  <SelectValue placeholder="Select employer organization" />
+                  <SelectValue placeholder="Select employer organisation" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">No Employer Organization</SelectItem>
+                  <SelectItem value="none">No Employer Organisation</SelectItem>
                   {availableOrgs.map((org) => (
                     <SelectItem key={org.id} value={org.id}>{org.name}</SelectItem>
                   ))}
@@ -911,14 +911,14 @@ export default function UserManagement() {
                   <SelectItem value="admin">
                     <div className="flex flex-col items-start">
                       <span className="font-medium">Admin</span>
-                      <span className="text-xs text-gray-500">Full organizational management</span>
+                      <span className="text-xs text-gray-500">Full organisational management</span>
                     </div>
                   </SelectItem>
                   {user?.role === 'master' && (
                     <SelectItem value="master">
                       <div className="flex flex-col items-start">
                         <span className="font-medium">Master</span>
-                        <span className="text-xs text-gray-500">Cross-organization access</span>
+                        <span className="text-xs text-gray-500">Cross-organisation access</span>
                       </div>
                     </SelectItem>
                   )}
@@ -1165,13 +1165,13 @@ export default function UserManagement() {
               />
             </div>
             <div>
-              <Label htmlFor="editOrg">Organization</Label>
+              <Label htmlFor="editOrg">Organisation</Label>
               <Select value={organizationId || 'none'} onValueChange={(v) => setOrganizationId(v === 'none' ? '' : v)}>
                 <SelectTrigger id="editOrg">
-                  <SelectValue placeholder="Select organization" />
+                  <SelectValue placeholder="Select organisation" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">No Organization</SelectItem>
+                  <SelectItem value="none">No Organisation</SelectItem>
                   {availableOrgs.map((org) => (
                     <SelectItem key={org.id} value={org.id}>{org.name}</SelectItem>
                   ))}
@@ -1179,13 +1179,13 @@ export default function UserManagement() {
               </Select>
             </div>
             <div>
-              <Label htmlFor="editEmployerOrg">Employer Organization</Label>
+              <Label htmlFor="editEmployerOrg">Employer Organisation</Label>
               <Select value={employerOrgId || 'none'} onValueChange={(v) => setEmployerOrgId(v === 'none' ? '' : v)}>
                 <SelectTrigger id="editEmployerOrg">
-                  <SelectValue placeholder="Select employer organization" />
+                  <SelectValue placeholder="Select employer organisation" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="none">No Employer Organization</SelectItem>
+                  <SelectItem value="none">No Employer Organisation</SelectItem>
                   {availableOrgs.map((org) => (
                     <SelectItem key={org.id} value={org.id}>{org.name}</SelectItem>
                   ))}

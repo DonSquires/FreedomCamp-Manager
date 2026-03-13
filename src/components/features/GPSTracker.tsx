@@ -3,6 +3,7 @@
  * Live officer location tracking
  */
 
+import { formatDateTime } from '@/lib/utils'
 import { useState, useEffect } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -229,7 +230,7 @@ export function GPSTracker({
                       <div className="text-xs">
                         <div className="font-medium mb-1">Timestamp:</div>
                         <div className="text-muted-foreground">
-                          {new Date(officer.timestamp).toLocaleString()}
+                          {formatDateTime(new Date(officer.timestamp).toISOString())}
                         </div>
                       </div>
                       <Button

@@ -128,7 +128,7 @@ export default function ComplianceDashboard() {
       if (error) throw error
 
       if (!observations || observations.length === 0) {
-        toast.error('No recent photos to analyze')
+        toast.error('No recent photos to analyse')
         return
       }
 
@@ -149,7 +149,7 @@ export default function ComplianceDashboard() {
 
       toast.success('AI analysis complete')
     } catch (error: any) {
-      toast.error(error.message || 'Failed to analyze photos')
+      toast.error(error.message || 'Failed to analyse photos')
     } finally {
       setAnalyzingPhotos(false)
     }
@@ -286,7 +286,7 @@ export default function ComplianceDashboard() {
                     AI Photo Analysis
                   </CardTitle>
                   <CardDescription>
-                    Analyze vehicle photos using Railway inference service
+                    Analyse vehicle photos using Railway inference service
                   </CardDescription>
                 </div>
                 <Button
@@ -302,7 +302,7 @@ export default function ComplianceDashboard() {
                   ) : (
                     <>
                       <Brain className="h-4 w-4 mr-2" />
-                      Analyze Photos
+                      Analyse Photos
                     </>
                   )}
                 </Button>
@@ -329,7 +329,7 @@ export default function ComplianceDashboard() {
                 </div>
               ) : (
                 <div className="text-center py-8 text-gray-600">
-                  Click "Analyze Photos" to run AI analysis on recent observations
+                  Click "Analyse Photos" to run AI analysis on recent observations
                 </div>
               )}
             </CardContent>

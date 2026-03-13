@@ -89,12 +89,12 @@ export function usePersonRecords(options?: {
     queryKey: ['person-records', options],
     queryFn: async () => {
       let query = supabase
-        .from('person_records')
+        .from('canonical_persons')
         .select(`
           *,
           zone:zones(name),
-          recorded_by_user:user_profiles!person_records_user_id_fkey(first_name, last_name),
-          confirmer:user_profiles!person_records_homeless_confirmed_by_fkey(first_name, last_name)
+          recorded_by_user:user_profiles!canonical_persons_user_id_fkey(first_name, last_name),
+          confirmer:user_profiles!canonical_persons_homeless_confirmed_by_fkey(first_name, last_name)
         `)
         .order('recorded_at', { ascending: false })
 
@@ -138,7 +138,7 @@ export function usePersonRecords(options?: {
   const createPersonRecord = useMutation({
     mutationFn: async (input: CreatePersonRecordInput) => {
       const { data, error } = await (supabase
-        .from('person_records') as any)
+        .from('canonical_persons') as any)
         .insert({
           organization_id: user?.organization_id,
           user_id: user?.id,
@@ -172,7 +172,7 @@ export function usePersonRecords(options?: {
   // Confirm homeless status mutation
   const confirmHomelessStatus = useMutation({
     mutationFn: async ({ id, confirmed }: { id: string; confirmed: boolean }) => {
-      const { error } = await (supabase.from('person_records') as any)
+      const { error } = await (supabase.from('canonical_persons') as any)
         .update({
           homeless_confirmed: confirmed,
           homeless_confirmed_by: confirmed ? user?.id : null,
@@ -194,7 +194,7 @@ export function usePersonRecords(options?: {
   // Update person record mutation
   const updatePersonRecord = useMutation({
     mutationFn: async ({ id, ...updates }: Partial<PersonRecord> & { id: string }) => {
-      const { error } = await (supabase.from('person_records') as any)
+      const { error } = await (supabase.from('canonical_persons') as any)
         .update(updates)
         .eq('id', id)
 
@@ -213,7 +213,7 @@ export function usePersonRecords(options?: {
   const deletePersonRecord = useMutation({
     mutationFn: async (id: string) => {
       const { error } = await supabase
-        .from('person_records')
+        .from('canonical_persons')
         .delete()
         .eq('id', id)
 

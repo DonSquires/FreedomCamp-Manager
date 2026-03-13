@@ -66,18 +66,31 @@ export interface Database {
           phone: string | null
           is_active: boolean
           permissions: any
+          last_gps_latitude: number | null
+          last_gps_longitude: number | null
+          last_gps_accuracy: number | null
+          last_gps_update: string | null
+          authorized_activities: any
+          issuing_authority: string | null
+          coa_license_type: string | null
+          warrant_acts: string[]
+          credentials_verified: boolean
+          credentials_verified_at: string | null
+          credentials_verified_by: string | null
           coa_number: string | null
-          coa_expiry: string | null
+          coa_expiry_date: string | null
           coa_document_url: string | null
           coa_required: boolean
           coa_verified: boolean
+          coa_expiry: string | null
+          has_warrant: boolean
           warrant_number: string | null
-          warrant_expiry: string | null
+          warrant_expiry_date: string | null
           warrant_document_url: string | null
           warrant_required: boolean
           warrant_verified: boolean
-          authorized_activities: string[]
-          warrant_acts: string[]
+          warrant_expiry: string | null
+          compliance_status: string
           last_location: any
           portal_used: string | null
           push_token: string | null
@@ -102,18 +115,31 @@ export interface Database {
           phone?: string | null
           is_active?: boolean
           permissions?: any
+          last_gps_latitude?: number | null
+          last_gps_longitude?: number | null
+          last_gps_accuracy?: number | null
+          last_gps_update?: string | null
+          authorized_activities?: any
+          issuing_authority?: string | null
+          coa_license_type?: string | null
+          warrant_acts?: string[]
+          credentials_verified?: boolean
+          credentials_verified_at?: string | null
+          credentials_verified_by?: string | null
           coa_number?: string | null
-          coa_expiry?: string | null
+          coa_expiry_date?: string | null
           coa_document_url?: string | null
           coa_required?: boolean
           coa_verified?: boolean
+          coa_expiry?: string | null
+          has_warrant?: boolean
           warrant_number?: string | null
-          warrant_expiry?: string | null
+          warrant_expiry_date?: string | null
           warrant_document_url?: string | null
           warrant_required?: boolean
           warrant_verified?: boolean
-          authorized_activities?: string[]
-          warrant_acts?: string[]
+          warrant_expiry?: string | null
+          compliance_status?: string
           last_location?: any
           portal_used?: string | null
           push_token?: string | null
@@ -138,18 +164,31 @@ export interface Database {
           phone?: string | null
           is_active?: boolean
           permissions?: any
+          last_gps_latitude?: number | null
+          last_gps_longitude?: number | null
+          last_gps_accuracy?: number | null
+          last_gps_update?: string | null
+          authorized_activities?: any
+          issuing_authority?: string | null
+          coa_license_type?: string | null
+          warrant_acts?: string[]
+          credentials_verified?: boolean
+          credentials_verified_at?: string | null
+          credentials_verified_by?: string | null
           coa_number?: string | null
-          coa_expiry?: string | null
+          coa_expiry_date?: string | null
           coa_document_url?: string | null
           coa_required?: boolean
           coa_verified?: boolean
+          coa_expiry?: string | null
+          has_warrant?: boolean
           warrant_number?: string | null
-          warrant_expiry?: string | null
+          warrant_expiry_date?: string | null
           warrant_document_url?: string | null
           warrant_required?: boolean
           warrant_verified?: boolean
-          authorized_activities?: string[]
-          warrant_acts?: string[]
+          warrant_expiry?: string | null
+          compliance_status?: string
           last_location?: any
           portal_used?: string | null
           push_token?: string | null
@@ -608,8 +647,6 @@ export interface Database {
           status: string
           resolution_notes: string | null
           resolved_at: string | null
-          /** Generated column: alias for created_at (backward compat). */
-          detected_at: string
           observation_id: string | null
           assigned_to: string | null
           assigned_at: string | null
@@ -912,7 +949,334 @@ export interface Database {
           accessed_at?: string
         }
       }
-      // Add other tables as needed
+      enforcement_actions: {
+        Row: {
+          id: string
+          organization_id: string
+          zone_id: string
+          vehicle_record_id: string | null
+          observation_id: string | null
+          plate_number: string | null
+          action_type: string
+          status: string
+          notes: string | null
+          created_by: string | null
+          compliance_result_id: string | null
+          assigned_to: string | null
+          assigned_at: string | null
+          assigned_by: string | null
+          completed_by: string | null
+          completed_at: string | null
+          completion_outcome: string | null
+          completion_notes: string | null
+          breach_status: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          organization_id: string
+          zone_id: string
+          vehicle_record_id?: string | null
+          observation_id?: string | null
+          plate_number?: string | null
+          action_type: string
+          status?: string
+          notes?: string | null
+          created_by?: string | null
+          compliance_result_id?: string | null
+          assigned_to?: string | null
+          assigned_at?: string | null
+          assigned_by?: string | null
+          completed_by?: string | null
+          completed_at?: string | null
+          completion_outcome?: string | null
+          completion_notes?: string | null
+          breach_status?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          organization_id?: string
+          zone_id?: string
+          vehicle_record_id?: string | null
+          observation_id?: string | null
+          plate_number?: string | null
+          action_type?: string
+          status?: string
+          notes?: string | null
+          created_by?: string | null
+          compliance_result_id?: string | null
+          assigned_to?: string | null
+          assigned_at?: string | null
+          assigned_by?: string | null
+          completed_by?: string | null
+          completed_at?: string | null
+          completion_outcome?: string | null
+          completion_notes?: string | null
+          breach_status?: string
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      health_safety_reports: {
+        Row: {
+          id: string
+          organization_id: string
+          zone_id: string | null
+          reported_by: string | null
+          incident_type: string | null
+          description: string | null
+          severity: string | null
+          status: string
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          organization_id: string
+          zone_id?: string | null
+          reported_by?: string | null
+          incident_type?: string | null
+          description?: string | null
+          severity?: string | null
+          status?: string
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          organization_id?: string
+          zone_id?: string | null
+          reported_by?: string | null
+          incident_type?: string | null
+          description?: string | null
+          severity?: string | null
+          status?: string
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      officer_welfare_alerts: {
+        Row: {
+          id: string
+          officer_id: string
+          organization_id: string
+          alert_type: string
+          status: string
+          officer_name: string | null
+          officer_phone: string | null
+          gps_latitude: number | null
+          gps_longitude: number | null
+          gps_accuracy: number | null
+          last_activity_at: string | null
+          alert_sent_at: string | null
+          acknowledged_at: string | null
+          acknowledged_by: string | null
+          resolved_at: string | null
+          resolved_by: string | null
+          escalation_level: number
+          escalated_at: string | null
+          acknowledgement_notes: string | null
+          resolution_notes: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          officer_id: string
+          organization_id: string
+          alert_type: string
+          status?: string
+          officer_name?: string | null
+          officer_phone?: string | null
+          gps_latitude?: number | null
+          gps_longitude?: number | null
+          gps_accuracy?: number | null
+          last_activity_at?: string | null
+          alert_sent_at?: string | null
+          acknowledged_at?: string | null
+          acknowledged_by?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          escalation_level?: number
+          escalated_at?: string | null
+          acknowledgement_notes?: string | null
+          resolution_notes?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          officer_id?: string
+          organization_id?: string
+          alert_type?: string
+          status?: string
+          officer_name?: string | null
+          officer_phone?: string | null
+          gps_latitude?: number | null
+          gps_longitude?: number | null
+          gps_accuracy?: number | null
+          last_activity_at?: string | null
+          alert_sent_at?: string | null
+          acknowledged_at?: string | null
+          acknowledged_by?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          escalation_level?: number
+          escalated_at?: string | null
+          acknowledgement_notes?: string | null
+          resolution_notes?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      compliance_results: {
+        Row: {
+          id: string
+          observation_id: string | null
+          vehicle_id: string | null
+          zone_id: string | null
+          organization_id: string | null
+          matrix_id: string | null
+          matrix_version: number | null
+          is_compliant: boolean
+          violation_type: string | null
+          violation_reasons: string[] | null
+          metrics_json: any | null
+          matrix_snapshot: any | null
+          evaluated_at: string
+          after_hours_violation: boolean
+          stay_confirmed_by_gps: boolean
+          gps_distance_meters: number | null
+          gps_verified_consecutive_nights: number
+          gps_evidence_json: any
+          fc_act_exempt: boolean
+          exemption_reason: string | null
+          is_exempt: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          observation_id?: string | null
+          vehicle_id?: string | null
+          zone_id?: string | null
+          organization_id?: string | null
+          matrix_id?: string | null
+          matrix_version?: number | null
+          is_compliant?: boolean
+          violation_type?: string | null
+          violation_reasons?: string[] | null
+          metrics_json?: any | null
+          matrix_snapshot?: any | null
+          evaluated_at?: string
+          after_hours_violation?: boolean
+          stay_confirmed_by_gps?: boolean
+          gps_distance_meters?: number | null
+          gps_verified_consecutive_nights?: number
+          gps_evidence_json?: any
+          fc_act_exempt?: boolean
+          exemption_reason?: string | null
+          is_exempt?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          observation_id?: string | null
+          vehicle_id?: string | null
+          zone_id?: string | null
+          organization_id?: string | null
+          matrix_id?: string | null
+          matrix_version?: number | null
+          is_compliant?: boolean
+          violation_type?: string | null
+          violation_reasons?: string[] | null
+          metrics_json?: any | null
+          matrix_snapshot?: any | null
+          evaluated_at?: string
+          after_hours_violation?: boolean
+          stay_confirmed_by_gps?: boolean
+          gps_distance_meters?: number | null
+          gps_verified_consecutive_nights?: number
+          gps_evidence_json?: any
+          fc_act_exempt?: boolean
+          exemption_reason?: string | null
+          is_exempt?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      incidents: {
+        Row: {
+          id: string
+          organization_id: string
+          zone_id: string | null
+          reported_by: string | null
+          incident_type: string | null
+          description: string | null
+          severity: string | null
+          status: string
+          plate_number: string | null
+          evidence_count: number
+          primary_evidence_url: string | null
+          location_lat: number | null
+          location_lng: number | null
+          location_address: string | null
+          notes: string | null
+          metadata: any
+          user_id: string | null
+          deleted_at: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          organization_id: string
+          zone_id?: string | null
+          reported_by?: string | null
+          incident_type?: string | null
+          description?: string | null
+          severity?: string | null
+          status?: string
+          plate_number?: string | null
+          evidence_count?: number
+          primary_evidence_url?: string | null
+          location_lat?: number | null
+          location_lng?: number | null
+          location_address?: string | null
+          notes?: string | null
+          metadata?: any
+          user_id?: string | null
+          deleted_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          organization_id?: string
+          zone_id?: string | null
+          reported_by?: string | null
+          incident_type?: string | null
+          description?: string | null
+          severity?: string | null
+          status?: string
+          plate_number?: string | null
+          evidence_count?: number
+          primary_evidence_url?: string | null
+          location_lat?: number | null
+          location_lng?: number | null
+          location_address?: string | null
+          notes?: string | null
+          metadata?: any
+          user_id?: string | null
+          deleted_at?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+      }
       import_batches: {
         Row: {
           id: string

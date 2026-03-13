@@ -3,6 +3,7 @@
  * Advanced date selection with presets
  */
 
+import { formatDate } from '@/lib/utils'
 import { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -70,8 +71,8 @@ export function DateRangePicker({
       return placeholder
     }
 
-    const from = range.from ? new Date(range.from).toLocaleDateString() : '...'
-    const to = range.to ? new Date(range.to).toLocaleDateString() : '...'
+    const from = range.from ? formatDate(range.from) : '...'
+    const to = range.to ? formatDate(range.to) : '...'
     
     return `${from} - ${to}`
   }

@@ -3,6 +3,7 @@
  * Recent scans viewer with retry capability
  */
 
+import { formatDateTime } from '@/lib/utils'
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -201,7 +202,7 @@ export function ScanHistoryViewer({
                     )}
                     <div>
                       {(scan.zones as any)?.name || 'Unknown Zone'} • {' '}
-                      {new Date(scan.recorded_at).toLocaleString()}
+                      {formatDateTime(scan.recorded_at)}
                     </div>
                   </div>
                 </div>

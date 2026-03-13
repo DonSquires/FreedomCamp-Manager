@@ -135,7 +135,7 @@ export function PlateScanner({ onScanComplete, onCancel }: PlateScannerProps) {
 
       // Resolve a valid zone for ingest (fallback to org's Other Location zone)
       if (!user?.organization_id) {
-        throw new Error('No organization is assigned to the current user')
+        throw new Error('No organisation is assigned to the current user')
       }
 
       const { zoneId } = await resolveObservationZoneForOrg(user.organization_id)

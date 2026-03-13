@@ -566,7 +566,7 @@ export default function AdminPortal() {
   return (
     <AppLayout
       title="Primary Operations Dashboard"
-      description={user?.role === 'master' ? 'BI command view across organizations' : 'BI command view for your organization'}
+      description={user?.role === 'master' ? 'BI command view across organisations' : 'BI command view for your organisation'}
     >
       <GlobalFilterRibbon />
 

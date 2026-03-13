@@ -233,7 +233,7 @@ export default function ZoneManagement() {
     mutationFn: async () => {
       if (!createName.trim()) throw new Error('Zone name is required')
       const orgId = user?.role === 'master' ? createOrganizationId : user?.organization_id
-      if (!orgId) throw new Error('Organization is required')
+      if (!orgId) throw new Error('Organisation is required')
 
       const { error } = await (supabase.from('zones') as any)
         .insert({
@@ -580,13 +580,13 @@ export default function ZoneManagement() {
             {/* ✅ Organization Selector (Masters Only) */}
             {user?.role === 'master' && (
               <div>
-                <Label htmlFor="editOrganization">Organization</Label>
+                <Label htmlFor="editOrganization">Organisation</Label>
                 <Select
                   value={editOrganizationId}
                   onValueChange={setEditOrganizationId}
                 >
                   <SelectTrigger id="editOrganization">
-                    <SelectValue placeholder="Select organization" />
+                    <SelectValue placeholder="Select organisation" />
                   </SelectTrigger>
                   <SelectContent>
                     {organizations?.map((org) => (
@@ -602,7 +602,7 @@ export default function ZoneManagement() {
             {/* ✅ Organization Display (Non-Masters) */}
             {user?.role !== 'master' && selectedZone?.organization && (
               <div>
-                <Label>Organization</Label>
+                <Label>Organisation</Label>
                 <div className="flex items-center gap-2 p-2 bg-gray-50 dark:bg-gray-800 rounded-md">
                   <Building2 className="h-4 w-4 text-gray-500" />
                   <span className="text-sm font-medium">{selectedZone.organization.name}</span>
@@ -837,10 +837,10 @@ export default function ZoneManagement() {
 
             {user?.role === 'master' && (
               <div>
-                <Label htmlFor="createOrganization">Organization *</Label>
+                <Label htmlFor="createOrganization">Organisation *</Label>
                 <Select value={createOrganizationId} onValueChange={setCreateOrganizationId}>
                   <SelectTrigger id="createOrganization">
-                    <SelectValue placeholder="Select organization" />
+                    <SelectValue placeholder="Select organisation" />
                   </SelectTrigger>
                   <SelectContent>
                     {organizations?.map((org) => (

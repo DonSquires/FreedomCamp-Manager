@@ -162,7 +162,7 @@ export const HELP_TOPICS = {
     content: (
       <div className="space-y-3">
         <p>
-          The Plate Scanner uses AI-powered Automatic License Plate Recognition (ALPR) 
+          The Plate Scanner uses AI-powered Automatic Licence Plate Recognition (ALPR) 
           to quickly identify vehicles.
         </p>
         <div className="space-y-2">
@@ -208,8 +208,8 @@ export const HELP_TOPICS = {
           <p className="font-medium">Response Actions:</p>
           <ul className="list-disc pl-5 space-y-1">
             <li>Review breach details and evidence</li>
-            <li>Issue warning notice if first offense</li>
-            <li>Generate notice to vacate if repeat offense</li>
+            <li>Issue warning notice if first offence</li>
+            <li>Generate notice to vacate if repeat offence</li>
             <li>Request tow if non-compliant after notice</li>
           </ul>
         </div>

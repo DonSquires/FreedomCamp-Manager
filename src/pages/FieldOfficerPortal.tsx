@@ -1188,7 +1188,7 @@ export default function FieldOfficerPortal() {
               <span className="font-semibold text-blue-600">{displayZone}</span>
             </div>
             <div className="flex justify-between">
-              <span>Organization:</span>
+              <span>Organisation:</span>
               <span>{user?.organization_id?.substring(0, 8)}...</span>
             </div>
             <div className="flex justify-between items-center">

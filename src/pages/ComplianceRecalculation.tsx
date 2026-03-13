@@ -258,7 +258,7 @@ export default function ComplianceRecalculation() {
 
   const handleRecalculate = () => {
     if (scope === 'organization' && !effectiveOrgId) {
-      toast.error('Please select an organization')
+      toast.error('Please select an organisation')
       return
     }
     if (scope === 'zone' && !selectedZoneId) {
@@ -333,7 +333,7 @@ export default function ComplianceRecalculation() {
                   disabled={isRunning}
                 >
                   <div className="text-left w-full">
-                    <div className="font-semibold">Organization</div>
+                    <div className="font-semibold">Organisation</div>
                     <div className="text-xs opacity-70">All zones</div>
                   </div>
                 </Button>
@@ -365,7 +365,7 @@ export default function ComplianceRecalculation() {
             {/* Organization Selection */}
             {scope === 'organization' && (
               <div>
-                <Label htmlFor="organization">Organization</Label>
+                <Label htmlFor="organization">Organisation</Label>
                 <select
                   id="organization"
                   value={selectedOrgId}
@@ -373,7 +373,7 @@ export default function ComplianceRecalculation() {
                   disabled={isRunning}
                   className="w-full mt-2 px-3 py-2 border rounded-md"
                 >
-                  <option value="">Select organization...</option>
+                  <option value="">Select organisation...</option>
                   {organizations?.map((org) => (
                     <option key={org.id} value={org.id}>
                       {org.name}
@@ -387,7 +387,7 @@ export default function ComplianceRecalculation() {
             {scope === 'zone' && (
               <div className="space-y-4">
                 <div>
-                  <Label htmlFor="org-for-zone">Organization</Label>
+                  <Label htmlFor="org-for-zone">Organisation</Label>
                   <select
                     id="org-for-zone"
                     value={selectedOrgId}
@@ -398,7 +398,7 @@ export default function ComplianceRecalculation() {
                     disabled={isRunning}
                     className="w-full mt-2 px-3 py-2 border rounded-md"
                   >
-                    <option value="">Select organization...</option>
+                    <option value="">Select organisation...</option>
                     {organizations?.map((org) => (
                       <option key={org.id} value={org.id}>
                         {org.name}
@@ -433,7 +433,7 @@ export default function ComplianceRecalculation() {
             {scope === 'date_range' && (
               <div className="space-y-4">
                 <div>
-                  <Label htmlFor="org-for-date">Organization</Label>
+                  <Label htmlFor="org-for-date">Organisation</Label>
                   <select
                     id="org-for-date"
                     value={selectedOrgId}
@@ -441,7 +441,7 @@ export default function ComplianceRecalculation() {
                     disabled={isRunning}
                     className="w-full mt-2 px-3 py-2 border rounded-md"
                   >
-                    <option value="">All organizations (master only)</option>
+                    <option value="">All organisations (master only)</option>
                     {organizations?.map((org) => (
                       <option key={org.id} value={org.id}>
                         {org.name}

@@ -3,6 +3,7 @@
  * View import logs and status
  */
 
+import { formatDateTime } from '@/lib/utils'
 import { useImportHistory } from '@/hooks/useImportHistory'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -132,7 +133,7 @@ export function ImportHistoryViewer({
                       <div className="flex items-center gap-4 text-sm text-muted-foreground">
                         <div className="flex items-center gap-1">
                           <Calendar className="h-3 w-3" />
-                          <span>{new Date(importRecord.created_at).toLocaleString()}</span>
+                          <span>{formatDateTime(importRecord.created_at)}</span>
                         </div>
                         <div className="flex items-center gap-1">
                           <FileText className="h-3 w-3" />

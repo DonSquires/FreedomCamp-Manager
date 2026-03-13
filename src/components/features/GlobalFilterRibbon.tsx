@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Calendar, Building2, MapPin, X, ChevronLeft, ChevronRight } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { cn, formatDate } from '@/lib/utils'
 
 interface GlobalFilterRibbonProps {
   showDateFilter?: boolean
@@ -138,8 +138,8 @@ export function GlobalFilterRibbon({
                       <ChevronLeft className="h-4 w-4" />
                     </Button>
                     <span className="text-sm font-medium px-2 whitespace-nowrap">
-                      {new Date(dateFrom).toLocaleDateString()}
-                      {dateTo && dateTo !== dateFrom && ` - ${new Date(dateTo).toLocaleDateString()}`}
+                      {formatDate(dateFrom)}
+                      {dateTo && dateTo !== dateFrom && ` - ${formatDate(dateTo)}`}
                     </span>
                     <Button
                       variant="ghost"
@@ -197,10 +197,10 @@ export function GlobalFilterRibbon({
                 }}
               >
                 <SelectTrigger className="w-[200px] h-9">
-                  <SelectValue placeholder="All Organizations" />
+                  <SelectValue placeholder="All Organisations" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="__all__">All Organizations</SelectItem>
+                  <SelectItem value="__all__">All Organisations</SelectItem>
                   {organizations?.map((org) => (
                     <SelectItem key={org.id} value={org.id}>
                       {org.name}

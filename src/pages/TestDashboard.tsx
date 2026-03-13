@@ -126,10 +126,10 @@ export default function TestDashboard() {
     {
       id: 'multi-org-rls',
       name: 'Multi-Org RLS',
-      description: 'Organization isolation tests',
+      description: 'Organisation isolation tests',
       priority: 5,
       tests: [
-        { id: 'rls-1', name: 'Organization data isolation', status: 'pending' },
+        { id: 'rls-1', name: 'Organisation data isolation', status: 'pending' },
         { id: 'rls-2', name: 'Multi-org hierarchy access', status: 'pending' },
       ],
     },

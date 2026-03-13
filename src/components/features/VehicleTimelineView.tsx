@@ -3,6 +3,7 @@
  * Chronological observation history
  */
 
+import { formatDate } from '@/lib/utils'
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -101,7 +102,7 @@ export function VehicleTimelineView({
   const formatDateTime = (date: string) => {
     const d = new Date(date)
     return {
-      date: d.toLocaleDateString(),
+      date: formatDate(date),
       time: d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     }
   }

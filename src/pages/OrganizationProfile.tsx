@@ -139,7 +139,7 @@ export default function OrganizationProfile() {
   // Create child zone mutation
   const createChildZoneMutation = useMutation({
     mutationFn: async () => {
-      if (!organizationId) throw new Error('No organization')
+      if (!organizationId) throw new Error('No organisation')
       if (!childName.trim()) throw new Error('Zone name is required')
 
       const parentZone = parentZones[0] // Use first parent zone
@@ -212,11 +212,11 @@ export default function OrganizationProfile() {
 
   if (!organizationId) {
     return (
-      <AppLayout title="Organization Profile" showBackButton>
+      <AppLayout title="Organisation Profile" showBackButton>
         <Card>
           <CardContent className="text-center py-12">
             <Building2 className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-            <p className="text-gray-600">No organization assigned to your account.</p>
+            <p className="text-gray-600">No organisation assigned to your account.</p>
           </CardContent>
         </Card>
       </AppLayout>
@@ -224,12 +224,12 @@ export default function OrganizationProfile() {
   }
 
   return (
-    <AppLayout title="Organization Profile" description="Manage your organization and jurisdiction zones" showBackButton>
+    <AppLayout title="Organisation Profile" description="Manage your organisation and jurisdiction zones" showBackButton>
       {/* Organization Details */}
       {orgLoading ? (
         <div className="text-center py-12">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading organization...</p>
+          <p className="mt-4 text-gray-600">Loading organisation...</p>
         </div>
       ) : organization ? (
         <div className="space-y-6">
@@ -520,7 +520,7 @@ export default function OrganizationProfile() {
         <Card>
           <CardContent className="text-center py-12">
             <Building2 className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-            <p className="text-gray-600">Organization not found</p>
+            <p className="text-gray-600">Organisation not found</p>
           </CardContent>
         </Card>
       )}

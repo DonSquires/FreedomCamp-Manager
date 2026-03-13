@@ -1,3 +1,4 @@
+import { formatDate, formatDateTime } from '@/lib/utils'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -101,7 +102,7 @@ export function VehicleDetailsView({ vehicle, onEdit, className }: VehicleDetail
                 NZSCV Expiry
               </span>
               <span className="font-medium">
-                {new Date(vehicle.nzscv_expiry).toLocaleDateString()}
+                {formatDate(vehicle.nzscv_expiry)}
               </span>
             </div>
           )}
@@ -124,7 +125,7 @@ export function VehicleDetailsView({ vehicle, onEdit, className }: VehicleDetail
         {vehicle.last_seen && (
           <div className="flex items-center gap-2 text-xs text-muted-foreground border-t pt-3">
             <Calendar className="h-3 w-3" />
-            Last seen: {new Date(vehicle.last_seen).toLocaleString()}
+            Last seen: {formatDateTime(vehicle.last_seen)}
           </div>
         )}
 
