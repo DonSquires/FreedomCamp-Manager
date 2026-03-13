@@ -15,10 +15,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.7";
 import { corsHeaders } from "../_shared/cors.ts";
 import { alprWithBytes } from "../_shared/alpr.ts";
 import {
-  isCoalesceTypeMismatchError,
-  extractMissingSchemaColumn,
-  COMPLIANCE_DRIFT_COLUMNS,
-  OPTIONAL_SCHEMA_COLUMNS,
+  adaptiveObservationInsert,
 } from "../_shared/observationInsert.ts";
 
 const PHOTO_FETCH_TIMEOUT_MS = Number(Deno.env.get("INGEST_PHOTO_FETCH_TIMEOUT_MS") ?? "8000");
@@ -671,11 +668,14 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Step 4: Insert observation into observations table with adaptive retry
-    // Handles COALESCE type mismatch errors and schema cache misses
+    // Step 4: Insert observation using shared adaptive insert helper
+    // This handles COALESCE type mismatch errors, schema cache misses,
+    // and falls back to safe_insert_observation RPC when triggers are broken.
+    // Based on working Feb 2025 trigger chain — see docs/SCAN_PIPELINE_REFERENCE.md
     const observationData: Record<string, unknown> = {
       plate_number: plateNumber || "MANUAL_REQUIRED",
-      photo_url: photoUrl,
+      photo: photoUrl,     // Primary photo column in live schema
+      photo_url: photoUrl, // Secondary for compatibility
       photo_hash: photoHash,
       recorded_at: recordedAt ?? new Date().toISOString(),
       zone_id: zoneId,
@@ -685,16 +685,17 @@ Deno.serve(async (req) => {
       gps_accuracy: gpsAccuracy ?? null,
       recorded_by: officerId,
       officer_notes: officerNotes ?? null,
-      // weather_conditions does not exist in the live observations schema
-      // Vehicle details will be populated by frontend or later enrichment
+      // Vehicle details populated by trigger_populate_observation_from_canonical
+      // or by safe_insert_observation RPC inline
       vehicle_make: null,
       vehicle_model: null,
       vehicle_year: null,
       vehicle_color: null,
       self_contained: false,
       self_contained_expiry: null,
-      // Compliance will be calculated by triggers
-      is_compliant: true, // Default - will be updated by compliance calculation
+      // Compliance calculated by trg_auto_evaluate_compliance trigger
+      // or by safe_insert_observation RPC inline
+      is_compliant: true,
       breach_type: null,
       breach_reason: null,
       nights_stayed_this_month: 0,
@@ -705,98 +706,15 @@ Deno.serve(async (req) => {
       ? { ...observationData, idempotency_key: idempotencyKey }
       : observationData;
 
-    // Adaptive insert with retry logic for schema drift and COALESCE errors
-    let observation: unknown = null;
-    let obsError: unknown = null;
-    let coalesceRetried = false;
-    const droppedColumns: string[] = [];
-
-    for (let attempt = 0; attempt < MAX_INSERT_ATTEMPTS; attempt++) {
-      const { data: result, error } = await supabase
-        .from("observations")
-        .insert(insertPayload)
-        .select()
-        .single();
-
-      if (!error) {
-        observation = result;
-        break;
-      }
-
-      // Handle missing schema column errors - drop column and retry
-      const missingCol = extractMissingSchemaColumn(error);
-      if (missingCol && OPTIONAL_SCHEMA_COLUMNS.has(missingCol) && (missingCol in insertPayload)) {
-        console.warn(`⚠️ Schema cache missing column '${missingCol}' — dropping from INSERT and retrying`);
-        delete insertPayload[missingCol];
-        droppedColumns.push(missingCol);
-        continue;
-      }
-
-      // Handle COALESCE type mismatch errors - drop compliance columns and retry
-      if (!coalesceRetried && isCoalesceTypeMismatchError(error)) {
-        console.warn("⚠️ COALESCE type mismatch detected — dropping compliance columns and retrying");
-        for (const col of COMPLIANCE_DRIFT_COLUMNS) {
-          if (col in insertPayload) {
-            delete insertPayload[col];
-            droppedColumns.push(col);
-          }
-        }
-        coalesceRetried = true;
-        continue;
-      }
-
-      // Can't recover via payload changes - record error and break
-      obsError = error;
-      console.error("❌ Insert failed after retries:", {
-        error: (error as any)?.message,
-        attempt: attempt + 1,
-        droppedColumns,
-      });
-      break;
-    }
+    // Use shared adaptive insert — handles schema drift, COALESCE errors,
+    // and falls back to safe_insert_observation RPC (which runs the full
+    // compliance pipeline inline: canonical lookup → compliance evaluation →
+    // compliance_results creation → breach_alert creation).
+    const { data: observation, error: obsError, droppedColumns } =
+      await adaptiveObservationInsert(supabase, insertPayload, MAX_INSERT_ATTEMPTS);
 
     if (droppedColumns.length > 0) {
       console.log("📝 Adaptive insert dropped columns:", droppedColumns);
-    }
-
-    // ── Last-resort fallback: safe_insert_observation RPC ──
-    // When the COALESCE error persists after column-stripping, the trigger
-    // function itself is broken.  The safe_insert_observation RPC (created by
-    // migration 20260404000001) bypasses all triggers via
-    // session_replication_role = 'replica'.
-    if ((obsError || !observation) && isCoalesceTypeMismatchError(obsError)) {
-      console.warn("⚠️ COALESCE trigger error persists — trying safe_insert_observation RPC");
-      try {
-        const { data: rpcResult, error: rpcError } = await supabase.rpc(
-          "safe_insert_observation",
-          {
-            p_data: {
-              plate_number: insertPayload.plate_number ?? "MANUAL_REQUIRED",
-              photo: insertPayload.photo_url,
-              photo_url: insertPayload.photo_url,
-              photo_hash: insertPayload.photo_hash,
-              recorded_at: insertPayload.recorded_at,
-              zone_id: insertPayload.zone_id,
-              organization_id: insertPayload.organization_id,
-              gps_latitude: insertPayload.gps_latitude,
-              gps_longitude: insertPayload.gps_longitude,
-              gps_accuracy: insertPayload.gps_accuracy,
-              recorded_by: insertPayload.recorded_by,
-              idempotency_key: insertPayload.idempotency_key ?? null,
-            },
-          }
-        );
-
-        if (!rpcError && rpcResult) {
-          observation = rpcResult;
-          obsError = null;
-          console.log("✅ Observation created via safe_insert_observation RPC");
-        } else {
-          console.error("❌ safe_insert_observation RPC also failed:", rpcError);
-        }
-      } catch (rpcErr: any) {
-        console.error("❌ safe_insert_observation RPC exception:", rpcErr?.message);
-      }
     }
 
     if (obsError || !observation) {

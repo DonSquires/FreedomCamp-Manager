@@ -135,12 +135,16 @@ The FieldOfficerPortal has three paths to insert observations:
 | Path | Method | Triggers Fire? | Compliance Complete? |
 |------|--------|---------------|---------------------|
 | **PATH 1** | Direct `.from('observations').insert()` | ✅ All 7 | ✅ Full pipeline |
-| **PATH 2** | `vehicle-ingest` edge function | ✅ All 7 | ✅ Full pipeline |
+| **PATH 2** | `vehicle-ingest` edge function → `adaptiveObservationInsert()` | ✅ All 7 (or RPC fallback) | ✅ Full pipeline |
 | **PATH 3** | `safe_insert_observation` RPC | ❌ Bypassed | ✅ Inline equivalent (restored in 20260404000002) |
 
-PATH 3 is the emergency fallback when the COALESCE type-mismatch error occurs
-in the `auto_evaluate_compliance` trigger. Since migration `20260404000002`,
-it runs the same compliance logic inline instead of silently skipping it.
+All three paths converge to the same outcome:
+- PATH 1: Triggers fire directly on INSERT
+- PATH 2: Uses `adaptiveObservationInsert()` from `_shared/observationInsert.ts`
+  which retries on schema drift errors and falls back to `safe_insert_observation`
+  RPC when the COALESCE trigger error persists
+- PATH 3: `safe_insert_observation` RPC runs the full compliance pipeline inline
+  (canonical lookup → compliance evaluation → compliance_results → breach_alerts)
 
 ---
 
