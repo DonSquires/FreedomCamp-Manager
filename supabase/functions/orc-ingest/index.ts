@@ -18,6 +18,7 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
 import { corsHeaders } from '../_shared/cors.ts';
+import { adaptiveObservationInsert } from '../_shared/observationInsert.ts';
 
 const INFERENCE_SERVICE_URL = Deno.env.get('INFERENCE_SERVICE_URL');
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
@@ -109,42 +110,55 @@ serve(async (req) => {
       dimension: inferResult.data.metadata.dimension
     });
 
-    // Step 4: Store observation with embedding
-    const { data: observation, error: insertError } = await supabase
-      .from('observations')
-      .insert({
-        plate_number: metadata.plate_number || 'UNKNOWN',
-        photo_url: publicUrl,
-        photo_hash: metadata.photo_hash,
-        gps_latitude: metadata.gps_latitude,
-        gps_longitude: metadata.gps_longitude,
-        gps_accuracy: metadata.gps_accuracy,
-        recorded_at: metadata.recorded_at || new Date().toISOString(),
-        organization_id: metadata.organization_id,
-        zone_id: metadata.zone_id,
-        recorded_by: user.id,
-        vehicle_embedding: inferResult.data.embedding,
-        embedding_quality: inferResult.data.embedding_quality,
-        embedding_model_version: inferResult.data.embedding_model_version,
-        embedding_created_at: new Date().toISOString(),
-        officer_notes: metadata.notes,
-        self_contained: metadata.self_contained,
-        self_contained_expiry: metadata.self_contained_expiry
-      })
-      .select('id, plate_number, recorded_at')
-      .single();
+    // Step 4: Store observation with embedding using adaptive insert for COALESCE error handling
+    const observationPayload = {
+      plate_number: metadata.plate_number || 'UNKNOWN',
+      photo_url: publicUrl,
+      photo_hash: metadata.photo_hash,
+      gps_latitude: metadata.gps_latitude,
+      gps_longitude: metadata.gps_longitude,
+      gps_accuracy: metadata.gps_accuracy,
+      recorded_at: metadata.recorded_at || new Date().toISOString(),
+      organization_id: metadata.organization_id,
+      zone_id: metadata.zone_id,
+      recorded_by: user.id,
+      vehicle_embedding: inferResult.data.embedding,
+      embedding_quality: inferResult.data.embedding_quality,
+      embedding_model_version: inferResult.data.embedding_model_version,
+      embedding_created_at: new Date().toISOString(),
+      officer_notes: metadata.notes,
+      self_contained: metadata.self_contained || false,
+      self_contained_expiry: metadata.self_contained_expiry,
+      // Compliance defaults - trigger will update these
+      is_compliant: true,
+      nights_stayed_this_month: 0,
+      consecutive_nights: 0,
+    };
+
+    const { data: observation, error: insertError, droppedColumns } = await adaptiveObservationInsert(
+      supabase,
+      observationPayload,
+    );
+
+    if (droppedColumns.length > 0) {
+      console.log('📝 ORC ingest adaptive insert dropped columns:', droppedColumns);
+    }
 
     if (insertError) {
       console.error('Observation insert failed:', insertError);
-      throw new Error(`Failed to store observation: ${insertError.message}`);
+      throw new Error(`Failed to store observation: ${(insertError as any)?.message || 'Unknown error'}`);
     }
 
-    console.log('✅ Observation created:', observation.id);
+    const observationId = (observation as any)?.id || (observation as any)?.observation_id;
+    const observationPlate = (observation as any)?.plate_number;
+    const observationRecordedAt = (observation as any)?.recorded_at;
+
+    console.log('✅ Observation created:', observationId);
 
     // Step 5: Find matching vehicles
     const { data: matches, error: matchError } = await supabase
       .rpc('match_vehicle', {
-        p_obs_id: observation.id,
+        p_obs_id: observationId,
         p_k: 5,
         p_since: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString(), // 90 days
         p_org: metadata.organization_id,
@@ -164,9 +178,9 @@ serve(async (req) => {
       JSON.stringify({
         success: true,
         data: {
-          observation_id: observation.id,
-          plate_number: observation.plate_number,
-          recorded_at: observation.recorded_at,
+          observation_id: observationId,
+          plate_number: observationPlate,
+          recorded_at: observationRecordedAt,
           photo_url: publicUrl,
           embedding: {
             quality: inferResult.data.embedding_quality,

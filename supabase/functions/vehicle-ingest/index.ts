@@ -86,6 +86,62 @@ function isMissingIdempotencyColumnError(error: unknown): boolean {
     && /schema cache|does not exist|column/i.test(String(message));
 }
 
+/**
+ * Detects COALESCE type mismatch errors from database triggers.
+ * These occur when the trigger function expects INTEGER but the column is TEXT.
+ * Error pattern: "COALESCE types integer and text cannot be matched"
+ */
+function isCoalesceTypeMismatchError(error: unknown): boolean {
+  const message =
+    typeof error === "string"
+      ? error
+      : (error as any)?.message || (error as any)?.error || "";
+  return /coalesce types .* integer and text cannot be matched/i.test(String(message));
+}
+
+/**
+ * Detects missing schema column errors.
+ * Error pattern: "Could not find the 'column_name' column of 'table_name' in the schema cache"
+ */
+function extractMissingSchemaColumn(error: unknown): string | null {
+  const message =
+    typeof error === "string"
+      ? error
+      : (error as any)?.message || (error as any)?.error || "";
+  const match = String(message).match(/Could not find the '([^']+)' column/i);
+  return match ? match[1] : null;
+}
+
+/**
+ * Columns that may cause COALESCE type mismatch errors in triggers when
+ * the column types have drifted. These are safe to omit from the payload
+ * (the trigger function will use defaults).
+ */
+const COMPLIANCE_DRIFT_COLUMNS = new Set([
+  "nights_stayed_this_month",
+  "consecutive_nights",
+  "is_compliant",
+  "self_contained",
+  "breach_type",
+  "breach_reason",
+]);
+
+/**
+ * Optional columns that may not be in the schema cache yet.
+ * Safe to drop and retry the insert.
+ */
+const OPTIONAL_SCHEMA_COLUMNS = new Set([
+  "weather_conditions",
+  "processing_status",
+  "processing_started_at",
+  "processing_completed_at",
+  "processing_error",
+  "plate_confidence",
+  "vehicle_make_confidence",
+  "vehicle_model_confidence",
+  "vehicle_color_confidence",
+]);
+
 async function downloadPhotoBytes(
   supabase: ReturnType<typeof createClient>,
   photoRef: string,
@@ -664,8 +720,9 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Step 4: Insert observation into observations table
-    const observationData = {
+    // Step 4: Insert observation into observations table with adaptive retry
+    // Handles COALESCE type mismatch errors and schema cache misses
+    const observationData: Record<string, unknown> = {
       plate_number: plateNumber || "MANUAL_REQUIRED",
       photo_url: photoUrl,
       photo_hash: photoHash,
@@ -693,19 +750,67 @@ Deno.serve(async (req) => {
       consecutive_nights: 0,
     };
 
-    const insertPayload = supportsIdempotencyKeyColumn
+    const insertPayload: Record<string, unknown> = supportsIdempotencyKeyColumn
       ? { ...observationData, idempotency_key: idempotencyKey }
       : observationData;
 
-    const { data: observation, error: obsError } = await supabase
-      .from("observations")
-      .insert(insertPayload)
-      .select()
-      .single();
+    // Adaptive insert with retry logic for schema drift and COALESCE errors
+    let observation: unknown = null;
+    let obsError: unknown = null;
+    let coalesceRetried = false;
+    const droppedColumns: string[] = [];
 
-    if (obsError) {
+    for (let attempt = 0; attempt < 8; attempt++) {
+      const { data: result, error } = await supabase
+        .from("observations")
+        .insert(insertPayload)
+        .select()
+        .single();
+
+      if (!error) {
+        observation = result;
+        break;
+      }
+
+      // Handle missing schema column errors - drop column and retry
+      const missingCol = extractMissingSchemaColumn(error);
+      if (missingCol && OPTIONAL_SCHEMA_COLUMNS.has(missingCol) && (missingCol in insertPayload)) {
+        console.warn(`⚠️ Schema cache missing column '${missingCol}' — dropping from INSERT and retrying`);
+        delete insertPayload[missingCol];
+        droppedColumns.push(missingCol);
+        continue;
+      }
+
+      // Handle COALESCE type mismatch errors - drop compliance columns and retry
+      if (!coalesceRetried && isCoalesceTypeMismatchError(error)) {
+        console.warn("⚠️ COALESCE type mismatch detected — dropping compliance columns and retrying");
+        for (const col of COMPLIANCE_DRIFT_COLUMNS) {
+          if (col in insertPayload) {
+            delete insertPayload[col];
+            droppedColumns.push(col);
+          }
+        }
+        coalesceRetried = true;
+        continue;
+      }
+
+      // Can't recover - record error and break
+      obsError = error;
+      console.error("❌ Insert failed after retries:", {
+        error: (error as any)?.message,
+        attempt: attempt + 1,
+        droppedColumns,
+      });
+      break;
+    }
+
+    if (droppedColumns.length > 0) {
+      console.log("📝 Adaptive insert dropped columns:", droppedColumns);
+    }
+
+    if (obsError || !observation) {
       console.error("❌ Failed to create observation:", obsError);
-      return new Response(JSON.stringify({ error: "Failed to create observation: " + obsError.message }), {
+      return new Response(JSON.stringify({ error: "Failed to create observation: " + ((obsError as any)?.message || "Unknown error") }), {
         status: 500,
         headers: { ...getCorsHeaders(req), "content-type": "application/json" },
       });

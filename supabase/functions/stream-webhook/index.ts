@@ -1,5 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
 import { corsHeaders } from '../_shared/cors.ts';
+import { adaptiveObservationInsert } from '../_shared/observationInsert.ts';
 
 /**
  * PLATE RECOGNIZER STREAM WEBHOOK ENDPOINT
@@ -199,35 +200,42 @@ Deno.serve(async (req) => {
           }
         }
 
-        // Create vehicle observation (new schema)
-        const { data: newRecord, error: insertError } = await supabaseAdmin
-          .from('observations')
-          .insert({
-            organization_id: organizationId || null,
-            zone_id: zoneId,
-            plate_number: plateNumber,
-            vehicle_make: finalMake,
-            vehicle_model: finalModel,
-            vehicle_color: finalColor,
-            vehicle_year: finalYear || null,
-            self_contained: false, // Stream doesn't detect stickers
-            photo_url: vehiclePhotoUrl || null,
-            photo_hash: null,
-            gps_latitude: null, // Stream doesn't provide GPS
-            gps_longitude: null,
-            gps_accuracy: null,
-            recorded_at: new Date().toISOString(),
-            recorded_by: null, // Automated stream scan
-            officer_notes: 'Auto-scanned via ALPR Stream',
-            has_notes: false,
-            is_compliant: true, // Will be updated by compliance check
-          })
-          .select('*')
-          .single();
+        // Create vehicle observation (new schema) with adaptive insert for COALESCE error handling
+        const observationPayload = {
+          organization_id: organizationId || null,
+          zone_id: zoneId,
+          plate_number: plateNumber,
+          vehicle_make: finalMake,
+          vehicle_model: finalModel,
+          vehicle_color: finalColor,
+          vehicle_year: finalYear || null,
+          self_contained: false, // Stream doesn't detect stickers
+          photo_url: vehiclePhotoUrl || null,
+          photo_hash: null,
+          gps_latitude: null, // Stream doesn't provide GPS
+          gps_longitude: null,
+          gps_accuracy: null,
+          recorded_at: new Date().toISOString(),
+          recorded_by: null, // Automated stream scan
+          officer_notes: 'Auto-scanned via ALPR Stream',
+          has_notes: false,
+          is_compliant: true, // Will be updated by compliance check
+          nights_stayed_this_month: 0,
+          consecutive_nights: 0,
+        };
+
+        const { data: newRecord, error: insertError, droppedColumns } = await adaptiveObservationInsert(
+          supabaseAdmin,
+          observationPayload,
+        );
+
+        if (droppedColumns.length > 0) {
+          console.log(`📝 Stream webhook adaptive insert dropped columns for ${plateNumber}:`, droppedColumns);
+        }
 
         if (insertError) {
           console.error('Failed to create record:', insertError);
-          errors.push(`${plateNumber}: ${insertError.message}`);
+          errors.push(`${plateNumber}: ${(insertError as any)?.message || 'Unknown error'}`);
           continue;
         }
 
