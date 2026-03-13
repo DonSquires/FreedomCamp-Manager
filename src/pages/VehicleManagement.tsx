@@ -14,7 +14,7 @@ import { AppLayout } from '@/components/features/AppLayout'
 import { GlobalFilterRibbon } from '@/components/features/GlobalFilterRibbon'
 import {
   Search, Car, AlertTriangle, CheckCircle, Calendar, RefreshCw, Database, Globe,
-  MapPin, Clock, BarChart3, ZoomIn,
+  MapPin, Clock, BarChart3, ZoomIn, Shield,
 } from 'lucide-react'
 import { formatDate, formatDateTime } from '@/lib/utils'
 import { nzDateToUTCStart, nzDateToUTCEnd } from '@/lib/timezone'
@@ -257,7 +257,8 @@ export default function VehicleManagement() {
           return rows.filter((v) => v.total_breaches === 0)
         }
         if (statusFilter === 'breaches') {
-          return rows.filter((v) => v.total_breaches > 0)
+          // Exclude homeless vehicles – they are breach-exempt under the FC Act
+          return rows.filter((v) => v.total_breaches > 0 && !isHomelessForUi(v.homeless_status))
         }
         if (statusFilter === 'homeless') {
           return rows.filter((v) => isHomelessForUi(v.homeless_status))
@@ -850,7 +851,8 @@ export default function VehicleManagement() {
     ? {
         total: vehicles.length,
         compliant: vehicles.filter((v) => v.total_breaches === 0).length,
-        breaches: vehicles.filter((v) => v.total_breaches > 0).length,
+        // Exclude homeless vehicles from breach count – they are breach-exempt under the FC Act
+        breaches: vehicles.filter((v) => v.total_breaches > 0 && !isHomelessForUi(v.homeless_status)).length,
         selfContained: vehicles.filter((v) => v.self_contained).length,
         homeless: vehicles.filter((v) => isHomelessForUi(v.homeless_status)).length,
         exempt: vehicles.filter((v) => v.is_exempt).length,
@@ -1061,7 +1063,13 @@ export default function VehicleManagement() {
                           Exempt
                         </Badge>
                       )}
-                      {vehicle.total_breaches > 0 && (
+                      {vehicle.total_breaches > 0 && isHomelessForUi(vehicle.homeless_status) && (
+                        <Badge variant="outline" className="text-xs bg-amber-50 text-amber-700 border-amber-300">
+                          <Shield className="h-3 w-3 mr-1" />
+                          Breach Exempt (FC Act)
+                        </Badge>
+                      )}
+                      {vehicle.total_breaches > 0 && !isHomelessForUi(vehicle.homeless_status) && (
                         <Badge variant="destructive" className="text-xs">
                           <AlertTriangle className="h-3 w-3 mr-1" />
                           Active Breach
@@ -1222,7 +1230,13 @@ export default function VehicleManagement() {
                       Exempt
                     </Badge>
                   )}
-                  {selectedVehicle.total_breaches > 0 && (
+                  {selectedVehicle.total_breaches > 0 && isHomelessForUi(selectedVehicle.homeless_status) && (
+                    <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-300">
+                      <Shield className="h-3 w-3 mr-1" />
+                      Breach Exempt (FC Act)
+                    </Badge>
+                  )}
+                  {selectedVehicle.total_breaches > 0 && !isHomelessForUi(selectedVehicle.homeless_status) && (
                     <Badge variant="destructive">
                       <AlertTriangle className="h-3 w-3 mr-1" />
                       Active Breach

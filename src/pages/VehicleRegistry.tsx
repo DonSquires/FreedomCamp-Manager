@@ -107,12 +107,15 @@ export default function VehicleRegistry() {
 
   const total = vehicles?.length ?? 0
   const selfContainedCount = vehicles?.filter((v) => v.self_contained).length ?? 0
-  const breachCount = vehicles?.filter((v) => v.total_breaches > 0).length ?? 0
+  // Exclude homeless vehicles from breach count – they are breach-exempt under the FC Act
+  const breachCount = vehicles?.filter((v) => v.total_breaches > 0 && !isHomelessForUi(v.homeless_status)).length ?? 0
   const homelessCount = vehicles?.filter((v) => isHomelessForUi(v.homeless_status)).length ?? 0
   const exemptCount = vehicles?.filter((v) => v.is_exempt).length ?? 0
 
   const complianceBadge = (v: RegistryVehicle) => {
     if (v.is_exempt) return <Badge variant="outline" className="text-purple-700 border-purple-300">Exempt</Badge>
+    if (isHomelessForUi(v.homeless_status) && v.total_breaches > 0)
+      return <Badge variant="outline" className="text-amber-700 border-amber-300">Breach Exempt (FC Act)</Badge>
     if (v.total_breaches > 0)
       return <Badge variant="destructive">{v.total_breaches} Breach{v.total_breaches !== 1 ? 'es' : ''}</Badge>
     return <Badge variant="outline" className="text-green-700 border-green-300">Compliant</Badge>

@@ -78,36 +78,51 @@ export default function HotspotsMap() {
   const { data: hotspots, isLoading } = useQuery({
     queryKey: ['hotspots', organizationId, zoneId, dateFrom, dateTo, showBreachesOnly],
     queryFn: async () => {
-      let query = supabase
-        .from('observations')
-        .select('zone_id, gps_latitude, gps_longitude, is_compliant, plate_number, zones(name)')
-        
+      // Paginate through all observations to get a complete heatmap.
+      // The Supabase client defaults to 1000 rows per request.
+      const allRows: any[] = []
+      const pageSize = 1000
+      let offset = 0
+      // Safety cap to prevent runaway queries on very large datasets.
+      // 50k observations is sufficient for zone-level aggregation accuracy
+      // while keeping query time reasonable (~50 pages × ~200ms each ≈ 10s).
+      const maxRows = 50000
 
-      if (effectiveOrganizationId) {
-        query = query.eq('organization_id', effectiveOrganizationId)
+      while (offset < maxRows) {
+        let pageQuery = supabase
+          .from('observations')
+          .select('zone_id, gps_latitude, gps_longitude, is_compliant, plate_number, zones(name)')
+
+        if (effectiveOrganizationId) {
+          pageQuery = pageQuery.eq('organization_id', effectiveOrganizationId)
+        }
+        if (zoneId) {
+          pageQuery = pageQuery.eq('zone_id', zoneId)
+        }
+        if (startDate) {
+          pageQuery = pageQuery.gte('recorded_at', startDate)
+        }
+        if (endDate) {
+          pageQuery = pageQuery.lte('recorded_at', endDate)
+        }
+        if (showBreachesOnly) {
+          pageQuery = pageQuery.eq('is_compliant', false)
+        }
+
+        pageQuery = pageQuery.range(offset, offset + pageSize - 1)
+
+        const { data: pageData, error: pageError } = await pageQuery
+        if (pageError) throw pageError
+
+        const rows = pageData ?? []
+        allRows.push(...rows)
+
+        if (rows.length < pageSize) break
+        offset += pageSize
       }
-
-      if (zoneId) {
-        query = query.eq('zone_id', zoneId)
-      }
-
-      if (startDate) {
-        query = query.gte('recorded_at', startDate)
-      }
-      if (endDate) {
-        query = query.lte('recorded_at', endDate)
-      }
-
-      if (showBreachesOnly) {
-        query = query.eq('is_compliant', false)
-      }
-
-      const { data, error } = await query
-
-      if (error) throw error
 
       // Group by zone
-      const zoneData = (data || []).reduce((acc: Record<string, any>, obs: any) => {
+      const zoneData = allRows.reduce((acc: Record<string, any>, obs: any) => {
         const zoneId = obs.zone_id
         const zoneName = obs.zones?.name || 'Unknown'
         
