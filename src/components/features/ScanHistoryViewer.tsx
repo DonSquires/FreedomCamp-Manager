@@ -44,7 +44,7 @@ export function ScanHistoryViewer({
     queryFn: async () => {
       let query = (supabase.from('observations') as any)
         .select(`
-          id,
+          id:observation_id,
           plate_number,
           photo_url,
           recorded_at,

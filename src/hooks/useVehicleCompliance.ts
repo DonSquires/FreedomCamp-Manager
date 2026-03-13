@@ -76,7 +76,7 @@ export function useVehicleCompliance(plateNumber?: string, options?: {
       let query = supabase
         .from('observations')
         .select(`
-          id,
+          id:observation_id,
           plate_number,
           zone_id,
           is_compliant,
@@ -141,7 +141,7 @@ export function useVehicleCompliance(plateNumber?: string, options?: {
 
       let query = (supabase.from('observations') as any)
         .select(`
-          id,
+          id:observation_id,
           is_compliant,
           recorded_at,
           zone_id,

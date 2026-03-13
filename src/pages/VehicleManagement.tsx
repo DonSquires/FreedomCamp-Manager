@@ -654,7 +654,7 @@ export default function VehicleManagement() {
     queryFn: async () => {
       let q = supabase
         .from('observations')
-        .select('id, recorded_at, is_compliant, breach_type, nights_stayed_this_month, organization_id, zone_id, recorded_by')
+        .select('observation_id, recorded_at, is_compliant, breach_type, nights_stayed_this_month, organization_id, zone_id, recorded_by')
         .eq('plate_number', selectedVehicle!.plate_number)
         .order('recorded_at', { ascending: false })
         .limit(100)
@@ -689,7 +689,7 @@ export default function VehicleManagement() {
       const photoColumn = await (async () => {
         const candidates: Array<'photo_url' | 'image_url' | 'photo'> = ['photo_url', 'image_url', 'photo']
         for (const col of candidates) {
-          const { error } = await (supabase.from('observations') as any).select(`id, ${col}`).limit(1)
+          const { error } = await (supabase.from('observations') as any).select(`observation_id, ${col}`).limit(1)
           if (!error) return col
         }
         return null
@@ -697,13 +697,13 @@ export default function VehicleManagement() {
 
       let photosById: Record<string, string | null> = {}
       if (photoColumn) {
-        const ids = obsRows.map((o: any) => o.id).filter(Boolean)
+        const ids = obsRows.map((o: any) => o.observation_id).filter(Boolean)
         if (ids.length > 0) {
           const { data: p } = await (supabase.from('observations') as any)
-            .select(`id, ${photoColumn}`)
-            .in('id', ids)
+            .select(`observation_id, ${photoColumn}`)
+            .in('observation_id', ids)
           photosById = Object.fromEntries(
-            (p || []).map((row: any) => [row.id, row[photoColumn] ?? null])
+            (p || []).map((row: any) => [row.observation_id, row[photoColumn] ?? null])
           )
         }
       }
@@ -714,7 +714,7 @@ export default function VehicleManagement() {
         org: row.organization_id
           ? { name: orgNames[row.organization_id] || 'Unknown Org' }
           : null,
-        photo_url: photosById[row.id] ?? null,
+        photo_url: photosById[row.observation_id] ?? null,
       }))
     },
     enabled: showDetailsDialog && !!selectedVehicle?.plate_number,

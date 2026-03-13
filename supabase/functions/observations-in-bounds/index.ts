@@ -76,7 +76,7 @@ serve(withCors(async (req) => {
   let query = supabaseClient
     .from('observations')
     .select(`
-      id,
+      id:observation_id,
       plate_number,
       recorded_at,
       is_compliant,

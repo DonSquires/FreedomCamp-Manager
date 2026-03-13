@@ -168,7 +168,7 @@ export const smokeTests = {
     try {
       const { data, error } = await supabase
         .from('observations')
-        .select('id, plate_number, recorded_at, is_compliant')
+        .select('id:observation_id, plate_number, recorded_at, is_compliant')
         .order('recorded_at', { ascending: false })
         .limit(10)
       
@@ -351,7 +351,7 @@ export const dataVerification = {
   async verifyComplianceResults() {
     const { data: observationsData } = await supabase
       .from('observations')
-      .select('id, is_compliant')
+      .select('id:observation_id, is_compliant')
       
       .limit(100)
 

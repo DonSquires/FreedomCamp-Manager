@@ -50,7 +50,7 @@ export function VehiclePhotoGallery({
     queryFn: async () => {
       const { data, error } = await (supabase.from('observations') as any)
         .select(`
-          id,
+          id:observation_id,
           photo,
           photo_url,
           photo_hash,
