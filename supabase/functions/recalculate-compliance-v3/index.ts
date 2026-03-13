@@ -435,6 +435,63 @@ serve(async (req: Request) => {
       bucket.push(row);
       observationsByPlateZone.set(key, bucket);
     }
+
+    // ── Overnight evidence context window ───────────────────────────────────
+    // When processing a paginated batch, the "previous day" observation needed
+    // for overnight evidence detection may be in an earlier batch.  To fix
+    // this we load up to 2 days of look-back observations (for the same zones)
+    // and merge them into the evidence buckets before evaluating any
+    // overnight-dependent rule.
+    if (zoneIdList.length > 0) {
+      const earliestTs = Math.min(
+        ...(observations as any[]).map((o: any) => new Date(o.recorded_at).getTime()),
+      );
+      const contextWindowStart = new Date(earliestTs - 2 * 24 * 60 * 60 * 1000).toISOString();
+      // Exclusive upper bound: stop just before the earliest observation in the
+      // current batch to avoid including records that are already present.
+      const contextWindowEnd = new Date(earliestTs).toISOString();
+
+      const contextSelectFields = [
+        keyCol,
+        'zone_id',
+        'organization_id',
+        'plate_number',
+        'recorded_at',
+        'gps_latitude',
+        'gps_longitude',
+        ...(hasVehicleEmbeddingColumn ? ['vehicle_embedding'] : []),
+        ...(hasEmbeddingColumn ? ['embedding'] : []),
+      ].join(', ');
+
+      let ctxQuery = supabaseAdmin
+        .from('observations')
+        .select(contextSelectFields)
+        .gte('recorded_at', contextWindowStart)
+        .lt('recorded_at', contextWindowEnd)
+        .not('plate_number', 'is', null)
+        .in('zone_id', zoneIdList);
+
+      if (scopedOrgId) ctxQuery = ctxQuery.eq('organization_id', scopedOrgId);
+
+      const { data: contextObs } = await ctxQuery
+        .order('recorded_at', { ascending: true })
+        .limit(2000);
+
+      // Build a set of observation IDs already in the batch to avoid duplicates
+      const batchIds = new Set(
+        (observations as any[]).map((o: any) => String((o as any)[keyCol])),
+      );
+
+      for (const row of contextObs ?? []) {
+        const key = `${row.organization_id}:${row.zone_id}:${normalizePlateKey(row.plate_number)}`;
+        if (!observationsByPlateZone.has(key)) continue; // Only need context for plates in batch
+        if (batchIds.has(String((row as any)[keyCol]))) continue; // Skip if already in batch
+        const bucket = observationsByPlateZone.get(key) ?? [];
+        bucket.push(row);
+        observationsByPlateZone.set(key, bucket);
+      }
+    }
+
     for (const [, bucket] of observationsByPlateZone) {
       bucket.sort((a, b) => new Date(a.recorded_at).getTime() - new Date(b.recorded_at).getTime());
     }
@@ -626,6 +683,23 @@ serve(async (req: Request) => {
 
         if (updateError) {
           console.error(`Failed to update observation ${(obs as any)[keyCol]}:`, updateError.message);
+        }
+
+        // Keep compliance_results in sync: update the pre-existing row if it
+        // exists (do not create a new one here — that is the trigger's job).
+        const { error: crError } = await supabaseAdmin
+          .from('compliance_results')
+          .update({
+            is_compliant: isCompliant,
+            violation_type: breachType,
+            violation_reasons: isCompliant ? [] : (breachType ? [breachType] : []),
+            evaluated_at: new Date().toISOString(),
+          })
+          .eq('observation_id', (obs as any)[keyCol]);
+        // A missing row or schema mismatch is non-critical; log only to aid
+        // debugging without surfacing an error to the caller.
+        if (crError) {
+          console.warn(`compliance_results sync skipped for ${(obs as any)[keyCol]}:`, crError.message);
         }
       }
 

@@ -541,54 +541,18 @@ function ZonesTab({
   const startISO = nzDateToUTCStart(dateFrom);
   const endISO = nzDateToUTCEnd(dateTo);
 
-  // Direct queries against zones + observations (respects RLS).
+  // Use server-side RPC to avoid the 1000-row Supabase client default limit.
+  // get_zone_compliance_breakdown aggregates all observations in the DB.
   const { data: zoneStats, isLoading: zonesLoading } = useQuery({
     queryKey: ['comp-zone-breakdown', dateFrom, dateTo, orgId],
     queryFn: async () => {
-      let zonesQ = supabase
-        .from('zones')
-        .select('id, name, is_active, nights_per_month, max_consecutive_nights, self_contained_required, day_visit_only, organization_id, organizations(name)');
-      if (orgId) zonesQ = zonesQ.eq('organization_id', orgId);
-      const { data: zones, error: zErr } = await zonesQ;
-      if (zErr) throw zErr;
-      if (!zones?.length) return [];
-
-      let obsQ = supabase
-        .from('observations')
-        .select('zone_id, is_compliant')
-        .gte('recorded_at', startISO)
-        .lte('recorded_at', endISO);
-      if (orgId) obsQ = obsQ.eq('organization_id', orgId);
-      const { data: obs, error: oErr } = await obsQ;
-      if (oErr) throw oErr;
-
-      // Build a lookup map for O(n+m) aggregation instead of O(n*m) nested filter.
-      const obsMap = new Map<string, { is_compliant: boolean | null }[]>();
-      for (const o of (obs ?? []) as any[]) {
-        const arr = obsMap.get(o.zone_id) ?? [];
-        arr.push(o);
-        obsMap.set(o.zone_id, arr);
-      }
-
-      return (zones as any[]).map((z) => {
-        const zObs        = obsMap.get(z.id) ?? [];
-        const obs_count   = zObs.length;
-        const breach_count = zObs.filter((o) => o.is_compliant === false).length;
-        const compliant   = obs_count - breach_count;
-        return {
-          zone_id:                z.id,
-          zone_name:              z.name,
-          organization_name:      (z.organizations as any)?.name ?? null,
-          is_active:              z.is_active,
-          nights_per_month:       z.nights_per_month,
-          max_consecutive_nights: z.max_consecutive_nights,
-          self_contained_required: z.self_contained_required,
-          day_visit_only:         z.day_visit_only,
-          obs_count,
-          breach_count,
-          compliance_pct: obs_count > 0 ? Math.round(100 * compliant / obs_count) : 100,
-        } as ZoneStats;
-      }).sort((a, b) => b.breach_count - a.breach_count || b.obs_count - a.obs_count);
+      const { data, error } = await (supabase.rpc as any)('get_zone_compliance_breakdown', {
+        p_start:            startISO,
+        p_end:              endISO,
+        p_organization_id:  orgId ?? null,
+      });
+      if (error) throw error;
+      return (Array.isArray(data) ? data : []) as ZoneStats[];
     },
   });
 
