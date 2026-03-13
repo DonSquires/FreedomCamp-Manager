@@ -21,7 +21,11 @@ import {
   Shield,
   Radio,
   Eye,
-  TrendingUp
+  TrendingUp,
+  Wifi,
+  WifiOff,
+  AlertTriangle,
+  Users,
 } from 'lucide-react'
 import { formatDateTime, formatDate } from '@/lib/utils'
 import { toast } from 'sonner'
@@ -69,6 +73,21 @@ interface OfficerActivity {
   gps_accuracy: number
   recorded_at: string
   activity_type: string
+}
+
+/** An officer who has recent GPS activity — shown even without a formal patrol record. */
+interface ActiveOfficer {
+  id: string
+  first_name: string
+  last_name: string
+  phone: string | null
+  organization_id: string | null
+  last_gps_latitude: number | null
+  last_gps_longitude: number | null
+  last_gps_accuracy: number | null
+  last_gps_update: string | null
+  _vehicles_scanned_today: number
+  _welfare_status: 'ok' | 'warning' | 'alert'
 }
 
 export default function LivePatrolMonitor() {
@@ -281,16 +300,105 @@ export default function LivePatrolMonitor() {
     refetchInterval: 10000, // Refresh every 10 seconds
   })
 
-  // Calculate patrol statistics
-  const stats: PatrolStats | null = patrols ? {
-    total_active: patrols.length,
-    total_officers: new Set(patrols.map(p => p.officer.id)).size,
-    total_vehicles_checked: patrols.reduce((sum, p) => sum + p._vehicles_checked, 0),
-    average_duration_minutes: patrols.length > 0 
-      ? Math.floor(patrols.reduce((sum, p) => sum + p._duration_minutes, 0) / patrols.length)
+  // ─── Fetch active officers (logged-in officers with recent GPS, regardless
+  //     of whether a formal patrol record exists) ───────────────────────────
+  const { data: activeOfficers = [], isLoading: officersLoading } = useQuery({
+    queryKey: ['active-officers-welfare', organizationId],
+    queryFn: async () => {
+      // Officers active in the last 2 hours
+      const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString()
+
+      let query = (supabase.from('user_profiles') as any)
+        .select('id, first_name, last_name, phone, organization_id, last_gps_latitude, last_gps_longitude, last_gps_accuracy, last_gps_update')
+        .in('role', ['officer', 'admin_officer'])
+        .eq('is_active', true)
+        .not('last_gps_update', 'is', null)
+        .gte('last_gps_update', twoHoursAgo)
+        .order('last_gps_update', { ascending: false })
+
+      // Organization scoping
+      if (user?.role !== 'master' && user?.organization_id) {
+        query = query.eq('organization_id', user.organization_id)
+      } else if (organizationId) {
+        query = query.eq('organization_id', organizationId)
+      }
+
+      const { data: officerRows, error } = await query
+      if (error) throw error
+      if (!officerRows || officerRows.length === 0) return [] as ActiveOfficer[]
+
+      // IDs of officers already covered by a patrol record
+      const patrolOfficerIds = new Set((patrols ?? []).map(p => p.officer.id))
+
+      // Enrich each officer with today's scan count & welfare status
+      const today = new Date().toISOString().split('T')[0]
+      const enriched: ActiveOfficer[] = await Promise.all(
+        (officerRows as any[]).map(async (o: any) => {
+          const { count: scans } = await (supabase.from('observations') as any)
+            .select('*', { count: 'exact', head: true })
+            .eq('recorded_by', o.id)
+            .gte('recorded_at', today)
+
+          // Check for pending welfare alerts
+          const { data: welfareAlerts } = await (supabase.from('officer_welfare_alerts') as any)
+            .select('id')
+            .eq('officer_id', o.id)
+            .eq('status', 'pending')
+            .limit(1)
+
+          const hasAlert = (welfareAlerts ?? []).length > 0
+
+          // Determine welfare status based on GPS recency
+          let welfareStatus: 'ok' | 'warning' | 'alert' = 'ok'
+          if (hasAlert) {
+            welfareStatus = 'alert'
+          } else if (o.last_gps_update) {
+            const minutesSinceGps = Math.floor((Date.now() - new Date(o.last_gps_update).getTime()) / 60000)
+            if (minutesSinceGps > 30) welfareStatus = 'warning'
+          }
+
+          return {
+            id: o.id,
+            first_name: o.first_name,
+            last_name: o.last_name,
+            phone: o.phone,
+            organization_id: o.organization_id,
+            last_gps_latitude: o.last_gps_latitude,
+            last_gps_longitude: o.last_gps_longitude,
+            last_gps_accuracy: o.last_gps_accuracy,
+            last_gps_update: o.last_gps_update,
+            _vehicles_scanned_today: scans ?? 0,
+            _welfare_status: welfareStatus,
+            _has_patrol: patrolOfficerIds.has(o.id),
+          } as ActiveOfficer & { _has_patrol: boolean }
+        })
+      )
+
+      // Only show officers NOT already in the patrols list — avoids duplication
+      return enriched.filter((o: any) => !o._has_patrol)
+    },
+    refetchInterval: 30000, // Refresh every 30 seconds
+  })
+
+  // Calculate patrol + officer statistics (combined view)
+  const patrolCount = patrols?.length ?? 0
+  const officerCount = activeOfficers.length
+  const hasAnyData = patrolCount > 0 || officerCount > 0
+
+  const stats: PatrolStats | null = hasAnyData ? {
+    total_active: patrolCount + officerCount,
+    total_officers: new Set([
+      ...(patrols ?? []).map(p => p.officer.id),
+      ...activeOfficers.map(o => o.id),
+    ]).size,
+    total_vehicles_checked:
+      (patrols ?? []).reduce((sum, p) => sum + p._vehicles_checked, 0) +
+      activeOfficers.reduce((sum, o) => sum + o._vehicles_scanned_today, 0),
+    average_duration_minutes: patrolCount > 0 
+      ? Math.floor((patrols ?? []).reduce((sum, p) => sum + p._duration_minutes, 0) / patrolCount)
       : 0,
-    zones_covered: new Set(patrols.map(p => p.zone.id)).size,
-    last_check_in: patrols[0]?.checked_in_at || null,
+    zones_covered: new Set((patrols ?? []).map(p => p.zone.id)).size,
+    last_check_in: (patrols ?? [])[0]?.checked_in_at || null,
   } : null
 
   const formatDuration = (minutes: number) => {
@@ -328,10 +436,36 @@ export default function LivePatrolMonitor() {
     return `${hoursAgo}h ago`
   }
 
+  const getPatrolStatusBadge = (status: string) => {
+    switch (status) {
+      case 'in_progress':
+        return <Badge className="bg-green-100 text-green-800 border-green-300 dark:bg-green-900/30 dark:text-green-400">In Progress</Badge>
+      case 'scheduled':
+        return <Badge className="bg-blue-100 text-blue-800 border-blue-300 dark:bg-blue-900/30 dark:text-blue-400">Scheduled</Badge>
+      case 'completed':
+        return <Badge className="bg-gray-100 text-gray-800 border-gray-300 dark:bg-gray-900/30 dark:text-gray-400">Completed</Badge>
+      case 'cancelled':
+        return <Badge variant="outline" className="text-red-600 border-red-300">Cancelled</Badge>
+      default:
+        return <Badge variant="outline">{status}</Badge>
+    }
+  }
+
+  const getWelfareBadge = (status: 'ok' | 'warning' | 'alert') => {
+    switch (status) {
+      case 'ok':
+        return <Badge className="bg-green-100 text-green-800 border-green-200 dark:bg-green-900/30 dark:text-green-400"><Wifi className="h-3 w-3 mr-1" />Active</Badge>
+      case 'warning':
+        return <Badge className="bg-yellow-100 text-yellow-800 border-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-400"><AlertTriangle className="h-3 w-3 mr-1" />GPS Stale</Badge>
+      case 'alert':
+        return <Badge className="bg-red-100 text-red-800 border-red-200 dark:bg-red-900/30 dark:text-red-400"><AlertCircle className="h-3 w-3 mr-1" />Welfare Alert</Badge>
+    }
+  }
+
   return (
     <AppLayout 
-      title="Live Patrol Monitor" 
-      description="Real-time patrol tracking and officer GPS monitoring"
+      title="Live Patrol & Welfare Monitor" 
+      description="Real-time patrol tracking, officer GPS monitoring and welfare"
       showBackButton
     >
       <GlobalFilterRibbon />
@@ -439,12 +573,12 @@ export default function LivePatrolMonitor() {
             <p className="text-sm text-gray-500 mt-2">{(patrolsError as any)?.message || 'Check that the patrols table and its relationships exist'}</p>
           </CardContent>
         </Card>
-      ) : patrols && patrols.length === 0 ? (
+      ) : patrols && patrols.length === 0 && activeOfficers.length > 0 ? (
         <Card>
-          <CardContent className="text-center py-12">
-            <Shield className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-            <p className="text-gray-600">No patrols found for today</p>
-            <p className="text-sm text-gray-500 mt-2">No scheduled, active, or completed patrols match the current filters. Try adjusting the date range or organisation filter.</p>
+          <CardContent className="text-center py-8">
+            <Shield className="h-10 w-10 text-gray-400 mx-auto mb-3" />
+            <p className="text-gray-600">No formal patrols scheduled for today</p>
+            <p className="text-sm text-gray-500 mt-1">Active officers are shown below.</p>
           </CardContent>
         </Card>
       ) : (
@@ -464,6 +598,7 @@ export default function LivePatrolMonitor() {
                         <User className="h-5 w-5 text-blue-600" />
                         {patrol.officer.first_name} {patrol.officer.last_name}
                       </CardTitle>
+                      {getPatrolStatusBadge(patrol.status)}
                       <Badge className={getGPSStatusColor(patrol._last_gps_update)}>
                         <Navigation className="h-3 w-3 mr-1" />
                         {getGPSStatusText(patrol._last_gps_update)}
@@ -628,6 +763,87 @@ export default function LivePatrolMonitor() {
             </Card>
           ))}
         </div>
+      )}
+
+      {/* ─── Active Officers (no formal patrol) ─────────────────────────── */}
+      {activeOfficers.length > 0 && (
+        <div className="mt-8">
+          <div className="flex items-center gap-2 mb-4">
+            <Users className="h-5 w-5 text-purple-600" />
+            <h2 className="text-lg font-bold text-gray-900 dark:text-white">
+              Active Officers
+            </h2>
+            <Badge variant="outline" className="ml-2 text-purple-600 border-purple-300">
+              {activeOfficers.length} logged in
+            </Badge>
+          </div>
+          <p className="text-sm text-gray-500 mb-4">
+            Officers with recent GPS activity who are not assigned to a formal patrol.
+          </p>
+          <div className="grid gap-4 lg:grid-cols-2 xl:grid-cols-3">
+            {activeOfficers.map((officer) => (
+              <Card key={officer.id} className="hover:shadow-lg transition-all">
+                <CardHeader className="pb-2">
+                  <div className="flex items-start justify-between">
+                    <CardTitle className="text-base font-bold flex items-center gap-2">
+                      <User className="h-4 w-4 text-purple-600" />
+                      {officer.first_name} {officer.last_name}
+                    </CardTitle>
+                    {getWelfareBadge(officer._welfare_status)}
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {/* GPS Position */}
+                  <div className="flex items-center gap-2 text-sm">
+                    <Navigation className="h-4 w-4 text-blue-600 shrink-0" />
+                    <Badge className={getGPSStatusColor(officer.last_gps_update)}>
+                      {getGPSStatusText(officer.last_gps_update)}
+                    </Badge>
+                    {officer.last_gps_latitude && officer.last_gps_longitude && (
+                      <span className="text-xs text-gray-500">
+                        {Number(officer.last_gps_latitude).toFixed(5)}, {Number(officer.last_gps_longitude).toFixed(5)}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Vehicle scans today */}
+                  <div className="flex items-center gap-2 text-sm">
+                    <Car className="h-4 w-4 text-green-600 shrink-0" />
+                    <span className="font-medium">{officer._vehicles_scanned_today}</span>
+                    <span className="text-gray-500">vehicles scanned today</span>
+                  </div>
+
+                  {/* Contact */}
+                  {officer.phone && (
+                    <div className="flex items-center gap-2 text-sm">
+                      <Radio className="h-4 w-4 text-gray-500 shrink-0" />
+                      <a
+                        href={`tel:${officer.phone}`}
+                        className="text-blue-600 hover:underline"
+                      >
+                        {officer.phone}
+                      </a>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Empty state — no patrols AND no active officers */}
+      {!patrolsLoading && !officersLoading && (patrols?.length ?? 0) === 0 && activeOfficers.length === 0 && !patrolsError && (
+        <Card className="mt-4">
+          <CardContent className="text-center py-12">
+            <WifiOff className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+            <p className="text-gray-600 font-medium">No active officers or patrols detected</p>
+            <p className="text-sm text-gray-500 mt-2">
+              Officers will appear here automatically once they log in and start sending GPS updates.
+              Patrols will show when scheduled for today.
+            </p>
+          </CardContent>
+        </Card>
       )}
     </AppLayout>
   )
