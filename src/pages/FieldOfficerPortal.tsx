@@ -566,8 +566,10 @@ export default function FieldOfficerPortal() {
       let ingestData: any = null
       let ingestError: string | null = null
 
-      // Adaptive insert with retries to handle schema cache misses
+      // ── PATH 1: Fast direct insert (works when DB trigger is healthy) ──
       const adaptivePayload: Record<string, any> = { ...observationPayload }
+      let directInsertCoalesceFailed = false
+
       for (let attempt = 0; attempt < 8; attempt += 1) {
         const insertAttempt = await (supabase
           .from('observations') as any)
@@ -577,7 +579,7 @@ export default function FieldOfficerPortal() {
 
         if (!insertAttempt.error) {
           ingestData = insertAttempt.data
-          appendScanDebug('Observation created', {
+          appendScanDebug('Observation created (direct)', {
             observation_id: ingestData?.id ?? ingestData?.observation_id,
             is_compliant: ingestData?.is_compliant,
             attempt: attempt + 1,
@@ -600,39 +602,104 @@ export default function FieldOfficerPortal() {
           continue
         }
 
-        // Handle COALESCE type mismatch (older trigger versions)
-        if (/coalesce types .* integer and text/i.test(message)) {
-          const complianceColumns = [
-            'nights_stayed_this_month',
-            'consecutive_nights',
-            'is_compliant',
-            'self_contained',
-          ]
-          let removedAny = false
-          for (const col of complianceColumns) {
-            if (col in adaptivePayload) {
-              delete adaptivePayload[col]
-              removedAny = true
-            }
-          }
-          if (removedAny) {
-            appendScanDebug('Adjusting payload - removed compliance columns', { attempt: attempt + 1 })
-            continue
-          }
+        // COALESCE type mismatch = the DB trigger itself is broken (column
+        // type drifted from INTEGER to TEXT).  Removing columns from the
+        // payload cannot fix this because the trigger references NEW.column
+        // which uses the column's DEFAULT.  Break out and try the fallback
+        // paths below instead of looping uselessly.
+        if (/coalesce types/i.test(message)) {
+          directInsertCoalesceFailed = true
+          appendScanDebug('Direct insert COALESCE trigger error — falling back to edge function', {
+            attempt: attempt + 1,
+          })
+          break
         }
 
-        // Can't recover - set error and break
+        // Other unrecoverable error
         ingestError = insertAttempt.error.message
         appendScanDebug('Insert failed', { error: ingestError, attempt: attempt + 1 })
         break
+      }
+
+      // ── PATH 2: vehicle-ingest edge function (runs server-side with
+      //    service_role key, includes compliance columns, creates canonical
+      //    vehicles, and runs plate inference) ──
+      if (directInsertCoalesceFailed && !ingestData) {
+        appendScanDebug('Trying vehicle-ingest edge function fallback')
+        toast.info('Retrying via secure pipeline...')
+
+        const { data: edgeResult, error: edgeErr } = await edgeFunctions.ingestVehicleObservation({
+          photo_url: photoUrl,
+          gps_latitude: position.coords.latitude,
+          gps_longitude: position.coords.longitude,
+          gps_accuracy: position.coords.accuracy,
+          recorded_at: nowIso,
+          officer_id: user.id,
+          organization_id: user.organization_id,
+          zone_id: finalZoneId,
+          idempotency_key: idempotencyKey,
+        })
+
+        if (!edgeErr && edgeResult) {
+          // vehicle-ingest returns { success, observation_id, plate, ... }
+          ingestData = edgeResult
+          appendScanDebug('Observation created via vehicle-ingest', {
+            observation_id: edgeResult.observation_id,
+            plate: edgeResult.plate,
+          })
+        } else {
+          appendScanDebug('vehicle-ingest also failed — trying safe insert RPC', {
+            error: edgeErr,
+          })
+
+          // ── PATH 3: safe_insert_observation RPC (bypasses all triggers) ──
+          // This RPC is created by migration 20260404000001.
+          try {
+            const { data: rpcResult, error: rpcError } = await (supabase as any).rpc(
+              'safe_insert_observation',
+              {
+                p_data: {
+                  plate_number: 'PROCESSING...',
+                  photo: photoUrl,
+                  photo_url: photoUrl,
+                  photo_hash: photoHash,
+                  recorded_at: nowIso,
+                  zone_id: finalZoneId,
+                  organization_id: user.organization_id,
+                  gps_latitude: position.coords.latitude,
+                  gps_longitude: position.coords.longitude,
+                  gps_accuracy: position.coords.accuracy,
+                  recorded_by: user.id,
+                  idempotency_key: idempotencyKey,
+                },
+              }
+            )
+
+            if (!rpcError && rpcResult) {
+              ingestData = rpcResult
+              appendScanDebug('Observation created via safe_insert_observation RPC', {
+                observation_id: rpcResult.observation_id ?? rpcResult.id,
+              })
+            } else {
+              ingestError = edgeErr || rpcError?.message || 'All insert paths failed'
+            }
+          } catch (rpcCatchError: any) {
+            ingestError = edgeErr || rpcCatchError?.message || 'All insert paths failed'
+          }
+        }
       }
 
       if (ingestError || !ingestData) {
         throw new Error(`Save failed: ${ingestError || 'Unknown error'}`)
       }
 
-      // Extract observation ID (handle both `id` and `observation_id` schemas)
-      const observationId = ingestData.id ?? ingestData.observation_id
+      // Extract observation ID (handle direct insert row, edge function response,
+      // and RPC response formats)
+      const observationId = ingestData.observation_id ?? ingestData.id
+
+      // If created via vehicle-ingest (PATH 2), plate inference already ran
+      // inside the edge function — skip the separate ALPR call.
+      const alprAlreadyDone = !!ingestData.success // vehicle-ingest sets success:true
 
       // ============================================================================
       // STEP 8: FIRE-AND-FORGET ALPR (UPDATE mode)
@@ -642,34 +709,39 @@ export default function FieldOfficerPortal() {
       // We don't await this - the officer gets immediate feedback.
       // If ALPR fails, the observation will have plate_number='PROCESSING...' or
       // 'MANUAL_REQUIRED' and the existing polling mechanism will update the UI.
-      appendScanDebug('Triggering async ALPR', { observation_id: observationId })
+      if (!alprAlreadyDone) {
+        appendScanDebug('Triggering async ALPR', { observation_id: observationId })
 
-      edgeFunctions.processALPR({
-        observation_id: observationId,
-        photo_url: photoUrl,
-      }).then(({ data: alprResult, error: alprError }) => {
-        if (alprError) {
-          console.warn('⚠️ Async ALPR failed:', alprError)
-          // The observation will remain with plate_number='PROCESSING...' 
-          // The existing polling mechanism will still update the UI when complete
-          // Officer can manually edit the plate via the scan history view
-        } else {
-          console.log('✅ Async ALPR completed:', {
-            plate: alprResult?.plate,
-            confidence: alprResult?.confidence,
-          })
-          // Trigger refetch to update UI with plate number
-          refetchScans()
-        }
-      }).catch((err) => {
-        console.warn('⚠️ Async ALPR error:', err)
-      })
+        edgeFunctions.processALPR({
+          observation_id: observationId,
+          photo_url: photoUrl,
+        }).then(({ data: alprResult, error: alprError }) => {
+          if (alprError) {
+            console.warn('⚠️ Async ALPR failed:', alprError)
+          } else {
+            console.log('✅ Async ALPR completed:', {
+              plate: alprResult?.plate,
+              confidence: alprResult?.confidence,
+            })
+            refetchScans()
+          }
+        }).catch((err) => {
+          console.warn('⚠️ Async ALPR error:', err)
+        })
+      } else {
+        appendScanDebug('ALPR already completed by vehicle-ingest', {
+          plate: ingestData.plate ?? 'UNKNOWN',
+          confidence: ingestData.confidence ?? null,
+        })
+        // Plate was already detected by vehicle-ingest — refresh UI
+        refetchScans()
+      }
 
-      console.log('✅ Observation created (photo-first):', {
+      console.log('✅ Observation created:', {
         observation_id: observationId,
         is_compliant: ingestData.is_compliant,
         breach_type: ingestData.breach_type,
-        plate: 'PROCESSING...',
+        plate: ingestData.plate ?? ingestData.plate_number ?? 'PROCESSING...',
       })
 
       // ============================================================================
@@ -684,6 +756,8 @@ export default function FieldOfficerPortal() {
         : null // Keep as null if unknown - let UI handle pending state
       
       const hasBreachType = !!ingestData.breach_type
+      const detectedPlate = ingestData.plate ?? ingestData.plate_number ?? null
+      const plateStillProcessing = !detectedPlate || detectedPlate === 'PROCESSING...' || detectedPlate === 'MANUAL_REQUIRED'
 
       toast.success('✅ Observation captured', {
         duration: 5000,
@@ -691,16 +765,18 @@ export default function FieldOfficerPortal() {
           ? `Breach detected: ${formatBreachType(ingestData.breach_type)}`
           : isCompliant === false
             ? 'Non-compliant observation recorded'
-            : 'Photo saved. Plate detection in progress...',
+            : plateStillProcessing
+              ? 'Photo saved. Plate detection in progress...'
+              : `Plate ${detectedPlate} recorded`,
       })
 
       setLastScanResult({
         observationId: observationId,
         photoUrl: photoUrl,
-        plateNumber: null, // Will be populated when ALPR completes
+        plateNumber: plateStillProcessing ? null : detectedPlate,
         isCompliant: isCompliant,
         breachType: ingestData.breach_type ?? null,
-        processingPending: true, // ALPR is running in background
+        processingPending: plateStillProcessing,
         zoneName: null,
         observationZoneId: finalZoneId ?? null,
         recordedAt: nowIso,
