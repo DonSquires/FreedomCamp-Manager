@@ -70,7 +70,15 @@ export function ZoneHierarchyManager({
       const { data, error } = await query
 
       if (error) throw error
-      return data as Zone[]
+
+      // Deduplicate zones by (organization_id, name) — keep first occurrence
+      const seen = new Set<string>()
+      return ((data || []) as Zone[]).filter((zone) => {
+        const key = zone.name.trim().toLowerCase()
+        if (seen.has(key)) return false
+        seen.add(key)
+        return true
+      })
     },
   })
 

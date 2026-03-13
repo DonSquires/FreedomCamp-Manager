@@ -154,9 +154,18 @@ export default function ZoneManagement() {
       const { data, error } = await query
       if (error) throw error
 
+      // Deduplicate zones by (organization_id, name) — keep first occurrence
+      const seen = new Set<string>()
+      const uniqueZones = ((data || []) as Zone[]).filter((zone) => {
+        const key = `${zone.organization_id}::${zone.name.trim().toLowerCase()}`
+        if (seen.has(key)) return false
+        seen.add(key)
+        return true
+      })
+
       // Fetch counts for each zone
       const zonesWithCounts = await Promise.all(
-        ((data || []) as Zone[]).map(async (zone) => {
+        uniqueZones.map(async (zone) => {
           const [obsCount, breachCount] = await Promise.all([
             supabase.from('observations').select('observation_id', { count: 'exact', head: true }).eq('zone_id', zone.id),
             supabase.from('breach_alerts').select('id', { count: 'exact', head: true }).eq('zone_id', zone.id),
