@@ -1,5 +1,10 @@
 # FreedomCamp-Manager Codebase Audit - Complete Documentation Index
 
+> ⚠️ **GOVERNANCE NOTICE**: This file is protected by `.github/CODEOWNERS`.
+> Changes require an approved PR reviewed by `@DonSquires`.
+> Edge function count: **57** (not 58). See `CODEBASE_AUDIT.txt` for inventory.
+> Authoritative live schema: see `docs/LIVE_SCHEMA.md`.
+
 ## 📋 Documents Included
 
 This audit consists of three comprehensive documents designed for different audiences:
@@ -8,7 +13,7 @@ This audit consists of three comprehensive documents designed for different audi
 **For**: Developers, architects, anyone needing complete component inventory
 
 **Contains**:
-- ✅ All 58 edge functions with descriptions
+- ✅ All 57 edge functions with descriptions
 - ✅ All 115 database migrations with impact analysis
 - ✅ All 6 shared helper modules with purpose
 - ✅ All 36 TypeScript hooks with categories
@@ -118,7 +123,7 @@ This audit consists of three comprehensive documents designed for different audi
 
 | Category | Count | Risk |
 |----------|-------|------|
-| Edge Functions | 58 | ✅ Low |
+| Edge Functions | 57 | ✅ Low |
 | Migrations | 115 | ✅ Low |
 | Database Tables | 20+ | ✅ Low |
 | React Components | 47 | ✅ Low |

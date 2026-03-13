@@ -1,447 +1,319 @@
 # Schema & Wiring Validation Checklist
 
+> ⚠️ **SCHEMA GOVERNANCE — READ BEFORE TOUCHING ANY DATABASE OR DOC FILES**
+>
+> The live schema is the single source of truth.  
+> **No changes may be made to:**
+> - `supabase/migrations/` (new or modified SQL)
+> - `supabase/functions/` (edge function changes that add/remove DB columns)
+> - `src/types/database.ts` or `src/types/index.ts`
+> - `docs/LIVE_SCHEMA.md`
+> - This file
+>
+> **…without an approved Pull Request reviewed by `@DonSquires`.**  
+> The `.github/CODEOWNERS` file enforces this at the GitHub level.  
+> Do **not** run the `supabase-db-push.yml` workflow without approval.  
+> See [docs/LIVE_SCHEMA.md](docs/LIVE_SCHEMA.md) for the complete authoritative column listing.
+
+---
+
 ## Quick Reference for Audit Findings
 
-### 🔴 Critical Mismatches to Monitor
+### 🔴 Critical: Know Which Columns Actually Exist
 
-#### 1. COALESCE Type Drift (Observations Insert)
-**Problem**: Database triggers expect INTEGER for compliance fields, but columns are TEXT
-**Files**: 
-- `supabase/functions/vehicle-ingest/index.ts` - Main insert logic
-- `supabase/functions/_shared/observationInsert.ts` - Error detection and recovery
-- Migrations: 20260312, 20260313, 20260401 (fixes)
+The most dangerous class of bug is writing to a column that does not exist in the live DB.  
+The following columns are **absent from the live schema** as of 2026-03-13 — do not add them to any insert/update payload:
 
-**Validation**:
-```sql
--- Check column types in observations table
-SELECT column_name, data_type 
-FROM information_schema.columns 
-WHERE table_name = 'observations' 
-AND column_name IN ('nights_stayed_this_month', 'consecutive_nights', 'is_compliant', 'self_contained', 'breach_type')
-ORDER BY column_name;
-```
+**observations (absent):**
+- `weather_conditions` — never added to live DB
+- `processing_status`, `processing_started_at`, `processing_completed_at`, `processing_error` — AI pipeline tracking; never added
+- `plate_confidence`, `vehicle_make_confidence`, `vehicle_model_confidence`, `vehicle_color_confidence` — AI confidence scores; never added
+- `sticker_presence`, `sticker_color`, `sticker_bbox`, `sticker_detection_confidence`, `sticker_color_confidence` — sticker detection; never added
+- `movement_moved`, `movement_background_similarity`, `movement_vehicle_bbox_iou`, `movement_decision` — movement comparison; never added
+- `previous_observation_id` — movement chain; never added
+- `compliance_summary` — use `compliance_snapshot` instead
+- `image_url` — use `photo` (primary) or `photo_url` (secondary)
 
-**Expected**: All should be TEXT or compatible type
-**If Broken**: vehicle-ingest will fail with COALESCE error, falls back to omitting columns
+**canonical_vehicles (absent):**
+- `id` — PK is `plate_number`; unique UUID is `vehicle_id`
+- `make`, `model`, `colour`, `year` (as integer) — live columns are `vehicle_make`, `vehicle_model`, `vehicle_color`, `vehicle_year` (TEXT)
+- `body_style`, `nzscv_warrant_number`, `nzscv_expires_on`, `vin`
 
----
+**breach_alerts (absent):**
+- `resolved_by` — use `admin_reviewed_by`
+- `detected_at` — added as a generated alias `GENERATED ALWAYS AS (created_at) STORED` by migration `20260313000002`. Verify it exists before using it; if absent, fall back to `created_at`.
 
-#### 2. Breach Type Constraint Validation
-**Problem**: breach_alerts.breach_type has CHECK constraint limiting values
-**Files**:
-- `supabase/functions/scan-breaches/index.ts` - Creates breach alerts
-- `supabase/functions/_shared/compliance.ts` - Type validation
-- Migrations: 20260217, 20260331
-
-**Valid Values** (from compliance.ts):
-```
-'consecutive_nights'
-'monthly_limit'
-'self_contained'
-'after_hours'
-'day_visit_violation'
-'allowed_days_violation'
-```
-
-**Validation**:
-```sql
-SELECT constraint_name, constraint_definition 
-FROM information_schema.table_constraints 
-JOIN information_schema.check_constraints USING (constraint_name)
-WHERE table_name = 'breach_alerts';
-```
-
-**If Broken**: Invalid breach_type inserts fail at database level
+These are tracked in `supabase/functions/_shared/observationInsert.ts::OPTIONAL_SCHEMA_COLUMNS` so that any stale code that still writes them fails gracefully (schema-cache error → column stripped → retry).
 
 ---
 
-#### 3. Observations Table Schema Drift
-**Problem**: Multiple column additions across migrations; schema cache may lag
-**Files**:
-- Migrations: 20260312, 20260315, 20260330, 20260331 (fixes)
-- `supabase/functions/vehicle-ingest/index.ts` - Insert with retry logic
+#### 1. Observations Table — Correct Column Names
 
-**Expected Columns**:
-```
-id, plate_number, zone_id, organization_id, recorded_at, recorded_by,
-gps_latitude, gps_longitude, photo_url (NOT NULL),
-is_compliant, compliance_summary (JSON),
-breach_type, breach_reason,
-processing_status, processing_error, incident_id,
-weather_conditions, sticker_presence, sticker_color,
-movement_*, embedding_*, created_at
-```
-
-**Validation**:
+**Validation:**
 ```sql
-SELECT COUNT(*) as column_count FROM information_schema.columns 
-WHERE table_name = 'observations';
--- Should be 40+ columns
-
--- Check for critical columns
-SELECT column_name FROM information_schema.columns 
-WHERE table_name = 'observations' 
-AND column_name IN ('gps_latitude', 'gps_longitude', 'photo_url', 'compliance_summary', 'incident_id');
+-- Confirm PK and key columns
+SELECT column_name, data_type, is_nullable, column_default
+FROM information_schema.columns
+WHERE table_name = 'observations'
+ORDER BY ordinal_position;
 ```
 
-**If Missing**: vehicle-ingest catches with extractMissingSchemaColumn() and retries
+**Expected state (critical columns):**
+
+| Column | Type | Notes |
+|---|---|---|
+| observation_id | uuid | PK — use for joins and lookups |
+| id | uuid | nullable alias — not the PK |
+| vehicle_year | integer | INTEGER, not text |
+| photo | text | PRIMARY photo column |
+| photo_url | text | secondary photo column |
+| is_compliant | boolean | default true |
+| nights_stayed_this_month | integer | default 0 |
+| consecutive_nights | integer | default 0 |
+| embedding_created_at | timestamptz | set when ALPR embedding written = "ALPR done" |
+
+**If broken:** `adaptiveObservationInsert()` in `_shared/observationInsert.ts` strips unknown columns and retries. Check edge-function logs for "Schema cache missing column" warnings.
 
 ---
 
-#### 4. Compliance Results Schema Alignment
-**Problem**: compliance_results and observations.compliance_summary must be in sync
-**Files**:
-- Migration: 20260220_add_compliance_summary_to_observations.sql
-- `supabase/functions/recalculate-compliance-v3/index.ts`
+#### 2. Canonical Vehicles — Correct Column Names
 
-**Expected Fields**:
-```
-observations:
-  - is_compliant (boolean)
-  - compliance_summary (JSON): { is_compliant, breach_type, breach_reason, ... }
-
-compliance_results:
-  - is_compliant, breach_type, breach_reason
-  - self_contained, nights_stayed_this_month, consecutive_nights
-  - is_homeless_exempt, flagged_support
-```
-
-**Validation**:
+**Validation:**
 ```sql
--- Spot check: observations and compliance_results should align
-SELECT COUNT(*) as obs_count FROM observations WHERE is_compliant IS NULL;
-SELECT COUNT(*) as result_count FROM compliance_results WHERE is_compliant IS NULL;
--- Both should be 0
+SELECT column_name, data_type FROM information_schema.columns
+WHERE table_name = 'canonical_vehicles'
+ORDER BY ordinal_position;
 ```
 
-**If Broken**: Compliance UI shows stale data
+**Expected state (critical columns):**
+
+| Column | Type | Notes |
+|---|---|---|
+| plate_number | text | PK |
+| vehicle_id | uuid | unique, use as stable row ref in code |
+| vehicle_make | text | NOT `make` |
+| vehicle_model | text | NOT `model` |
+| vehicle_color | text | NOT `colour` |
+| vehicle_year | text | TEXT (not integer), NOT `year` |
+| is_exempt | boolean | NOT NULL, default false |
+| is_homeless | boolean | NOT NULL, default false |
+
+**If broken:** Any code writing `make`/`model`/`colour`/`year` to `canonical_vehicles` will fail at the PostgREST schema cache level.
 
 ---
 
-#### 5. Organization Overnight Verification Mode
-**Problem**: Compliance logic varies by organization mode, but mode must be read from organizations table
-**Files**:
-- Migration: 20260309_add_overnight_verification_mode_to_organizations.sql
-- `supabase/functions/recalculate-compliance-v3/index.ts` - Reads from organizations
+#### 3. ALPR Processing State — No processing_status Column
 
-**Valid Modes**:
+The `processing_status` column was never added to the live `observations` table.  
+**How to detect whether ALPR has completed:**
+
+| Signal | Meaning |
+|---|---|
+| `plate_number = 'PROCESSING...'` | ALPR not yet complete |
+| `plate_number = 'MANUAL_REQUIRED'` | ALPR attempted but needs manual entry |
+| `embedding_created_at IS NOT NULL` | ALPR and embedding pipeline completed |
+| `plate_number` has a real plate | ALPR successful |
+
+Code location: `FieldOfficerPortal.tsx` — `isProcessingAI` check.
+
+---
+
+#### 4. Breach Type Constraint
+
+`breach_alerts.breach_type` has a CHECK constraint. Only these values are valid:
+
 ```
-'two_photo_verification' (requires 2 observations same zone/day)
-'one_photo_per_day_inference' (requires 1 photo + AI inference)
+consecutive_nights | monthly_limit | self_contained | after_hours | day_visit_violation | allowed_days_violation
 ```
 
-**Validation**:
+`breach_alerts.status` constraint:
+
+```
+pending | acknowledged | enforcement_started | resolved | dismissed
+```
+
+**Validation:**
 ```sql
-SELECT DISTINCT overnight_verification_mode 
-FROM organizations 
-WHERE overnight_verification_mode IS NOT NULL;
--- Should only show the two valid modes above
-
-SELECT organization_id, overnight_verification_mode 
-FROM organizations 
-WHERE overnight_verification_mode IS NULL;
--- Should be minimal (only legacy orgs)
+SELECT constraint_name, check_clause
+FROM information_schema.check_constraints
+WHERE constraint_name LIKE '%breach%';
 ```
 
-**If Broken**: Compliance recalculation uses wrong rule set per org
+---
+
+#### 5. Compliance Trigger Correctness
+
+Triggers on `observations` run `auto_evaluate_compliance()` on INSERT. The trigger uses COALESCE on compliance columns. If column types drift (e.g. text vs integer), COALESCE will throw:
+
+```
+COALESCE types integer and text cannot be matched
+```
+
+This is handled by `COMPLIANCE_DRIFT_COLUMNS` in `_shared/observationInsert.ts` (strips `nights_stayed_this_month`, `consecutive_nights`, `is_compliant`, `self_contained`, `breach_type`, `breach_reason` and retries).
+
+**Validation:**
+```sql
+-- Confirm types are integer (not text)
+SELECT column_name, data_type
+FROM information_schema.columns
+WHERE table_name = 'observations'
+AND column_name IN ('nights_stayed_this_month', 'consecutive_nights');
+-- Both must be integer
+```
 
 ---
 
 #### 6. Zone Compliance Matrix Versioning
-**Problem**: Multiple effective_from/effective_to dates per zone; wrong version selected → wrong rules applied
-**Files**:
-- Migration: 20260301_align_zone_compliance_matrix.sql
-- `supabase/functions/recalculate-compliance-v3/index.ts` - Selects version by recorded_at date
 
-**Table Structure**:
-```
-zone_compliance_matrix:
-  - id, zone_id, effective_from, effective_to, version
-  - self_contained_required, requires_csc, nights_per_month
-  - max_consecutive_nights, day_visit_only, allowed_days
-  - homeless_exemption
-```
-
-**Validation**:
+**Validation:**
 ```sql
--- Check for overlapping date ranges per zone
-SELECT zone_id, COUNT(*) as version_count, 
-       MIN(effective_from) as oldest, MAX(effective_to) as newest
-FROM zone_compliance_matrix
-GROUP BY zone_id
-ORDER BY version_count DESC;
-
--- Verify no date gaps: effective_to of version N+1 = effective_from of version N
+-- Check for overlapping date ranges per zone (should be 0 rows)
 SELECT z1.zone_id, z1.version, z1.effective_to, z2.version, z2.effective_from
 FROM zone_compliance_matrix z1
-JOIN zone_compliance_matrix z2 ON z1.zone_id = z2.zone_id 
-  AND z2.version = z1.version + 1
+JOIN zone_compliance_matrix z2
+  ON z1.zone_id = z2.zone_id AND z2.version = z1.version + 1
 WHERE z1.effective_to != z2.effective_from;
 ```
 
-**If Broken**: Compliance rules stale/inconsistent across date ranges
-
 ---
 
-#### 7. Canonical Vehicles vs Observations Denormalization
-**Problem**: observations.plate_number is denormalized; not an FK to canonical_vehicles
-**Files**:
-- Migration: 20250203_rebuild_vehicle_architecture.sql
-- `supabase/functions/scan-breaches/index.ts` - Uses plate_number directly
+#### 7. RLS Policy Coverage
 
-**Current Design**:
-```
-observations.plate_number → plate_number (TEXT, NOT FK)
-↓ lookup by plate number
-canonical_vehicles.plate_number (PK component)
-↓ denormalized for perf
-observations also store: homeless_status (nullable), self_contained (boolean)
-```
-
-**Validation**:
+**Validation:**
 ```sql
--- Check for orphaned observations (plate not in canonical_vehicles)
-SELECT DISTINCT obs.plate_number, obs.recorded_at
-FROM observations obs
-LEFT JOIN canonical_vehicles cv ON obs.plate_number = cv.plate_number
-WHERE cv.id IS NULL
-LIMIT 10;
--- Should be empty or minimal
-
--- Verify canonical_vehicles is the source of truth for homeless flag
-SELECT cv.plate_number, cv.homeless_status, COUNT(obs.id) as obs_count
-FROM canonical_vehicles cv
-LEFT JOIN observations obs ON cv.plate_number = obs.plate_number
-WHERE cv.homeless_status IS NOT NULL
-GROUP BY cv.plate_number
-LIMIT 10;
-```
-
-**If Broken**: Homeless exemption logic inconsistent between vehicle detail and compliance calc
-
----
-
-#### 8. RLS Policy Coverage
-**Problem**: RLS policies may be too permissive or restrictive; multiple iterations in migrations
-**Files**:
-- Migrations: 20260218, 20260227, 20260307, 20260314, 20260320 (iterations)
-- All sensitive tables: observations, compliance_results, breach_alerts, enforcement_actions
-
-**Key Tables with RLS**:
-- user_profiles (own profile + admin view all)
-- organizations (own org + parent orgs if hierarchy)
-- zones (own org zones)
-- observations (own org observations)
-- compliance_results (own org results)
-- breach_alerts (own org alerts)
-- enforcement_actions (own org actions)
-- incident_evidence (own org evidence)
-
-**Validation**:
-```sql
--- Check RLS is enabled on all sensitive tables
 SELECT table_name, row_security
 FROM information_schema.tables
-WHERE table_name IN (
-  'user_profiles', 'observations', 'compliance_results', 
-  'breach_alerts', 'enforcement_actions', 'incident_evidence'
-)
-ORDER BY table_name;
--- All should have row_security = 't' (true)
-
--- Verify no public SELECT policies
-SELECT table_name, policy_name, permissive, roles
-FROM pg_policies
-WHERE table_name IN (
-  'user_profiles', 'observations', 'compliance_results', 
+WHERE table_schema = 'public'
+AND table_name IN (
+  'user_profiles', 'observations', 'compliance_results',
   'breach_alerts', 'enforcement_actions'
-)
-AND permissive = true;
--- Review for overly broad role/condition grants
+);
+-- All must have row_security = 't'
 ```
-
-**If Broken**: Officers can see other orgs' data; admins can't access child org data
 
 ---
 
-#### 9. Officer Compliance Credential Tracking
-**Problem**: COA/warrant fields should be non-null for enforcement officers; verification tracking required
-**Files**:
-- Migration: 20260215_enhanced_compliance_credentials.sql
-- Tables: user_profiles (coa_*, warrant_*)
+#### 8. Officer Credential Tracking
 
-**Required Fields for Enforcement Role**:
-```
-coa_number, coa_expiry, coa_document_url, coa_required, coa_verified
-warrant_number, warrant_expiry, warrant_document_url, warrant_required, warrant_verified
-```
+Enforcement officers (`role IN ('officer', 'admin_officer')`) must have credentials on file:
 
-**Validation**:
 ```sql
--- Check enforcement officers have credentials
-SELECT up.id, up.email, up.role, 
-       coa_number IS NOT NULL as has_coa,
-       warrant_number IS NOT NULL as has_warrant
-FROM user_profiles up
-WHERE role IN ('officer', 'admin_officer')
-AND (coa_number IS NULL OR warrant_number IS NULL);
--- Should be empty; any result indicates incomplete profile
-
--- Check expiry dates in future
-SELECT id, email, coa_expiry, warrant_expiry
+SELECT id, email, role
 FROM user_profiles
 WHERE role IN ('officer', 'admin_officer')
-AND (coa_expiry < NOW() OR warrant_expiry < NOW());
--- Should be empty; use for expiry alerts
-```
-
-**If Broken**: Enforcement operations lack legal authority documentation
-
----
-
-#### 10. Photo Integrity & Not Null Enforcement
-**Problem**: observations.photo_url enforced NOT NULL since 20260219
-**Files**:
-- Migration: 20260219_enforce_photo_not_null.sql
-- `supabase/functions/vehicle-ingest/index.ts` - Photo upload required
-
-**Validation**:
-```sql
--- Verify NOT NULL constraint
-SELECT column_name, is_nullable
-FROM information_schema.columns
-WHERE table_name = 'observations' AND column_name = 'photo_url';
--- Should show is_nullable = 'NO'
-
--- Check for null photos (legacy data or insert bugs)
-SELECT COUNT(*) as null_photo_count FROM observations WHERE photo_url IS NULL;
--- Should be 0 for recent data; investigate any non-zero counts
-```
-
-**If Broken**: Photo storage inconsistent; photo-first enforcement workflow fails
-
----
-
-### 🟡 Moderate Risk Items
-
-#### 11. Homeless Exemption Alignment
-**Problem**: Homeless flag lives on canonical_vehicles; exemption logic must read from there
-**Files**:
-- Migration: 20260310_align_homeless_exemption_auto_compliance.sql
-- `supabase/functions/recalculate-compliance-v3/index.ts`
-- Tables: canonical_vehicles (homeless_status), compliance_results (is_homeless_exempt)
-
-**Validation**:
-```sql
--- Verify homeless vehicles get exemption
-SELECT cv.plate_number, cv.homeless_status, cr.is_homeless_exempt, COUNT(cr.id)
-FROM canonical_vehicles cv
-JOIN observations obs ON cv.plate_number = obs.plate_number
-LEFT JOIN compliance_results cr ON obs.id = cr.observation_id
-WHERE cv.homeless_status IS NOT NULL AND cv.homeless_status != ''
-GROUP BY cv.plate_number
-LIMIT 10;
--- is_homeless_exempt should be true for all rows
+AND (coa_number IS NULL OR warrant_number IS NULL);
+-- Should be empty
 ```
 
 ---
 
-#### 12. Observation Idempotency Key
-**Problem**: Offline-first architecture requires idempotency; duplicate prevention via key
-**Files**:
-- Migration: 20260330_fix_observations_idempotency_key.sql
-- `supabase/functions/vehicle-ingest/index.ts` - Generates idempotency_key
+#### 9. Observation Idempotency Key
 
-**Validation**:
 ```sql
--- Check idempotency constraint
-SELECT indexname FROM pg_indexes 
-WHERE tablename = 'observations' 
-AND indexname LIKE '%idempotency%';
--- Should exist
+-- Check partial unique index exists
+SELECT indexname FROM pg_indexes
+WHERE tablename = 'observations'
+AND indexdef LIKE '%idempotency_key%';
+-- Must return a row
 
--- Find duplicate inserts (same key = retry success)
-SELECT idempotency_key, COUNT(*) as count
+-- Find duplicate syncs (should be empty)
+SELECT idempotency_key, COUNT(*)
 FROM observations
 WHERE idempotency_key IS NOT NULL
 GROUP BY idempotency_key
-HAVING COUNT(*) > 1
-LIMIT 10;
--- Should be empty; any duplicates = sync issue
+HAVING COUNT(*) > 1;
 ```
 
 ---
 
-#### 13. Observation Zone Assignment
-**Problem**: Zone assignment may drift; auto-correction in correct-zone-assignments function
-**Files**:
-- Migration: 20260320_fix_observation_zone_assignments.sql
-- Migration: 20260321_reassign_observations_to_current_zones.sql
-- `supabase/functions/correct-zone-assignments/index.ts`
+#### 10. TypeScript Types in Sync
 
-**Validation**:
+After any schema change, verify:
+
+```bash
+# Both must pass with 0 errors
+npx tsc -b --noEmit
+```
+
+Files to update together:
+1. `src/types/database.ts` — Supabase table types
+2. `src/types/index.ts` — Application-level interfaces (`Vehicle`, `Observation`, etc.)
+3. `docs/LIVE_SCHEMA.md` — Authoritative schema reference (this doc's source of truth)
+
+---
+
+### 🟡 Moderate Risk
+
+#### 11. Photo Column Priority
+
+The live schema has two photo columns. Always prefer `photo`; fall back to `photo_url`.
+
+Use `getObservationPhotoUrl(observation)` from `src/lib/photoUtils.ts` — never access `.photo_url` directly on observation objects.
+
+**Code must never select only `photo_url` without also selecting `photo`:**
+```typescript
+// ✅ Correct
+.select('photo, photo_url')
+
+// ❌ Wrong — misses primary photo column
+.select('photo_url')
+```
+
+---
+
+#### 12. Organization overnight_verification_mode
+
+Valid values only:
+
+```
+two_photo_verification
+one_photo_per_day_inference
+```
+
 ```sql
--- Check zone assignments are within org's zones
-SELECT obs.id, obs.zone_id, obs.organization_id, z.name
-FROM observations obs
-LEFT JOIN zones z ON obs.zone_id = z.id AND obs.organization_id = z.organization_id
-WHERE z.id IS NULL
-LIMIT 10;
--- Should be empty; any results = zone assignment broken
+SELECT DISTINCT overnight_verification_mode FROM organizations;
+-- Should only show the two values above
 ```
 
 ---
 
-### 🟢 Lower Risk Items
+### 🟢 Lower Risk
+
+#### 13. Storage Bucket RLS
+
+The `scans` bucket is public-read. Authenticated uploads must go to `/{auth.uid()}/...` paths.
 
 #### 14. Performance Indexes
-**Problem**: Complex queries may be slow without indexes
-**Files**:
-- Migration: 20260222_performance_indexes.sql
 
-**Validation**:
 ```sql
--- Verify key indexes exist
-SELECT indexname FROM pg_indexes 
+SELECT indexname FROM pg_indexes
 WHERE tablename IN ('observations', 'compliance_results', 'breach_alerts')
 ORDER BY tablename, indexname;
--- Should include indexes on (zone_id, recorded_at), (organization_id, recorded_at), etc.
 ```
 
 ---
 
-#### 15. Storage Bucket RLS
-**Problem**: scans/ and evidence/ buckets need proper RLS for officer access
-**Files**:
-- Migration: 20260306_scans_bucket_rls.sql
-- Migration: 20260326_evidence_bucket_import_policy.sql
+## Schema Change Approval Process
 
-**Validation**:
-```sql
--- Check storage policy grants
-SELECT * FROM storage.objects LIMIT 1;
--- Can execute means RLS configured
+Before creating any migration or modifying schema-related code, follow this process:
 
--- Verify upload policies work for officers
--- (Manual test: officer uploads photo → should succeed)
-```
+1. **Open a GitHub Issue** describing the change, which columns are being added/removed, and why
+2. **Write the migration** in a feature branch — prefix with `YYYYMMDD_` (e.g. `20260401_add_foo_to_observations.sql`)
+3. **Update `docs/LIVE_SCHEMA.md`** and both TypeScript type files in the same PR
+4. **Request review from `@DonSquires`** — CODEOWNERS enforcement means the PR cannot merge without it
+5. **Test on staging** before merging to main/production
+6. **Do not run `supabase-db-push.yml`** until the PR is merged and reviewed
 
 ---
-
-## Summary: Top 5 Things to Check in Production
-
-1. **COALESCE Type Drift** - Run COALESCE check in #1 above; if fails, apply 20260313 hotfix
-2. **Breach Type Constraint** - Ensure all breaches created use valid types from compliance.ts
-3. **RLS Coverage** - Run #8 validation; ensure no public access on sensitive tables
-4. **Zone Compliance Matrix** - Verify no date gaps in versioning; recalc uses correct version
-5. **Photo Integrity** - Ensure photo_url NOT NULL; no legacy nulls breaking photo-first workflow
 
 ## Deployment Readiness
 
-- ✅ Schema complete and stable (115 migrations applied)
-- ✅ RLS policies in place (latest iteration: 20260320)
-- ✅ Error handling for schema drift (observationInsert.ts)
-- ✅ All external integrations wired (ALPR, ParkPow, MotorWeb, NZSCV)
-- ⚠️ Monitor schema cache in vehicle-ingest logs
-- ⚠️ Verify v3 compliance engine is canonical (v1, v2 deprecated)
+- ✅ Schema fully documented in `docs/LIVE_SCHEMA.md`
+- ✅ All phantom columns removed from TypeScript code (2026-03-13 audit)
+- ✅ CODEOWNERS enforcing review on schema files and migrations
+- ✅ RLS policies in place
+- ✅ Adaptive insert/update handles COALESCE drift (`_shared/observationInsert.ts`)
+- ⚠️ Monitor edge-function logs for "Schema cache missing column" — indicates code/schema drift
+- ⚠️ Run `npx tsc -b --noEmit` before every migration to catch type mismatches
+
 

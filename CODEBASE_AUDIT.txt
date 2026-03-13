@@ -2,8 +2,14 @@
 FREEDOMCAMP-MANAGER CODEBASE DEEP DIVE - COMPLETE INVENTORY
 ================================================================================
 
+> GOVERNANCE NOTICE: This file and docs/LIVE_SCHEMA.md are protected.
+> Any changes to this file, supabase/migrations/, supabase/functions/,
+> or src/types/ require an approved PR reviewed by @DonSquires.
+> See SCHEMA_VALIDATION_CHECKLIST.md for the full governance policy.
+> Last schema verification: 2026-03-13
+
 EXECUTIVE SUMMARY
-- Edge Functions: 58 (scanning, compliance, integrations, admin)
+- Edge Functions: 57 (scanning, compliance, integrations, admin)
 - Database Migrations: 115 files, 32,303 lines
 - Zustand Stores: 5 (auth, session, theme, filters, locks)
 - TypeScript Types: 2 files (index.ts, database.ts)
@@ -13,7 +19,7 @@ EXECUTIVE SUMMARY
 - Shared Helpers: 6 core modules
 
 ================================================================================
-1. SUPABASE EDGE FUNCTIONS (58 TOTAL)
+1. SUPABASE EDGE FUNCTIONS (57 TOTAL)
 ================================================================================
 
 SCANNING & OBSERVATION PIPELINE (10 functions)
@@ -156,12 +162,18 @@ Storage Buckets (RLS Protected):
 - profile-photos/: Officer/vehicle photos
 - documents/: Credentials/warrants/notices
 
-Key Schema Details:
-- observations.photo_url: NOT NULL (enforced by 20260219)
-- observations.is_compliant: denormalized from compliance_results
-- observations.compliance_summary: nested JSON object
-- canonical_vehicles.homeless_status: tracks homeless exemption
-- breach_alerts.breach_type: CHECK constraint (6 valid types)
+Key Schema Details (see docs/LIVE_SCHEMA.md for full column listing):
+- observations PK: observation_id (uuid); id is a nullable alias
+- observations.vehicle_year: INTEGER (not text)
+- observations.photo: PRIMARY photo column; photo_url is secondary
+- observations.is_compliant: denormalized from compliance_results (default true)
+- observations.compliance_snapshot: nested JSON object (NOT compliance_summary)
+- canonical_vehicles PK: plate_number (text); unique UUID is vehicle_id (not id)
+- canonical_vehicles.vehicle_year: TEXT (not integer)
+- canonical_vehicles column names: vehicle_make, vehicle_model, vehicle_color (NOT make/model/colour)
+- canonical_vehicles: no body_style, nzscv_warrant_number, vin, or id columns
+- breach_alerts.breach_type: CHECK constraint (6 valid types; no detected_at column — use created_at)
+- observations: NO weather_conditions, processing_status, plate_confidence, sticker_*, movement_* columns
 - organizations.overnight_verification_mode: 'two_photo_verification' | 'one_photo_per_day_inference'
 
 ================================================================================
@@ -572,7 +584,7 @@ COMPLIANCE RECALCULATION FLOW:
    → Evaluate against zone_compliance_matrix (effective at recorded_at)
    → Apply organizations.overnight_verification_mode
    → Store result in compliance_results
-4. Sync results to observations.compliance_summary (JSON)
+4. Sync results to observations.compliance_snapshot (JSON)
 5. Auto-generate breach alerts from non-compliant results
 
 ALPR INTEGRATION FLOW:

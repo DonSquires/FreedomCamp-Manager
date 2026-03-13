@@ -1,5 +1,9 @@
 # FreedomCamp-Manager Codebase Audit - Executive Summary
 
+> ⚠️ **GOVERNANCE NOTICE**: This file is protected by `.github/CODEOWNERS`.
+> Changes require an approved PR reviewed by `@DonSquires`.
+> Authoritative live schema: see `docs/LIVE_SCHEMA.md`.
+
 ## Audit Scope & Methodology
 **Date**: 2026-04-01  
 **Scope**: Complete inventory of schema, wiring, and data flow  
@@ -11,7 +15,7 @@
 
 | Component | Count | Status |
 |-----------|-------|--------|
-| Edge Functions | 58 | ✅ Complete |
+| Edge Functions | 57 | ✅ Complete |
 | Migrations | 115 | ✅ Comprehensive |
 | Database Tables | 20+ | ✅ RLS Protected |
 | Type Definitions | 2 files | ✅ Complete |
@@ -36,7 +40,7 @@ Frontend (React/TypeScript)
 Supabase (Auth + PostgreSQL + Storage)
 ├── Auth (multi-role: master/admin/officer/admin_officer)
 ├── Database (115 migrations, 20+ tables, RLS policies)
-├── Edge Functions (58 serverless functions)
+├── Edge Functions (57 serverless functions)
 ├── Realtime (WebSocket subscriptions)
 └── Storage (3 buckets: scans, evidence, profile-photos)
 ```
@@ -114,7 +118,7 @@ Admin triggers recalculate-compliance-v3
 
 ## Component Inventory
 
-### Supabase Edge Functions (58)
+### Supabase Edge Functions (57)
 
 **By Category:**
 - Scanning/Observation (10): vehicle-ingest, alpr-process, orc-ingest, etc.
@@ -245,7 +249,7 @@ Admin triggers recalculate-compliance-v3
 ## Appendix: Full File Inventory
 
 See attached `CODEBASE_AUDIT.txt` for:
-- Complete list of all 58 edge functions with descriptions
+- Complete list of all 57 edge functions with descriptions
 - All 115 migrations with categorization
 - All 36 hooks with purpose
 - All 47 pages with role-based access

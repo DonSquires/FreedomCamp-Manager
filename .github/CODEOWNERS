@@ -1,0 +1,44 @@
+# CODEOWNERS — Schema & Security Governance
+# ===========================================
+# Files listed here require an approved review from @DonSquires before any
+# Pull Request can be merged. This protects the live database schema, TypeScript
+# type definitions, CI/CD workflows, and their governing documentation from
+# accidental or unauthorised changes.
+#
+# HOW IT WORKS
+# Any PR that touches a path matching a rule below will automatically request
+# a review from the owner(s) listed. The PR cannot be merged until that review
+# is approved (provided branch protection requires CODEOWNERS approval — see
+# Settings → Branches → Require review from Code Owners).
+#
+# WHAT IS PROTECTED
+# • Supabase migrations — direct schema changes to the live database
+# • Supabase edge functions — server-side code that reads/writes the database
+# • TypeScript type files — must stay in sync with the live schema
+# • Schema documentation — authoritative reference for all developers and agents
+# • GitHub Actions workflows — CI/CD pipelines that push to production
+# • This file itself — prevents tampering with the governance rules
+
+# ── Supabase migrations (any new or modified .sql file) ──────────────────────
+/supabase/migrations/                  @DonSquires
+
+# ── Supabase edge functions ───────────────────────────────────────────────────
+/supabase/functions/                   @DonSquires
+
+# ── TypeScript type definitions (must match live schema) ─────────────────────
+/src/types/                            @DonSquires
+
+# ── Authoritative live schema document ───────────────────────────────────────
+/docs/LIVE_SCHEMA.md                   @DonSquires
+
+# ── Schema validation checklist and codebase audit ───────────────────────────
+/SCHEMA_VALIDATION_CHECKLIST.md        @DonSquires
+/CODEBASE_AUDIT.txt                    @DonSquires
+/AUDIT_INDEX.md                        @DonSquires
+/AUDIT_EXECUTIVE_SUMMARY.md            @DonSquires
+
+# ── GitHub Actions workflows (includes supabase-db-push.yml) ─────────────────
+/.github/workflows/                    @DonSquires
+
+# ── This file itself ─────────────────────────────────────────────────────────
+/.github/CODEOWNERS                    @DonSquires
