@@ -409,6 +409,128 @@
             }
         }
 
+        /* Comparison table styles */
+        .comparison-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 40px 0;
+            font-size: 15px;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+        }
+
+        .comparison-table thead tr {
+            background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);
+            color: white;
+        }
+
+        .comparison-table thead th {
+            padding: 20px 24px;
+            text-align: left;
+            font-size: 16px;
+            font-weight: 700;
+        }
+
+        .comparison-table thead th:first-child {
+            width: 38%;
+        }
+
+        .comparison-table thead th.col-fcm {
+            background: rgba(255,255,255,0.15);
+            text-align: center;
+        }
+
+        .comparison-table thead th.col-ar {
+            background: rgba(0,0,0,0.15);
+            text-align: center;
+        }
+
+        .comparison-table tbody tr {
+            border-bottom: 1px solid #e5e7eb;
+            transition: background 0.2s;
+        }
+
+        .comparison-table tbody tr:nth-child(even) {
+            background: #f9fafb;
+        }
+
+        .comparison-table tbody tr:hover {
+            background: #eff6ff;
+        }
+
+        .comparison-table tbody tr.category-header {
+            background: #e0e7ff;
+        }
+
+        .comparison-table tbody tr.category-header td {
+            padding: 12px 24px;
+            font-weight: 700;
+            font-size: 13px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: #3730a3;
+        }
+
+        .comparison-table td {
+            padding: 14px 24px;
+            color: #374151;
+            vertical-align: middle;
+        }
+
+        .comparison-table td.check-cell {
+            text-align: center;
+            font-size: 20px;
+        }
+
+        .check-yes { color: #10b981; }
+        .check-no  { color: #ef4444; }
+        .check-partial { color: #f59e0b; }
+
+        .comparison-badge {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .badge-fcm {
+            background: #dbeafe;
+            color: #1e40af;
+        }
+
+        .badge-ar {
+            background: #f3f4f6;
+            color: #6b7280;
+        }
+
+        .comparison-winner-banner {
+            background: linear-gradient(135deg, #ecfdf5, #d1fae5);
+            border: 2px solid #10b981;
+            border-radius: 12px;
+            padding: 24px 32px;
+            margin-top: 32px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .comparison-winner-banner .trophy { font-size: 40px; }
+
+        .comparison-winner-banner p {
+            color: #065f46;
+            font-size: 15px;
+            line-height: 1.7;
+        }
+
+        .comparison-winner-banner strong {
+            font-size: 17px;
+            display: block;
+            margin-bottom: 4px;
+            color: #064e3b;
+        }
+
         .workflow-diagram {
             background: white;
             border: 2px solid #e5e7eb;
@@ -821,6 +943,246 @@
                 <li><strong>Batch Processing:</strong> Historical data import with AI-powered zone matching (250 records/batch)</li>
                 <li><strong>Offline Capability:</strong> Field officers can scan and record offline, auto-sync when connection restored</li>
             </ul>
+        </div>
+
+        <!-- Competitor Comparison: FC Manager vs Aero Ranger -->
+        <div class="section">
+            <h1 class="section-title">FC Manager vs Aero Ranger</h1>
+            <p class="section-subtitle">
+                Aero Ranger (by Pixelcase) is a well-established ALPR parking enforcement platform used by councils 
+                across New Zealand. Here's how FC Manager compares — purpose-built for freedom camping enforcement 
+                where Aero Ranger is a general parking tool.
+            </p>
+
+            <table class="comparison-table">
+                <thead>
+                    <tr>
+                        <th>Feature</th>
+                        <th class="col-fcm">🏕️ FC Manager</th>
+                        <th class="col-ar">Aero Ranger</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- Core Purpose -->
+                    <tr class="category-header">
+                        <td colspan="3">Core Purpose &amp; Scope</td>
+                    </tr>
+                    <tr>
+                        <td>Freedom camping enforcement (purpose-built)</td>
+                        <td class="check-cell"><span class="check-yes">✔</span></td>
+                        <td class="check-cell"><span class="check-partial" title="General parking enforcement; freedom camping is not the primary focus">⚠</span></td>
+                    </tr>
+                    <tr>
+                        <td>NZ Freedom Camping Act compliance workflows</td>
+                        <td class="check-cell"><span class="check-yes">✔</span></td>
+                        <td class="check-cell"><span class="check-no">✘</span></td>
+                    </tr>
+                    <tr>
+                        <td>General parking &amp; overstay enforcement</td>
+                        <td class="check-cell"><span class="check-partial" title="Not the primary focus">⚠</span></td>
+                        <td class="check-cell"><span class="check-yes">✔</span></td>
+                    </tr>
+                    <tr>
+                        <td>Cloud-native SaaS (no dedicated hardware required)</td>
+                        <td class="check-cell"><span class="check-yes">✔</span></td>
+                        <td class="check-cell"><span class="check-no" title="Aero Ranger requires vehicle-mounted ALPR camera hardware">✘</span></td>
+                    </tr>
+
+                    <!-- ALPR / Scanning -->
+                    <tr class="category-header">
+                        <td colspan="3">ALPR &amp; Vehicle Scanning</td>
+                    </tr>
+                    <tr>
+                        <td>Automatic Number Plate Recognition (ALPR)</td>
+                        <td class="check-cell"><span class="check-yes">✔</span></td>
+                        <td class="check-cell"><span class="check-yes">✔</span></td>
+                    </tr>
+                    <tr>
+                        <td>ALPR via officer mobile device (no roof hardware)</td>
+                        <td class="check-cell"><span class="check-yes">✔</span></td>
+                        <td class="check-cell"><span class="check-no">✘</span></td>
+                    </tr>
+                    <tr>
+                        <td>Vehicle-mounted ALPR camera integration</td>
+                        <td class="check-cell"><span class="check-partial" title="Supported via proxy-server integration">⚠</span></td>
+                        <td class="check-cell"><span class="check-yes">✔</span></td>
+                    </tr>
+                    <tr>
+                        <td>Photo-first evidence capture (GPS-watermarked)</td>
+                        <td class="check-cell"><span class="check-yes">✔</span></td>
+                        <td class="check-cell"><span class="check-partial" title="Images captured but no court-specific GPS watermarking">⚠</span></td>
+                    </tr>
+                    <tr>
+                        <td>AI vehicle analysis &amp; classification</td>
+                        <td class="check-cell"><span class="check-yes">✔</span></td>
+                        <td class="check-cell"><span class="check-partial" title="ALPR only; no AI vehicle type classification">⚠</span></td>
+                    </tr>
+                    <tr>
+                        <td>NZSCV (self-containment) certificate lookup</td>
+                        <td class="check-cell"><span class="check-yes">✔</span></td>
+                        <td class="check-cell"><span class="check-no">✘</span></td>
+                    </tr>
+
+                    <!-- Compliance & Enforcement -->
+                    <tr class="category-header">
+                        <td colspan="3">Compliance &amp; Enforcement</td>
+                    </tr>
+                    <tr>
+                        <td>Night-stay counting &amp; consecutive-nights compliance</td>
+                        <td class="check-cell"><span class="check-yes">✔</span></td>
+                        <td class="check-cell"><span class="check-no">✘</span></td>
+                    </tr>
+                    <tr>
+                        <td>Zone-specific rules matrix (nights, exemptions)</td>
+                        <td class="check-cell"><span class="check-yes">✔</span></td>
+                        <td class="check-cell"><span class="check-no">✘</span></td>
+                    </tr>
+                    <tr>
+                        <td>Breach alerts &amp; escalation workflow</td>
+                        <td class="check-cell"><span class="check-yes">✔</span></td>
+                        <td class="check-cell"><span class="check-partial" title="Alert watchlists, but no structured escalation workflow">⚠</span></td>
+                    </tr>
+                    <tr>
+                        <td>Notice to Vacate generation &amp; tracking</td>
+                        <td class="check-cell"><span class="check-yes">✔</span></td>
+                        <td class="check-cell"><span class="check-no">✘</span></td>
+                    </tr>
+                    <tr>
+                        <td>Infringement notice workflow</td>
+                        <td class="check-cell"><span class="check-yes">✔</span></td>
+                        <td class="check-cell"><span class="check-yes">✔</span></td>
+                    </tr>
+                    <tr>
+                        <td>Court-ready immutable audit trail</td>
+                        <td class="check-cell"><span class="check-yes">✔</span></td>
+                        <td class="check-cell"><span class="check-partial" title="Logs available but not purpose-built for court submission">⚠</span></td>
+                    </tr>
+                    <tr>
+                        <td>Homeless / FC Act exemption workflow</td>
+                        <td class="check-cell"><span class="check-yes">✔</span></td>
+                        <td class="check-cell"><span class="check-no">✘</span></td>
+                    </tr>
+
+                    <!-- Field Operations -->
+                    <tr class="category-header">
+                        <td colspan="3">Field Officer Operations</td>
+                    </tr>
+                    <tr>
+                        <td>Officer mobile app</td>
+                        <td class="check-cell"><span class="check-yes">✔</span></td>
+                        <td class="check-cell"><span class="check-yes">✔</span></td>
+                    </tr>
+                    <tr>
+                        <td>Offline scan &amp; auto-sync</td>
+                        <td class="check-cell"><span class="check-yes">✔</span></td>
+                        <td class="check-cell"><span class="check-partial" title="Limited offline support reported">⚠</span></td>
+                    </tr>
+                    <tr>
+                        <td>Real-time GPS location tracking</td>
+                        <td class="check-cell"><span class="check-yes">✔</span></td>
+                        <td class="check-cell"><span class="check-yes">✔</span></td>
+                    </tr>
+                    <tr>
+                        <td>Officer welfare monitoring &amp; inactivity alerts</td>
+                        <td class="check-cell"><span class="check-yes">✔</span></td>
+                        <td class="check-cell"><span class="check-no">✘</span></td>
+                    </tr>
+                    <tr>
+                        <td>Emergency escalation &amp; panic alert</td>
+                        <td class="check-cell"><span class="check-yes">✔</span></td>
+                        <td class="check-cell"><span class="check-no">✘</span></td>
+                    </tr>
+                    <tr>
+                        <td>Patrol route geofencing</td>
+                        <td class="check-cell"><span class="check-yes">✔</span></td>
+                        <td class="check-cell"><span class="check-partial" title="Zone-level coverage, not dynamic patrol routing">⚠</span></td>
+                    </tr>
+
+                    <!-- Administration & Analytics -->
+                    <tr class="category-header">
+                        <td colspan="3">Administration &amp; Analytics</td>
+                    </tr>
+                    <tr>
+                        <td>Real-time admin dashboard</td>
+                        <td class="check-cell"><span class="check-yes">✔</span></td>
+                        <td class="check-cell"><span class="check-yes">✔</span></td>
+                    </tr>
+                    <tr>
+                        <td>BI dashboards &amp; occupancy trend reporting</td>
+                        <td class="check-cell"><span class="check-yes">✔</span></td>
+                        <td class="check-cell"><span class="check-yes">✔</span></td>
+                    </tr>
+                    <tr>
+                        <td>Multi-organisation / multi-council management</td>
+                        <td class="check-cell"><span class="check-yes">✔</span></td>
+                        <td class="check-cell"><span class="check-partial" title="Single-council deployments; limited multi-org hierarchy">⚠</span></td>
+                    </tr>
+                    <tr>
+                        <td>White-label / custom branding</td>
+                        <td class="check-cell"><span class="check-yes">✔</span></td>
+                        <td class="check-cell"><span class="check-no">✘</span></td>
+                    </tr>
+                    <tr>
+                        <td>API access for third-party integrations</td>
+                        <td class="check-cell"><span class="check-yes">✔</span></td>
+                        <td class="check-cell"><span class="check-partial" title="Limited API; primarily a closed platform">⚠</span></td>
+                    </tr>
+                    <tr>
+                        <td>Data export &amp; batch historical import</td>
+                        <td class="check-cell"><span class="check-yes">✔</span></td>
+                        <td class="check-cell"><span class="check-partial" title="Reporting exports available; bulk import not documented">⚠</span></td>
+                    </tr>
+                    <tr>
+                        <td>Privacy-compliant image handling (face blur etc.)</td>
+                        <td class="check-cell"><span class="check-yes">✔</span></td>
+                        <td class="check-cell"><span class="check-yes">✔</span></td>
+                    </tr>
+
+                    <!-- Pricing & Deployment -->
+                    <tr class="category-header">
+                        <td colspan="3">Pricing &amp; Deployment</td>
+                    </tr>
+                    <tr>
+                        <td>Transparent, published pricing</td>
+                        <td class="check-cell"><span class="check-yes">✔</span></td>
+                        <td class="check-cell"><span class="check-no" title="Aero Ranger pricing is quote-only">✘</span></td>
+                    </tr>
+                    <tr>
+                        <td>No hardware purchase required to get started</td>
+                        <td class="check-cell"><span class="check-yes">✔</span></td>
+                        <td class="check-cell"><span class="check-no" title="Requires vehicle-mounted ALPR camera kit">✘</span></td>
+                    </tr>
+                    <tr>
+                        <td>On-premise deployment option</td>
+                        <td class="check-cell"><span class="check-yes">✔</span></td>
+                        <td class="check-cell"><span class="check-no">✘</span></td>
+                    </tr>
+                    <tr>
+                        <td>Self-service onboarding</td>
+                        <td class="check-cell"><span class="check-yes">✔</span></td>
+                        <td class="check-cell"><span class="check-no" title="Requires hardware installation and council procurement">✘</span></td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <div style="margin: 16px 0 8px; font-size: 13px; color: #9ca3af;">
+                ✔ Fully supported &nbsp;|&nbsp; 
+                <span class="check-partial">⚠</span> Partial / limited support &nbsp;|&nbsp; 
+                ✘ Not supported
+            </div>
+
+            <div class="comparison-winner-banner">
+                <div class="trophy">🏆</div>
+                <p>
+                    <strong>Why councils choose FC Manager over Aero Ranger</strong>
+                    FC Manager is the only platform built exclusively for freedom camping enforcement in New Zealand. 
+                    Where Aero Ranger excels at general parking and requires dedicated in-vehicle ALPR hardware, 
+                    FC Manager delivers the complete freedom camping lifecycle — from first scan to court-ready evidence — 
+                    using nothing more than a mobile phone. Add officer welfare monitoring, the NZ Freedom Camping Act 
+                    compliance engine, Notice to Vacate workflows, and transparent SaaS pricing, and FC Manager is the 
+                    clear choice for councils serious about responsible freedom camping management.
+                </p>
+            </div>
         </div>
 
         <!-- Pricing -->
