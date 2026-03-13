@@ -303,7 +303,7 @@ export default function LivePatrolMonitor() {
   // ─── Fetch active officers (logged-in officers with recent GPS, regardless
   //     of whether a formal patrol record exists) ───────────────────────────
   const { data: activeOfficers = [], isLoading: officersLoading } = useQuery({
-    queryKey: ['active-officers-welfare', organizationId],
+    queryKey: ['active-officers-welfare', organizationId, patrols?.map(p => p.officer.id).join(',')],
     queryFn: async () => {
       // Officers active in the last 2 hours
       const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString()
@@ -377,6 +377,8 @@ export default function LivePatrolMonitor() {
       // Only show officers NOT already in the patrols list — avoids duplication
       return enriched.filter((o: any) => !o._has_patrol)
     },
+    // Wait until patrols query has settled so we can deduplicate correctly
+    enabled: !patrolsLoading,
     refetchInterval: 30000, // Refresh every 30 seconds
   })
 

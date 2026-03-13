@@ -309,7 +309,6 @@ export default function AdminPortal() {
       } else {
         current.breaches += 1
       }
-      if (isHomelessPlate) current.homeless = Math.max(current.homeless, 0) // ensure count tracked
       byDate.set(key, current)
     })
 
