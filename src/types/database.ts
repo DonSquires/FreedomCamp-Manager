@@ -590,6 +590,8 @@ export interface Database {
           status: string
           resolution_notes: string | null
           resolved_at: string | null
+          /** Generated column: alias for created_at (backward compat). */
+          detected_at: string
           observation_id: string | null
           assigned_to: string | null
           assigned_at: string | null

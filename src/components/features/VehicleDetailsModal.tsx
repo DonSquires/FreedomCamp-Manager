@@ -55,7 +55,9 @@ interface VehicleDetailsModalProps {
   breaches?: Array<{
     id: string
     breach_type: string
-    detected_at: string
+    /** `created_at` is the canonical DB column; `detected_at` is a legacy alias. */
+    created_at?: string
+    detected_at?: string
     status: string
   }>
 }
@@ -288,7 +290,7 @@ export function VehicleDetailsModal({
                         <AlertTriangle className="h-4 w-4 text-red-600" />
                         <div>
                           <p className="font-medium capitalize">{breach.breach_type.replace(/_/g, ' ')}</p>
-                          <p className="text-xs text-gray-600">{formatDateTime(breach.detected_at)}</p>
+                          <p className="text-xs text-gray-600">{formatDateTime(breach.detected_at ?? breach.created_at)}</p>
                         </div>
                       </div>
                       <Badge variant="outline" className="text-xs">

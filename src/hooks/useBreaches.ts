@@ -23,7 +23,12 @@ interface BreachAlertExtended extends BreachAlert {
 function deriveSeverityFromBreachType(breachType?: string): 'critical' | 'high' | 'medium' {
   const bt = String(breachType || '').toLowerCase()
   if (bt.includes('tow') || bt.includes('danger')) return 'critical'
-  if (bt.includes('overstay') || bt.includes('consecutive')) return 'high'
+  // Match canonical breach type values from the compliance engine
+  if (
+    bt === 'consecutive_nights' ||
+    bt === 'monthly_limit' ||
+    bt.includes('consecutive')
+  ) return 'high'
   return 'medium'
 }
 
@@ -111,7 +116,10 @@ export function useResolveBreach() {
         .update({ 
           status: 'resolved',
           resolved_at: new Date().toISOString(),
-          resolved_by: userId
+          // Note: breach_alerts has no resolved_by column; userId is kept in the
+          // admin_reviewed_by field when the action comes from a formal review.
+          admin_reviewed_by: userId,
+          admin_reviewed_at: new Date().toISOString(),
         })
         .eq('id', breachId)
 
@@ -133,7 +141,7 @@ export function useNotifyBreach() {
   return useMutation({
     mutationFn: async (breachId: string) => {
       const { error } = await (supabase.from('breach_alerts') as any)
-        .update({ status: 'notified' })
+        .update({ status: 'acknowledged' })
         .eq('id', breachId)
 
       if (error) throw error
@@ -166,8 +174,10 @@ export function useBreachStats(organizationId?: string | null) {
       const stats = {
         total: count || 0,
         pending: data?.filter(b => b.status === 'pending').length || 0,
-        notified: data?.filter(b => b.status === 'notified').length || 0,
+        acknowledged: data?.filter(b => b.status === 'acknowledged').length || 0,
+        enforcement_started: data?.filter(b => b.status === 'enforcement_started').length || 0,
         resolved: data?.filter(b => b.status === 'resolved').length || 0,
+        dismissed: data?.filter(b => b.status === 'dismissed').length || 0,
         critical: data?.filter((b: any) => deriveSeverityFromBreachType(b.breach_type) === 'critical').length || 0,
         high: data?.filter((b: any) => deriveSeverityFromBreachType(b.breach_type) === 'high').length || 0,
       }

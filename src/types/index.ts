@@ -57,6 +57,7 @@ export interface Vehicle {
 
 export interface Observation {
   id: string
+  idempotency_key: string
   plate_number: string
   zone_id: string
   organization_id: string
@@ -64,23 +65,48 @@ export interface Observation {
   recorded_by: string
   gps_latitude: number
   gps_longitude: number
+  gps_accuracy: number | null
   photo_url: string
+  photo_hash: string
   is_compliant: boolean
+  breach_type: string | null
+  breach_reason: string | null
+  nights_stayed_this_month: number
+  consecutive_nights: number
+  vehicle_make: string | null
+  vehicle_model: string | null
+  vehicle_year: number | null
+  vehicle_color: string | null
+  self_contained: boolean
+  processing_status: string | null
+  weather_conditions: string | null
   created_at: string
+  updated_at: string
 }
 
-export type BreachType = 
-  | 'overstay' 
-  | 'no_self_contained' 
-  | 'consecutive_days' 
-  | 'unauthorized_zone' 
-  | 'nights_exceeded'
+/**
+ * Breach types as stored in the database (breach_alerts.breach_type).
+ * These values are enforced by the compliance engine trigger and match
+ * the CHECK constraint in the breach_alerts table.
+ */
+export type BreachType =
+  | 'consecutive_nights'
+  | 'monthly_limit'
+  | 'self_contained'
+  | 'after_hours'
+  | 'day_visit_violation'
+  | 'allowed_days_violation'
 
-export type BreachStatus = 
-  | 'pending' 
-  | 'notified' 
-  | 'resolved' 
-  | 'escalated'
+/**
+ * Breach alert workflow statuses as stored in breach_alerts.status.
+ * The lifecycle is: pending → acknowledged → enforcement_started → resolved | dismissed
+ */
+export type BreachStatus =
+  | 'pending'
+  | 'acknowledged'
+  | 'enforcement_started'
+  | 'resolved'
+  | 'dismissed'
 
 export type Severity = 
   | 'low' 
@@ -96,9 +122,9 @@ export interface BreachAlert {
   breach_type: BreachType
   status: BreachStatus
   severity: Severity
-  detected_at: string
+  /** `created_at` is the actual DB column; `detected_at` is a legacy alias. */
+  created_at: string
   resolved_at: string | null
-  resolved_by: string | null
 }
 
 export type PatrolStatus = 

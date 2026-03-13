@@ -556,7 +556,6 @@ export default function FieldOfficerPortal() {
       const observationPayload: Record<string, any> = {
         idempotency_key: idempotencyKey,
         plate_number: 'PROCESSING...', // Placeholder until async ALPR completes
-        photo: photoUrl,
         photo_url: photoUrl,
         photo_hash: photoHash,
         recorded_at: nowIso,
