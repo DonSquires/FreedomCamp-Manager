@@ -77,55 +77,137 @@ export default function LivePatrolMonitor() {
   const [selectedPatrol, setSelectedPatrol] = useState<string | null>(null)
 
   // Fetch active patrols with enriched data
-  const { data: patrols, isLoading: patrolsLoading } = useQuery({
+  const { data: patrols, isLoading: patrolsLoading, error: patrolsError } = useQuery({
     queryKey: ['live-patrols', organizationId, zoneId, dateFrom, dateTo],
     queryFn: async () => {
       const today = new Date().toISOString().split('T')[0]
       
-      let query = (supabase.from('patrols') as any)
-        .select(`
-          id,
-          status,
-          patrol_date,
-          shift,
-          checked_in_at,
-          check_in_location_lat,
-          check_in_location_lng,
-          completed_at,
-          notes,
-          zone:zones(id, name),
-          officer:user_profiles!patrols_assigned_to_fkey(id, first_name, last_name, phone)
-        `)
-        .eq('status', 'in_progress')
-        .order('checked_in_at', { ascending: false })
+      // Try the FK join first; fall back to a simpler query if the FK doesn't exist
+      let patrolsData: any[] | null = null
+      let queryError: any = null
 
-      // Organization scoping
-      if (user?.role !== 'master' && user?.organization_id) {
-        query = query.eq('organization_id', user.organization_id)
-      } else if (organizationId) {
-        query = query.eq('organization_id', organizationId)
+      // Attempt 1: Full join with FK reference
+      {
+        let query = (supabase.from('patrols') as any)
+          .select(`
+            id,
+            status,
+            patrol_date,
+            shift,
+            checked_in_at,
+            check_in_location_lat,
+            check_in_location_lng,
+            completed_at,
+            notes,
+            organization_id,
+            assigned_to,
+            zone:zones(id, name),
+            officer:user_profiles!patrols_assigned_to_fkey(id, first_name, last_name, phone)
+          `)
+          // Show in_progress and scheduled patrols; also include today's completed ones
+          .in('status', ['in_progress', 'scheduled', 'completed'])
+          .order('checked_in_at', { ascending: false })
+
+        // Organization scoping
+        if (user?.role !== 'master' && user?.organization_id) {
+          query = query.eq('organization_id', user.organization_id)
+        } else if (organizationId) {
+          query = query.eq('organization_id', organizationId)
+        }
+
+        if (zoneId) {
+          query = query.eq('zone_id', zoneId)
+        }
+
+        // Date filter — default to today if no dates are set
+        if (dateFrom) {
+          query = query.gte('patrol_date', dateFrom)
+        } else {
+          query = query.gte('patrol_date', today)
+        }
+        if (dateTo) {
+          query = query.lte('patrol_date', dateTo)
+        } else {
+          query = query.lte('patrol_date', today)
+        }
+
+        const result = await query
+        if (!result.error) {
+          patrolsData = result.data
+        } else {
+          queryError = result.error
+        }
       }
 
-      // Zone filter
-      if (zoneId) {
-        query = query.eq('zone_id', zoneId)
+      // Attempt 2: Fallback without FK join if the FK reference fails
+      if (queryError) {
+        let query = (supabase.from('patrols') as any)
+          .select(`
+            id,
+            status,
+            patrol_date,
+            shift,
+            checked_in_at,
+            check_in_location_lat,
+            check_in_location_lng,
+            completed_at,
+            notes,
+            organization_id,
+            assigned_to,
+            zone_id
+          `)
+          .in('status', ['in_progress', 'scheduled', 'completed'])
+          .order('checked_in_at', { ascending: false })
+
+        if (user?.role !== 'master' && user?.organization_id) {
+          query = query.eq('organization_id', user.organization_id)
+        } else if (organizationId) {
+          query = query.eq('organization_id', organizationId)
+        }
+
+        if (zoneId) {
+          query = query.eq('zone_id', zoneId)
+        }
+
+        if (dateFrom) {
+          query = query.gte('patrol_date', dateFrom)
+        } else {
+          query = query.gte('patrol_date', today)
+        }
+        if (dateTo) {
+          query = query.lte('patrol_date', dateTo)
+        } else {
+          query = query.lte('patrol_date', today)
+        }
+
+        const result = await query
+        if (result.error) throw result.error
+        patrolsData = result.data
+
+        // Manually enrich with zone name and officer info
+        for (const patrol of patrolsData ?? []) {
+          if (patrol.zone_id && !patrol.zone) {
+            const { data: z } = await (supabase.from('zones') as any).select('id, name').eq('id', patrol.zone_id).single()
+            patrol.zone = z || { id: patrol.zone_id, name: 'Unknown Zone' }
+          }
+          if (patrol.assigned_to && !patrol.officer) {
+            const { data: o } = await (supabase.from('user_profiles') as any)
+              .select('id, first_name, last_name, phone')
+              .eq('id', patrol.assigned_to)
+              .single()
+            patrol.officer = o || { id: patrol.assigned_to, first_name: 'Unknown', last_name: 'Officer', phone: null }
+          }
+        }
       }
 
-      // Date filter
-      if (dateFrom) {
-        query = query.gte('patrol_date', dateFrom)
-      }
-      if (dateTo) {
-        query = query.lte('patrol_date', dateTo)
-      }
+      if (!patrolsData || patrolsData.length === 0) return []
 
-      const { data: patrolsData, error: patrolsError } = await query
-
-      if (patrolsError) throw patrolsError
+      // Filter out patrols with missing officer data (malformed joins)
+      const validPatrols = (patrolsData ?? []).filter((p: any) => p.officer?.id)
 
       // Enrich with vehicle counts and GPS data
       const enrichedPatrols = await Promise.all(
-        (patrolsData || []).map(async (patrol) => {
+        validPatrols.map(async (patrol: any) => {
           // Get vehicles checked count from observations
           const { count: vehiclesChecked } = await (supabase.from('observations') as any)
             .select('*', { count: 'exact', head: true })
@@ -335,14 +417,22 @@ export default function LivePatrolMonitor() {
       {patrolsLoading ? (
         <div className="text-center py-12">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading active patrols...</p>
+          <p className="mt-4 text-gray-600">Loading patrols...</p>
         </div>
+      ) : patrolsError ? (
+        <Card>
+          <CardContent className="text-center py-12">
+            <AlertCircle className="h-12 w-12 text-red-400 mx-auto mb-4" />
+            <p className="text-gray-600">Unable to load patrols</p>
+            <p className="text-sm text-gray-500 mt-2">{(patrolsError as any)?.message || 'Check that the patrols table and its relationships exist'}</p>
+          </CardContent>
+        </Card>
       ) : patrols && patrols.length === 0 ? (
         <Card>
           <CardContent className="text-center py-12">
             <Shield className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-            <p className="text-gray-600">No active patrols</p>
-            <p className="text-sm text-gray-500 mt-2">All officers are currently off-duty</p>
+            <p className="text-gray-600">No patrols found for today</p>
+            <p className="text-sm text-gray-500 mt-2">No scheduled, active, or completed patrols match the current filters. Try adjusting the date range or organisation filter.</p>
           </CardContent>
         </Card>
       ) : (

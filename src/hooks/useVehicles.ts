@@ -147,7 +147,8 @@ export function useVehicleStats(organizationId?: string | null) {
       const stats = {
         total: count || 0,
         compliant: data?.filter(v => v.total_breaches === 0).length || 0,
-        breaches: data?.filter(v => v.total_breaches > 0).length || 0,
+        // Exclude homeless vehicles from breach count – they are breach-exempt under the FC Act
+        breaches: data?.filter(v => v.total_breaches > 0 && !isHomelessForUi(v.homeless_status)).length || 0,
         selfContained: data?.filter(v => v.self_contained).length || 0,
         homeless: data?.filter(v => isHomelessForUi(v.homeless_status)).length || 0,
         exempt: data?.filter(v => v.is_exempt).length || 0,

@@ -283,25 +283,33 @@ export default function AdminPortal() {
   const metrics = useMemo(() => {
     const totalObservations = data?.totalObservations ?? 0
     const compliant         = data?.compliantCount    ?? 0
-    const complianceRate    = totalObservations > 0
-      ? Math.round((compliant / totalObservations) * 100)
-      : 0
     const activeVehicles    = data?.activeVehicles ?? 0
 
     const toNzDayKey = (isoDateTime: string) =>
       new Date(isoDateTime).toLocaleDateString('en-CA', { timeZone: 'Pacific/Auckland' })
 
     // Build trend data from filtered observation rows.
+    // Homeless-confirmed/claimed vehicles are FC Act exempt – their non-compliant
+    // observations must count as "homeless" (breach-exempt), NOT as breaches.
     const homelessPlateSet = new Set<string>((data as any)?.homelessPlates ?? [])
+    let homelessExemptTotal = 0
     const byDate = new globalThis.Map<string, { compliant: number; breaches: number; homeless: number; total: number }>()
     ;(data?.trendRows ?? []).forEach((o: any) => {
       const key = toNzDayKey(o.recorded_at)
       const current = byDate.get(key) || { compliant: 0, breaches: 0, homeless: 0, total: 0 }
       current.total += 1
-      if (o.is_compliant) current.compliant += 1
-      else current.breaches += 1
       const plate = String(o.plate_number ?? '').trim().toUpperCase()
-      if (plate && homelessPlateSet.has(plate)) current.homeless += 1
+      const isHomelessPlate = plate && homelessPlateSet.has(plate)
+      if (o.is_compliant) {
+        current.compliant += 1
+      } else if (isHomelessPlate) {
+        // Homeless vehicle – breach exempt under FC Act; do NOT count as breach
+        current.homeless += 1
+        homelessExemptTotal += 1
+      } else {
+        current.breaches += 1
+      }
+      if (isHomelessPlate) current.homeless = Math.max(current.homeless, 0) // ensure count tracked
       byDate.set(key, current)
     })
 
@@ -323,15 +331,23 @@ export default function AdminPortal() {
         .map(([date, value]) => ({ date, ...value }))
     }
 
-    const totalBreaches = totalObservations - compliant
+    // Exclude homeless-exempt observations from breach count.
+    // totalBreaches should only include genuine non-compliant, non-exempt observations.
+    const totalBreaches = totalObservations - compliant - homelessExemptTotal
     const homelessVehicleCount = data?.homelessPlates?.length ?? 0
+
+    // Adjust compliance rate: homeless-exempt observations are not breaches.
+    const effectiveCompliant = compliant + homelessExemptTotal
+    const adjustedComplianceRate = totalObservations > 0
+      ? Math.round((effectiveCompliant / totalObservations) * 100)
+      : 0
 
     return {
       totalObservations,
-      complianceRate,
+      complianceRate: adjustedComplianceRate,
       activeVehicles,
       activeBreaches: data?.activeBreaches ?? 0,
-      totalBreaches,
+      totalBreaches: Math.max(0, totalBreaches),
       homelessVehicleCount,
       trendData,
     }

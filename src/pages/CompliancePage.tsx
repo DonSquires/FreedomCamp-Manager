@@ -170,8 +170,32 @@ function OverviewTab({
         supabase.from('canonical_vehicles').select('*', { count: 'exact', head: true }).in('homeless_status', HOMELESS_UI_STATUSES),
       ]);
 
+      // Count observations for homeless-confirmed/claimed vehicles that are marked
+      // non-compliant. These are "breach exempt" under the FC Act and should not
+      // inflate the breach KPI.
+      const { data: homelessPlateRows } = await (supabase.from('canonical_vehicles') as any)
+        .select('plate_number')
+        .in('homeless_status', ['confirmed', 'claimed']);
+      const homelessPlates = (homelessPlateRows ?? []).map((r: any) => r.plate_number).filter(Boolean) as string[];
+
+      let homelessBreachCount = 0;
+      if (homelessPlates.length > 0) {
+        // Count non-compliant observations for homeless plates in the date/org/zone scope
+        for (let i = 0; i < homelessPlates.length; i += 200) {
+          const chunk = homelessPlates.slice(i, i + 200);
+          const { count: chunkCount } = await applyObs(
+            (supabase.from('observations') as any)
+              .select('*', { count: 'exact', head: true })
+              .eq('is_compliant', false)
+              .in('plate_number', chunk)
+          );
+          homelessBreachCount += chunkCount ?? 0;
+        }
+      }
+
       const total    = totalRes.count  ?? 0;
-      const breaches = breachRes.count ?? 0;
+      const rawBreaches = breachRes.count ?? 0;
+      const breaches = Math.max(0, rawBreaches - homelessBreachCount);
       const compliant = total - breaches;
 
       return {
