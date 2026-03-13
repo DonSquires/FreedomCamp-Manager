@@ -39,10 +39,12 @@ const NZSCV_PROXY_URL          = Deno.env.get('NZSCV_PROXY_URL');
 const NZSCV_PROXY_SECRET       = Deno.env.get('NZSCV_PROXY_SECRET') ?? '';
 
 // Cosine similarity threshold below which we consider a vehicle to have moved.
-// Embeddings from the same vehicle in the same parking spot score ~0.85–0.95;
-// embeddings from different vehicles or significantly repositioned vehicles
-// typically score below 0.70.  Values between 0.70–0.85 are treated as
-// "possibly moved" so we err on the side of flagging movement.
+// Embeddings from the same vehicle in the same parking spot score ~0.85–0.95.
+// Embeddings from different vehicles, or a significantly repositioned vehicle,
+// typically score below 0.70.  A similarity of exactly 0.70 or above means
+// the vehicle has NOT moved; below 0.70 means it HAS moved (or is a different
+// vehicle).  The 0.70–0.85 range is a grey zone where we conservatively treat
+// the vehicle as stationary to avoid false-positive "moved" alerts.
 const MOVEMENT_THRESHOLD = 0.70;
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────

@@ -633,7 +633,11 @@ export default function FieldOfficerPortal() {
                   <div className="flex-1 min-w-0 space-y-1">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="font-mono font-bold text-lg">
-                        {lastScanResult.plateNumber || (lastScanResult.processingPending ? '⏳ Scanning…' : '—')}
+                        {lastScanResult.plateNumber || (
+                          lastScanResult.processingPending
+                            ? <span aria-label="Scanning in progress">Scanning…</span>
+                            : '—'
+                        )}
                       </span>
                       {!lastScanResult.processingPending && lastScanResult.isCompliant !== null && (
                         lastScanResult.isCompliant ? (

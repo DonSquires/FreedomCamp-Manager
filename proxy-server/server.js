@@ -114,6 +114,9 @@ app.post('/api/nzscv/vehicle-info', async (req, res) => {
 });
 
 // MotorWeb Current Owner Check endpoint
+// PLACEHOLDER — MotorWeb API credentials (MOTORWEB_API_KEY, MOTORWEB_ID_KEY)
+// have not been provisioned yet.  The endpoint returns 503 until credentials
+// are configured via environment variables.
 app.get('/motorweb/currentOwnerCheck', async (req, res) => {
   try {
     // Verify proxy secret (if configured)
