@@ -1,8 +1,54 @@
+// ============================================================================
+// get-weather — Real weather from Open-Meteo (no API key required)
+// ============================================================================
+// Previously this function asked an AI model to "guess" the weather based on
+// GPS coordinates, which required an OpenAI API key and produced unreliable
+// results.  It now calls Open-Meteo (https://open-meteo.com), a free,
+// open-source weather API that returns real numerical forecast data.
+//
+// For the Field Officer scan flow, weather is now fetched directly on the
+// device (src/lib/weather.ts) so this edge function is only needed for
+// server-side or admin-panel callers.
+// ============================================================================
+
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { corsHeaders } from '../_shared/cors.ts';
 
+// WMO Weather Interpretation Code → human-readable label
+// https://open-meteo.com/en/docs#weathervariables
+const WMO_CODES: Record<number, string> = {
+  0:  'Clear sky',
+  1:  'Mainly clear',
+  2:  'Partly cloudy',
+  3:  'Overcast',
+  45: 'Foggy',
+  48: 'Icy fog',
+  51: 'Light drizzle',
+  53: 'Drizzle',
+  55: 'Heavy drizzle',
+  56: 'Light freezing drizzle',
+  57: 'Freezing drizzle',
+  61: 'Light rain',
+  63: 'Rain',
+  65: 'Heavy rain',
+  66: 'Light freezing rain',
+  67: 'Freezing rain',
+  71: 'Light snow',
+  73: 'Snow',
+  75: 'Heavy snow',
+  77: 'Snow grains',
+  80: 'Light showers',
+  81: 'Showers',
+  82: 'Heavy showers',
+  85: 'Light snow showers',
+  86: 'Snow showers',
+  95: 'Thunderstorm',
+  96: 'Thunderstorm w/ hail',
+  99: 'Thunderstorm w/ heavy hail',
+};
+
 serve(async (req) => {
-  // Handle CORS
+  // Handle CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
@@ -10,64 +56,40 @@ serve(async (req) => {
   try {
     const { latitude, longitude } = await req.json();
 
-    if (!latitude || !longitude) {
+    if (latitude === undefined || latitude === null || longitude === undefined || longitude === null) {
       throw new Error('Latitude and longitude are required');
     }
 
     console.log('🌤️ Fetching weather for:', latitude, longitude);
 
-    // Use AI to get current weather description
-    const aiApiKey = Deno.env.get('OPENAI_API_KEY');
-    const aiBaseUrl = Deno.env.get('OPENAI_BASE_URL') || 'https://api.openai.com/v1';
+    const url = new URL('https://api.open-meteo.com/v1/forecast');
+    url.searchParams.set('latitude', String(latitude));
+    url.searchParams.set('longitude', String(longitude));
+    url.searchParams.set('current', 'temperature_2m,weathercode,windspeed_10m');
+    url.searchParams.set('timezone', 'auto');
+    url.searchParams.set('wind_speed_unit', 'kmh');
 
-    if (!aiApiKey || !aiBaseUrl) {
-      throw new Error('AI service not configured');
-    }
-
-    const aiModel = Deno.env.get('OPENAI_MODEL') || 'gpt-4o-mini';
-    const aiResponse = await fetch(`${aiBaseUrl}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${aiApiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: aiModel,
-        messages: [
-          {
-            role: 'system',
-            content: `You are a weather assistant. Based on GPS coordinates, provide ONLY a brief weather description in this exact format:
-"[Condition], [Temperature]°C, [Wind/Other notable condition]"
-
-Examples:
-- "Clear, 22°C, light breeze"
-- "Overcast, 15°C, moderate wind"
-- "Light rain, 18°C"
-- "Sunny, 25°C"
-
-Be concise. Return ONLY the weather string, nothing else.`
-          },
-          {
-            role: 'user',
-            content: `What's the current weather at GPS coordinates: ${latitude}, ${longitude} (Nelson, New Zealand area)?`
-          }
-        ],
-        temperature: 0.3,
-        max_tokens: 50,
-      }),
+    const weatherResponse = await fetch(url.toString(), {
+      signal: AbortSignal.timeout(5000),
     });
 
-    if (!aiResponse.ok) {
-      const errorText = await aiResponse.text();
-      throw new Error(`AI weather fetch failed: ${errorText}`);
+    if (!weatherResponse.ok) {
+      throw new Error(`Open-Meteo returned ${weatherResponse.status}`);
     }
 
-    const aiResult = await aiResponse.json();
-    const weatherDescription = aiResult.choices[0]?.message?.content?.trim();
+    const data = await weatherResponse.json();
+    const current = data?.current;
 
-    if (!weatherDescription) {
-      throw new Error('AI returned empty weather description');
+    if (!current) {
+      throw new Error('Unexpected Open-Meteo response shape');
     }
+
+    const condition = WMO_CODES[current.weathercode as number] ?? 'Unknown';
+    const temp = Math.round(current.temperature_2m as number);
+    const wind = Math.round(current.windspeed_10m as number);
+
+    let weatherDescription = `${condition}, ${temp}°C`;
+    if (wind > 0) weatherDescription += `, ${wind} km/h wind`;
 
     console.log('✅ Weather fetched:', weatherDescription);
 
@@ -76,6 +98,7 @@ Be concise. Return ONLY the weather string, nothing else.`
         success: true,
         weather: weatherDescription,
         coordinates: { latitude, longitude },
+        source: 'open-meteo',
       }),
       {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },

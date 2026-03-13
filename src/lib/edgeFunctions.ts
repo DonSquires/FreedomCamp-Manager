@@ -525,6 +525,7 @@ export const edgeFunctions = {
     photo_base64?: string
     photoDataUrl?: string
     photo_url?: string
+    photo_hash?: string
     gpsLatitude?: number
     gps_latitude?: number
     gps?: { lat: number; lng: number; accuracy?: number }

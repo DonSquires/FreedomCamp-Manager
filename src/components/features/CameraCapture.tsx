@@ -23,6 +23,7 @@ import { toast } from 'sonner'
 import { useAuthStore } from '@/stores/authStore'
 import { useGlobalFiltersStore } from '@/stores/globalFiltersStore'
 import { useZones } from '@/hooks/useZones'
+import { fetchWeatherOnDevice } from '@/lib/weather'
 
 interface CameraCaptureProps {
   onCapture: (file: File, metadata: CameraMetadata) => void
@@ -272,14 +273,14 @@ export function CameraCapture({
       setCurrentTime(new Date())
     }, 1000)
     
-    // Get GPS location
+    // Get GPS location and fetch real weather from Open-Meteo once coordinates are known
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
-        (position) => {
-          setGpsLocation({
-            lat: position.coords.latitude,
-            lng: position.coords.longitude,
-          })
+        async (position) => {
+          const lat = position.coords.latitude
+          const lng = position.coords.longitude
+
+          setGpsLocation({ lat, lng })
           
           // Auto-detect zone based on GPS — read from ref so we always get the
           // latest zones data without this effect depending on zones directly.
@@ -289,8 +290,8 @@ export function CameraCapture({
               // Simple distance check (can be improved with proper geofence)
               if (!zone.location_lat || !zone.location_lng) return false
               const distance = Math.sqrt(
-                Math.pow(zone.location_lat - position.coords.latitude, 2) +
-                Math.pow(zone.location_lng - position.coords.longitude, 2)
+                Math.pow(zone.location_lat - lat, 2) +
+                Math.pow(zone.location_lng - lng, 2)
               )
               return distance < 0.01 // ~1km radius
             })
@@ -301,6 +302,16 @@ export function CameraCapture({
               setAutoDetectedZone('Other Location')
             }
           }
+
+          // Fetch real weather directly from Open-Meteo using the device GPS.
+          // No API key, no server round-trip — called straight from the phone.
+          try {
+            const weatherStr = await fetchWeatherOnDevice(lat, lng)
+            if (weatherStr) setWeather(weatherStr)
+          } catch (weatherErr) {
+            // Non-critical — overlay stays as 'Clear' fallback
+            console.warn('⚠️ On-device weather fetch failed (non-critical):', weatherErr)
+          }
         },
         (error) => {
           console.error('GPS error:', error)
@@ -309,9 +320,6 @@ export function CameraCapture({
         { enableHighAccuracy: true }
       )
     }
-    
-    // Fetch weather (placeholder)
-    setWeather('Clear') // TODO: Integrate real weather API
 
     return () => {
       clearInterval(timeInterval)
