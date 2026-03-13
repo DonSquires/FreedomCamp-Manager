@@ -198,6 +198,21 @@ async function callEdgeFunction<T = any>(
 
 export const edgeFunctions = {
   /**
+   * Background enrichment for officer vehicle scans.
+   *
+   * Called fire-and-forget after the initial fast observation save.
+   * Runs: inference → ALPR backup → NZSCV → movement check → compliance.
+   * Updates the observation in-place; caller polls for the result.
+   */
+  processOfficerScan: async (params: {
+    observation_id: string
+    photo_url: string
+    photo_hash?: string | null
+  }) => {
+    return callEdgeFunction('process-officer-scan', params)
+  },
+
+  /**
    * Process ALPR - Plate Recognizer pipeline
    *
    * UPDATE mode: pass `observation_id` to update an existing observation.
