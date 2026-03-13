@@ -1,0 +1,617 @@
+================================================================================
+FREEDOMCAMP-MANAGER CODEBASE DEEP DIVE - COMPLETE INVENTORY
+================================================================================
+
+EXECUTIVE SUMMARY
+- Edge Functions: 58 (scanning, compliance, integrations, admin)
+- Database Migrations: 115 files, 32,303 lines
+- Zustand Stores: 5 (auth, session, theme, filters, locks)
+- TypeScript Types: 2 files (index.ts, database.ts)
+- Custom Hooks: 36 hooks
+- Page Components: 47 pages
+- Routes: 46 unique paths
+- Shared Helpers: 6 core modules
+
+================================================================================
+1. SUPABASE EDGE FUNCTIONS (58 TOTAL)
+================================================================================
+
+SCANNING & OBSERVATION PIPELINE (10 functions)
+- vehicle-ingest: Main scan ingest - photo upload, ALPR, GPS validation, idempotency
+- plate-scanner-photo-first: Wrapper to vehicle-ingest for backwards compatibility
+- alpr-process: Plate Recognizer Snapshot Cloud API integration
+- alpr-retry: Retry failed ALPR processing
+- orc-ingest: ORC text recognition on photos
+- analyze-vehicle-photo: AI vehicle attributes (color, make, model)
+- select-best-vehicle-photo: Profile photo selection ML
+- scrape-vehicle-photos: External photo source ingestion
+- photo-recovery: Photo archive recovery
+- daily-photo-reconciler: Photo integrity reconciliation
+
+COMPLIANCE & BREACH DETECTION (11 functions)
+- recalculate-compliance-v3: Main compliance engine - zone rules, homeless exemption, overnight verification
+- recalculate-compliance-v2: Legacy v2 (superseded)
+- recalculate-compliance: Legacy v1 (superseded)
+- scan-breaches: Batch breach detection on observations
+- check-almost-breaches: Early warning for near-breach conditions
+- check-zone-corrections: Validate zone corrections
+- correct-zone-assignments: Auto-correct observation zones (drift)
+- zone-correction: Legacy zone correction
+- get-compliance-statistics: KPI aggregation (rates, counts, zones)
+- test-compliance-matrix: Dev/test validation function
+- cleanup-and-recalculate: Cleanup + recalc pipeline
+
+OBSERVATIONS & DATA QUERY (5 functions)
+- observations-in-bounds: Geographic query (map bounds filters)
+- observations-list: Paginated observations with filters
+- observations-export: Export to CSV/Excel
+- duplicate-detection: Find potential duplicates (same plate, zone, time window)
+- check-data-integrity: Database consistency validation
+
+REPORTING & ANALYTICS (6 functions)
+- generate-dashboard-report: Executive dashboard PDF
+- generate-leadership-pack: Leadership briefing
+- generate-vehicle-report: Vehicle history PDF
+- generate-incident-pdf: Incident evidence PDF
+- generate-infringement: Infringement notice document
+- generate-notice-to-vacate: Notice to Vacate document
+
+OFFICER & PATROL MANAGEMENT (4 functions)
+- monitor-officer-welfare: Scheduled job - welfare monitoring, man-down detection
+- check-railway-health: Railway inference service health check
+- (live-tracking via migrations): Officer location streaming
+- (patrol-notifications): Geofence-based patrol alerts
+
+EXTERNAL INTEGRATIONS (5 functions)
+- parkpow-sync: ParkPow watchlist/permit sync
+- enrich-from-motorweb: MotorWeb vehicle enrichment
+- check-nzscv-status: NZ stolen/written-off vehicle check
+- stream-webhook: Stream.com real-time webhook
+- onspace-ai-chat: OnSpace AI chatbot
+
+ADMINISTRATIVE & MAINTENANCE (16 functions)
+- admin-incident-ops: Admin incident operations
+- create-user: User creation with auth + profile
+- create_auth_and_profiles: Batch auth + profile creation
+- update-user-password: Password reset
+- update-compliance-policy: Compliance policy updates
+- suggest-new-zone: Zone creation recommendation
+- sync-spatial-layers: PostGIS boundary sync
+- process-credential-document: COA/warrant upload verification
+- process-investigation-document: Evidence document upload
+- process-homeless-data: Homeless record ingestion
+- import-historical-data: Legacy data migration
+- import-data: Generic data import
+- send-report-email: Report email delivery
+- send-push-notification: Push notification delivery
+- upload-file: Generic file upload
+- nightly-privacy-cleanup: Scheduled privacy anonymization
+- get-weather: Weather API integration
+- hotspot-data: Hotspot analytics
+
+================================================================================
+2. SHARED HELPERS (supabase/functions/_shared/)
+================================================================================
+
+observationInsert.ts
+- Error detection: COALESCE type mismatches, missing schema columns
+- Adaptive retry with column omission strategy
+- Exports: isCoalesceTypeMismatchError(), extractMissingSchemaColumn()
+- Column Sets: COMPLIANCE_DRIFT_COLUMNS, OPTIONAL_SCHEMA_COLUMNS
+
+alpr.ts
+- Plate Recognizer Snapshot Cloud API client
+- Function: alprWithBytes(imageBytes, options?)
+- Returns: { plate: string|null, confidence: number|null, raw: any }
+- Env: PLATERECOGNIZER_TOKEN or PLATE_RECOGNIZER_TOKEN (legacy fallback)
+
+compliance.ts
+- Breach type constants: consecutive_nights, monthly_limit, self_contained, 
+  after_hours, day_visit_violation, allowed_days_violation
+- Function: toValidBreachType(value) - validates against CHECK constraint
+- Function: nzHour(recordedAt) - NZ timezone conversion using Intl API
+
+withCors.ts
+- Advanced CORS handler with strict origin validation
+- Allowed: fcmanager.co.nz, localhost:5173, onspace.build
+- Preview pattern: preview-react-9b4t5o-*.onspace.build
+- DEV_CORS toggle for development
+- Exports: withCors() wrapper, getCorsHeaders(), jsonResponse(), errorResponse()
+
+cors.ts
+- Legacy simple CORS (wildcard *)
+
+parkpow.ts
+- ParkPow API client (parent company of Plate Recognizer)
+- Types: ParkPowLot, ParkPowVehicle, ParkPowSession, ParkPowViolation, ParkPowWatchlistResult
+- Supports: watchlists, permits, sessions, violations, webhooks
+
+================================================================================
+3. DATABASE SCHEMA & TYPES
+================================================================================
+
+Type Files:
+- src/types/index.ts: Domain types (User, Organization, Zone, Vehicle, Observation, BreachAlert, Patrol)
+- src/types/database.ts: Full Supabase schema (auto-generated from migrations)
+
+Core Tables:
+- organizations: org_type, hierarchy level, enforcement_workflow, overnight_verification_mode
+- user_profiles: role (master|admin|officer|admin_officer), COA/warrant tracking
+- zones: location, compliance rules (nights_per_month, max_consecutive_nights, day_visit_only)
+- zone_compliance_matrix: versioned rules (effective_from/effective_to)
+- canonical_vehicles: plate registry, homeless status, exemption flags
+- observations: scan records with compliance state, GPS, photo, embeddings
+- compliance_results: compliance evaluation (is_compliant, breach_type, breach_reason)
+- breach_alerts: detected breaches with evidence_file_url
+- patrols: officer patrol tracking
+- enforcement_actions: enforcement workflow
+- incident_evidence: incident files with hash verification
+- homeless_records: homeless vehicle tracking
+- patrol_checkpoints: patrol checkpoint locations
+- man_down_events: officer welfare alerts
+
+Storage Buckets (RLS Protected):
+- scans/: Observation photos
+- evidence/: Incident evidence files
+- profile-photos/: Officer/vehicle photos
+- documents/: Credentials/warrants/notices
+
+Key Schema Details:
+- observations.photo_url: NOT NULL (enforced by 20260219)
+- observations.is_compliant: denormalized from compliance_results
+- observations.compliance_summary: nested JSON object
+- canonical_vehicles.homeless_status: tracks homeless exemption
+- breach_alerts.breach_type: CHECK constraint (6 valid types)
+- organizations.overnight_verification_mode: 'two_photo_verification' | 'one_photo_per_day_inference'
+
+================================================================================
+4. TYPESCRIPT HOOKS (36 TOTAL)
+================================================================================
+
+Authentication & Session:
+- useAuthStore: Auth state, login/logout, session check
+- useSessionInactivityLock: Inactivity timeout enforcement
+- useInactivityLogout: Auto-logout
+- useSessionLockStore: Session lock UI state
+
+Data Fetching:
+- useVehicles, useZones, useOrganizations, useUsers
+- usePlateScans: Recent scan history
+- useBreaches: Breach alert queries/mutations
+- useVehicleCompliance: Vehicle compliance status
+- useIncidents: Incident records
+- useAuditLogs: Access log queries
+- useImportHistory: Import tracking
+
+Location & Geofencing:
+- useGlobalLocationTracking: Real-time officer tracking
+- useOrganizationBoundary: Org jurisdiction validation
+- useLocationCheck: GPS accuracy checks
+- usePatrolCheckpoints: Checkpoint tracking
+
+Realtime Subscriptions:
+- useRealtime: Generic websocket listener
+- useIncidentRealtime: Incident updates
+- useRailwayServices: Inference service health
+- usePatrols: Patrol status sync
+
+Officer & Welfare:
+- useOfficerWelfareMonitor: Officer health tracking
+- useOfficerNotifications: Officer-specific alerts
+- useManDownDetection: Man-down event detection
+- useHealthSafety: Health/safety reporting
+
+Features:
+- useVehicleAnalysis: Vehicle behavior analysis
+- useVehicleProfilePhoto: Profile photo upload/selection
+- useFlaggedVehicles: Flagged/homeless vehicle lists
+- useEnforcementActions: Enforcement mutations
+- usePersonRecords: Person-vehicle linkage
+- useNotifications: General notifications
+- useDashboardStats: KPI aggregation
+- useOfflineQueue: Offline-first sync
+- usePermissions: Role-based permissions
+
+UI & Theme:
+- useDarkMode, useThemeMode, use-toast, use-mobile
+
+================================================================================
+5. ZUSTAND STORES (5 TOTAL)
+================================================================================
+
+authStore.ts
+- User authentication state, login/logout, session management
+- Handles auth listener, role-based dispatch
+- Clears auth artifacts on logout
+
+sessionPreferencesStore.ts
+- Auto-logoff settings (true/false)
+- Inactivity timeout (5-120 min range, default 10)
+- Persisted to localStorage
+
+sessionLockStore.ts
+- isLocked, isWarningVisible, warningSecondsRemaining
+- Methods: lock(), unlock(), showWarning(), updateWarningSeconds()
+
+globalFiltersStore.ts
+- Date filters: dateFrom, dateTo, datePreset
+- Organization filter: organizationId, organizationName
+- Zone filter: zoneId
+- Platform filters
+- Used across dashboard pages
+
+themePreferencesStore.ts
+- Theme mode: 'light' | 'dark' | 'system'
+- Persisted to localStorage
+
+================================================================================
+6. PAGE COMPONENTS (47 TOTAL)
+================================================================================
+
+ADMIN & COMPLIANCE (6 pages)
+- AdminPortal.tsx: Main admin dashboard with compliance trends
+- ComplianceDashboard.tsx: Real-time compliance overview
+- CompliancePage.tsx: Full compliance analytics with breach table
+- ComplianceAnalytics.tsx: Advanced analytics with charts
+- ComplianceRecalculation.tsx: Manual recalculation trigger
+
+FIELD OFFICER (3 pages)
+- FieldOfficerPortal.tsx: Mobile/web scan interface
+- LiveOfficerTracking.tsx: Real-time officer location map
+- LivePatrolMonitor.tsx: Patrol in-progress metrics
+
+VEHICLES & SCANS (6 pages)
+- VehicleManagement.tsx: Vehicle registry CRUD
+- VehicleDetailPage.tsx: Individual vehicle history/observations
+- VehicleRegistry.tsx: Searchable vehicle list
+- ObservationRecords.tsx: Scan/observation history
+- ObservationsView.tsx: Alternative observations viewer
+- ObservationsReport.tsx: Observations export
+
+BREACHES & COMPLIANCE (3 pages)
+- BreachAlerts.tsx: Breach management and status updates
+- BreachNotices.tsx: Breach notice generation
+- NoticeToVacate.tsx: NTV document generation
+
+ENFORCEMENT & ACTIONS (4 pages)
+- EnforcementActions.tsx: Enforcement workflow (escalation, assignment)
+- EnforcementCommandCenter.tsx: Central enforcement ops dashboard
+- EnforcementReview.tsx: Enforcement approval UI
+- InfringementNotices.tsx: Infringement notice generation
+
+ZONES & SPATIAL (5 pages)
+- ZoneManagement.tsx: Zone CRUD and compliance rules
+- SpatialComplianceAdmin.tsx: Geographic analysis/heatmaps
+- HotspotsMap.tsx: High-activity zone visualization
+- PatrolCheckpointManagement.tsx: Checkpoint setup
+- (suggest-new-zone): Zone recommendation UI
+
+INCIDENTS & INVESTIGATION (3 pages)
+- IncidentManagement.tsx: Incident creation/assignment
+- IncidentReports.tsx: Incident report generation
+- InvestigationJobsPage.tsx: Investigation task management
+
+PEOPLE & WELFARE (2 pages)
+- PersonRecords.tsx: Person-vehicle linkage
+- OfficerWelfareSettings.tsx: Officer health configuration
+
+DATA MANAGEMENT (6 pages)
+- DataManagement.tsx: Import/export hub navigation
+- DataManagementHub.tsx: Advanced data tools
+- DataCleanupUtility.tsx: Data cleanup/deduplication
+- DataIntegrityDashboard.tsx: Data validation
+- ImportData.tsx: Generic import UI
+- ImportHistoricalData.tsx: Legacy migration UI
+
+ADMINISTRATION (6 pages)
+- UserManagement.tsx: User CRUD and role assignment
+- OrganizationManagement.tsx: Org hierarchy management
+- OrganizationProfile.tsx: Org details/settings
+- Settings.tsx: App-wide settings
+- Profile.tsx: User profile editing
+- AuditLog.tsx: Access log viewer
+
+UTILITIES (3 pages)
+- PortalSelection.tsx: admin_officer portal choice (admin vs field)
+- PrivacyCurtain.tsx: PII obfuscation toggle
+- SystemDiagnostics.tsx: System health checks
+- TestDashboard.tsx: Dev test utilities
+- CleanDashboard.tsx: Clean schema-only dashboard
+- UniversalSearch.tsx: Global search
+- Reports.tsx, ReportsHub.tsx: Report generation/delivery
+- Login.tsx: Authentication
+
+================================================================================
+7. APP.TSX ROUTER (46 ROUTES)
+================================================================================
+
+Public Routes:
+- /login: Authentication entry point
+
+Field Officer Routes (roles: officer, admin_officer):
+- /field-officer: Scan interface and patrol tracking
+
+Admin Routes (roles: admin, admin_officer, master):
+- /admin: Main dashboard
+- /admin/data-cleanup: Data cleanup
+- /admin/data-hub: Data management hub
+- /admin/data-integrity: Integrity checks
+- /compliance: Compliance analytics
+- /compliance-analytics: Advanced analytics
+- /compliance-recalculation: Manual recalculation
+- /vehicles: Vehicle management
+- /vehicle-registry: Vehicle list
+- /vehicles/:id: Vehicle detail
+- /zones: Zone management
+- /spatial-compliance: Spatial admin
+- /hotspots: Hotspot map
+
+Breach Routes:
+- /breaches: Breach alerts
+- /breach-notices: Notice generation
+- /enforcement-actions: Enforcement workflow
+- /enforcement-command-center: Enforcement ops
+- /enforcement-review: Approval UI
+- /infringements: Infringement notices
+- /notice-to-vacate: NTV generation
+
+Observation Routes:
+- /observations: Observations list
+- /observations-report: Export/reporting
+- /observation-records: History
+- /search: Universal search
+
+Incident Routes:
+- /incidents: Management
+- /incident-reports: Report generation
+- /investigations: Investigation tracking
+
+Data Admin Routes:
+- /data: Data hub (admin, master only)
+- /import-data: Data import
+- /import-historical: Legacy migration
+- /users: User management (admin, master only)
+- /organizations: Org hierarchy (master only)
+- /audit-log: Access logs
+
+Reporting:
+- /reports: Report hub
+- /reports-hub: Reports navigation
+
+Officer & Welfare:
+- /live-tracking: Officer location
+- /live-patrol: Patrol monitoring
+- /officer-welfare: Welfare settings
+- /patrol-checkpoints: Checkpoint management
+
+User Routes:
+- /: Home (role-based dispatch)
+- /portal-selection: admin_officer choice
+- /profile: User profile
+- /settings: App settings
+- /organization-profile: Org details
+- /person-records: Person-vehicle linkage
+- /privacy-curtain: PII obfuscation
+- /diagnostics: System diagnostics
+- /test-dashboard: Dev utilities
+- *: Not found
+
+Protection Mechanisms:
+- <ProtectedRoute>: Requires authentication
+- <RoleRoute allowedRoles={[]}>: Role-based access control
+- admin_officer forced to choose portal once per session
+
+================================================================================
+8. DATABASE MIGRATIONS (115 FILES, 32,303 LINES)
+================================================================================
+
+Phase 1: Initial Schema (20250101)
+- Core tables: organizations, users, zones, vehicles, observations, compliance, breaches
+
+Data Architecture Consolidation (20250127-20250215)
+- 20250127: Legacy history compatibility
+- 20250203: Rebuild vehicle architecture (canonical_vehicles introduction)
+- 20250204: Enforcement workflow system
+- 20250211: Data consolidation
+- 20250212: Homeless exemption system
+- 20250214: Breach alert automation and observation sync
+
+Officer Management & Welfare (20250201-20250212)
+- Officer welfare system
+- Live location tracking
+- Monthly activity records
+- Man-down detection (20260302)
+
+Advanced Features (20260215-20260401)
+- Admin_officer role support
+- Multi-org hierarchy with parent relationships
+- Compliance credentials (COA/warrant)
+- Evidence integrity and chain of custody
+- Photo-first enforcement
+- Async scan pipeline (v3, v4 fixes)
+- Geofencing and zone management
+- Vector embeddings for photo recognition
+- ParkPow integration
+- RLS enforcement (multiple iterations: 20260218, 20260227, 20260307, 20260314, 20260320)
+- Performance indexes
+- Admin dashboard views and RPCs
+- Privacy curtain (PII obfuscation)
+- Schema drift fixes (COALESCE type mismatches: 20260312, 20260313, 20260401)
+- Compliance matrix versioning
+- Homeless exemption alignment
+- Overnight verification mode
+
+Key Migrations by Purpose:
+- 20250131: GPS threshold adjusted to 15m
+- 20250203: GPS verified consecutive stays
+- 20250204: Notice to Vacate system, Enforcement workflow
+- 20260217: Compliance checkboxes
+- 20260219: Photo enforcement, Evidence integrity, Zone requirements
+- 20260220: Breach evidence trail, Compliance summary to observations, Core pipeline rebuild
+- 20260221: Clean observations rebuild
+- 20260222: Incident evidence RLS, Performance indexes
+- 20260224: Admin dashboard RPC, Dashboard views
+- 20260225: ORC AI observations, ParkPow integration
+- 20260226: RLS fixes for authorized work locations
+- 20260227: Service role fixes, Officer scan RLS, Async scan pipeline
+- 20260301: Zone compliance alignment, RLS helper functions, Hierarchy levels, Access logging
+- 20260302: Patrol checkpoints, Privacy curtain, Observation jobs RLS v2
+- 20260303: Scan pipeline v4 fixes, Observation jobs RLS v3
+- 20260304: Final observation jobs cleanup
+- 20260305: Location validation RPC, Man-down RLS fixes, Welfare monitoring schedule
+- 20260306: Scans bucket RLS
+- 20260307: Officer patrol RLS
+- 20260308: Mark object ref permission, V1 inference outputs
+- 20260309: Overnight verification mode, Embedding columns, Canonical photo backfill, Storage function grants
+- 20260310: Enforcement action attachments, Homeless alignment, Homeless records, CSC logic
+- 20260312: Multiple schema/trigger/column fixes (7 migrations)
+- 20260313: COALESCE type mismatch fix
+- 20260314: Admin officer RLS
+- 20260315: Missing tables and columns
+- 20260316: Compliance dashboard indexes, Geofence compatibility
+- 20260317: Admin recalculation actions
+- 20260318: Schema functions
+- 20260320: Observation zone assignments, Officer compliance access
+- 20260321: Reassign observations to current zones
+- 20260322: Revert observations table name, Merge duplicate orgs, Zone matrix enrichment
+- 20260323: Photo recovery infrastructure
+- 20260324: Geofence monthly review and drift
+- 20260325: Fix import batches columns
+- 20260326: Evidence bucket import policy
+- 20260327: Breach alerts RLS
+- 20260328: Incidents-vehicles schema, Compliance page RPCs
+- 20260329: Breach alerts observation FK
+- 20260330: Observations idempotency key
+- 20260331: Seed manual canonical vehicle, Realign observations compliance types/trigger
+- 20260401: Scan pipeline schema/trigger, COALESCE type hotfix
+
+================================================================================
+9. CRITICAL AUDIT FINDINGS & SCHEMA MISMATCHES
+================================================================================
+
+✅ STRENGTHS:
+1. Full type safety with src/types/database.ts
+2. Robust CORS with strict origin validation
+3. Async resilience (observationInsert.ts error handling)
+4. RLS enforcement on all user-scoped tables
+5. Versioned compliance rules (zone_compliance_matrix with effective_from/effective_to)
+6. Adaptive observation insert (retry with column omission on schema cache misses)
+
+⚠️ KNOWN DRIFT ISSUES (Fixed by migrations):
+1. COALESCE Type Mismatches (20260312, 20260313, 20260401)
+   - Triggers expect INTEGER, columns are TEXT
+   - Solution: Type casting in trigger COALESCE, omit fields on error
+
+2. Column Name Drifts
+   - latitude/longitude → gps_latitude/gps_longitude
+   - full_name → first_name + last_name
+   - Solution: Type corrections in database.ts
+
+3. Schema Cache Delays (20260312, 20260315)
+   - New columns not immediately visible
+   - Solution: Refresh cache, retry with column omission
+
+4. Vehicle Record Split (20250203, 20250127)
+   - Legacy: single vehicle_records
+   - Current: canonical_vehicles + observations (denormalized)
+   - Solution: Bidirectional syncs
+
+5. Breach Type Constraints (20260217, 20260331)
+   - CHECK constraint on breach_alerts.breach_type
+   - Valid types: consecutive_nights, monthly_limit, self_contained, after_hours, day_visit_violation, allowed_days_violation
+   - Solution: toValidBreachType() from compliance.ts
+
+6. RLS Enforcement Iterations (20260218, 20260227, 20260307, 20260314)
+   - Service role needed explicit storage access
+   - Officer RLS too restrictive initially
+   - Solution: Multiple RLS policy refinements
+
+7. Homeless Exemption Alignment (20260310)
+   - Flag on canonical_vehicles, exemption logic in compliance_results
+   - Solution: is_homeless_exempt field in compliance_results
+
+8. Overnight Verification Mode (20260309, 20260225)
+   - Organizations support: 'two_photo_verification' | 'one_photo_per_day_inference'
+   - Compliance logic varies by org mode
+   - Solution: Mode read from organizations table in recalculation
+
+9. Zone Compliance Matrix Versioning (20260301, 20260322)
+   - Multiple effective_from/effective_to dates per zone
+   - Solution: Version selection by date in compliance engine
+
+10. Observations Idempotency (20260330)
+    - Duplicate prevention via idempotency_key
+    - Solution: Unique constraint on (plate_number, zone_id, recorded_at, idempotency_key)
+
+================================================================================
+10. DATA FLOW DIAGRAMS
+================================================================================
+
+VEHICLE SCAN FLOW:
+1. vehicle-ingest receives photo + metadata
+   → Validates GPS (15m threshold)
+   → Calls alprWithBytes() (from _shared/alpr.ts)
+   → Inserts observation with adaptive error handling
+2. Database trigger on observations INSERT
+   → Calls evaluate_compliance_v4() function
+   → Creates/updates compliance_results
+   → Evaluates against zone_compliance_matrix (date-versioned)
+3. scan-breaches (async or scheduled)
+   → Queries compliance_results.is_compliant = false
+   → Creates breach_alerts for each non-compliant observation
+4. check-almost-breaches (hourly scheduled)
+   → Early warning for near-breach vehicles
+   → Sends push notifications
+
+COMPLIANCE RECALCULATION FLOW:
+1. Admin triggers recalculate-compliance-v3 with zone/date/org filters
+2. Function queries observations by filters
+3. For each observation:
+   → Look up vehicle in canonical_vehicles
+   → Check homeless exemption and flagged support
+   → Evaluate against zone_compliance_matrix (effective at recorded_at)
+   → Apply organizations.overnight_verification_mode
+   → Store result in compliance_results
+4. Sync results to observations.compliance_summary (JSON)
+5. Auto-generate breach alerts from non-compliant results
+
+ALPR INTEGRATION FLOW:
+1. vehicle-ingest → calls alprWithBytes() from _shared/alpr.ts
+2. Uses PLATERECOGNIZER_TOKEN (canonical) or PLATE_RECOGNIZER_TOKEN (legacy)
+3. Returns { plate, confidence, raw }
+4. Fallback to manual entry if confidence < threshold
+
+PARKPOW INTEGRATION FLOW:
+1. parkpow-sync uses parkpow.ts helper
+2. Checks PARKPOW_API_TOKEN
+3. Syncs watchlists (flagged plates) and permits (allowed plates)
+4. Results may exempt vehicles from certain breaches
+
+================================================================================
+11. KEY FILES TO MONITOR
+================================================================================
+
+Compliance Engine:
+- supabase/functions/recalculate-compliance-v3/index.ts
+
+Data Ingest:
+- supabase/functions/vehicle-ingest/index.ts
+- supabase/functions/_shared/alpr.ts
+- supabase/functions/_shared/observationInsert.ts
+
+Schema & Types:
+- supabase/migrations/20250101_initial_schema.sql
+- supabase/migrations/20260301_align_zone_compliance_matrix.sql
+- src/types/database.ts
+
+Routing & Auth:
+- src/App.tsx
+- src/stores/authStore.ts
+
+UI Components:
+- src/pages/CompliancePage.tsx
+- src/pages/BreachAlerts.tsx
+- src/pages/FieldOfficerPortal.tsx
+- src/pages/AdminPortal.tsx
+
+================================================================================
