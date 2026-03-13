@@ -21,16 +21,21 @@ interface VehicleLike {
 }
 
 /**
- * Check if a URL is a valid Supabase Storage URL (signed or public)
+ * Check if a URL is a valid photo URL (Supabase Storage or any https endpoint)
  */
 function isValidStorageUrl(url: string | null | undefined): boolean {
   if (!url || typeof url !== 'string') return false
   
-  // Check for Supabase storage patterns
-  const isSupabaseStorage = url.includes('/storage/v1/object/')
   const hasValidScheme = url.startsWith('http://') || url.startsWith('https://')
-  
-  return isSupabaseStorage && hasValidScheme
+  if (!hasValidScheme) return false
+
+  // Validate URL structure
+  try {
+    new URL(url)
+    return true
+  } catch {
+    return false
+  }
 }
 
 /**

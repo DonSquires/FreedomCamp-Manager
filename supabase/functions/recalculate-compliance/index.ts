@@ -217,11 +217,11 @@ serve(async (req) => {
       const buildQuery = () => {
         let q = supabaseAdmin
           .from('observations')
-          .select('id, zone_id, organization_id, plate_number, recorded_at, is_compliant, breach_type, nights_stayed_this_month, consecutive_nights, self_contained')
+          .select('observation_id, zone_id, organization_id, plate_number, recorded_at, is_compliant, breach_type, nights_stayed_this_month, consecutive_nights, self_contained')
           ;
 
         if (zoneIdFilter.length > 0) q = q.in('zone_id', zoneIdFilter);
-        if (observationIdFilter.length > 0) q = q.in('id', observationIdFilter);
+        if (observationIdFilter.length > 0) q = q.in('observation_id', observationIdFilter);
         if (orgIdFilter)            q = q.eq('organization_id', orgIdFilter);
         if (dateStart)              q = q.gte('recorded_at', dateStart);
         if (dateEndExclusive)       q = q.lt('recorded_at', dateEndExclusive);
@@ -256,7 +256,7 @@ serve(async (req) => {
             const rules = matrixByZone[obs.zone_id] ?? zoneById[obs.zone_id];
 
             if (!rules) {
-              console.log(`No compliance rules for zone ${obs.zone_id}, skipping ${obs.id}`);
+              console.log(`No compliance rules for zone ${obs.zone_id}, skipping ${obs.observation_id}`);
               continue;
             }
 
@@ -328,11 +328,11 @@ serve(async (req) => {
                 breach_type:   breachType,
                 breach_reason: breachReason,
               })
-              .eq('id', obs.id);
+              .eq('observation_id', obs.observation_id);
 
             if (updateError) {
               updateErrors++;
-              console.error(`Failed to update observation ${obs.id}:`, updateError.message);
+              console.error(`Failed to update observation ${obs.observation_id}:`, updateError.message);
             } else {
               observationsProcessed++;
               if (complianceWouldChange) {
@@ -340,7 +340,7 @@ serve(async (req) => {
               }
             }
           } catch (obsErr: any) {
-            console.error(`Error processing observation ${obs.id}:`, obsErr.message ?? obsErr);
+            console.error(`Error processing observation ${obs.observation_id}:`, obsErr.message ?? obsErr);
           }
         }
 

@@ -408,8 +408,8 @@ export default function BreachAlerts() {
       const observationId = getBreachObservationId(activeBreach)
       if (observationId) {
         const byId = await (supabase.from('observations') as any)
-          .select('id, photo_url, recorded_at, gps_latitude, gps_longitude, zones!observations_zone_id_fkey(name)')
-          .eq('id', observationId)
+          .select('id:observation_id, photo_url, recorded_at, gps_latitude, gps_longitude, zones!observations_zone_id_fkey(name)')
+          .eq('observation_id', observationId)
           .limit(1)
 
         const normalized = await normalizePhotos(byId.data || [])
@@ -419,7 +419,7 @@ export default function BreachAlerts() {
       }
 
       const strictQuery = (supabase.from('observations') as any)
-        .select('id, photo_url, recorded_at, gps_latitude, gps_longitude, zones!observations_zone_id_fkey(name)')
+        .select('id:observation_id, photo_url, recorded_at, gps_latitude, gps_longitude, zones!observations_zone_id_fkey(name)')
         .eq('plate_number', activeBreach.plate_number)
         .eq('organization_id', activeBreach.organization_id)
         .lte('recorded_at', activeBreach.created_at)
@@ -435,7 +435,7 @@ export default function BreachAlerts() {
 
       // Fallback: ignore org/date constraints when data quality is inconsistent.
       const fallback = await (supabase.from('observations') as any)
-        .select('id, photo_url, recorded_at, gps_latitude, gps_longitude, zones!observations_zone_id_fkey(name)')
+        .select('id:observation_id, photo_url, recorded_at, gps_latitude, gps_longitude, zones!observations_zone_id_fkey(name)')
         .eq('plate_number', activeBreach.plate_number)
         .not('photo_url', 'is', null)
         .order('recorded_at', { ascending: false })

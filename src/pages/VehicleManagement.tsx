@@ -269,10 +269,19 @@ export default function VehicleManagement() {
       }
 
       const pickObservationPhotoColumn = async () => {
-        const candidates: Array<'photo_url' | 'image_url' | 'photo'> = ['photo_url', 'image_url', 'photo']
+        // Prioritize 'photo' (live schema primary), then 'photo_url', then 'image_url'
+        const candidates: Array<'photo' | 'photo_url' | 'image_url'> = ['photo', 'photo_url', 'image_url']
+        for (const col of candidates) {
+          const { data, error } = await (supabase.from('observations') as any)
+            .select(`plate_number, ${col}`)
+            .not(col, 'is', null)
+            .limit(1)
+          if (!error && data && data.length > 0) return col
+        }
+        // Fallback: return the first column that exists even if all values are null
         for (const col of candidates) {
           const { error } = await (supabase.from('observations') as any)
-            .select(`id, ${col}`)
+            .select(`plate_number, ${col}`)
             .limit(1)
           if (!error) return col
         }
@@ -573,6 +582,11 @@ export default function VehicleManagement() {
         return rows
       }
 
+      // Build select clause: always include all known photo columns so
+      // getObservationPhotoUrl() can pick the best available URL.
+      const allPhotoCols = new Set(['photo', 'photo_url', backfillPhotoColumn])
+      const photoSelectCols = ['plate_number', ...allPhotoCols, 'recorded_at'].join(', ')
+
       const plateChunks: string[][] = []
       for (let i = 0; i < missingPhotoPlates.length; i += 200) {
         plateChunks.push(missingPhotoPlates.slice(i, i + 200))
@@ -580,7 +594,7 @@ export default function VehicleManagement() {
 
       for (const chunk of plateChunks) {
         let photoQuery = (supabase.from('observations') as any)
-          .select(`plate_number, ${backfillPhotoColumn}, recorded_at`)
+          .select(photoSelectCols)
           .in('plate_number', chunk)
           .not(backfillPhotoColumn, 'is', null)
           .order('recorded_at', { ascending: false })
@@ -640,7 +654,7 @@ export default function VehicleManagement() {
     queryFn: async () => {
       let q = supabase
         .from('observations')
-        .select('id, recorded_at, is_compliant, breach_type, nights_stayed_this_month, organization_id, zone_id, recorded_by')
+        .select('observation_id, recorded_at, is_compliant, breach_type, nights_stayed_this_month, organization_id, zone_id, recorded_by')
         .eq('plate_number', selectedVehicle!.plate_number)
         .order('recorded_at', { ascending: false })
         .limit(100)
@@ -675,7 +689,7 @@ export default function VehicleManagement() {
       const photoColumn = await (async () => {
         const candidates: Array<'photo_url' | 'image_url' | 'photo'> = ['photo_url', 'image_url', 'photo']
         for (const col of candidates) {
-          const { error } = await (supabase.from('observations') as any).select(`id, ${col}`).limit(1)
+          const { error } = await (supabase.from('observations') as any).select(`observation_id, ${col}`).limit(1)
           if (!error) return col
         }
         return null
@@ -683,13 +697,13 @@ export default function VehicleManagement() {
 
       let photosById: Record<string, string | null> = {}
       if (photoColumn) {
-        const ids = obsRows.map((o: any) => o.id).filter(Boolean)
+        const ids = obsRows.map((o: any) => o.observation_id).filter(Boolean)
         if (ids.length > 0) {
           const { data: p } = await (supabase.from('observations') as any)
-            .select(`id, ${photoColumn}`)
-            .in('id', ids)
+            .select(`observation_id, ${photoColumn}`)
+            .in('observation_id', ids)
           photosById = Object.fromEntries(
-            (p || []).map((row: any) => [row.id, row[photoColumn] ?? null])
+            (p || []).map((row: any) => [row.observation_id, row[photoColumn] ?? null])
           )
         }
       }
@@ -700,7 +714,7 @@ export default function VehicleManagement() {
         org: row.organization_id
           ? { name: orgNames[row.organization_id] || 'Unknown Org' }
           : null,
-        photo_url: photosById[row.id] ?? null,
+        photo_url: photosById[row.observation_id] ?? null,
       }))
     },
     enabled: showDetailsDialog && !!selectedVehicle?.plate_number,

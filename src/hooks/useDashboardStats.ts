@@ -125,7 +125,7 @@ export function useRecentActivity(organizationId?: string | null, zoneId?: strin
     queryFn: async () => {
       let query = (supabase.from('observations') as any)
         .select(`
-          id,
+          id:observation_id,
           plate_number,
           recorded_at,
           zones:zone_id(name)

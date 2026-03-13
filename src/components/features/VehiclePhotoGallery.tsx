@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { supabase } from '@/lib/supabase'
+import { getObservationPhotoUrl } from '@/lib/photoUtils'
 import { 
   Image as ImageIcon,
   Star,
@@ -49,7 +50,8 @@ export function VehiclePhotoGallery({
     queryFn: async () => {
       const { data, error } = await (supabase.from('observations') as any)
         .select(`
-          id,
+          id:observation_id,
+          photo,
           photo_url,
           photo_hash,
           recorded_at,
@@ -61,12 +63,16 @@ export function VehiclePhotoGallery({
           is_compliant
         `)
         .eq('plate_number', plateNumber)
-        .not('photo_url', 'is', null)
+        .or('photo.not.is.null,photo_url.not.is.null')
         .order('recorded_at', { ascending: false })
 
       if (error) throw error
 
-      return data || []
+      // Resolve photo URL from whichever column has data (photo takes priority)
+      return (data || []).map((row: any) => ({
+        ...row,
+        photo_url: getObservationPhotoUrl(row) ?? row.photo_url ?? row.photo,
+      }))
     },
   })
 
