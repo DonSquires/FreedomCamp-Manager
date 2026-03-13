@@ -110,7 +110,7 @@ export default function SystemDiagnostics() {
     queryFn: async () => {
       const [observations, vehicles, breaches, zones, users] = await Promise.all([
         supabase.from('observations').select('observation_id', { count: 'exact', head: true }),
-        supabase.from('canonical_vehicles').select('id', { count: 'exact', head: true }),
+        supabase.from('canonical_vehicles').select('vehicle_id', { count: 'exact', head: true }),
         supabase.from('breach_alerts').select('id', { count: 'exact', head: true }),
         supabase.from('zones').select('id', { count: 'exact', head: true }),
         supabase.from('user_profiles').select('id', { count: 'exact', head: true }),

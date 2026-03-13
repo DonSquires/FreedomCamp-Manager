@@ -10,12 +10,14 @@
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || ''
 
 interface ObservationLike {
+  photo?: string | null     // primary column in live schema
   photo_url?: string | null
   image_url?: string | null
 }
 
 interface VehicleLike {
   profile_photo?: string | null
+  profile_photo_url?: string | null  // live schema secondary column
 }
 
 /**
@@ -39,12 +41,17 @@ function isValidStorageUrl(url: string | null | undefined): boolean {
 export function getObservationPhotoUrl(observation: ObservationLike | null | undefined): string | null {
   if (!observation) return null
   
-  // Try photo_url first
+  // Try primary 'photo' column first (live schema)
+  if (isValidStorageUrl(observation.photo)) {
+    return observation.photo!
+  }
+
+  // Fall back to photo_url
   if (isValidStorageUrl(observation.photo_url)) {
     return observation.photo_url!
   }
   
-  // Fall back to image_url
+  // Fall back to image_url (legacy)
   if (isValidStorageUrl(observation.image_url)) {
     return observation.image_url!
   }

@@ -168,7 +168,7 @@ export default function EnforcementActions() {
           status,
           zone:zones(name)
         `)
-        .in('status', ['pending', 'notified'])
+        .in('status', ['pending', 'acknowledged', 'enforcement_started'])
         .order('created_at', { ascending: false })
         .limit(50)
 

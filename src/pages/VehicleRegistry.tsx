@@ -20,12 +20,12 @@ import { formatDateTime } from '@/lib/utils'
 import { HOMELESS_UI_STATUSES, isHomelessForUi } from '@/lib/homelessStatus'
 
 interface RegistryVehicle {
-  id: string
+  vehicle_id: string
   plate_number: string
-  make: string | null
-  model: string | null
-  year: number | null
-  colour: string | null
+  vehicle_make: string | null
+  vehicle_model: string | null
+  vehicle_year: string | null
+  vehicle_color: string | null
   self_contained: boolean
   self_contained_expiry: string | null
   is_exempt: boolean
@@ -58,7 +58,7 @@ export default function VehicleRegistry() {
       let query = (supabase as any)
         .from('canonical_vehicles')
         .select([
-          'id', 'plate_number', 'make', 'model', 'year', 'colour',
+          'vehicle_id', 'plate_number', 'vehicle_make', 'vehicle_model', 'vehicle_year', 'vehicle_color',
           'self_contained', 'self_contained_expiry', 'is_exempt',
           'homeless_status', 'profile_photo',
           'total_observations', 'total_breaches', 'last_seen_at',
@@ -86,7 +86,7 @@ export default function VehicleRegistry() {
 
       if (searchQuery.trim()) {
         query = query.or(
-          `plate_number.ilike.%${searchQuery.trim()}%,make.ilike.%${searchQuery.trim()}%,model.ilike.%${searchQuery.trim()}%`
+          `plate_number.ilike.%${searchQuery.trim()}%,vehicle_make.ilike.%${searchQuery.trim()}%,vehicle_model.ilike.%${searchQuery.trim()}%`
         )
       }
 
@@ -258,9 +258,9 @@ export default function VehicleRegistry() {
               <div className="divide-y">
                 {vehicles.map((vehicle) => (
                   <button
-                    key={vehicle.id}
+                    key={vehicle.vehicle_id}
                     className="w-full text-left px-4 py-3 hover:bg-gray-50 transition-colors flex items-center gap-4"
-                    onClick={() => navigate(`/vehicles/${vehicle.id}`)}
+                    onClick={() => navigate(`/vehicles/${vehicle.vehicle_id}`)}
                   >
                     {/* Profile photo or placeholder */}
                     <div className="h-10 w-14 rounded bg-gray-100 flex-shrink-0 flex items-center justify-center overflow-hidden">
@@ -288,7 +288,7 @@ export default function VehicleRegistry() {
                         {complianceBadge(vehicle)}
                       </div>
                       <div className="text-xs text-gray-500 mt-0.5 truncate">
-                        {[vehicle.make, vehicle.model, vehicle.year, vehicle.colour]
+                        {[vehicle.vehicle_make, vehicle.vehicle_model, vehicle.vehicle_year, vehicle.vehicle_color]
                           .filter(Boolean)
                           .join(' · ') || 'Vehicle details unknown'}
                       </div>

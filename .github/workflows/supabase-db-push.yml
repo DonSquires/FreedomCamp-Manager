@@ -1,11 +1,42 @@
 name: Apply Supabase migrations (db push)
 
+# ⚠️ SCHEMA GOVERNANCE
+# This workflow pushes SQL migrations directly to the production database.
+# It is triggered manually (workflow_dispatch) only.
+#
+# REQUIRED BEFORE RUNNING:
+# 1. The PR containing the migration must have been reviewed and approved by @DonSquires
+# 2. docs/LIVE_SCHEMA.md must have been updated in that same PR
+# 3. src/types/database.ts and src/types/index.ts must pass `npx tsc -b --noEmit`
+#
+# The workflow runs in the "production-schema" environment which requires
+# a manual approval from @DonSquires before the push step executes.
+# Configure the environment at: Settings → Environments → production-schema
+
 on:
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      confirmed:
+        description: "I have reviewed and approved the migration PR and updated docs/LIVE_SCHEMA.md"
+        required: true
+        type: boolean
+        default: false
 
 jobs:
-  db_push:
+  # Gate: abort immediately if the operator did not explicitly confirm
+  confirm_approval:
     runs-on: ubuntu-latest
+    steps:
+      - name: Require explicit confirmation
+        if: ${{ !inputs.confirmed }}
+        run: |
+          echo "::error::You must tick the 'confirmed' checkbox to acknowledge schema governance requirements."
+          exit 1
+
+  db_push:
+    needs: confirm_approval
+    runs-on: ubuntu-latest
+    environment: production-schema   # requires manual approval from @DonSquires in GitHub UI
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4

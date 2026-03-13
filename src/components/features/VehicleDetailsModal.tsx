@@ -24,12 +24,12 @@ interface VehicleDetailsModalProps {
   isOpen: boolean
   onClose: () => void
   vehicle: {
-    id: string
+    vehicle_id?: string
     plate_number: string
-    make?: string
-    model?: string
-    year?: number
-    colour?: string
+    vehicle_make?: string
+    vehicle_model?: string
+    vehicle_year?: string
+    vehicle_color?: string
     self_contained: boolean
     self_contained_expiry?: string
     total_observations: number
@@ -55,7 +55,9 @@ interface VehicleDetailsModalProps {
   breaches?: Array<{
     id: string
     breach_type: string
-    detected_at: string
+    /** `created_at` is the canonical DB column; `detected_at` is a legacy alias. */
+    created_at?: string
+    detected_at?: string
     status: string
   }>
 }
@@ -80,8 +82,8 @@ export function VehicleDetailsModal({
                 {vehicle.plate_number}
               </DialogTitle>
               <DialogDescription className="mt-2">
-                {vehicle.make && vehicle.model 
-                  ? `${vehicle.make} ${vehicle.model}${vehicle.year ? ` (${vehicle.year})` : ''}`
+                {vehicle.vehicle_make && vehicle.vehicle_model 
+                  ? `${vehicle.vehicle_make} ${vehicle.vehicle_model}${vehicle.vehicle_year ? ` (${vehicle.vehicle_year})` : ''}`
                   : 'Complete vehicle details and history'
                 }
               </DialogDescription>
@@ -126,22 +128,22 @@ export function VehicleDetailsModal({
                   <span className="text-gray-600">Plate Number:</span>
                   <p className="font-mono font-bold text-lg">{vehicle.plate_number}</p>
                 </div>
-                {vehicle.make && (
+                {vehicle.vehicle_make && (
                   <div>
                     <span className="text-gray-600">Make/Model:</span>
-                    <p className="font-medium">{vehicle.make} {vehicle.model}</p>
+                    <p className="font-medium">{vehicle.vehicle_make} {vehicle.vehicle_model}</p>
                   </div>
                 )}
-                {vehicle.year && (
+                {vehicle.vehicle_year && (
                   <div>
                     <span className="text-gray-600">Year:</span>
-                    <p className="font-medium">{vehicle.year}</p>
+                    <p className="font-medium">{vehicle.vehicle_year}</p>
                   </div>
                 )}
-                {vehicle.colour && (
+                {vehicle.vehicle_color && (
                   <div>
                     <span className="text-gray-600">Colour:</span>
-                    <p className="font-medium capitalize">{vehicle.colour}</p>
+                    <p className="font-medium capitalize">{vehicle.vehicle_color}</p>
                   </div>
                 )}
                 <div>
@@ -288,7 +290,7 @@ export function VehicleDetailsModal({
                         <AlertTriangle className="h-4 w-4 text-red-600" />
                         <div>
                           <p className="font-medium capitalize">{breach.breach_type.replace(/_/g, ' ')}</p>
-                          <p className="text-xs text-gray-600">{formatDateTime(breach.detected_at)}</p>
+                          <p className="text-xs text-gray-600">{formatDateTime(breach.detected_at ?? breach.created_at)}</p>
                         </div>
                       </div>
                       <Badge variant="outline" className="text-xs">

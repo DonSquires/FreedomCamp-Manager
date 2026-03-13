@@ -35,12 +35,12 @@ import { PhotoWithFallback } from '@/components/features/PhotoWithFallback'
 import { VehiclePhotoGallery } from '@/components/features/VehiclePhotoGallery'
 
 interface CanonicalVehicle {
-  id: string
+  vehicle_id: string
   plate_number: string
-  make: string | null
-  model: string | null
-  year: number | null
-  colour: string | null
+  vehicle_make: string | null
+  vehicle_model: string | null
+  vehicle_year: string | null
+  vehicle_color: string | null
   self_contained: boolean
   self_contained_expiry: string | null
   homeless_status: string | null
@@ -56,15 +56,13 @@ interface CanonicalVehicle {
 }
 
 interface Observation {
-  id: string
+  observation_id: string
   recorded_at: string
   gps_latitude: number | null
   gps_longitude: number | null
+  photo: string | null
   photo_url: string | null
   is_compliant: boolean | null
-  sticker_presence: boolean | null
-  plate_confidence: number | null
-  processing_status: string | null
   nights_stayed_this_month: number | null
   zone: { name: string } | null
   recorded_by_user: { first_name: string; last_name: string } | null
@@ -109,7 +107,7 @@ export default function VehicleDetailPage() {
       const { data, error } = await supabase
         .from('canonical_vehicles')
         .select('*')
-        .eq('id', id!)
+        .eq('vehicle_id', id!)
         .single()
       if (error) throw error
       return data as CanonicalVehicle
@@ -126,8 +124,8 @@ export default function VehicleDetailPage() {
       let query = supabase
         .from('observations')
         .select(`
-          id, recorded_at, gps_latitude, gps_longitude, photo_url, is_compliant,
-          sticker_presence, plate_confidence, processing_status, nights_stayed_this_month,
+          observation_id, recorded_at, gps_latitude, gps_longitude, photo, photo_url, is_compliant,
+          nights_stayed_this_month,
           zone:zones!zone_id(name),
           recorded_by_user:user_profiles!recorded_by(first_name, last_name)
         `)
@@ -221,7 +219,7 @@ export default function VehicleDetailPage() {
       // @ts-ignore — supabase Update type mismatch (pre-existing codebase issue)
       const { error } = await (supabase.from('canonical_vehicles') as any)
         .update({ is_flagged: !vehicle!.is_flagged })
-        .eq('id', id!)
+        .eq('vehicle_id', id!)
       if (error) throw error
     },
     onSuccess: () => {
@@ -325,7 +323,7 @@ export default function VehicleDetailPage() {
   return (
     <AppLayout
       title={vehicle.plate_number}
-      description={`${vehicle.make || ''} ${vehicle.model || ''} ${vehicle.year || ''} · ${vehicle.colour || ''}`}
+      description={`${vehicle.vehicle_make || ''} ${vehicle.vehicle_model || ''} ${vehicle.vehicle_year || ''} · ${vehicle.vehicle_color || ''}`}
     >
       {/* Back + actions */}
       <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
@@ -392,7 +390,7 @@ export default function VehicleDetailPage() {
                   )}
                 </div>
                 <div className="mt-2 text-muted-foreground">
-                  {[vehicle.make, vehicle.model, vehicle.year, vehicle.colour].filter(Boolean).join(' · ')}
+                  {[vehicle.vehicle_make, vehicle.vehicle_model, vehicle.vehicle_year, vehicle.vehicle_color].filter(Boolean).join(' · ')}
                 </div>
                 {vehicle.self_contained_expiry && (
                   <div className="mt-1 text-sm text-muted-foreground">
@@ -491,7 +489,7 @@ export default function VehicleDetailPage() {
             <div className="text-center py-12 text-muted-foreground">No observations recorded</div>
           ) : (
             observations.map(obs => (
-              <Card key={obs.id}>
+              <Card key={obs.observation_id}>
                 <CardContent className="p-3">
                   <div className="flex items-start gap-3">
                     <div className="w-16 h-12 rounded border overflow-hidden shrink-0">
@@ -507,8 +505,6 @@ export default function VehicleDetailPage() {
                         {obs.is_compliant === true && <Badge className="bg-green-600 text-xs">Compliant</Badge>}
                         {obs.is_compliant === false && <Badge variant="destructive" className="text-xs">Breach</Badge>}
                         {obs.is_compliant === null && <Badge variant="secondary" className="text-xs">Pending</Badge>}
-                        {obs.sticker_presence === true && <Badge variant="secondary" className="text-xs">Sticker ✓</Badge>}
-                        {obs.sticker_presence === false && <Badge variant="outline" className="text-xs">No Sticker</Badge>}
                       </div>
                       <div className="text-sm text-muted-foreground flex flex-wrap gap-3">
                         <span className="flex items-center gap-1">

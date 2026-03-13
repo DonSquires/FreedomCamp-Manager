@@ -316,7 +316,6 @@ export function CameraCapture({
     return () => {
       clearInterval(timeInterval)
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   return (

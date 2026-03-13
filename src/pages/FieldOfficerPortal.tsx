@@ -163,38 +163,26 @@ export default function FieldOfficerPortal() {
       if (!user?.id) return []
       const historyCutoffIso = new Date(Date.now() - (24 * 60 * 60 * 1000)).toISOString()
 
+      // Live schema: PK is observation_id, photo cols are photo + photo_url, no processing_status
       const selectCandidates = [
         [
-          'id, plate_number, recorded_at, is_compliant, processing_status',
-          'photo_url, zone_id, breach_type, consecutive_nights, nights_stayed_this_month',
+          'observation_id, plate_number, recorded_at, is_compliant',
+          'photo, photo_url, zone_id, breach_type, consecutive_nights, nights_stayed_this_month',
           'zone:zones!zone_id(name)',
           'vehicle:canonical_vehicles!plate_number(homeless_status, is_exempt)',
         ].join(', '),
-        [
-          'id:observation_id, plate_number, recorded_at, is_compliant, processing_status',
-          'photo_url, zone_id, breach_type, consecutive_nights, nights_stayed_this_month',
-          'zone:zones!zone_id(name)',
-          'vehicle:canonical_vehicles!plate_number(homeless_status, is_exempt)',
-        ].join(', '),
+        // Fallback: try id alias in case schema cache is stale
         [
           'id:observation_id, plate_number, recorded_at, is_compliant',
-          'photo_url, zone_id, breach_type, consecutive_nights, nights_stayed_this_month',
+          'photo, photo_url, zone_id, breach_type, consecutive_nights, nights_stayed_this_month',
           'zone:zones!zone_id(name)',
           'vehicle:canonical_vehicles!plate_number(homeless_status, is_exempt)',
         ].join(', '),
+        // Minimal fallback
         [
-          'id:observation_id, plate_number, recorded_at, is_compliant',
-          'zone_id, breach_type, consecutive_nights, nights_stayed_this_month',
-          'photo:image_url',
+          'observation_id, plate_number, recorded_at, is_compliant',
+          'photo, photo_url, zone_id, breach_type',
           'zone:zones!zone_id(name)',
-          'vehicle:canonical_vehicles!plate_number(homeless_status, is_exempt)',
-        ].join(', '),
-        [
-          'id:observation_id, plate_number, recorded_at, is_compliant',
-          'zone_id, breach_type, consecutive_nights, nights_stayed_this_month',
-          'photo',
-          'zone:zones!zone_id(name)',
-          'vehicle:canonical_vehicles!plate_number(homeless_status, is_exempt)',
         ].join(', '),
       ]
 
@@ -211,9 +199,9 @@ export default function FieldOfficerPortal() {
 
         const rows = (data || []).map((row: any) => ({
           ...row,
-          id: row.id ?? row.observation_id,
-          processing_status: row.processing_status ?? null,
-          photo_url: row.photo_url ?? row.image_url ?? row.photo ?? null,
+          id: row.observation_id ?? row.id,
+          // No processing_status in live schema — use plate_number to infer ALPR state
+          photo_url: row.photo ?? row.photo_url ?? null,
         }))
 
         return rows as any[]
@@ -281,11 +269,12 @@ export default function FieldOfficerPortal() {
     return () => clearInterval(interval)
   }, [user, currentPatrolZone, setZone])
 
-  // Sync lastScanResult with live compliance data once AI processing completes
+  // Sync lastScanResult with live compliance data once ALPR processing completes
   useEffect(() => {
     if (!lastScanResult?.observationId || !lastScanResult.processingPending) return
     const matched = recentScans.find((s: any) => s.id === lastScanResult.observationId)
-    if (matched && matched.processing_status !== 'pending') {
+    // ALPR is done when plate_number is no longer the placeholder 'PROCESSING...'
+    if (matched && matched.plate_number !== 'PROCESSING...') {
       setLastScanResult(prev => prev ? {
         ...prev,
         isCompliant: matched.is_compliant,
@@ -308,10 +297,10 @@ export default function FieldOfficerPortal() {
 
     const fetchObservation = async (observationId: string) => {
       const lookupCandidates = [
-        { select: 'id, is_compliant, breach_type, processing_status, zone_id, zone:zones!zone_id(name)', key: 'id' },
-        { select: 'observation_id, is_compliant, breach_type, processing_status, zone_id, zone:zones!zone_id(name)', key: 'observation_id' },
-        { select: 'id, is_compliant, breach_type, zone_id, zone:zones!zone_id(name)', key: 'id' },
-        { select: 'observation_id, is_compliant, breach_type, zone_id, zone:zones!zone_id(name)', key: 'observation_id' },
+        { select: 'observation_id, is_compliant, breach_type, plate_number, zone_id, zone:zones!zone_id(name)', key: 'observation_id' },
+        { select: 'id, is_compliant, breach_type, plate_number, zone_id, zone:zones!zone_id(name)', key: 'id' },
+        { select: 'observation_id, is_compliant, breach_type, plate_number, zone_id, zone:zones!zone_id(name)', key: 'observation_id' },
+        { select: 'observation_id, is_compliant, breach_type, plate_number, zone_id, zone:zones!zone_id(name)', key: 'observation_id' },
       ] as const
 
       for (const candidate of lookupCandidates) {
@@ -323,8 +312,7 @@ export default function FieldOfficerPortal() {
         if (!res.error && res.data) {
           return {
             ...res.data,
-            id: (res.data as any).id ?? (res.data as any).observation_id,
-            processing_status: (res.data as any).processing_status ?? null,
+            id: (res.data as any).observation_id ?? (res.data as any).id,
           } as any
         }
       }
@@ -337,9 +325,15 @@ export default function FieldOfficerPortal() {
       attempts += 1
 
       const obs = await fetchObservation(lastScanResult.observationId!)
+      // ALPR is done when plate_number is no longer the placeholder value,
+      // OR when we have a compliance result (is_compliant bool or breach_type set)
       const resolved =
         !!obs &&
-        (obs.processing_status !== 'pending' || typeof obs.is_compliant === 'boolean' || !!obs.breach_type)
+        (
+          (obs.plate_number && obs.plate_number !== 'PROCESSING...') ||
+          typeof obs.is_compliant === 'boolean' ||
+          !!obs.breach_type
+        )
 
       if (resolved) {
         const compliant = typeof obs.is_compliant === 'boolean' ? obs.is_compliant : null
@@ -556,8 +550,8 @@ export default function FieldOfficerPortal() {
       const observationPayload: Record<string, any> = {
         idempotency_key: idempotencyKey,
         plate_number: 'PROCESSING...', // Placeholder until async ALPR completes
-        photo: photoUrl,
-        photo_url: photoUrl,
+        photo: photoUrl,    // primary photo column in live schema
+        photo_url: photoUrl, // secondary for compatibility
         photo_hash: photoHash,
         recorded_at: nowIso,
         zone_id: finalZoneId,
@@ -566,8 +560,7 @@ export default function FieldOfficerPortal() {
         gps_longitude: position.coords.longitude,
         gps_accuracy: position.coords.accuracy,
         recorded_by: user.id,
-        weather_conditions: weatherConditions,
-        processing_status: 'pending', // Mark for async ALPR processing
+        // weather_conditions and processing_status do NOT exist in the live schema
       }
 
       let ingestData: any = null
@@ -1262,7 +1255,7 @@ export default function FieldOfficerPortal() {
           <CardContent className="space-y-2 pt-0">
             {recentScans.filter((scan: any) => {
               if (scanTabFilter === 'all') return true
-              const isProcessingAI = scan.processing_status === 'pending'
+              const isProcessingAI = scan.plate_number === 'PROCESSING...' || scan.plate_number === 'MANUAL_REQUIRED'
               if (scanTabFilter === 'compliant') return scan.is_compliant === true && !isProcessingAI
               if (scanTabFilter === 'breach') return scan.is_compliant === false && !isProcessingAI
               if (scanTabFilter === 'at_risk') return isProcessingAI || (scan.is_compliant && (scan.consecutive_nights ?? 0) >= 2)
@@ -1274,7 +1267,7 @@ export default function FieldOfficerPortal() {
               }
               return true
             }).map((scan: any) => {
-              const isProcessingAI = scan.processing_status === 'pending'
+              const isProcessingAI = scan.plate_number === 'PROCESSING...' || scan.plate_number === 'MANUAL_REQUIRED'
               const inBreach = scan.is_compliant === false && !isProcessingAI
               return (
                 <div

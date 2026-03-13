@@ -25,12 +25,12 @@ import { PhotoWithFallback } from '@/components/features/PhotoWithFallback'
 import { toast } from 'sonner'
 
 interface Vehicle {
-  id: string
+  vehicle_id: string
   source?: 'canonical' | 'observations'
   plate_number: string
   vehicle_make: string | null
   vehicle_model: string | null
-  year: number | null
+  vehicle_year: string | null   // TEXT in canonical_vehicles
   vehicle_color: string | null
   self_contained: boolean
   self_contained_expiry: string | null
@@ -200,13 +200,13 @@ export default function VehicleManagement() {
       const normalizeVehicleRow = (row: any): Vehicle => {
         const plate = String(row?.plate_number ?? '').trim()
         return {
-          id: row?.id ?? `canonical:${plate}`,
+          vehicle_id: row?.vehicle_id ?? `canonical:${plate}`,
           source: 'canonical',
           plate_number: plate,
-          vehicle_make: row?.vehicle_make ?? row?.make ?? null,
-          vehicle_model: row?.vehicle_model ?? row?.model ?? null,
-          year: row?.year ?? row?.vehicle_year ?? null,
-          vehicle_color: row?.vehicle_color ?? row?.colour ?? null,
+          vehicle_make: row?.vehicle_make ?? null,
+          vehicle_model: row?.vehicle_model ?? null,
+          vehicle_year: row?.vehicle_year ?? null,
+          vehicle_color: row?.vehicle_color ?? null,
           self_contained: !!(row?.self_contained ?? false),
           self_contained_expiry: row?.self_contained_expiry ?? null,
           homeless_status: row?.homeless_status ?? null,
@@ -379,12 +379,12 @@ export default function VehicleManagement() {
 
           if (!existing) {
             byPlate.set(plate, {
-              id: `obs:${plate}`,
+              vehicle_id: `obs:${plate}`,
               source: 'observations',
               plate_number: plate,
               vehicle_make: obs.vehicle_make ?? null,
               vehicle_model: obs.vehicle_model ?? null,
-              year: obs.vehicle_year ?? null,
+              vehicle_year: obs.vehicle_year != null ? String(obs.vehicle_year) : null,
               vehicle_color: obs.vehicle_color ?? null,
               self_contained: !!obs.self_contained,
               self_contained_expiry: null,
@@ -406,7 +406,7 @@ export default function VehicleManagement() {
           }
           if (!existing.vehicle_make && obs.vehicle_make) existing.vehicle_make = obs.vehicle_make
           if (!existing.vehicle_model && obs.vehicle_model) existing.vehicle_model = obs.vehicle_model
-          if (!existing.year && obs.vehicle_year) existing.year = obs.vehicle_year
+          if (!existing.vehicle_year && obs.vehicle_year) existing.vehicle_year = String(obs.vehicle_year)
           if (!existing.vehicle_color && obs.vehicle_color) existing.vehicle_color = obs.vehicle_color
           existing.self_contained = existing.self_contained || !!obs.self_contained
         }
@@ -780,7 +780,7 @@ export default function VehicleManagement() {
           .update({
             vehicle_make: data.make,
             vehicle_model: data.model,
-            year: data.year,
+            vehicle_year: data.year != null ? String(data.year) : null,
             vehicle_color: data.colour,
             owner_first_name: data.owner_name?.split(' ')[0],
             owner_last_name: data.owner_name?.split(' ').slice(1).join(' '),
@@ -956,15 +956,15 @@ export default function VehicleManagement() {
           {vehicles.map((vehicle) => {
             const profileUrl = vehicle.profile_photo
             const canDrillDown =
-              !!vehicle.id &&
-              !vehicle.id.startsWith('obs:') &&
-              !vehicle.id.startsWith('canonical:')
+              !!vehicle.vehicle_id &&
+              !vehicle.vehicle_id.startsWith('obs:') &&
+              !vehicle.vehicle_id.startsWith('canonical:')
             return (
               <Card
-                key={vehicle.id}
+                key={vehicle.vehicle_id}
                 className="hover:shadow-lg transition-shadow overflow-hidden cursor-pointer group"
                 onClick={() => {
-                  if (canDrillDown) navigate(`/vehicles/${vehicle.id}`)
+                  if (canDrillDown) navigate(`/vehicles/${vehicle.vehicle_id}`)
                   else openDetails(vehicle)
                 }}
               >
@@ -1001,7 +1001,7 @@ export default function VehicleManagement() {
                         {[
                           vehicle.vehicle_make,
                           vehicle.vehicle_model,
-                          vehicle.year && `(${vehicle.year})`,
+                          vehicle.vehicle_year && `(${vehicle.vehicle_year})`,
                         ]
                           .filter(Boolean)
                           .join(' ') || 'Details unknown'}
@@ -1073,7 +1073,7 @@ export default function VehicleManagement() {
                         className="flex-1"
                         onClick={(e) => {
                           e.stopPropagation()
-                          if (canDrillDown) navigate(`/vehicles/${vehicle.id}`)
+                          if (canDrillDown) navigate(`/vehicles/${vehicle.vehicle_id}`)
                           else openDetails(vehicle)
                         }}
                         title={canDrillDown ? 'Open full vehicle detail' : 'Canonical record not available for this vehicle'}
@@ -1116,7 +1116,7 @@ export default function VehicleManagement() {
               {[
                 selectedVehicle?.vehicle_make,
                 selectedVehicle?.vehicle_model,
-                selectedVehicle?.year && `(${selectedVehicle.year})`,
+                selectedVehicle?.vehicle_year && `(${selectedVehicle.vehicle_year})`,
               ]
                 .filter(Boolean)
                 .join(' ') || 'Vehicle details unknown'}
@@ -1333,7 +1333,7 @@ export default function VehicleManagement() {
                     className="flex-1"
                     onClick={() => {
                       setShowDetailsDialog(false)
-                      navigate(`/vehicles/${selectedVehicle.id}`)
+                      navigate(`/vehicles/${selectedVehicle.vehicle_id}`)
                     }}
                   >
                     Full Detail Page

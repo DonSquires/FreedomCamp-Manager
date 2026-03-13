@@ -39,7 +39,7 @@ import { useAuthStore } from '@/stores/authStore';
 type Tab = 'overview' | 'observations' | 'vehicles' | 'zones' | 'users';
 
 interface Observation {
-  id: string;
+  observation_id: string;
   plate_number: string;
   recorded_at: string;
   is_compliant: boolean;
@@ -47,27 +47,27 @@ interface Observation {
   breach_reason: string | null;
   vehicle_make: string | null;
   vehicle_model: string | null;
-  vehicle_year: number | null;
+  vehicle_year: string | null;
   vehicle_color: string | null;
   self_contained: boolean;
   nights_stayed_this_month: number;
   consecutive_nights: number;
-  photo_url: string;
+  photo: string | null;
+  photo_url: string | null;
   officer_notes: string | null;
-  weather_conditions: string | null;
-  gps_latitude: number;
-  gps_longitude: number;
+  gps_latitude: number | null;
+  gps_longitude: number | null;
   zones: { name: string } | null;
   organizations: { name: string } | null;
   user_profiles: { first_name: string; last_name: string } | null;
 }
 
 interface CanonicalVehicle {
-  id: string;
+  vehicle_id: string;
   plate_number: string;
-  make: string | null;
-  model: string | null;
-  colour: string | null;
+  vehicle_make: string | null;
+  vehicle_model: string | null;
+  vehicle_color: string | null;
   total_observations: number;
   homeless_status: string;
   is_flagged: boolean;
@@ -247,12 +247,12 @@ function OverviewTab() {
       const { data } = await supabase
         .from('observations')
         .select(
-          'id, plate_number, recorded_at, is_compliant, breach_type, vehicle_make, vehicle_model, vehicle_color, zones(name), organizations(name)'
+          'observation_id, plate_number, recorded_at, is_compliant, breach_type, vehicle_make, vehicle_model, vehicle_color, zones(name), organizations(name)'
         )
         .order('recorded_at', { ascending: false })
         .limit(10);
       return (data ?? []) as Array<{
-        id: string;
+        observation_id: string;
         plate_number: string;
         recorded_at: string;
         is_compliant: boolean;
@@ -302,7 +302,7 @@ function OverviewTab() {
         ) : (
           <div className="divide-y divide-gray-100 dark:divide-gray-800">
             {recentObs.map((obs) => (
-              <div key={obs.id} className="px-5 py-3 flex items-center justify-between gap-4">
+              <div key={obs.observation_id} className="px-5 py-3 flex items-center justify-between gap-4">
                 <div className="flex items-center gap-3 min-w-0">
                   <span className="font-mono font-bold text-gray-900 dark:text-white tracking-wide">
                     {obs.plate_number}
@@ -346,7 +346,7 @@ function ObservationsTab() {
       let q = supabase
         .from('observations')
         .select(
-          'id, plate_number, recorded_at, is_compliant, breach_type, breach_reason, vehicle_make, vehicle_model, vehicle_color, self_contained, nights_stayed_this_month, consecutive_nights, officer_notes, weather_conditions, gps_latitude, gps_longitude, photo_url, zones(name), organizations(name), user_profiles(first_name, last_name)',
+          'observation_id, plate_number, recorded_at, is_compliant, breach_type, breach_reason, vehicle_make, vehicle_model, vehicle_color, self_contained, nights_stayed_this_month, consecutive_nights, officer_notes, gps_latitude, gps_longitude, photo, photo_url, zones(name), organizations(name), user_profiles(first_name, last_name)',
           { count: 'exact' }
         )
         .order('recorded_at', { ascending: false })
@@ -428,7 +428,7 @@ function ObservationsTab() {
               </thead>
               <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
                 {data.rows.map((obs) => (
-                  <tr key={obs.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/30 transition-colors">
+                  <tr key={obs.observation_id} className="hover:bg-gray-50 dark:hover:bg-gray-800/30 transition-colors">
                     <td className="px-4 py-3 font-mono font-bold text-gray-900 dark:text-white">
                       {obs.plate_number}
                     </td>
@@ -513,7 +513,7 @@ function VehiclesTab() {
     queryFn: async () => {
       let q = supabase
         .from('canonical_vehicles')
-        .select('id, plate_number, make, model, colour, total_observations, homeless_status, is_flagged, flagged_priority, flagged_reason, profile_photo, first_seen_at, last_seen_at', { count: 'exact' })
+        .select('vehicle_id, plate_number, vehicle_make, vehicle_model, vehicle_color, total_observations, homeless_status, is_flagged, flagged_priority, flagged_reason, profile_photo, first_seen_at, last_seen_at', { count: 'exact' })
         .order('total_observations', { ascending: false })
         .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1);
 
@@ -588,7 +588,7 @@ function VehiclesTab() {
               </thead>
               <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
                 {data.rows.map((v) => (
-                  <tr key={v.id} className="hover:bg-gray-50 dark:hover:bg-gray-800/30 transition-colors">
+                  <tr key={v.vehicle_id} className="hover:bg-gray-50 dark:hover:bg-gray-800/30 transition-colors">
                     <td className="px-4 py-3">
                       {v.profile_photo ? (
                         <img src={v.profile_photo} alt={v.plate_number} className="w-12 h-10 object-cover rounded" />
@@ -602,7 +602,7 @@ function VehiclesTab() {
                       {v.plate_number}
                     </td>
                     <td className="px-4 py-3 text-gray-600 dark:text-gray-400 hidden md:table-cell">
-                      {[v.make, v.model, v.colour].filter(Boolean).join(' ') || '—'}
+                      {[v.vehicle_make, v.vehicle_model, v.vehicle_color].filter(Boolean).join(' ') || '—'}
                     </td>
                     <td className="px-4 py-3 text-center">
                       <span className="inline-block px-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-xs font-bold">

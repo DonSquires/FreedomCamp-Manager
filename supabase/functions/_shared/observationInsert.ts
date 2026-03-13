@@ -48,10 +48,15 @@ export const COMPLIANCE_DRIFT_COLUMNS = new Set([
 ]);
 
 /**
- * Optional columns that may not be in the schema cache yet.
- * Safe to drop and retry the insert.
+ * Columns confirmed absent from the live observations schema as of 2026-03-13.
+ * These were designed for future AI/processing features but never added to
+ * the production table. Any payload containing them will be rejected by
+ * PostgREST with a schema-cache error. Strip them before inserting/updating.
+ *
+ * DO NOT add columns that genuinely exist in the live DB here.
  */
 export const OPTIONAL_SCHEMA_COLUMNS = new Set([
+  // AI processing pipeline columns (not in live DB)
   "weather_conditions",
   "processing_status",
   "processing_started_at",
@@ -61,17 +66,19 @@ export const OPTIONAL_SCHEMA_COLUMNS = new Set([
   "vehicle_make_confidence",
   "vehicle_model_confidence",
   "vehicle_color_confidence",
+  // Sticker detection columns (not in live DB)
   "sticker_presence",
   "sticker_color",
   "sticker_bbox",
   "sticker_detection_confidence",
   "sticker_color_confidence",
+  // Movement comparison columns (not in live DB)
   "movement_moved",
   "movement_background_similarity",
   "movement_vehicle_bbox_iou",
   "movement_decision",
-  "incident_id",
   "previous_observation_id",
+  // Embedding columns DO exist in live DB — kept here only as legacy strip-on-error safety
   "vehicle_embedding",
   "embedding_quality",
   "embedding_model_version",

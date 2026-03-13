@@ -17,14 +17,13 @@ interface VehicleEditDrawerProps {
   open: boolean
   onClose: () => void
   vehicle: {
-    id: string
+    vehicle_id: string
     plate_number: string
-    make?: string
-    model?: string
-    year?: number
-    colour?: string
-    vin?: string
-    is_self_contained?: boolean
+    vehicle_make?: string
+    vehicle_model?: string
+    vehicle_year?: string
+    vehicle_color?: string
+    self_contained?: boolean
     notes?: string
   }
   onSave: (updates: Partial<VehicleEditDrawerProps['vehicle']>) => Promise<void>
@@ -32,13 +31,12 @@ interface VehicleEditDrawerProps {
 
 export function VehicleEditDrawer({ open, onClose, vehicle, onSave }: VehicleEditDrawerProps) {
   const [form, setForm] = useState({
-    make: vehicle.make ?? '',
-    model: vehicle.model ?? '',
-    year: vehicle.year ?? '',
-    colour: vehicle.colour ?? '',
-    vin: vehicle.vin ?? '',
+    vehicle_make: vehicle.vehicle_make ?? '',
+    vehicle_model: vehicle.vehicle_model ?? '',
+    vehicle_year: vehicle.vehicle_year ?? '',
+    vehicle_color: vehicle.vehicle_color ?? '',
     notes: vehicle.notes ?? '',
-    is_self_contained: vehicle.is_self_contained ?? false,
+    self_contained: vehicle.self_contained ?? false,
   })
   const [saving, setSaving] = useState(false)
 
@@ -50,15 +48,13 @@ export function VehicleEditDrawer({ open, onClose, vehicle, onSave }: VehicleEdi
     setSaving(true)
     try {
       const updates: Partial<VehicleEditDrawerProps['vehicle']> = {}
-      if (form.make !== (vehicle.make ?? '')) updates.make = form.make || undefined
-      if (form.model !== (vehicle.model ?? '')) updates.model = form.model || undefined
-      if (form.colour !== (vehicle.colour ?? '')) updates.colour = form.colour || undefined
-      if (form.vin !== (vehicle.vin ?? '')) updates.vin = form.vin || undefined
+      if (form.vehicle_make !== (vehicle.vehicle_make ?? '')) updates.vehicle_make = form.vehicle_make || undefined
+      if (form.vehicle_model !== (vehicle.vehicle_model ?? '')) updates.vehicle_model = form.vehicle_model || undefined
+      if (form.vehicle_color !== (vehicle.vehicle_color ?? '')) updates.vehicle_color = form.vehicle_color || undefined
       if (form.notes !== (vehicle.notes ?? '')) updates.notes = form.notes || undefined
-      if (form.is_self_contained !== (vehicle.is_self_contained ?? false))
-        updates.is_self_contained = form.is_self_contained
-      const yearNum = form.year !== '' ? Number(form.year) : undefined
-      if (yearNum !== vehicle.year) updates.year = yearNum
+      if (form.self_contained !== (vehicle.self_contained ?? false))
+        updates.self_contained = form.self_contained
+      if (form.vehicle_year !== (vehicle.vehicle_year ?? '')) updates.vehicle_year = form.vehicle_year || undefined
 
       await onSave(updates)
       toast.success('Vehicle updated')
@@ -80,20 +76,20 @@ export function VehicleEditDrawer({ open, onClose, vehicle, onSave }: VehicleEdi
         <div className="space-y-4 py-6">
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <Label htmlFor="make">Make</Label>
+              <Label htmlFor="vehicle_make">Make</Label>
               <Input
-                id="make"
-                value={form.make}
-                onChange={(e) => handleChange('make', e.target.value)}
+                id="vehicle_make"
+                value={form.vehicle_make}
+                onChange={(e) => handleChange('vehicle_make', e.target.value)}
                 placeholder="e.g. Toyota"
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="model">Model</Label>
+              <Label htmlFor="vehicle_model">Model</Label>
               <Input
-                id="model"
-                value={form.model}
-                onChange={(e) => handleChange('model', e.target.value)}
+                id="vehicle_model"
+                value={form.vehicle_model}
+                onChange={(e) => handleChange('vehicle_model', e.target.value)}
                 placeholder="e.g. HiAce"
               />
             </div>
@@ -101,37 +97,23 @@ export function VehicleEditDrawer({ open, onClose, vehicle, onSave }: VehicleEdi
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <Label htmlFor="year">Year</Label>
+              <Label htmlFor="vehicle_year">Year</Label>
               <Input
-                id="year"
-                type="number"
-                value={form.year}
-                onChange={(e) => handleChange('year', e.target.value)}
+                id="vehicle_year"
+                value={form.vehicle_year}
+                onChange={(e) => handleChange('vehicle_year', e.target.value)}
                 placeholder="e.g. 2018"
-                min={1900}
-                max={new Date().getFullYear() + 1}
               />
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="colour">Colour</Label>
+              <Label htmlFor="vehicle_color">Colour</Label>
               <Input
-                id="colour"
-                value={form.colour}
-                onChange={(e) => handleChange('colour', e.target.value)}
+                id="vehicle_color"
+                value={form.vehicle_color}
+                onChange={(e) => handleChange('vehicle_color', e.target.value)}
                 placeholder="e.g. White"
               />
             </div>
-          </div>
-
-          <div className="space-y-1.5">
-            <Label htmlFor="vin">VIN</Label>
-            <Input
-              id="vin"
-              value={form.vin}
-              onChange={(e) => handleChange('vin', e.target.value)}
-              placeholder="Vehicle Identification Number"
-              className="font-mono"
-            />
           </div>
 
           <div className="flex items-center justify-between rounded-lg border p-3">
@@ -140,8 +122,8 @@ export function VehicleEditDrawer({ open, onClose, vehicle, onSave }: VehicleEdi
             </Label>
             <Switch
               id="self-contained"
-              checked={form.is_self_contained}
-              onCheckedChange={(v) => handleChange('is_self_contained', v)}
+              checked={form.self_contained}
+              onCheckedChange={(v) => handleChange('self_contained', v)}
             />
           </div>
 

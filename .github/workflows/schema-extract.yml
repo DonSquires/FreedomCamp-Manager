@@ -1,5 +1,9 @@
 name: Schema Extract
 
+# Reads the live schema and can push output to a branch for review.
+# After running, update docs/LIVE_SCHEMA.md with any new columns and open a PR
+# for review by @DonSquires before merging the changes into main.
+
 on:
   workflow_dispatch:
     inputs:

@@ -25,8 +25,8 @@ export function VehicleCard({ vehicle, onViewDetails, showActions = true }: Vehi
               {vehicle.plate_number}
             </CardTitle>
             <CardDescription className="mt-1">
-              {vehicle.make && vehicle.model 
-                ? `${vehicle.make} ${vehicle.model}${vehicle.year ? ` (${vehicle.year})` : ''}`
+              {vehicle.vehicle_make && vehicle.vehicle_model 
+                ? `${vehicle.vehicle_make} ${vehicle.vehicle_model}${vehicle.vehicle_year ? ` (${vehicle.vehicle_year})` : ''}`
                 : 'Vehicle details unknown'
               }
             </CardDescription>
@@ -121,7 +121,7 @@ export function VehicleCard({ vehicle, onViewDetails, showActions = true }: Vehi
             <Button 
               variant="outline" 
               className="w-full mt-3"
-              onClick={() => onViewDetails(vehicle.id)}
+              onClick={() => onViewDetails(vehicle.vehicle_id)}
             >
               <Eye className="h-4 w-4 mr-2" />
               View Full Details

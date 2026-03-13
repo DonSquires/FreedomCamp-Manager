@@ -34,14 +34,14 @@ import { nzDateToUTCStart, nzDateToUTCEnd } from '@/lib/timezone'
 import { getObservationPhotoUrl } from '@/lib/photoUtils'
 
 interface Observation {
-  id: string
+  observation_id: string
   plate_number: string
   recorded_at: string
   gps_latitude: number | null
   gps_longitude: number | null
+  photo: string | null
   photo_url: string | null
   is_compliant: boolean
-  processing_status: string | null
   zone: { name: string } | null
   recorded_by_profile: { first_name: string; last_name: string } | null
 }
@@ -75,14 +75,14 @@ export default function ObservationsView() {
       let q = supabase
         .from('observations')
         .select(`
-          id,
+          observation_id,
           plate_number,
           recorded_at,
           gps_latitude,
           gps_longitude,
+          photo,
           photo_url,
           is_compliant,
-          processing_status,
           zone:zones!zone_id(name),
           recorded_by_profile:user_profiles!recorded_by(first_name, last_name)
         `)
@@ -209,7 +209,7 @@ export default function ObservationsView() {
             <div className="space-y-2">
               {filtered.map((obs) => (
                 <Card
-                  key={obs.id}
+                  key={obs.observation_id}
                   className={`border-l-4 ${obs.is_compliant ? 'border-l-green-500' : 'border-l-red-500'}`}
                 >
                   <CardContent className="pt-3 pb-3">
@@ -342,7 +342,7 @@ export default function ObservationsView() {
                       <MarkerClusterGroup chunkedLoading>
                         {withGPS.map((obs) => (
                           <CircleMarker
-                            key={obs.id}
+                            key={obs.observation_id}
                             center={[obs.gps_latitude!, obs.gps_longitude!]}
                             radius={7}
                             pathOptions={{
@@ -400,7 +400,7 @@ export default function ObservationsView() {
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2">
                 {withPhoto.map((obs) => (
                   <div
-                    key={obs.id}
+                    key={obs.observation_id}
                     className="relative group cursor-pointer rounded-md overflow-hidden aspect-square bg-muted border hover:ring-2 hover:ring-blue-500 transition-all"
                     onClick={() => setSelectedPhoto(obs)}
                   >

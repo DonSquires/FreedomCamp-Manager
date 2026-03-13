@@ -5,7 +5,7 @@
 export interface CSVColumn {
   key: string
   label: string
-  format?: (value: any) => string
+  format?: (value: any, row?: any) => string
 }
 
 /**
@@ -23,7 +23,7 @@ export function arrayToCSV<T extends Record<string, any>>(
     return columns
       .map(col => {
         const value = row[col.key]
-        const formattedValue = col.format ? col.format(value) : String(value ?? '')
+        const formattedValue = col.format ? col.format(value, row) : String(value ?? '')
         return escapeCSVValue(formattedValue)
       })
       .join(',')
@@ -149,7 +149,9 @@ export function exportBreachesCSV(
     breach_type: string
     severity: string
     status: string
-    detected_at: string
+    /** `created_at` is the canonical DB column; `detected_at` is a legacy alias. */
+    created_at?: string
+    detected_at?: string
     resolved_at?: string
   }>,
   fileName = 'breaches.csv'
@@ -161,9 +163,12 @@ export function exportBreachesCSV(
     { key: 'severity', label: 'Severity' },
     { key: 'status', label: 'Status' },
     { 
-      key: 'detected_at', 
+      key: 'created_at', 
       label: 'Detected At',
-      format: (val) => new Date(val).toLocaleString('en-NZ', { timeZone: 'Pacific/Auckland' })
+      format: (val, row: any) => {
+        const ts = val ?? row?.detected_at
+        return ts ? new Date(ts).toLocaleString('en-NZ', { timeZone: 'Pacific/Auckland' }) : ''
+      }
     },
     { 
       key: 'resolved_at', 

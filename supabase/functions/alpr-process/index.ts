@@ -500,24 +500,16 @@ Deno.serve(async (req) => {
       // Use the canonical observation_id from the row, falling back to id
       const existingObservationId = existingObs.observation_id ?? existingObs.id;
 
-      if (existingObs.processing_status === 'completed') {
-        console.log('⚠️ Observation already processed:', existingObservationId);
+      // Idempotency: if ALPR has already run (embedding_created_at is set), skip reprocessing
+      if (existingObs.embedding_created_at) {
+        console.log('⚠️ Observation already processed (embedding_created_at set):', existingObservationId);
         return new Response(
           JSON.stringify({ success: true, already_processed: true }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
 
-      // Mark as processing
-      await supabase
-        .from('observations')
-        .update({ 
-          processing_status: 'processing',
-          processing_started_at: new Date().toISOString()
-        })
-        .eq(observationKey, existingObservationId);
-
-      // Track so the outer catch can mark it 'failed' on unexpected errors.
+      // Track so the outer catch can log the failure observation.
       processingObservationId = existingObservationId;
       processingObservationKey = observationKey;
     }
@@ -702,28 +694,18 @@ Deno.serve(async (req) => {
 
     if (isUpdateMode) {
       // UPDATE MODE: Update existing observation with AI results
+      // Only write columns that exist in the live observations schema.
       const updateData: Record<string, any> = {
         plate_number: plateNumber,
-        // plateConfidence is initialised to 0 and only set > 0 when a plate is actually
-        // detected.  A value of 0 therefore means "no confident detection" (stage=manual),
-        // so we store null rather than a misleading zero confidence score.
-        plate_confidence: plateConfidence > 0 ? plateConfidence : null,
         vehicle_make: vehicle.make || null,
         vehicle_model: vehicle.model || null,
         vehicle_color: vehicle.color || null,
-        vehicle_make_confidence: vehicle.make_confidence ?? null,
-        vehicle_model_confidence: vehicle.model_confidence ?? null,
-        vehicle_color_confidence: vehicle.color_confidence ?? null,
-        processing_status: 'completed',
-        processing_completed_at: new Date().toISOString(),
-        processing_error: warnings.length > 0 ? warnings.join('; ') : null,
       };
 
-      // Optional incident / movement context supplied by caller
+      // Optional incident context supplied by caller (column exists in live DB)
       if (body.incident_id) updateData.incident_id = body.incident_id;
-      if (body.previous_observation_id) updateData.previous_observation_id = body.previous_observation_id;
 
-      // Store vehicle embedding when inference service provided one
+      // Store vehicle embedding when inference service provided one (columns exist in live DB)
       if (vehicleEmbedding) {
         updateData.vehicle_embedding = vehicleEmbedding;
         updateData.embedding_quality = embeddingQuality;
@@ -731,22 +713,9 @@ Deno.serve(async (req) => {
         updateData.embedding_created_at = new Date().toISOString();
       }
 
-      // Sticker detection fields
-      if (inferSticker !== null) {
-        updateData.sticker_presence = inferSticker.presence; // may be null (inconclusive)
-        updateData.sticker_color = inferSticker.color;
-        updateData.sticker_bbox = inferSticker.bbox ?? null;
-        updateData.sticker_detection_confidence = inferSticker.detection_confidence ?? null;
-        updateData.sticker_color_confidence = inferSticker.color_confidence ?? null;
-      }
-
-      // Movement comparison fields
-      if (inferMovement !== null) {
-        updateData.movement_moved = inferMovement.moved; // may be null
-        updateData.movement_background_similarity = inferMovement.background_similarity ?? null;
-        updateData.movement_vehicle_bbox_iou = inferMovement.vehicle_bbox_iou ?? null;
-        updateData.movement_decision = inferMovement.decision ?? null;
-      }
+      // NOTE: plate_confidence, sticker_*, movement_*, processing_status, previous_observation_id
+      // do NOT exist in the live observations table. The adaptiveObservationUpdate will strip
+      // any extras via schema-cache error handling, but we don't write them here to avoid retries.
 
       console.log('💾 Updating observation:', {
         observation_id: body.observation_id,
@@ -773,15 +742,8 @@ Deno.serve(async (req) => {
       if (updateError) {
         console.error('❌ Database UPDATE failed:', updateError);
         
-        // Mark as failed
-        await supabase
-          .from('observations')
-          .update({ 
-            processing_status: 'failed',
-            processing_error: updateError.message,
-            processing_completed_at: new Date().toISOString()
-          })
-          .eq(processingObservationKey, processingObservationId);
+        // Log failure but don't try to write non-existent processing_status columns
+        console.error('❌ UPDATE failed, observation stuck in PROCESSING... state:', processingObservationId);
 
         return new Response(
           JSON.stringify({
@@ -796,34 +758,25 @@ Deno.serve(async (req) => {
 
     } else {
       // CREATE MODE: Insert new observation
-      // Live schema: photo column is 'photo', photo_url also exists
+      // Only write columns that exist in the live observations schema.
       const observationData = {
         recorded_by: body.officerId,
         organization_id: body.organizationId,
         zone_id: body.zoneId,
-        photo: body.photo_url, // Live schema uses 'photo' as main column
-        photo_url: body.photo_url, // Also populate photo_url for compatibility
+        photo: body.photo_url,     // primary photo column in live schema
+        photo_url: body.photo_url, // secondary photo column for compatibility
         photo_hash: photoHash,
         plate_number: plateNumber,
-        plate_confidence: plateConfidence > 0 ? plateConfidence : null,
         gps_latitude: body.gpsLatitude,
         gps_longitude: body.gpsLongitude,
         gps_accuracy: body.gpsAccuracy || null,
         recorded_at: body.recordedAt || new Date().toISOString(),
         officer_notes: body.officerNotes || null,
-        weather_conditions: body.weatherConditions || null,
         vehicle_make: vehicle.make || null,
         vehicle_model: vehicle.model || null,
         vehicle_color: vehicle.color || null,
-        vehicle_make_confidence: vehicle.make_confidence ?? null,
-        vehicle_model_confidence: vehicle.model_confidence ?? null,
-        vehicle_color_confidence: vehicle.color_confidence ?? null,
         incident_id: body.incident_id ?? null,
-        processing_status: 'completed',
-        processing_completed_at: new Date().toISOString(),
-        // Explicitly provide compliance columns with correct types to prevent
-        // COALESCE type mismatch errors in the trigger function when column
-        // types have drifted (TEXT vs INTEGER).
+        // Provide compliance defaults to avoid COALESCE type mismatch in triggers
         nights_stayed_this_month: 0,
         consecutive_nights: 0,
         is_compliant: true,
@@ -899,20 +852,10 @@ Deno.serve(async (req) => {
     console.error('❌ ALPR Pipeline Failed:', error);
 
     // If we already marked this observation as 'processing', flip it to 'failed'
-    // so it doesn't stay stuck indefinitely.
+    // Log that this observation ID had a pipeline failure.
+    // Note: processing_status/processing_error do not exist in the live schema.
     if (processingObservationId) {
-      try {
-        await supabase
-          .from('observations')
-          .update({
-            processing_status: 'failed',
-            processing_error: error.message || 'Pipeline failed unexpectedly',
-            processing_completed_at: new Date().toISOString(),
-          })
-          .eq(processingObservationKey, processingObservationId);
-      } catch (cleanupErr: any) {
-        console.error('❌ Failed to mark observation as failed:', cleanupErr.message);
-      }
+      console.error('❌ ALPR pipeline failed for observation:', processingObservationId, '—', error.message);
     }
 
     return new Response(

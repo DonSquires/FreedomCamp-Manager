@@ -27,7 +27,9 @@ interface BreachAdvisoryModalProps {
     breach_type: string
     status: string
     severity: string
-    detected_at: string
+    /** `created_at` is the canonical DB column; callers may also pass `detected_at` for legacy compat. */
+    created_at?: string
+    detected_at?: string
     zone?: { name: string }
     organization?: { name: string }
     breach_details?: any
@@ -62,14 +64,21 @@ export function BreachAdvisoryModal({
 
   const getBreachTypeLabel = (type: string) => {
     const labels: Record<string, string> = {
+      // Current canonical breach type values (compliance engine)
+      consecutive_nights: 'Consecutive Nights Exceeded',
+      monthly_limit: 'Monthly Stay Limit Exceeded',
+      self_contained: 'Self-Contained Vehicle Required',
+      after_hours: 'After Hours Violation',
+      day_visit_violation: 'Day-Visit Only Zone',
+      allowed_days_violation: 'Not an Allowed Day',
+      // Legacy display labels (kept for historical data)
       overstay: 'Maximum Stay Exceeded',
       no_self_contained: 'Not Self-Contained',
       consecutive_days: 'Consecutive Nights Exceeded',
       unauthorized_zone: 'Unauthorized Zone Access',
       nights_exceeded: 'Monthly Night Limit Exceeded',
-      after_hours: 'After Hours Violation',
     }
-    return labels[type] || type
+    return labels[type] || type.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
   }
 
   const handleAction = async (action: 'resolve' | 'notify' | 'escalate') => {
@@ -147,7 +156,7 @@ export function BreachAdvisoryModal({
                   <p className="font-medium">
                     <Badge variant={
                       breach.status === 'resolved' ? 'default' :
-                      breach.status === 'notified' ? 'secondary' :
+                      breach.status === 'acknowledged' ? 'secondary' :
                       'destructive'
                     }>
                       {breach.status}
@@ -174,7 +183,7 @@ export function BreachAdvisoryModal({
                 <div className="flex items-center gap-2">
                   <Clock className="h-4 w-4 text-gray-400" />
                   <span className="text-gray-600">Detected:</span>
-                  <span className="font-medium">{formatDateTime(breach.detected_at)}</span>
+                  <span className="font-medium">{formatDateTime(breach.detected_at ?? breach.created_at)}</span>
                 </div>
                 {breach.due_date && (
                   <div className="flex items-center gap-2">
@@ -221,7 +230,7 @@ export function BreachAdvisoryModal({
                     </div>
                     <div>
                       <p className="font-medium">Breach Detected</p>
-                      <p className="text-gray-600">{formatDateTime(breach.detected_at)}</p>
+                      <p className="text-gray-600">{formatDateTime(breach.detected_at ?? breach.created_at)}</p>
                     </div>
                   </div>
 
@@ -283,7 +292,7 @@ export function BreachAdvisoryModal({
               </>
             )}
 
-            {breach.status === 'notified' && onResolve && (
+            {breach.status === 'acknowledged' && onResolve && (
               <Button
                 onClick={() => handleAction('resolve')}
                 disabled={isProcessing}

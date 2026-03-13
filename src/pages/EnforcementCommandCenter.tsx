@@ -74,7 +74,12 @@ interface ActivePatrol {
 function deriveSeverityFromBreachType(breachType: string): 'critical' | 'high' | 'medium' {
   const bt = String(breachType || '').toLowerCase()
   if (bt.includes('tow') || bt.includes('danger')) return 'critical'
-  if (bt.includes('overstay') || bt.includes('consecutive')) return 'high'
+  // Match canonical breach type values from the compliance engine
+  if (
+    bt === 'consecutive_nights' ||
+    bt === 'monthly_limit' ||
+    bt.includes('consecutive')
+  ) return 'high'
   return 'medium'
 }
 
@@ -97,7 +102,7 @@ export default function EnforcementCommandCenter() {
       let breachQuery = supabase
         .from('breach_alerts')
         .select('*', { count: 'exact', head: true })
-        .in('status', ['pending', 'notified'])
+        .in('status', ['pending', 'acknowledged', 'enforcement_started'])
 
       if (effectiveOrganizationId) {
         breachQuery = breachQuery.eq('organization_id', effectiveOrganizationId)
@@ -206,7 +211,7 @@ export default function EnforcementCommandCenter() {
           created_at,
           zone:zones(name)
         `)
-        .in('status', ['pending', 'notified'])
+        .in('status', ['pending', 'acknowledged', 'enforcement_started'])
         .order('created_at', { ascending: false })
         .limit(20)
 

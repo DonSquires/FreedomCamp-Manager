@@ -14,7 +14,7 @@ type Zone = Database['public']['Tables']['zones']['Row']
 type ObservationCompliance = Pick<Observation, 'is_compliant' | 'breach_type' | 'zone_id' | 'recorded_at'>
 type ObservationMovement = Pick<Observation, 'zone_id' | 'recorded_at'> & { zones: Pick<Zone, 'name'> | null }
 type ObservationBreach = Pick<Observation, 'plate_number' | 'is_compliant' | 'breach_type' | 'recorded_at'>
-type ObservationNight = Pick<Observation, 'plate_number' | 'recorded_at' | 'weather_conditions'>
+type ObservationNight = Pick<Observation, 'plate_number' | 'recorded_at'>
 type ObservationZone = Pick<Observation, 'plate_number' | 'zone_id' | 'recorded_at'>
 
 interface VehiclePattern {
@@ -262,7 +262,7 @@ export async function detectHomelessCandidates(
 ): Promise<VehiclePattern[]> {
   const { data, error } = await supabase
     .from('observations')
-    .select('plate_number, recorded_at, weather_conditions')
+    .select('plate_number, recorded_at')
     .eq('organization_id', organizationId)
     .order('recorded_at', { ascending: true })
 

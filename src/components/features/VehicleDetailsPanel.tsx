@@ -135,11 +135,11 @@ export function VehicleDetailsPanel({
                 )}
               </div>
               <CardDescription>
-                {vehicle.make && vehicle.model ? (
+                {vehicle.vehicle_make && vehicle.vehicle_model ? (
                   <span className="text-base">
-                    {vehicle.year ? `${vehicle.year} ` : ''}
-                    {vehicle.make} {vehicle.model}
-                    {vehicle.colour ? ` • ${vehicle.colour}` : ''}
+                    {vehicle.vehicle_year ? `${vehicle.vehicle_year} ` : ''}
+                    {vehicle.vehicle_make} {vehicle.vehicle_model}
+                    {vehicle.vehicle_color ? ` • ${vehicle.vehicle_color}` : ''}
                   </span>
                 ) : (
                   'Vehicle details pending'
@@ -185,23 +185,19 @@ export function VehicleDetailsPanel({
           <div className="grid grid-cols-2 gap-4">
             <div>
               <div className="text-sm font-medium text-muted-foreground">Make</div>
-              <div>{vehicle.make || 'Unknown'}</div>
+              <div>{vehicle.vehicle_make || 'Unknown'}</div>
             </div>
             <div>
               <div className="text-sm font-medium text-muted-foreground">Model</div>
-              <div>{vehicle.model || 'Unknown'}</div>
+              <div>{vehicle.vehicle_model || 'Unknown'}</div>
             </div>
             <div>
               <div className="text-sm font-medium text-muted-foreground">Year</div>
-              <div>{vehicle.year || 'Unknown'}</div>
+              <div>{vehicle.vehicle_year || 'Unknown'}</div>
             </div>
             <div>
               <div className="text-sm font-medium text-muted-foreground">Colour</div>
-              <div>{vehicle.colour || 'Unknown'}</div>
-            </div>
-            <div>
-              <div className="text-sm font-medium text-muted-foreground">Body Style</div>
-              <div>{vehicle.body_style || 'Unknown'}</div>
+              <div>{vehicle.vehicle_color || 'Unknown'}</div>
             </div>
             <div>
               <div className="text-sm font-medium text-muted-foreground">Self-Contained</div>
@@ -231,10 +227,6 @@ export function VehicleDetailsPanel({
                 <div>
                   <div className="text-xs text-muted-foreground">Warrant Type</div>
                   <div className="text-sm">{vehicle.nzscv_warrant_type || 'Unknown'}</div>
-                </div>
-                <div>
-                  <div className="text-xs text-muted-foreground">Warrant Number</div>
-                  <div className="text-sm">{vehicle.nzscv_warrant_number || 'Unknown'}</div>
                 </div>
                 <div>
                   <div className="text-xs text-muted-foreground">Expires</div>

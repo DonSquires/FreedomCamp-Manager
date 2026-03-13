@@ -11,7 +11,7 @@ export interface ManualObservationData {
   zone_id?: string
   vehicle_make?: string
   vehicle_model?: string
-  vehicle_colour?: string
+  vehicle_color?: string
   is_self_contained?: boolean
   notes?: string
   has_sticker?: boolean
@@ -81,7 +81,7 @@ export function ManualEntryModal({
         zone_id: zoneId,
         vehicle_make: make.trim() || undefined,
         vehicle_model: model.trim() || undefined,
-        vehicle_colour: colour.trim() || undefined,
+        vehicle_color: colour.trim() || undefined,
         is_self_contained: isSelfContained,
         has_sticker: hasSticker,
         notes: notes.trim() || undefined,

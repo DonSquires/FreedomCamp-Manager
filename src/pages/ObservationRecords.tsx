@@ -38,10 +38,10 @@ interface ObservationRow {
 
 interface CanonicalVehicleRow {
   plate_number: string
-  make: string | null
-  model: string | null
-  year: number | null
-  colour: string | null
+  vehicle_make: string | null
+  vehicle_model: string | null
+  vehicle_year: string | null   // TEXT in live DB
+  vehicle_color: string | null
   owner_first_name: string | null
   owner_last_name: string | null
   self_contained: boolean | null
@@ -81,7 +81,7 @@ function observationPriorityScore(row: ObservationRow): number {
 
 function formatVehicleSummary(v: CanonicalVehicleRow | undefined): string {
   if (!v) return 'No canonical metadata'
-  const base = [v.year, v.make, v.model, v.colour].filter(Boolean).join(' ')
+  const base = [v.vehicle_year, v.vehicle_make, v.vehicle_model, v.vehicle_color].filter(Boolean).join(' ')
   return base || 'No canonical metadata'
 }
 
@@ -267,7 +267,7 @@ export default function ObservationRecords() {
       if (plateNumbersForCanonical.length === 0) return [] as CanonicalVehicleRow[]
 
       let q = (supabase.from('canonical_vehicles') as any)
-        .select('plate_number, make, model, year, colour, owner_first_name, owner_last_name, self_contained, is_flagged, is_exempt')
+        .select('plate_number, vehicle_make, vehicle_model, vehicle_year, vehicle_color, owner_first_name, owner_last_name, self_contained, is_flagged, is_exempt')
         .in('plate_number', plateNumbersForCanonical)
 
       if (effectiveOrganizationId) q = q.eq('organization_id', effectiveOrganizationId)
