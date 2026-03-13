@@ -730,8 +730,8 @@ export default function FieldOfficerPortal() {
         })
       } else {
         appendScanDebug('ALPR already completed by vehicle-ingest', {
-          plate: ingestData.plate,
-          confidence: ingestData.confidence,
+          plate: ingestData.plate ?? 'UNKNOWN',
+          confidence: ingestData.confidence ?? null,
         })
         // Plate was already detected by vehicle-ingest — refresh UI
         refetchScans()
