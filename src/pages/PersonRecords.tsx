@@ -26,9 +26,7 @@ import {
   Home,
   Phone,
   Mail,
-  Link,
   Eye,
-  X,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatDateTime } from '@/lib/utils'
