@@ -27,7 +27,7 @@ CREATE TABLE IF NOT EXISTS public.vehicle_discrepancies (
   observation_id   uuid        NOT NULL REFERENCES public.observations(observation_id) ON DELETE CASCADE,
   plate_number     text,
   organization_id  uuid        REFERENCES public.organizations(id) ON DELETE SET NULL,
-  zone_id          uuid        REFERENCES public.zones(zone_id) ON DELETE SET NULL,
+  zone_id          uuid        REFERENCES public.zones(id) ON DELETE SET NULL,
 
   -- What kind of disagreement was detected
   -- Allowed values:
