@@ -263,6 +263,142 @@ AND    lower(trim(name)) != 'other location';
 DROP TABLE _zone_dups;
 
 -- ---------------------------------------------------------------------------
+-- Step 4b: Handle protected duplicate zones (e.g. "Other Location").
+-- These cannot be deleted due to a BEFORE DELETE trigger, so we instead:
+--   1. Re-point all FK references to the keeper.
+--   2. Deactivate (is_active = false) the duplicate rows.
+-- The partial unique index below only covers active zones, so deactivated
+-- duplicates will not violate it.
+-- ---------------------------------------------------------------------------
+CREATE TEMP TABLE _zone_protected_dups AS
+WITH obs_counts AS (
+  SELECT zone_id, COUNT(*) AS obs_cnt
+  FROM   public.observations
+  WHERE  zone_id IS NOT NULL
+  GROUP  BY zone_id
+),
+ranked AS (
+  SELECT
+    z.id,
+    z.organization_id,
+    lower(trim(z.name)) AS norm_name,
+    ROW_NUMBER() OVER (
+      PARTITION BY z.organization_id, lower(trim(z.name))
+      ORDER BY COALESCE(oc.obs_cnt, 0) DESC,
+               z.created_at ASC,
+               z.id ASC
+    ) AS rn
+  FROM   public.zones z
+  LEFT   JOIN obs_counts oc ON oc.zone_id = z.id
+  WHERE  lower(trim(z.name)) = 'other location'
+    AND  z.is_active = true
+)
+SELECT
+  keeper.id AS keeper_id,
+  dup.id    AS dup_id
+FROM ranked dup
+JOIN ranked keeper
+  ON  keeper.organization_id = dup.organization_id
+  AND keeper.norm_name       = dup.norm_name
+  AND keeper.rn              = 1
+WHERE dup.rn > 1;
+
+-- Re-point FK references from protected duplicates to the keeper.
+DO $$ BEGIN
+  UPDATE public.observations o SET zone_id = d.keeper_id FROM _zone_protected_dups d WHERE o.zone_id = d.dup_id;
+EXCEPTION WHEN undefined_table OR undefined_column THEN NULL; END $$;
+
+DO $$ BEGIN
+  UPDATE public.breach_alerts o SET zone_id = d.keeper_id FROM _zone_protected_dups d WHERE o.zone_id = d.dup_id;
+EXCEPTION WHEN undefined_table OR undefined_column THEN NULL; END $$;
+
+DO $$ BEGIN
+  UPDATE public.patrols o SET zone_id = d.keeper_id FROM _zone_protected_dups d WHERE o.zone_id = d.dup_id;
+EXCEPTION WHEN undefined_table OR undefined_column THEN NULL; END $$;
+
+DO $$ BEGIN
+  UPDATE public.patrol_checkpoints o SET zone_id = d.keeper_id FROM _zone_protected_dups d WHERE o.zone_id = d.dup_id;
+EXCEPTION WHEN undefined_table OR undefined_column THEN NULL; END $$;
+
+DO $$ BEGIN
+  -- zone_compliance_matrix may have a unique constraint on zone_id, so we must
+  -- delete any duplicate row before re-pointing, then move any remaining row
+  -- (where the keeper has no entry yet). Mirrors the logic in step 3e above.
+  DELETE FROM public.zone_compliance_matrix zcm
+  USING _zone_protected_dups d
+  WHERE zcm.zone_id = d.dup_id
+    AND EXISTS (SELECT 1 FROM public.zone_compliance_matrix k WHERE k.zone_id = d.keeper_id);
+  UPDATE public.zone_compliance_matrix o SET zone_id = d.keeper_id FROM _zone_protected_dups d WHERE o.zone_id = d.dup_id;
+EXCEPTION WHEN undefined_table OR undefined_column THEN NULL; END $$;
+
+DO $$ BEGIN
+  UPDATE public.enforcement_actions o SET zone_id = d.keeper_id FROM _zone_protected_dups d WHERE o.zone_id = d.dup_id;
+EXCEPTION WHEN undefined_table OR undefined_column THEN NULL; END $$;
+
+DO $$ BEGIN
+  UPDATE public.health_safety_reports o SET zone_id = d.keeper_id FROM _zone_protected_dups d WHERE o.zone_id = d.dup_id;
+EXCEPTION WHEN undefined_table OR undefined_column THEN NULL; END $$;
+
+DO $$ BEGIN
+  UPDATE public.incidents o SET zone_id = d.keeper_id FROM _zone_protected_dups d WHERE o.zone_id = d.dup_id;
+EXCEPTION WHEN undefined_table OR undefined_column THEN NULL; END $$;
+
+DO $$ BEGIN
+  UPDATE public.compliance_results o SET zone_id = d.keeper_id FROM _zone_protected_dups d WHERE o.zone_id = d.dup_id;
+EXCEPTION WHEN undefined_table OR undefined_column THEN NULL; END $$;
+
+DO $$ BEGIN
+  UPDATE public.investigation_jobs o SET zone_id = d.keeper_id FROM _zone_protected_dups d WHERE o.zone_id = d.dup_id;
+EXCEPTION WHEN undefined_table OR undefined_column THEN NULL; END $$;
+
+DO $$ BEGIN
+  UPDATE public.drift_events o SET zone_id = d.keeper_id FROM _zone_protected_dups d WHERE o.zone_id = d.dup_id;
+EXCEPTION WHEN undefined_table OR undefined_column THEN NULL; END $$;
+
+DO $$ BEGIN
+  UPDATE public.plate_scans o SET zone_id = d.keeper_id FROM _zone_protected_dups d WHERE o.zone_id = d.dup_id;
+EXCEPTION WHEN undefined_table OR undefined_column THEN NULL; END $$;
+
+DO $$ BEGIN
+  UPDATE public.zone_legal_config o SET zone_id = d.keeper_id FROM _zone_protected_dups d WHERE o.zone_id = d.dup_id;
+EXCEPTION WHEN undefined_table OR undefined_column THEN NULL; END $$;
+
+DO $$ BEGIN
+  UPDATE public.notices_to_vacate o SET zone_id = d.keeper_id FROM _zone_protected_dups d WHERE o.zone_id = d.dup_id;
+EXCEPTION WHEN undefined_table OR undefined_column THEN NULL; END $$;
+
+DO $$ BEGIN
+  UPDATE public.person_observations o SET zone_id = d.keeper_id FROM _zone_protected_dups d WHERE o.zone_id = d.dup_id;
+EXCEPTION WHEN undefined_table OR undefined_column THEN NULL; END $$;
+
+DO $$ BEGIN
+  UPDATE public.infringement_notices o SET zone_id = d.keeper_id FROM _zone_protected_dups d WHERE o.zone_id = d.dup_id;
+EXCEPTION WHEN undefined_table OR undefined_column THEN NULL; END $$;
+
+DO $$ BEGIN
+  UPDATE public.vehicle_observations o SET zone_id = d.keeper_id FROM _zone_protected_dups d WHERE o.zone_id = d.dup_id;
+EXCEPTION WHEN undefined_table OR undefined_column THEN NULL; END $$;
+
+DO $$ BEGIN
+  UPDATE public.vehicle_records o SET zone_id = d.keeper_id FROM _zone_protected_dups d WHERE o.zone_id = d.dup_id;
+EXCEPTION WHEN undefined_table OR undefined_column THEN NULL; END $$;
+
+DO $$ BEGIN
+  UPDATE public.zones z SET parent_zone_id = d.keeper_id FROM _zone_protected_dups d WHERE z.parent_zone_id = d.dup_id;
+EXCEPTION WHEN undefined_column THEN NULL; END $$;
+
+DO $$ BEGIN
+  UPDATE public.person_records o SET zone_id = d.keeper_id FROM _zone_protected_dups d WHERE o.zone_id = d.dup_id;
+EXCEPTION WHEN undefined_table OR undefined_column THEN NULL; END $$;
+
+-- Deactivate the protected duplicate zones (cannot be deleted due to trigger).
+UPDATE public.zones
+SET    is_active = false
+WHERE  id IN (SELECT dup_id FROM _zone_protected_dups);
+
+DROP TABLE _zone_protected_dups;
+
+-- ---------------------------------------------------------------------------
 -- Step 5: Add a partial unique index on (organization_id, name) for active
 --         zones to prevent future duplicates.
 --         Using lower(trim(name)) for case/whitespace-insensitive matching.
