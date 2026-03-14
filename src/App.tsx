@@ -21,6 +21,7 @@ import SystemDiagnostics from '@/pages/SystemDiagnostics'
 import TestDashboard from '@/pages/TestDashboard'
 import { NetworkStatusBar } from '@/components/features/NetworkStatusBar'
 import { PWAInstallPrompt } from '@/components/features/PWAInstallPrompt'
+import { GlobalOperationsBar } from '@/components/features/GlobalOperationsBar'
 
 // Add your two new pages
 import ComplianceRecalculation from '@/pages/ComplianceRecalculation'
@@ -749,6 +750,7 @@ export default function App() {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
         <Toaster position="top-right" />
+        <GlobalOperationsBar />
       </BrowserRouter>
     </QueryClientProvider>
   )
