@@ -359,7 +359,7 @@ export default function PatrolScheduleManagement() {
                             <XCircle className="h-3 w-3" /> Declined
                           </Badge>
                         )}
-                        {patrol.officer_accepted == null && !patrol.officer_declined && patrol.assigned_to && (
+                        {patrol.officer_accepted === null && !patrol.officer_declined && patrol.assigned_to && (
                           <Badge variant="outline" className="text-yellow-700 border-yellow-300 gap-1">
                             <AlertTriangle className="h-3 w-3" /> Pending
                           </Badge>

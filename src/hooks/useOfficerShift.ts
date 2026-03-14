@@ -121,6 +121,7 @@ export function useShiftInactivityTimeout() {
             endShift(user.id, 'app_timeout').then(() => {
               queryClient.invalidateQueries({ queryKey: ['officer-shift-active'] })
               queryClient.invalidateQueries({ queryKey: ['patrol-site-visits'] })
+              toast.info('Shift ended automatically — app was inactive for 15 minutes')
             })
           }
           hiddenSinceRef.current = null

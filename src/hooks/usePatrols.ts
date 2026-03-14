@@ -242,7 +242,7 @@ export function useCreatePatrolSchedule() {
         const rows = params.zone_ids.map((zId, idx) => ({
           patrol_id: patrol.id,
           zone_id: zId,
-          visit_order: idx + 1,
+          visit_order: idx,
         }))
         const { error: zoneError } = await (supabase.from('patrol_schedule_zones') as any)
           .insert(rows)
