@@ -381,9 +381,10 @@ export function BulkScanSession({
           onClick={() => setShowList(p => !p)}
         >
           <span>
-            {totalScanned === 0
-              ? isOutsideJurisdiction ? 'Outside patrol zone — no scanning available' : 'No scans yet — tap the shutter to scan'
-              : `${totalScanned} scanned · ${totalCompliant} compliant · ${totalBreaches} breach${totalBreaches !== 1 ? 'es' : ''}`}
+            {(() => {
+              if (totalScanned > 0) return `${totalScanned} scanned · ${totalCompliant} compliant · ${totalBreaches} breach${totalBreaches !== 1 ? 'es' : ''}`
+              return isOutsideJurisdiction ? 'Outside patrol zone — no scanning available' : 'No scans yet — tap the shutter to scan'
+            })()}
             {totalPending > 0 && ` · ${totalPending} processing`}
           </span>
           {showList ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronUp className="h-3.5 w-3.5" />}

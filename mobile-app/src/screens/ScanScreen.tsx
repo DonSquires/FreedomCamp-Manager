@@ -63,8 +63,8 @@ export default function ScanScreen() {
     }
 
     checkBoundary()
-    const id = setInterval(checkBoundary, 30000)
-    return () => clearInterval(id)
+    const boundaryCheckInterval = setInterval(checkBoundary, 30000)
+    return () => clearInterval(boundaryCheckInterval)
   }, [user?.organization_id])
 
   // ── Permission loading state — was previously a blank black screen ────────
