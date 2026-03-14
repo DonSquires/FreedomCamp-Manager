@@ -77,22 +77,25 @@ export default function FieldOfficerPortal() {
   // Display-friendly zone label for the officer status card
   const displayZone = zoneName || (zoneId ? `${zoneId.substring(0, 8)}...` : 'Scanning Geofence...')
 
-  // ── Fetch org enforcement_workflow ────────────────────────────────────────
-  const { data: orgWorkflow } = useQuery({
+  // ── Fetch org enforcement_workflow and name ───────────────────────────────
+  const { data: orgData } = useQuery({
     queryKey: ['org-workflow', user?.organization_id],
     queryFn: async () => {
-      if (!user?.organization_id) return 'admin_first'
+      if (!user?.organization_id) return null
       const { data, error } = await supabase
         .from('organizations')
-        .select('enforcement_workflow')
+        .select('enforcement_workflow, name')
         .eq('id', user.organization_id)
         .single()
-      if (error) return 'admin_first'
-      return ((data as any)?.enforcement_workflow as string) || 'admin_first'
+      if (error) return null
+      return data as any
     },
     enabled: !!user?.organization_id,
     staleTime: 1000 * 60 * 10,
   })
+
+  const orgWorkflow: string = (orgData?.enforcement_workflow as string) || 'admin_first'
+  const orgName: string | null = (orgData?.name as string) || null
 
   // ── Fetch officer's recent observations ───────────────────────────────────
   const { data: recentScans = [], refetch: refetchScans } = useQuery({
@@ -197,6 +200,10 @@ export default function FieldOfficerPortal() {
         (newZoneId, newZoneName) => {
           setCurrentPatrolZone(newZoneId)
           setZone(newZoneId, newZoneName)
+        },
+        (lat, lng) => {
+          setCurrentLocation({ latitude: lat, longitude: lng })
+          recordGPSUpdate(lat, lng)
         }
       )
     }
@@ -561,7 +568,7 @@ export default function FieldOfficerPortal() {
             </div>
             <div className="flex justify-between">
               <span>Organisation:</span>
-              <span>{user?.organization_id?.substring(0, 8)}...</span>
+              <span>{orgName || `${user?.organization_id?.substring(0, 8)}...`}</span>
             </div>
             <div className="flex justify-between items-center">
               <span>Enforcement Mode:</span>

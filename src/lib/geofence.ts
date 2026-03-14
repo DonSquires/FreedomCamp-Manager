@@ -430,7 +430,8 @@ export async function monitorGeofenceAndPatrol(
   userId: string,
   organizationId: string,
   currentZoneId: string | null,
-  onZoneChange: (zoneId: string | null, zoneName: string | null) => void
+  onZoneChange: (zoneId: string | null, zoneName: string | null) => void,
+  onLocationUpdate?: (lat: number, lng: number) => void
 ): Promise<void> {
   try {
     // Get current GPS location
@@ -443,6 +444,9 @@ export async function monitorGeofenceAndPatrol(
     
     const userLat = position.coords.latitude
     const userLng = position.coords.longitude
+
+    // Notify caller of the fresh GPS position so UI can stay up-to-date
+    onLocationUpdate?.(userLat, userLng)
     
     // Detect current zones (includes parent_zone_id, zone_type)
     const zones = await detectCurrentZones(userLat, userLng, organizationId)
