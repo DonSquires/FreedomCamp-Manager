@@ -13,8 +13,8 @@
 //   2.  Download photo bytes from Supabase Storage
 //   3.  Railway inference  → plate candidate + vehicle embedding
 //   4.  ALPR backup (Plate Recognizer) if inference returns no plate
-//   5.  NZSCV lookup  → self-contained certificate status + expiry date ONLY
-//       (NZSCV does NOT return make/model/year — only plate + expiry date)
+//   5.  NZSCV lookup  → self-contained certificate status + expiry date (guaranteed)
+//       + make/model/year/vin/colour/maxOccupants when provided (optional/nullable)
 //   6.  Movement detection (cosine similarity vs prior observation embedding)
 //   7.  Upsert canonical_vehicles with enriched data
 //   8.  UPDATE observation: plate, embedding, SC status
@@ -155,17 +155,26 @@ async function callInference(imageBytes: Uint8Array): Promise<InferenceResult> {
 }
 
 // ─── Step 5: NZSCV lookup ────────────────────────────────────────────────────
-// NZSCV (Self-Contained Vehicle Register) only returns:
-//   - VehicleRegistration (plate number, echoed back)
-//   - CertificateExpiryDate (when the SC certificate expires)
-//   - CertificateStatus     (Current | Issued | Revoked | Expired) — may be absent
-// It does NOT return make, model, year, colour, owner, VIN, or any other
-// vehicle details. Those must come from Railway inference / AI or MotorWeb.
+// Guaranteed fields: isSelfContained, selfContainedExpiry.
+// Optional fields (make/model/year/vin/colour/maxOccupants): populated when
+// NZSCV provides them in the response, null otherwise.
 interface NZSCVResult {
-  /** Whether the SC certificate is current (status = Current or Issued, or expiry is in the future) */
+  /** Whether the SC certificate is current */
   isSelfContained: boolean;
-  /** ISO date string of the SC certificate expiry, or null if not on register */
+  /** ISO date string of SC certificate expiry, or null if not on register */
   selfContainedExpiry: string | null;
+  /** Optional — vehicle make if provided by NZSCV */
+  make: string | null;
+  /** Optional — vehicle model if provided by NZSCV */
+  model: string | null;
+  /** Optional — year of manufacture if provided by NZSCV */
+  year: number | null;
+  /** Optional — VIN if provided by NZSCV */
+  vin: string | null;
+  /** Optional — primary colour if provided by NZSCV */
+  colour: string | null;
+  /** Optional — max occupants certified if provided by NZSCV */
+  maxOccupants: number | null;
 }
 
 async function lookupNZSCV(plate: string): Promise<NZSCVResult | null> {
@@ -186,7 +195,10 @@ async function lookupNZSCV(plate: string): Promise<NZSCVResult | null> {
     if (!res.ok) {
       // 404 = plate not on the NZSCV register → not self-contained
       if (res.status === 404) {
-        return { isSelfContained: false, selfContainedExpiry: null };
+        return {
+          isSelfContained: false, selfContainedExpiry: null,
+          make: null, model: null, year: null, vin: null, colour: null, maxOccupants: null,
+        };
       }
       console.warn(`⚠️ NZSCV returned ${res.status} for ${plate}`);
       return null;
@@ -202,16 +214,16 @@ async function lookupNZSCV(plate: string): Promise<NZSCVResult | null> {
     }
 
     // The raw NZSCV response nests the data under VehicleRegistration.
-    // check-nzscv-status edge function wraps it under certification.
+    // check-nzscv-status edge function wraps it under result.
     // Handle both shapes defensively.
     const vr   = data?.VehicleRegistration ?? null;
-    const cert = data?.certification ?? null;
+    const cert = data?.result ?? data?.certification ?? null;
 
-    // Derive expiry: prefer direct NZSCV field, fall back to wrapped cert
+    // Derive expiry: prefer direct NZSCV field, fall back to wrapped shapes
     const expiry: string | null =
       vr?.CertificateExpiryDate ?? cert?.expiry_date ?? null;
 
-    // Derive status: prefer direct NZSCV field, fall back to wrapped cert
+    // Derive status: prefer direct NZSCV field, fall back to wrapped shapes
     const status: string | null =
       vr?.CertificateStatus ?? cert?.status ?? null;
 
@@ -223,7 +235,24 @@ async function lookupNZSCV(plate: string): Promise<NZSCVResult | null> {
     const isCurrentByExpiry = expiry != null && new Date(expiry) > new Date();
     const isSelfContained = isCurrentByStatus || (!status && isCurrentByExpiry);
 
-    return { isSelfContained, selfContainedExpiry: expiry };
+    // Optional vehicle detail fields — present when NZSCV provides them
+    const rawMake   = vr?.make   ?? cert?.make   ?? null;
+    const rawModel  = vr?.model  ?? cert?.model  ?? null;
+    const rawYear   = vr?.year   ?? cert?.year   ?? null;
+    const rawVin    = vr?.vin    ?? cert?.vin    ?? null;
+    const rawColour = vr?.colour ?? cert?.colour ?? null;
+    const rawMaxOcc = vr?.MaxOccupants ?? cert?.max_occupants ?? null;
+
+    return {
+      isSelfContained,
+      selfContainedExpiry: expiry,
+      make:         rawMake   ? String(rawMake)                     : null,
+      model:        rawModel  ? String(rawModel)                    : null,
+      year:         rawYear   ? parseInt(String(rawYear), 10) || null : null,
+      vin:          rawVin    ? String(rawVin)                      : null,
+      colour:       rawColour ? String(rawColour)                   : null,
+      maxOccupants: rawMaxOcc ? parseInt(String(rawMaxOcc), 10) || null : null,
+    };
   } catch (err: any) {
     console.error('❌ NZSCV lookup failed:', err.message);
     return null;
@@ -461,8 +490,8 @@ Deno.serve(async (req: Request) => {
     const requiresManualEntry = !plate;
 
     // ── Step 5: NZSCV lookup ──────────────────────────────────────────────
-    // NZSCV only returns self-contained certificate status + expiry date.
-    // It does NOT return make, model, year, or other vehicle details.
+    // SC certification fields (isSelfContained + selfContainedExpiry) are the
+    // core purpose. make/model/year/vin/colour are optional — used when present.
     let nzscv: NZSCVResult | null = null;
     if (plate) {
       console.log(`🔍 NZSCV lookup for plate: ${plate}`);
@@ -470,7 +499,12 @@ Deno.serve(async (req: Request) => {
       if (nzscv) {
         console.log('✅ NZSCV result:', {
           isSelfContained: nzscv.isSelfContained,
-          expiry:          nzscv.selfContainedExpiry,
+          expiry:  nzscv.selfContainedExpiry,
+          make:    nzscv.make,
+          model:   nzscv.model,
+          year:    nzscv.year,
+          vin:     nzscv.vin,
+          colour:  nzscv.colour,
         });
       } else {
         console.warn('⚠️ NZSCV returned no data for', plate);
@@ -512,18 +546,22 @@ Deno.serve(async (req: Request) => {
     }
 
     // ── Step 7: Upsert canonical_vehicles ─────────────────────────────────
-    // NZSCV only provides SC status + expiry — NOT make/model/year.
-    // Vehicle make/model/year come from Railway inference / ALPR, NOT NZSCV.
     if (plate) {
       try {
         const vehicleUpsertData: Record<string, unknown> = {
           plate_number: plate,
           last_seen_at: recordedAt,
         };
-        // Only SC certification data comes from NZSCV
         if (nzscv !== null) {
+          // SC certification — always from NZSCV
           vehicleUpsertData.self_contained        = nzscv.isSelfContained;
           vehicleUpsertData.self_contained_expiry = nzscv.selfContainedExpiry;
+          // Optional vehicle detail fields — only write when NZSCV provides them
+          if (nzscv.make)         vehicleUpsertData.vehicle_make  = nzscv.make;
+          if (nzscv.model)        vehicleUpsertData.vehicle_model = nzscv.model;
+          if (nzscv.year)         vehicleUpsertData.vehicle_year  = String(nzscv.year);
+          if (nzscv.vin)          vehicleUpsertData.vin           = nzscv.vin;
+          if (nzscv.colour)       vehicleUpsertData.colour        = nzscv.colour;
         }
 
         const { data: existingVehicle } = await supabase
@@ -551,16 +589,18 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    // ── Step 8: Update observation with plate + SC status ────────────────
-    // Only plate + NZSCV SC data + embedding go in here.
-    // Vehicle make/model/year/colour come from Railway inference (Step 3), NOT NZSCV.
+    // ── Step 8: Update observation with plate + NZSCV data ────────────────
     const observationUpdate: Record<string, unknown> = {
       plate_number: plate ?? 'MANUAL_REQUIRED',
     };
-    // SC certification from NZSCV only
     if (nzscv !== null) {
+      // SC certification — always present when NZSCV lookup succeeded
       observationUpdate.self_contained        = nzscv.isSelfContained;
       observationUpdate.self_contained_expiry = nzscv.selfContainedExpiry;
+      // Optional vehicle detail fields — only write when NZSCV provides them
+      if (nzscv.make)   observationUpdate.vehicle_make  = nzscv.make;
+      if (nzscv.model)  observationUpdate.vehicle_model = nzscv.model;
+      if (nzscv.year)   observationUpdate.vehicle_year  = nzscv.year;
     }
     if (inference.embedding) {
       observationUpdate.vehicle_embedding      = inference.embedding;
@@ -703,10 +743,6 @@ Deno.serve(async (req: Request) => {
     }
 
     // ── Step 13: Return enriched result ───────────────────────────────────
-    // NOTE: vehicle make/model/year/colour are NOT populated from NZSCV —
-    // they come from Railway inference which returns plate + embedding only.
-    // The ScanDetailPanel shows these fields from the updated observation row,
-    // which may be null until a manual correction is entered by the officer.
     const result = {
       success: true,
       observation_id:   observationId,
@@ -714,15 +750,16 @@ Deno.serve(async (req: Request) => {
       plate_confidence: finalConfidence,
       requires_manual_entry: requiresManualEntry,
       vehicle: {
-        // make/model/year/colour: not from NZSCV — will be null unless
-        // Railway inference or manual officer entry provides them
-        make:                  null as string | null,
-        model:                 null as string | null,
-        year:                  null as number | null,
-        color:                 null as string | null,
-        // SC certification IS from NZSCV (plate + expiry only)
+        // SC certification — primary purpose of NZSCV lookup
         self_contained:        nzscv?.isSelfContained ?? false,
         self_contained_expiry: nzscv?.selfContainedExpiry ?? null,
+        // Optional vehicle detail fields — null when NZSCV does not provide them
+        make:   nzscv?.make   ?? null,
+        model:  nzscv?.model  ?? null,
+        year:   nzscv?.year   ?? null,
+        vin:    nzscv?.vin    ?? null,
+        colour: nzscv?.colour ?? null,
+        color:  nzscv?.colour ?? null,   // alias for US spelling used elsewhere in the app
       },
       movement: {
         is_new_vehicle: isNewVehicle,

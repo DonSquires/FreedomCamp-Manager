@@ -2,14 +2,16 @@
  * CHECK NZSCV STATUS
  * Queries the NZSCV Self-Contained Vehicle Registry via proxy server
  *
- * IMPORTANT: NZSCV only returns:
+ * Guaranteed fields from NZSCV:
  *   - VehicleRegistration (plate number, echoed back)
- *   - CertificateStatus   (Current | Issued | Revoked | Expired)
  *   - CertificateExpiryDate (YYYY-MM-DD)
- *   - CertificateIssueDate  (YYYY-MM-DD)
  *
- * NZSCV does NOT return: make, model, year, colour, VIN, owner, or any other
- * vehicle detail. Do NOT attempt to read those fields from this function.
+ * Optional fields that may be returned depending on API version/tier:
+ *   - CertificateStatus   (Current | Issued | Revoked | Expired)
+ *   - CertificateIssueDate (YYYY-MM-DD)
+ *   - make, model, year, vin, colour, MaxOccupants
+ *
+ * All optional fields are treated as nullable — present if provided, null otherwise.
  *
  * This function calls our static IP proxy instead of NZSCV directly
  * because NZSCV requires IP whitelisting.
@@ -24,20 +26,34 @@ interface NZSCVRequest {
   plate_number: string;
 }
 
-// Only the fields NZSCV actually returns
+// Represents the raw NZSCV API response shape.
+// Only plate (VehicleRegistration) and CertificateExpiryDate are guaranteed.
+// All other fields are optional — present if the API provides them, absent otherwise.
 interface NZSCVResponse {
   VehicleRegistration: {
-    /** The registration number, echoed back */
+    /** The registration number echoed back — always present */
     VehicleRegistration: string;
-    /** Current | Issued | Revoked | Expired */
-    CertificateStatus: 'Current' | 'Issued' | 'Revoked' | 'Expired';
-    /** YYYY-MM-DD */
-    CertificateIssueDate: string;
-    /** YYYY-MM-DD */
+    /** YYYY-MM-DD — always present */
     CertificateExpiryDate: string;
+    /** Current | Issued | Revoked | Expired — may be absent */
+    CertificateStatus?: 'Current' | 'Issued' | 'Revoked' | 'Expired';
+    /** YYYY-MM-DD — may be absent */
+    CertificateIssueDate?: string;
+    /** Vehicle make — may be absent */
+    make?: string;
+    /** Vehicle model — may be absent */
+    model?: string;
+    /** Year of manufacture — may be absent */
+    year?: string | number;
+    /** VIN — may be absent */
+    vin?: string;
+    /** Primary colour — may be absent */
+    colour?: string;
+    /** Maximum occupants certified — may be absent */
+    MaxOccupants?: number;
   };
-  StatusCode: string;
-  LogoURL: string;
+  StatusCode?: string;
+  LogoURL?: string;
 }
 
 serve(async (req) => {
@@ -134,17 +150,25 @@ serve(async (req) => {
     const isCurrentByExpiry = expiry != null && new Date(expiry) > new Date();
     const isSelfContained   = isCurrentByStatus || (!status && isCurrentByExpiry);
 
-    // Return only the fields NZSCV actually provides
+    // Return SC certification fields (guaranteed) + any optional vehicle detail
+    // fields that NZSCV may provide. All optional fields are null when absent.
     return new Response(
       JSON.stringify({
         found: true,
         plate_number: vr?.VehicleRegistration ?? plate_number.toUpperCase(),
-        // NZSCV only provides certification data — NOT make/model/year/colour/VIN
         result: {
+          // SC certification — core purpose of NZSCV lookup
           is_self_contained: isSelfContained,
           expiry_date:       expiry,
           issue_date:        vr?.CertificateIssueDate ?? null,
           status:            status,
+          // Optional vehicle detail fields — null when not provided by NZSCV
+          make:          vr?.make          ?? null,
+          model:         vr?.model         ?? null,
+          year:          vr?.year != null ? parseInt(String(vr.year), 10) : null,
+          vin:           vr?.vin           ?? null,
+          colour:        vr?.colour        ?? null,
+          max_occupants: vr?.MaxOccupants  ?? null,
         },
         logo_url:   data.LogoURL ?? null,
         checked_at: new Date().toISOString(),
