@@ -37,7 +37,7 @@ type RecoveryResult = {
   error?: string;
 };
 
-const DEFAULT_BASE_URL = 'https://api.parkpow.com/api/v1';
+const DEFAULT_BASE_URL = 'https://app.parkpow.com/api/v1';
 const DEFAULT_BUCKET = 'evidence';
 const DEFAULT_LIMIT = 100;
 const DEFAULT_WINDOW_MINUTES = 60;

@@ -258,7 +258,7 @@ Set these via **Supabase Dashboard → Project Settings → Edge Functions → M
 PROXY_SERVER_URL=https://your-proxy-server.railway.app
 INFERENCE_SERVICE_URL=https://your-inference-service.railway.app
 ALPR_API_TOKEN=your-parkpow-token
-ALPR_API_URL=https://api.parkpow.com/v1
+ALPR_API_URL=https://app.parkpow.com/api/v1
 
 # AI features (vehicle photo analysis, weather, document extraction, AI chat)
 # OPENAI_API_KEY — where to get it:

@@ -32,7 +32,7 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import parse_qsl, urlencode, urljoin, urlparse, urlunparse
 from urllib.request import Request, urlopen
 
-DEFAULT_BASE_URL = "https://api.parkpow.com/api/v1"
+DEFAULT_BASE_URL = "https://app.parkpow.com/api/v1"
 DEFAULT_STATE_FILE = ".parkpow-photo-archive-state.json"
 DEFAULT_CREATED_PARAM = "created__gt"
 DEFAULT_TIMEOUT = 45
