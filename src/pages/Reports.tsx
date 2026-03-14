@@ -64,14 +64,19 @@ interface BreachRow {
   organization: { name: string } | null
 }
 
-interface ZoneRow {
-  id: string
-  name: string
+/** Shape returned by the get_zone_compliance_breakdown RPC */
+interface ZoneStatRow {
+  zone_id: string
+  zone_name: string
+  organization_name: string | null
   is_active: boolean
+  nights_per_month: number | null
+  max_consecutive_nights: number | null
   self_contained_required: boolean
-  max_stay_nights: number | null
-  observations: { count: number }[]
-  breach_alerts: { count: number }[]
+  day_visit_only: boolean
+  obs_count: number
+  breach_count: number
+  compliance_pct: number
 }
 
 interface EnforcementRow {
@@ -95,6 +100,13 @@ async function withTimeout<T>(promise: Promise<T>, ms: number, msg: string): Pro
   }
 }
 
+/** Returns a Tailwind text-colour class based on a 0-100 compliance percentage. */
+function complianceColorClass(pct: number): string {
+  if (pct >= 80) return 'text-green-600'
+  if (pct >= 60) return 'text-orange-500'
+  return 'text-red-600'
+}
+
 export default function Reports() {
   const { user } = useAuthStore()
   const { organizationId, zoneId, dateFrom, dateTo } = useGlobalFiltersStore()
@@ -110,6 +122,31 @@ export default function Reports() {
   const endDate = nzDateToUTCEnd(reportDateTo)
 
   const [activeTab, setActiveTab] = useState('summary')
+
+  // ── Server-side compliance stats (accurate, no row cap) ───────────────────
+  // Uses the same get_compliance_stats RPC as ObservationsReport and CompliancePage
+  // so the numbers on this page always agree with the rest of the admin portal.
+  const { data: statsRpc, isLoading: loadingStats } = useQuery({
+    queryKey: ['report-stats', effectiveOrgId, zoneId, reportDateFrom, reportDateTo],
+    queryFn: async () => {
+      const { data, error } = await (supabase.rpc as any)('get_compliance_stats', {
+        p_start:            startDate,
+        p_end:              endDate,
+        p_organization_id:  effectiveOrgId ?? null,
+        p_zone_id:          zoneId ?? null,
+      })
+      if (error) throw error
+      const row = Array.isArray(data) ? data[0] : data
+      return {
+        total:             Number(row?.total_observations ?? 0),
+        compliant:         Number(row?.compliant_count    ?? 0),
+        breaches:          Number(row?.breach_count       ?? 0),
+        compliance_rate:   Number(row?.compliance_rate    ?? 0),
+        homeless_vehicles: Number(row?.homeless_vehicles  ?? 0),
+      }
+    },
+    enabled: !!user,
+  })
   const [previewOpen, setPreviewOpen] = useState(false)
   const [previewHtml, setPreviewHtml] = useState('')
   const [emailDialogOpen, setEmailDialogOpen] = useState(false)
@@ -168,25 +205,18 @@ export default function Reports() {
     enabled: !!user,
   })
 
-  // ── Zone summary query ──────────────────────────────────────────────
-  const { data: zones = [], isLoading: loadingZones } = useQuery({
-    queryKey: ['report-zones', effectiveOrgId],
+  // ── Zone compliance summary (date-filtered via RPC) ────────────────────────
+  // Replaces the old embedded-count query which returned all-time totals.
+  const { data: zoneStats = [], isLoading: loadingZones } = useQuery({
+    queryKey: ['report-zones', effectiveOrgId, reportDateFrom, reportDateTo],
     queryFn: async () => {
-      let q = supabase
-        .from('zones')
-        .select(`
-          id, name, is_active, self_contained_required, max_stay_nights,
-          observations:observations(count),
-          breach_alerts:breach_alerts(count)
-        `)
-        .eq('is_active', true)
-        .order('name', { ascending: true })
-
-      if (effectiveOrgId) q = q.eq('organization_id', effectiveOrgId)
-
-      const { data, error } = await q
+      const { data, error } = await (supabase.rpc as any)('get_zone_compliance_breakdown', {
+        p_start:            startDate,
+        p_end:              endDate,
+        p_organization_id:  effectiveOrgId ?? null,
+      })
       if (error) throw error
-      return (data || []) as unknown as ZoneRow[]
+      return (data ?? []) as ZoneStatRow[]
     },
     enabled: !!user,
   })
@@ -216,15 +246,24 @@ export default function Reports() {
     enabled: !!user,
   })
 
-  const isLoading = loadingObs || loadingBreaches || loadingZones || loadingEnforcement
+  const isLoading = loadingObs || loadingBreaches || loadingStats || loadingZones || loadingEnforcement
 
   // ── Computed statistics ──────────────────────────────────────────────
-  const totalObs = observations.length
-  const compliantObs = observations.filter((o) => o.is_compliant === true).length
-  const breachObs = observations.filter((o) => o.is_compliant === false).length
-  const pendingObs = observations.filter((o) => o.is_compliant === null).length
-  const complianceRate = totalObs > 0 ? ((compliantObs / totalObs) * 100).toFixed(1) : '0.0'
+  // Primary stats come from the server-side RPC (no 1000-row cap).
+  // uniquePlates is derived from the fetched observation rows (display-capped at 1000)
+  // and will under-count only when the period has > 1000 observations.
+  const totalObs    = statsRpc?.total    ?? observations.length
+  const compliantObs = statsRpc?.compliant ?? observations.filter((o) => o.is_compliant === true).length
+  const breachObs    = statsRpc?.breaches  ?? observations.filter((o) => o.is_compliant === false).length
+  const pendingObs   = observations.filter((o) => o.is_compliant === null).length
+  // Use the RPC compliance_rate when available; it uses the same formula as CompliancePage / ObservationsReport
+  const complianceRate = statsRpc != null
+    ? statsRpc.compliance_rate.toFixed(1)
+    : totalObs > 0 ? ((compliantObs / totalObs) * 100).toFixed(1) : '0.0'
   const uniquePlates = new Set(observations.map((o) => o.plate_number).filter(Boolean)).size
+
+  // Active zones from the RPC breakdown (only zones with is_active flag)
+  const activeZones = zoneStats.filter((z) => z.is_active)
 
   const breachByType: Record<string, number> = {}
   breaches.forEach((b) => {
@@ -244,12 +283,13 @@ export default function Reports() {
     enforcementByType[t] = (enforcementByType[t] || 0) + 1
   })
 
-  const zoneRows = zones.map((z) => ({
-    name: z.name,
-    observations: z.observations?.[0]?.count ?? 0,
-    breaches: z.breach_alerts?.[0]?.count ?? 0,
+  const zoneRows = activeZones.map((z) => ({
+    name: z.zone_name,
+    observations: Number(z.obs_count),
+    breaches: Number(z.breach_count),
+    compliance_pct: Number(z.compliance_pct),
     self_contained_required: z.self_contained_required ? 'Yes' : 'No',
-    max_stay_nights: z.max_stay_nights ?? '—',
+    max_stay_nights: z.max_consecutive_nights ?? '—',
   }))
 
   // Top offenders – plates with most breaches
@@ -317,12 +357,13 @@ export default function Reports() {
   const handleExportZonesCSV = () => {
     const csv = arrayToCSV(zoneRows, [
       { key: 'name', label: 'Zone Name' },
-      { key: 'observations', label: 'Total Observations' },
-      { key: 'breaches', label: 'Total Breaches' },
+      { key: 'observations', label: 'Observations (Period)' },
+      { key: 'breaches', label: 'Breaches (Period)' },
+      { key: 'compliance_pct', label: 'Compliance %' },
       { key: 'self_contained_required', label: 'SC Required' },
-      { key: 'max_stay_nights', label: 'Max Stay Nights' },
+      { key: 'max_stay_nights', label: 'Max Consecutive Nights' },
     ])
-    downloadCSV(csv, `zones-report.csv`)
+    downloadCSV(csv, `zones-report-${reportDateFrom}-to-${reportDateTo}.csv`)
     toast.success('Zones CSV downloaded')
   }
 
@@ -366,10 +407,11 @@ export default function Reports() {
         `Total Observations: ${totalObs}`,
         `Compliant: ${compliantObs} (${complianceRate}%)`,
         `Breaches: ${breachObs}`,
-        `Pending: ${pendingObs}`,
-        `Unique Vehicles: ${uniquePlates}`,
+        `Pending (null status): ${pendingObs}`,
+        `Unique Vehicles (display sample): ${uniquePlates}`,
         `Total Breach Alerts: ${breaches.length}`,
         `Enforcement Actions: ${enforcement.length}`,
+        `Homeless Vehicles in System: ${statsRpc?.homeless_vehicles ?? '—'}`,
       ],
       type: 'list',
     },
@@ -387,7 +429,7 @@ export default function Reports() {
       type: 'table',
     },
     {
-      heading: 'Zone Activity',
+      heading: 'Zone Activity (Period)',
       content: zoneRows,
       type: 'table',
     },
@@ -472,7 +514,7 @@ export default function Reports() {
             { label: 'Breaches', value: breachObs, icon: <AlertTriangle className="h-5 w-5 text-red-500" />, color: 'text-red-600' },
             { label: 'Compliance Rate', value: `${complianceRate}%`, icon: <BarChart3 className="h-5 w-5 text-blue-500" />, color: 'text-blue-600' },
             { label: 'Unique Vehicles', value: uniquePlates, icon: <Car className="h-5 w-5 text-purple-500" />, color: 'text-purple-600' },
-            { label: 'Zones', value: zones.length, icon: <MapPin className="h-5 w-5 text-orange-500" />, color: 'text-orange-600' },
+            { label: 'Zones', value: activeZones.length, icon: <MapPin className="h-5 w-5 text-orange-500" />, color: 'text-orange-600' },
           ].map((s) => (
             <Card key={s.label}>
               <CardContent className="pt-4">
@@ -529,7 +571,7 @@ export default function Reports() {
             <TabsTrigger value="summary">Summary</TabsTrigger>
             <TabsTrigger value="observations">Observations ({totalObs})</TabsTrigger>
             <TabsTrigger value="breaches">Breaches ({breaches.length})</TabsTrigger>
-            <TabsTrigger value="zones">Zones ({zones.length})</TabsTrigger>
+            <TabsTrigger value="zones">Zones ({activeZones.length})</TabsTrigger>
             <TabsTrigger value="enforcement">Enforcement ({enforcement.length})</TabsTrigger>
           </TabsList>
 
@@ -790,7 +832,7 @@ export default function Reports() {
               <CardContent>
                 {loadingZones ? (
                   <div className="text-center py-12 text-muted-foreground">Loading…</div>
-                ) : zones.length === 0 ? (
+                ) : activeZones.length === 0 ? (
                   <p className="text-sm text-muted-foreground text-center py-8">No zones found</p>
                 ) : (
                   <div className="overflow-x-auto rounded-lg border">
@@ -800,6 +842,7 @@ export default function Reports() {
                           <th className="text-left px-3 py-2 font-medium">Zone</th>
                           <th className="text-right px-3 py-2 font-medium">Observations</th>
                           <th className="text-right px-3 py-2 font-medium">Breaches</th>
+                          <th className="text-right px-3 py-2 font-medium">Compliance %</th>
                           <th className="text-center px-3 py-2 font-medium">SC Required</th>
                           <th className="text-right px-3 py-2 font-medium">Max Nights</th>
                         </tr>
@@ -810,6 +853,11 @@ export default function Reports() {
                             <td className="px-3 py-2 font-medium">{z.name}</td>
                             <td className="px-3 py-2 text-right">{z.observations}</td>
                             <td className="px-3 py-2 text-right">{z.breaches}</td>
+                            <td className="px-3 py-2 text-right">
+                              <span className={`font-semibold ${complianceColorClass(z.compliance_pct)}`}>
+                                {z.compliance_pct}%
+                              </span>
+                            </td>
                             <td className="px-3 py-2 text-center">{z.self_contained_required}</td>
                             <td className="px-3 py-2 text-right">{z.max_stay_nights}</td>
                           </tr>
