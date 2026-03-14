@@ -303,53 +303,34 @@ export default function VehicleManagement() {
 
       let rows: Vehicle[] = []
 
-      // Primary path: scope canonical vehicles by organization_id directly (if available).
-      let primaryQuery = applyVehicleFilters(
-        supabase.from('canonical_vehicles').select('*')
-      )
+      // canonical_vehicles is a global registry without an organization_id
+      // column.  Org / zone / date filters are applied by first finding the
+      // plates that have observations in the current scope, then fetching the
+      // matching canonical records.
+      const hasScope = !!(scopeOrgId || scopeZoneId || startISO || endISO)
 
-      if (scopeOrgId) {
-        primaryQuery = primaryQuery.eq('organization_id', scopeOrgId)
-      }
+      if (hasScope) {
+        const scopedPlates = await fetchScopedPlates(scopeOrgId, scopeZoneId)
 
-      const primary = await primaryQuery
-
-      if (!primary.error) {
-        rows = ((primary.data ?? []) as any[]).map(normalizeVehicleRow)
-        debug.primaryCanonicalCount = rows.length
-
-        // Some environments have canonical_vehicles.organization_id present but
-        // sparsely populated; if org-scoped query returns empty while there are
-        // observed plates for the org, switch to plate-based scoping.
-        if (scopeOrgId && rows.length === 0) {
-          const orgPlates = await fetchScopedPlates(scopeOrgId, null)
-          if (orgPlates.size > 0) {
-            const fallback = await applyVehicleFilters(supabase.from('canonical_vehicles').select('*'))
-            if (fallback.error) throw fallback.error
-            rows = ((fallback.data ?? []) as any[])
-              .map(normalizeVehicleRow)
-              .filter((v) => orgPlates.has(v.plate_number))
-            debug.fallbackCanonicalCount = rows.length
+        if (scopedPlates.size > 0) {
+          const plateArr = Array.from(scopedPlates)
+          for (let i = 0; i < plateArr.length; i += 200) {
+            const chunk = plateArr.slice(i, i + 200)
+            const { data, error } = await applyVehicleFilters(
+              supabase.from('canonical_vehicles').select('*').in('plate_number', chunk)
+            )
+            if (error) throw error
+            rows.push(...((data ?? []) as any[]).map(normalizeVehicleRow))
           }
+          debug.primaryCanonicalCount = rows.length
         }
-      } else if (scopeOrgId) {
-        // Fallback for schema variants where canonical_vehicles has no organization_id.
-        const fallback = await applyVehicleFilters(supabase.from('canonical_vehicles').select('*'))
-        if (fallback.error) throw fallback.error
-
-        const orgPlates = await fetchScopedPlates(scopeOrgId, null)
-        rows = ((fallback.data ?? []) as any[])
-          .map(normalizeVehicleRow)
-          .filter((v) => orgPlates.has(v.plate_number))
-        debug.fallbackCanonicalCount = rows.length
       } else {
-        throw primary.error
-      }
-
-      // Apply zone scoping in-memory to avoid massive IN(...) URL queries.
-      if (scopeZoneId) {
-        const zonePlates = await fetchScopedPlates(scopeOrgId, scopeZoneId)
-        rows = rows.filter((v) => zonePlates.has(v.plate_number))
+        const { data, error } = await applyVehicleFilters(
+          supabase.from('canonical_vehicles').select('*')
+        )
+        if (error) throw error
+        rows = ((data ?? []) as any[]).map(normalizeVehicleRow)
+        debug.primaryCanonicalCount = rows.length
       }
 
       // Final fallback: if canonical records are unavailable for this scope,
