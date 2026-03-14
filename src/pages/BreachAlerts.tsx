@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { useGlobalFiltersStore } from '@/stores/globalFiltersStore'
+import { PaperworkSearchAnimation } from '@/components/features/PaperworkSearchAnimation'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -968,7 +969,7 @@ export default function BreachAlerts() {
           {/* Breach Queue */}
           <div className="overflow-y-auto flex-1">
             {isLoading ? (
-              <div className="p-6 text-center text-gray-500 text-sm">Loading breaches...</div>
+              <PaperworkSearchAnimation size="sm" text="Loading breaches…" />
             ) : breachesIsError ? (
               <div className="p-6 text-center text-red-600 text-sm space-y-2">
                 <p>Failed to load breaches.</p>

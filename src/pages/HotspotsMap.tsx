@@ -6,6 +6,7 @@ import { useAuthStore } from '@/stores/authStore'
 import { useGlobalFiltersStore } from '@/stores/globalFiltersStore'
 import { AppLayout } from '@/components/features/AppLayout'
 import { GlobalFilterRibbon } from '@/components/features/GlobalFilterRibbon'
+import { PaperworkSearchAnimation } from '@/components/features/PaperworkSearchAnimation'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -361,9 +362,7 @@ export default function HotspotsMap() {
           </CardHeader>
           <CardContent>
             {isLoading ? (
-              <div className="text-center py-8">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-              </div>
+              <PaperworkSearchAnimation size="sm" text="Loading hotspots…" />
             ) : hotspots && hotspots.length > 0 ? (
               <div className="space-y-3 max-h-[500px] overflow-y-auto">
                 {hotspots.map((hotspot) => (

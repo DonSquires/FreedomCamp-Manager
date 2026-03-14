@@ -17,6 +17,7 @@ import {
   RefreshCw
 } from 'lucide-react'
 import { formatDateTime } from '@/lib/utils'
+import { PaperworkSearchAnimation } from '@/components/features/PaperworkSearchAnimation'
 
 interface OfficerLocation {
   id: string
@@ -189,12 +190,7 @@ export default function LiveOfficerTracking() {
 
         {/* Officer List */}
         {isLoading ? (
-          <Card>
-            <CardContent className="text-center py-12">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-              <p className="mt-4 text-gray-600">Loading officer locations...</p>
-            </CardContent>
-          </Card>
+          <PaperworkSearchAnimation text="Loading officer locations…" />
         ) : officers && officers.length === 0 ? (
           <Card>
             <CardContent className="text-center py-12">

@@ -11,6 +11,7 @@ import { AlertCircle, Search, FileText, Image, MapPin, Calendar } from 'lucide-r
 import { formatDateTime } from '@/lib/utils'
 import { nzDateToUTCStart, nzDateToUTCEnd } from '@/lib/timezone'
 import { AppLayout } from '@/components/features/AppLayout'
+import { PaperworkSearchAnimation } from '@/components/features/PaperworkSearchAnimation'
 
 interface Incident {
   id: string
@@ -137,11 +138,7 @@ export default function IncidentManagement() {
       {/* Incidents List */}
       <div className="space-y-4">
         {isLoading ? (
-          <Card>
-            <CardContent className="pt-6">
-              <div className="text-center py-8 text-gray-600">Loading incidents...</div>
-            </CardContent>
-          </Card>
+          <PaperworkSearchAnimation size="sm" text="Loading incidents…" />
         ) : incidents && incidents.length > 0 ? (
           incidents.map((incident) => (
             <Card key={incident.id} className="hover:shadow-md transition-shadow">

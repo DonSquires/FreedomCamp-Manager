@@ -17,6 +17,7 @@ import {
 import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { toast } from 'sonner'
+import { PaperworkSearchAnimation } from '@/components/features/PaperworkSearchAnimation'
 import { 
   UserPlus, 
   Search, 
@@ -628,7 +629,7 @@ export default function UserManagement() {
         </CardHeader>
         <CardContent>
           {isLoading ? (
-            <div className="text-center py-8 text-gray-600">Loading users...</div>
+            <PaperworkSearchAnimation size="sm" text="Loading users…" />
           ) : users && users.length > 0 ? (
             <div className="space-y-3">
               {users.map((userProfile) => (

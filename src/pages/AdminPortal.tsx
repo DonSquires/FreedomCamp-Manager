@@ -664,25 +664,6 @@ export default function AdminPortal() {
           })}
         </section>
 
-        <Card className="border-slate-300 bg-slate-50/60 dark:border-slate-700 dark:bg-slate-900/40">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm">Dashboard Query Context</CardTitle>
-            <CardDescription>
-              Use this to verify active org/date filters and query status.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="pt-0 text-xs space-y-1 text-slate-700 dark:text-slate-300">
-            <div>org_id: {effectiveOrganizationId ?? 'all'}</div>
-            <div>zone_id: {zoneId ?? 'all'}</div>
-            <div>date_from(raw): {dateFrom ?? 'null'}</div>
-            <div>date_to(raw): {dateTo ?? 'null'}</div>
-            <div>date_from(normalized): {normalizedDateFrom ?? 'null'}</div>
-            <div>date_to(normalized): {normalizedDateTo ?? 'null'}</div>
-            <div>query_state: {isLoading ? 'loading' : isError ? 'error' : 'ok'}</div>
-            {isError && <div>query_error: {(error as any)?.message || 'unknown'}</div>}
-          </CardContent>
-        </Card>
-
         {Array.isArray((data as any)?.diagnostics) && (data as any).diagnostics.length > 0 && (
           <Card className="border-amber-300 bg-amber-50/60 dark:border-amber-800 dark:bg-amber-950/20">
             <CardHeader className="pb-2">

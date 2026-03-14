@@ -241,7 +241,7 @@ export default function VehicleRegistry() {
 
         {/* Results */}
         {isLoading ? (
-          <LoadingSpinner />
+          <LoadingSpinner variant="paperwork" text="Searching vehicle records…" />
         ) : !vehicles || vehicles.length === 0 ? (
           <Card>
             <CardContent className="p-12 text-center">

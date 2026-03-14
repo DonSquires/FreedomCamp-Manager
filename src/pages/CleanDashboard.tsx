@@ -31,6 +31,7 @@ import {
 import { supabase } from '@/lib/supabase';
 import { HOMELESS_UI_STATUSES, homelessStatusLabel, isHomelessForUi } from '@/lib/homelessStatus';
 import { useAuthStore } from '@/stores/authStore';
+import { PaperworkSearchAnimation } from '@/components/features/PaperworkSearchAnimation';
 
 // ============================================================================
 // Types
@@ -127,9 +128,7 @@ function ComplianceBadge({ compliant }: { compliant: boolean }) {
 
 function Spinner() {
   return (
-    <div className="flex items-center justify-center py-16">
-      <RefreshCw className="w-6 h-6 animate-spin text-blue-500" />
-    </div>
+    <PaperworkSearchAnimation size="sm" text="Searching records…" />
   );
 }
 

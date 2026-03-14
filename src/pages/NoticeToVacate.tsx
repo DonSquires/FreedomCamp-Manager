@@ -13,6 +13,7 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
+import { PaperworkSearchAnimation } from '@/components/features/PaperworkSearchAnimation'
 import {
   FileText,
   Plus,
@@ -300,7 +301,7 @@ export default function NoticeToVacate() {
 
       {/* Notices list */}
       {isLoading ? (
-        <div className="text-center py-12 text-muted-foreground">Loading notices…</div>
+        <PaperworkSearchAnimation size="sm" text="Loading notices…" />
       ) : filtered.length === 0 ? (
         <Card>
           <CardContent className="py-16 text-center">

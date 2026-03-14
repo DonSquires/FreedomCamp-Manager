@@ -15,6 +15,7 @@ import { MapPin, Plus, Edit, CheckCircle, XCircle, Building2, AlertTriangle } fr
 import { toast } from 'sonner'
 import { AppLayout } from '@/components/features/AppLayout'
 import { GlobalFilterRibbon } from '@/components/features/GlobalFilterRibbon'
+import { PaperworkSearchAnimation } from '@/components/features/PaperworkSearchAnimation'
 import { ZoneGeofenceEditor } from '@/components/features/ZoneGeofenceEditor'
 import { ZoneGeofenceIndicator } from '@/components/features/ZoneGeofenceIndicator'
 
@@ -435,10 +436,7 @@ export default function ZoneManagement() {
 
       {/* Zones Grid */}
       {isLoading ? (
-        <div className="text-center py-12">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading zones...</p>
-        </div>
+        <PaperworkSearchAnimation text="Loading zones…" />
       ) : zones && zones.length === 0 ? (
         <Card>
           <CardContent className="text-center py-12">
