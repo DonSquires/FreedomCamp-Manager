@@ -372,6 +372,7 @@ serve(async (req: Request) => {
         processed: 0,
         compliance_changed: 0,
         breaches_created: 0,
+        breaches_dismissed: 0,
         skipped_no_rules: 0,
         apply,
       });
