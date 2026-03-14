@@ -23,6 +23,36 @@ For browser-only deployment steps, use [ONLINE_DEPLOYMENT_GUIDE.md](ONLINE_DEPLO
 
 ---
 
+## Database Migrations
+
+Migrations live in `supabase/migrations/`.  The CI workflow
+`.github/workflows/supabase-db-push.yml` handles applying them to production
+and automatically repairs the most common history drift scenarios.
+
+### Pushing migrations manually
+
+```bash
+export SUPABASE_ACCESS_TOKEN='sbp_...'
+export SUPABASE_DB_PASSWORD='...'
+export SUPABASE_PROJECT_REF='...'
+
+bash scripts/fix-migration-sync.sh
+```
+
+### If `supabase db push` fails with drift errors
+
+```bash
+# Revert known short-form legacy versions, then retry:
+supabase migration repair --status reverted \
+  20250127 20260309 20260312 20260313 20260316 20260320
+supabase db push --include-all
+```
+
+See [docs/MIGRATION_TROUBLESHOOTING.md](docs/MIGRATION_TROUBLESHOOTING.md) for
+a full guide including step-by-step recovery and prevention tips.
+
+---
+
 ## Deployment with Vercel — CI/CD Secret Setup
 
 The repository ships a GitHub Actions workflow

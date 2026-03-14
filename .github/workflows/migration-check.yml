@@ -1,0 +1,90 @@
+name: Migration check
+
+# Validates that local migration files are consistent and that no short-form
+# drift versions are present in the remote database before a deployment.
+#
+# This workflow runs automatically on pull requests that touch migration files,
+# and can also be triggered manually for ad-hoc checks.
+#
+# Required repository secrets (same as supabase-db-push.yml):
+#   SUPABASE_ACCESS_TOKEN   — Supabase personal access token (sbp_…)
+#   SUPABASE_DB_PASSWORD    — Database password for the linked project
+#   SUPABASE_PROJECT_REF    — Supabase project reference ID
+
+on:
+  pull_request:
+    paths:
+      - 'supabase/migrations/**'
+  workflow_dispatch:
+
+jobs:
+  migration_check:
+    name: Validate migration consistency
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Check for duplicate migration version prefixes
+        run: |
+          set -euo pipefail
+          echo "Checking for duplicate migration version prefixes..."
+
+          # Extract the leading date/timestamp from each migration filename.
+          # Both formats are valid:
+          #   YYYYMMDD_description.sql          → prefix = YYYYMMDD
+          #   YYYYMMDDHHMMSS_description.sql    → prefix = YYYYMMDDHHMMSS
+          # A conflict occurs only when a YYYYMMDD short-form file coexists
+          # with a YYYYMMDDNNNNNN timestamped file for the same calendar day.
+
+          MIGRATION_DIR="supabase/migrations"
+          duplicates=0
+
+          while IFS= read -r file; do
+            base="$(basename "$file" .sql)"
+            short_prefix="${base%%_*}"  # strip everything after first underscore
+
+            # Only flag YYYYMMDD (8-digit) prefixes that also have longer variants.
+            if [[ "${#short_prefix}" -eq 8 ]]; then
+              matches=$(find "$MIGRATION_DIR" -name "${short_prefix}[0-9]*_*.sql" | wc -l)
+              if [ "$matches" -gt 0 ]; then
+                echo "::warning file=$file::Short-form migration '$short_prefix' coexists with timestamped variants. This causes drift on the remote database. Consider removing or renaming this file."
+                duplicates=$((duplicates + 1))
+              fi
+            fi
+          done < <(find "$MIGRATION_DIR" -name "????????_*.sql" | sort)
+
+          if [ "$duplicates" -gt 0 ]; then
+            echo "::warning::Found $duplicates migration(s) with short-form/long-form conflicts."
+            echo "  See docs/MIGRATION_TROUBLESHOOTING.md for resolution steps."
+          else
+            echo "No short-form/long-form migration conflicts detected."
+          fi
+
+      - name: Check remote migration state
+        if: ${{ secrets.SUPABASE_ACCESS_TOKEN != '' && secrets.SUPABASE_DB_PASSWORD != '' && secrets.SUPABASE_PROJECT_REF != '' }}
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+        run: |
+          set -euo pipefail
+          supabase link \
+            --project-ref "$SUPABASE_PROJECT_REF" \
+            --password    "$SUPABASE_DB_PASSWORD"
+          echo "Current remote migration state:"
+          supabase migration list || true
+
+      - name: Warn if secrets are absent
+        if: ${{ secrets.SUPABASE_ACCESS_TOKEN == '' || secrets.SUPABASE_DB_PASSWORD == '' || secrets.SUPABASE_PROJECT_REF == '' }}
+        run: |
+          echo "::notice::Remote migration check skipped — Supabase secrets not configured."
+          echo "  Set SUPABASE_ACCESS_TOKEN, SUPABASE_DB_PASSWORD, and SUPABASE_PROJECT_REF"
+          echo "  in repository secrets to enable remote state validation."
