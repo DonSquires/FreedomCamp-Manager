@@ -5,10 +5,16 @@ import { toast } from 'sonner'
 interface Organization {
   id: string
   name: string
-  type: 'owner' | 'service_provider' | 'client'
+  organization_type: 'owner' | 'service_provider' | 'client'
+  organization_level: number
   parent_organization_id: string | null
+  contact_email: string | null
+  contact_phone: string | null
+  enforcement_workflow: string
+  overnight_verification_mode: 'two_photo_verification' | 'one_photo_per_day_inference'
   is_active: boolean
   created_at: string
+  updated_at: string
 }
 
 interface OrganizationWithParent extends Organization {
@@ -62,7 +68,7 @@ export function useCreateOrganization() {
   return useMutation({
     mutationFn: async (orgData: {
       name: string
-      type: Organization['type']
+      organization_type: Organization['organization_type']
       parent_organization_id?: string | null
     }) => {
       const { data, error } = await (supabase

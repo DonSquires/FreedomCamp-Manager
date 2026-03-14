@@ -1,34 +1,55 @@
-// Core domain types
+// Core domain types — aligned with actual database schema (database.ts)
 export interface User {
   id: string
   email: string
-  full_name: string
+  first_name: string
+  last_name: string
   role: 'master' | 'admin' | 'officer' | 'admin_officer'
   organization_id: string | null
+  employer_organization_id: string | null
+  authorized_work_locations: string[]
+  phone: string | null
   is_active: boolean
   created_at: string
+  updated_at: string
 }
 
 export interface Organization {
   id: string
   name: string
-  type: 'owner' | 'service_provider' | 'client'
+  organization_type: 'owner' | 'service_provider' | 'client'
+  organization_level: number
   parent_organization_id: string | null
+  contact_email: string | null
+  contact_phone: string | null
+  enforcement_workflow: string
+  overnight_verification_mode: 'two_photo_verification' | 'one_photo_per_day_inference'
+  is_active: boolean
   created_at: string
+  updated_at: string
 }
 
 export interface Zone {
   id: string
   name: string
+  description: string | null
   organization_id: string
   location_lat: number | null
   location_lng: number | null
+  geometry: any
+  geom: any
   is_active: boolean
   day_visit_only: boolean
   nights_per_month: number
   max_consecutive_nights: number
   self_contained_required: boolean
+  allowed_days: any
+  zone_type: string
+  parent_zone_id: string | null
+  needs_admin_review: boolean
+  boundary_source: string
   created_at: string
+  updated_at: string
   _count?: {
     observations: number
     breaches: number
@@ -189,7 +210,8 @@ export interface Patrol {
   vehicles_checked: number
   breaches_found: number
   officer?: {
-    full_name: string
+    first_name: string
+    last_name: string
   }
   zone?: {
     name: string

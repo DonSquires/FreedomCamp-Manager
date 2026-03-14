@@ -60,3 +60,4 @@ grep_requested_output.txt
 # E2E test artifacts
 playwright-report/
 test-results/
+node_modules/
