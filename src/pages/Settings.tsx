@@ -36,7 +36,7 @@ interface NotificationPreferences {
 }
 
 interface AppPreferences {
-  theme_mode: 'light' | 'dark' | 'system'
+  theme_mode: 'light' | 'dark' | 'high-contrast' | 'system'
   driving_mode: boolean
   auto_logoff_enabled: boolean
   offline_sync_enabled: boolean
@@ -244,10 +244,10 @@ export default function Settings() {
                 <div className="py-3 border-b">
                   <Label className="font-medium text-sm">Theme Mode</Label>
                   <p className="text-xs text-muted-foreground mt-1">
-                    Choose light mode, dark mode, or follow your computer system theme.
+                    Choose light, dark, high contrast, or follow your system theme.
                   </p>
-                  <div className="mt-3 grid grid-cols-3 gap-2">
-                    {(['light', 'dark', 'system'] as const).map((mode) => (
+                  <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    {(['light', 'dark', 'high-contrast', 'system'] as const).map((mode) => (
                       <Button
                         key={mode}
                         type="button"
@@ -255,7 +255,7 @@ export default function Settings() {
                         onClick={() => setAppPrefs((p) => ({ ...p, theme_mode: mode }))}
                         className="capitalize"
                       >
-                        {mode}
+                        {mode === 'high-contrast' ? 'High Contrast' : mode}
                       </Button>
                     ))}
                   </div>

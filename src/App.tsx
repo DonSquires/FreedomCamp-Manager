@@ -81,9 +81,25 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="text-lg font-semibold">Loading...</div>
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="text-center space-y-4">
+          <div className="relative inline-flex items-center justify-center">
+            <div className="absolute h-16 w-16 rounded-full border-[3px] border-transparent border-t-primary animate-spin" style={{ animationDuration: '1.2s' }} />
+            <img
+              src="/iron-eagle-security-logo.jpg"
+              alt="Loading"
+              className="h-10 w-10 rounded-lg object-cover"
+            />
+          </div>
+          <div className="flex items-center justify-center gap-1.5">
+            {[0, 1, 2].map((i) => (
+              <div
+                key={i}
+                className="h-1.5 w-1.5 rounded-full bg-primary animate-pulse"
+                style={{ animationDelay: `${i * 200}ms` }}
+              />
+            ))}
+          </div>
         </div>
       </div>
     )
@@ -145,10 +161,32 @@ export default function App() {
   // Show loading state while checking session
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading...</p>
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 via-cyan-50/30 to-gray-50 dark:from-gray-900 dark:via-cyan-950/20 dark:to-gray-900">
+        <div className="text-center space-y-6">
+          <div className="relative inline-flex items-center justify-center">
+            {/* Outer ring */}
+            <div className="absolute h-24 w-24 rounded-full border-4 border-primary/20 animate-ping" style={{ animationDuration: '2s' }} />
+            {/* Spinning ring */}
+            <div className="absolute h-20 w-20 rounded-full border-[3px] border-transparent border-t-primary animate-spin" style={{ animationDuration: '1.2s' }} />
+            {/* Logo */}
+            <img
+              src="/iron-eagle-security-logo.jpg"
+              alt="Loading"
+              className="h-14 w-14 rounded-xl object-cover shadow-lg"
+            />
+          </div>
+          <div>
+            <p className="text-lg font-semibold text-foreground">FreedomCamp Manager</p>
+            <div className="flex items-center justify-center gap-1.5 mt-2">
+              {[0, 1, 2].map((i) => (
+                <div
+                  key={i}
+                  className="h-2 w-2 rounded-full bg-primary animate-pulse"
+                  style={{ animationDelay: `${i * 200}ms` }}
+                />
+              ))}
+            </div>
+          </div>
         </div>
       </div>
     )

@@ -3,15 +3,15 @@ import { Link, useNavigate, useLocation } from 'react-router-dom'
 import { useAuthStore } from '@/stores/authStore'
 import { Button } from '@/components/ui/button'
 import {
-  Shield, Home, Car, MapPin, Users, BarChart3, FileText,
+  Home, Car, MapPin, Users, BarChart3, FileText,
   LogOut, Settings, ChevronLeft, AlertTriangle, ChevronDown,
   Activity, Database, Search, Heart, ScrollText, Lock, Gavel,
-  Navigation, BookOpen, LayoutGrid, Map, Bell, Upload,
+  Navigation, BookOpen, LayoutGrid, Map, Bell, Upload, Shield,
 } from 'lucide-react'
 
 const primaryLinks = [
   { to: '/admin',       label: 'Dashboard', icon: Home },
-  { to: '/compliance',  label: 'Compliance', icon: Shield },
+  { to: '/compliance',  label: 'Compliance', icon: BarChart3 },
   { to: '/vehicles',    label: 'Vehicles',   icon: Car },
   { to: '/breaches',    label: 'Breaches',   icon: AlertTriangle },
   { to: '/search',      label: 'Search',     icon: Search },
@@ -86,7 +86,7 @@ const moreGroups = [
 
 // Dropdown panel: responsive grid, scrollable on narrow screens
 const MORE_DROPDOWN_CLS =
-  'absolute left-0 top-full mt-1 z-50 bg-white border border-gray-200 rounded-lg shadow-lg p-2 ' +
+  'absolute left-0 top-full mt-1 z-50 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg p-2 ' +
   'min-w-[720px] max-w-[96vw] grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-4 gap-y-1'
 
 export function AdminNavigationMenu() {
@@ -118,13 +118,17 @@ export function AdminNavigationMenu() {
   const isActive = (to: string) => location.pathname === to
 
   return (
-    <nav className="bg-white border-b border-gray-200 shadow-sm sticky top-0 z-40">
+    <nav className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shadow-sm sticky top-0 z-40">
       <div className="max-w-7xl mx-auto px-4">
         <div className="flex items-center h-14 gap-1">
           {/* Brand */}
           <Link to="/admin" className="flex items-center gap-2 mr-3 shrink-0">
-            <Shield className="h-5 w-5 text-blue-600" />
-            <span className="font-semibold text-gray-900 hidden sm:block text-sm">
+            <img
+              src="/iron-eagle-security-logo.jpg"
+              alt="IES"
+              className="h-7 w-7 rounded object-cover"
+            />
+            <span className="font-semibold text-gray-900 dark:text-white hidden sm:block text-sm">
               FreedomCamp
             </span>
           </Link>
@@ -148,8 +152,8 @@ export function AdminNavigationMenu() {
                 to={to}
                 className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded text-sm transition-colors whitespace-nowrap shrink-0 ${
                   isActive(to)
-                    ? 'bg-blue-50 text-blue-700 font-medium'
-                    : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                    ? 'bg-primary/10 text-primary font-medium'
+                    : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white'
                 }`}
               >
                 <Icon className="h-3.5 w-3.5" />
@@ -163,8 +167,8 @@ export function AdminNavigationMenu() {
                 onClick={() => setMoreOpen((v) => !v)}
                 className={`flex items-center gap-1 px-2.5 py-1.5 rounded text-sm transition-colors whitespace-nowrap ${
                   moreOpen
-                    ? 'bg-blue-50 text-blue-700'
-                    : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                    ? 'bg-primary/10 text-primary'
+                    : 'text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 hover:text-gray-900 dark:hover:text-white'
                 }`}
               >
                 <span className="hidden md:block">More</span>
@@ -175,7 +179,7 @@ export function AdminNavigationMenu() {
                 <div className={MORE_DROPDOWN_CLS}>
                   {moreGroups.map((group) => (
                     <div key={group.label} className="min-w-0">
-                      <div className="text-xs font-semibold text-gray-400 uppercase tracking-wide px-2 py-1 mt-1">
+                      <div className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide px-2 py-1 mt-1">
                         {group.label}
                       </div>
                       {group.links.map(({ to, label, icon: Icon }) => (
@@ -184,8 +188,8 @@ export function AdminNavigationMenu() {
                           to={to}
                           className={`flex items-center gap-2 px-2 py-1.5 rounded text-sm transition-colors ${
                             isActive(to)
-                              ? 'bg-blue-50 text-blue-700 font-medium'
-                              : 'text-gray-700 hover:bg-gray-100'
+                              ? 'bg-primary/10 text-primary font-medium'
+                              : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
                           }`}
                         >
                           <Icon className="h-3.5 w-3.5 shrink-0" />
@@ -202,7 +206,7 @@ export function AdminNavigationMenu() {
           {/* User + logout */}
           <div className="flex items-center gap-2 ml-auto shrink-0">
             {user && (
-              <span className="text-xs text-gray-500 hidden lg:block max-w-[160px] truncate">
+              <span className="text-xs text-gray-500 dark:text-gray-400 hidden lg:block max-w-[160px] truncate">
                 {user.email}
               </span>
             )}
