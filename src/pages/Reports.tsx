@@ -42,6 +42,47 @@ import { edgeFunctions } from '@/lib/edgeFunctions'
 
 const EMAIL_TIMEOUT_MS = 45000
 
+interface ObservationRow {
+  observation_id: string
+  plate_number: string | null
+  recorded_at: string
+  is_compliant: boolean | null
+  nights_stayed_this_month: number | null
+  gps_latitude: number | null
+  gps_longitude: number | null
+  zone: { name: string } | null
+  recorded_by_user: { first_name: string; last_name: string } | null
+}
+
+interface BreachRow {
+  id: string
+  plate_number: string | null
+  breach_type: string | null
+  status: string | null
+  created_at: string
+  zone: { name: string } | null
+  organization: { name: string } | null
+}
+
+interface ZoneRow {
+  id: string
+  name: string
+  is_active: boolean
+  self_contained_required: boolean
+  max_stay_nights: number | null
+  observations: { count: number }[]
+  breach_alerts: { count: number }[]
+}
+
+interface EnforcementRow {
+  id: string
+  plate_number: string | null
+  action_type: string | null
+  status: string | null
+  created_at: string
+  zone: { name: string } | null
+}
+
 async function withTimeout<T>(promise: Promise<T>, ms: number, msg: string): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined
   const timeout = new Promise<never>((_, reject) => {
@@ -97,7 +138,7 @@ export default function Reports() {
 
       const { data, error } = await q
       if (error) throw error
-      return (data || []) as any[]
+      return (data || []) as unknown as ObservationRow[]
     },
     enabled: !!user,
   })
@@ -122,7 +163,7 @@ export default function Reports() {
 
       const { data, error } = await q
       if (error) throw error
-      return (data || []) as any[]
+      return (data || []) as BreachRow[]
     },
     enabled: !!user,
   })
@@ -145,7 +186,7 @@ export default function Reports() {
 
       const { data, error } = await q
       if (error) throw error
-      return (data || []) as any[]
+      return (data || []) as unknown as ZoneRow[]
     },
     enabled: !!user,
   })
@@ -170,7 +211,7 @@ export default function Reports() {
 
       const { data, error } = await q
       if (error) throw error
-      return (data || []) as any[]
+      return (data || []) as unknown as EnforcementRow[]
     },
     enabled: !!user,
   })
