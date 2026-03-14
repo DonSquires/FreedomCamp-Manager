@@ -26,15 +26,12 @@ import { formatDateTime } from '@/lib/utils'
 interface AuditLogEntry {
   id: string
   action: string
-  entity_type: string
+  entity_type: string | null
   entity_id: string | null
   old_values: any
   new_values: any
+  performed_by: string | null
   created_at: string
-  user_id: string | null
-  organization_id: string | null
-  ip_address: string | null
-  user_agent: string | null
   user_profile: {
     first_name: string
     last_name: string
@@ -70,22 +67,12 @@ export default function AuditLog() {
           entity_id,
           old_values,
           new_values,
+          performed_by,
           created_at,
-          user_id,
-          organization_id,
-          ip_address,
-          user_agent,
-          user_profile:user_profiles(first_name, last_name, role)
+          user_profile:user_profiles!audit_log_performed_by_fkey(first_name, last_name, role)
         `)
         .order('created_at', { ascending: false })
         .limit(100)
-
-      // Organization scoping
-      if (user?.role !== 'master' && user?.organization_id) {
-        query = query.eq('organization_id', user.organization_id)
-      } else if (organizationId) {
-        query = query.eq('organization_id', organizationId)
-      }
 
       // Date filters
       if (startDate) {
@@ -115,7 +102,7 @@ export default function AuditLog() {
           entry.user_profile?.first_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
           entry.user_profile?.last_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
           entry.action.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          entry.entity_type.toLowerCase().includes(searchQuery.toLowerCase())
+          entry.entity_type?.toLowerCase().includes(searchQuery.toLowerCase())
         )
       }
 
@@ -130,7 +117,7 @@ export default function AuditLog() {
     creates: entries.filter(e => e.action === 'create').length,
     updates: entries.filter(e => e.action === 'update').length,
     deletes: entries.filter(e => e.action === 'delete').length,
-    unique_users: new Set(entries.map(e => e.user_id).filter(Boolean)).size,
+    unique_users: new Set(entries.map(e => e.performed_by).filter(Boolean)).size,
   } : null
 
   const getActionColor = (action: string) => {
@@ -357,9 +344,6 @@ export default function AuditLog() {
                         <Clock className="h-3 w-3" />
                         {formatDateTime(entry.created_at)}
                       </span>
-                      {entry.ip_address && (
-                        <span className="text-xs font-mono">{entry.ip_address}</span>
-                      )}
                     </div>
 
                     {/* Show changes if update */}
