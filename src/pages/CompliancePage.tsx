@@ -755,7 +755,10 @@ function HomelessTab({
       if (orgId) q = q.eq('organization_id', orgId);
       if (zoneId) q = q.eq('zone_id', zoneId);
       const { data, error } = await q;
-      if (error) return [];
+      if (error) {
+        console.warn('Failed to fetch exempt observation details:', error.message);
+        return [];
+      }
       return data ?? [];
     },
     enabled: exemptPlates.length > 0,
@@ -763,9 +766,9 @@ function HomelessTab({
 
   // Build lookup of observation details by observation_id
   const obsDetailsMap = useMemo(() => {
-    const map = new Map<string, any>();
+    const map = new Map<string, ExemptObservation>();
     for (const d of obsDetails ?? []) {
-      map.set(d.observation_id, d);
+      map.set(d.observation_id, d as ExemptObservation);
     }
     return map;
   }, [obsDetails]);
