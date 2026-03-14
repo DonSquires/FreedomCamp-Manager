@@ -11,18 +11,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table'
 import { formatDateTime } from '@/lib/utils'
 import { nzDateToUTCStart, nzDateToUTCEnd } from '@/lib/timezone'
 import { getObservationPhotoUrl } from '@/lib/photoUtils'
-import { Car, Search, RefreshCw, Image as ImageIcon, Camera, Loader2 } from 'lucide-react'
+import { Car, Search, RefreshCw, Image as ImageIcon, Camera, Loader2, MapPin, Calendar, Clock, AlertTriangle, Shield, Flag } from 'lucide-react'
 import { toast } from 'sonner'
 
 const PHOTO_SYNC_LIMIT = 500
@@ -33,11 +25,15 @@ interface ObservationRow {
   plate_number: string
   recorded_at: string
   zone_id: string
+  photo?: string | null
   photo_url: string | null
   is_compliant: boolean
   officer_notes: string | null
   gps_latitude: number | null
   gps_longitude: number | null
+  breach_type: string | null
+  breach_reason: string | null
+  nights_stayed_this_month: number | null
   zone: { name: string } | null
 }
 
@@ -90,6 +86,9 @@ function formatVehicleSummary(v: CanonicalVehicleRow | undefined): string {
   return base || 'No canonical metadata'
 }
 
+const toTitleCase = (s: string) =>
+  s.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+
 export default function ObservationRecords() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
@@ -121,13 +120,15 @@ export default function ObservationRecords() {
         return query
       }
 
+      const extraCols = ', breach_type, breach_reason, nights_stayed_this_month'
+      const zoneJoin = ', zone:zones!observations_zone_id_fkey(name)'
       const primarySelects = [
-        'id, plate_number, recorded_at, zone_id, photo_url, is_compliant, officer_notes, gps_latitude, gps_longitude, zone:zones!observations_zone_id_fkey(name)',
-        'id, plate_number, recorded_at, zone_id, photo_url:image_url, is_compliant, officer_notes, gps_latitude, gps_longitude, zone:zones!observations_zone_id_fkey(name)',
-        'id, plate_number, recorded_at, zone_id, photo_url:photo, is_compliant, officer_notes, gps_latitude, gps_longitude, zone:zones!observations_zone_id_fkey(name)',
-        'id:observation_id, plate_number, recorded_at, zone_id, photo_url, is_compliant, officer_notes, gps_latitude, gps_longitude, zone:zones!observations_zone_id_fkey(name)',
-        'id:observation_id, plate_number, recorded_at, zone_id, photo_url:image_url, is_compliant, officer_notes, gps_latitude, gps_longitude, zone:zones!observations_zone_id_fkey(name)',
-        'id:observation_id, plate_number, recorded_at, zone_id, photo_url:photo, is_compliant, officer_notes, gps_latitude, gps_longitude, zone:zones!observations_zone_id_fkey(name)',
+        `id, plate_number, recorded_at, zone_id, photo_url, is_compliant, officer_notes, gps_latitude, gps_longitude${extraCols}${zoneJoin}`,
+        `id, plate_number, recorded_at, zone_id, photo_url:image_url, is_compliant, officer_notes, gps_latitude, gps_longitude${extraCols}${zoneJoin}`,
+        `id, plate_number, recorded_at, zone_id, photo_url:photo, is_compliant, officer_notes, gps_latitude, gps_longitude${extraCols}${zoneJoin}`,
+        `id:observation_id, plate_number, recorded_at, zone_id, photo_url, is_compliant, officer_notes, gps_latitude, gps_longitude${extraCols}${zoneJoin}`,
+        `id:observation_id, plate_number, recorded_at, zone_id, photo_url:image_url, is_compliant, officer_notes, gps_latitude, gps_longitude${extraCols}${zoneJoin}`,
+        `id:observation_id, plate_number, recorded_at, zone_id, photo_url:photo, is_compliant, officer_notes, gps_latitude, gps_longitude${extraCols}${zoneJoin}`,
       ]
 
       // Primary path: use relationship join when schema cache has it.
@@ -147,12 +148,12 @@ export default function ObservationRecords() {
       // Fallback path: fetch observations without join and resolve zone names manually.
       let fallback: any = null
       const fallbackSelects = [
-        'id, plate_number, recorded_at, zone_id, photo_url, is_compliant, officer_notes, gps_latitude, gps_longitude',
-        'id, plate_number, recorded_at, zone_id, photo_url:image_url, is_compliant, officer_notes, gps_latitude, gps_longitude',
-        'id, plate_number, recorded_at, zone_id, photo_url:photo, is_compliant, officer_notes, gps_latitude, gps_longitude',
-        'id:observation_id, plate_number, recorded_at, zone_id, photo_url, is_compliant, officer_notes, gps_latitude, gps_longitude',
-        'id:observation_id, plate_number, recorded_at, zone_id, photo_url:image_url, is_compliant, officer_notes, gps_latitude, gps_longitude',
-        'id:observation_id, plate_number, recorded_at, zone_id, photo_url:photo, is_compliant, officer_notes, gps_latitude, gps_longitude',
+        `id, plate_number, recorded_at, zone_id, photo_url, is_compliant, officer_notes, gps_latitude, gps_longitude${extraCols}`,
+        `id, plate_number, recorded_at, zone_id, photo_url:image_url, is_compliant, officer_notes, gps_latitude, gps_longitude${extraCols}`,
+        `id, plate_number, recorded_at, zone_id, photo_url:photo, is_compliant, officer_notes, gps_latitude, gps_longitude${extraCols}`,
+        `id:observation_id, plate_number, recorded_at, zone_id, photo_url, is_compliant, officer_notes, gps_latitude, gps_longitude${extraCols}`,
+        `id:observation_id, plate_number, recorded_at, zone_id, photo_url:image_url, is_compliant, officer_notes, gps_latitude, gps_longitude${extraCols}`,
+        `id:observation_id, plate_number, recorded_at, zone_id, photo_url:photo, is_compliant, officer_notes, gps_latitude, gps_longitude${extraCols}`,
       ]
 
       for (const selectClause of fallbackSelects) {
@@ -538,76 +539,145 @@ export default function ObservationRecords() {
                 <Car className="h-4 w-4" />
                 {selectedPlate || 'No vehicle selected'}
               </CardTitle>
-              {selectedPlate && (
-                <div className="text-xs text-muted-foreground">
-                  {formatVehicleSummary(selectedCanonical)}
+              {selectedPlate && selectedCanonical && formatVehicleSummary(selectedCanonical) !== 'No canonical metadata' && (
+                <div className="mt-2 grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-1 text-xs">
+                  {selectedCanonical.vehicle_make && (
+                    <div><span className="text-muted-foreground">Make:</span> {selectedCanonical.vehicle_make}</div>
+                  )}
+                  {selectedCanonical.vehicle_model && (
+                    <div><span className="text-muted-foreground">Model:</span> {selectedCanonical.vehicle_model}</div>
+                  )}
+                  {selectedCanonical.vehicle_year && (
+                    <div><span className="text-muted-foreground">Year:</span> {selectedCanonical.vehicle_year}</div>
+                  )}
+                  {selectedCanonical.vehicle_color && (
+                    <div><span className="text-muted-foreground">Color:</span> {selectedCanonical.vehicle_color}</div>
+                  )}
+                  {(selectedCanonical.owner_first_name || selectedCanonical.owner_last_name) && (
+                    <div><span className="text-muted-foreground">Owner:</span> {[selectedCanonical.owner_first_name, selectedCanonical.owner_last_name].filter(Boolean).join(' ')}</div>
+                  )}
+                  <div className="flex items-center gap-1">
+                    <Shield className="h-3 w-3 text-muted-foreground" />
+                    <span className="text-muted-foreground">SC:</span> {selectedCanonical.self_contained ? 'Yes' : 'No'}
+                  </div>
+                  {selectedCanonical.is_flagged && (
+                    <div className="flex items-center gap-1 text-orange-600">
+                      <Flag className="h-3 w-3" />
+                      Flagged
+                    </div>
+                  )}
+                  {selectedCanonical.is_exempt && (
+                    <div className="flex items-center gap-1 text-purple-600">
+                      <Shield className="h-3 w-3" />
+                      Exempt
+                    </div>
+                  )}
                 </div>
+              )}
+              {selectedPlate && !selectedCanonical && (
+                <div className="text-xs text-muted-foreground">No canonical metadata</div>
               )}
             </CardHeader>
             <CardContent>
               {selectedRows.length === 0 ? (
                 <p className="text-sm text-muted-foreground">Select a canonical vehicle to view observations.</p>
               ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="w-[140px]">Photo</TableHead>
-                      <TableHead>Recorded</TableHead>
-                      <TableHead>Zone</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>GPS</TableHead>
-                      <TableHead>Notes</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {selectedRows.map((obs) => {
-                      const photoUrl = getObservationPhotoUrl(obs)
-                      return (
-                        <TableRow key={obs.id}>
-                          <TableCell>
-                            {photoUrl ? (
-                              <button
-                                type="button"
-                                onClick={() => window.open(photoUrl, '_blank')}
-                                className="block rounded overflow-hidden border hover:opacity-90"
-                              >
-                                <img
-                                  src={photoUrl}
-                                  alt={`Observation ${obs.id}`}
-                                  className="h-16 w-28 object-cover"
-                                  loading="lazy"
-                                  onError={(e) => {
-                                    ;(e.target as HTMLImageElement).style.display = 'none'
-                                  }}
-                                />
-                              </button>
-                            ) : (
-                              <div className="h-16 w-28 border rounded bg-muted flex items-center justify-center text-muted-foreground text-xs">
-                                <span className="inline-flex items-center gap-1">
-                                  <ImageIcon className="h-3 w-3" />
-                                  No Photo
-                                </span>
+                <div className="space-y-3 max-h-[65vh] overflow-y-auto">
+                  <p className="text-xs text-muted-foreground">{selectedRows.length} observation{selectedRows.length !== 1 ? 's' : ''}</p>
+                  {selectedRows.map((obs) => {
+                    const photoUrl = getObservationPhotoUrl(obs)
+                    return (
+                      <Card key={obs.id} className="border">
+                        <CardContent className="p-3">
+                          <div className="flex items-start gap-3">
+                            {/* Photo */}
+                            <div className="w-28 h-20 rounded border overflow-hidden shrink-0 bg-muted">
+                              {photoUrl ? (
+                                <button
+                                  type="button"
+                                  onClick={() => window.open(photoUrl, '_blank')}
+                                  className="block w-full h-full hover:opacity-90"
+                                >
+                                  <img
+                                    src={photoUrl}
+                                    alt={`Observation ${obs.id}`}
+                                    className="w-full h-full object-cover"
+                                    loading="lazy"
+                                    onError={(e) => {
+                                      ;(e.target as HTMLImageElement).style.display = 'none'
+                                    }}
+                                  />
+                                </button>
+                              ) : (
+                                <div className="w-full h-full flex items-center justify-center text-muted-foreground text-xs">
+                                  <span className="inline-flex items-center gap-1">
+                                    <ImageIcon className="h-3 w-3" />
+                                    No Photo
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+
+                            {/* Observation details */}
+                            <div className="flex-1 min-w-0 space-y-1">
+                              {/* Status badges */}
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <Badge variant={obs.is_compliant ? 'default' : 'destructive'}>
+                                  {obs.is_compliant ? 'Compliant' : 'Breach'}
+                                </Badge>
+                                {obs.breach_type && !obs.is_compliant && (
+                                  <span className="text-xs text-red-500 flex items-center gap-1">
+                                    <AlertTriangle className="h-3 w-3" />
+                                    {toTitleCase(obs.breach_type)}
+                                  </span>
+                                )}
                               </div>
-                            )}
-                          </TableCell>
-                          <TableCell className="text-xs">{formatDateTime(obs.recorded_at)}</TableCell>
-                          <TableCell className="text-xs">{obs.zone?.name || 'Unknown'}</TableCell>
-                          <TableCell>
-                            <Badge variant={obs.is_compliant ? 'default' : 'destructive'}>
-                              {obs.is_compliant ? 'Compliant' : 'Breach'}
-                            </Badge>
-                          </TableCell>
-                          <TableCell className="text-xs">
-                            {obs.gps_latitude && obs.gps_longitude
-                              ? `${Number(obs.gps_latitude).toFixed(5)}, ${Number(obs.gps_longitude).toFixed(5)}`
-                              : 'No GPS'}
-                          </TableCell>
-                          <TableCell className="text-xs max-w-[240px] truncate">{obs.officer_notes || '-'}</TableCell>
-                        </TableRow>
-                      )
-                    })}
-                  </TableBody>
-                </Table>
+
+                              {/* Breach reason */}
+                              {obs.breach_reason && !obs.is_compliant && (
+                                <p className="text-xs text-muted-foreground">{obs.breach_reason}</p>
+                              )}
+
+                              {/* Metadata row */}
+                              <div className="text-xs text-muted-foreground flex flex-wrap gap-x-3 gap-y-1">
+                                <span className="flex items-center gap-1">
+                                  <Calendar className="h-3 w-3" />
+                                  {formatDateTime(obs.recorded_at)}
+                                </span>
+                                {obs.zone?.name && (
+                                  <span className="flex items-center gap-1">
+                                    <MapPin className="h-3 w-3" />
+                                    {obs.zone.name}
+                                  </span>
+                                )}
+                                {obs.nights_stayed_this_month != null && obs.nights_stayed_this_month > 0 && (
+                                  <span className="flex items-center gap-1">
+                                    <Clock className="h-3 w-3" />
+                                    Night {obs.nights_stayed_this_month}
+                                  </span>
+                                )}
+                              </div>
+
+                              {/* GPS */}
+                              {obs.gps_latitude && obs.gps_longitude && (
+                                <p className="text-xs text-muted-foreground">
+                                  GPS: {Number(obs.gps_latitude).toFixed(5)}, {Number(obs.gps_longitude).toFixed(5)}
+                                </p>
+                              )}
+
+                              {/* Officer notes */}
+                              {obs.officer_notes && obs.officer_notes !== '-' && (
+                                <div className="mt-1 p-2 bg-muted rounded text-xs">
+                                  <span className="text-muted-foreground">Notes: </span>{obs.officer_notes}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )
+                  })}
+                </div>
               )}
             </CardContent>
           </Card>
