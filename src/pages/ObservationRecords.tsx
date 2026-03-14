@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { useGlobalFiltersStore } from '@/stores/globalFiltersStore'
+import { edgeFunctions } from '@/lib/edgeFunctions'
 import { AppLayout } from '@/components/features/AppLayout'
 import { GlobalFilterRibbon } from '@/components/features/GlobalFilterRibbon'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -21,7 +22,8 @@ import {
 import { formatDateTime } from '@/lib/utils'
 import { nzDateToUTCStart, nzDateToUTCEnd } from '@/lib/timezone'
 import { getObservationPhotoUrl } from '@/lib/photoUtils'
-import { Car, Search, RefreshCw, Image as ImageIcon } from 'lucide-react'
+import { Car, Search, RefreshCw, Image as ImageIcon, Camera, Loader2 } from 'lucide-react'
+import { toast } from 'sonner'
 
 interface ObservationRow {
   id: string
@@ -288,6 +290,64 @@ export default function ObservationRecords() {
   const selectedCanonical = selectedPlate ? canonicalByPlate.get(selectedPlate) : undefined
   const breachSearchPlate = selectedPlate || requestedPlate
 
+  // ── ParkPow Photo Sync ──────────────────────────────────────────────
+  const [photoSyncing, setPhotoSyncing] = useState(false)
+  const [photoSyncResult, setPhotoSyncResult] = useState<{
+    scanned: number
+    candidates: number
+    linked: number
+    no_match: number
+    errors: number
+    apply: boolean
+  } | null>(null)
+
+  const missingPhotoCount = observations.filter((o) => !getObservationPhotoUrl(o)).length
+  const withPhotoCount = observations.filter((o) => !!getObservationPhotoUrl(o)).length
+
+  const handlePhotoSync = async (dryRun: boolean) => {
+    setPhotoSyncing(true)
+    setPhotoSyncResult(null)
+    try {
+      const { data, error } = await edgeFunctions.syncParkPowPhotos({
+        date_from: dateFrom || undefined,
+        date_to: dateTo || undefined,
+        apply: !dryRun,
+        require_empty_photo: true,
+        limit: 500,
+        window_minutes: 120,
+      })
+
+      if (error) {
+        toast.error(`Photo sync failed: ${error}`)
+        return
+      }
+
+      if (data) {
+        setPhotoSyncResult({
+          scanned: data.scanned ?? 0,
+          candidates: data.candidates ?? 0,
+          linked: data.linked ?? 0,
+          no_match: data.no_match ?? 0,
+          errors: data.errors ?? 0,
+          apply: data.apply ?? false,
+        })
+
+        if (data.apply && data.linked > 0) {
+          toast.success(`Linked ${data.linked} photos from ParkPow`)
+          refetch()
+        } else if (!data.apply) {
+          toast.info(`Dry run: ${data.candidates} observations could be linked`)
+        } else {
+          toast.info('No matching ParkPow photos found')
+        }
+      }
+    } catch {
+      toast.error('Photo sync request failed')
+    } finally {
+      setPhotoSyncing(false)
+    }
+  }
+
   return (
     <AppLayout
       title="Observation Records"
@@ -296,7 +356,7 @@ export default function ObservationRecords() {
     >
       <GlobalFilterRibbon />
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mb-4">
         <Card>
           <CardContent className="pt-4">
             <p className="text-xs text-muted-foreground">Canonical records</p>
@@ -315,10 +375,84 @@ export default function ObservationRecords() {
         <Card>
           <CardContent className="pt-4">
             <p className="text-xs text-muted-foreground">Observations with photos</p>
-            <p className="text-2xl font-bold">{observations.filter((o) => !!getObservationPhotoUrl(o)).length}</p>
+            <p className="text-2xl font-bold">{withPhotoCount}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-4">
+            <p className="text-xs text-muted-foreground">Missing photos</p>
+            <p className="text-2xl font-bold text-orange-600">{missingPhotoCount}</p>
+            {missingPhotoCount > 0 && (
+              <div className="flex gap-1 mt-2">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="text-xs h-7"
+                  disabled={photoSyncing}
+                  onClick={() => handlePhotoSync(true)}
+                >
+                  {photoSyncing ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Camera className="h-3 w-3 mr-1" />}
+                  Preview
+                </Button>
+                <Button
+                  size="sm"
+                  className="text-xs h-7"
+                  disabled={photoSyncing}
+                  onClick={() => handlePhotoSync(false)}
+                >
+                  {photoSyncing ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Camera className="h-3 w-3 mr-1" />}
+                  Sync Photos
+                </Button>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
+
+      {photoSyncResult && (
+        <Card className="mb-4 border-blue-200 bg-blue-50/50 dark:bg-blue-950/20">
+          <CardContent className="pt-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Camera className="h-4 w-4 text-blue-600" />
+                <span className="text-sm font-medium">
+                  ParkPow Photo Sync {photoSyncResult.apply ? 'Result' : '(Dry Run Preview)'}
+                </span>
+              </div>
+              <Button size="sm" variant="ghost" className="h-6 text-xs" onClick={() => setPhotoSyncResult(null)}>
+                Dismiss
+              </Button>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mt-3">
+              <div>
+                <p className="text-xs text-muted-foreground">Scanned</p>
+                <p className="text-lg font-bold">{photoSyncResult.scanned}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Candidates</p>
+                <p className="text-lg font-bold">{photoSyncResult.candidates}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Linked</p>
+                <p className="text-lg font-bold text-green-600">{photoSyncResult.linked}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">No Match</p>
+                <p className="text-lg font-bold text-orange-600">{photoSyncResult.no_match}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Errors</p>
+                <p className="text-lg font-bold text-red-600">{photoSyncResult.errors}</p>
+              </div>
+            </div>
+            {!photoSyncResult.apply && photoSyncResult.candidates > 0 && (
+              <p className="text-xs text-muted-foreground mt-2">
+                Click "Sync Photos" to apply — this will download images from ParkPow and link them to observations.
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       <div className="flex gap-2 mb-4">
         <div className="relative flex-1">
