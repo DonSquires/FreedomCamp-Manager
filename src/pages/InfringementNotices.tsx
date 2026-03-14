@@ -12,6 +12,7 @@ import { useAuthStore } from '@/stores/authStore'
 import { useGlobalFiltersStore } from '@/stores/globalFiltersStore'
 import { AppLayout } from '@/components/features/AppLayout'
 import { GlobalFilterRibbon } from '@/components/features/GlobalFilterRibbon'
+import { PaperworkSearchAnimation } from '@/components/features/PaperworkSearchAnimation'
 import {
   Card, CardContent, CardHeader, CardTitle, CardDescription,
 } from '@/components/ui/card'
@@ -326,7 +327,7 @@ export default function InfringementNotices() {
 
       {/* Notices list */}
       {isLoading ? (
-        <Card><CardContent className="py-12 text-center text-muted-foreground">Loading...</CardContent></Card>
+        <PaperworkSearchAnimation size="sm" text="Loading infringements…" />
       ) : filtered.length === 0 ? (
         <Card><CardContent className="py-12 text-center text-muted-foreground">No notices found</CardContent></Card>
       ) : (

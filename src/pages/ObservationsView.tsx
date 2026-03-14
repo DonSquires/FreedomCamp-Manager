@@ -8,6 +8,7 @@ import { useAuthStore } from '@/stores/authStore'
 import { useGlobalFiltersStore } from '@/stores/globalFiltersStore'
 import { AppLayout } from '@/components/features/AppLayout'
 import { GlobalFilterRibbon } from '@/components/features/GlobalFilterRibbon'
+import { PaperworkSearchAnimation } from '@/components/features/PaperworkSearchAnimation'
 import { MapFocusToolbar } from '@/components/features/MapFocusToolbar'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -202,7 +203,7 @@ export default function ObservationsView() {
         {/* ── LIST TAB ─────────────────────────────────────────────────── */}
         <TabsContent value="list">
           {isLoading ? (
-            <Card><CardContent className="pt-6 text-center text-muted-foreground py-12">Loading...</CardContent></Card>
+            <PaperworkSearchAnimation size="sm" text="Loading observations…" />
           ) : filtered.length === 0 ? (
             <Card><CardContent className="pt-6 text-center text-muted-foreground py-12">No observations found</CardContent></Card>
           ) : (

@@ -12,6 +12,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { AppLayout } from '@/components/features/AppLayout'
 import { GlobalFilterRibbon } from '@/components/features/GlobalFilterRibbon'
+import { PaperworkSearchAnimation } from '@/components/features/PaperworkSearchAnimation'
 import {
   Search, Car, AlertTriangle, CheckCircle, Calendar, RefreshCw, Database, Globe,
   MapPin, Clock, BarChart3, ZoomIn, Shield,
@@ -931,10 +932,7 @@ export default function VehicleManagement() {
 
       {/* Vehicle Grid */}
       {isLoading ? (
-        <div className="text-center py-12">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto" />
-          <p className="mt-4 text-gray-600">Loading vehicles...</p>
-        </div>
+        <PaperworkSearchAnimation text="Loading vehicles…" />
       ) : vehiclesError ? (
         <Card>
           <CardContent className="text-center py-12">

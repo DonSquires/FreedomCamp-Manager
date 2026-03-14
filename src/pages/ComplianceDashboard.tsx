@@ -20,6 +20,7 @@ import {
 import { formatDate, formatDateTime } from '@/lib/utils'
 import { AppLayout } from '@/components/features/AppLayout'
 import { GlobalFilterRibbon } from '@/components/features/GlobalFilterRibbon'
+import { PaperworkSearchAnimation } from '@/components/features/PaperworkSearchAnimation'
 import { analyzeVehiclePhoto } from '@/lib/railwayServices'
 import { toast } from 'sonner'
 
@@ -160,10 +161,7 @@ export default function ComplianceDashboard() {
       <GlobalFilterRibbon />
 
       {isLoading ? (
-        <div className="text-center py-12">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-          <p className="mt-4 text-gray-600">Loading dashboard...</p>
-        </div>
+        <PaperworkSearchAnimation text="Loading compliance data…" />
       ) : (
         <>
           {/* KPI Grid */}

@@ -14,6 +14,7 @@ import { Building2, Users, MapPin, Settings, Plus } from 'lucide-react'
 import { toast } from 'sonner'
 import { AppLayout } from '@/components/features/AppLayout'
 import { GlobalFilterRibbon } from '@/components/features/GlobalFilterRibbon'
+import { PaperworkSearchAnimation } from '@/components/features/PaperworkSearchAnimation'
 import { getOrgTypeLabel, getOvernightVerificationModeLabel } from '@/lib/utils'
 
 interface Organization {
@@ -221,11 +222,7 @@ export default function OrganizationManagement() {
       {/* Organizations List */}
       <div className="space-y-4">
         {isLoading ? (
-          <Card>
-            <CardContent className="pt-6">
-              <div className="text-center py-8 text-gray-600">Loading organisations...</div>
-            </CardContent>
-          </Card>
+          <PaperworkSearchAnimation size="sm" text="Loading organisations…" />
         ) : organizations && organizations.length > 0 ? (
           organizations.map((org) => {
             const stats = orgStats?.[org.id] || { users: 0, zones: 0 }

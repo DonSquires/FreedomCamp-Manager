@@ -4,10 +4,11 @@
  */
 
 import { Loader2, RefreshCw } from 'lucide-react'
+import { PaperworkSearchAnimation } from './PaperworkSearchAnimation'
 
 interface LoadingSpinnerProps {
   size?: 'sm' | 'md' | 'lg' | 'xl'
-  variant?: 'spinner' | 'pulse' | 'bounce' | 'dots'
+  variant?: 'spinner' | 'pulse' | 'bounce' | 'dots' | 'paperwork'
   text?: string
   fullScreen?: boolean
 }
@@ -80,6 +81,11 @@ export function LoadingSpinner({
           </div>
         )
 
+      case 'paperwork': {
+        const animSize = size === 'sm' ? 'sm' : size === 'xl' ? 'lg' : 'md'
+        return <PaperworkSearchAnimation size={animSize} text={text} />
+      }
+
       default:
         return (
           <Loader2 className={`${sizeClasses[size]} animate-spin text-primary`} />
@@ -90,7 +96,7 @@ export function LoadingSpinner({
   const content = (
     <div className="flex flex-col items-center justify-center gap-3">
       {renderSpinner()}
-      {text && (
+      {text && variant !== 'paperwork' && (
         <p className={`${textSizeClasses[size]} text-muted-foreground`}>
           {text}
         </p>

@@ -39,6 +39,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatDateTime } from '@/lib/utils'
+import { PaperworkSearchAnimation } from '@/components/features/PaperworkSearchAnimation'
 
 interface EnforcementAction {
   id: string
@@ -266,7 +267,7 @@ export default function EnforcementReview() {
 
       {/* Actions list */}
       {isLoading ? (
-        <div className="text-center py-12 text-muted-foreground">Loading…</div>
+        <PaperworkSearchAnimation size="sm" text="Loading enforcement actions…" />
       ) : filtered.length === 0 ? (
         <Card>
           <CardContent className="py-16 text-center">

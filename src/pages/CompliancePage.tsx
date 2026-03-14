@@ -56,6 +56,7 @@ import {
 } from '@/components/ui/table';
 import { formatDateTime } from '@/lib/utils';
 import { getObservationPhotoUrl } from '@/lib/photoUtils';
+import { PaperworkSearchAnimation } from '@/components/features/PaperworkSearchAnimation';
 
 // ============================================================================
 // Types
@@ -98,9 +99,7 @@ function cn(...c: (string | boolean | undefined)[]) {
 
 function Spinner() {
   return (
-    <div className="flex items-center justify-center py-12">
-      <RefreshCw className="w-6 h-6 animate-spin text-blue-500" />
-    </div>
+    <PaperworkSearchAnimation size="sm" text="Searching records…" />
   );
 }
 

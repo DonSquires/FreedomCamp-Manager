@@ -28,6 +28,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatDateTime } from '@/lib/utils'
+import { PaperworkSearchAnimation } from '@/components/features/PaperworkSearchAnimation'
 
 interface BreachNotice {
   id: string
@@ -209,7 +210,7 @@ export default function BreachNotices() {
 
       {/* List */}
       {isLoading ? (
-        <div className="text-center py-12 text-muted-foreground">Loading…</div>
+        <PaperworkSearchAnimation size="sm" text="Loading breach notices…" />
       ) : filtered.length === 0 ? (
         <Card>
           <CardContent className="py-16 text-center">
