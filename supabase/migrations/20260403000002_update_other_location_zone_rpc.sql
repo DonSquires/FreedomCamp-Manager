@@ -104,8 +104,8 @@ COMMENT ON FUNCTION public.ensure_other_location_zone IS
 --    The fallback lookup now joins organizations to build the expected name.
 -- ---------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.find_zone_by_gps(
-  p_latitude       FLOAT,
-  p_longitude      FLOAT,
+  p_latitude       NUMERIC,
+  p_longitude      NUMERIC,
   p_organization_id UUID DEFAULT NULL
 )
 RETURNS TABLE (
@@ -296,7 +296,7 @@ END;
 $$;
 
 -- Grant execute permission
-GRANT EXECUTE ON FUNCTION public.find_zone_by_gps TO authenticated, anon;
+GRANT EXECUTE ON FUNCTION public.find_zone_by_gps(NUMERIC, NUMERIC, UUID) TO authenticated, anon;
 
 COMMENT ON FUNCTION public.find_zone_by_gps IS
   'Find zone by GPS coordinates using geofence matching, proximity, or '
