@@ -40,6 +40,27 @@ CREATE POLICY admins_update_person_observations ON public.person_observations
 -- ZONE_SIGNAGE_EVIDENCE TABLE
 -- ===========================================
 
+-- Defensive guard: ensure the table exists before managing its policies.
+-- The canonical schema is defined in migration 20260219000002_evidence_integrity_and_legal_compliance.sql.
+-- This CREATE TABLE IF NOT EXISTS is intentionally kept in sync with that definition; if the
+-- canonical schema changes, update both files.  If the table already exists this is a no-op.
+CREATE TABLE IF NOT EXISTS zone_signage_evidence (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  zone_id UUID NOT NULL REFERENCES zones(id) ON DELETE CASCADE,
+  photo_url TEXT NOT NULL,
+  photo_sha256 TEXT NOT NULL,
+  signage_type TEXT CHECK(signage_type IN ('restriction_notice', 'bylaw_reference', 'prohibitory', 'regulatory', 'warning')),
+  captured_by UUID REFERENCES user_profiles(id) ON DELETE SET NULL,
+  captured_at TIMESTAMPTZ DEFAULT now(),
+  gps_latitude NUMERIC(10,8),
+  gps_longitude NUMERIC(11,8),
+  notes TEXT,
+  is_current BOOLEAN DEFAULT true,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+ALTER TABLE zone_signage_evidence ENABLE ROW LEVEL SECURITY;
+
 DROP POLICY IF EXISTS "admins_manage_zone_signage" ON zone_signage_evidence;
 
 CREATE POLICY "admins_manage_zone_signage"
