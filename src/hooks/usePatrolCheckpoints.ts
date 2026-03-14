@@ -2,11 +2,16 @@
  * usePatrolCheckpoints
  * Data access and mutations for QR/NFC patrol checkpoints.
  * Supports Lone Worker Protocol (Health & Safety at Work Act 2015).
+ *
+ * Checkpoints can be:
+ *  - manual:         admin-created QR/NFC checkpoints
+ *  - geofence_zone:  auto-generated from zones with geofence data
  */
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
+import { syncZoneCheckpoints } from '@/lib/geofence'
 import { toast } from 'sonner'
 
 interface PatrolCheckpoint {
@@ -23,6 +28,7 @@ interface PatrolCheckpoint {
   required_on_patrol: boolean
   check_in_radius_metres: number
   created_by: string | null
+  checkpoint_type: 'manual' | 'geofence_zone'
   created_at: string
   updated_at: string
 }
@@ -198,6 +204,32 @@ export function useRecordCheckpointVisit() {
     },
     onError: (error: Error) => {
       toast.error(error.message || 'Checkpoint check-in failed')
+    },
+  })
+}
+
+/**
+ * Sync all geofenced zones as patrol checkpoints for the current organisation.
+ * Calls the server-side sync_geofence_zone_checkpoints RPC which creates a
+ * checkpoint (checkpoint_type = 'geofence_zone') for every active zone that
+ * has location_lat/lng and doesn't already have one.
+ */
+export function useSyncZoneCheckpoints() {
+  const { user } = useAuthStore()
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async () => {
+      if (!user?.organization_id) {
+        throw new Error('Session expired. Please log in again.')
+      }
+      return syncZoneCheckpoints(user.organization_id)
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['patrol-checkpoints'] })
+    },
+    onError: (error: Error) => {
+      toast.error(error.message || 'Zone checkpoint sync failed')
     },
   })
 }

@@ -919,6 +919,7 @@ export interface Database {
           required_on_patrol: boolean
           check_in_radius_metres: number
           created_by: string | null
+          checkpoint_type: 'manual' | 'geofence_zone'
           created_at: string
           updated_at: string
         }
@@ -936,6 +937,7 @@ export interface Database {
           required_on_patrol?: boolean
           check_in_radius_metres?: number
           created_by?: string | null
+          checkpoint_type?: 'manual' | 'geofence_zone'
           created_at?: string
           updated_at?: string
         }
@@ -953,6 +955,7 @@ export interface Database {
           required_on_patrol?: boolean
           check_in_radius_metres?: number
           created_by?: string | null
+          checkpoint_type?: 'manual' | 'geofence_zone'
           created_at?: string
           updated_at?: string
         }
@@ -1002,6 +1005,97 @@ export interface Database {
           gps_distance_from_checkpoint?: number | null
           visited_at?: string
           notes?: string | null
+          created_at?: string
+        }
+      }
+      officer_shifts: {
+        Row: {
+          id: string
+          officer_id: string
+          organization_id: string
+          parent_zone_id: string | null
+          started_at: string
+          ended_at: string | null
+          end_reason: 'logout' | 'app_timeout' | 'manual' | 'zone_exit' | null
+          gps_start_lat: number | null
+          gps_start_lng: number | null
+          gps_end_lat: number | null
+          gps_end_lng: number | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          officer_id: string
+          organization_id: string
+          parent_zone_id?: string | null
+          started_at?: string
+          ended_at?: string | null
+          end_reason?: 'logout' | 'app_timeout' | 'manual' | 'zone_exit' | null
+          gps_start_lat?: number | null
+          gps_start_lng?: number | null
+          gps_end_lat?: number | null
+          gps_end_lng?: number | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          officer_id?: string
+          organization_id?: string
+          parent_zone_id?: string | null
+          started_at?: string
+          ended_at?: string | null
+          end_reason?: 'logout' | 'app_timeout' | 'manual' | 'zone_exit' | null
+          gps_start_lat?: number | null
+          gps_start_lng?: number | null
+          gps_end_lat?: number | null
+          gps_end_lng?: number | null
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      patrol_site_visits: {
+        Row: {
+          id: string
+          officer_id: string
+          organization_id: string
+          shift_id: string | null
+          zone_id: string
+          entered_at: string
+          exited_at: string | null
+          gps_entry_lat: number | null
+          gps_entry_lng: number | null
+          gps_exit_lat: number | null
+          gps_exit_lng: number | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          officer_id: string
+          organization_id: string
+          shift_id?: string | null
+          zone_id: string
+          entered_at?: string
+          exited_at?: string | null
+          gps_entry_lat?: number | null
+          gps_entry_lng?: number | null
+          gps_exit_lat?: number | null
+          gps_exit_lng?: number | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          officer_id?: string
+          organization_id?: string
+          shift_id?: string | null
+          zone_id?: string
+          entered_at?: string
+          exited_at?: string | null
+          gps_entry_lat?: number | null
+          gps_entry_lng?: number | null
+          gps_exit_lat?: number | null
+          gps_exit_lng?: number | null
           created_at?: string
         }
       }
