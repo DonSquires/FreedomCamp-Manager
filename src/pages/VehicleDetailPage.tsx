@@ -33,6 +33,7 @@ import { checkNZSCVCertification, enrichVehicleFromMotorWeb } from '@/lib/railwa
 import { getObservationPhotoUrl, getVehiclePhotoUrl } from '@/lib/photoUtils'
 import { PhotoWithFallback } from '@/components/features/PhotoWithFallback'
 import { VehiclePhotoGallery } from '@/components/features/VehiclePhotoGallery'
+import { isHomelessForUi } from '@/lib/homelessStatus'
 
 interface CanonicalVehicle {
   vehicle_id: string
@@ -64,6 +65,8 @@ interface Observation {
   photo_url: string | null
   is_compliant: boolean | null
   nights_stayed_this_month: number | null
+  breach_type: string | null
+  breach_reason: string | null
   zone: { name: string } | null
   recorded_by_user: { first_name: string; last_name: string } | null
 }
@@ -125,7 +128,7 @@ export default function VehicleDetailPage() {
         .from('observations')
         .select(`
           observation_id, recorded_at, gps_latitude, gps_longitude, photo, photo_url, is_compliant,
-          nights_stayed_this_month,
+          nights_stayed_this_month, breach_type, breach_reason,
           zone:zones!zone_id(name),
           recorded_by_user:user_profiles!recorded_by(first_name, last_name)
         `)
@@ -139,7 +142,16 @@ export default function VehicleDetailPage() {
 
       const { data, error } = await query
       if (error) throw error
-      return (data || []) as unknown as Observation[]
+
+      // Deduplicate: keep first occurrence for each exact recorded_at + zone combination
+      const seen = new Set<string>()
+      const deduped = (data || []).filter((obs: Observation) => {
+        const key = `${obs.recorded_at}:${obs.zone?.name || ''}`
+        if (seen.has(key)) return false
+        seen.add(key)
+        return true
+      })
+      return deduped as unknown as Observation[]
     },
     enabled: !!vehicle?.plate_number,
   })
@@ -481,7 +493,7 @@ export default function VehicleDetailPage() {
         {/* Observations */}
         <TabsContent value="observations" className="mt-4 space-y-2">
           <p className="text-xs text-muted-foreground">
-            Showing all recorded observations for this vehicle.
+            Showing all recorded observations for this vehicle (duplicates removed).
           </p>
           {loadingObs ? (
             <div className="text-center py-8 text-muted-foreground">Loading…</div>
@@ -503,9 +515,19 @@ export default function VehicleDetailPage() {
                     <div className="flex-1 min-w-0 space-y-0.5">
                       <div className="flex items-center gap-2 flex-wrap">
                         {obs.is_compliant === true && <Badge className="bg-green-600 text-xs">Compliant</Badge>}
-                        {obs.is_compliant === false && <Badge variant="destructive" className="text-xs">Breach</Badge>}
+                        {obs.is_compliant === false && (
+                          isHomelessForUi(vehicle.homeless_status)
+                            ? <Badge className="bg-purple-600 text-xs">Breach Exempt</Badge>
+                            : <Badge variant="destructive" className="text-xs">Breach</Badge>
+                        )}
                         {obs.is_compliant === null && <Badge variant="secondary" className="text-xs">Pending</Badge>}
+                        {obs.is_compliant === false && !isHomelessForUi(vehicle.homeless_status) && obs.breach_type && (
+                          <span className="text-xs text-red-500">{toTitleCase(obs.breach_type)}</span>
+                        )}
                       </div>
+                      {obs.is_compliant === false && !isHomelessForUi(vehicle.homeless_status) && obs.breach_reason && (
+                        <p className="text-xs text-muted-foreground">{obs.breach_reason}</p>
+                      )}
                       <div className="text-sm text-muted-foreground flex flex-wrap gap-3">
                         <span className="flex items-center gap-1">
                           <Calendar className="h-3 w-3" />
