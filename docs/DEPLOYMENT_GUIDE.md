@@ -69,7 +69,7 @@ Do not use a project JWT (`eyJ...`) for CLI auth.
 2. Repair obsolete short versions (known drift set):
 
 ```bash
-/tmp/supabase migration repair --status reverted 20250127 20260309 20260312 20260316 20260320 --yes
+/tmp/supabase migration repair --status reverted 20250127 20260309 20260312 20260313 20260316 20260320 --yes
 ```
 
 3. Retry push:

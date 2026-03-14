@@ -81,10 +81,12 @@ jobs:
           SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
         run: |
           set -euo pipefail
-          # Some older projects contain legacy migration versions (e.g. 20250127)
-          # that do not map cleanly to current timestamped migration history.
-          # Repair is safe and idempotent; ignore if version is absent.
-          supabase migration repair --status reverted 20250127 || true
+          # Known legacy migration versions that exist on remote as short-form entries
+          # (date-only, no timestamp) but map to full timestamped local files.
+          # Repair is safe and idempotent; each call is a no-op if the version is absent.
+          for version in 20250127 20260309 20260312 20260313 20260316 20260320; do
+            supabase migration repair --status reverted "$version" || true
+          done
 
       - name: Apply migrations
         env:
@@ -148,5 +150,20 @@ jobs:
           if supabase db push --include-all 2>&1 | tee "$LOG_FILE"; then
             exit 0
           fi
+
+          # If --include-all still reports remote-only versions, repair and retry once.
+          if grep -q "Remote migration versions not found in local migrations directory" "$LOG_FILE"; then
+            REVERT_VERSIONS=$(grep -oE 'supabase migration repair --status reverted [0-9 ]+' "$LOG_FILE" | sed -E 's/^supabase migration repair --status reverted //' | head -n1)
+            if [ -n "${REVERT_VERSIONS:-}" ]; then
+              echo "Post-include-all repair: reverting remote-only versions: $REVERT_VERSIONS"
+              # shellcheck disable=SC2086
+              supabase migration repair --status reverted $REVERT_VERSIONS || true
+              echo "Retrying supabase db push --include-all after post-repair..."
+              if supabase db push --include-all 2>&1 | tee "$LOG_FILE"; then
+                exit 0
+              fi
+            fi
+          fi
+
           cat "$LOG_FILE"
           exit 1
