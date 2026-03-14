@@ -45,6 +45,8 @@ interface SessionScan {
 interface BulkScanSessionProps {
   /** Called with (lat, lon) on every GPS fix — keeps man-down timer alive */
   recordGPSUpdate: (lat: number, lon: number) => void
+  /** Called after each scan capture — records vehicle_scan to officer_activity_log */
+  logVehicleScan?: (lat: number, lng: number, meta?: { observation_id?: string | null; zone_id?: string | null }) => void
   /** Active patrol session ID for incrementing vehicles_checked / breaches_found. Optional — counters are silently skipped when absent. */
   activePatrolId?: string | null
   orgWorkflow: string
@@ -81,6 +83,7 @@ function fmtTime(iso: string) {
 
 export function BulkScanSession({
   recordGPSUpdate,
+  logVehicleScan,
   activePatrolId,
   orgWorkflow,
   onIssueAction,
@@ -116,13 +119,27 @@ export function BulkScanSession({
     }
 
     setIsCapturing(true)
+    let scanLat: number | null = null
+    let scanLon: number | null = null
     try {
       const result = await captureAndSave(
         file,
         { id: user.id, organization_id: user.organization_id, full_name: user.full_name },
         zoneId,
-        recordGPSUpdate,
+        (lat, lon) => {
+          scanLat = lat
+          scanLon = lon
+          recordGPSUpdate(lat, lon)
+        },
       )
+
+      // Log vehicle_scan activity for live welfare tracking
+      if (scanLat !== null && scanLon !== null) {
+        logVehicleScan?.(scanLat, scanLon, {
+          observation_id: result.observationId,
+          zone_id:        result.zoneId,
+        })
+      }
 
       // Add to session list immediately as pending
       const newScan: SessionScan = {
@@ -151,7 +168,7 @@ export function BulkScanSession({
     } finally {
       setIsCapturing(false)
     }
-  }, [user, zoneId, recordGPSUpdate, activePatrolId, onScanSaved])
+  }, [user, zoneId, recordGPSUpdate, logVehicleScan, activePatrolId, onScanSaved])
 
   // ── Background polling for each pending scan ─────────────────────────────
   useEffect(() => {

@@ -16,6 +16,7 @@ import { BulkScanSession } from '@/components/features/BulkScanSession'
 import { OfficerFollowUpQueue } from '@/components/features/OfficerFollowUpQueue'
 import { captureAndSave } from '@/lib/scanPipeline'
 import { useManDownDetection } from '@/hooks/useManDownDetection'
+import { useOfficerGPSLogger } from '@/hooks/useOfficerGPSLogger'
 import {
   Camera, Map, FileText, History, AlertTriangle, MapPin, QrCode,
   ShieldAlert, CheckCircle, Shield, Megaphone, FileWarning, XCircle,
@@ -74,6 +75,10 @@ export default function FieldOfficerPortal() {
 
   // Man-Down Detection — records GPS updates and fires alert if stationary too long
   const { recordGPSUpdate, isManDownActive } = useManDownDetection()
+
+  // GPS Activity Logger — writes to officer_activity_log so admins can see officers
+  // on the live welfare-tracking map and the server-side welfare monitor can work
+  const { logGPSFix, logVehicleScan } = useOfficerGPSLogger()
 
   // Shift inactivity timeout — auto-ends shift after 15 min of app being backgrounded
   useShiftInactivityTimeout()
@@ -230,6 +235,8 @@ export default function FieldOfficerPortal() {
         (pos) => {
           setCurrentLocation({ latitude: pos.coords.latitude, longitude: pos.coords.longitude })
           recordGPSUpdate(pos.coords.latitude, pos.coords.longitude)
+          // Write to officer_activity_log for live welfare tracking map
+          logGPSFix(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy ?? undefined)
         },
         (err) => console.warn('GPS poll failed:', err.message),
         { enableHighAccuracy: true, timeout: 10000 },
@@ -265,16 +272,30 @@ export default function FieldOfficerPortal() {
       return
     }
     setIsProcessing(true)
+    // Capture the GPS fix from the scan pipeline so we can log it
+    let scanLat: number | null = null
+    let scanLon: number | null = null
     try {
       const result = await captureAndSave(
         file,
         { id: user.id, organization_id: user.organization_id, full_name: user.full_name },
         zoneId,
         (lat, lon) => {
+          scanLat = lat
+          scanLon = lon
           setCurrentLocation({ latitude: lat, longitude: lon })
           recordGPSUpdate(lat, lon)
+          logGPSFix(lat, lon)
         },
       )
+
+      // Log the vehicle scan activity for live welfare tracking
+      if (scanLat !== null && scanLon !== null) {
+        logVehicleScan(scanLat, scanLon, {
+          observation_id: result.observationId,
+          zone_id:        result.zoneId,
+        })
+      }
 
       toast.success('✅ Observation captured — detecting plate…', {
         duration: CAPTURE_TOAST_DURATION_MS,
@@ -313,7 +334,7 @@ export default function FieldOfficerPortal() {
     } finally {
       setIsProcessing(false)
     }
-  }, [user, zoneId, zoneName, recordGPSUpdate, refetchScans])
+  }, [user, zoneId, zoneName, recordGPSUpdate, logGPSFix, logVehicleScan, refetchScans])
 
   const handleViewHistory = () => {
     if (user?.role === 'officer') {
@@ -345,6 +366,7 @@ export default function FieldOfficerPortal() {
       {scanMode === 'bulk' ? (
         <BulkScanSession
           recordGPSUpdate={recordGPSUpdate}
+          logVehicleScan={logVehicleScan}
           orgWorkflow={orgWorkflow || 'admin_first'}
           onIssueAction={(p) => issueAction.mutate(p)}
           isIssuingAction={issueAction.isPending}
