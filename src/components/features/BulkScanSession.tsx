@@ -117,7 +117,7 @@ export function BulkScanSession({
     try {
       const result = await captureAndSave(
         file,
-        { id: user.id, organization_id: user.organization_id },
+        { id: user.id, organization_id: user.organization_id, full_name: user.full_name },
         zoneId,
         recordGPSUpdate,
       )

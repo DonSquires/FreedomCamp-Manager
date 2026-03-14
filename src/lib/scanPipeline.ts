@@ -6,6 +6,7 @@
  * Steps:
  *   1. GPS fix  (records to man-down detection via onGPSFix callback)
  *   2. Weather  (Open-Meteo, non-blocking)
+ *   2.5 Evidence watermark  (timestamp + GPS + officer name baked into photo)
  *   3. SHA-256 hash + upload to `scans` storage bucket
  *   4. Resolve zone  (preferred → other-location fallback)
  *   5. fast INSERT via safe_insert_observation RPC  (plate = 'PROCESSING...')
@@ -18,6 +19,7 @@ import { supabase } from '@/lib/supabase'
 import { edgeFunctions } from '@/lib/edgeFunctions'
 import { resolveObservationZoneForOrg } from '@/lib/zoneResolution'
 import { fetchWeatherOnDevice } from '@/lib/weather'
+import { applyEvidenceWatermark } from '@/lib/imageWatermarking'
 
 export interface ScanSaveResult {
   observationId: string
@@ -39,7 +41,7 @@ export interface ScanSaveResult {
  */
 export async function captureAndSave(
   file: File,
-  user: { id: string; organization_id: string },
+  user: { id: string; organization_id: string; full_name?: string | null },
   preferredZoneId: string | null,
   onGPSFix?: (lat: number, lon: number) => void,
 ): Promise<ScanSaveResult> {
@@ -60,6 +62,27 @@ export async function captureAndSave(
     if (w) weather = w
   } catch { /* non-critical */ }
 
+  // ── Step 2.5: Apply evidence watermark ────────────────────────────────────
+  // Watermark is baked into the uploaded photo for legal evidence requirements.
+  // Falls back to original file if Canvas is unavailable (e.g. non-browser env).
+  let uploadFile: Blob = file
+  try {
+    const captureTimeNZ = new Date().toLocaleString('en-NZ', {
+      dateStyle: 'short',
+      timeStyle: 'medium',
+      timeZone: 'Pacific/Auckland',
+    })
+    uploadFile = await applyEvidenceWatermark(file, {
+      timestamp: captureTimeNZ,
+      gpsCoordinates: `${latitude.toFixed(6)}°, ${longitude.toFixed(6)}°`,
+      userName: user.full_name || undefined,
+    })
+  } catch (err) {
+    // Watermarking failed — upload the original photo without a watermark
+    console.warn('⚠️ Watermarking failed — uploading original photo:', err)
+    uploadFile = file
+  }
+
   // ── Step 3: Hash + upload ─────────────────────────────────────────────────
   const timestamp  = Date.now()
   const randomHex  = Array.from(crypto.getRandomValues(new Uint8Array(8)))
@@ -70,7 +93,7 @@ export async function captureAndSave(
   // Compute SHA-256 before upload (File.arrayBuffer() does NOT consume the blob)
   let photoHash = `sha256:${randomHex}`
   try {
-    const buf    = await file.arrayBuffer()
+    const buf    = await uploadFile.arrayBuffer()
     const digest = await crypto.subtle.digest('SHA-256', buf)
     photoHash    = 'sha256:' + Array.from(new Uint8Array(digest))
       .map(b => b.toString(16).padStart(2, '0')).join('')
@@ -78,7 +101,7 @@ export async function captureAndSave(
 
   const { error: uploadErr } = await supabase.storage
     .from('scans')
-    .upload(filePath, file, { contentType: 'image/jpeg', upsert: false })
+    .upload(filePath, uploadFile, { contentType: 'image/jpeg', upsert: false })
   if (uploadErr) throw new Error(`Photo upload failed: ${uploadErr.message}`)
 
   const { data: urlData } = supabase.storage.from('scans').getPublicUrl(filePath)

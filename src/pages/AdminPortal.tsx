@@ -22,6 +22,7 @@ import {
   Clock3,
   Eye,
   Gavel,
+  Home,
   Layers,
   Map,
   Pin,
@@ -268,13 +269,31 @@ export default function AdminPortal() {
       const { count: activeBreaches, error: breachError } = await breachesQuery
       if (breachError) diagnostics.push(`breach_alerts_active: ${breachError.message || 'unknown error'}`)
 
+      // ── 6. Homeless-exempt breach count ──────────────────────────────────
+      // Count non-compliant observations where the plate belongs to a homeless vehicle.
+      // This is the exact number of "breaches" that are actually FC Act exempt.
+      let homelessExemptBreachCount = 0
+      const homelessPlateList = Array.from(homelessPlates)
+      if (homelessPlateList.length > 0) {
+        const { count: exemptCount, error: exemptErr } = await applyFilters(
+          supabase
+            .from('observations')
+            .select('observation_id', { count: 'exact', head: true })
+            .eq('is_compliant', false)
+            .in('plate_number', homelessPlateList)
+        )
+        if (exemptErr) diagnostics.push(`homeless_exempt_breaches: ${exemptErr.message || 'unknown error'}`)
+        homelessExemptBreachCount = exemptCount ?? 0
+      }
+
       return {
         totalObservations: totalObservations ?? 0,
         compliantCount:    compliantCount    ?? 0,
         activeVehicles,
         trendRows,
         homelessPlates: Array.from(homelessPlates),
-        activeBreaches:    activeBreaches    ?? 0,
+        activeBreaches:            activeBreaches            ?? 0,
+        homelessExemptBreachCount,
         diagnostics,
       }
     },
@@ -331,12 +350,14 @@ export default function AdminPortal() {
     }
 
     // Exclude homeless-exempt observations from breach count.
-    // totalBreaches should only include genuine non-compliant, non-exempt observations.
-    const totalBreaches = totalObservations - compliant - homelessExemptTotal
+    // Prefer the precise server-side count; fall back to the trend-row tally
+    // in case the new field hasn't loaded yet.
+    const homelessExemptBreaches = data?.homelessExemptBreachCount ?? homelessExemptTotal
+    const totalBreaches = Math.max(0, totalObservations - compliant - homelessExemptBreaches)
     const homelessVehicleCount = data?.homelessPlates?.length ?? 0
 
     // Adjust compliance rate: homeless-exempt observations are not breaches.
-    const effectiveCompliant = compliant + homelessExemptTotal
+    const effectiveCompliant = compliant + homelessExemptBreaches
     const adjustedComplianceRate = totalObservations > 0
       ? Math.round((effectiveCompliant / totalObservations) * 100)
       : 0
@@ -346,8 +367,9 @@ export default function AdminPortal() {
       complianceRate: adjustedComplianceRate,
       activeVehicles,
       activeBreaches: data?.activeBreaches ?? 0,
-      totalBreaches: Math.max(0, totalBreaches),
+      totalBreaches,
       homelessVehicleCount,
+      homelessExemptBreaches,
       trendData,
     }
   }, [data, normalizedDateFrom, normalizedDateTo])
@@ -525,6 +547,7 @@ export default function AdminPortal() {
   const kpiDrilldowns: Array<{
     title: string
     value: string | number
+    subtitle?: string
     config: DrillConfig
     icon: React.FC<{ className?: string }>
     iconBg: string
@@ -552,11 +575,22 @@ export default function AdminPortal() {
     {
       title: 'Total Breaches',
       value: isLoading ? '...' : metrics.totalBreaches,
+      subtitle: isLoading ? undefined : `+${metrics.homelessExemptBreaches} exempt`,
       icon: AlertTriangle,
       iconBg: 'bg-red-100 dark:bg-red-900/40',
       iconColor: 'text-red-600 dark:text-red-400',
       accentColor: 'from-red-500 to-red-600',
       config: { to: '/compliance', metric: 'active_breaches', period: periodLabel, tab: 'breaches', label: 'Total Breaches KPI' },
+    },
+    {
+      title: 'Exempt Breaches',
+      value: isLoading ? '...' : metrics.homelessExemptBreaches,
+      subtitle: 'FC Act (homeless)',
+      icon: Home,
+      iconBg: 'bg-purple-100 dark:bg-purple-900/40',
+      iconColor: 'text-purple-600 dark:text-purple-400',
+      accentColor: 'from-purple-500 to-purple-600',
+      config: { to: '/compliance', metric: 'homeless_status', period: periodLabel, tab: 'homeless', label: 'Exempt Breaches KPI' },
     },
     {
       title: 'Active Vehicles',
@@ -587,7 +621,7 @@ export default function AdminPortal() {
 
       <div className="space-y-6">
         {/* KPI Cards */}
-        <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+        <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6">
           {kpiDrilldowns.map((kpi) => {
             const Icon = kpi.icon
             return (
@@ -611,6 +645,9 @@ export default function AdminPortal() {
                   </div>
                 </CardHeader>
                 <CardContent className="pt-0 pb-3">
+                  {kpi.subtitle && (
+                    <p className="text-xs text-muted-foreground mb-1">{kpi.subtitle}</p>
+                  )}
                   <button
                     type="button"
                     className="text-xs text-muted-foreground hover:text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity hover:underline"

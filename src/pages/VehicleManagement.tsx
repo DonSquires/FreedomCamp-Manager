@@ -1039,11 +1039,15 @@ export default function VehicleManagement() {
                     </div>
                     <div className="flex items-center justify-between text-sm">
                       <span className="text-gray-600">Breaches:</span>
-                      <span
-                        className={`font-medium ${vehicle.total_breaches > 0 ? 'text-red-600' : 'text-green-600'}`}
-                      >
-                        {vehicle.total_breaches}
-                      </span>
+                      {isHomelessForUi(vehicle.homeless_status) ? (
+                        <span className="font-medium text-purple-600">Exempt (FC Act)</span>
+                      ) : (
+                        <span
+                          className={`font-medium ${vehicle.total_breaches > 0 ? 'text-red-600' : 'text-green-600'}`}
+                        >
+                          {vehicle.total_breaches}
+                        </span>
+                      )}
                     </div>
 
                     <div className="flex flex-wrap gap-1 mt-3">
