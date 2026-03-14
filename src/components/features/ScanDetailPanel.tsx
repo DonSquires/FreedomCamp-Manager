@@ -59,6 +59,17 @@ export interface DetailScanData {
   vehicleMoved: boolean | null
   isNewVehicle: boolean
   officerNotes: string | null
+  /** true when process-officer-scan detected at least one cross-source data discrepancy */
+  hasDiscrepancies: boolean
+  /** Summary of detected discrepancies — null/empty when none */
+  discrepancyFlags: Array<{
+    type: string
+    severity: 'warning' | 'critical'
+    source_a: string
+    source_b: string
+    value_a: string | null
+    value_b: string | null
+  }> | null
 }
 
 interface IssueActionParams {
@@ -206,6 +217,7 @@ export function ScanDetailPanel({
           'observation_id, plate_number, is_compliant, breach_type, officer_notes,' +
           'vehicle_make, vehicle_model, vehicle_year, vehicle_color,' +
           'self_contained, self_contained_expiry, zone_id,' +
+          'has_discrepancies, discrepancy_flags,' +
           'zone:zones!zone_id(name)'
         )
         .eq('observation_id', obs.observationId)
@@ -236,6 +248,8 @@ export function ScanDetailPanel({
         isSelfContained:   !!data.self_contained,
         selfContainedExpiry: data.self_contained_expiry ?? prev.selfContainedExpiry,
         officerNotes:      data.officer_notes        ?? prev.officerNotes,
+        hasDiscrepancies:  !!(data.has_discrepancies),
+        discrepancyFlags:  Array.isArray(data.discrepancy_flags) ? data.discrepancy_flags : prev.discrepancyFlags,
       } : prev)
 
       // Update edit fields if not currently editing
@@ -433,6 +447,54 @@ export function ScanDetailPanel({
                 )}
               </div>
             )}
+
+            {/* ── Discrepancy warnings ──────────────────────────────── */}
+            {!pending && obs.hasDiscrepancies && obs.discrepancyFlags && obs.discrepancyFlags.length > 0 && (() => {
+              const hasCritical = obs.discrepancyFlags.some(d => d.severity === 'critical')
+              const borderColor = hasCritical
+                ? 'border-red-400 bg-red-50 dark:bg-red-950/30'
+                : 'border-amber-400 bg-amber-50 dark:bg-amber-950/30'
+              const titleColor = hasCritical
+                ? 'text-red-700 dark:text-red-300'
+                : 'text-amber-800 dark:text-amber-300'
+              const icon = hasCritical ? '🚨' : '⚠️'
+              const title = hasCritical
+                ? 'Critical: Data Integrity Issue Detected'
+                : 'Data Discrepancies Detected'
+              const fmt = (s: string) =>
+                s.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+              return (
+                <div className={`rounded-xl border-2 p-3 space-y-2 ${borderColor}`}>
+                  <p className={`text-xs font-semibold uppercase tracking-wide flex items-center gap-1.5 ${titleColor}`}>
+                    <ShieldAlert className="h-3.5 w-3.5 shrink-0" />
+                    {icon} {title}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Cross-source data check found inconsistencies. Admin has been alerted. Please verify the vehicle manually.
+                  </p>
+                  <div className="space-y-1.5">
+                    {obs.discrepancyFlags.map((d, i) => (
+                      <div key={i} className="rounded-lg border bg-white/60 dark:bg-black/20 p-2 text-xs">
+                        <div className="flex items-center gap-1.5 mb-0.5">
+                          <Badge
+                            variant={d.severity === 'critical' ? 'destructive' : 'outline'}
+                            className="text-[10px] h-4 px-1.5"
+                          >
+                            {d.severity === 'critical' ? '🚨 Critical' : '⚠️ Warning'}
+                          </Badge>
+                          <span className="font-medium text-foreground">{fmt(d.type)}</span>
+                        </div>
+                        <p className="text-muted-foreground">
+                          {fmt(d.source_a)}: <span className="font-mono">{d.value_a ?? '—'}</span>
+                          {' vs '}
+                          {fmt(d.source_b)}: <span className="font-mono">{d.value_b ?? '—'}</span>
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )
+            })()}
 
             {/* Editable vehicle fields */}
             <div className="flex items-center justify-between">

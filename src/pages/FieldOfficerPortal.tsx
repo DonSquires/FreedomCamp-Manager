@@ -246,6 +246,8 @@ export default function FieldOfficerPortal() {
         vehicleMoved:        null,
         isNewVehicle:        false,
         officerNotes:        result.weather !== 'Unknown' ? `Weather: ${result.weather}` : null,
+        hasDiscrepancies:    false,
+        discrepancyFlags:    null,
       })
       setDetailCameraOpen(false)
       setShowDetailPanel(true)

@@ -1119,7 +1119,7 @@ export default function BreachAlerts() {
                           <Badge variant="outline" className="text-xs text-orange-600">Max allowed: {activeBreach.breach_details.max_allowed}</Badge>
                         )}
                         {Object.entries(activeBreach.breach_details).map(([k, v]) => (
-                          !['nights_count', 'consecutive_nights', 'max_allowed', 'observation_id'].includes(k) && (
+                          !['nights_count', 'consecutive_nights', 'max_allowed', 'observation_id', 'discrepancies', 'sc_law_active', 'violation_reasons'].includes(k) && (
                             <Badge key={k} variant="outline" className="text-xs capitalize">
                               {k.replace(/_/g, ' ')}: {String(v)}
                             </Badge>
@@ -1128,6 +1128,51 @@ export default function BreachAlerts() {
                       </div>
                     </div>
                   )}
+
+                  {/* Data Discrepancy Warnings */}
+                  {activeBreach.breach_details?.discrepancies && Array.isArray(activeBreach.breach_details.discrepancies) && activeBreach.breach_details.discrepancies.length > 0 && (() => {
+                    const discs: any[] = activeBreach.breach_details.discrepancies
+                    const hasCritical  = discs.some((d: any) => d.severity === 'critical')
+                    const fmtLabel     = (s: string) => s.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+                    return (
+                      <div className={`rounded-lg p-3 border-2 ${hasCritical ? 'border-red-400 bg-red-50 dark:bg-red-950/30' : 'border-amber-400 bg-amber-50 dark:bg-amber-950/30'}`}>
+                        <p className={`text-xs font-semibold uppercase mb-2 flex items-center gap-1.5 ${hasCritical ? 'text-red-700 dark:text-red-300' : 'text-amber-800 dark:text-amber-300'}`}>
+                          {hasCritical ? '🚨 Critical Data Integrity Issues' : '⚠️ Data Discrepancies Detected'}
+                          {activeBreach.breach_details.sc_law_active && (
+                            <Badge variant="destructive" className="text-[10px] h-4 px-1.5 ml-1">SC Law Active</Badge>
+                          )}
+                        </p>
+                        <p className="text-xs text-muted-foreground mb-2">
+                          Cross-source data check found inconsistencies for this vehicle. Review carefully before taking enforcement action.
+                        </p>
+                        <div className="space-y-1.5">
+                          {discs.map((d: any, i: number) => (
+                            <div key={i} className="rounded border bg-white/60 dark:bg-black/20 p-2 text-xs">
+                              <div className="flex items-center gap-1.5 mb-0.5">
+                                <Badge
+                                  variant={d.severity === 'critical' ? 'destructive' : 'outline'}
+                                  className="text-[10px] h-4 px-1.5"
+                                >
+                                  {d.severity === 'critical' ? '🚨 Critical' : '⚠️ Warning'}
+                                </Badge>
+                                <span className="font-medium">{fmtLabel(d.type ?? '')}</span>
+                              </div>
+                              {(d.value_a !== null || d.value_b !== null) && (
+                                <p className="text-muted-foreground">
+                                  {fmtLabel(d.source_a ?? '')}: <span className="font-mono">{d.value_a ?? '—'}</span>
+                                  {' vs '}
+                                  {fmtLabel(d.source_b ?? '')}: <span className="font-mono">{d.value_b ?? '—'}</span>
+                                </p>
+                              )}
+                              {d.note && (
+                                <p className="text-muted-foreground mt-0.5 italic">{d.note}</p>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )
+                  })()}
 
                   {/* Homeless Claim Status */}
                   {triggeringObservation && (

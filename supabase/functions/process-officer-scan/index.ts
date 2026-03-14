@@ -11,17 +11,24 @@
 // Pipeline:
 //   1.  Validate auth + load observation (verify ownership)
 //   2.  Download photo bytes from Supabase Storage
-//   3.  Railway inference  → plate candidate + vehicle embedding
+//   3.  Railway inference  → plate candidate + vehicle embedding + sticker detection
+//       + make/model/colour/sticker presence (all optional)
 //   4.  ALPR backup (Plate Recognizer) if inference returns no plate
 //   5.  NZSCV lookup  → self-contained certificate status + expiry date (guaranteed)
 //       + make/model/year/vin/colour/maxOccupants when provided (optional/nullable)
+//   5b. Cross-source discrepancy detection:
+//       - SC sticker presence (inference) vs NZSCV register
+//       - make/model/colour: inference vs NZSCV vs canonical_vehicles
+//       - plate-mismatch-same-vehicle (embedding similarity ≥ 0.85, different plate)
+//       - Writes to vehicle_discrepancies table; raises breach_alert for critical items
+//       - SC law enforcement date: 1 June 2026
 //   6.  Movement detection (cosine similarity vs prior observation embedding)
 //   7.  Upsert canonical_vehicles with enriched data
-//   8.  UPDATE observation: plate, embedding, SC status
+//   8.  UPDATE observation: plate, embedding, SC status, sticker, discrepancy flags
 //   9.  Inline compliance evaluation (zone-matrix rules)
 //   10. UPDATE observation: is_compliant + breach fields
 //   11. INSERT / UPDATE compliance_results row
-//   12. INSERT breach_alert if non-compliant
+//   12. INSERT breach_alert if non-compliant OR critical discrepancy
 //   13. Return enriched observation
 // ============================================================================
 
@@ -123,12 +130,30 @@ interface InferenceResult {
   embedding: number[] | null;
   embeddingQuality: number | null;
   path: string;
+  // Optional vehicle detail fields from inference service
+  inferMake:   string | null;
+  inferModel:  string | null;
+  inferColour: string | null;
+  inferMakeConf:   number | null;
+  inferModelConf:  number | null;
+  inferColourConf: number | null;
+  // SC sticker detection from inference service (tri-state: true/false/null=inconclusive)
+  stickerPresence: boolean | null;
+  stickerColor:    string | null;
+  stickerConf:     number | null;
 }
 
 async function callInference(imageBytes: Uint8Array): Promise<InferenceResult> {
+  const empty: InferenceResult = {
+    plate: null, confidence: null, embedding: null, embeddingQuality: null,
+    path: 'no_inference_url',
+    inferMake: null, inferModel: null, inferColour: null,
+    inferMakeConf: null, inferModelConf: null, inferColourConf: null,
+    stickerPresence: null, stickerColor: null, stickerConf: null,
+  };
   if (!INFERENCE_SERVICE_URL) {
     console.warn('⚠️ INFERENCE_SERVICE_URL not configured — skipping inference');
-    return { plate: null, confidence: null, embedding: null, embeddingQuality: null, path: 'no_inference_url' };
+    return empty;
   }
   try {
     const form = new FormData();
@@ -141,16 +166,31 @@ async function callInference(imageBytes: Uint8Array): Promise<InferenceResult> {
     if (!res.ok) throw new Error(`Inference ${res.status}`);
     const data = await res.json();
     const d = data?.data ?? data;
+
+    // Sticker detection — tri-state per inference contract v1
+    const s = d?.sticker;
+    const stickerPresence: boolean | null =
+      s?.presence !== undefined && s?.presence !== null ? Boolean(s.presence) : null;
+
     return {
-      plate: normalizePlate(d?.plate ?? null),
-      confidence: d?.confidence ?? null,
-      embedding: Array.isArray(d?.embedding) ? d.embedding : null,
+      plate:           normalizePlate(d?.plate_number ?? d?.plate ?? null),
+      confidence:      d?.detection?.confidence ?? d?.confidence ?? null,
+      embedding:       Array.isArray(d?.embedding) ? d.embedding : null,
       embeddingQuality: d?.embedding_quality ?? null,
-      path: 'railway_inference',
+      path:            'railway_inference',
+      inferMake:       d?.vehicle_make   ? String(d.vehicle_make)   : null,
+      inferModel:      d?.vehicle_model  ? String(d.vehicle_model)  : null,
+      inferColour:     d?.vehicle_colour ? String(d.vehicle_colour) : null,
+      inferMakeConf:   d?.vehicle_make_confidence   ?? null,
+      inferModelConf:  d?.vehicle_model_confidence  ?? null,
+      inferColourConf: d?.vehicle_colour_confidence ?? null,
+      stickerPresence,
+      stickerColor:    s?.color ?? null,
+      stickerConf:     s?.detection_confidence ?? null,
     };
   } catch (err: any) {
     console.error('❌ Inference failed:', err.message);
-    return { plate: null, confidence: null, embedding: null, embeddingQuality: null, path: 'inference_error' };
+    return { ...empty, path: 'inference_error' };
   }
 }
 
@@ -431,7 +471,7 @@ Deno.serve(async (req: Request) => {
     // ── Step 1: Load observation ────────────────────────────────────────────
     const { data: obs, error: obsLoadError } = await supabase
       .from('observations')
-      .select('observation_id, organization_id, zone_id, recorded_at, recorded_by, plate_number, is_compliant')
+      .select('observation_id, organization_id, zone_id, recorded_at, recorded_by, plate_number, is_compliant, sticker_presence, sticker_color')
       .eq('observation_id', observationId)
       .maybeSingle();
 
@@ -511,32 +551,319 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    // ── Step 6: Movement detection ────────────────────────────────────────
+    // ── Step 5b: Cross-source discrepancy detection ───────────────────────
+    // The Freedom Camping (Self-Contained Vehicles) Amendment Act comes into
+    // force on 1 June 2026.  After that date SC discrepancies become critical.
+    const SC_LAW_DATE = new Date('2026-06-01T00:00:00+12:00'); // NZ midnight
+    const obsDate     = new Date(recordedAt);
+    const scLawActive = obsDate >= SC_LAW_DATE;
+
+    // --- discrepancy helper types ---
+    interface Discrepancy {
+      discrepancy_type: string;
+      source_a: string;
+      source_b: string;
+      value_a: string | null;
+      value_b: string | null;
+      severity: 'warning' | 'critical';
+      sc_law_active: boolean;
+      details: Record<string, unknown>;
+    }
+
+    const discrepancies: Discrepancy[] = [];
+
+    // Effective sticker presence: prefer fresh inference result, fall back to
+    // whatever was stored on the observation by a prior pipeline call.
+    const effectiveStickerPresence: boolean | null =
+      inference.stickerPresence !== null
+        ? inference.stickerPresence
+        : (obs.sticker_presence !== undefined ? (obs.sticker_presence as boolean | null) : null);
+
+    // --- 1. SC sticker vs NZSCV register ---
+    if (nzscv !== null && effectiveStickerPresence !== null && plate) {
+      if (effectiveStickerPresence === true && !nzscv.isSelfContained) {
+        // Sticker on vehicle but NOT in NZSCV register → potential fraudulent sticker
+        discrepancies.push({
+          discrepancy_type: 'sc_sticker_not_in_register',
+          source_a: 'inference',
+          source_b: 'nzscv',
+          value_a: `sticker_present (color=${inference.stickerColor ?? 'unknown'}, conf=${(inference.stickerConf ?? 0).toFixed(2)})`,
+          value_b: 'not_in_register',
+          severity: 'critical',
+          sc_law_active: scLawActive,
+          details: {
+            sticker_color:    inference.stickerColor ?? obs.sticker_color ?? null,
+            sticker_conf:     inference.stickerConf,
+            nzscv_status:     'not_found_or_expired',
+            nzscv_expiry:     nzscv.selfContainedExpiry,
+            note: scLawActive
+              ? 'SC law active (1 Jun 2026): physical sticker present but not registered — potential fraud'
+              : 'Sticker present on vehicle but no valid NZSCV registration — verify manually',
+          },
+        });
+      } else if (effectiveStickerPresence === false && nzscv.isSelfContained) {
+        // No sticker visible but NZSCV says self-contained → sticker may be hidden, damaged, or removed
+        discrepancies.push({
+          discrepancy_type: 'sc_in_register_no_sticker',
+          source_a: 'nzscv',
+          source_b: 'inference',
+          value_a: `in_register (expiry=${nzscv.selfContainedExpiry ?? 'unknown'})`,
+          value_b: 'no_sticker_detected',
+          severity: scLawActive ? 'critical' : 'warning',
+          sc_law_active: scLawActive,
+          details: {
+            nzscv_expiry: nzscv.selfContainedExpiry,
+            sticker_conf: inference.stickerConf,
+            note: 'Vehicle is on the NZSCV register but no SC sticker was detected — sticker may be hidden, faded, or removed',
+          },
+        });
+      }
+    } else if (nzscv !== null && effectiveStickerPresence === null && plate) {
+      // Sticker detection was inconclusive — flag for manual review
+      discrepancies.push({
+        discrepancy_type: 'sc_sticker_inconclusive',
+        source_a: 'inference',
+        source_b: 'nzscv',
+        value_a: 'inconclusive',
+        value_b: nzscv.isSelfContained ? 'in_register' : 'not_in_register',
+        severity: 'warning',
+        sc_law_active: scLawActive,
+        details: {
+          sticker_conf:  inference.stickerConf,
+          nzscv_status: nzscv.isSelfContained ? 'registered' : 'not_registered',
+          nzscv_expiry: nzscv.selfContainedExpiry,
+          note: 'Sticker detection was inconclusive — manual review required to confirm SC status',
+        },
+      });
+    }
+
+    // --- 2. Load canonical vehicle for cross-source attribute comparison ---
+    let canonicalMake:   string | null = null;
+    let canonicalModel:  string | null = null;
+    let canonicalColour: string | null = null;
+    if (plate) {
+      try {
+        const { data: cv } = await supabase
+          .from('canonical_vehicles')
+          .select('vehicle_make, vehicle_model, vehicle_color')
+          .eq('plate_number', plate)
+          .maybeSingle();
+        canonicalMake   = cv?.vehicle_make  ?? null;
+        canonicalModel  = cv?.vehicle_model ?? null;
+        canonicalColour = cv?.vehicle_color ?? null;
+      } catch { /* non-critical */ }
+    }
+
+    // Normalise helper — lowercase, trim, remove punctuation for fuzzy compare
+    const norm = (v: string | null | undefined) =>
+      v ? v.toLowerCase().trim().replace(/[^a-z0-9]/g, '') : null;
+
+    // --- 3. Make mismatch ---
+    if (inference.inferMake && plate) {
+      const infN = norm(inference.inferMake);
+      const nzN  = norm(nzscv?.make);
+      const canN = norm(canonicalMake);
+      if (nzN && infN !== nzN) {
+        discrepancies.push({
+          discrepancy_type: 'make_mismatch',
+          source_a: 'inference',
+          source_b: 'nzscv',
+          value_a: inference.inferMake,
+          value_b: nzscv?.make ?? null,
+          severity: 'warning',
+          sc_law_active: scLawActive,
+          details: { inference_conf: inference.inferMakeConf },
+        });
+      } else if (canN && infN !== canN) {
+        discrepancies.push({
+          discrepancy_type: 'make_mismatch',
+          source_a: 'inference',
+          source_b: 'canonical',
+          value_a: inference.inferMake,
+          value_b: canonicalMake,
+          severity: 'warning',
+          sc_law_active: scLawActive,
+          details: { inference_conf: inference.inferMakeConf },
+        });
+      }
+    }
+
+    // --- 4. Model mismatch ---
+    if (inference.inferModel && plate) {
+      const infN = norm(inference.inferModel);
+      const nzN  = norm(nzscv?.model);
+      const canN = norm(canonicalModel);
+      if (nzN && infN !== nzN) {
+        discrepancies.push({
+          discrepancy_type: 'model_mismatch',
+          source_a: 'inference',
+          source_b: 'nzscv',
+          value_a: inference.inferModel,
+          value_b: nzscv?.model ?? null,
+          severity: 'warning',
+          sc_law_active: scLawActive,
+          details: { inference_conf: inference.inferModelConf },
+        });
+      } else if (canN && infN !== canN) {
+        discrepancies.push({
+          discrepancy_type: 'model_mismatch',
+          source_a: 'inference',
+          source_b: 'canonical',
+          value_a: inference.inferModel,
+          value_b: canonicalModel,
+          severity: 'warning',
+          sc_law_active: scLawActive,
+          details: { inference_conf: inference.inferModelConf },
+        });
+      }
+    }
+
+    // --- 5. Colour mismatch ---
+    if (inference.inferColour && plate) {
+      const infN = norm(inference.inferColour);
+      const nzN  = norm(nzscv?.colour);
+      const canN = norm(canonicalColour);
+      if (nzN && infN !== nzN) {
+        discrepancies.push({
+          discrepancy_type: 'colour_mismatch',
+          source_a: 'inference',
+          source_b: 'nzscv',
+          value_a: inference.inferColour,
+          value_b: nzscv?.colour ?? null,
+          severity: 'warning',
+          sc_law_active: scLawActive,
+          details: { inference_conf: inference.inferColourConf },
+        });
+      } else if (canN && infN !== canN) {
+        discrepancies.push({
+          discrepancy_type: 'colour_mismatch',
+          source_a: 'inference',
+          source_b: 'canonical',
+          value_a: inference.inferColour,
+          value_b: canonicalColour,
+          severity: 'warning',
+          sc_law_active: scLawActive,
+          details: { inference_conf: inference.inferColourConf },
+        });
+      }
+    }
+
+    console.log(`🔍 Discrepancy check: ${discrepancies.length} found for plate ${plate ?? '(unknown)'}`);
+
+    // --- Persist discrepancies ---
+    const hasDiscrepancies = discrepancies.length > 0;
+    if (hasDiscrepancies) {
+      try {
+        const rows = discrepancies.map(d => ({
+          observation_id:   observationId,
+          plate_number:     plate,
+          organization_id:  organizationId,
+          zone_id:          zoneId,
+          discrepancy_type: d.discrepancy_type,
+          source_a:         d.source_a,
+          source_b:         d.source_b,
+          value_a:          d.value_a,
+          value_b:          d.value_b,
+          severity:         d.severity,
+          sc_law_active:    d.sc_law_active,
+          details:          d.details,
+          requires_review:  true,
+        }));
+        await supabase.from('vehicle_discrepancies').insert(rows);
+        console.log(`🚨 Inserted ${rows.length} discrepancy record(s)`);
+      } catch (discErr: any) {
+        console.warn('⚠️ Failed to insert discrepancies:', discErr.message);
+      }
+    }
+
+    // ── Step 6: Movement detection + plate-mismatch-same-vehicle check ───────
     let vehicleMoved: boolean | null = null;
     let isNewVehicle = false;
+    // Plate mismatch: same vehicle (high embedding similarity) but different plate
+    let plateMismatchSameVehicle = false;
 
     if (plate && inference.embedding) {
       try {
+        // Search across all plates in this zone (not just the current plate) to
+        // detect if this vehicle appeared previously under a different plate.
         const { data: priorObs } = await supabase
           .from('observations')
-          .select('observation_id, vehicle_embedding, recorded_at')
-          .eq('plate_number', plate)
+          .select('observation_id, vehicle_embedding, recorded_at, plate_number')
           .eq('zone_id', zoneId)
           .not('vehicle_embedding', 'is', null)
           .neq('observation_id', observationId)
           .order('recorded_at', { ascending: false })
-          .limit(1)
-          .maybeSingle();
+          .limit(20);  // scan recent observations in this zone
 
-        if (priorObs?.vehicle_embedding) {
-          const prior = Array.isArray(priorObs.vehicle_embedding)
-            ? priorObs.vehicle_embedding
-            : Object.values(priorObs.vehicle_embedding as any);
-          const sim = cosineSimilarity(inference.embedding, prior as number[]);
-          vehicleMoved = sim < MOVEMENT_THRESHOLD;
-          console.log(`📍 Movement check: similarity=${sim.toFixed(3)}, moved=${vehicleMoved}`);
+        let bestSim = 0;
+        let bestPrior: { observation_id: string; plate_number: string | null; recorded_at: string } | null = null;
+
+        for (const prior of (priorObs ?? [])) {
+          const priorEmb = Array.isArray(prior.vehicle_embedding)
+            ? prior.vehicle_embedding
+            : Object.values(prior.vehicle_embedding as any);
+          const sim = cosineSimilarity(inference.embedding, priorEmb as number[]);
+          if (sim > bestSim) {
+            bestSim   = sim;
+            bestPrior = prior;
+          }
+        }
+
+        if (bestPrior && bestSim >= MOVEMENT_THRESHOLD) {
+          if (bestPrior.plate_number === plate) {
+            // Same plate → movement check
+            vehicleMoved = bestSim < MOVEMENT_THRESHOLD;
+          } else if (bestSim >= 0.85) {
+            // Very high visual similarity but DIFFERENT plate → potential plate swap / cloning
+            plateMismatchSameVehicle = true;
+            discrepancies.push({
+              discrepancy_type: 'plate_mismatch_same_vehicle',
+              source_a: 'inference',
+              source_b: 'canonical',
+              value_a: plate,
+              value_b: bestPrior.plate_number,
+              severity: 'critical',
+              sc_law_active: scLawActive,
+              details: {
+                embedding_similarity:   bestSim.toFixed(4),
+                prior_observation_id:   bestPrior.observation_id,
+                prior_recorded_at:      bestPrior.recorded_at,
+                note: 'Same vehicle appearance (embedding similarity ≥ 0.85) but different plate number detected — possible plate swap or cloning',
+              },
+            });
+            // Persist this extra discrepancy immediately (added after initial batch)
+            try {
+              await supabase.from('vehicle_discrepancies').insert({
+                observation_id:   observationId,
+                plate_number:     plate,
+                organization_id:  organizationId,
+                zone_id:          zoneId,
+                discrepancy_type: 'plate_mismatch_same_vehicle',
+                source_a:         'inference',
+                source_b:         'canonical',
+                value_a:          plate,
+                value_b:          bestPrior.plate_number,
+                severity:         'critical',
+                sc_law_active:    scLawActive,
+                details: {
+                  embedding_similarity: bestSim.toFixed(4),
+                  prior_observation_id: bestPrior.observation_id,
+                  prior_recorded_at:    bestPrior.recorded_at,
+                  note: 'Same vehicle appearance but different plate number — possible plate swap or cloning',
+                },
+                requires_review: true,
+              });
+            } catch (plErr: any) {
+              console.warn('⚠️ Failed to insert plate-mismatch discrepancy:', plErr.message);
+            }
+            console.log(`🚨 Plate mismatch detected: ${plate} vs prior ${bestPrior.plate_number} (sim=${bestSim.toFixed(3)})`);
+          } else {
+            // Moderate similarity — same plate, movement check
+            vehicleMoved = bestSim < MOVEMENT_THRESHOLD;
+          }
+          console.log(`📍 Movement check: similarity=${bestSim.toFixed(3)}, moved=${vehicleMoved}`);
         } else {
-          // First time we've seen this plate in this zone
+          // No prior match → new vehicle in zone
           isNewVehicle = true;
           console.log('🆕 New vehicle in zone:', plate);
         }
@@ -544,6 +871,9 @@ Deno.serve(async (req: Request) => {
         console.warn('⚠️ Movement check failed:', mvErr.message);
       }
     }
+
+    // Recompute hasDiscrepancies after potential plate-mismatch addition
+    const finalHasDiscrepancies = discrepancies.length > 0;
 
     // ── Step 7: Upsert canonical_vehicles ─────────────────────────────────
     if (plate) {
@@ -602,11 +932,33 @@ Deno.serve(async (req: Request) => {
       if (nzscv.model)  observationUpdate.vehicle_model = nzscv.model;
       if (nzscv.year)   observationUpdate.vehicle_year  = nzscv.year;
     }
+    // Inference-provided vehicle attributes (also write when NZSCV didn't provide them)
+    if (!observationUpdate.vehicle_make  && inference.inferMake)   observationUpdate.vehicle_make  = inference.inferMake;
+    if (!observationUpdate.vehicle_model && inference.inferModel)  observationUpdate.vehicle_model = inference.inferModel;
+    if (!observationUpdate.vehicle_color && inference.inferColour) observationUpdate.vehicle_color = inference.inferColour;
+    // Sticker presence (fresh from inference, or leave as-is if inference was inconclusive)
+    if (inference.stickerPresence !== null) {
+      observationUpdate.sticker_presence            = inference.stickerPresence;
+      observationUpdate.sticker_color               = inference.stickerColor;
+      observationUpdate.sticker_detection_confidence = inference.stickerConf;
+    }
     if (inference.embedding) {
       observationUpdate.vehicle_embedding      = inference.embedding;
       observationUpdate.embedding_quality      = inference.embeddingQuality;
       observationUpdate.embedding_model_version = 'yolov8n_mobilenetv3_v1.0';
       observationUpdate.embedding_created_at   = new Date().toISOString();
+    }
+    // Discrepancy flags summary
+    observationUpdate.has_discrepancies = finalHasDiscrepancies;
+    if (finalHasDiscrepancies) {
+      observationUpdate.discrepancy_flags = discrepancies.map(d => ({
+        type:     d.discrepancy_type,
+        severity: d.severity,
+        source_a: d.source_a,
+        source_b: d.source_b,
+        value_a:  d.value_a,
+        value_b:  d.value_b,
+      }));
     }
 
     const { error: updateErr } = await supabase
@@ -619,19 +971,22 @@ Deno.serve(async (req: Request) => {
       const optionalCols = [
         'vehicle_embedding', 'embedding_quality',
         'embedding_model_version', 'embedding_created_at',
+        'sticker_presence', 'sticker_color', 'sticker_detection_confidence',
+        'vehicle_color', 'has_discrepancies', 'discrepancy_flags',
       ];
       for (const col of optionalCols) delete observationUpdate[col];
       await supabase
         .from('observations')
         .update(observationUpdate)
         .eq('observation_id', observationId);
-      console.warn('⚠️ Retried observation UPDATE without embedding columns');
+      console.warn('⚠️ Retried observation UPDATE without optional columns');
     } else {
       console.log('✅ Observation updated with plate + vehicle details');
     }
 
     // ── Step 9: Compliance evaluation ─────────────────────────────────────
     // Check canonical vehicle for homeless status (affects CSC exemption)
+    // (canonical data was already loaded in Step 5b above)
     let isHomeless = false;
     if (plate) {
       try {
@@ -709,8 +1064,21 @@ Deno.serve(async (req: Request) => {
       console.warn('⚠️ compliance_results upsert failed:', crErr.message);
     }
 
-    // ── Step 12: Create breach_alert if non-compliant ──────────────────────
-    if (!compliance.isCompliant && compliance.breachType && plate) {
+    // ── Step 12: Create breach_alert if non-compliant OR if critical discrepancies ──
+    // A breach alert is raised both for compliance violations and for critical
+    // discrepancies (e.g. fraudulent SC sticker, plate cloning) even if the
+    // vehicle is otherwise compliant with stay-length rules.
+    const criticalDiscrepancies = discrepancies.filter(d => d.severity === 'critical');
+    const shouldRaiseAlert =
+      (!compliance.isCompliant && compliance.breachType) ||
+      criticalDiscrepancies.length > 0;
+
+    if (shouldRaiseAlert && plate) {
+      const breachType = compliance.breachType
+        ?? (criticalDiscrepancies[0]?.discrepancy_type === 'plate_mismatch_same_vehicle'
+              ? 'plate_mismatch'
+              : 'data_integrity_issue');
+
       try {
         await supabase
           .from('breach_alerts')
@@ -719,16 +1087,28 @@ Deno.serve(async (req: Request) => {
             plate_number:    plate,
             zone_id:         zoneId,
             organization_id: organizationId,
-            breach_type:     compliance.breachType,
+            breach_type:     breachType,
             breach_details:  {
               breach_reason:            compliance.breachReason,
               violation_reasons:        compliance.violationReasons,
               nights_stayed_this_month: compliance.nightsStayed,
               consecutive_nights:       compliance.consecutiveNights,
-              // NZSCV only provides SC status — NOT make/model/year
               is_self_contained:        nzscv?.isSelfContained ?? false,
               sc_expiry:                nzscv?.selfContainedExpiry ?? null,
               source:                   'process_officer_scan',
+              // Discrepancy summary for admin review panel
+              discrepancies: discrepancies.length > 0
+                ? discrepancies.map(d => ({
+                    type:     d.discrepancy_type,
+                    severity: d.severity,
+                    source_a: d.source_a,
+                    source_b: d.source_b,
+                    value_a:  d.value_a,
+                    value_b:  d.value_b,
+                    note:     (d.details as any)?.note ?? null,
+                  }))
+                : undefined,
+              sc_law_active: scLawActive,
             },
             status:          'pending',
             created_at:      new Date().toISOString(),
@@ -754,16 +1134,17 @@ Deno.serve(async (req: Request) => {
         self_contained:        nzscv?.isSelfContained ?? false,
         self_contained_expiry: nzscv?.selfContainedExpiry ?? null,
         // Optional vehicle detail fields — null when NZSCV does not provide them
-        make:   nzscv?.make   ?? null,
-        model:  nzscv?.model  ?? null,
+        make:   nzscv?.make   ?? inference.inferMake   ?? null,
+        model:  nzscv?.model  ?? inference.inferModel  ?? null,
         year:   nzscv?.year   ?? null,
         vin:    nzscv?.vin    ?? null,
-        colour: nzscv?.colour ?? null,
-        color:  nzscv?.colour ?? null,   // alias for US spelling used elsewhere in the app
+        colour: nzscv?.colour ?? inference.inferColour ?? null,
+        color:  nzscv?.colour ?? inference.inferColour ?? null,
       },
       movement: {
-        is_new_vehicle: isNewVehicle,
-        vehicle_moved:  vehicleMoved,
+        is_new_vehicle:             isNewVehicle,
+        vehicle_moved:              vehicleMoved,
+        plate_mismatch_same_vehicle: plateMismatchSameVehicle,
       },
       compliance: {
         is_compliant:   compliance.isCompliant,
@@ -771,13 +1152,26 @@ Deno.serve(async (req: Request) => {
         breach_reason:  compliance.breachReason,
         violations:     compliance.violationReasons,
       },
+      // Discrepancy summary — empty array when none detected
+      discrepancies: discrepancies.map(d => ({
+        type:     d.discrepancy_type,
+        severity: d.severity,
+        source_a: d.source_a,
+        source_b: d.source_b,
+        value_a:  d.value_a,
+        value_b:  d.value_b,
+      })),
+      has_discrepancies: finalHasDiscrepancies,
+      sc_law_active:     scLawActive,
     };
 
     console.log('✅ process-officer-scan complete', {
       observationId,
       plate,
-      isCompliant: compliance.isCompliant,
-      breachType: compliance.breachType,
+      isCompliant:       compliance.isCompliant,
+      breachType:        compliance.breachType,
+      discrepancies:     discrepancies.length,
+      criticalDiscrepancies: criticalDiscrepancies.length,
     });
 
     return jsonResp(result);
