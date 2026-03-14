@@ -38,6 +38,9 @@ ranked AS (
     ) AS rn
   FROM   public.zones z
   LEFT   JOIN obs_counts oc ON oc.zone_id = z.id
+  -- Exclude system-protected zones; "Other Location" has a BEFORE DELETE trigger
+  -- that raises an exception and must never be treated as a duplicate.
+  WHERE  lower(trim(z.name)) != 'other location'
 )
 SELECT
   keeper.id  AS keeper_id,
@@ -249,9 +252,13 @@ END $$;
 
 -- ---------------------------------------------------------------------------
 -- Step 4: Delete the duplicate zone rows.
+-- System-protected zones (e.g. "Other Location") are excluded from _zone_dups
+-- above, but the extra filter here ensures the trigger cannot fire even if
+-- the CTE logic were ever changed.
 -- ---------------------------------------------------------------------------
 DELETE FROM public.zones
-WHERE  id IN (SELECT dup_id FROM _zone_dups);
+WHERE  id IN (SELECT dup_id FROM _zone_dups)
+AND    lower(trim(name)) != 'other location';
 
 DROP TABLE _zone_dups;
 
