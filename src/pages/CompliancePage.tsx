@@ -33,6 +33,7 @@ import {
   Calendar,
   TrendingDown,
   TrendingUp,
+  Image as ImageIcon,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/stores/authStore';
@@ -42,6 +43,19 @@ import { useGlobalFiltersStore as useGlobalFilters } from '@/stores/globalFilter
 import { AdminNavigationMenu } from '@/components/features/AdminNavigationMenu';
 import { HOMELESS_UI_STATUSES, homelessStatusLabel, normalizeHomelessStatus } from '@/lib/homelessStatus';
 import { nzDateToUTCStart, nzDateToUTCEnd } from '@/lib/timezone';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table';
+import { formatDateTime } from '@/lib/utils';
+import { getObservationPhotoUrl } from '@/lib/photoUtils';
 
 // ============================================================================
 // Types
@@ -653,88 +667,352 @@ function ZonesTab({
 // Tab: Homeless / Exempt
 // ============================================================================
 
-function HomelessTab() {
-  const { data, isLoading, error } = useQuery({
-    queryKey: ['homeless-list'],
+interface ExemptObservation {
+  observation_id: string;
+  plate_number: string;
+  zone_id: string;
+  zone_name: string;
+  recorded_at: string;
+  homeless_status: string;
+  breach_type: string | null;
+  organization_id: string;
+  photo?: string | null;
+  photo_url?: string | null;
+  is_compliant?: boolean;
+  gps_latitude?: number | null;
+  gps_longitude?: number | null;
+  officer_notes?: string | null;
+}
+
+interface ExemptCanonicalVehicle {
+  plate_number: string;
+  vehicle_make: string | null;
+  vehicle_model: string | null;
+  vehicle_color: string | null;
+  homeless_status: string | null;
+  homeless_notes: string | null;
+  self_contained: boolean | null;
+  is_exempt: boolean | null;
+}
+
+function formatExemptVehicleSummary(v: ExemptCanonicalVehicle | undefined): string {
+  if (!v) return 'Unknown vehicle';
+  return [v.vehicle_make, v.vehicle_model, v.vehicle_color].filter(Boolean).join(' ') || 'Unknown vehicle';
+}
+
+function HomelessTab({
+  dateFrom,
+  dateTo,
+  orgId,
+  zoneId,
+}: {
+  dateFrom: string;
+  dateTo: string;
+  orgId: string | null;
+  zoneId: string | null;
+}) {
+  const [selectedPlate, setSelectedPlate] = useState<string | null>(null);
+  const [searchPlate, setSearchPlate] = useState('');
+
+  // Fetch exempt breach observations via RPC
+  const { data: exemptObs, isLoading: obsLoading, error: obsError } = useQuery({
+    queryKey: ['exempt-observations', dateFrom, dateTo, orgId, zoneId],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('canonical_vehicles')
-        .select('vehicle_id, plate_number, vehicle_make, vehicle_model, vehicle_color, homeless_status, homeless_notes, total_observations, last_seen_at')
-        .in('homeless_status', HOMELESS_UI_STATUSES)
-        .order('last_seen_at', { ascending: false });
+      const fromTs = nzDateToUTCStart(dateFrom);
+      const toTs = nzDateToUTCEnd(dateTo);
+      const { data, error } = await (supabase.rpc as any)('observations_homeless_exempt', {
+        p_from: fromTs,
+        p_to: toTs,
+        ...(orgId ? { p_org_id: orgId } : {}),
+        ...(zoneId ? { p_zone_id: zoneId } : {}),
+      });
       if (error) throw error;
-      return data ?? [];
+      return (data ?? []) as ExemptObservation[];
     },
   });
 
-  if (isLoading) return <Spinner />;
-  if (error) return <Empty msg="Unable to load homeless records" />;
-  if (!data?.length) return <Empty msg="No homeless vehicles on record" />;
+  // Fetch additional observation columns (photo, GPS, notes) for display
+  const exemptPlates = useMemo(() => {
+    const plates = new Set<string>();
+    for (const obs of exemptObs ?? []) {
+      if (obs.plate_number) plates.add(obs.plate_number);
+    }
+    return Array.from(plates);
+  }, [exemptObs]);
+
+  const { data: obsDetails } = useQuery({
+    queryKey: ['exempt-obs-details', dateFrom, dateTo, orgId, zoneId, exemptPlates.join('|')],
+    queryFn: async () => {
+      if (exemptPlates.length === 0) return [];
+      const fromTs = nzDateToUTCStart(dateFrom);
+      const toTs = nzDateToUTCEnd(dateTo);
+      let q = (supabase.from('observations') as any)
+        .select('observation_id, plate_number, recorded_at, photo, photo_url, is_compliant, gps_latitude, gps_longitude, officer_notes')
+        .in('plate_number', exemptPlates)
+        .gte('recorded_at', fromTs)
+        .lte('recorded_at', toTs)
+        .order('recorded_at', { ascending: false });
+      if (orgId) q = q.eq('organization_id', orgId);
+      if (zoneId) q = q.eq('zone_id', zoneId);
+      const { data, error } = await q;
+      if (error) return [];
+      return data ?? [];
+    },
+    enabled: exemptPlates.length > 0,
+  });
+
+  // Build lookup of observation details by observation_id
+  const obsDetailsMap = useMemo(() => {
+    const map = new Map<string, any>();
+    for (const d of obsDetails ?? []) {
+      map.set(d.observation_id, d);
+    }
+    return map;
+  }, [obsDetails]);
+
+  // Fetch canonical vehicle metadata for matched plates
+  const { data: canonicalVehicles = [] } = useQuery({
+    queryKey: ['exempt-canonical', exemptPlates.join('|')],
+    queryFn: async () => {
+      if (exemptPlates.length === 0) return [] as ExemptCanonicalVehicle[];
+      const { data, error } = await supabase
+        .from('canonical_vehicles')
+        .select('plate_number, vehicle_make, vehicle_model, vehicle_color, homeless_status, homeless_notes, self_contained, is_exempt')
+        .in('plate_number', exemptPlates);
+      if (error) throw error;
+      return (data ?? []) as ExemptCanonicalVehicle[];
+    },
+    enabled: exemptPlates.length > 0,
+  });
+
+  const canonicalByPlate = useMemo(() => {
+    const map = new Map<string, ExemptCanonicalVehicle>();
+    for (const v of canonicalVehicles) map.set(v.plate_number, v);
+    return map;
+  }, [canonicalVehicles]);
+
+  // Group observations by plate
+  const groupedByPlate = useMemo(() => {
+    const map = new Map<string, ExemptObservation[]>();
+    for (const obs of exemptObs ?? []) {
+      if (!obs.plate_number) continue;
+      if (!map.has(obs.plate_number)) map.set(obs.plate_number, []);
+      map.get(obs.plate_number)!.push(obs);
+    }
+    return map;
+  }, [exemptObs]);
+
+  // Build plate records with search filter
+  const plateRecords = useMemo(() => {
+    const records = Array.from(groupedByPlate.entries()).map(([plate, rows]) => ({
+      plate,
+      rows,
+      count: rows.length,
+      latestAt: rows[0]?.recorded_at || '',
+    }));
+    const term = searchPlate.trim().toUpperCase();
+    const filtered = term
+      ? records.filter((r) => r.plate.toUpperCase().includes(term))
+      : records;
+    return filtered.sort((a, b) => (a.latestAt < b.latestAt ? 1 : -1));
+  }, [groupedByPlate, searchPlate]);
+
+  const selectedRows = selectedPlate ? groupedByPlate.get(selectedPlate) ?? [] : [];
+  const selectedCanonical = selectedPlate ? canonicalByPlate.get(selectedPlate) : undefined;
+
+  if (obsLoading) return <Spinner />;
+  if (obsError) return <Empty msg="Unable to load exempt breach observations" />;
+  if (!exemptObs?.length) return <Empty msg="No exempt breach observations in the current filter range" />;
 
   return (
-    <div className="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden">
-      <div className="px-5 py-3 border-b border-gray-100 dark:border-gray-800">
-        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-          {data.length} vehicle{data.length !== 1 ? 's' : ''} with homeless status
-        </span>
+    <div className="space-y-4">
+      {/* Summary stats */}
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+        <Card>
+          <CardContent className="pt-4">
+            <p className="text-xs text-muted-foreground">Exempt Vehicles</p>
+            <p className="text-2xl font-bold">{exemptPlates.length}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-4">
+            <p className="text-xs text-muted-foreground">Exempt Breach Observations</p>
+            <p className="text-2xl font-bold">{exemptObs.length}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-4">
+            <p className="text-xs text-muted-foreground">Date Range</p>
+            <p className="text-sm font-medium">{dateFrom} — {dateTo}</p>
+          </CardContent>
+        </Card>
       </div>
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="bg-purple-50 dark:bg-purple-950/20 text-left">
-              <th className="px-4 py-3 font-semibold text-gray-600 dark:text-gray-400">Plate</th>
-              <th className="px-4 py-3 font-semibold text-gray-600 dark:text-gray-400 hidden md:table-cell">Vehicle</th>
-              <th className="px-4 py-3 font-semibold text-gray-600 dark:text-gray-400">Status</th>
-              <th className="px-4 py-3 font-semibold text-gray-600 dark:text-gray-400 hidden md:table-cell">Notes</th>
-              <th className="px-4 py-3 font-semibold text-gray-600 dark:text-gray-400 text-center">Obs.</th>
-              <th className="px-4 py-3 font-semibold text-gray-600 dark:text-gray-400 hidden lg:table-cell">Last Seen</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-            {data.map((v: any) => (
-              <tr key={v.plate_number} className="hover:bg-purple-50/50 dark:hover:bg-purple-950/10">
-                <td className="px-4 py-3 font-mono font-bold text-gray-900 dark:text-white">
-                  {v.plate_number}
-                </td>
-                <td className="px-4 py-3 text-gray-500 hidden md:table-cell">
-                  {[v.vehicle_make, v.vehicle_model, v.vehicle_color].filter(Boolean).join(' ') || '—'}
-                </td>
-                <td className="px-4 py-3">
-                  <span
+
+      {/* Search */}
+      <div className="relative max-w-xs">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <Input
+          placeholder="Search plate number…"
+          value={searchPlate}
+          onChange={(e) => setSearchPlate(e.target.value)}
+          className="pl-9"
+        />
+      </div>
+
+      {/* Two-panel layout */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        {/* Left: Vehicle cards */}
+        <Card className="lg:col-span-1">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Home className="h-4 w-4 text-purple-600" />
+              Exempt Vehicles
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2 max-h-[70vh] overflow-y-auto">
+            {plateRecords.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No vehicles match the current filter.</p>
+            ) : (
+              plateRecords.map((record) => {
+                const canonical = canonicalByPlate.get(record.plate);
+                const selected = selectedPlate === record.plate;
+                const status = canonical ? normalizeHomelessStatus(canonical.homeless_status) : null;
+                return (
+                  <button
+                    key={record.plate}
+                    type="button"
+                    onClick={() => setSelectedPlate(record.plate)}
                     className={cn(
-                      'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold',
-                      normalizeHomelessStatus(v.homeless_status) === 'confirmed'
-                        ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300'
-                        : normalizeHomelessStatus(v.homeless_status) === 'claimed'
-                        ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300'
-                        : normalizeHomelessStatus(v.homeless_status) === 'suspected'
-                        ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300'
-                        : normalizeHomelessStatus(v.homeless_status) === 'declined'
-                        ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300'
-                        : 'bg-slate-100 dark:bg-slate-900/30 text-slate-700 dark:text-slate-300'
+                      'w-full text-left rounded-md border p-3 transition-colors',
+                      selected
+                        ? 'border-purple-500 bg-purple-50 dark:bg-purple-950/40'
+                        : 'hover:bg-muted/40'
                     )}
                   >
-                    <Home className="w-3 h-3" />
-                    {homelessStatusLabel(v.homeless_status)}
-                  </span>
-                </td>
-                <td className="px-4 py-3 text-gray-400 hidden md:table-cell max-w-xs truncate" title={v.homeless_notes ?? ''}>
-                  {v.homeless_notes || '—'}
-                </td>
-                <td className="px-4 py-3 text-center">
-                  <span className="inline-block px-2 py-0.5 rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-xs font-bold">
-                    {v.total_observations}
-                  </span>
-                </td>
-                <td className="px-4 py-3 text-xs text-gray-400 hidden lg:table-cell">
-                  {v.last_seen_at
-                    ? formatDistanceToNow(new Date(v.last_seen_at), { addSuffix: true })
-                    : '—'}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-mono font-bold">{record.plate}</span>
+                      <span
+                        className={cn(
+                          'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold',
+                          status === 'confirmed'
+                            ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300'
+                            : status === 'claimed'
+                            ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300'
+                            : status === 'suspected'
+                            ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300'
+                            : 'bg-slate-100 dark:bg-slate-900/30 text-slate-700 dark:text-slate-300'
+                        )}
+                      >
+                        <Home className="w-3 h-3" />
+                        {canonical ? homelessStatusLabel(canonical.homeless_status) : 'Exempt'}
+                      </span>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {formatExemptVehicleSummary(canonical)}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {record.count} exempt breach{record.count !== 1 ? 'es' : ''}
+                    </p>
+                    {canonical?.homeless_notes && (
+                      <p className="text-xs text-gray-400 mt-1 truncate" title={canonical.homeless_notes}>
+                        {canonical.homeless_notes}
+                      </p>
+                    )}
+                  </button>
+                );
+              })
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Right: Observations for selected vehicle */}
+        <Card className="lg:col-span-2">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Car className="h-4 w-4" />
+              {selectedPlate || 'No vehicle selected'}
+            </CardTitle>
+            {selectedCanonical && (
+              <div className="text-xs text-muted-foreground">
+                {formatExemptVehicleSummary(selectedCanonical)}
+                {selectedCanonical.homeless_notes && (
+                  <span className="ml-2 text-gray-400">— {selectedCanonical.homeless_notes}</span>
+                )}
+              </div>
+            )}
+          </CardHeader>
+          <CardContent>
+            {selectedRows.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Select a vehicle to view its exempt breach observations.</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-[140px]">Photo</TableHead>
+                      <TableHead>Recorded</TableHead>
+                      <TableHead>Zone</TableHead>
+                      <TableHead>Breach Type</TableHead>
+                      <TableHead>GPS</TableHead>
+                      <TableHead>Notes</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {selectedRows.map((obs) => {
+                      const detail = obsDetailsMap.get(obs.observation_id) ?? obs;
+                      const photoUrl = getObservationPhotoUrl(detail);
+                      return (
+                        <TableRow key={obs.observation_id}>
+                          <TableCell>
+                            {photoUrl ? (
+                              <button
+                                type="button"
+                                onClick={() => window.open(photoUrl, '_blank')}
+                                className="block rounded overflow-hidden border hover:opacity-90"
+                              >
+                                <img
+                                  src={photoUrl}
+                                  alt={`Observation ${obs.observation_id}`}
+                                  className="h-16 w-28 object-cover"
+                                  loading="lazy"
+                                  onError={(e) => {
+                                    (e.target as HTMLImageElement).style.display = 'none';
+                                  }}
+                                />
+                              </button>
+                            ) : (
+                              <div className="h-16 w-28 border rounded bg-muted flex items-center justify-center text-muted-foreground text-xs">
+                                <span className="inline-flex items-center gap-1">
+                                  <ImageIcon className="h-3 w-3" />
+                                  No Photo
+                                </span>
+                              </div>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-xs">{formatDateTime(obs.recorded_at)}</TableCell>
+                          <TableCell className="text-xs">{obs.zone_name || 'Unknown'}</TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className="text-xs bg-purple-50 dark:bg-purple-900/20">
+                              {obs.breach_type || 'Exempt'}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-xs">
+                            {detail.gps_latitude && detail.gps_longitude
+                              ? `${Number(detail.gps_latitude).toFixed(5)}, ${Number(detail.gps_longitude).toFixed(5)}`
+                              : 'No GPS'}
+                          </TableCell>
+                          <TableCell className="text-xs max-w-[240px] truncate">
+                            {detail.officer_notes || '-'}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </div>
     </div>
   );
@@ -928,7 +1206,14 @@ export default function CompliancePage() {
             {activeTab === 'zones' && (
               <ZonesTab dateFrom={effectiveDateFrom} dateTo={effectiveDateTo} orgId={effectiveOrgId} />
             )}
-            {activeTab === 'homeless' && <HomelessTab />}
+            {activeTab === 'homeless' && (
+              <HomelessTab
+                dateFrom={effectiveDateFrom}
+                dateTo={effectiveDateTo}
+                orgId={effectiveOrgId}
+                zoneId={zoneId}
+              />
+            )}
             {activeTab === 'overview' && (
               <Empty msg="Select Breaches, By Zone, or Homeless / Exempt for detail." />
             )}
