@@ -4,6 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/stores/authStore'
 import { useGlobalFiltersStore } from '@/stores/globalFiltersStore'
 import { monitorGeofenceAndPatrol } from '@/lib/geofence'
+import { useShiftInactivityTimeout } from '@/hooks/useOfficerShift'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { AppLayout } from '@/components/features/AppLayout'
@@ -69,6 +70,9 @@ export default function FieldOfficerPortal() {
 
   // Man-Down Detection — records GPS updates and fires alert if stationary too long
   const { recordGPSUpdate, isManDownActive } = useManDownDetection()
+
+  // Shift inactivity timeout — auto-ends shift after 15 min of app being backgrounded
+  useShiftInactivityTimeout()
 
   // Display-friendly zone label for the officer status card
   const displayZone = zoneName || (zoneId ? `${zoneId.substring(0, 8)}...` : 'Scanning Geofence...')

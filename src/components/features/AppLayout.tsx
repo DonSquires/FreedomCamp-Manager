@@ -37,6 +37,8 @@ import {
   Sun,
   Moon,
   Monitor,
+  CalendarDays,
+  TrendingUp,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
@@ -67,6 +69,8 @@ const navigationItems = [
   { path: '/audit-log', icon: Activity, label: 'Audit Log', roles: ['admin', 'admin_officer', 'master'] },
   { path: '/privacy-curtain', icon: EyeOff, label: 'Privacy Curtain', roles: ['admin', 'master'] },
   { path: '/patrol-checkpoints', icon: ScanLine, label: 'Patrol Checkpoints', roles: ['admin', 'admin_officer', 'master'] },
+  { path: '/patrol-schedule', icon: CalendarDays, label: 'Patrol Schedule', roles: ['admin', 'admin_officer', 'master'] },
+  { path: '/patrol-kpis', icon: TrendingUp, label: 'Patrol KPIs', roles: ['admin', 'admin_officer', 'master'] },
   { path: '/data', icon: Database, label: 'Data Management', roles: ['admin', 'master'] },
   { path: '/organization-profile', icon: Building2, label: 'Organisation Profile', roles: ['admin', 'admin_officer', 'master'] },
   { path: '/organizations', icon: Building2, label: 'Organisations', roles: ['master'] },

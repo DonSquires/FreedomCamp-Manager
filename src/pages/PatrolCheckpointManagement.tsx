@@ -1,12 +1,15 @@
 /**
  * PatrolCheckpointManagement — Admin page for creating and managing QR/NFC patrol checkpoints.
  * Supports Lone Worker Protocol (Health & Safety at Work Act 2015).
+ *
+ * Checkpoints may be manually created or auto-generated from geofenced zones.
  */
 
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
+import { syncZoneCheckpoints } from '@/lib/geofence'
 import { AppLayout } from '@/components/features/AppLayout'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -30,7 +33,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
-import { QrCode, Plus, Edit, Trash2, MapPin, CheckCircle, XCircle } from 'lucide-react'
+import { QrCode, Plus, Edit, Trash2, MapPin, CheckCircle, XCircle, RefreshCw } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatDistanceToNow } from 'date-fns'
 
@@ -52,6 +55,7 @@ interface PatrolCheckpoint {
   required_on_patrol: boolean
   check_in_radius_metres: number
   created_by: string | null
+  checkpoint_type: 'manual' | 'geofence_zone'
   created_at: string
   updated_at: string
   zone?: { id: string; name: string } | null
@@ -197,6 +201,17 @@ export default function PatrolCheckpointManagement() {
       setSelected(null)
     },
     onError: (err: any) => toast.error(err.message ?? 'Failed to delete checkpoint'),
+  })
+
+  const syncMutation = useMutation({
+    mutationFn: async () => {
+      if (!user?.organization_id) throw new Error('No organization')
+      return syncZoneCheckpoints(user.organization_id)
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['patrol_checkpoints'] })
+    },
+    onError: (err: any) => toast.error(err.message ?? 'Zone sync failed'),
   })
 
   // ─── Helpers ───────────────────────────────────────────────────────────────
@@ -357,7 +372,7 @@ export default function PatrolCheckpointManagement() {
     >
       <div className="space-y-6">
         {/* Summary cards */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">Total</CardTitle>
@@ -388,6 +403,16 @@ export default function PatrolCheckpointManagement() {
           </Card>
           <Card>
             <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Geofence</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-2xl font-bold text-purple-600">
+                {checkpoints.filter(c => (c as any).checkpoint_type === 'geofence_zone').length}
+              </p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">Inactive</CardTitle>
             </CardHeader>
             <CardContent>
@@ -406,6 +431,15 @@ export default function PatrolCheckpointManagement() {
             onChange={e => setSearch(e.target.value)}
             className="max-w-xs"
           />
+          <Button
+            variant="outline"
+            onClick={() => syncMutation.mutate()}
+            disabled={syncMutation.isPending}
+            className="gap-2"
+          >
+            <RefreshCw className={`h-4 w-4 ${syncMutation.isPending ? 'animate-spin' : ''}`} />
+            Sync Zone Checkpoints
+          </Button>
           <Button onClick={openCreate} className="ml-auto gap-2">
             <Plus className="h-4 w-4" />
             Add Checkpoint
@@ -419,6 +453,7 @@ export default function PatrolCheckpointManagement() {
               <TableHeader>
                 <TableRow>
                   <TableHead>Name</TableHead>
+                  <TableHead>Type</TableHead>
                   <TableHead>Zone</TableHead>
                   <TableHead>Location</TableHead>
                   <TableHead>Radius</TableHead>
@@ -431,15 +466,15 @@ export default function PatrolCheckpointManagement() {
               <TableBody>
                 {isLoading && (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                    <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
                       Loading…
                     </TableCell>
                   </TableRow>
                 )}
                 {!isLoading && filtered.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
-                      {search ? 'No checkpoints match your search.' : 'No checkpoints yet. Click "Add Checkpoint" to create one.'}
+                    <TableCell colSpan={9} className="text-center py-8 text-muted-foreground">
+                      {search ? 'No checkpoints match your search.' : 'No checkpoints yet. Click "Add Checkpoint" to create one, or use "Sync Zone Checkpoints" to auto-generate from geofenced zones.'}
                     </TableCell>
                   </TableRow>
                 )}
@@ -452,6 +487,17 @@ export default function PatrolCheckpointManagement() {
                       </div>
                       {cp.description && (
                         <p className="text-xs text-muted-foreground mt-0.5">{cp.description}</p>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {(cp as any).checkpoint_type === 'geofence_zone' ? (
+                        <Badge variant="outline" className="text-purple-700 border-purple-300 gap-1">
+                          <MapPin className="h-3 w-3" /> Geofence
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="text-indigo-700 border-indigo-300 gap-1">
+                          <QrCode className="h-3 w-3" /> Manual
+                        </Badge>
                       )}
                     </TableCell>
                     <TableCell>
