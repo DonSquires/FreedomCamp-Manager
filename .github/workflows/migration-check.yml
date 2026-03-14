@@ -21,6 +21,11 @@ on:
       - 'supabase/migrations/**'
   workflow_dispatch:
 
+env:
+  # supabase/setup-cli@v1 still bundles Node.js 20; force the runner to use
+  # Node.js 24 so the action keeps working after the June 2026 cut-over.
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   migration_check:
     name: Validate migration consistency
@@ -33,7 +38,7 @@ jobs:
       SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Supabase CLI
         uses: supabase/setup-cli@v1
