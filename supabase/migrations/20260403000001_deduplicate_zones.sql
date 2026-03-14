@@ -1,19 +1,29 @@
 -- ============================================================================
--- Migration: Deduplicate zones (child zones only)
+-- Migration: Deduplicate zones
 -- Problem:   Multiple zones with the same (organization_id, name) exist,
 --            causing duplicates to appear on the Zone Management page.
--- Solution:  1. Identify duplicate child-zone groups.
+-- Solution:  0. Rename "Other Location" system zones to "<OrgName> - Other
+--               Location" so each org's fallback zone has a unique, identifiable
+--               name and can participate in the uniqueness constraint.
+--            1. Identify duplicate groups.
 --            2. Keep the zone with the most observations (ties → oldest).
 --            3. Re-point all FK references to the keeper.
 --            4. Delete duplicate rows.
---            5. Add a partial unique index on child zones to prevent future
---               duplicates.
--- Note:      "Other Location" zones are parent/system zones managed per-org
---            by a separate mechanism.  They are excluded from both the
---            deduplication sweep and the uniqueness constraint.
+--            5. Add a partial unique index to prevent future duplicates.
 -- ============================================================================
 
 BEGIN;
+
+-- ---------------------------------------------------------------------------
+-- Step 0: Rename every "Other Location" zone to "<OrgName> - Other Location".
+-- This gives each org's system fallback zone a unique, org-scoped name so
+-- it can be deduped and constrained the same way as any other zone.
+-- ---------------------------------------------------------------------------
+UPDATE public.zones z
+SET    name = o.name || ' - Other Location'
+FROM   public.organizations o
+WHERE  z.organization_id = o.id
+  AND  lower(trim(z.name)) = 'other location';
 
 -- ---------------------------------------------------------------------------
 -- Step 1 & 2: Build a temp table of (keeper_id, duplicate_id) pairs.
@@ -42,9 +52,6 @@ ranked AS (
     ) AS rn
   FROM   public.zones z
   LEFT   JOIN obs_counts oc ON oc.zone_id = z.id
-  -- Exclude system-protected zones; "Other Location" has a BEFORE DELETE trigger
-  -- that raises an exception and must never be treated as a duplicate.
-  WHERE  lower(trim(z.name)) != 'other location'
 )
 SELECT
   keeper.id  AS keeper_id,
@@ -256,24 +263,19 @@ END $$;
 
 -- ---------------------------------------------------------------------------
 -- Step 4: Delete the duplicate zone rows.
--- "Other Location" zones are excluded from _zone_dups above (parent zones),
--- but the extra filter here is a safety net in case that logic ever changes.
 -- ---------------------------------------------------------------------------
 DELETE FROM public.zones
-WHERE  id IN (SELECT dup_id FROM _zone_dups)
-AND    lower(trim(name)) != 'other location';
+WHERE  id IN (SELECT dup_id FROM _zone_dups);
 
 DROP TABLE _zone_dups;
 
 -- ---------------------------------------------------------------------------
 -- Step 5: Add a partial unique index on (organization_id, name) for active
---         child zones to prevent future duplicates.
---         "Other Location" parent zones are excluded from this constraint.
+--         zones to prevent future duplicates.
 --         Using lower(trim(name)) for case/whitespace-insensitive matching.
 -- ---------------------------------------------------------------------------
 CREATE UNIQUE INDEX IF NOT EXISTS idx_zones_unique_org_name_active
   ON public.zones (organization_id, lower(trim(name)))
-  WHERE is_active = true
-    AND lower(trim(name)) != 'other location';
+  WHERE is_active = true;
 
 COMMIT;
