@@ -58,7 +58,8 @@ function OperationRow({ op, onDismiss }: { op: Operation; onDismiss: () => void 
             variant="ghost"
             size="icon"
             className="h-6 w-6 shrink-0"
-            onClick={() => setExpanded(!expanded)}
+            onClick={() => setExpanded((prev) => !prev)}
+            aria-label={expanded ? 'Collapse details' : 'Expand details'}
           >
             {expanded ? (
               <ChevronUp className="h-3.5 w-3.5" />
@@ -74,6 +75,7 @@ function OperationRow({ op, onDismiss }: { op: Operation; onDismiss: () => void 
             variant="ghost"
             size="icon"
             className="h-6 w-6 shrink-0 text-muted-foreground hover:text-foreground"
+            aria-label="Dismiss operation"
             onClick={onDismiss}
           >
             <X className="h-3.5 w-3.5" />
@@ -166,7 +168,7 @@ export function GlobalOperationsBar() {
         <button
           type="button"
           className="flex flex-1 items-center gap-2 cursor-pointer select-none text-left"
-          onClick={() => setCollapsed(!collapsed)}
+          onClick={() => setCollapsed((prev) => !prev)}
           aria-expanded={!collapsed}
         >
           <Activity className="h-4 w-4 text-blue-500" />
@@ -187,6 +189,7 @@ export function GlobalOperationsBar() {
               size="icon"
               className="h-6 w-6"
               title="Clear completed"
+              aria-label="Clear completed operations"
               onClick={() => clearCompleted()}
             >
               <Trash2 className="h-3.5 w-3.5" />
@@ -195,7 +198,7 @@ export function GlobalOperationsBar() {
           <button
             type="button"
             className="p-0.5"
-            onClick={() => setCollapsed(!collapsed)}
+            onClick={() => setCollapsed((prev) => !prev)}
             aria-label={collapsed ? 'Expand operations' : 'Collapse operations'}
           >
             {collapsed ? (
