@@ -66,6 +66,7 @@ const DEFAULT_BUCKET = 'evidence';
 const DEFAULT_LIMIT = 200;
 const DEFAULT_WINDOW_MINUTES = 60;
 const DEFAULT_MAX_SESSION_PAGES = 3;
+const MAX_WINDOW_SECONDS = 365 * 24 * 3600; // 1 year in seconds
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -291,7 +292,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
     const dateFrom = toIsoStart(body.date_from);
     const dateTo = toIsoEnd(body.date_to);
-    const windowSeconds = Math.max(60, Math.min(365 * 24 * 3600, (body.window_minutes ?? DEFAULT_WINDOW_MINUTES) * 60));
+    const windowSeconds = Math.max(60, Math.min(MAX_WINDOW_SECONDS, (body.window_minutes ?? DEFAULT_WINDOW_MINUTES) * 60));
     const limit = Math.max(1, Math.min(1000, body.limit ?? DEFAULT_LIMIT));
     const apply = body.apply === true;
     const requireEmptyPhoto = body.require_empty_photo !== false; // default true
@@ -483,7 +484,8 @@ Deno.serve(async (req: Request): Promise<Response> => {
         const folder = safeFolder(obs.recorded_by);
         const ts = Date.now();
         const rand = crypto.randomUUID().slice(0, 8);
-        const storagePath = `parkpow-sync/${folder}/${ts}-${rand}.jpg`;
+        const ext = contentType.includes('png') ? 'png' : contentType.includes('webp') ? 'webp' : 'jpg';
+        const storagePath = `parkpow-sync/${folder}/${ts}-${rand}.${ext}`;
         const hash = await sha256Hex(imgBytes);
 
         const { error: uploadError } = await supabaseAdmin.storage

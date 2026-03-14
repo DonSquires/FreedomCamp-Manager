@@ -25,6 +25,9 @@ import { getObservationPhotoUrl } from '@/lib/photoUtils'
 import { Car, Search, RefreshCw, Image as ImageIcon, Camera, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 
+const PHOTO_SYNC_LIMIT = 500
+const PHOTO_SYNC_WINDOW_MINUTES = 120
+
 interface ObservationRow {
   id: string
   plate_number: string
@@ -313,12 +316,13 @@ export default function ObservationRecords() {
         date_to: dateTo || undefined,
         apply: !dryRun,
         require_empty_photo: true,
-        limit: 500,
-        window_minutes: 120,
+        limit: PHOTO_SYNC_LIMIT,
+        window_minutes: PHOTO_SYNC_WINDOW_MINUTES,
       })
 
       if (error) {
-        toast.error(`Photo sync failed: ${error}`)
+        toast.error('Photo sync failed. Check ParkPow API credentials and try again.')
+        console.error('[ParkPow Photo Sync]', error)
         return
       }
 
