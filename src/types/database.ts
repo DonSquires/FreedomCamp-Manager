@@ -585,7 +585,7 @@ export interface Database {
           embedding_created_at?: string | null
           parkpow_session_id?: number | null
           parkpow_violation_id?: number | null
-          processing_status?: string
+          processing_status?: 'pending' | 'processing' | 'completed' | 'failed'
           processing_started_at?: string | null
           processing_completed_at?: string | null
           processing_error?: string | null
@@ -594,7 +594,7 @@ export interface Database {
           vehicle_model_confidence?: number | null
           vehicle_color_confidence?: number | null
           sticker_presence?: boolean | null
-          sticker_color?: string | null
+          sticker_color?: 'blue' | 'green' | 'unknown' | null
           sticker_bbox?: any | null
           sticker_detection_confidence?: number | null
           sticker_color_confidence?: number | null
@@ -661,7 +661,7 @@ export interface Database {
           embedding_created_at?: string | null
           parkpow_session_id?: number | null
           parkpow_violation_id?: number | null
-          processing_status?: string
+          processing_status?: 'pending' | 'processing' | 'completed' | 'failed'
           processing_started_at?: string | null
           processing_completed_at?: string | null
           processing_error?: string | null
@@ -670,7 +670,7 @@ export interface Database {
           vehicle_model_confidence?: number | null
           vehicle_color_confidence?: number | null
           sticker_presence?: boolean | null
-          sticker_color?: string | null
+          sticker_color?: 'blue' | 'green' | 'unknown' | null
           sticker_bbox?: any | null
           sticker_detection_confidence?: number | null
           sticker_color_confidence?: number | null
@@ -718,12 +718,12 @@ export interface Database {
           plate_number?: string | null
           organization_id?: string | null
           zone_id?: string | null
-          discrepancy_type: string
-          source_a: string
-          source_b: string
+          discrepancy_type: 'make_mismatch' | 'model_mismatch' | 'colour_mismatch' | 'plate_mismatch_same_vehicle' | 'sc_sticker_not_in_register' | 'sc_in_register_no_sticker' | 'sc_sticker_inconclusive'
+          source_a: 'canonical' | 'nzscv' | 'inference' | 'motorweb' | 'alpr' | 'observation'
+          source_b: 'canonical' | 'nzscv' | 'inference' | 'motorweb' | 'alpr' | 'observation'
           value_a?: string | null
           value_b?: string | null
-          severity?: string
+          severity?: 'warning' | 'critical'
           sc_law_active?: boolean
           details?: any | null
           requires_review?: boolean
@@ -738,12 +738,12 @@ export interface Database {
           plate_number?: string | null
           organization_id?: string | null
           zone_id?: string | null
-          discrepancy_type?: string
-          source_a?: string
-          source_b?: string
+          discrepancy_type?: 'make_mismatch' | 'model_mismatch' | 'colour_mismatch' | 'plate_mismatch_same_vehicle' | 'sc_sticker_not_in_register' | 'sc_in_register_no_sticker' | 'sc_sticker_inconclusive'
+          source_a?: 'canonical' | 'nzscv' | 'inference' | 'motorweb' | 'alpr' | 'observation'
+          source_b?: 'canonical' | 'nzscv' | 'inference' | 'motorweb' | 'alpr' | 'observation'
           value_a?: string | null
           value_b?: string | null
-          severity?: string
+          severity?: 'warning' | 'critical'
           sc_law_active?: boolean
           details?: any | null
           requires_review?: boolean
