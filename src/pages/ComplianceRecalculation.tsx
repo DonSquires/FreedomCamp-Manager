@@ -59,6 +59,9 @@ interface LiveRunState {
   breachesDismissed: number
   skippedNoRules: number
 }
+
+const OPERATION_ID = 'compliance-recalculation'
+
 export default function ComplianceRecalculation() {
   const { user } = useAuthStore()
   const { startOperation, updateProgress, completeOperation, failOperation, operations } = useOperationsStore()
@@ -72,7 +75,7 @@ export default function ComplianceRecalculation() {
   const [liveRun, setLiveRun] = useState<LiveRunState | null>(null)
 
   // Track running state from both local mutation and global store
-  const globalOp = operations.find((op) => op.id === 'compliance-recalculation' && op.status === 'running')
+  const globalOp = operations.find((op) => op.id === OPERATION_ID && op.status === 'running')
   const [localRunning, setLocalRunning] = useState(false)
   const isRunning = localRunning || !!globalOp
 
@@ -159,7 +162,7 @@ export default function ComplianceRecalculation() {
       skippedNoRules: 0,
     }
     setLiveRun(initialLiveState)
-    updateProgress('compliance-recalculation', 0, initialLiveState)
+    updateProgress(OPERATION_ID, 0, initialLiveState)
 
     let offset = 0
     const batchSize = 50
@@ -203,7 +206,7 @@ export default function ComplianceRecalculation() {
         skippedNoRules: skippedNoRulesTotal,
       }
       setLiveRun(liveState)
-      updateProgress('compliance-recalculation', progressPct, liveState)
+      updateProgress(OPERATION_ID, progressPct, liveState)
 
       if (processed <= 0) break
       offset += processed
@@ -249,13 +252,13 @@ export default function ComplianceRecalculation() {
       setProgress(0)
       setResult(null)
       setLiveRun(null)
-      startOperation('compliance-recalculation', 'Compliance Recalculation')
+      startOperation(OPERATION_ID, 'Compliance Recalculation')
       return {}
     },
     onSuccess: (data) => {
       setProgress(100)
       setResult(data)
-      completeOperation('compliance-recalculation', {
+      completeOperation(OPERATION_ID, {
         observations_processed: data.observations_processed,
         compliance_changed: data.compliance_changed,
         breaches_created: data.breaches_created,
@@ -270,7 +273,7 @@ export default function ComplianceRecalculation() {
     onError: (error: any) => {
       setProgress(0)
       const msg: string = error?.message || 'Recalculation failed'
-      failOperation('compliance-recalculation', msg)
+      failOperation(OPERATION_ID, msg)
       // Match the exact messages produced by edgeFunctions.ts session error paths
       const isSessionError =
         msg === 'Session expired. Please sign in again.' ||

@@ -155,13 +155,20 @@ export function GlobalOperationsBar() {
   const completedCount = operations.filter((op) => op.status !== 'running').length
 
   return (
-    <div className="fixed bottom-4 right-4 z-50 w-[380px] max-w-[calc(100vw-2rem)] rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-lg overflow-hidden">
+    <div
+      role="region"
+      aria-label="Operations progress"
+      aria-live="polite"
+      className="fixed bottom-4 right-4 z-50 w-[380px] max-w-[calc(100vw-2rem)] rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-lg overflow-hidden"
+    >
       {/* Header */}
-      <div
-        className="flex items-center justify-between gap-2 px-3 py-2 bg-gray-50 dark:bg-gray-800 cursor-pointer select-none"
-        onClick={() => setCollapsed(!collapsed)}
-      >
-        <div className="flex items-center gap-2">
+      <div className="flex items-center justify-between gap-2 px-3 py-2 bg-gray-50 dark:bg-gray-800">
+        <button
+          type="button"
+          className="flex flex-1 items-center gap-2 cursor-pointer select-none text-left"
+          onClick={() => setCollapsed(!collapsed)}
+          aria-expanded={!collapsed}
+        >
           <Activity className="h-4 w-4 text-blue-500" />
           <span className="text-sm font-semibold">
             Operations
@@ -171,7 +178,7 @@ export function GlobalOperationsBar() {
               </span>
             )}
           </span>
-        </div>
+        </button>
 
         <div className="flex items-center gap-1">
           {completedCount > 0 && (
@@ -180,23 +187,25 @@ export function GlobalOperationsBar() {
               size="icon"
               className="h-6 w-6"
               title="Clear completed"
-              onClick={(e) => {
-                e.stopPropagation()
-                clearCompleted()
-              }}
+              onClick={() => clearCompleted()}
             >
               <Trash2 className="h-3.5 w-3.5" />
             </Button>
           )}
-          {collapsed ? (
-            <ChevronUp className="h-4 w-4 text-muted-foreground" />
-          ) : (
-            <ChevronDown className="h-4 w-4 text-muted-foreground" />
-          )}
+          <button
+            type="button"
+            className="p-0.5"
+            onClick={() => setCollapsed(!collapsed)}
+            aria-label={collapsed ? 'Expand operations' : 'Collapse operations'}
+          >
+            {collapsed ? (
+              <ChevronUp className="h-4 w-4 text-muted-foreground" />
+            ) : (
+              <ChevronDown className="h-4 w-4 text-muted-foreground" />
+            )}
+          </button>
         </div>
       </div>
-
-      {/* Collapsed summary bar for active operations */}
       {collapsed && activeCount > 0 && (
         <div className="px-3 py-1.5">
           {operations
