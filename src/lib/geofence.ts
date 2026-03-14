@@ -336,7 +336,7 @@ export async function autoStartPatrol(
       .eq('assigned_to', userId)
       .eq('zone_id', zoneId)
       .eq('patrol_date', new Date().toISOString().split('T')[0])
-      .eq('status', 'active')
+      .eq('status', 'in_progress')
       .maybeSingle()
     
     if (existingPatrol) {
@@ -384,7 +384,7 @@ export async function autoStopPatrol(
       .eq('assigned_to', userId)
       .eq('zone_id', zoneId)
       .eq('patrol_date', new Date().toISOString().split('T')[0])
-      .eq('status', 'active')
+      .eq('status', 'in_progress')
       .maybeSingle()
     
     if (findError) throw findError
@@ -396,7 +396,7 @@ export async function autoStopPatrol(
     // Update patrol to completed
     const { error: updateError } = await (supabase.from('patrols') as any)
       .update({
-        completed_at: new Date().toISOString(),
+        ended_at: new Date().toISOString(),
         status: 'completed',
       })
       .eq('id', patrol.id)

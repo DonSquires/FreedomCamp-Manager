@@ -117,7 +117,8 @@ export function useStartPatrol() {
       const { error } = await (supabase.from('patrols') as any)
         .update({ 
           status: 'in_progress',
-          started_at: new Date().toISOString()
+          started_at: new Date().toISOString(),
+          actual_start_time: new Date().toISOString(),
         })
         .eq('id', patrolId)
 
@@ -146,6 +147,7 @@ export function useCompletePatrol() {
         .update({ 
           status: 'completed',
           ended_at: new Date().toISOString(),
+          actual_end_time: new Date().toISOString(),
           vehicles_checked: vehiclesChecked,
           breaches_found: breachesFound
         })
