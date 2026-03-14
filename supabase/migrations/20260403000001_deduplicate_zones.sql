@@ -2,7 +2,10 @@
 -- Migration: Deduplicate zones
 -- Problem:   Multiple zones with the same (organization_id, name) exist,
 --            causing duplicates to appear on the Zone Management page.
--- Solution:  1. Identify duplicate groups.
+-- Solution:  0. Rename "Other Location" system zones to "<OrgName> - Other
+--               Location" so each org's fallback zone has a unique, identifiable
+--               name and can participate in the uniqueness constraint.
+--            1. Identify duplicate groups.
 --            2. Keep the zone with the most observations (ties → oldest).
 --            3. Re-point all FK references to the keeper.
 --            4. Delete duplicate rows.
@@ -10,6 +13,17 @@
 -- ============================================================================
 
 BEGIN;
+
+-- ---------------------------------------------------------------------------
+-- Step 0: Rename every "Other Location" zone to "<OrgName> - Other Location".
+-- This gives each org's system fallback zone a unique, org-scoped name so
+-- it can be deduped and constrained the same way as any other zone.
+-- ---------------------------------------------------------------------------
+UPDATE public.zones z
+SET    name = o.name || ' - Other Location'
+FROM   public.organizations o
+WHERE  z.organization_id = o.id
+  AND  lower(trim(z.name)) = 'other location';
 
 -- ---------------------------------------------------------------------------
 -- Step 1 & 2: Build a temp table of (keeper_id, duplicate_id) pairs.
@@ -38,9 +52,6 @@ ranked AS (
     ) AS rn
   FROM   public.zones z
   LEFT   JOIN obs_counts oc ON oc.zone_id = z.id
-  -- Exclude system-protected zones; "Other Location" has a BEFORE DELETE trigger
-  -- that raises an exception and must never be treated as a duplicate.
-  WHERE  lower(trim(z.name)) != 'other location'
 )
 SELECT
   keeper.id  AS keeper_id,
@@ -252,13 +263,9 @@ END $$;
 
 -- ---------------------------------------------------------------------------
 -- Step 4: Delete the duplicate zone rows.
--- System-protected zones (e.g. "Other Location") are excluded from _zone_dups
--- above, but the extra filter here ensures the trigger cannot fire even if
--- the CTE logic were ever changed.
 -- ---------------------------------------------------------------------------
 DELETE FROM public.zones
-WHERE  id IN (SELECT dup_id FROM _zone_dups)
-AND    lower(trim(name)) != 'other location';
+WHERE  id IN (SELECT dup_id FROM _zone_dups);
 
 DROP TABLE _zone_dups;
 

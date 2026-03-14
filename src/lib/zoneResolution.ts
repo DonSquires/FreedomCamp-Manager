@@ -11,7 +11,7 @@ interface ResolvedZone {
   source: ZoneResolutionSource
 }
 
-const FALLBACK_ZONE_NAME = 'other location'
+const FALLBACK_ZONE_NAME = '% - other location'
 
 export async function resolveObservationZoneForOrg(
   organizationId: string,
