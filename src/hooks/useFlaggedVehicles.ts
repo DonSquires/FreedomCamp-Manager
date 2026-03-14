@@ -10,52 +10,33 @@ import { toast } from 'sonner'
 
 interface FlaggedVehicle {
   id: string
-  organization_id: string
+  organization_id: string | null
   plate_number: string
-  last_known_site: string | null
-  date_recorded: string | null
-  vehicle_description: string | null
-  name_contact: string | null
-  confirmed_homeless: boolean
-  notes: string | null
-  priority: 'low' | 'medium' | 'high' | 'critical'
-  is_active: boolean
-  created_by: string
+  reason: string | null
+  priority: 'low' | 'medium' | 'high' | 'critical' | null
+  flagged_by: string | null
   created_at: string
   updated_at: string
-  attachments: any[]
-  created_by_user: {
+  flagged_by_user: {
     first_name: string
     last_name: string
-  }
+  } | null
 }
 
 interface CreateFlaggedVehicleInput {
   plate_number: string
-  last_known_site?: string
-  date_recorded?: string
-  vehicle_description?: string
-  name_contact?: string
-  confirmed_homeless?: boolean
-  notes?: string
+  reason?: string
   priority?: 'low' | 'medium' | 'high' | 'critical'
-  attachments?: any[]
 }
 
 interface UpdateFlaggedVehicleInput {
-  last_known_site?: string
-  vehicle_description?: string
-  name_contact?: string
-  confirmed_homeless?: boolean
-  notes?: string
+  reason?: string
   priority?: 'low' | 'medium' | 'high' | 'critical'
-  is_active?: boolean
 }
 
 export function useFlaggedVehicles(options?: {
   organizationId?: string
   priority?: string
-  isActive?: boolean
   plateNumber?: string
 }) {
   const { user } = useAuthStore()
@@ -69,7 +50,7 @@ export function useFlaggedVehicles(options?: {
         .from('flagged_vehicles')
         .select(`
           *,
-          created_by_user:user_profiles(first_name, last_name)
+          flagged_by_user:user_profiles(first_name, last_name)
         `)
         .order('priority', { ascending: false })
         .order('created_at', { ascending: false })
@@ -84,9 +65,6 @@ export function useFlaggedVehicles(options?: {
       // Filters
       if (options?.priority) {
         query = query.eq('priority', options.priority)
-      }
-      if (options?.isActive !== undefined) {
-        query = query.eq('is_active', options.isActive)
       }
       if (options?.plateNumber) {
         query = query.ilike('plate_number', `%${options.plateNumber}%`)
@@ -110,17 +88,10 @@ export function useFlaggedVehicles(options?: {
         .from('flagged_vehicles') as any)
         .insert({
           organization_id: user?.organization_id,
-          created_by: user?.id,
+          flagged_by: user?.id,
           plate_number: input.plate_number,
-          last_known_site: input.last_known_site,
-          date_recorded: input.date_recorded,
-          vehicle_description: input.vehicle_description,
-          name_contact: input.name_contact,
-          confirmed_homeless: input.confirmed_homeless || false,
-          notes: input.notes,
+          reason: input.reason,
           priority: input.priority || 'medium',
-          attachments: input.attachments || [],
-          is_active: true,
         })
         .select()
         .single()
@@ -156,24 +127,6 @@ export function useFlaggedVehicles(options?: {
     },
   })
 
-  // Toggle active status mutation
-  const toggleActive = useMutation({
-    mutationFn: async ({ id, isActive }: { id: string; isActive: boolean }) => {
-      const { error } = await (supabase.from('flagged_vehicles') as any)
-        .update({ is_active: !isActive })
-        .eq('id', id)
-
-      if (error) {
-        toast.error('Failed to update status')
-        throw error
-      }
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['flagged-vehicles'] })
-      toast.success('Status updated')
-    },
-  })
-
   // Delete flagged vehicle mutation
   const deleteFlaggedVehicle = useMutation({
     mutationFn: async (id: string) => {
@@ -199,7 +152,6 @@ export function useFlaggedVehicles(options?: {
     error: query.error,
     createFlaggedVehicle,
     updateFlaggedVehicle,
-    toggleActive,
     deleteFlaggedVehicle,
   }
 }
@@ -208,7 +160,6 @@ export function useFlaggedVehicles(options?: {
 export function useIsFlagged(plateNumber?: string) {
   const { flaggedVehicles, isLoading } = useFlaggedVehicles({
     plateNumber,
-    isActive: true,
   })
 
   return {
@@ -220,5 +171,5 @@ export function useIsFlagged(plateNumber?: string) {
 
 // Hook for active watchlist
 export function useActiveWatchlist() {
-  return useFlaggedVehicles({ isActive: true })
+  return useFlaggedVehicles()
 }

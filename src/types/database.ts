@@ -850,12 +850,16 @@ export interface Database {
           patrol_date: string
           shift: string
           assigned_to: string | null
-          checked_in_at: string | null
-          check_in_location_lat: number | null
-          check_in_location_lng: number | null
-          completed_at: string | null
           status: string
           notes: string | null
+          notification_sent: boolean
+          notification_sent_at: string | null
+          officer_accepted: boolean | null
+          officer_accepted_at: string | null
+          officer_declined: boolean
+          officer_decline_reason: string | null
+          auto_checkin_enabled: boolean
+          geofence_radius: number
           created_at: string
           updated_at: string
         }
@@ -866,12 +870,16 @@ export interface Database {
           patrol_date: string
           shift: string
           assigned_to?: string | null
-          checked_in_at?: string | null
-          check_in_location_lat?: number | null
-          check_in_location_lng?: number | null
-          completed_at?: string | null
           status?: string
           notes?: string | null
+          notification_sent?: boolean
+          notification_sent_at?: string | null
+          officer_accepted?: boolean | null
+          officer_accepted_at?: string | null
+          officer_declined?: boolean
+          officer_decline_reason?: string | null
+          auto_checkin_enabled?: boolean
+          geofence_radius?: number
           created_at?: string
           updated_at?: string
         }
@@ -882,12 +890,16 @@ export interface Database {
           patrol_date?: string
           shift?: string
           assigned_to?: string | null
-          checked_in_at?: string | null
-          check_in_location_lat?: number | null
-          check_in_location_lng?: number | null
-          completed_at?: string | null
           status?: string
           notes?: string | null
+          notification_sent?: boolean
+          notification_sent_at?: string | null
+          officer_accepted?: boolean | null
+          officer_accepted_at?: string | null
+          officer_declined?: boolean
+          officer_decline_reason?: string | null
+          auto_checkin_enabled?: boolean
+          geofence_radius?: number
           created_at?: string
           updated_at?: string
         }
@@ -1093,6 +1105,7 @@ export interface Database {
           completion_outcome: string | null
           completion_notes: string | null
           breach_status: string
+          attachments: any
           created_at: string
           updated_at: string
         }
@@ -1116,6 +1129,7 @@ export interface Database {
           completion_outcome?: string | null
           completion_notes?: string | null
           breach_status?: string
+          attachments?: any
           created_at?: string
           updated_at?: string
         }
@@ -1139,6 +1153,7 @@ export interface Database {
           completion_outcome?: string | null
           completion_notes?: string | null
           breach_status?: string
+          attachments?: any
           created_at?: string
           updated_at?: string
         }
@@ -1351,6 +1366,9 @@ export interface Database {
           notes: string | null
           metadata: any
           user_id: string | null
+          retention_hold: boolean
+          retention_until: string | null
+          retention_notes: string | null
           deleted_at: string | null
           created_at: string
           updated_at: string
@@ -1373,6 +1391,9 @@ export interface Database {
           notes?: string | null
           metadata?: any
           user_id?: string | null
+          retention_hold?: boolean
+          retention_until?: string | null
+          retention_notes?: string | null
           deleted_at?: string | null
           created_at?: string
           updated_at?: string
@@ -1395,9 +1416,355 @@ export interface Database {
           notes?: string | null
           metadata?: any
           user_id?: string | null
+          retention_hold?: boolean
+          retention_until?: string | null
+          retention_notes?: string | null
           deleted_at?: string | null
           created_at?: string
           updated_at?: string
+        }
+      }
+      audit_log: {
+        Row: {
+          id: string
+          action: string
+          entity_type: string | null
+          entity_id: string | null
+          old_values: any
+          new_values: any
+          performed_by: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          action: string
+          entity_type?: string | null
+          entity_id?: string | null
+          old_values?: any
+          new_values?: any
+          performed_by?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          action?: string
+          entity_type?: string | null
+          entity_id?: string | null
+          old_values?: any
+          new_values?: any
+          performed_by?: string | null
+          created_at?: string
+        }
+      }
+      flagged_vehicles: {
+        Row: {
+          id: string
+          organization_id: string | null
+          plate_number: string
+          reason: string | null
+          priority: 'low' | 'medium' | 'high' | 'critical' | null
+          flagged_by: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          organization_id?: string | null
+          plate_number: string
+          reason?: string | null
+          priority?: 'low' | 'medium' | 'high' | 'critical' | null
+          flagged_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          organization_id?: string | null
+          plate_number?: string
+          reason?: string | null
+          priority?: 'low' | 'medium' | 'high' | 'critical' | null
+          flagged_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      plate_scans: {
+        Row: {
+          id: string
+          organization_id: string
+          zone_id: string | null
+          scanned_by: string | null
+          plate_number: string | null
+          scan_mode: string
+          scanned_photo: string | null
+          confidence_score: number | null
+          gps_latitude: number | null
+          gps_longitude: number | null
+          gps_accuracy: number | null
+          ai_vehicle_make: string | null
+          ai_vehicle_model: string | null
+          ai_vehicle_color: string | null
+          reviewed: boolean
+          review_action: string | null
+          flagged_vehicle_detected: boolean
+          breach_detected: boolean
+          violation_summary: string | null
+          scanned_at: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          organization_id: string
+          zone_id?: string | null
+          scanned_by?: string | null
+          plate_number?: string | null
+          scan_mode?: string
+          scanned_photo?: string | null
+          confidence_score?: number | null
+          gps_latitude?: number | null
+          gps_longitude?: number | null
+          gps_accuracy?: number | null
+          ai_vehicle_make?: string | null
+          ai_vehicle_model?: string | null
+          ai_vehicle_color?: string | null
+          reviewed?: boolean
+          review_action?: string | null
+          flagged_vehicle_detected?: boolean
+          breach_detected?: boolean
+          violation_summary?: string | null
+          scanned_at?: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          organization_id?: string
+          zone_id?: string | null
+          scanned_by?: string | null
+          plate_number?: string | null
+          scan_mode?: string
+          scanned_photo?: string | null
+          confidence_score?: number | null
+          gps_latitude?: number | null
+          gps_longitude?: number | null
+          gps_accuracy?: number | null
+          ai_vehicle_make?: string | null
+          ai_vehicle_model?: string | null
+          ai_vehicle_color?: string | null
+          reviewed?: boolean
+          review_action?: string | null
+          flagged_vehicle_detected?: boolean
+          breach_detected?: boolean
+          violation_summary?: string | null
+          scanned_at?: string
+          created_at?: string
+        }
+      }
+      canonical_persons: {
+        Row: {
+          id: string
+          full_name: string
+          date_of_birth: string | null
+          contact_email: string | null
+          contact_phone: string | null
+          address: string | null
+          homeless_status: string | null
+          homeless_confirmed_at: string | null
+          homeless_confirmed_by: string | null
+          notes: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          full_name: string
+          date_of_birth?: string | null
+          contact_email?: string | null
+          contact_phone?: string | null
+          address?: string | null
+          homeless_status?: string | null
+          homeless_confirmed_at?: string | null
+          homeless_confirmed_by?: string | null
+          notes?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          full_name?: string
+          date_of_birth?: string | null
+          contact_email?: string | null
+          contact_phone?: string | null
+          address?: string | null
+          homeless_status?: string | null
+          homeless_confirmed_at?: string | null
+          homeless_confirmed_by?: string | null
+          notes?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      person_observations: {
+        Row: {
+          id: string
+          person_id: string | null
+          organization_id: string | null
+          zone_id: string | null
+          observed_by: string | null
+          observed_at: string
+          gps_latitude: number | null
+          gps_longitude: number | null
+          notes: string | null
+          attachments: any
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          person_id?: string | null
+          organization_id?: string | null
+          zone_id?: string | null
+          observed_by?: string | null
+          observed_at: string
+          gps_latitude?: number | null
+          gps_longitude?: number | null
+          notes?: string | null
+          attachments?: any
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          person_id?: string | null
+          organization_id?: string | null
+          zone_id?: string | null
+          observed_by?: string | null
+          observed_at?: string
+          gps_latitude?: number | null
+          gps_longitude?: number | null
+          notes?: string | null
+          attachments?: any
+          created_at?: string
+        }
+      }
+      officer_welfare_settings: {
+        Row: {
+          id: string
+          organization_id: string
+          user_id: string
+          auto_logoff_enabled: boolean
+          welfare_check_enabled: boolean
+          inactivity_warning_time: number
+          auto_logoff_time: number
+          gps_inactivity_threshold: number
+          admin_escalation_time: number
+          critical_escalation_time: number
+          investigation_exception_enabled: boolean
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          organization_id: string
+          user_id: string
+          auto_logoff_enabled?: boolean
+          welfare_check_enabled?: boolean
+          inactivity_warning_time?: number
+          auto_logoff_time?: number
+          gps_inactivity_threshold?: number
+          admin_escalation_time?: number
+          critical_escalation_time?: number
+          investigation_exception_enabled?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          organization_id?: string
+          user_id?: string
+          auto_logoff_enabled?: boolean
+          welfare_check_enabled?: boolean
+          inactivity_warning_time?: number
+          auto_logoff_time?: number
+          gps_inactivity_threshold?: number
+          admin_escalation_time?: number
+          critical_escalation_time?: number
+          investigation_exception_enabled?: boolean
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      investigation_jobs: {
+        Row: {
+          id: string
+          organization_id: string
+          zone_id: string | null
+          assigned_to: string | null
+          job_type: string | null
+          title: string | null
+          description: string | null
+          status: string
+          priority: string
+          created_by: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          organization_id: string
+          zone_id?: string | null
+          assigned_to?: string | null
+          job_type?: string | null
+          title?: string | null
+          description?: string | null
+          status?: string
+          priority?: string
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          organization_id?: string
+          zone_id?: string | null
+          assigned_to?: string | null
+          job_type?: string | null
+          title?: string | null
+          description?: string | null
+          status?: string
+          priority?: string
+          created_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+      }
+      incident_attachments: {
+        Row: {
+          id: string
+          incident_id: string | null
+          file_url: string
+          file_name: string
+          file_type: string
+          file_hash: string | null
+          uploaded_by: string | null
+          uploaded_at: string
+        }
+        Insert: {
+          id?: string
+          incident_id?: string | null
+          file_url: string
+          file_name: string
+          file_type: string
+          file_hash?: string | null
+          uploaded_by?: string | null
+          uploaded_at?: string
+        }
+        Update: {
+          id?: string
+          incident_id?: string | null
+          file_url?: string
+          file_name?: string
+          file_type?: string
+          file_hash?: string | null
+          uploaded_by?: string | null
+          uploaded_at?: string
         }
       }
       import_batches: {

@@ -10,29 +10,17 @@ import { toast } from 'sonner'
 
 interface PersonRecord {
   id: string
-  organization_id: string
-  zone_id: string
-  user_id: string
   full_name: string
   date_of_birth: string | null
-  id_verified: boolean
-  homeless_claimed: boolean
-  homeless_confirmed: boolean
-  homeless_confirmed_by: string | null
+  contact_email: string | null
+  contact_phone: string | null
+  address: string | null
+  homeless_status: string | null
   homeless_confirmed_at: string | null
-  location_lat: number | null
-  location_lng: number | null
+  homeless_confirmed_by: string | null
   notes: string | null
-  attachments: any[]
-  recorded_at: string
   created_at: string
-  zone: {
-    name: string
-  }
-  recorded_by_user: {
-    first_name: string
-    last_name: string
-  }
+  updated_at: string
   confirmer?: {
     first_name: string
     last_name: string
@@ -54,15 +42,13 @@ interface PersonObservation {
 }
 
 interface CreatePersonRecordInput {
-  zone_id: string
   full_name: string
   date_of_birth?: string
-  id_verified?: boolean
-  homeless_claimed?: boolean
-  location_lat?: number
-  location_lng?: number
+  contact_email?: string
+  contact_phone?: string
+  address?: string
+  homeless_status?: string
   notes?: string
-  attachments?: any[]
 }
 
 interface CreatePersonObservationInput {
@@ -75,8 +61,6 @@ interface CreatePersonObservationInput {
 }
 
 export function usePersonRecords(options?: {
-  organizationId?: string
-  zoneId?: string
   homelessStatus?: 'claimed' | 'confirmed' | 'none'
   dateFrom?: string
   dateTo?: string
@@ -92,35 +76,23 @@ export function usePersonRecords(options?: {
         .from('canonical_persons')
         .select(`
           *,
-          zone:zones(name),
-          recorded_by_user:user_profiles!canonical_persons_user_id_fkey(first_name, last_name),
           confirmer:user_profiles!canonical_persons_homeless_confirmed_by_fkey(first_name, last_name)
         `)
-        .order('recorded_at', { ascending: false })
-
-      // Organization scoping
-      if (user?.role !== 'master' && user?.organization_id) {
-        query = query.eq('organization_id', user.organization_id)
-      } else if (options?.organizationId) {
-        query = query.eq('organization_id', options.organizationId)
-      }
+        .order('created_at', { ascending: false })
 
       // Filters
-      if (options?.zoneId) {
-        query = query.eq('zone_id', options.zoneId)
-      }
-      if (options?.homelessStatus === 'claimed') {
-        query = query.eq('homeless_claimed', true)
-      } else if (options?.homelessStatus === 'confirmed') {
-        query = query.eq('homeless_confirmed', true)
+      if (options?.homelessStatus === 'confirmed') {
+        query = query.not('homeless_confirmed_at', 'is', null)
+      } else if (options?.homelessStatus === 'claimed') {
+        query = query.eq('homeless_status', 'claimed')
       } else if (options?.homelessStatus === 'none') {
-        query = query.eq('homeless_claimed', false).eq('homeless_confirmed', false)
+        query = query.is('homeless_status', null)
       }
       if (options?.dateFrom) {
-        query = query.gte('recorded_at', options.dateFrom)
+        query = query.gte('created_at', options.dateFrom)
       }
       if (options?.dateTo) {
-        query = query.lte('recorded_at', options.dateTo)
+        query = query.lte('created_at', options.dateTo)
       }
 
       const { data, error } = await query
@@ -140,18 +112,13 @@ export function usePersonRecords(options?: {
       const { data, error } = await (supabase
         .from('canonical_persons') as any)
         .insert({
-          organization_id: user?.organization_id,
-          user_id: user?.id,
-          zone_id: input.zone_id,
           full_name: input.full_name,
           date_of_birth: input.date_of_birth,
-          id_verified: input.id_verified || false,
-          homeless_claimed: input.homeless_claimed || false,
-          location_lat: input.location_lat,
-          location_lng: input.location_lng,
+          contact_email: input.contact_email,
+          contact_phone: input.contact_phone,
+          address: input.address,
+          homeless_status: input.homeless_status,
           notes: input.notes,
-          attachments: input.attachments || [],
-          recorded_at: new Date().toISOString(),
         })
         .select()
         .single()
@@ -174,7 +141,7 @@ export function usePersonRecords(options?: {
     mutationFn: async ({ id, confirmed }: { id: string; confirmed: boolean }) => {
       const { error } = await (supabase.from('canonical_persons') as any)
         .update({
-          homeless_confirmed: confirmed,
+          homeless_status: confirmed ? 'confirmed' : null,
           homeless_confirmed_by: confirmed ? user?.id : null,
           homeless_confirmed_at: confirmed ? new Date().toISOString() : null,
         })
@@ -254,7 +221,7 @@ export function usePersonObservations(personId: string | null) {
         .select(`
           *,
           zone:zones(name),
-          observer:user_profiles!person_observations_observed_by_fkey(first_name, last_name)
+          observer:user_profiles(first_name, last_name)
         `)
         .eq('person_id', personId)
         .order('observed_at', { ascending: false })

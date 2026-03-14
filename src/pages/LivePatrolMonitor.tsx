@@ -113,19 +113,17 @@ export default function LivePatrolMonitor() {
             status,
             patrol_date,
             shift,
-            checked_in_at,
-            check_in_location_lat,
-            check_in_location_lng,
-            completed_at,
             notes,
             organization_id,
             assigned_to,
+            created_at,
+            updated_at,
             zone:zones(id, name),
             officer:user_profiles!patrols_assigned_to_fkey(id, first_name, last_name, phone)
           `)
           // Show in_progress and scheduled patrols; also include today's completed ones
           .in('status', ['in_progress', 'scheduled', 'completed'])
-          .order('checked_in_at', { ascending: false })
+          .order('created_at', { ascending: false })
 
         // Organization scoping
         if (user?.role !== 'master' && user?.organization_id) {
@@ -166,17 +164,15 @@ export default function LivePatrolMonitor() {
             status,
             patrol_date,
             shift,
-            checked_in_at,
-            check_in_location_lat,
-            check_in_location_lng,
-            completed_at,
             notes,
             organization_id,
             assigned_to,
+            created_at,
+            updated_at,
             zone_id
           `)
           .in('status', ['in_progress', 'scheduled', 'completed'])
-          .order('checked_in_at', { ascending: false })
+          .order('created_at', { ascending: false })
 
         if (user?.role !== 'master' && user?.organization_id) {
           query = query.eq('organization_id', user.organization_id)
@@ -243,13 +239,13 @@ export default function LivePatrolMonitor() {
           const { count: vehiclesChecked } = await (supabase.from('observations') as any)
             .select('*', { count: 'exact', head: true })
             .eq('recorded_by', patrol.officer.id)
-            .gte('recorded_at', patrol.checked_in_at || today)
+            .gte('recorded_at', patrol.created_at || today)
 
           // Get latest GPS position from activity log
           const { data: latestActivity } = await (supabase.from('officer_activity_log') as any)
             .select('gps_latitude, gps_longitude, recorded_at')
             .eq('user_id', patrol.officer.id)
-            .gte('recorded_at', patrol.checked_in_at || today)
+            .gte('recorded_at', patrol.created_at || today)
             .order('recorded_at', { ascending: false })
             .limit(1)
             .single()

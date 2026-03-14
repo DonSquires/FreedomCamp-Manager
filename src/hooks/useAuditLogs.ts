@@ -10,15 +10,12 @@ import { toast } from 'sonner'
 
 interface AuditLog {
   id: string
-  organization_id: string | null
-  user_id: string | null
   action: string
-  entity_type: string
+  entity_type: string | null
   entity_id: string | null
   old_values: any
   new_values: any
-  ip_address: string | null
-  user_agent: string | null
+  performed_by: string | null
   created_at: string
   user_profile: {
     first_name: string
@@ -45,21 +42,14 @@ export function useAuditLogs(options?: {
         .from('audit_log')
         .select(`
           *,
-          user_profile:user_profiles(first_name, last_name, email)
+          user_profile:user_profiles!audit_log_performed_by_fkey(first_name, last_name, email)
         `)
         .order('created_at', { ascending: false })
         .limit(options?.limit || 100)
 
-      // Organization scoping
-      if (user?.role !== 'master' && user?.organization_id) {
-        query = query.eq('organization_id', user.organization_id)
-      } else if (options?.organizationId) {
-        query = query.eq('organization_id', options.organizationId)
-      }
-
       // Filters
       if (options?.userId) {
-        query = query.eq('user_id', options.userId)
+        query = query.eq('performed_by', options.userId)
       }
       if (options?.action) {
         query = query.eq('action', options.action)
@@ -152,11 +142,6 @@ export function useAuditStats(options?: {
       let query = supabase
         .from('audit_log')
         .select('action, entity_type')
-
-      // Organization scoping
-      if (user?.role !== 'master' && user?.organization_id) {
-        query = query.eq('organization_id', user.organization_id)
-      }
 
       // Date filters
       if (options?.dateFrom) {

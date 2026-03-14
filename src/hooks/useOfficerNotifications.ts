@@ -41,17 +41,16 @@ interface BreachAlertWithZone extends BreachAlertRow {
 interface FlaggedVehicleResult {
   id: string
   plate_number: string
-  priority: string
-  notes: string | null
-  last_known_site: string | null
+  priority: string | null
+  reason: string | null
   created_at: string
 }
 
 interface InvestigationJobResult {
   id: string
-  reference_number: string | null
-  job_type: string
-  location_address: string | null
+  title: string | null
+  job_type: string | null
+  description: string | null
   priority: string
   created_at: string
 }
@@ -155,11 +154,9 @@ export function useOfficerNotifications(options: { limit?: number; unreadOnly?: 
           id,
           plate_number,
           priority,
-          notes,
-          last_known_site,
+          reason,
           created_at
         `)
-        .eq('is_active', true)
         .limit(10)
 
       if (flaggedVehicles) {
@@ -167,9 +164,9 @@ export function useOfficerNotifications(options: { limit?: number; unreadOnly?: 
         alerts.push(...typedFlaggedVehicles.map(v => ({
           id: v.id,
           type: 'flagged_vehicle' as const,
-          priority: v.priority as 'low' | 'normal' | 'high' | 'urgent',
+          priority: (v.priority || 'normal') as 'low' | 'normal' | 'high' | 'urgent',
           title: 'Flagged Vehicle',
-          message: `Watch for ${v.plate_number} - ${v.notes}`,
+          message: `Watch for ${v.plate_number} - ${v.reason || 'No reason specified'}`,
           plate_number: v.plate_number,
           acknowledged: false,
           created_at: v.created_at,
@@ -181,14 +178,14 @@ export function useOfficerNotifications(options: { limit?: number; unreadOnly?: 
         .from('investigation_jobs')
         .select(`
           id,
-          reference_number,
+          title,
           job_type,
-          location_address,
+          description,
           priority,
           created_at
         `)
         .eq('assigned_to', user.id)
-        .eq('status', 'assigned')
+        .eq('status', 'in_progress')
         .limit(10)
 
       if (investigations) {
@@ -198,7 +195,7 @@ export function useOfficerNotifications(options: { limit?: number; unreadOnly?: 
           type: 'investigation' as const,
           priority: i.priority as 'low' | 'normal' | 'high' | 'urgent',
           title: 'Investigation Assigned',
-          message: `${i.job_type} at ${i.location_address}`,
+          message: `${i.job_type || 'Investigation'}: ${i.title || i.description || 'No details'}`,
           acknowledged: false,
           created_at: i.created_at,
         })))
@@ -259,7 +256,6 @@ export function useOfficerAlertCount() {
       const { count: flaggedCount } = await supabase
         .from('flagged_vehicles')
         .select('*', { count: 'exact', head: true })
-        .eq('is_active', true)
 
       count += flaggedCount || 0
 
@@ -268,7 +264,7 @@ export function useOfficerAlertCount() {
         .from('investigation_jobs')
         .select('*', { count: 'exact', head: true })
         .eq('assigned_to', user.id)
-        .eq('status', 'assigned')
+        .eq('status', 'in_progress')
 
       count += investigationCount || 0
 
