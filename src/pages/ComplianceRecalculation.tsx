@@ -12,6 +12,7 @@ import { useOrganizations } from '@/hooks/useOrganizations'
 import { useZones } from '@/hooks/useZones'
 import { edgeFunctions } from '@/lib/edgeFunctions'
 import { useAuthStore } from '@/stores/authStore'
+import { useOperationsStore } from '@/stores/operationsStore'
 import { toast } from 'sonner'
 import { format } from 'date-fns'
 import { 
@@ -60,15 +61,32 @@ interface LiveRunState {
 }
 export default function ComplianceRecalculation() {
   const { user } = useAuthStore()
+  const { startOperation, updateProgress, completeOperation, failOperation, operations } = useOperationsStore()
   const [scope, setScope] = useState<'organization' | 'zone' | 'date_range'>('organization')
   const [selectedOrgId, setSelectedOrgId] = useState<string>('')
   const [selectedZoneId, setSelectedZoneId] = useState<string>('')
   const [dateFrom, setDateFrom] = useState<string>('')
   const [dateTo, setDateTo] = useState<string>('')
   const [result, setResult] = useState<RecalculationResult | null>(null)
-  const [isRunning, setIsRunning] = useState(false)
   const [progress, setProgress] = useState(0)
   const [liveRun, setLiveRun] = useState<LiveRunState | null>(null)
+
+  // Track running state from both local mutation and global store
+  const globalOp = operations.find((op) => op.id === 'compliance-recalculation' && op.status === 'running')
+  const [localRunning, setLocalRunning] = useState(false)
+  const isRunning = localRunning || !!globalOp
+
+  // Sync from global operation when returning to this page
+  const globalProgress = globalOp?.progress
+  const globalLiveProgress = globalOp?.liveProgress
+  useEffect(() => {
+    if (globalProgress != null) {
+      setProgress(globalProgress)
+    }
+    if (globalLiveProgress) {
+      setLiveRun(globalLiveProgress)
+    }
+  }, [globalProgress, globalLiveProgress])
 
   const effectiveOrgId = selectedOrgId || (user?.role !== 'master' ? user?.organization_id || '' : '')
 
@@ -132,14 +150,16 @@ export default function ComplianceRecalculation() {
       }
     }
 
-    setLiveRun({
+    const initialLiveState = {
       total,
       processed: 0,
       changed: 0,
       breachesCreated: 0,
       breachesDismissed: 0,
       skippedNoRules: 0,
-    })
+    }
+    setLiveRun(initialLiveState)
+    updateProgress('compliance-recalculation', 0, initialLiveState)
 
     let offset = 0
     const batchSize = 50
@@ -174,14 +194,16 @@ export default function ComplianceRecalculation() {
 
       const progressPct = total > 0 ? Math.min(100, Math.round((processedTotal / total) * 100)) : 0
       setProgress(progressPct)
-      setLiveRun({
+      const liveState = {
         total,
         processed: processedTotal,
         changed: changedTotal,
         breachesCreated: breachesCreatedTotal,
         breachesDismissed: breachesDismissedTotal,
         skippedNoRules: skippedNoRulesTotal,
-      })
+      }
+      setLiveRun(liveState)
+      updateProgress('compliance-recalculation', progressPct, liveState)
 
       if (processed <= 0) break
       offset += processed
@@ -223,21 +245,32 @@ export default function ComplianceRecalculation() {
       })
     },
     onMutate: () => {
-      setIsRunning(true)
+      setLocalRunning(true)
       setProgress(0)
       setResult(null)
       setLiveRun(null)
+      startOperation('compliance-recalculation', 'Compliance Recalculation')
       return {}
     },
     onSuccess: (data) => {
       setProgress(100)
       setResult(data)
+      completeOperation('compliance-recalculation', {
+        observations_processed: data.observations_processed,
+        compliance_changed: data.compliance_changed,
+        breaches_created: data.breaches_created,
+        breaches_dismissed: data.breaches_dismissed,
+        skipped_no_rules: data.skipped_no_rules,
+        duration_seconds: data.duration_seconds,
+        status: 'completed',
+      })
       toast.success('Compliance recalculation completed successfully')
       refetchActions()
     },
     onError: (error: any) => {
       setProgress(0)
       const msg: string = error?.message || 'Recalculation failed'
+      failOperation('compliance-recalculation', msg)
       // Match the exact messages produced by edgeFunctions.ts session error paths
       const isSessionError =
         msg === 'Session expired. Please sign in again.' ||
@@ -251,7 +284,7 @@ export default function ComplianceRecalculation() {
       refetchActions()
     },
     onSettled: (_, __, context: any) => {
-      setIsRunning(false)
+      setLocalRunning(false)
       if (context?.interval) clearInterval(context.interval)
     },
   })
