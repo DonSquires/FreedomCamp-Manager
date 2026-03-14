@@ -143,7 +143,10 @@ export default function VehicleDetailPage() {
       const { data, error } = await query
       if (error) throw error
 
-      // Deduplicate: keep first occurrence for each exact recorded_at + zone combination
+      // Deduplicate: keep first occurrence per exact recorded_at + zone pair.
+      // This query is already filtered to a single plate_number, so any two rows
+      // sharing the same timestamp and zone are genuine database duplicates of the
+      // same scan event (the same vehicle cannot be in two places simultaneously).
       const seen = new Set<string>()
       const deduped = (data || []).filter((obs: Observation) => {
         const key = `${obs.recorded_at}:${obs.zone?.name || ''}`

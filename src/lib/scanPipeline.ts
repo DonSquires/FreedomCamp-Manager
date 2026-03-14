@@ -77,9 +77,9 @@ export async function captureAndSave(
       gpsCoordinates: `${latitude.toFixed(6)}°, ${longitude.toFixed(6)}°`,
       userName: user.full_name || undefined,
     })
-  } catch {
+  } catch (err) {
     // Watermarking failed — upload the original photo without a watermark
-    console.warn('⚠️ Watermarking failed — uploading original photo')
+    console.warn('⚠️ Watermarking failed — uploading original photo:', err)
     uploadFile = file
   }
 
