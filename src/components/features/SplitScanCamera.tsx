@@ -9,7 +9,7 @@
 
 import { useRef, useState, useEffect, useCallback } from 'react'
 import { Button } from '@/components/ui/button'
-import { Camera, FlipHorizontal, X, ZoomIn, ZoomOut } from 'lucide-react'
+import { Camera, FlipHorizontal, X, ZoomIn, ZoomOut, ShieldAlert } from 'lucide-react'
 import { toast } from 'sonner'
 
 interface SplitScanCameraProps {
@@ -19,9 +19,16 @@ interface SplitScanCameraProps {
   onCancel: () => void
   /** Disable the capture button while a scan is in-flight */
   isProcessing?: boolean
+  /**
+   * When true, a "camera blocked" overlay is rendered over the viewfinder.
+   * The close button and other non-capture controls remain functional.
+   */
+  isBlocked?: boolean
+  /** Optional message explaining why the camera is blocked. */
+  blockedReason?: string
 }
 
-export function SplitScanCamera({ onCapture, onCancel, isProcessing = false }: SplitScanCameraProps) {
+export function SplitScanCamera({ onCapture, onCancel, isProcessing = false, isBlocked = false, blockedReason }: SplitScanCameraProps) {
   const videoRef  = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const streamRef = useRef<MediaStream | null>(null)
@@ -114,32 +121,50 @@ export function SplitScanCamera({ onCapture, onCancel, isProcessing = false }: S
       {/* Hidden capture canvas */}
       <canvas ref={canvasRef} className="hidden" />
 
+      {/* ── Out-of-boundary blocked overlay ── */}
+      {isBlocked && (
+        <div className="absolute inset-0 z-[25] flex flex-col items-center justify-center gap-3 px-6 bg-gray-950/95">
+          <div className="flex items-center justify-center h-16 w-16 rounded-full bg-orange-950 border-2 border-orange-500 shadow-lg">
+            <ShieldAlert className="h-8 w-8 text-orange-400" />
+          </div>
+          <div className="text-center">
+            <p className="text-white font-bold text-base">Camera Blocked</p>
+            <p className="text-orange-400 text-sm font-semibold mt-1">Outside Authorised Patrol Zone</p>
+            <p className="text-gray-400 text-xs mt-2 leading-relaxed max-w-[220px] mx-auto">
+              {blockedReason ?? 'Move into your assigned patrol jurisdiction to enable vehicle scanning.'}
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* ── Top-right: Close ── */}
       <Button
         variant="ghost"
         size="icon"
         onClick={onCancel}
-        className="absolute top-2 right-2 z-20 text-white bg-black/40 hover:bg-black/60"
+        className="absolute top-2 right-2 z-30 text-white bg-black/40 hover:bg-black/60"
         aria-label="Close scanner"
       >
         <X className="h-5 w-5" />
       </Button>
 
       {/* ── Top-left: Flip camera ── */}
-      <Button
-        variant="ghost"
-        size="icon"
-        onClick={flipCamera}
-        className="absolute top-2 left-2 z-20 text-white bg-black/40 hover:bg-black/60"
-        aria-label="Flip camera"
-      >
-        <FlipHorizontal className="h-5 w-5" />
-      </Button>
+      {!isBlocked && (
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={flipCamera}
+          className="absolute top-2 left-2 z-20 text-white bg-black/40 hover:bg-black/60"
+          aria-label="Flip camera"
+        >
+          <FlipHorizontal className="h-5 w-5" />
+        </Button>
+      )}
 
       {/* ── Bottom centre: Capture button ── */}
       <div className="absolute bottom-4 left-0 right-0 z-20 flex flex-col items-center gap-2">
-        {/* Zoom controls (only shown when device supports zoom) */}
-        {hasZoom && (
+        {/* Zoom controls (only shown when device supports zoom and camera is not blocked) */}
+        {hasZoom && !isBlocked && (
           <div className="flex items-center gap-3 bg-black/50 rounded-full px-4 py-1">
             <Button
               variant="ghost" size="icon"
@@ -161,16 +186,16 @@ export function SplitScanCamera({ onCapture, onCancel, isProcessing = false }: S
           </div>
         )}
 
-        {/* Shutter button */}
+        {/* Shutter button — always rendered so layout is stable, disabled when blocked */}
         <button
           onClick={capture}
-          disabled={!isStreaming || isProcessing}
+          disabled={!isStreaming || isProcessing || isBlocked}
           aria-label="Capture photo"
           className={`
             w-16 h-16 rounded-full border-4 border-white bg-white/20
             flex items-center justify-center
             transition-opacity
-            ${(!isStreaming || isProcessing) ? 'opacity-40 cursor-not-allowed' : 'hover:bg-white/40 active:scale-95'}
+            ${(!isStreaming || isProcessing || isBlocked) ? 'opacity-40 cursor-not-allowed' : 'hover:bg-white/40 active:scale-95'}
           `}
         >
           <Camera className="h-7 w-7 text-white" />
