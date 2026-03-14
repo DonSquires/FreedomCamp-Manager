@@ -1,9 +1,9 @@
-import React, { useState, useRef } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import {
-  View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, Platform,
+  View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Platform,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { CameraView, CameraType, useCameraPermissions } from 'expo-camera'
+import { CameraView, useCameraPermissions } from 'expo-camera'
 import * as Location from 'expo-location'
 import * as FileSystem from 'expo-file-system'
 import { Ionicons } from '@expo/vector-icons'
@@ -18,14 +18,64 @@ interface RNFileInfo {
   type: string
 }
 
+// PostgREST error code for "function not found in schema cache"
+const PGRST_FUNCTION_NOT_FOUND = 'PGRST202'
+
 export default function ScanScreen() {
   const { user } = useAuthStore()
   const [permission, requestPermission] = useCameraPermissions()
   const [isProcessing, setIsProcessing] = useState(false)
   const [lastResult, setLastResult] = useState<{ plate: string; compliant: boolean } | null>(null)
+  // 'checking' = first fix pending, 'authorized' = inside zone, 'unauthorized' = outside zone
+  const [boundaryStatus, setBoundaryStatus] = useState<'checking' | 'authorized' | 'unauthorized'>('authorized')
   const cameraRef = useRef<CameraView>(null)
 
-  if (!permission) return <View style={styles.container} />
+  // ── Out-of-boundary GPS check ─────────────────────────────────────────────
+  useEffect(() => {
+    if (!user?.organization_id) return
+
+    const checkBoundary = async () => {
+      try {
+        const { status } = await Location.requestForegroundPermissionsAsync()
+        if (status !== 'granted') return // Can't check — don't block the officer
+
+        const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced })
+        const { data, error } = await (supabase as any).rpc('check_location_in_org', {
+          p_organization_id: user.organization_id,
+          p_latitude: loc.coords.latitude,
+          p_longitude: loc.coords.longitude,
+        })
+
+        if (error) {
+          // RPC not deployed or non-fatal — don't block the officer
+          if (error.code !== PGRST_FUNCTION_NOT_FOUND) {
+            console.warn('Boundary check error:', error.message)
+          }
+          setBoundaryStatus('authorized')
+          return
+        }
+
+        setBoundaryStatus((data as any)?.inside === false ? 'unauthorized' : 'authorized')
+      } catch {
+        // GPS or network unavailable — don't block the officer
+        setBoundaryStatus('authorized')
+      }
+    }
+
+    checkBoundary()
+    const boundaryCheckInterval = setInterval(checkBoundary, 30000)
+    return () => clearInterval(boundaryCheckInterval)
+  }, [user?.organization_id])
+
+  // ── Permission loading state — was previously a blank black screen ────────
+  if (!permission) {
+    return (
+      <SafeAreaView style={styles.permContainer}>
+        <ActivityIndicator size="large" color="#1d4ed8" />
+        <Text style={styles.permSubtitle}>Requesting camera access…</Text>
+      </SafeAreaView>
+    )
+  }
 
   if (!permission.granted) {
     return (
@@ -41,6 +91,8 @@ export default function ScanScreen() {
       </SafeAreaView>
     )
   }
+
+  const isOutsideBoundary = boundaryStatus === 'unauthorized'
 
   const handleCapture = async () => {
     if (!cameraRef.current || isProcessing) return
@@ -170,39 +222,57 @@ export default function ScanScreen() {
     <SafeAreaView style={styles.container}>
       <View style={styles.cameraWrapper}>
         <CameraView ref={cameraRef} style={styles.camera} facing="back">
-          {/* Plate-framing overlay */}
-          <View style={styles.overlay}>
-            <View style={styles.topBar}>
-              <Text style={styles.overlayTitle}>Align plate in frame</Text>
-            </View>
-            <View style={styles.frameBorder} />
-            <View style={styles.bottomControls}>
-              {lastResult && (
-                <View style={[
-                  styles.resultPill,
-                  { backgroundColor: lastResult.compliant ? '#16a34a' : '#dc2626' },
-                ]}>
-                  <Text style={styles.resultText}>
-                    {lastResult.plate} · {lastResult.compliant ? 'Compliant' : 'BREACH'}
-                  </Text>
-                </View>
-              )}
-              <TouchableOpacity
-                style={[styles.captureButton, isProcessing && styles.captureButtonDisabled]}
-                onPress={handleCapture}
-                disabled={isProcessing}
-              >
-                {isProcessing ? (
-                  <ActivityIndicator color="#1d4ed8" size="large" />
-                ) : (
-                  <Ionicons name="camera" size={36} color="#1d4ed8" />
-                )}
-              </TouchableOpacity>
-              <Text style={styles.captureHint}>
-                {isProcessing ? 'Processing...' : 'Tap to capture'}
+          {isOutsideBoundary ? (
+            /* ── Out-of-boundary blocked overlay ── */
+            <View style={styles.blockedOverlay}>
+              <View style={styles.blockedIconCircle}>
+                <Ionicons name="shield-outline" size={40} color="#fb923c" />
+              </View>
+              <Text style={styles.blockedTitle}>Camera Blocked</Text>
+              <Text style={styles.blockedSubtitle}>Outside Authorised Patrol Zone</Text>
+              <Text style={styles.blockedBody}>
+                You are not within your assigned patrol jurisdiction.{'\n'}
+                Move into the patrol area to enable vehicle scanning.
               </Text>
+              <View style={styles.blockedCapturePlaceholder}>
+                <Ionicons name="camera-off-outline" size={28} color="#6b7280" />
+              </View>
             </View>
-          </View>
+          ) : (
+            /* ── Normal plate-framing overlay ── */
+            <View style={styles.overlay}>
+              <View style={styles.topBar}>
+                <Text style={styles.overlayTitle}>Align plate in frame</Text>
+              </View>
+              <View style={styles.frameBorder} />
+              <View style={styles.bottomControls}>
+                {lastResult && (
+                  <View style={[
+                    styles.resultPill,
+                    { backgroundColor: lastResult.compliant ? '#16a34a' : '#dc2626' },
+                  ]}>
+                    <Text style={styles.resultText}>
+                      {lastResult.plate} · {lastResult.compliant ? 'Compliant' : 'BREACH'}
+                    </Text>
+                  </View>
+                )}
+                <TouchableOpacity
+                  style={[styles.captureButton, isProcessing && styles.captureButtonDisabled]}
+                  onPress={handleCapture}
+                  disabled={isProcessing}
+                >
+                  {isProcessing ? (
+                    <ActivityIndicator color="#1d4ed8" size="large" />
+                  ) : (
+                    <Ionicons name="camera" size={36} color="#1d4ed8" />
+                  )}
+                </TouchableOpacity>
+                <Text style={styles.captureHint}>
+                  {isProcessing ? 'Processing...' : 'Tap to capture'}
+                </Text>
+              </View>
+            </View>
+          )}
         </CameraView>
       </View>
     </SafeAreaView>
@@ -277,4 +347,54 @@ const styles = StyleSheet.create({
   },
   captureButtonDisabled: { backgroundColor: '#e2e8f0' },
   captureHint: { color: '#cbd5e1', fontSize: 12 },
+  // ── Out-of-boundary blocked overlay ────────────────────────────────────
+  blockedOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(3, 7, 18, 0.95)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+    paddingHorizontal: 32,
+  },
+  blockedIconCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#431407',
+    borderWidth: 2,
+    borderColor: '#f97316',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 4,
+  },
+  blockedTitle: {
+    color: '#fff',
+    fontSize: 20,
+    fontWeight: '700',
+    textAlign: 'center',
+  },
+  blockedSubtitle: {
+    color: '#fb923c',
+    fontSize: 14,
+    fontWeight: '600',
+    textAlign: 'center',
+  },
+  blockedBody: {
+    color: '#9ca3af',
+    fontSize: 13,
+    textAlign: 'center',
+    lineHeight: 20,
+    marginTop: 4,
+  },
+  blockedCapturePlaceholder: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderWidth: 3,
+    borderColor: 'rgba(255,255,255,0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 16,
+  },
 })

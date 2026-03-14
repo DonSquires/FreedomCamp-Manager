@@ -308,25 +308,9 @@ export function BulkScanSession({
   }
 
   // ── Outside authorised jurisdiction ──────────────────────────────────────
-  if (authStatus === 'unauthorized') {
-    return (
-      <div className="flex flex-col items-center justify-center h-full gap-6 p-8 text-center">
-        <div className="flex items-center justify-center h-16 w-16 rounded-full bg-orange-100 dark:bg-orange-900">
-          <AlertTriangle className="h-8 w-8 text-orange-600 dark:text-orange-400" />
-        </div>
-        <div>
-          <h2 className="text-xl font-bold">Outside Authorised Area</h2>
-          <p className="text-sm text-muted-foreground mt-2 max-w-xs">
-            You are not within your authorised patrol jurisdiction. Bulk scanning is only
-            permitted within your assigned patrol area.
-          </p>
-        </div>
-        <Button className="w-full max-w-xs h-12 text-base" variant="outline" onClick={onFinish}>
-          Return to Portal
-        </Button>
-      </div>
-    )
-  }
+  // Instead of a full-screen replacement, we block the camera but keep the
+  // rest of the session UI (scan list, stats, finish button) functional.
+  const isOutsideJurisdiction = authStatus === 'unauthorized'
 
   return (
     <div className="flex flex-col h-full bg-background">
@@ -336,6 +320,8 @@ export function BulkScanSession({
           onCapture={handleCapture}
           onCancel={handleFinish}
           isProcessing={isCapturing}
+          isBlocked={isOutsideJurisdiction}
+          blockedReason="You are not within your authorised patrol jurisdiction. Move into your assigned patrol area to resume scanning."
         />
 
         {/* Session stats overlay — top left */}
@@ -344,31 +330,48 @@ export function BulkScanSession({
             <Zap className="h-3 w-3 text-yellow-400" />
             <span>Bulk Scan</span>
           </div>
-          {zoneName && (
-            <div className="flex items-center gap-1 rounded-full bg-black/70 px-2.5 py-1 text-white text-xs">
-              <MapPin className="h-3 w-3 text-green-300" />
-              <span className="max-w-[90px] truncate">{zoneName}</span>
+          {isOutsideJurisdiction ? (
+            <div className="flex items-center gap-1 rounded-full bg-orange-600/90 px-2.5 py-1 text-white text-xs font-semibold animate-pulse">
+              <AlertTriangle className="h-3 w-3" />
+              <span>Outside Zone</span>
             </div>
-          )}
-          <div className="flex items-center gap-1 rounded-full bg-black/70 px-2.5 py-1 text-white text-xs">
-            <Camera className="h-3 w-3 text-blue-300" />
-            <span>{totalScanned}</span>
-          </div>
-          {totalBreaches > 0 && (
-            <div className="flex items-center gap-1 rounded-full bg-red-600/90 px-2.5 py-1 text-white text-xs font-bold animate-pulse">
-              <XCircle className="h-3 w-3" />
-              <span>{totalBreaches}</span>
-            </div>
-          )}
-          {isCapturing && (
-            <div className="flex items-center gap-1 rounded-full bg-blue-600/90 px-2.5 py-1 text-white text-xs">
-              <Loader2 className="h-3 w-3 animate-spin" />
-              <span>Saving…</span>
-            </div>
+          ) : (
+            <>
+              {zoneName && (
+                <div className="flex items-center gap-1 rounded-full bg-black/70 px-2.5 py-1 text-white text-xs">
+                  <MapPin className="h-3 w-3 text-green-300" />
+                  <span className="max-w-[90px] truncate">{zoneName}</span>
+                </div>
+              )}
+              <div className="flex items-center gap-1 rounded-full bg-black/70 px-2.5 py-1 text-white text-xs">
+                <Camera className="h-3 w-3 text-blue-300" />
+                <span>{totalScanned}</span>
+              </div>
+              {totalBreaches > 0 && (
+                <div className="flex items-center gap-1 rounded-full bg-red-600/90 px-2.5 py-1 text-white text-xs font-bold animate-pulse">
+                  <XCircle className="h-3 w-3" />
+                  <span>{totalBreaches}</span>
+                </div>
+              )}
+              {isCapturing && (
+                <div className="flex items-center gap-1 rounded-full bg-blue-600/90 px-2.5 py-1 text-white text-xs">
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                  <span>Saving…</span>
+                </div>
+              )}
+            </>
           )}
         </div>
         {/* SplitScanCamera's own × button (top-right) handles session end via onCancel */}
       </div>
+
+      {/* ── Out-of-jurisdiction warning strip ─────────────────────── */}
+      {isOutsideJurisdiction && (
+        <div className="shrink-0 flex items-center gap-2 px-4 py-2 bg-orange-50 dark:bg-orange-950 border-b border-orange-200 dark:border-orange-800 text-orange-800 dark:text-orange-200 text-xs">
+          <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+          <span>Camera blocked — outside authorised patrol area. You can still review previous scans below.</span>
+        </div>
+      )}
 
       {/* ── Session list (bottom 48%) ─────────────────────────────── */}
       <div className="flex-1 flex flex-col overflow-hidden border-t border-gray-200 dark:border-gray-800">
@@ -378,9 +381,10 @@ export function BulkScanSession({
           onClick={() => setShowList(p => !p)}
         >
           <span>
-            {totalScanned === 0
-              ? 'No scans yet — tap the shutter to scan'
-              : `${totalScanned} scanned · ${totalCompliant} compliant · ${totalBreaches} breach${totalBreaches !== 1 ? 'es' : ''}`}
+            {(() => {
+              if (totalScanned > 0) return `${totalScanned} scanned · ${totalCompliant} compliant · ${totalBreaches} breach${totalBreaches !== 1 ? 'es' : ''}`
+              return isOutsideJurisdiction ? 'Outside patrol zone — no scanning available' : 'No scans yet — tap the shutter to scan'
+            })()}
             {totalPending > 0 && ` · ${totalPending} processing`}
           </span>
           {showList ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronUp className="h-3.5 w-3.5" />}
@@ -390,7 +394,9 @@ export function BulkScanSession({
           <div className="flex-1 overflow-y-auto px-3 pb-3 space-y-1.5">
             {scans.length === 0 && (
               <p className="text-center text-sm text-muted-foreground py-8">
-                Point the camera at a vehicle and tap the shutter button
+                {isOutsideJurisdiction
+                  ? 'Move into your assigned patrol area to start scanning vehicles.'
+                  : 'Point the camera at a vehicle and tap the shutter button'}
               </p>
             )}
 
