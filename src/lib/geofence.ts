@@ -73,7 +73,28 @@ export function isParentZone(zone: GeofenceZone): boolean {
 }
 
 /**
- * Find all zones the user is currently inside
+ * Ray-casting point-in-polygon check for a GeoJSON exterior ring.
+ * Coordinates must be in GeoJSON [lng, lat] order.
+ *
+ * Casts a horizontal ray from the test point to the right (+∞) and counts
+ * how many polygon edges it crosses. An odd count means the point is inside.
+ * Assumes the ring is closed (first === last coordinate) and any winding order.
+ */
+function isPointInGeoJSONPolygon(userLng: number, userLat: number, ring: number[][]): boolean {
+  let inside = false
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const xi = ring[i][0], yi = ring[i][1]
+    const xj = ring[j][0], yj = ring[j][1]
+    if (((yi > userLat) !== (yj > userLat)) && (userLng < (xj - xi) * (userLat - yi) / (yj - yi) + xi)) {
+      inside = !inside
+    }
+  }
+  return inside
+}
+
+/**
+ * Find all zones the user is currently inside.
+ * Handles GeoJSON Polygon, GeoJSON Point+radius circles, and legacy center-point zones.
  */
 export async function detectCurrentZones(
   userLat: number,
@@ -95,10 +116,27 @@ export async function detectCurrentZones(
     if (error) throw error
     if (!zones) return []
     
-    // Filter zones by distance
     const nearbyZones = zones.filter((zone) => {
-      if (!zone.location_lat || !zone.location_lng) return false
-      return isInsideGeofence(userLat, userLng, zone as GeofenceZone)
+      const g = zone.geometry
+
+      // GeoJSON Polygon — ray-casting inside check
+      if (g?.type === 'Polygon' && Array.isArray(g.coordinates?.[0])) {
+        return isPointInGeoJSONPolygon(userLng, userLat, g.coordinates[0])
+      }
+
+      // GeoJSON Point with radius — circle check (coordinates are [lng, lat])
+      if (g?.type === 'Point' && Array.isArray(g.coordinates)) {
+        const radius = g.radius ?? zone.radius_meters ?? 500
+        const dist = calculateDistance(userLat, userLng, g.coordinates[1], g.coordinates[0])
+        return dist <= radius
+      }
+
+      // Fallback: dedicated center-point columns (legacy zones)
+      if (zone.location_lat && zone.location_lng) {
+        return isInsideGeofence(userLat, userLng, zone as GeofenceZone)
+      }
+
+      return false
     })
     
     return nearbyZones as GeofenceZone[]
@@ -430,7 +468,8 @@ export async function monitorGeofenceAndPatrol(
   userId: string,
   organizationId: string,
   currentZoneId: string | null,
-  onZoneChange: (zoneId: string | null, zoneName: string | null) => void
+  onZoneChange: (zoneId: string | null, zoneName: string | null) => void,
+  onLocationUpdate?: (lat: number, lng: number) => void
 ): Promise<void> {
   try {
     // Get current GPS location
@@ -443,6 +482,9 @@ export async function monitorGeofenceAndPatrol(
     
     const userLat = position.coords.latitude
     const userLng = position.coords.longitude
+
+    // Notify caller of the fresh GPS position so UI can stay up-to-date
+    onLocationUpdate?.(userLat, userLng)
     
     // Detect current zones (includes parent_zone_id, zone_type)
     const zones = await detectCurrentZones(userLat, userLng, organizationId)

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/stores/authStore'
@@ -16,6 +16,7 @@ import { BulkScanSession } from '@/components/features/BulkScanSession'
 import { OfficerFollowUpQueue } from '@/components/features/OfficerFollowUpQueue'
 import { captureAndSave } from '@/lib/scanPipeline'
 import { useManDownDetection } from '@/hooks/useManDownDetection'
+import { useOfficerGPSLogger } from '@/hooks/useOfficerGPSLogger'
 import {
   Camera, Map, FileText, History, AlertTriangle, MapPin, QrCode,
   ShieldAlert, CheckCircle, Shield, Megaphone, FileWarning, XCircle,
@@ -65,11 +66,19 @@ export default function FieldOfficerPortal() {
   const [followUpCount,     setFollowUpCount]      = useState(0)
 
   const [currentPatrolZone, setCurrentPatrolZone] = useState<string | null>(zoneId)
+  // Ref so the geofence interval closure always sees the latest zone without
+  // triggering a re-mount of the interval on every zone change.
+  const currentPatrolZoneRef = useRef(currentPatrolZone)
+  currentPatrolZoneRef.current = currentPatrolZone
   const [currentLocation, setCurrentLocation] = useState<{ latitude: number; longitude: number } | null>(null)
   const [scanTabFilter, setScanTabFilter] = useState<'all' | 'compliant' | 'breach' | 'at_risk' | 'homeless'>('all')
 
   // Man-Down Detection — records GPS updates and fires alert if stationary too long
   const { recordGPSUpdate, isManDownActive } = useManDownDetection()
+
+  // GPS Activity Logger — writes to officer_activity_log so admins can see officers
+  // on the live welfare-tracking map and the server-side welfare monitor can work
+  const { logGPSFix, logVehicleScan } = useOfficerGPSLogger()
 
   // Shift inactivity timeout — auto-ends shift after 15 min of app being backgrounded
   useShiftInactivityTimeout()
@@ -77,22 +86,25 @@ export default function FieldOfficerPortal() {
   // Display-friendly zone label for the officer status card
   const displayZone = zoneName || (zoneId ? `${zoneId.substring(0, 8)}...` : 'Scanning Geofence...')
 
-  // ── Fetch org enforcement_workflow ────────────────────────────────────────
-  const { data: orgWorkflow } = useQuery({
+  // ── Fetch org enforcement_workflow and name ───────────────────────────────
+  const { data: orgData } = useQuery({
     queryKey: ['org-workflow', user?.organization_id],
     queryFn: async () => {
-      if (!user?.organization_id) return 'admin_first'
+      if (!user?.organization_id) return null
       const { data, error } = await supabase
         .from('organizations')
-        .select('enforcement_workflow')
+        .select('enforcement_workflow, name')
         .eq('id', user.organization_id)
         .single()
-      if (error) return 'admin_first'
-      return ((data as any)?.enforcement_workflow as string) || 'admin_first'
+      if (error) return null
+      return data as any
     },
     enabled: !!user?.organization_id,
     staleTime: 1000 * 60 * 10,
   })
+
+  const orgWorkflow: string = (orgData?.enforcement_workflow as string) || 'admin_first'
+  const orgName: string | null = (orgData?.name as string) || null
 
   // ── Fetch officer's recent observations ───────────────────────────────────
   const { data: recentScans = [], refetch: refetchScans } = useQuery({
@@ -185,7 +197,9 @@ export default function FieldOfficerPortal() {
     },
   })
 
-  // Auto-monitor geofence and manage patrol
+  // Auto-monitor geofence and manage patrol.
+  // currentPatrolZone is accessed via ref so zone-state changes do NOT reset
+  // the 30 s interval (which would cause races and duplicate patrol starts).
   useEffect(() => {
     if (!user?.id || !user?.organization_id) return
 
@@ -193,10 +207,14 @@ export default function FieldOfficerPortal() {
       monitorGeofenceAndPatrol(
         user.id,
         user.organization_id!,
-        currentPatrolZone,
+        currentPatrolZoneRef.current,
         (newZoneId, newZoneName) => {
           setCurrentPatrolZone(newZoneId)
           setZone(newZoneId, newZoneName)
+        },
+        (lat, lng) => {
+          setCurrentLocation({ latitude: lat, longitude: lng })
+          recordGPSUpdate(lat, lng)
         }
       )
     }
@@ -204,7 +222,48 @@ export default function FieldOfficerPortal() {
     checkGeofence()
     const interval = setInterval(checkGeofence, 30000)
     return () => clearInterval(interval)
-  }, [user, currentPatrolZone, setZone])
+  }, [user, setZone]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Immediate GPS ping on login + 15 s polling ────────────────────────────
+  // Ensures currentLocation is populated right away (before any scan), so the
+  // jurisdiction card and bulk-scan auth check work from the moment the portal loads.
+  useEffect(() => {
+    if (!user?.id) return
+
+    const pollGPS = () => {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          setCurrentLocation({ latitude: pos.coords.latitude, longitude: pos.coords.longitude })
+          recordGPSUpdate(pos.coords.latitude, pos.coords.longitude)
+          // Write to officer_activity_log for live welfare tracking map
+          logGPSFix(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy ?? undefined)
+        },
+        (err) => console.warn('GPS poll failed:', err.message),
+        { enableHighAccuracy: true, timeout: 10000 },
+      )
+    }
+
+    pollGPS()
+    const id = setInterval(pollGPS, 15000)
+    return () => clearInterval(id)
+  }, [user?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Jurisdiction-change tracking ─────────────────────────────────────────
+  const prevInsideRef = useRef<boolean | null>(null)
+  const handleJurisdictionChange = useCallback((status: any) => {
+    const wasInside = prevInsideRef.current
+    if (wasInside !== null && wasInside !== status.inside) {
+      if (status.inside) {
+        toast.success('✅ You have entered your authorised patrol jurisdiction.')
+      } else {
+        toast.warning(
+          '⚠️ You have left your authorised jurisdiction. Enforcement actions in this area may not be valid.',
+          { duration: 8000 },
+        )
+      }
+    }
+    prevInsideRef.current = status.inside
+  }, [])
 
   // ── Detail scan: capture handler ─────────────────────────────────────────
   const handleDetailCapture = useCallback(async (file: File) => {
@@ -213,16 +272,30 @@ export default function FieldOfficerPortal() {
       return
     }
     setIsProcessing(true)
+    // Capture the GPS fix from the scan pipeline so we can log it
+    let scanLat: number | null = null
+    let scanLon: number | null = null
     try {
       const result = await captureAndSave(
         file,
         { id: user.id, organization_id: user.organization_id, full_name: user.full_name },
         zoneId,
         (lat, lon) => {
+          scanLat = lat
+          scanLon = lon
           setCurrentLocation({ latitude: lat, longitude: lon })
           recordGPSUpdate(lat, lon)
+          logGPSFix(lat, lon)
         },
       )
+
+      // Log the vehicle scan activity for live welfare tracking
+      if (scanLat !== null && scanLon !== null) {
+        logVehicleScan(scanLat, scanLon, {
+          observation_id: result.observationId,
+          zone_id:        result.zoneId,
+        })
+      }
 
       toast.success('✅ Observation captured — detecting plate…', {
         duration: CAPTURE_TOAST_DURATION_MS,
@@ -261,7 +334,7 @@ export default function FieldOfficerPortal() {
     } finally {
       setIsProcessing(false)
     }
-  }, [user, zoneId, zoneName, recordGPSUpdate, refetchScans])
+  }, [user, zoneId, zoneName, recordGPSUpdate, logGPSFix, logVehicleScan, refetchScans])
 
   const handleViewHistory = () => {
     if (user?.role === 'officer') {
@@ -293,6 +366,7 @@ export default function FieldOfficerPortal() {
       {scanMode === 'bulk' ? (
         <BulkScanSession
           recordGPSUpdate={recordGPSUpdate}
+          logVehicleScan={logVehicleScan}
           orgWorkflow={orgWorkflow || 'admin_first'}
           onIssueAction={(p) => issueAction.mutate(p)}
           isIssuingAction={issueAction.isPending}
@@ -536,19 +610,32 @@ export default function FieldOfficerPortal() {
         </>
       )}
 
-      {/* Location Authorization Status */}
-      {scanMode !== 'bulk' && currentLocation && user?.organization_id && (
+      {/* Location Authorization Status — always visible outside bulk mode */}
+      {scanMode !== 'bulk' && user?.organization_id && (
         <div className="mt-6">
-          <LocationAuthorizationStatus
-            organizationId={user.organization_id}
-            latitude={currentLocation.latitude}
-            longitude={currentLocation.longitude}
-            refreshInterval={10000}
-          />
+          {currentLocation ? (
+            <LocationAuthorizationStatus
+              organizationId={user.organization_id}
+              latitude={currentLocation.latitude}
+              longitude={currentLocation.longitude}
+              refreshInterval={15000}
+              onStatusChange={handleJurisdictionChange}
+            />
+          ) : (
+            <Card>
+              <CardContent className="p-4">
+                <div className="flex items-center gap-2 text-gray-500">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-600" />
+                  <span className="text-sm">Acquiring GPS location…</span>
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </div>
       )}
 
       {/* Info Card — includes enforcement workflow badge */}
+      {scanMode !== 'bulk' && (
       <Card className="mt-6 bg-slate-50 dark:bg-slate-900/50">
         <CardHeader>
           <CardTitle className="text-sm">Officer Status</CardTitle>
@@ -561,7 +648,7 @@ export default function FieldOfficerPortal() {
             </div>
             <div className="flex justify-between">
               <span>Organisation:</span>
-              <span>{user?.organization_id?.substring(0, 8)}...</span>
+              <span>{orgName || `${user?.organization_id?.substring(0, 8)}...`}</span>
             </div>
             <div className="flex justify-between items-center">
               <span>Enforcement Mode:</span>
@@ -581,6 +668,7 @@ export default function FieldOfficerPortal() {
           </div>
         </CardContent>
       </Card>
+      )}
 
       {/* ── Recent Scans with enforcement actions ─────────────────────────── */}
       {scanMode !== 'bulk' && !showCheckpoint && !detailCameraOpen && recentScans.length > 0 && (

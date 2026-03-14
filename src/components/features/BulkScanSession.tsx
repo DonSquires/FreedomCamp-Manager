@@ -25,8 +25,8 @@ import { captureAndSave } from '@/lib/scanPipeline'
 import { useAuthStore } from '@/stores/authStore'
 import { useGlobalFiltersStore } from '@/stores/globalFiltersStore'
 import {
-  Camera, CheckCircle, XCircle, Clock, Zap, X,
-  FileWarning, Megaphone, Shield, ChevronDown, ChevronUp, Loader2,
+  Camera, CheckCircle, XCircle, Clock, Zap,
+  FileWarning, Megaphone, Shield, ChevronDown, ChevronUp, Loader2, MapPin, AlertTriangle,
 } from 'lucide-react'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -45,6 +45,8 @@ interface SessionScan {
 interface BulkScanSessionProps {
   /** Called with (lat, lon) on every GPS fix — keeps man-down timer alive */
   recordGPSUpdate: (lat: number, lon: number) => void
+  /** Called after each scan capture — records vehicle_scan to officer_activity_log */
+  logVehicleScan?: (lat: number, lng: number, meta?: { observation_id?: string | null; zone_id?: string | null }) => void
   /** Active patrol session ID for incrementing vehicles_checked / breaches_found. Optional — counters are silently skipped when absent. */
   activePatrolId?: string | null
   orgWorkflow: string
@@ -81,6 +83,7 @@ function fmtTime(iso: string) {
 
 export function BulkScanSession({
   recordGPSUpdate,
+  logVehicleScan,
   activePatrolId,
   orgWorkflow,
   onIssueAction,
@@ -89,12 +92,14 @@ export function BulkScanSession({
   onScanSaved,
 }: BulkScanSessionProps) {
   const { user }   = useAuthStore()
-  const { zoneId } = useGlobalFiltersStore()
+  const { zoneId, zoneName } = useGlobalFiltersStore()
 
   const [isCapturing,   setIsCapturing]   = useState(false)
   const [scans,         setScans]         = useState<SessionScan[]>([])
   const [showList,      setShowList]      = useState(true)
   const [showSummary,   setShowSummary]   = useState(false)
+  // 'checking' = first GPS fix pending; 'authorized' / 'unauthorized' = result known
+  const [authStatus,    setAuthStatus]    = useState<'checking' | 'authorized' | 'unauthorized'>('checking')
 
   // Keep a ref to the latest scans list for use inside polling closures
   const scansRef = useRef<SessionScan[]>([])
@@ -114,13 +119,27 @@ export function BulkScanSession({
     }
 
     setIsCapturing(true)
+    let scanLat: number | null = null
+    let scanLon: number | null = null
     try {
       const result = await captureAndSave(
         file,
         { id: user.id, organization_id: user.organization_id, full_name: user.full_name },
         zoneId,
-        recordGPSUpdate,
+        (lat, lon) => {
+          scanLat = lat
+          scanLon = lon
+          recordGPSUpdate(lat, lon)
+        },
       )
+
+      // Log vehicle_scan activity for live welfare tracking
+      if (scanLat !== null && scanLon !== null) {
+        logVehicleScan?.(scanLat, scanLon, {
+          observation_id: result.observationId,
+          zone_id:        result.zoneId,
+        })
+      }
 
       // Add to session list immediately as pending
       const newScan: SessionScan = {
@@ -149,7 +168,7 @@ export function BulkScanSession({
     } finally {
       setIsCapturing(false)
     }
-  }, [user, zoneId, recordGPSUpdate, activePatrolId, onScanSaved])
+  }, [user, zoneId, recordGPSUpdate, logVehicleScan, activePatrolId, onScanSaved])
 
   // ── Background polling for each pending scan ─────────────────────────────
   useEffect(() => {
@@ -229,6 +248,46 @@ export function BulkScanSession({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scans.filter(s => s.processingPending).map(s => s.observationId).join(',')])
 
+  // ── Location authorization check ─────────────────────────────────────────
+  // Blocks scanning when officer is outside their assigned jurisdiction.
+  useEffect(() => {
+    if (!user?.organization_id) { setAuthStatus('authorized'); return }
+
+    const PGRST_NOT_FOUND = 'PGRST202'
+
+    const check = async () => {
+      const pos = await new Promise<GeolocationPosition | null>((resolve) => {
+        navigator.geolocation.getCurrentPosition(resolve, () => resolve(null), {
+          enableHighAccuracy: true,
+          timeout: 10000,
+        })
+      })
+      // GPS unavailable — don't block the officer
+      if (!pos) { setAuthStatus('authorized'); return }
+
+      try {
+        const { data, error } = await (supabase as any).rpc('check_location_in_org', {
+          org_id: user.organization_id,
+          lat: pos.coords.latitude,
+          lon: pos.coords.longitude,
+        })
+        if (error) {
+          // Function not deployed or other non-fatal error — don't block
+          if (error.code !== PGRST_NOT_FOUND) console.warn('Auth check error:', error.message)
+          setAuthStatus('authorized')
+          return
+        }
+        setAuthStatus((data as any)?.inside ? 'authorized' : 'unauthorized')
+      } catch {
+        setAuthStatus('authorized')
+      }
+    }
+
+    check()
+    const id = setInterval(check, 30000)
+    return () => clearInterval(id)
+  }, [user?.organization_id]) // eslint-disable-line react-hooks/exhaustive-deps
+
   // ── Summary / finish ─────────────────────────────────────────────────────
   const handleFinish = () => {
     if (scans.length === 0) { onFinish(); return }
@@ -248,6 +307,27 @@ export function BulkScanSession({
     )
   }
 
+  // ── Outside authorised jurisdiction ──────────────────────────────────────
+  if (authStatus === 'unauthorized') {
+    return (
+      <div className="flex flex-col items-center justify-center h-full gap-6 p-8 text-center">
+        <div className="flex items-center justify-center h-16 w-16 rounded-full bg-orange-100 dark:bg-orange-900">
+          <AlertTriangle className="h-8 w-8 text-orange-600 dark:text-orange-400" />
+        </div>
+        <div>
+          <h2 className="text-xl font-bold">Outside Authorised Area</h2>
+          <p className="text-sm text-muted-foreground mt-2 max-w-xs">
+            You are not within your authorised patrol jurisdiction. Bulk scanning is only
+            permitted within your assigned patrol area.
+          </p>
+        </div>
+        <Button className="w-full max-w-xs h-12 text-base" variant="outline" onClick={onFinish}>
+          Return to Portal
+        </Button>
+      </div>
+    )
+  }
+
   return (
     <div className="flex flex-col h-full bg-background">
       {/* ── Camera (top 52%) ──────────────────────────────────────── */}
@@ -264,6 +344,12 @@ export function BulkScanSession({
             <Zap className="h-3 w-3 text-yellow-400" />
             <span>Bulk Scan</span>
           </div>
+          {zoneName && (
+            <div className="flex items-center gap-1 rounded-full bg-black/70 px-2.5 py-1 text-white text-xs">
+              <MapPin className="h-3 w-3 text-green-300" />
+              <span className="max-w-[90px] truncate">{zoneName}</span>
+            </div>
+          )}
           <div className="flex items-center gap-1 rounded-full bg-black/70 px-2.5 py-1 text-white text-xs">
             <Camera className="h-3 w-3 text-blue-300" />
             <span>{totalScanned}</span>
@@ -281,16 +367,7 @@ export function BulkScanSession({
             </div>
           )}
         </div>
-
-        {/* End session button — top right (replaces camera's own cancel) */}
-        <Button
-          size="sm"
-          variant="ghost"
-          onClick={handleFinish}
-          className="absolute top-2 right-12 z-30 h-7 text-xs bg-black/50 text-white hover:bg-black/70 rounded-full px-3"
-        >
-          <X className="h-3 w-3 mr-1" />End
-        </Button>
+        {/* SplitScanCamera's own × button (top-right) handles session end via onCancel */}
       </div>
 
       {/* ── Session list (bottom 48%) ─────────────────────────────── */}
