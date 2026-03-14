@@ -852,6 +852,15 @@ export interface Database {
           assigned_to: string | null
           status: string
           notes: string | null
+          description: string | null
+          priority: 'low' | 'normal' | 'high' | 'urgent'
+          recurrence: 'none' | 'daily' | 'weekly' | 'fortnightly' | 'monthly'
+          scheduled_start_time: string | null
+          scheduled_end_time: string | null
+          actual_start_time: string | null
+          actual_end_time: string | null
+          duration_minutes: number | null
+          shift_id: string | null
           notification_sent: boolean
           notification_sent_at: string | null
           officer_accepted: boolean | null
@@ -872,6 +881,15 @@ export interface Database {
           assigned_to?: string | null
           status?: string
           notes?: string | null
+          description?: string | null
+          priority?: 'low' | 'normal' | 'high' | 'urgent'
+          recurrence?: 'none' | 'daily' | 'weekly' | 'fortnightly' | 'monthly'
+          scheduled_start_time?: string | null
+          scheduled_end_time?: string | null
+          actual_start_time?: string | null
+          actual_end_time?: string | null
+          duration_minutes?: number | null
+          shift_id?: string | null
           notification_sent?: boolean
           notification_sent_at?: string | null
           officer_accepted?: boolean | null
@@ -892,6 +910,15 @@ export interface Database {
           assigned_to?: string | null
           status?: string
           notes?: string | null
+          description?: string | null
+          priority?: 'low' | 'normal' | 'high' | 'urgent'
+          recurrence?: 'none' | 'daily' | 'weekly' | 'fortnightly' | 'monthly'
+          scheduled_start_time?: string | null
+          scheduled_end_time?: string | null
+          actual_start_time?: string | null
+          actual_end_time?: string | null
+          duration_minutes?: number | null
+          shift_id?: string | null
           notification_sent?: boolean
           notification_sent_at?: string | null
           officer_accepted?: boolean | null
@@ -902,6 +929,41 @@ export interface Database {
           geofence_radius?: number
           created_at?: string
           updated_at?: string
+        }
+      }
+      patrol_schedule_zones: {
+        Row: {
+          id: string
+          patrol_id: string
+          zone_id: string
+          visit_order: number
+          estimated_duration_minutes: number | null
+          actual_duration_minutes: number | null
+          visited_at: string | null
+          completed_at: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          patrol_id: string
+          zone_id: string
+          visit_order?: number
+          estimated_duration_minutes?: number | null
+          actual_duration_minutes?: number | null
+          visited_at?: string | null
+          completed_at?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          patrol_id?: string
+          zone_id?: string
+          visit_order?: number
+          estimated_duration_minutes?: number | null
+          actual_duration_minutes?: number | null
+          visited_at?: string | null
+          completed_at?: string | null
+          created_at?: string
         }
       }
       patrol_checkpoints: {

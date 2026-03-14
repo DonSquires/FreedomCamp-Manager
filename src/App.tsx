@@ -32,6 +32,8 @@ import EnforcementCommandCenter from '@/pages/EnforcementCommandCenter'
 import InfringementNotices from '@/pages/InfringementNotices'
 import PrivacyCurtain from '@/pages/PrivacyCurtain'
 import PatrolCheckpointManagement from '@/pages/PatrolCheckpointManagement'
+import PatrolScheduleManagement from '@/pages/PatrolScheduleManagement'
+import PatrolKPIDashboard from '@/pages/PatrolKPIDashboard'
 import DataManagementHub from '@/pages/DataManagementHub'
 import DataCleanupUtility from '@/pages/DataCleanupUtility'
 import DataIntegrityDashboard from '@/pages/DataIntegrityDashboard'
@@ -461,6 +463,28 @@ export default function App() {
               <ProtectedRoute>
                 <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
                   <PatrolCheckpointManagement />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/patrol-schedule"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <PatrolScheduleManagement />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/patrol-kpis"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <PatrolKPIDashboard />
                 </RoleRoute>
               </ProtectedRoute>
             }
