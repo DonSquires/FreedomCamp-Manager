@@ -1408,7 +1408,9 @@ jobs:
             echo "  HTTP $HTTP_CODE"
             echo "  $BODY"
 
-            if [ "$HTTP_CODE" -lt 200 ] || [ "$HTTP_CODE" -ge 300 ]; then
+            if [ "$HTTP_CODE" -ge 500 ]; then
+              echo "::warning::ParkPow sync action '$action' returned HTTP $HTTP_CODE (upstream issue, will retry next run)"
+            elif [ "$HTTP_CODE" -lt 200 ] || [ "$HTTP_CODE" -ge 300 ]; then
               echo "::error::ParkPow sync action '$action' failed (HTTP $HTTP_CODE)"
               exit 1
             fi
