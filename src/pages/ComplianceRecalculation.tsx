@@ -75,13 +75,15 @@ export default function ComplianceRecalculation() {
   const [liveRun, setLiveRun] = useState<LiveRunState | null>(null)
 
   // Track running state from both local mutation and global store
-  const globalOp = operations.find((op) => op.id === OPERATION_ID && op.status === 'running')
+  const globalOp = operations.find((op) => op.id === OPERATION_ID)
   const [localRunning, setLocalRunning] = useState(false)
-  const isRunning = localRunning || !!globalOp
+  const isRunning = localRunning || globalOp?.status === 'running'
 
   // Sync from global operation when returning to this page
   const globalProgress = globalOp?.progress
   const globalLiveProgress = globalOp?.liveProgress
+  const globalResult = globalOp?.result
+  const globalStatus = globalOp?.status
   useEffect(() => {
     if (globalProgress != null) {
       setProgress(globalProgress)
@@ -89,7 +91,10 @@ export default function ComplianceRecalculation() {
     if (globalLiveProgress) {
       setLiveRun(globalLiveProgress)
     }
-  }, [globalProgress, globalLiveProgress])
+    if (globalResult && !result) {
+      setResult(globalResult)
+    }
+  }, [globalProgress, globalLiveProgress, globalResult, globalStatus, result])
 
   const effectiveOrgId = selectedOrgId || (user?.role !== 'master' ? user?.organization_id || '' : '')
 
