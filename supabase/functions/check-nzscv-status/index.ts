@@ -1,10 +1,21 @@
 /**
  * CHECK NZSCV STATUS
  * Queries the NZSCV Self-Contained Vehicle Registry via proxy server
- * 
+ *
+ * Guaranteed fields from NZSCV:
+ *   - VehicleRegistration (plate number, echoed back)
+ *   - CertificateExpiryDate (YYYY-MM-DD)
+ *
+ * Optional fields that may be returned depending on API version/tier:
+ *   - CertificateStatus   (Current | Issued | Revoked | Expired)
+ *   - CertificateIssueDate (YYYY-MM-DD)
+ *   - make, model, year, vin, colour, MaxOccupants
+ *
+ * All optional fields are treated as nullable — present if provided, null otherwise.
+ *
  * This function calls our static IP proxy instead of NZSCV directly
  * because NZSCV requires IP whitelisting.
- * 
+ *
  * Flow: Edge Function → Proxy Server (Static IP) → NZSCV API
  */
 
@@ -15,20 +26,34 @@ interface NZSCVRequest {
   plate_number: string;
 }
 
+// Represents the raw NZSCV API response shape.
+// Only plate (VehicleRegistration) and CertificateExpiryDate are guaranteed.
+// All other fields are optional — present if the API provides them, absent otherwise.
 interface NZSCVResponse {
   VehicleRegistration: {
+    /** The registration number echoed back — always present */
     VehicleRegistration: string;
-    make: string;
-    model: string;
-    year: string;
-    vin: string;
-    MaxOccupants: number;
-    CertificateStatus: 'Current' | 'Issued' | 'Revoked' | 'Expired';
-    CertificateIssueDate: string; // YYYY-MM-DD
-    CertificateExpiryDate: string; // YYYY-MM-DD
+    /** YYYY-MM-DD — always present */
+    CertificateExpiryDate: string;
+    /** Current | Issued | Revoked | Expired — may be absent */
+    CertificateStatus?: 'Current' | 'Issued' | 'Revoked' | 'Expired';
+    /** YYYY-MM-DD — may be absent */
+    CertificateIssueDate?: string;
+    /** Vehicle make — may be absent */
+    make?: string;
+    /** Vehicle model — may be absent */
+    model?: string;
+    /** Year of manufacture — may be absent */
+    year?: string | number;
+    /** VIN — may be absent */
+    vin?: string;
+    /** Primary colour — may be absent */
+    colour?: string;
+    /** Maximum occupants certified — may be absent */
+    MaxOccupants?: number;
   };
-  StatusCode: string;
-  LogoURL: string;
+  StatusCode?: string;
+  LogoURL?: string;
 }
 
 serve(async (req) => {
@@ -80,13 +105,17 @@ serve(async (req) => {
       const errorData = await proxyResponse.json().catch(() => ({ error: 'Unknown error' }));
       console.error('❌ NZSCV API error:', errorData);
 
-      // Handle specific NZSCV error codes
+      // 404 = plate not on the NZSCV register (vehicle is NOT self-contained certified)
       if (proxyResponse.status === 404) {
         return new Response(
           JSON.stringify({ 
             found: false,
-            message: 'Vehicle not found in NZSCV registry',
             plate_number: plate_number.toUpperCase(),
+            result: {
+              is_self_contained: false,
+              expiry_date: null,
+            },
+            message: 'Vehicle not found in NZSCV registry — not self-contained certified',
           }),
           { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
@@ -103,32 +132,45 @@ serve(async (req) => {
     }
 
     const data: NZSCVResponse = await proxyResponse.json();
+    const vr = data.VehicleRegistration;
 
-    console.log('✅ NZSCV response:', {
-      plate: data.VehicleRegistration?.VehicleRegistration,
-      status: data.VehicleRegistration?.CertificateStatus,
-    });
+    // ── DEBUG: Log the FULL raw response so we can see exactly what NZSCV
+    // returns. This helps verify the API shape in Supabase function logs.
+    // TODO: remove or gate behind a DEBUG env var once verified.
+    console.log('✅ NZSCV raw response (full):', JSON.stringify(data));
+    console.log('✅ NZSCV top-level keys:', Object.keys(data));
+    if (vr && typeof vr === 'object') {
+      console.log('✅ NZSCV VehicleRegistration keys:', Object.keys(vr));
+    }
 
-    // Return structured response
+    // Determine if SC certificate is currently valid
+    const status  = vr?.CertificateStatus ?? null;
+    const expiry  = vr?.CertificateExpiryDate ?? null;
+    const isCurrentByStatus = status === 'Current' || status === 'Issued';
+    const isCurrentByExpiry = expiry != null && new Date(expiry) > new Date();
+    const isSelfContained   = isCurrentByStatus || (!status && isCurrentByExpiry);
+
+    // Return SC certification fields (guaranteed) + any optional vehicle detail
+    // fields that NZSCV may provide. All optional fields are null when absent.
     return new Response(
       JSON.stringify({
         found: true,
-        plate_number: data.VehicleRegistration.VehicleRegistration,
-        vehicle: {
-          make: data.VehicleRegistration.make,
-          model: data.VehicleRegistration.model,
-          year: parseInt(data.VehicleRegistration.year),
-          color: null, // NZSCV doesn't provide color
-          vin: data.VehicleRegistration.vin,
+        plate_number: vr?.VehicleRegistration ?? plate_number.toUpperCase(),
+        result: {
+          // SC certification — core purpose of NZSCV lookup
+          is_self_contained: isSelfContained,
+          expiry_date:       expiry,
+          issue_date:        vr?.CertificateIssueDate ?? null,
+          status:            status,
+          // Optional vehicle detail fields — null when not provided by NZSCV
+          make:          vr?.make          ?? null,
+          model:         vr?.model         ?? null,
+          year:          vr?.year != null ? parseInt(String(vr.year), 10) : null,
+          vin:           vr?.vin           ?? null,
+          colour:        vr?.colour        ?? null,
+          max_occupants: vr?.MaxOccupants  ?? null,
         },
-        certification: {
-          status: data.VehicleRegistration.CertificateStatus,
-          max_occupants: data.VehicleRegistration.MaxOccupants,
-          issue_date: data.VehicleRegistration.CertificateIssueDate,
-          expiry_date: data.VehicleRegistration.CertificateExpiryDate,
-          is_current: data.VehicleRegistration.CertificateStatus === 'Current',
-        },
-        logo_url: data.LogoURL,
+        logo_url:   data.LogoURL ?? null,
         checked_at: new Date().toISOString(),
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -145,3 +187,4 @@ serve(async (req) => {
     );
   }
 });
+

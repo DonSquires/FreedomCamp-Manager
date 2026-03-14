@@ -24,6 +24,7 @@ import {
   RefreshCw,
   ShieldAlert,
   UserX,
+  UserCheck,
   Zap,
   Eye,
   MapPin,
@@ -42,6 +43,7 @@ import { formatDateTime } from '@/lib/utils'
 import { nzDateToUTCStart, nzDateToUTCEnd } from '@/lib/timezone'
 import { AppLayout } from '@/components/features/AppLayout'
 import { GlobalFilterRibbon } from '@/components/features/GlobalFilterRibbon'
+import { AdminFollowUpDrawer } from '@/components/features/AdminFollowUpDrawer'
 import { enrichVehicleFromMotorWeb } from '@/lib/railwayServices'
 import { isPhotoUrlExpired, parseStorageUrl } from '@/lib/photoUtils'
 
@@ -212,6 +214,7 @@ export default function BreachAlerts() {
   const [resolveNotes, setResolveNotes] = useState('')
   const [rejectionReason, setRejectionReason] = useState('')
   const [activeTab, setActiveTab] = useState<'evidence' | 'rapsheet'>('evidence')
+  const [showFollowUpDrawer, setShowFollowUpDrawer] = useState(false)
 
   // 3-Zone state
   const [activeBreachId, setActiveBreachId] = useState<string | null>(null)
@@ -1116,7 +1119,7 @@ export default function BreachAlerts() {
                           <Badge variant="outline" className="text-xs text-orange-600">Max allowed: {activeBreach.breach_details.max_allowed}</Badge>
                         )}
                         {Object.entries(activeBreach.breach_details).map(([k, v]) => (
-                          !['nights_count', 'consecutive_nights', 'max_allowed', 'observation_id'].includes(k) && (
+                          !['nights_count', 'consecutive_nights', 'max_allowed', 'observation_id', 'discrepancies', 'sc_law_active', 'violation_reasons'].includes(k) && (
                             <Badge key={k} variant="outline" className="text-xs capitalize">
                               {k.replace(/_/g, ' ')}: {String(v)}
                             </Badge>
@@ -1125,6 +1128,51 @@ export default function BreachAlerts() {
                       </div>
                     </div>
                   )}
+
+                  {/* Data Discrepancy Warnings */}
+                  {activeBreach.breach_details?.discrepancies && Array.isArray(activeBreach.breach_details.discrepancies) && activeBreach.breach_details.discrepancies.length > 0 && (() => {
+                    const discs: any[] = activeBreach.breach_details.discrepancies
+                    const hasCritical  = discs.some((d: any) => d.severity === 'critical')
+                    const fmtLabel     = (s: string) => s.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+                    return (
+                      <div className={`rounded-lg p-3 border-2 ${hasCritical ? 'border-red-400 bg-red-50 dark:bg-red-950/30' : 'border-amber-400 bg-amber-50 dark:bg-amber-950/30'}`}>
+                        <p className={`text-xs font-semibold uppercase mb-2 flex items-center gap-1.5 ${hasCritical ? 'text-red-700 dark:text-red-300' : 'text-amber-800 dark:text-amber-300'}`}>
+                          {hasCritical ? '🚨 Critical Data Integrity Issues' : '⚠️ Data Discrepancies Detected'}
+                          {activeBreach.breach_details.sc_law_active && (
+                            <Badge variant="destructive" className="text-[10px] h-4 px-1.5 ml-1">SC Law Active</Badge>
+                          )}
+                        </p>
+                        <p className="text-xs text-muted-foreground mb-2">
+                          Cross-source data check found inconsistencies for this vehicle. Review carefully before taking enforcement action.
+                        </p>
+                        <div className="space-y-1.5">
+                          {discs.map((d: any, i: number) => (
+                            <div key={i} className="rounded border bg-white/60 dark:bg-black/20 p-2 text-xs">
+                              <div className="flex items-center gap-1.5 mb-0.5">
+                                <Badge
+                                  variant={d.severity === 'critical' ? 'destructive' : 'outline'}
+                                  className="text-[10px] h-4 px-1.5"
+                                >
+                                  {d.severity === 'critical' ? '🚨 Critical' : '⚠️ Warning'}
+                                </Badge>
+                                <span className="font-medium">{fmtLabel(d.type ?? '')}</span>
+                              </div>
+                              {(d.value_a !== null || d.value_b !== null) && (
+                                <p className="text-muted-foreground">
+                                  {fmtLabel(d.source_a ?? '')}: <span className="font-mono">{d.value_a ?? '—'}</span>
+                                  {' vs '}
+                                  {fmtLabel(d.source_b ?? '')}: <span className="font-mono">{d.value_b ?? '—'}</span>
+                                </p>
+                              )}
+                              {d.note && (
+                                <p className="text-muted-foreground mt-0.5 italic">{d.note}</p>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )
+                  })()}
 
                   {/* Homeless Claim Status */}
                   {triggeringObservation && (
@@ -1366,6 +1414,19 @@ export default function BreachAlerts() {
                   <span className="text-xs opacity-75">⌃↵</span>
                 </Button>
 
+                {/* Assign to Officer Follow-Up */}
+                <Button
+                  className="w-full bg-blue-600 hover:bg-blue-700 text-white justify-between"
+                  onClick={() => setShowFollowUpDrawer(true)}
+                  disabled={['resolved', 'dismissed'].includes(activeBreach.status)}
+                >
+                  <span className="flex items-center gap-2">
+                    <UserCheck className="h-4 w-4" />
+                    ASSIGN TO OFFICER
+                  </span>
+                  <span className="text-xs opacity-75">⌃A</span>
+                </Button>
+
                 <Button
                   className="w-full bg-yellow-500 hover:bg-yellow-600 text-white justify-between"
                   onClick={handleIssueWarning}
@@ -1389,6 +1450,19 @@ export default function BreachAlerts() {
                   </span>
                   <span className="text-xs opacity-75">⌃R</span>
                 </Button>
+
+                {/* Show current assignment if breach is assigned */}
+                {activeBreach.assigned_to && activeBreach.admin_review_notes && (
+                  <div className="rounded-lg border border-blue-200 bg-blue-50 dark:bg-blue-950/30 p-2.5 text-xs">
+                    <p className="font-semibold text-blue-700 dark:text-blue-300 flex items-center gap-1 mb-1">
+                      <UserCheck className="h-3 w-3" />
+                      Assigned to officer
+                    </p>
+                    <p className="text-blue-800 dark:text-blue-200 leading-snug line-clamp-2">
+                      {activeBreach.admin_review_notes}
+                    </p>
+                  </div>
+                )}
 
                 <div className="border-t dark:border-gray-700 pt-3">
                   <Label className="text-xs text-gray-500">Rejection Reason</Label>
@@ -1559,6 +1633,26 @@ export default function BreachAlerts() {
           </div>
         </div>
       )}
+
+      {/* ── Admin Follow-Up Drawer ─────────────────────────────────────────── */}
+      <AdminFollowUpDrawer
+        open={showFollowUpDrawer}
+        onClose={() => setShowFollowUpDrawer(false)}
+        breach={activeBreach
+          ? {
+              id:                activeBreach.id,
+              organization_id:   activeBreach.organization_id,
+              plate_number:      activeBreach.plate_number,
+              breach_type:       activeBreach.breach_type,
+              zone_id:           activeBreach.zone_id,
+              observation_id:    activeBreach.observation_id,
+              status:            activeBreach.status,
+              admin_review_notes: activeBreach.admin_review_notes,
+              assigned_to:       activeBreach.assigned_to,
+              due_date:          activeBreach.due_date,
+            }
+          : null}
+      />
     </AppLayout>
   )
 }
