@@ -204,6 +204,11 @@ on:
         type: choice
         options: [all, import-vehicles, import-zones]
 
+env:
+  # supabase/setup-cli@v1 still bundles Node.js 20; force the runner to use
+  # Node.js 24 so the action keeps working after the June 2026 cut-over.
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   # ===========================================================================
   # 0. Detect changed paths (push events only; outputs false on other events)
@@ -218,7 +223,7 @@ jobs:
       mobile-app:   ${{ steps.diff.outputs.mobile-app }}
       inference:    ${{ steps.diff.outputs.inference }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 2
 
@@ -304,7 +309,7 @@ jobs:
 
       - name: Checkout repository
         if: steps.check-secrets.outputs.secrets_present == 'true'
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Bun
         if: steps.check-secrets.outputs.secrets_present == 'true'
@@ -492,13 +497,13 @@ jobs:
 
       - name: Checkout repository
         if: steps.check-secrets.outputs.secrets_present == 'true'
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Node.js
         if: steps.check-secrets.outputs.secrets_present == 'true'
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'npm'
           cache-dependency-path: mobile-app/package-lock.json
 
@@ -666,7 +671,7 @@ jobs:
 
       - name: Checkout repository
         if: steps.check-secrets.outputs.secrets_present == 'true'
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Install Railway CLI
         if: steps.check-secrets.outputs.secrets_present == 'true'
@@ -781,7 +786,7 @@ jobs:
           SUPABASE_PROJECT_REF:  ${{ secrets.SUPABASE_PROJECT_REF }}
 
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Supabase CLI
         uses: supabase/setup-cli@v1
@@ -903,7 +908,7 @@ jobs:
           SUPABASE_PROJECT_REF:  ${{ secrets.SUPABASE_PROJECT_REF }}
 
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Supabase CLI
         if: github.event.inputs.runbook_mode != 'verify-only'
@@ -1163,7 +1168,7 @@ jobs:
           SUPABASE_DB_PASSWORD:  ${{ secrets.SUPABASE_DB_PASSWORD }}
 
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Supabase CLI
         uses: supabase/setup-cli@v1
@@ -1243,7 +1248,7 @@ jobs:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
 
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Supabase CLI
         uses: supabase/setup-cli@v1
@@ -1334,7 +1339,7 @@ jobs:
           SUPABASE_PROJECT_REF:  ${{ secrets.SUPABASE_PROJECT_REF }}
 
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Supabase CLI
         uses: supabase/setup-cli@v1
@@ -1458,7 +1463,7 @@ jobs:
 
       - name: Checkout repository
         if: steps.check_secrets.outputs.skip == 'false'
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Install PostgreSQL client tools
         if: steps.check_secrets.outputs.skip == 'false'
@@ -1481,7 +1486,7 @@ jobs:
 
       - name: Upload output as artifact
         if: steps.check_secrets.outputs.skip == 'false'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: schema-extract-${{ github.run_id }}
           path: tools/schema-extract/output/
@@ -1538,7 +1543,7 @@ jobs:
           base64 android.keystore | tr -d '\n' > keystore-base64.txt
 
       - name: Upload Artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: android-keystore-files
           path: |
@@ -1557,12 +1562,12 @@ jobs:
     if: github.event_name == 'workflow_dispatch' && github.event.inputs.job == 'import-maps'
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
-          node-version: '20'
+          node-version: '22'
 
       - name: Install Dependencies
         run: npm install @supabase/supabase-js@2 dotenv@16 typescript@5 ts-node@10 @types/node@20
@@ -1758,12 +1763,12 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
-          node-version: '20'
+          node-version: '22'
 
       - name: Install dependencies
         run: |

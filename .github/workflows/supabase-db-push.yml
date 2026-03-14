@@ -22,6 +22,11 @@ on:
         type: boolean
         default: false
 
+env:
+  # supabase/setup-cli@v1 still bundles Node.js 20; force the runner to use
+  # Node.js 24 so the action keeps working after the June 2026 cut-over.
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   # Gate: abort immediately if the operator did not explicitly confirm
   confirm_approval:
@@ -39,7 +44,7 @@ jobs:
     environment: production-schema   # requires manual approval from @DonSquires in GitHub UI
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Supabase CLI
         uses: supabase/setup-cli@v1

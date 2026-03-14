@@ -46,7 +46,7 @@ jobs:
 
       - name: Checkout
         if: steps.check_secrets.outputs.skip == 'false'
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
@@ -74,7 +74,7 @@ jobs:
 
       - name: Upload extraction artifact
         if: steps.check_secrets.outputs.skip == 'false'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: schema-extract-${{ github.run_id }}
           path: ${{ steps.extract.outputs.latest_dir }}
