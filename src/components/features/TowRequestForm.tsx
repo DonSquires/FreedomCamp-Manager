@@ -61,12 +61,11 @@ export function TowRequestForm({
         .from('enforcement_actions') as any)
         .insert({
           organization_id: user?.organization_id,
-          user_id: user?.id,
+          created_by: user?.id,
           observation_id: observationId,
           plate_number: plateNumber,
           zone_id: zoneId,
           action_type: 'tow_request',
-          recipient_name: towCompany,
           notes: `
 Urgency: ${urgency.toUpperCase()}
 Location: ${vehicleLocation}

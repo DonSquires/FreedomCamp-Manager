@@ -72,13 +72,13 @@ export function EnforcementTimeline({
           zones!enforcement_actions_zone_id_fkey (
             name
           ),
-          user_profiles!enforcement_actions_user_id_fkey (
+          user_profiles!enforcement_actions_created_by_fkey (
             first_name,
             last_name
           )
         `)
         .eq('plate_number', plateNumber)
-        .order('recorded_at', { ascending: false })
+        .order('created_at', { ascending: false })
         .limit(limit)
 
       if (error) throw error

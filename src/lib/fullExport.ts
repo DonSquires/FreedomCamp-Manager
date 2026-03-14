@@ -170,8 +170,8 @@ function getDateColumn(tableName: string): string {
     observations: 'recorded_at',
     patrols: 'patrol_date',
     breach_alerts: 'created_at',
-    enforcement_actions: 'recorded_at',
-    incidents: 'recorded_at',
+    enforcement_actions: 'created_at',
+    incidents: 'created_at',
     health_safety_reports: 'created_at',
     vehicle_records: 'recorded_at',
     plate_scans: 'scanned_at',
@@ -345,7 +345,7 @@ export async function exportEnforcementActions(
     .from('enforcement_actions')
     .select(`
       *,
-      user_profiles!enforcement_actions_user_id_fkey (
+      user_profiles!enforcement_actions_created_by_fkey (
         first_name,
         last_name
       ),
@@ -354,8 +354,8 @@ export async function exportEnforcementActions(
       )
     `)
     .eq('organization_id', organizationId)
-    .gte('recorded_at', dateFrom)
-    .lte('recorded_at', dateTo)
+    .gte('created_at', dateFrom)
+    .lte('created_at', dateTo)
     .order('recorded_at', { ascending: false })
 
   if (error) {

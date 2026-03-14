@@ -48,16 +48,13 @@ interface ActiveBreach {
 
 interface EnforcementAction {
   id: string
-  breach_alert_id: string
   action_type: string
   status: string
   assigned_to: string | null
   created_at: string
-  breach_alert: {
-    plate_number: string
-    zone: { name: string }
-  }
-  user_profile?: { full_name: string }
+  plate_number: string | null
+  zone: { name: string } | null
+  user_profile?: { first_name: string; last_name: string } | null
 }
 
 interface ActivePatrol {
@@ -258,16 +255,13 @@ export default function EnforcementCommandCenter() {
         .from('enforcement_actions')
         .select(`
           id,
-          breach_alert_id,
           action_type,
           status,
           assigned_to,
           created_at,
-          breach_alert:breach_alerts(
-            plate_number,
-            zone:zones(name)
-          ),
-          user_profile:user_profiles(first_name, last_name)
+          plate_number,
+          zone:zones(name),
+          user_profile:user_profiles!enforcement_actions_created_by_fkey(first_name, last_name)
         `)
         .gte('created_at', startDate || todayStart)
         .order('created_at', { ascending: false })
@@ -610,7 +604,7 @@ export default function EnforcementCommandCenter() {
                         </Badge>
                       </div>
                       <p className="text-sm font-mono">
-                        {action.breach_alert?.plate_number || 'Unknown'}
+                        {action.plate_number || 'Unknown'}
                       </p>
                       <p className="text-xs text-gray-500 mt-1">
                         {formatDateTime(action.created_at)}

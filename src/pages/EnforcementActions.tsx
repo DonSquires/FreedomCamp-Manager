@@ -109,7 +109,7 @@ export default function EnforcementActions() {
             status,
             zone:zones(name)
           ),
-          user_profile:user_profiles!enforcement_actions_user_id_fkey(first_name, last_name),
+          user_profile:user_profiles!enforcement_actions_created_by_fkey(first_name, last_name),
           assigned_user:user_profiles!enforcement_actions_assigned_to_fkey(first_name, last_name)
         `)
         .order('created_at', { ascending: false })
@@ -200,10 +200,9 @@ export default function EnforcementActions() {
       const { error } = await (supabase
         .from('enforcement_actions') as any)
         .insert({
-          breach_alert_id: data.breach_alert_id,
           action_type: data.action_type,
           organization_id: user?.organization_id || organizationId,
-          user_id: user?.id,
+          created_by: user?.id,
           status: 'pending',
           notes: data.notes || null,
         })
