@@ -221,7 +221,7 @@ export function usePersonObservations(personId: string | null) {
         .select(`
           *,
           zone:zones(name),
-          observer:user_profiles(first_name, last_name)
+          observer:user_profiles!person_observations_observed_by_fkey(first_name, last_name)
         `)
         .eq('person_id', personId)
         .order('observed_at', { ascending: false })

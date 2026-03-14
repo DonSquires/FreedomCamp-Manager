@@ -356,7 +356,7 @@ export async function exportEnforcementActions(
     .eq('organization_id', organizationId)
     .gte('created_at', dateFrom)
     .lte('created_at', dateTo)
-    .order('recorded_at', { ascending: false })
+    .order('created_at', { ascending: false })
 
   if (error) {
     console.error('Failed to export enforcement actions:', error)
