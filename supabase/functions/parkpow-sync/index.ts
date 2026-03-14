@@ -54,7 +54,14 @@ Deno.serve(async (req) => {
     }
   } catch (err: any) {
     console.error("❌ parkpow-sync error:", err);
-    return json({ success: false, error: err.message }, 500);
+    // Detect connectivity / DNS / network errors → 503 (upstream unavailable)
+    const errorMessage: string = err.message ?? "";
+    const isUpstreamError =
+      /dns error|failed to lookup|ECONNREFUSED|ETIMEDOUT|connect.*error|network/i.test(errorMessage);
+    return json(
+      { success: false, error: errorMessage },
+      isUpstreamError ? 503 : 500,
+    );
   }
 });
 
