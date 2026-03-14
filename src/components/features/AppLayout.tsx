@@ -293,10 +293,10 @@ export function AppLayout({ children, title, description, showBackButton }: AppL
         <div className="flex flex-col h-full">
           <div className="p-5 border-b dark:border-gray-700 bg-gradient-to-br from-cyan-700 to-cyan-800 dark:from-cyan-900 dark:to-cyan-950">
             <h2 className="font-bold text-xl text-white">FreedomCamp</h2>
-            <p className="text-sm text-blue-100 mt-0.5">
+            <p className="text-sm text-cyan-100 mt-0.5">
               {user?.full_name}
             </p>
-            <p className="text-xs text-blue-200 mt-0.5">
+            <p className="text-xs text-cyan-200 mt-0.5">
               {user?.role === 'master' ? 'System Administrator' : 
                user?.role === 'admin' ? 'Administrator' :
                user?.role === 'admin_officer' ? 'Admin Officer' : 'Field Officer'}
