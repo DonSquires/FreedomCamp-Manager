@@ -507,6 +507,28 @@ export interface Database {
           embedding_created_at: string | null
           parkpow_session_id: number | null
           parkpow_violation_id: number | null
+          // AI / inference columns (added by 20260312000010_fix_alpr_inference_columns_schema_cache.sql)
+          processing_status: 'pending' | 'processing' | 'completed' | 'failed'
+          processing_started_at: string | null
+          processing_completed_at: string | null
+          processing_error: string | null
+          plate_confidence: number | null
+          vehicle_make_confidence: number | null
+          vehicle_model_confidence: number | null
+          vehicle_color_confidence: number | null
+          sticker_presence: boolean | null
+          sticker_color: 'blue' | 'green' | 'unknown' | null
+          sticker_bbox: any | null
+          sticker_detection_confidence: number | null
+          sticker_color_confidence: number | null
+          previous_observation_id: string | null
+          movement_moved: boolean | null
+          movement_background_similarity: number | null
+          movement_vehicle_bbox_iou: number | null
+          movement_decision: string | null
+          // Discrepancy columns (added by 20260406000001_vehicle_discrepancies.sql)
+          has_discrepancies: boolean
+          discrepancy_flags: any | null
           zone_name_at_import: string | null
           is_legacy_import: boolean
           legacy_source_tag: string | null
@@ -563,6 +585,26 @@ export interface Database {
           embedding_created_at?: string | null
           parkpow_session_id?: number | null
           parkpow_violation_id?: number | null
+          processing_status?: 'pending' | 'processing' | 'completed' | 'failed'
+          processing_started_at?: string | null
+          processing_completed_at?: string | null
+          processing_error?: string | null
+          plate_confidence?: number | null
+          vehicle_make_confidence?: number | null
+          vehicle_model_confidence?: number | null
+          vehicle_color_confidence?: number | null
+          sticker_presence?: boolean | null
+          sticker_color?: 'blue' | 'green' | 'unknown' | null
+          sticker_bbox?: any | null
+          sticker_detection_confidence?: number | null
+          sticker_color_confidence?: number | null
+          previous_observation_id?: string | null
+          movement_moved?: boolean | null
+          movement_background_similarity?: number | null
+          movement_vehicle_bbox_iou?: number | null
+          movement_decision?: string | null
+          has_discrepancies?: boolean
+          discrepancy_flags?: any | null
           zone_name_at_import?: string | null
           is_legacy_import?: boolean
           legacy_source_tag?: string | null
@@ -619,6 +661,26 @@ export interface Database {
           embedding_created_at?: string | null
           parkpow_session_id?: number | null
           parkpow_violation_id?: number | null
+          processing_status?: 'pending' | 'processing' | 'completed' | 'failed'
+          processing_started_at?: string | null
+          processing_completed_at?: string | null
+          processing_error?: string | null
+          plate_confidence?: number | null
+          vehicle_make_confidence?: number | null
+          vehicle_model_confidence?: number | null
+          vehicle_color_confidence?: number | null
+          sticker_presence?: boolean | null
+          sticker_color?: 'blue' | 'green' | 'unknown' | null
+          sticker_bbox?: any | null
+          sticker_detection_confidence?: number | null
+          sticker_color_confidence?: number | null
+          previous_observation_id?: string | null
+          movement_moved?: boolean | null
+          movement_background_similarity?: number | null
+          movement_vehicle_bbox_iou?: number | null
+          movement_decision?: string | null
+          has_discrepancies?: boolean
+          discrepancy_flags?: any | null
           zone_name_at_import?: string | null
           is_legacy_import?: boolean
           legacy_source_tag?: string | null
@@ -628,8 +690,69 @@ export interface Database {
         }
       }
       // NOTE: observation_jobs table removed. ALPR writes directly to observations.plate_number via UPDATE.
-      // Missing AI columns (processing_status, plate_confidence, sticker_*, movement_*, weather_conditions)
-      // are added via migration 20260313000003_add_missing_observation_columns.sql
+      vehicle_discrepancies: {
+        // Added by 20260406000001_vehicle_discrepancies.sql
+        Row: {
+          id: string
+          observation_id: string
+          plate_number: string | null
+          organization_id: string | null
+          zone_id: string | null
+          discrepancy_type: 'make_mismatch' | 'model_mismatch' | 'colour_mismatch' | 'plate_mismatch_same_vehicle' | 'sc_sticker_not_in_register' | 'sc_in_register_no_sticker' | 'sc_sticker_inconclusive'
+          source_a: 'canonical' | 'nzscv' | 'inference' | 'motorweb' | 'alpr' | 'observation'
+          source_b: 'canonical' | 'nzscv' | 'inference' | 'motorweb' | 'alpr' | 'observation'
+          value_a: string | null
+          value_b: string | null
+          severity: 'warning' | 'critical'
+          sc_law_active: boolean
+          details: any | null
+          requires_review: boolean
+          reviewed_at: string | null
+          reviewed_by: string | null
+          review_notes: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          observation_id: string
+          plate_number?: string | null
+          organization_id?: string | null
+          zone_id?: string | null
+          discrepancy_type: 'make_mismatch' | 'model_mismatch' | 'colour_mismatch' | 'plate_mismatch_same_vehicle' | 'sc_sticker_not_in_register' | 'sc_in_register_no_sticker' | 'sc_sticker_inconclusive'
+          source_a: 'canonical' | 'nzscv' | 'inference' | 'motorweb' | 'alpr' | 'observation'
+          source_b: 'canonical' | 'nzscv' | 'inference' | 'motorweb' | 'alpr' | 'observation'
+          value_a?: string | null
+          value_b?: string | null
+          severity?: 'warning' | 'critical'
+          sc_law_active?: boolean
+          details?: any | null
+          requires_review?: boolean
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          review_notes?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          observation_id?: string
+          plate_number?: string | null
+          organization_id?: string | null
+          zone_id?: string | null
+          discrepancy_type?: 'make_mismatch' | 'model_mismatch' | 'colour_mismatch' | 'plate_mismatch_same_vehicle' | 'sc_sticker_not_in_register' | 'sc_in_register_no_sticker' | 'sc_sticker_inconclusive'
+          source_a?: 'canonical' | 'nzscv' | 'inference' | 'motorweb' | 'alpr' | 'observation'
+          source_b?: 'canonical' | 'nzscv' | 'inference' | 'motorweb' | 'alpr' | 'observation'
+          value_a?: string | null
+          value_b?: string | null
+          severity?: 'warning' | 'critical'
+          sc_law_active?: boolean
+          details?: any | null
+          requires_review?: boolean
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          review_notes?: string | null
+          created_at?: string
+        }
+      }
       breach_alerts: {
         Row: {
           id: string
@@ -1369,6 +1492,10 @@ export interface Database {
       ensure_other_location_zone: {
         Args: { p_organization_id: string }
         Returns: string
+      }
+      safe_insert_observation: {
+        Args: { p_data: Record<string, unknown> }
+        Returns: { observation_id: string; id: string | null }
       }
       get_admin_dashboard_stats: {
         Args: {
