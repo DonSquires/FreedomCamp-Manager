@@ -30,8 +30,7 @@ tools/schema-extract/output/*
 # Additional analysis outputs
 tools/onspace-analysis/output/
 
-# Root-level package-lock.json (no root package.json - project uses bun.lock)
-/package-lock.json
+# Both bun.lock (Bun) and package-lock.json (npm) are committed for reproducible installs.
 *.tsbuildinfo
 
 # Environment files - NEVER commit credentials
