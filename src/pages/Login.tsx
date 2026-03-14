@@ -5,7 +5,6 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { toast } from 'sonner'
-import { Shield } from 'lucide-react'
 
 export default function Login() {
   const [email, setEmail] = useState('')
@@ -47,13 +46,15 @@ export default function Login() {
   }
 
   return (
-    <div className="h-screen overflow-hidden bg-gray-50 dark:bg-gray-900 flex items-center justify-center p-4">
+    <div className="h-screen overflow-hidden bg-gray-50 dark:bg-gray-900 high-contrast:bg-white flex items-center justify-center p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <div className="flex justify-center mb-4">
-            <div className="bg-blue-100 dark:bg-blue-900 p-3 rounded-full">
-              <Shield className="h-8 w-8 text-blue-600 dark:text-blue-400" />
-            </div>
+            <img
+              src="/iron-eagle-security-logo.jpg"
+              alt="Iron Eagle Security"
+              className="h-20 w-20 rounded-2xl object-cover shadow-md"
+            />
           </div>
           <CardTitle className="text-2xl">FreedomCamp Manager</CardTitle>
           <CardDescription>Sign in to your account</CardDescription>

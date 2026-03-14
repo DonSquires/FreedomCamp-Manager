@@ -7,14 +7,15 @@
  * classes directly (e.g. recharts, inline styles).
  */
 
-export type Theme = 'light' | 'dark' | 'system'
+export type Theme = 'light' | 'dark' | 'high-contrast' | 'system'
 
 export const THEME_STORAGE_KEY = 'fcm-theme'
 
 /** Resolve the effective theme based on the stored preference and system setting */
-export function resolveTheme(stored: Theme | null): 'light' | 'dark' {
+export function resolveTheme(stored: Theme | null): 'light' | 'dark' | 'high-contrast' {
   if (stored === 'light') return 'light'
   if (stored === 'dark') return 'dark'
+  if (stored === 'high-contrast') return 'high-contrast'
   // 'system' or null — follow OS preference
   if (typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches) {
     return 'dark'
@@ -23,12 +24,13 @@ export function resolveTheme(stored: Theme | null): 'light' | 'dark' {
 }
 
 /** Apply a resolved theme to the DOM */
-export function applyTheme(resolved: 'light' | 'dark'): void {
+export function applyTheme(resolved: 'light' | 'dark' | 'high-contrast'): void {
   if (typeof document === 'undefined') return
+  document.documentElement.classList.remove('dark', 'high-contrast')
   if (resolved === 'dark') {
     document.documentElement.classList.add('dark')
-  } else {
-    document.documentElement.classList.remove('dark')
+  } else if (resolved === 'high-contrast') {
+    document.documentElement.classList.add('high-contrast')
   }
 }
 
@@ -39,17 +41,18 @@ export function initTheme(): void {
   applyTheme(resolved)
 }
 
-// ── Brand Colours ─────────────────────────────────────────────────────────────
+// ── Brand Colours (IES: cyan/teal + gold on black/white) ──────────────────────
 
 export const brandColors = {
-  primary: '#1d4ed8',       // blue-700
-  primaryLight: '#3b82f6',  // blue-500
-  primaryDark: '#1e40af',   // blue-800
+  primary: '#0891b2',       // cyan-600 (IES teal)
+  primaryLight: '#06b6d4',  // cyan-500
+  primaryDark: '#0e7490',   // cyan-700
   danger: '#dc2626',        // red-600
   warning: '#d97706',       // amber-600
   success: '#16a34a',       // green-600
-  info: '#0891b2',          // cyan-600
+  info: '#0ea5e9',          // sky-500
   neutral: '#6b7280',       // gray-500
+  accent: '#eab308',        // yellow-500 (IES gold)
 } as const
 
 // ── Semantic Chart Colours ─────────────────────────────────────────────────────
@@ -62,8 +65,8 @@ export const chartColors = {
   primary: brandColors.primary,
   secondary: brandColors.primaryLight,
   series: [
-    '#1d4ed8', '#16a34a', '#d97706', '#dc2626',
-    '#0891b2', '#7c3aed', '#db2777', '#ea580c',
+    '#0891b2', '#16a34a', '#d97706', '#dc2626',
+    '#0ea5e9', '#7c3aed', '#db2777', '#ea580c',
   ],
 } as const
 

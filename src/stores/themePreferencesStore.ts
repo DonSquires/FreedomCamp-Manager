@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { createJSONStorage, persist } from 'zustand/middleware'
 
-export type ThemeMode = 'light' | 'dark' | 'system'
+export type ThemeMode = 'light' | 'dark' | 'high-contrast' | 'system'
 
 interface ThemePreferencesState {
   themeMode: ThemeMode

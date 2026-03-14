@@ -97,11 +97,11 @@ function NavigationLinks({ onClick }: { onClick?: () => void }) {
             className={cn(
               'flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-all duration-150',
               isActive
-                ? 'bg-blue-50 text-blue-700 shadow-[inset_3px_0_0_theme(colors.blue.600)] dark:bg-blue-950/50 dark:text-blue-200 dark:shadow-[inset_3px_0_0_theme(colors.blue.400)]'
+                ? 'bg-primary/10 text-primary shadow-[inset_3px_0_0_hsl(var(--primary))] dark:bg-primary/15'
                 : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700/60 dark:hover:text-gray-100'
             )}
           >
-            <Icon className={cn('h-4 w-4 shrink-0', isActive ? 'text-blue-600 dark:text-blue-400' : 'text-gray-400 dark:text-gray-500')} />
+            <Icon className={cn('h-4 w-4 shrink-0', isActive ? 'text-primary' : 'text-gray-400 dark:text-gray-500')} />
             <span>{item.label}</span>
           </Link>
         )
@@ -128,7 +128,7 @@ export function AppLayout({ children, title, description, showBackButton }: AppL
   } = useSessionLockStore()
   const { autoLogoffEnabled } = useSessionPreferencesStore()
   const { themeMode } = useThemePreferencesStore()
-  const [resolvedTheme, setResolvedTheme] = useState<'light' | 'dark'>('light')
+  const [resolvedTheme, setResolvedTheme] = useState<'light' | 'dark' | 'high-contrast'>('light')
   const queryClient = useQueryClient()
   const navigate = useNavigate()
 
@@ -139,7 +139,7 @@ export function AppLayout({ children, title, description, showBackButton }: AppL
     }
 
     const applyResolvedTheme = () => {
-      if (themeMode === 'light' || themeMode === 'dark') {
+      if (themeMode === 'light' || themeMode === 'dark' || themeMode === 'high-contrast') {
         setResolvedTheme(themeMode)
         return
       }
@@ -168,9 +168,11 @@ export function AppLayout({ children, title, description, showBackButton }: AppL
   const themeBadgeText =
     themeMode === 'system'
       ? `System -> ${resolvedTheme === 'dark' ? 'Dark' : 'Light'}`
-      : themeMode === 'dark'
-        ? 'Dark'
-        : 'Light'
+      : themeMode === 'high-contrast'
+        ? 'High Contrast'
+        : themeMode === 'dark'
+          ? 'Dark'
+          : 'Light'
 
   const ThemeBadgeIcon =
     themeMode === 'system'
@@ -289,12 +291,12 @@ export function AppLayout({ children, title, description, showBackButton }: AppL
         )}
       >
         <div className="flex flex-col h-full">
-          <div className="p-5 border-b dark:border-gray-700 bg-gradient-to-br from-blue-600 to-blue-700 dark:from-blue-800 dark:to-blue-900">
+          <div className="p-5 border-b dark:border-gray-700 bg-gradient-to-br from-cyan-700 to-cyan-800 dark:from-cyan-900 dark:to-cyan-950">
             <h2 className="font-bold text-xl text-white">FreedomCamp</h2>
-            <p className="text-sm text-blue-100 mt-0.5">
+            <p className="text-sm text-cyan-100 mt-0.5">
               {user?.full_name}
             </p>
-            <p className="text-xs text-blue-200 mt-0.5">
+            <p className="text-xs text-cyan-200 mt-0.5">
               {user?.role === 'master' ? 'System Administrator' : 
                user?.role === 'admin' ? 'Administrator' :
                user?.role === 'admin_officer' ? 'Admin Officer' : 'Field Officer'}
