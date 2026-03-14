@@ -86,6 +86,11 @@ function formatVehicleSummary(v: CanonicalVehicleRow | undefined): string {
   return base || 'No canonical metadata'
 }
 
+function hasCanonicalMetadata(v: CanonicalVehicleRow | undefined): boolean {
+  if (!v) return false
+  return !!(v.vehicle_make || v.vehicle_model || v.vehicle_year || v.vehicle_color)
+}
+
 const toTitleCase = (s: string) =>
   s.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
 
@@ -539,7 +544,7 @@ export default function ObservationRecords() {
                 <Car className="h-4 w-4" />
                 {selectedPlate || 'No vehicle selected'}
               </CardTitle>
-              {selectedPlate && selectedCanonical && formatVehicleSummary(selectedCanonical) !== 'No canonical metadata' && (
+              {selectedPlate && selectedCanonical && hasCanonicalMetadata(selectedCanonical) && (
                 <div className="mt-2 grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-1 text-xs">
                   {selectedCanonical.vehicle_make && (
                     <div><span className="text-muted-foreground">Make:</span> {selectedCanonical.vehicle_make}</div>
@@ -653,7 +658,7 @@ export default function ObservationRecords() {
                                 {obs.nights_stayed_this_month != null && obs.nights_stayed_this_month > 0 && (
                                   <span className="flex items-center gap-1">
                                     <Clock className="h-3 w-3" />
-                                    Night {obs.nights_stayed_this_month}
+                                    {obs.nights_stayed_this_month} night{obs.nights_stayed_this_month !== 1 ? 's' : ''} this month
                                   </span>
                                 )}
                               </div>
