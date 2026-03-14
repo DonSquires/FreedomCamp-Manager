@@ -11,22 +11,23 @@ import { toast } from 'sonner'
 interface Incident {
   id: string
   organization_id: string
-  zone_id: string
+  zone_id: string | null
   plate_number: string | null
-  incident_type: string
-  severity: string
+  incident_type: string | null
+  severity: string | null
   status: string
-  description: string
-  court_ready: boolean
+  description: string | null
   retention_hold: boolean
   retention_until: string | null
-  approved_by: string | null
-  approved_at: string | null
-  happened_at: string
+  evidence_count: number
+  primary_evidence_url: string | null
+  location_lat: number | null
+  location_lng: number | null
+  location_address: string | null
+  notes: string | null
+  metadata: any
   created_at: string
-  user_id: string
-  photos: string[]
-  photo_metadata_ids: string[]
+  user_id: string | null
 }
 
 interface CreateIncidentInput {
@@ -35,17 +36,13 @@ interface CreateIncidentInput {
   incident_type: string
   severity: 'low' | 'medium' | 'high' | 'critical'
   description: string
-  happened_at?: string
-  photos?: string[]
-  photo_metadata_ids?: string[]
-  gps_latitude?: number
-  gps_longitude?: number
+  location_lat?: number
+  location_lng?: number
 }
 
 interface UpdateIncidentInput {
   status?: string
   resolution_notes?: string
-  court_ready?: boolean
   retention_hold?: boolean
 }
 
@@ -75,16 +72,17 @@ export function useIncidents(options?: {
           severity,
           status,
           description,
-          court_ready,
           retention_hold,
           retention_until,
-          approved_by,
-          approved_at,
-          happened_at,
+          evidence_count,
+          primary_evidence_url,
+          location_lat,
+          location_lng,
+          location_address,
+          notes,
+          metadata,
           created_at,
           user_id,
-          photos,
-          photo_metadata_ids,
           zone:zones(name),
           user_profile:user_profiles(first_name, last_name)
         `)
@@ -109,10 +107,10 @@ export function useIncidents(options?: {
         query = query.eq('status', options.status)
       }
       if (options?.dateFrom) {
-        query = query.gte('happened_at', options.dateFrom)
+        query = query.gte('created_at', options.dateFrom)
       }
       if (options?.dateTo) {
-        query = query.lte('happened_at', options.dateTo)
+        query = query.lte('created_at', options.dateTo)
       }
 
       const { data, error } = await query
@@ -139,12 +137,9 @@ export function useIncidents(options?: {
           incident_type: input.incident_type,
           severity: input.severity,
           description: input.description,
-          happened_at: input.happened_at || new Date().toISOString(),
-          photos: input.photos || [],
-          photo_metadata_ids: input.photo_metadata_ids || [],
-          gps_latitude: input.gps_latitude,
-          gps_longitude: input.gps_longitude,
-          status: 'pending',
+          location_lat: input.location_lat,
+          location_lng: input.location_lng,
+          status: 'new',
         })
         .select()
         .single()
@@ -205,28 +200,6 @@ export function useIncidents(options?: {
     },
   })
 
-  // Mark court ready mutation
-  const markCourtReady = useMutation({
-    mutationFn: async (id: string) => {
-      const { error } = await (supabase.from('incidents') as any)
-        .update({
-          court_ready: true,
-          approved_by: user?.id,
-          approved_at: new Date().toISOString(),
-        })
-        .eq('id', id)
-
-      if (error) {
-        toast.error('Failed to mark as court-ready')
-        throw error
-      }
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['incidents'] })
-      toast.success('Marked as court-ready')
-    },
-  })
-
   return {
     incidents: query.data,
     isLoading: query.isLoading,
@@ -234,7 +207,6 @@ export function useIncidents(options?: {
     createIncident,
     updateIncident,
     setLegalHold,
-    markCourtReady,
   }
 }
 

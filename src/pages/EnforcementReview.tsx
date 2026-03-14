@@ -49,13 +49,9 @@ interface EnforcementAction {
   completion_outcome: string | null
   created_at: string
   completed_at: string | null
-  breach_alert: {
-    id: string
-    plate_number: string
-    breach_type: string
-    status: string
-    zone: { name: string } | null
-  } | null
+  plate_number: string | null
+  breach_status: string | null
+  zone: { name: string } | null
   assigned_user: {
     first_name: string
     last_name: string
@@ -114,12 +110,10 @@ export default function EnforcementReview() {
         .from('enforcement_actions')
         .select(`
           id, action_type, status, notes, completion_outcome, created_at, completed_at,
-          breach_alert:breach_alerts!breach_alert_id(
-            id, plate_number, breach_type, status,
-            zone:zones!zone_id(name)
-          ),
-          assigned_user:user_profiles!assigned_to(first_name, last_name),
-          user_profile:user_profiles!user_id(first_name, last_name)
+          plate_number, breach_status,
+          zone:zones(name),
+          assigned_user:user_profiles!enforcement_actions_assigned_to_fkey(first_name, last_name),
+          user_profile:user_profiles!enforcement_actions_created_by_fkey(first_name, last_name)
         `)
         .order('created_at', { ascending: false })
         .limit(200)
@@ -181,8 +175,8 @@ export default function EnforcementReview() {
     if (!search) return true
     const q = search.toLowerCase()
     return (
-      a.breach_alert?.plate_number?.toLowerCase().includes(q) ||
-      a.breach_alert?.zone?.name?.toLowerCase().includes(q) ||
+      a.plate_number?.toLowerCase().includes(q) ||
+      a.zone?.name?.toLowerCase().includes(q) ||
       a.action_type?.toLowerCase().includes(q)
     )
   })
@@ -291,23 +285,23 @@ export default function EnforcementReview() {
                         {typeMeta?.icon}
                         <span className="font-semibold">{typeMeta?.label || action.action_type}</span>
                         <Badge variant={statusMeta.variant}>{statusMeta.label}</Badge>
-                        {action.breach_alert?.plate_number && (
+                        {action.plate_number && (
                           <span className="font-mono font-bold text-sm">
-                            {action.breach_alert.plate_number}
+                            {action.plate_number}
                           </span>
                         )}
                       </div>
                       <div className="flex items-center gap-4 text-sm text-muted-foreground flex-wrap">
-                        {action.breach_alert?.zone && (
+                        {action.zone && (
                           <span className="flex items-center gap-1">
                             <MapPin className="h-3.5 w-3.5" />
-                            {action.breach_alert.zone.name}
+                            {action.zone.name}
                           </span>
                         )}
-                        {action.breach_alert?.breach_type && (
+                        {action.breach_status && action.breach_status !== 'active' && (
                           <span className="flex items-center gap-1">
                             <AlertTriangle className="h-3.5 w-3.5" />
-                            {toTitleCase(action.breach_alert.breach_type)}
+                            {toTitleCase(action.breach_status)}
                           </span>
                         )}
                         <span className="flex items-center gap-1">
@@ -365,8 +359,8 @@ export default function EnforcementReview() {
               {reviewTarget && (
                 <>
                   {ACTION_TYPE_META[reviewTarget.action_type]?.label || reviewTarget.action_type} for{' '}
-                  <strong>{reviewTarget.breach_alert?.plate_number}</strong> at{' '}
-                  {reviewTarget.breach_alert?.zone?.name}
+                  <strong>{reviewTarget.plate_number || 'Unknown'}</strong> at{' '}
+                  {reviewTarget.zone?.name || 'Unknown Zone'}
                 </>
               )}
             </DialogDescription>

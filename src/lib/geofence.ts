@@ -130,10 +130,7 @@ export async function autoStartPatrol(
         patrol_date: new Date().toISOString().split('T')[0],
         shift: 'day', // TODO: Detect shift based on time
         assigned_to: userId,
-        checked_in_at: new Date().toISOString(),
-        check_in_location_lat: gpsLat,
-        check_in_location_lng: gpsLng,
-        status: 'active',
+        status: 'in_progress',
         notes: 'Auto-started via geofence entry',
       })
       .select()

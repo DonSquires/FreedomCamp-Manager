@@ -35,10 +35,8 @@ interface ActivePatrol {
   status: string
   patrol_date: string
   shift: string
-  checked_in_at: string | null
-  check_in_location_lat: number | null
-  check_in_location_lng: number | null
-  completed_at: string | null
+  created_at: string
+  updated_at: string
   notes: string | null
   zone: {
     id: string
@@ -113,19 +111,17 @@ export default function LivePatrolMonitor() {
             status,
             patrol_date,
             shift,
-            checked_in_at,
-            check_in_location_lat,
-            check_in_location_lng,
-            completed_at,
             notes,
             organization_id,
             assigned_to,
+            created_at,
+            updated_at,
             zone:zones(id, name),
             officer:user_profiles!patrols_assigned_to_fkey(id, first_name, last_name, phone)
           `)
           // Show in_progress and scheduled patrols; also include today's completed ones
           .in('status', ['in_progress', 'scheduled', 'completed'])
-          .order('checked_in_at', { ascending: false })
+          .order('created_at', { ascending: false })
 
         // Organization scoping
         if (user?.role !== 'master' && user?.organization_id) {
@@ -166,17 +162,15 @@ export default function LivePatrolMonitor() {
             status,
             patrol_date,
             shift,
-            checked_in_at,
-            check_in_location_lat,
-            check_in_location_lng,
-            completed_at,
             notes,
             organization_id,
             assigned_to,
+            created_at,
+            updated_at,
             zone_id
           `)
           .in('status', ['in_progress', 'scheduled', 'completed'])
-          .order('checked_in_at', { ascending: false })
+          .order('created_at', { ascending: false })
 
         if (user?.role !== 'master' && user?.organization_id) {
           query = query.eq('organization_id', user.organization_id)
@@ -243,19 +237,19 @@ export default function LivePatrolMonitor() {
           const { count: vehiclesChecked } = await (supabase.from('observations') as any)
             .select('*', { count: 'exact', head: true })
             .eq('recorded_by', patrol.officer.id)
-            .gte('recorded_at', patrol.checked_in_at || today)
+            .gte('recorded_at', patrol.created_at || today)
 
           // Get latest GPS position from activity log
           const { data: latestActivity } = await (supabase.from('officer_activity_log') as any)
             .select('gps_latitude, gps_longitude, recorded_at')
             .eq('user_id', patrol.officer.id)
-            .gte('recorded_at', patrol.checked_in_at || today)
+            .gte('recorded_at', patrol.created_at || today)
             .order('recorded_at', { ascending: false })
             .limit(1)
             .single()
 
           // Calculate duration
-          const startTime = patrol.checked_in_at ? new Date(patrol.checked_in_at) : new Date()
+          const startTime = patrol.status === 'in_progress' ? new Date(patrol.updated_at || patrol.created_at) : new Date()
           const now = new Date()
           const durationMs = now.getTime() - startTime.getTime()
           const durationMinutes = Math.floor(durationMs / 60000)
@@ -289,7 +283,7 @@ export default function LivePatrolMonitor() {
         .from('officer_activity_log')
         .select('*')
         .eq('user_id', patrol.officer.id)
-        .gte('recorded_at', patrol.checked_in_at || new Date().toISOString())
+        .gte('recorded_at', patrol.created_at || new Date().toISOString())
         .order('recorded_at', { ascending: false })
         .limit(50)
 
@@ -400,7 +394,7 @@ export default function LivePatrolMonitor() {
       ? Math.floor((patrols ?? []).reduce((sum, p) => sum + p._duration_minutes, 0) / patrolCount)
       : 0,
     zones_covered: new Set((patrols ?? []).map(p => p.zone.id)).size,
-    last_check_in: (patrols ?? [])[0]?.checked_in_at || null,
+    last_check_in: (patrols ?? [])[0]?.created_at || null,
   } : null
 
   const formatDuration = (minutes: number) => {
@@ -669,19 +663,11 @@ export default function LivePatrolMonitor() {
                   <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-3">
                     <div className="flex items-center gap-2 text-sm mb-2">
                       <CheckCircle className="h-4 w-4 text-green-600" />
-                      <span className="font-semibold">Checked In:</span>
+                      <span className="font-semibold">Started:</span>
                       <span className="text-gray-600 dark:text-gray-400">
-                        {patrol.checked_in_at ? formatDateTime(patrol.checked_in_at) : 'Not checked in'}
+                        {patrol.status === 'in_progress' ? formatDateTime(patrol.updated_at || patrol.created_at) : 'Not started'}
                       </span>
                     </div>
-                    {patrol.check_in_location_lat && patrol.check_in_location_lng && (
-                      <div className="flex items-center gap-2 text-xs text-gray-500">
-                        <MapPin className="h-3 w-3" />
-                        <span>
-                          {patrol.check_in_location_lat.toFixed(6)}, {patrol.check_in_location_lng.toFixed(6)}
-                        </span>
-                      </div>
-                    )}
                   </div>
 
                   {/* Current GPS Position */}

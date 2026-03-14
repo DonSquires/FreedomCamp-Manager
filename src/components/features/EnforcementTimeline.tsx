@@ -28,16 +28,13 @@ type EnforcementActionRow = {
   action_type: string
   status: string
   notes: string | null
-  action_notes: string | null
   zone_id: string | null
-  recorded_by: string | null
-  recorded_at: string | null
+  created_by: string | null
   assigned_to: string | null
   breach_status: string | null
   completion_outcome: string | null
   completion_notes: string | null
-  delivery_method: string | null
-  delivered_at: string | null
+  attachments: any
   created_at: string
   updated_at: string
 }
@@ -72,13 +69,13 @@ export function EnforcementTimeline({
           zones!enforcement_actions_zone_id_fkey (
             name
           ),
-          user_profiles!enforcement_actions_user_id_fkey (
+          user_profiles!enforcement_actions_created_by_fkey (
             first_name,
             last_name
           )
         `)
         .eq('plate_number', plateNumber)
-        .order('recorded_at', { ascending: false })
+        .order('created_at', { ascending: false })
         .limit(limit)
 
       if (error) throw error
@@ -177,7 +174,7 @@ export function EnforcementTimeline({
                             </div>
                             <div className="flex items-center gap-2 text-sm text-muted-foreground">
                               <Calendar className="h-3 w-3" />
-                              <span>{formatDateTime(action.recorded_at)}</span>
+                              <span>{formatDateTime(action.created_at)}</span>
                             </div>
                           </div>
                           {onViewDetails && (
@@ -218,19 +215,6 @@ export function EnforcementTimeline({
                             <span className="text-muted-foreground">Status:</span>
                             <Badge variant="outline">{action.status}</Badge>
                           </div>
-
-                          {/* Delivery info */}
-                          {action.delivery_method && (
-                            <div className="flex items-center gap-2">
-                              <span className="text-muted-foreground">Delivery:</span>
-                              <span>{action.delivery_method}</span>
-                              {action.delivered_at && (
-                                <span className="text-muted-foreground">
-                                  on {formatDate(action.delivered_at)}
-                                </span>
-                              )}
-                            </div>
-                          )}
 
                           {/* Notes */}
                           {action.notes && (

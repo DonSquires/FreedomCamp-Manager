@@ -32,26 +32,27 @@ import { toast } from 'sonner'
 interface Incident {
   id: string
   plate_number: string | null
-  incident_type: string
-  severity: string
+  incident_type: string | null
+  severity: string | null
   status: string
-  description: string
-  court_ready: boolean
+  description: string | null
   retention_hold: boolean
   retention_until: string | null
-  approved_by: string | null
-  approved_at: string | null
-  happened_at: string
+  evidence_count: number
+  primary_evidence_url: string | null
+  location_lat: number | null
+  location_lng: number | null
+  location_address: string | null
+  notes: string | null
+  metadata: any
   created_at: string
   zone: {
     name: string
-  }
+  } | null
   user_profile: {
     first_name: string
     last_name: string
-  }
-  photos: string[]
-  photo_metadata_ids: string[]
+  } | null
 }
 
 export default function IncidentReports() {
@@ -77,17 +78,18 @@ export default function IncidentReports() {
           severity,
           status,
           description,
-          court_ready,
           retention_hold,
           retention_until,
-          approved_by,
-          approved_at,
-          happened_at,
+          evidence_count,
+          primary_evidence_url,
+          location_lat,
+          location_lng,
+          location_address,
+          notes,
+          metadata,
           created_at,
           zone:zones(name),
-          user_profile:user_profiles(first_name, last_name),
-          photos,
-          photo_metadata_ids
+          user_profile:user_profiles(first_name, last_name)
         `)
         
         .order('created_at', { ascending: false })
@@ -101,10 +103,10 @@ export default function IncidentReports() {
 
       // Date filters
       if (dateFrom) {
-        query = query.gte('happened_at', dateFrom)
+        query = query.gte('created_at', dateFrom)
       }
       if (dateTo) {
-        query = query.lte('happened_at', dateTo)
+        query = query.lte('created_at', dateTo)
       }
 
       // Zone filter
@@ -161,36 +163,14 @@ export default function IncidentReports() {
     },
   })
 
-  // Mark court ready mutation
-  const markCourtReadyMutation = useMutation({
-    mutationFn: async (incidentId: string) => {
-      const { error } = await (supabase.from('incidents') as any)
-        .update({
-          court_ready: true,
-          approved_by: user?.id,
-          approved_at: new Date().toISOString(),
-        })
-        .eq('id', incidentId)
-
-      if (error) throw error
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['incidents'] })
-      toast.success('Marked as court-ready')
-    },
-    onError: () => {
-      toast.error('Failed to mark as court-ready')
-    },
-  })
-
   // Calculate stats
   const stats = incidents ? {
     total: incidents.length,
     critical: incidents.filter(i => i.severity === 'critical').length,
     high: incidents.filter(i => i.severity === 'high').length,
-    court_ready: incidents.filter(i => i.court_ready).length,
+    with_evidence: incidents.filter(i => i.evidence_count > 0).length,
     legal_holds: incidents.filter(i => i.retention_hold).length,
-    pending: incidents.filter(i => i.status === 'pending').length,
+    pending: incidents.filter(i => i.status === 'new' || i.status === 'processing').length,
   } : null
 
   const getSeverityColor = (severity: string) => {
@@ -266,12 +246,12 @@ export default function IncidentReports() {
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium text-blue-600 flex items-center gap-1">
-                <Shield className="h-3 w-3" />
-                Court Ready
+                <Camera className="h-3 w-3" />
+                With Evidence
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-blue-600">{stats.court_ready}</div>
+              <div className="text-2xl font-bold text-blue-600">{stats.with_evidence}</div>
             </CardContent>
           </Card>
 
@@ -407,10 +387,10 @@ export default function IncidentReports() {
                       <Badge className={getStatusColor(incident.status)}>
                         {incident.status}
                       </Badge>
-                      {incident.court_ready && (
+                      {incident.evidence_count > 0 && (
                         <Badge className="bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400">
-                          <Shield className="h-3 w-3 mr-1" />
-                          Court Ready
+                          <Camera className="h-3 w-3 mr-1" />
+                          {incident.evidence_count} Evidence
                         </Badge>
                       )}
                       {incident.retention_hold && (
@@ -432,12 +412,12 @@ export default function IncidentReports() {
                         </span>
                         <span className="flex items-center gap-1">
                           <Calendar className="h-3 w-3" />
-                          {formatDateTime(incident.happened_at)}
+                          {formatDateTime(incident.created_at)}
                         </span>
-                        {incident.photos && incident.photos.length > 0 && (
+                        {incident.evidence_count > 0 && (
                           <span className="flex items-center gap-1">
                             <Camera className="h-3 w-3" />
-                            {incident.photos.length} photo{incident.photos.length !== 1 ? 's' : ''}
+                            {incident.evidence_count} evidence item{incident.evidence_count !== 1 ? 's' : ''}
                           </span>
                         )}
                       </div>
@@ -491,18 +471,6 @@ export default function IncidentReports() {
                       <Eye className="h-4 w-4 mr-1" />
                       View Details
                     </Button>
-
-                    {!incident.court_ready && (
-                      <Button
-                        variant="default"
-                        size="sm"
-                        onClick={() => markCourtReadyMutation.mutate(incident.id)}
-                        disabled={markCourtReadyMutation.isPending}
-                      >
-                        <Shield className="h-4 w-4 mr-1" />
-                        Mark Court-Ready
-                      </Button>
-                    )}
 
                     <Button
                       variant="outline"
@@ -572,8 +540,8 @@ export default function IncidentReports() {
                   <p>{selectedIncident.zone?.name}</p>
                 </div>
                 <div>
-                  <span className="text-sm font-medium text-gray-600">Occurred</span>
-                  <p>{formatDateTime(selectedIncident.happened_at)}</p>
+                  <span className="text-sm font-medium text-gray-600">Recorded</span>
+                  <p>{formatDateTime(selectedIncident.created_at)}</p>
                 </div>
               </div>
 
@@ -582,29 +550,26 @@ export default function IncidentReports() {
                 <p className="mt-1 p-3 bg-gray-50 dark:bg-gray-800 rounded">{selectedIncident.description}</p>
               </div>
 
-              {selectedIncident.photos && selectedIncident.photos.length > 0 && (
+              {selectedIncident.primary_evidence_url && (
                 <div>
-                  <span className="text-sm font-medium text-gray-600">Evidence Photos ({selectedIncident.photos.length})</span>
+                  <span className="text-sm font-medium text-gray-600">Evidence ({selectedIncident.evidence_count})</span>
                   <div className="grid grid-cols-3 gap-2 mt-2">
-                    {selectedIncident.photos.map((photo, idx) => (
-                      <img
-                        key={idx}
-                        src={photo}
-                        alt={`Evidence ${idx + 1}`}
-                        className="w-full h-32 object-cover rounded border"
-                      />
-                    ))}
+                    <img
+                      src={selectedIncident.primary_evidence_url}
+                      alt="Primary evidence"
+                      className="w-full h-32 object-cover rounded border"
+                    />
                   </div>
                 </div>
               )}
 
-              {selectedIncident.court_ready && (
-                <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-3">
-                  <CheckCircle className="h-5 w-5 text-blue-600 inline mr-2" />
-                  <span className="font-medium text-blue-600">Court-Ready Evidence</span>
-                  {selectedIncident.approved_at && (
+              {selectedIncident.retention_hold && (
+                <div className="bg-purple-50 dark:bg-purple-900/20 rounded-lg p-3">
+                  <Lock className="h-5 w-5 text-purple-600 inline mr-2" />
+                  <span className="font-medium text-purple-600">Legal Hold Active</span>
+                  {selectedIncident.retention_until && (
                     <p className="text-xs text-gray-500 mt-1">
-                      Approved {formatDateTime(selectedIncident.approved_at)}
+                      Until {formatDateTime(selectedIncident.retention_until)}
                     </p>
                   )}
                 </div>

@@ -15,31 +15,25 @@ interface EnforcementAction {
   plate_number: string | null
   action_type: 'warning' | 'notice_to_vacate' | 'tow_request' | 'referral'
   status: 'pending' | 'assigned' | 'completed' | 'cancelled'
-  delivery_method: string | null
-  recipient_name: string | null
-  recipient_email: string | null
   notes: string | null
   created_at: string
-  recorded_at: string
   assigned_to: string | null
   assigned_at: string | null
   assigned_by: string | null
   completed_by: string | null
   completed_at: string | null
   completion_outcome: string | null
-  breach_alert_id: string | null
+  completion_notes: string | null
   observation_id: string | null
+  breach_status: string
+  attachments: any
 }
 
 interface CreateActionInput {
   zone_id: string
   plate_number?: string
   action_type: 'warning' | 'notice_to_vacate' | 'tow_request' | 'referral'
-  breach_alert_id?: string
   observation_id?: string
-  delivery_method?: string
-  recipient_name?: string
-  recipient_email?: string
   notes?: string
 }
 
@@ -76,7 +70,7 @@ export function useEnforcementActions(options?: {
           *,
           zone:zones(name),
           breach_alert:breach_alerts(breach_type, breach_details),
-          created_by:user_profiles!enforcement_actions_user_id_fkey(first_name, last_name),
+          created_by_user:user_profiles!enforcement_actions_created_by_fkey(first_name, last_name),
           assigned_user:user_profiles!enforcement_actions_assigned_to_fkey(first_name, last_name),
           completed_user:user_profiles!enforcement_actions_completed_by_fkey(first_name, last_name)
         `)
@@ -127,18 +121,13 @@ export function useEnforcementActions(options?: {
         .from('enforcement_actions') as any)
         .insert({
           organization_id: user?.organization_id,
-          user_id: user?.id,
+          created_by: user?.id,
           zone_id: input.zone_id,
           plate_number: input.plate_number,
           action_type: input.action_type,
-          breach_alert_id: input.breach_alert_id,
           observation_id: input.observation_id,
-          delivery_method: input.delivery_method,
-          recipient_name: input.recipient_name,
-          recipient_email: input.recipient_email,
           notes: input.notes,
           status: 'pending',
-          recorded_at: new Date().toISOString(),
         })
         .select()
         .single()

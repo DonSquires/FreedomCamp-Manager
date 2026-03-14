@@ -36,6 +36,7 @@ interface WelfareAlert {
 interface WelfareSettings {
   id: string
   user_id: string
+  organization_id: string
   auto_logoff_enabled: boolean
   welfare_check_enabled: boolean
   inactivity_warning_time: number
@@ -44,7 +45,6 @@ interface WelfareSettings {
   admin_escalation_time: number
   critical_escalation_time: number
   investigation_exception_enabled: boolean
-  gps_ping_interval: number
   created_at: string
   updated_at: string
 }

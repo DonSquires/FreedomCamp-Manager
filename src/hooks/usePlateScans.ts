@@ -162,10 +162,8 @@ export function usePlateScans(options?: {
       const { error } = await (supabase.from('plate_scans') as any)
         .update({
           reviewed: true,
-          reviewed_by: user?.id,
-          reviewed_at: new Date().toISOString(),
           review_action: action,
-          review_notes: notes,
+          violation_summary: notes,
         })
         .eq('id', id)
 

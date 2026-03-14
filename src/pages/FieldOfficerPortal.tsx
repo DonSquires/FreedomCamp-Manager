@@ -159,13 +159,12 @@ export default function FieldOfficerPortal() {
         .from('enforcement_actions') as any)
         .insert({
           organization_id: user?.organization_id,
-          user_id: user?.id,
+          created_by: user?.id,
           zone_id: obsZoneId,
           plate_number: plateNumber,
           action_type: actionType,
           observation_id: observationId,
           status: 'pending',
-          recorded_at: new Date().toISOString(),
         })
       if (error) throw error
     },
