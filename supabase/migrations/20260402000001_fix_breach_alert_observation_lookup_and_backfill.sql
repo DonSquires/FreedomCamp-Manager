@@ -220,6 +220,31 @@ BEGIN
 
   RAISE NOTICE 'Backfilling breach alerts: % non-compliant compliance_results to process', v_total;
 
+  -- Fix the FK to reference the correct PK column BEFORE inserting.
+  -- Migration 20260329 pointed breach_alerts.observation_id at observations(id)
+  -- (the nullable secondary column), but on live databases the PK column is
+  -- observation_id (NOT NULL).  Re-point the constraint to the detected PK column
+  -- so the backfill INSERT does not violate the FK.
+  EXECUTE 'ALTER TABLE breach_alerts DROP CONSTRAINT IF EXISTS breach_alerts_observation_id_fkey';
+  EXECUTE format(
+    'UPDATE breach_alerts
+        SET observation_id = NULL
+      WHERE observation_id IS NOT NULL
+        AND NOT EXISTS (
+          SELECT 1 FROM observations o WHERE o.%I = breach_alerts.observation_id
+        )',
+    v_obs_id_col
+  );
+  EXECUTE format(
+    'ALTER TABLE breach_alerts
+       ADD CONSTRAINT breach_alerts_observation_id_fkey
+       FOREIGN KEY (observation_id)
+       REFERENCES observations(%I)
+       ON DELETE SET NULL',
+    v_obs_id_col
+  );
+  RAISE NOTICE 'Re-pointed breach_alerts FK to observations(%)', v_obs_id_col;
+
   -- Backfill in a single INSERT ... SELECT
   EXECUTE format(
     'INSERT INTO breach_alerts (
