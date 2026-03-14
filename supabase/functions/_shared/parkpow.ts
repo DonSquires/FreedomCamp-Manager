@@ -11,7 +11,7 @@
  *   • Webhooks       — real-time push events when cameras detect plates
  *
  * Secret name in Supabase: PARKPOW_API_TOKEN  (already configured ✅)
- * Base URL:                https://api.parkpow.com/api/v1/
+ * Base URL:                https://app.parkpow.com/api/v1/
  *
  * Integration flow for FreedomCamp:
  *   1. Plate Recognizer reads plate from image        (PLATERECOGNIZER_TOKEN)
@@ -21,7 +21,7 @@
  *   5. On breach → push violation to ParkPow for enforcement workflow
  */
 
-const PARKPOW_BASE_URL = "https://api.parkpow.com/api/v1";
+const PARKPOW_BASE_URL = "https://app.parkpow.com/api/v1";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Types

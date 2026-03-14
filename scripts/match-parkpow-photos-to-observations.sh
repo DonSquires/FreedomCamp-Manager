@@ -24,7 +24,7 @@ set -eu
 #   APPLY=false                    (set true to write photo_url when null)
 #   REQUIRE_EMPTY_PHOTO=true       (when true, only scan observations where photo_url is null)
 #   TARGET_BUCKET=scans            (bucket to store imported photos)
-#   PARKPOW_BASE_URL               (default https://api.parkpow.com/api/v1)
+#   PARKPOW_BASE_URL               (default https://app.parkpow.com/api/v1)
 
 SUPABASE_URL="${SUPABASE_URL:-}"
 SUPABASE_SERVICE_ROLE_KEY="${SUPABASE_SERVICE_ROLE_KEY:-}"
@@ -37,7 +37,7 @@ LIMIT="${LIMIT:-500}"
 APPLY="${APPLY:-false}"
 REQUIRE_EMPTY_PHOTO="${REQUIRE_EMPTY_PHOTO:-true}"
 TARGET_BUCKET="${TARGET_BUCKET:-scans}"
-PARKPOW_BASE_URL="${PARKPOW_BASE_URL:-https://api.parkpow.com/api/v1}"
+PARKPOW_BASE_URL="${PARKPOW_BASE_URL:-https://app.parkpow.com/api/v1}"
 OBS_KEY_COL=""
 PHOTO_COL=""
 HAS_PARKPOW_SESSION_COL="false"
