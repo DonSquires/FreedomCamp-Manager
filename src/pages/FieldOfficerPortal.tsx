@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/stores/authStore'
@@ -65,6 +65,10 @@ export default function FieldOfficerPortal() {
   const [followUpCount,     setFollowUpCount]      = useState(0)
 
   const [currentPatrolZone, setCurrentPatrolZone] = useState<string | null>(zoneId)
+  // Ref so the geofence interval closure always sees the latest zone without
+  // triggering a re-mount of the interval on every zone change.
+  const currentPatrolZoneRef = useRef(currentPatrolZone)
+  currentPatrolZoneRef.current = currentPatrolZone
   const [currentLocation, setCurrentLocation] = useState<{ latitude: number; longitude: number } | null>(null)
   const [scanTabFilter, setScanTabFilter] = useState<'all' | 'compliant' | 'breach' | 'at_risk' | 'homeless'>('all')
 
@@ -188,7 +192,9 @@ export default function FieldOfficerPortal() {
     },
   })
 
-  // Auto-monitor geofence and manage patrol
+  // Auto-monitor geofence and manage patrol.
+  // currentPatrolZone is accessed via ref so zone-state changes do NOT reset
+  // the 30 s interval (which would cause races and duplicate patrol starts).
   useEffect(() => {
     if (!user?.id || !user?.organization_id) return
 
@@ -196,7 +202,7 @@ export default function FieldOfficerPortal() {
       monitorGeofenceAndPatrol(
         user.id,
         user.organization_id!,
-        currentPatrolZone,
+        currentPatrolZoneRef.current,
         (newZoneId, newZoneName) => {
           setCurrentPatrolZone(newZoneId)
           setZone(newZoneId, newZoneName)
@@ -211,7 +217,46 @@ export default function FieldOfficerPortal() {
     checkGeofence()
     const interval = setInterval(checkGeofence, 30000)
     return () => clearInterval(interval)
-  }, [user, currentPatrolZone, setZone])
+  }, [user, setZone]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Immediate GPS ping on login + 15 s polling ────────────────────────────
+  // Ensures currentLocation is populated right away (before any scan), so the
+  // jurisdiction card and bulk-scan auth check work from the moment the portal loads.
+  useEffect(() => {
+    if (!user?.id) return
+
+    const pollGPS = () => {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          setCurrentLocation({ latitude: pos.coords.latitude, longitude: pos.coords.longitude })
+          recordGPSUpdate(pos.coords.latitude, pos.coords.longitude)
+        },
+        (err) => console.warn('GPS poll failed:', err.message),
+        { enableHighAccuracy: true, timeout: 10000 },
+      )
+    }
+
+    pollGPS()
+    const id = setInterval(pollGPS, 15000)
+    return () => clearInterval(id)
+  }, [user?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Jurisdiction-change tracking ─────────────────────────────────────────
+  const prevInsideRef = useRef<boolean | null>(null)
+  const handleJurisdictionChange = useCallback((status: any) => {
+    const wasInside = prevInsideRef.current
+    if (wasInside !== null && wasInside !== status.inside) {
+      if (status.inside) {
+        toast.success('✅ You have entered your authorised patrol jurisdiction.')
+      } else {
+        toast.warning(
+          '⚠️ You have left your authorised jurisdiction. Enforcement actions in this area may not be valid.',
+          { duration: 8000 },
+        )
+      }
+    }
+    prevInsideRef.current = status.inside
+  }, [])
 
   // ── Detail scan: capture handler ─────────────────────────────────────────
   const handleDetailCapture = useCallback(async (file: File) => {
@@ -543,19 +588,32 @@ export default function FieldOfficerPortal() {
         </>
       )}
 
-      {/* Location Authorization Status */}
-      {scanMode !== 'bulk' && currentLocation && user?.organization_id && (
+      {/* Location Authorization Status — always visible outside bulk mode */}
+      {scanMode !== 'bulk' && user?.organization_id && (
         <div className="mt-6">
-          <LocationAuthorizationStatus
-            organizationId={user.organization_id}
-            latitude={currentLocation.latitude}
-            longitude={currentLocation.longitude}
-            refreshInterval={10000}
-          />
+          {currentLocation ? (
+            <LocationAuthorizationStatus
+              organizationId={user.organization_id}
+              latitude={currentLocation.latitude}
+              longitude={currentLocation.longitude}
+              refreshInterval={15000}
+              onStatusChange={handleJurisdictionChange}
+            />
+          ) : (
+            <Card>
+              <CardContent className="p-4">
+                <div className="flex items-center gap-2 text-gray-500">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-600" />
+                  <span className="text-sm">Acquiring GPS location…</span>
+                </div>
+              </CardContent>
+            </Card>
+          )}
         </div>
       )}
 
       {/* Info Card — includes enforcement workflow badge */}
+      {scanMode !== 'bulk' && (
       <Card className="mt-6 bg-slate-50 dark:bg-slate-900/50">
         <CardHeader>
           <CardTitle className="text-sm">Officer Status</CardTitle>
@@ -588,6 +646,7 @@ export default function FieldOfficerPortal() {
           </div>
         </CardContent>
       </Card>
+      )}
 
       {/* ── Recent Scans with enforcement actions ─────────────────────────── */}
       {scanMode !== 'bulk' && !showCheckpoint && !detailCameraOpen && recentScans.length > 0 && (
