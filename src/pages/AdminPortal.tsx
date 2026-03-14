@@ -333,6 +333,13 @@ export default function AdminPortal() {
 
     let trendData: TrendDataPoint[] = []
 
+    // Helper: compute the per-day compliance rate using the same formula as the
+    // KPI card – (genuinely compliant + homeless-exempt) / total – so the chart
+    // tooltip and the summary footer always agree with the headline percentage.
+    type DayMetrics = Pick<TrendDataPoint, 'compliant' | 'homeless' | 'total'>
+    const dayRate = (v: DayMetrics) =>
+      v.total > 0 ? Math.round(((v.compliant + (v.homeless ?? 0)) / v.total) * 100) : null
+
     if (normalizedDateFrom && normalizedDateTo) {
       const start = new Date(nzDateToUTCStart(normalizedDateFrom))
       const end = new Date(nzDateToUTCStart(normalizedDateTo))
@@ -340,13 +347,13 @@ export default function AdminPortal() {
       for (let cursor = new Date(start); cursor <= end; cursor.setUTCDate(cursor.getUTCDate() + 1)) {
         const key = cursor.toLocaleDateString('en-CA', { timeZone: 'Pacific/Auckland' })
         const value = byDate.get(key) || { compliant: 0, breaches: 0, homeless: 0, total: 0 }
-        trendData.push({ date: key, ...value })
+        trendData.push({ date: key, ...value, compliance_rate: dayRate(value) })
       }
     } else {
       trendData = Array.from(byDate.entries())
         .sort(([a], [b]) => a.localeCompare(b))
         .slice(-30)
-        .map(([date, value]) => ({ date, ...value }))
+        .map(([date, value]) => ({ date, ...value, compliance_rate: dayRate(value) }))
     }
 
     // Exclude homeless-exempt observations from breach count.
