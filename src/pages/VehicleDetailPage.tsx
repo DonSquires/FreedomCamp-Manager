@@ -325,7 +325,11 @@ export default function VehicleDetailPage() {
     )
   }
 
-  const complianceRate = observations.length > 0
+  const isHomeless = isHomelessForUi(vehicle.homeless_status)
+
+  // For homeless vehicles: all non-compliant observations are FC Act exempt,
+  // so they should not be counted against compliance or shown as real breaches.
+  const complianceRate = !isHomeless && observations.length > 0
     ? Math.round((observations.filter(o => o.is_compliant === true).length / observations.length) * 100)
     : null
 
@@ -400,8 +404,8 @@ export default function VehicleDetailPage() {
                   ) : (
                     <Badge variant="outline">Not Self Contained</Badge>
                   )}
-                  {vehicle.homeless_status === 'confirmed' && (
-                    <Badge variant="secondary">Homeless</Badge>
+                  {isHomeless && (
+                    <Badge className="bg-purple-600 text-white">Homeless (FC Act Exempt)</Badge>
                   )}
                 </div>
                 <div className="mt-2 text-muted-foreground">
@@ -434,14 +438,38 @@ export default function VehicleDetailPage() {
             <CardContent className="pt-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <div className="text-2xl font-bold text-red-600">{vehicle.total_breaches}</div>
-                  <div className="text-xs text-muted-foreground">Breaches</div>
+                  {isHomeless ? (
+                    <>
+                      <div className="text-2xl font-bold text-purple-600">Exempt</div>
+                      <div className="text-xs text-muted-foreground">FC Act (homeless)</div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="text-2xl font-bold text-red-600">{vehicle.total_breaches}</div>
+                      <div className="text-xs text-muted-foreground">Breaches</div>
+                    </>
+                  )}
                 </div>
-                <AlertTriangle className="h-5 w-5 text-red-500" />
+                {isHomeless
+                  ? <Shield className="h-5 w-5 text-purple-500" />
+                  : <AlertTriangle className="h-5 w-5 text-red-500" />
+                }
               </div>
             </CardContent>
           </Card>
-          {complianceRate !== null && (
+          {isHomeless ? (
+            <Card>
+              <CardContent className="pt-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-2xl font-bold text-purple-600">N/A</div>
+                    <div className="text-xs text-muted-foreground">Compliance Rate</div>
+                  </div>
+                  <CheckCircle className="h-5 w-5 text-purple-500" />
+                </div>
+              </CardContent>
+            </Card>
+          ) : complianceRate !== null && (
             <Card>
               <CardContent className="pt-4">
                 <div className="flex items-center justify-between">

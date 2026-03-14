@@ -13,7 +13,8 @@ interface VehicleCardProps {
 }
 
 export function VehicleCard({ vehicle, onViewDetails, showActions = true }: VehicleCardProps) {
-  const complianceStatus = vehicle.total_breaches === 0 ? 'compliant' : 'breach'
+  const isVehicleHomeless = isHomelessForUi(vehicle.homeless_status)
+  const complianceStatus = vehicle.total_breaches === 0 || isVehicleHomeless ? 'compliant' : 'breach'
   
   return (
     <Card className="hover:shadow-lg transition-shadow">
@@ -34,12 +35,18 @@ export function VehicleCard({ vehicle, onViewDetails, showActions = true }: Vehi
           
           <Badge 
             variant="outline" 
-            className={complianceStatus === 'compliant' 
-              ? 'bg-green-50 text-green-700 border-green-200' 
-              : 'bg-red-50 text-red-700 border-red-200'
+            className={
+              isVehicleHomeless
+                ? 'bg-purple-50 text-purple-700 border-purple-200'
+                : complianceStatus === 'compliant' 
+                ? 'bg-green-50 text-green-700 border-green-200' 
+                : 'bg-red-50 text-red-700 border-red-200'
             }
           >
-            {complianceStatus === 'compliant' ? 'Compliant' : `${vehicle.total_breaches} Breaches`}
+            {isVehicleHomeless
+              ? 'FC Act Exempt'
+              : complianceStatus === 'compliant' ? 'Compliant' : `${vehicle.total_breaches} Breaches`
+            }
           </Badge>
         </div>
       </CardHeader>
@@ -102,10 +109,14 @@ export function VehicleCard({ vehicle, onViewDetails, showActions = true }: Vehi
             </div>
             
             <div className="flex flex-col">
-              <span className="text-gray-600">Total Breaches</span>
-              <span className={`font-medium text-lg ${vehicle.total_breaches > 0 ? 'text-red-600' : 'text-green-600'}`}>
-                {vehicle.total_breaches}
-              </span>
+              <span className="text-gray-600">{isVehicleHomeless ? 'Homeless' : 'Total Breaches'}</span>
+              {isVehicleHomeless ? (
+                <span className="font-medium text-lg text-purple-600">Exempt</span>
+              ) : (
+                <span className={`font-medium text-lg ${vehicle.total_breaches > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                  {vehicle.total_breaches}
+                </span>
+              )}
             </div>
           </div>
 
