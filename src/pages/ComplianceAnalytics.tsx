@@ -34,6 +34,10 @@ import {
   Calendar,
   Download
 } from 'lucide-react'
+import { toast } from 'sonner'
+import { arrayToCSV, downloadCSV } from '@/lib/csvExport'
+import { exportReportPDF } from '@/lib/pdfExport'
+import type { PDFReportConfig, PDFSection } from '@/lib/pdfExport'
 
 const COLORS = ['#3b82f6', '#ef4444', '#f59e0b', '#10b981', '#8b5cf6', '#ec4899']
 
@@ -326,17 +330,89 @@ export default function ComplianceAnalytics() {
         </CardHeader>
         <CardContent>
           <div className="flex gap-3 flex-wrap">
-            <Button variant="outline">
+            <Button variant="outline" onClick={() => {
+              if (!analytics) { toast.error('No data to export'); return }
+              const rows: Record<string, any>[] = []
+              if (zoneCompliance) {
+                zoneCompliance.forEach(z => rows.push({
+                  zone: z.zone,
+                  total_observations: z.total,
+                  compliant: z.compliant,
+                  compliance_rate: `${z.rate}%`,
+                }))
+              }
+              if (breachTypes) {
+                breachTypes.forEach(b => rows.push({
+                  zone: `[Breach Type] ${b.name}`,
+                  total_observations: b.value,
+                  compliant: '',
+                  compliance_rate: '',
+                }))
+              }
+              const csv = arrayToCSV(rows, [
+                { key: 'zone', label: 'Zone / Category' },
+                { key: 'total_observations', label: 'Total' },
+                { key: 'compliant', label: 'Compliant' },
+                { key: 'compliance_rate', label: 'Rate' },
+              ])
+              downloadCSV(csv, `compliance-analytics-${new Date().toISOString().slice(0, 10)}.csv`)
+              toast.success('CSV downloaded')
+            }}>
               <Download className="h-4 w-4 mr-2" />
               Export CSV
             </Button>
-            <Button variant="outline">
+            <Button variant="outline" onClick={() => {
+              if (!metrics) { toast.error('No data to export'); return }
+              const config: PDFReportConfig = {
+                title: 'Compliance Analytics Report',
+                subtitle: 'Freedom Camping Compliance Analysis',
+                organizationName: effectiveOrganizationId ? 'Organisation Report' : 'All Organisations',
+                generatedBy: user?.email || 'System',
+                generatedAt: new Date(),
+              }
+              const sections: PDFSection[] = [
+                {
+                  heading: 'Key Metrics',
+                  content: [
+                    `Total Observations: ${metrics.total_observations}`,
+                    `Compliant: ${metrics.compliant}`,
+                    `Non-Compliant: ${metrics.non_compliant}`,
+                    `Compliance Rate: ${metrics.compliance_rate.toFixed(1)}%`,
+                    `Total Vehicles: ${metrics.total_vehicles}`,
+                    `Avg Nights/Vehicle: ${metrics.avg_nights_per_vehicle.toFixed(1)}`,
+                    `Repeat Offenders: ${metrics.repeat_offenders}`,
+                  ],
+                  type: 'list',
+                },
+              ]
+              if (breachTypes && breachTypes.length > 0) {
+                sections.push({
+                  heading: 'Breach Types',
+                  content: breachTypes.map(b => ({ type: b.name, count: b.value })),
+                  type: 'table',
+                })
+              }
+              if (zoneCompliance && zoneCompliance.length > 0) {
+                sections.push({
+                  heading: 'Zone Compliance',
+                  content: zoneCompliance.map(z => ({
+                    zone: z.zone,
+                    total: z.total,
+                    compliant: z.compliant,
+                    rate: `${z.rate}%`,
+                  })),
+                  type: 'table',
+                })
+              }
+              try {
+                exportReportPDF(config, sections)
+                toast.success('PDF report opened for printing')
+              } catch (err: any) {
+                toast.error(err.message || 'Failed to generate PDF')
+              }
+            }}>
               <Download className="h-4 w-4 mr-2" />
               Export PDF Report
-            </Button>
-            <Button variant="outline">
-              <Download className="h-4 w-4 mr-2" />
-              Export Charts
             </Button>
           </div>
         </CardContent>
