@@ -50,7 +50,10 @@ BEGIN
 END;
 $$;
 
--- update_updated_at_column — alias for update_updated_at (used by many migrations)
+-- update_updated_at_column — alias for update_updated_at for backward compatibility.
+-- Many migrations (from 20250202 onwards) use EXECUTE FUNCTION update_updated_at_column()
+-- without ever defining it, relying on it being present in the live DB from
+-- pre-migration setup. This alias ensures all such migrations work on fresh databases.
 CREATE OR REPLACE FUNCTION update_updated_at_column()
 RETURNS TRIGGER
 LANGUAGE plpgsql
