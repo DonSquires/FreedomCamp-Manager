@@ -1620,6 +1620,15 @@ export interface Database {
           reason: string | null
           priority: 'low' | 'medium' | 'high' | 'critical' | null
           flagged_by: string | null
+          // Columns added by 20260312000004_homeless_records_and_flagged_support.sql
+          notes: string | null
+          is_active: boolean
+          last_known_site: string | null
+          date_recorded: string | null
+          vehicle_description: string | null
+          name_contact: string | null
+          confirmed_homeless: boolean | null
+          created_by: string | null
           created_at: string
           updated_at: string
         }
@@ -1630,6 +1639,14 @@ export interface Database {
           reason?: string | null
           priority?: 'low' | 'medium' | 'high' | 'critical' | null
           flagged_by?: string | null
+          notes?: string | null
+          is_active?: boolean
+          last_known_site?: string | null
+          date_recorded?: string | null
+          vehicle_description?: string | null
+          name_contact?: string | null
+          confirmed_homeless?: boolean | null
+          created_by?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -1640,9 +1657,18 @@ export interface Database {
           reason?: string | null
           priority?: 'low' | 'medium' | 'high' | 'critical' | null
           flagged_by?: string | null
+          notes?: string | null
+          is_active?: boolean
+          last_known_site?: string | null
+          date_recorded?: string | null
+          vehicle_description?: string | null
+          name_contact?: string | null
+          confirmed_homeless?: boolean | null
+          created_by?: string | null
           created_at?: string
           updated_at?: string
         }
+        Relationships: []
       }
       plate_scans: {
         Row: {
@@ -1996,6 +2022,608 @@ export interface Database {
           error_summary?: string | null
           import_config?: any
         }
+      }
+      // ── Missing tables added to match actual database schema ──────────────
+
+      notifications: {
+        Row: {
+          id: string
+          user_id: string
+          type: 'breach_alert' | 'investigation_assigned' | 'flagged_vehicle' | 'welfare_alert' | 'system_alert'
+          title: string
+          body: string
+          data: any | null
+          priority: 'low' | 'normal' | 'high' | 'urgent'
+          read: boolean
+          read_at: string | null
+          delivered: boolean
+          delivered_at: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          type: 'breach_alert' | 'investigation_assigned' | 'flagged_vehicle' | 'welfare_alert' | 'system_alert'
+          title: string
+          body: string
+          data?: any | null
+          priority?: 'low' | 'normal' | 'high' | 'urgent'
+          read?: boolean
+          read_at?: string | null
+          delivered?: boolean
+          delivered_at?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          type?: 'breach_alert' | 'investigation_assigned' | 'flagged_vehicle' | 'welfare_alert' | 'system_alert'
+          title?: string
+          body?: string
+          data?: any | null
+          priority?: 'low' | 'normal' | 'high' | 'urgent'
+          read?: boolean
+          read_at?: string | null
+          delivered?: boolean
+          delivered_at?: string | null
+          created_at?: string
+        }
+        Relationships: []
+      }
+      user_sessions: {
+        Row: {
+          id: string
+          user_id: string
+          device_name: string | null
+          device_platform: string | null
+          ip_address: string | null
+          last_seen_at: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          device_name?: string | null
+          device_platform?: string | null
+          ip_address?: string | null
+          last_seen_at?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          device_name?: string | null
+          device_platform?: string | null
+          ip_address?: string | null
+          last_seen_at?: string | null
+          created_at?: string
+        }
+        Relationships: []
+      }
+      homeless_records: {
+        Row: {
+          id: string
+          organization_id: string
+          plate_number: string
+          status: 'claimed' | 'confirmed' | 'suspected' | 'declined'
+          source: string
+          notes: string | null
+          first_reported_at: string
+          last_reported_at: string
+          is_active: boolean
+          created_by: string | null
+          updated_by: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          organization_id: string
+          plate_number: string
+          status: 'claimed' | 'confirmed' | 'suspected' | 'declined'
+          source?: string
+          notes?: string | null
+          first_reported_at?: string
+          last_reported_at?: string
+          is_active?: boolean
+          created_by?: string | null
+          updated_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          organization_id?: string
+          plate_number?: string
+          status?: 'claimed' | 'confirmed' | 'suspected' | 'declined'
+          source?: string
+          notes?: string | null
+          first_reported_at?: string
+          last_reported_at?: string
+          is_active?: boolean
+          created_by?: string | null
+          updated_by?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      officer_activity_log: {
+        Row: {
+          id: string
+          user_id: string
+          organization_id: string
+          activity_type: string
+          gps_latitude: number | null
+          gps_longitude: number | null
+          gps_accuracy: number | null
+          metadata: any | null
+          recorded_at: string | null
+          created_at: string | null
+        }
+        Insert: {
+          id?: string
+          user_id: string
+          organization_id: string
+          activity_type: string
+          gps_latitude?: number | null
+          gps_longitude?: number | null
+          gps_accuracy?: number | null
+          metadata?: any | null
+          recorded_at?: string | null
+          created_at?: string | null
+        }
+        Update: {
+          id?: string
+          user_id?: string
+          organization_id?: string
+          activity_type?: string
+          gps_latitude?: number | null
+          gps_longitude?: number | null
+          gps_accuracy?: number | null
+          metadata?: any | null
+          recorded_at?: string | null
+          created_at?: string | null
+        }
+        Relationships: []
+      }
+      person_vehicle_links: {
+        Row: {
+          id: string
+          person_id: string | null
+          plate_number: string | null
+          relationship_type: string | null
+          confidence: string | null
+          linked_at: string | null
+          linked_by: string | null
+        }
+        Insert: {
+          id?: string
+          person_id?: string | null
+          plate_number?: string | null
+          relationship_type?: string | null
+          confidence?: string | null
+          linked_at?: string | null
+          linked_by?: string | null
+        }
+        Update: {
+          id?: string
+          person_id?: string | null
+          plate_number?: string | null
+          relationship_type?: string | null
+          confidence?: string | null
+          linked_at?: string | null
+          linked_by?: string | null
+        }
+        Relationships: []
+      }
+      infringement_notices: {
+        Row: {
+          id: string
+          organization_id: string | null
+          case_id: string | null
+          notice_number: string
+          notice_type: string | null
+          plate_number: string | null
+          offence_description: string | null
+          legal_basis: string | null
+          offence_date: string | null
+          offence_location: string | null
+          offence_location_gps: string | null
+          zone_id: string | null
+          observation_id: string | null
+          breach_alert_id: string | null
+          amount_cents: number | null
+          fee_amount: number | null
+          due_date: string | null
+          payment_deadline: string | null
+          payment_methods: any | null
+          payment_reference: string | null
+          service_method: 'hand' | 'post' | 'email' | null
+          summary_of_rights: string | null
+          delivery_evidence: any | null
+          recipient_name: string | null
+          recipient_address: string | null
+          recipient_email: string | null
+          served_at: string | null
+          status: 'draft' | 'issued' | 'paid' | 'reminder_sent' | 'court_referred' | 'withdrawn' | 'cancelled'
+          issued_by: string | null
+          issued_at: string | null
+          created_by: string | null
+          reminder_sent_at: string | null
+          court_referral_date: string | null
+          withdrawn_reason: string | null
+          notice_pdf_url: string | null
+          notice_pdf_hash: string | null
+          evidence_bundle_url: string | null
+          evidence_bundle_hash: string | null
+          created_at: string
+          updated_at: string | null
+        }
+        Insert: {
+          id?: string
+          organization_id?: string | null
+          case_id?: string | null
+          notice_number: string
+          notice_type?: string | null
+          plate_number?: string | null
+          offence_description?: string | null
+          legal_basis?: string | null
+          offence_date?: string | null
+          offence_location?: string | null
+          offence_location_gps?: string | null
+          zone_id?: string | null
+          observation_id?: string | null
+          breach_alert_id?: string | null
+          amount_cents?: number | null
+          fee_amount?: number | null
+          due_date?: string | null
+          payment_deadline?: string | null
+          payment_methods?: any | null
+          payment_reference?: string | null
+          service_method?: 'hand' | 'post' | 'email' | null
+          summary_of_rights?: string | null
+          delivery_evidence?: any | null
+          recipient_name?: string | null
+          recipient_address?: string | null
+          recipient_email?: string | null
+          served_at?: string | null
+          status?: 'draft' | 'issued' | 'paid' | 'reminder_sent' | 'court_referred' | 'withdrawn' | 'cancelled'
+          issued_by?: string | null
+          issued_at?: string | null
+          created_by?: string | null
+          reminder_sent_at?: string | null
+          court_referral_date?: string | null
+          withdrawn_reason?: string | null
+          notice_pdf_url?: string | null
+          notice_pdf_hash?: string | null
+          evidence_bundle_url?: string | null
+          evidence_bundle_hash?: string | null
+          created_at?: string
+          updated_at?: string | null
+        }
+        Update: {
+          id?: string
+          organization_id?: string | null
+          case_id?: string | null
+          notice_number?: string
+          notice_type?: string | null
+          plate_number?: string | null
+          offence_description?: string | null
+          legal_basis?: string | null
+          offence_date?: string | null
+          offence_location?: string | null
+          offence_location_gps?: string | null
+          zone_id?: string | null
+          observation_id?: string | null
+          breach_alert_id?: string | null
+          amount_cents?: number | null
+          fee_amount?: number | null
+          due_date?: string | null
+          payment_deadline?: string | null
+          payment_methods?: any | null
+          payment_reference?: string | null
+          service_method?: 'hand' | 'post' | 'email' | null
+          summary_of_rights?: string | null
+          delivery_evidence?: any | null
+          recipient_name?: string | null
+          recipient_address?: string | null
+          recipient_email?: string | null
+          served_at?: string | null
+          status?: 'draft' | 'issued' | 'paid' | 'reminder_sent' | 'court_referred' | 'withdrawn' | 'cancelled'
+          issued_by?: string | null
+          issued_at?: string | null
+          created_by?: string | null
+          reminder_sent_at?: string | null
+          court_referral_date?: string | null
+          withdrawn_reason?: string | null
+          notice_pdf_url?: string | null
+          notice_pdf_hash?: string | null
+          evidence_bundle_url?: string | null
+          evidence_bundle_hash?: string | null
+          created_at?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      notices_to_vacate: {
+        Row: {
+          id: string
+          reference_number: string
+          organization_id: string
+          zone_id: string
+          vehicle_id: string | null
+          plate_number: string
+          recipient_name: string | null
+          breach_reason: string
+          nights_stayed: number | null
+          breach_date: string
+          breach_details: any | null
+          breach_alert_id: string | null
+          notice_document_url: string | null
+          notice_html: string | null
+          delivery_method: string | null
+          delivered_to_email: string | null
+          delivered_to_officer: string | null
+          delivered_at: string | null
+          status: string
+          issued_by: string
+          issued_at: string | null
+          authorized_by: string | null
+          authorized_at: string | null
+          vacate_deadline: string | null
+          complied_at: string | null
+          compliance_verified_by: string | null
+          escalated_at: string | null
+          escalation_notes: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          reference_number: string
+          organization_id: string
+          zone_id: string
+          vehicle_id?: string | null
+          plate_number: string
+          recipient_name?: string | null
+          breach_reason: string
+          nights_stayed?: number | null
+          breach_date: string
+          breach_details?: any | null
+          breach_alert_id?: string | null
+          notice_document_url?: string | null
+          notice_html?: string | null
+          delivery_method?: string | null
+          delivered_to_email?: string | null
+          delivered_to_officer?: string | null
+          delivered_at?: string | null
+          status?: string
+          issued_by: string
+          issued_at?: string | null
+          authorized_by?: string | null
+          authorized_at?: string | null
+          vacate_deadline?: string | null
+          complied_at?: string | null
+          compliance_verified_by?: string | null
+          escalated_at?: string | null
+          escalation_notes?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          reference_number?: string
+          organization_id?: string
+          zone_id?: string
+          vehicle_id?: string | null
+          plate_number?: string
+          recipient_name?: string | null
+          breach_reason?: string
+          nights_stayed?: number | null
+          breach_date?: string
+          breach_details?: any | null
+          breach_alert_id?: string | null
+          notice_document_url?: string | null
+          notice_html?: string | null
+          delivery_method?: string | null
+          delivered_to_email?: string | null
+          delivered_to_officer?: string | null
+          delivered_at?: string | null
+          status?: string
+          issued_by?: string
+          issued_at?: string | null
+          authorized_by?: string | null
+          authorized_at?: string | null
+          vacate_deadline?: string | null
+          complied_at?: string | null
+          compliance_verified_by?: string | null
+          escalated_at?: string | null
+          escalation_notes?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      admin_recalculation_actions: {
+        Row: {
+          id: string
+          scope_type: 'ZONE' | 'ORG' | 'BUILD'
+          target_zone_ids: string[]
+          target_org_ids: string[]
+          date_range_start: string | null
+          date_range_end: string | null
+          performed_by: string
+          status: 'running' | 'completed' | 'failed'
+          observations_processed: number | null
+          compliance_changed: number | null
+          drift_events_created: number | null
+          error_message: string | null
+          started_at: string
+          completed_at: string | null
+          duration_seconds: number | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          scope_type?: 'ZONE' | 'ORG' | 'BUILD'
+          target_zone_ids?: string[]
+          target_org_ids?: string[]
+          date_range_start?: string | null
+          date_range_end?: string | null
+          performed_by: string
+          status?: 'running' | 'completed' | 'failed'
+          observations_processed?: number | null
+          compliance_changed?: number | null
+          drift_events_created?: number | null
+          error_message?: string | null
+          started_at?: string
+          completed_at?: string | null
+          duration_seconds?: number | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          scope_type?: 'ZONE' | 'ORG' | 'BUILD'
+          target_zone_ids?: string[]
+          target_org_ids?: string[]
+          date_range_start?: string | null
+          date_range_end?: string | null
+          performed_by?: string
+          status?: 'running' | 'completed' | 'failed'
+          observations_processed?: number | null
+          compliance_changed?: number | null
+          drift_events_created?: number | null
+          error_message?: string | null
+          started_at?: string
+          completed_at?: string | null
+          duration_seconds?: number | null
+          created_at?: string
+        }
+        Relationships: []
+      }
+      restrictions: {
+        Row: {
+          id: string
+          organization_id: string
+          name: string
+          restriction_type: 'prohibited' | 'self_contained' | 'day_use' | 'permit_required'
+          geom: any | null
+          meta_data: any
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          organization_id: string
+          name: string
+          restriction_type?: 'prohibited' | 'self_contained' | 'day_use' | 'permit_required'
+          geom?: any | null
+          meta_data?: any
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          organization_id?: string
+          name?: string
+          restriction_type?: 'prohibited' | 'self_contained' | 'day_use' | 'permit_required'
+          geom?: any | null
+          meta_data?: any
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      zone_compliance_matrix: {
+        Row: {
+          id: string
+          zone_id: string
+          organization_id: string | null
+          version: number | null
+          effective_from: string | null
+          effective_to: string | null
+          self_contained_required: boolean | null
+          requires_csc: boolean | null
+          nights_per_month: number | null
+          max_consecutive_nights: number | null
+          day_visit_only: boolean | null
+          allowed_days: string[] | null
+          homeless_exemption: boolean | null
+          created_at: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          id?: string
+          zone_id: string
+          organization_id?: string | null
+          version?: number | null
+          effective_from?: string | null
+          effective_to?: string | null
+          self_contained_required?: boolean | null
+          requires_csc?: boolean | null
+          nights_per_month?: number | null
+          max_consecutive_nights?: number | null
+          day_visit_only?: boolean | null
+          allowed_days?: string[] | null
+          homeless_exemption?: boolean | null
+          created_at?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          id?: string
+          zone_id?: string
+          organization_id?: string | null
+          version?: number | null
+          effective_from?: string | null
+          effective_to?: string | null
+          self_contained_required?: boolean | null
+          requires_csc?: boolean | null
+          nights_per_month?: number | null
+          max_consecutive_nights?: number | null
+          day_visit_only?: boolean | null
+          allowed_days?: string[] | null
+          homeless_exemption?: boolean | null
+          created_at?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      photo_metadata: {
+        Row: {
+          id: string
+          user_id: string | null
+          observation_id: string | null
+          file_name: string | null
+          file_size: number | null
+          mime_type: string | null
+          storage_path: string | null
+          sha256_hash: string | null
+          created_at: string | null
+        }
+        Insert: {
+          id?: string
+          user_id?: string | null
+          observation_id?: string | null
+          file_name?: string | null
+          file_size?: number | null
+          mime_type?: string | null
+          storage_path?: string | null
+          sha256_hash?: string | null
+          created_at?: string | null
+        }
+        Update: {
+          id?: string
+          user_id?: string | null
+          observation_id?: string | null
+          file_name?: string | null
+          file_size?: number | null
+          mime_type?: string | null
+          storage_path?: string | null
+          sha256_hash?: string | null
+          created_at?: string | null
+        }
+        Relationships: []
       }
     }
     Views: Record<string, never>

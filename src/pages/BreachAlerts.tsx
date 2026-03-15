@@ -374,7 +374,7 @@ export default function BreachAlerts() {
       if (observationId) {
         const { data } = await (supabase.from('observations') as any)
           .select(OBSERVATION_SELECT_FIELDS)
-          .eq('id', observationId)
+          .eq('observation_id', observationId)
           .single()
         return data || null
       }
