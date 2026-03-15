@@ -60,16 +60,19 @@ mkdir -p "$RUN_DIR"
 
 if command -v pg_dump >/dev/null 2>&1; then
   echo "[$(date -Iseconds)] Running: schema_dump.sql" | tee -a "$COMBINED_OUT"
-  pg_dump \
+  if pg_dump \
     --schema-only \
     --no-owner \
     --no-privileges \
-    --file "$RUN_DIR/schema_dump.sql" 2>>"$COMBINED_OUT"
-  {
-    echo
-    echo "==== schema_dump.sql generated ===="
-    echo "Path: $RUN_DIR/schema_dump.sql"
-  } >>"$COMBINED_OUT"
+    --file "$RUN_DIR/schema_dump.sql" 2>&1 | tee -a "$COMBINED_OUT"; then
+    {
+      echo
+      echo "==== schema_dump.sql generated ===="
+      echo "Path: $RUN_DIR/schema_dump.sql"
+    } >>"$COMBINED_OUT"
+  else
+    echo "Warning: pg_dump failed – continuing with psql queries." | tee -a "$COMBINED_OUT"
+  fi
 else
   echo "[$(date -Iseconds)] Skipping schema_dump.sql (pg_dump not found)" | tee -a "$COMBINED_OUT"
 fi
