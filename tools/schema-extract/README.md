@@ -18,7 +18,7 @@ Designed to be run locally (recommended) or via an opt-in GitHub Action that run
 - **Local run (recommended):** Run the extraction script locally with environment variables:
   - `PGHOST`, `PGPORT`, `PGUSER`, `PGPASSWORD`, `PGDATABASE`
   - Optional: `SUPABASE_URL` (for reference only) — not required for extraction.
-- **GitHub Action (opt-in):** Add secrets `PGHOST`, `PGPORT`, `PGUSER`, `PGPASSWORD`, `PGDATABASE` to repository settings and manually dispatch the workflow.
+- **GitHub Action (opt-in):** Ensure secrets `SUPABASE_PROJECT_REF` and `SUPABASE_DB_PASSWORD` are configured in repository settings (these are shared with other workflows). The Action derives the PG connection details automatically. Manually dispatch the workflow to run it.
   - Workflow file: `.github/workflows/schema-extract.yml`
   - Trigger type: `workflow_dispatch` only
 
