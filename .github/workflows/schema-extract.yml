@@ -24,14 +24,11 @@ jobs:
       - name: Check required secrets
         id: check_secrets
         env:
-          PGHOST:     ${{ secrets.PGHOST }}
-          PGPORT:     ${{ secrets.PGPORT }}
-          PGUSER:     ${{ secrets.PGUSER }}
-          PGPASSWORD: ${{ secrets.PGPASSWORD }}
-          PGDATABASE: ${{ secrets.PGDATABASE }}
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
         run: |
           missing=""
-          for var in PGHOST PGPORT PGUSER PGPASSWORD PGDATABASE; do
+          for var in SUPABASE_PROJECT_REF SUPABASE_DB_PASSWORD; do
             eval "val=\${${var}:-}"
             if [ -z "$val" ]; then
               missing="$missing $var"
@@ -59,11 +56,11 @@ jobs:
       - name: Run schema extraction
         if: steps.check_secrets.outputs.skip == 'false'
         env:
-          PGHOST: ${{ secrets.PGHOST }}
-          PGPORT: ${{ secrets.PGPORT }}
-          PGUSER: ${{ secrets.PGUSER }}
-          PGPASSWORD: ${{ secrets.PGPASSWORD }}
-          PGDATABASE: ${{ secrets.PGDATABASE }}
+          PGHOST:     db.${{ secrets.SUPABASE_PROJECT_REF }}.supabase.co
+          PGPORT:     5432
+          PGUSER:     postgres
+          PGPASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          PGDATABASE: postgres
         run: |
           set -euo pipefail
           chmod +x tools/schema-extract/run_extract.sh
