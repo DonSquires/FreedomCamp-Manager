@@ -348,16 +348,14 @@ Deno.serve(async (req) => {
     let alertsCreated = 0;
     if (autoCreate && breachesDetected.length > 0) {
       // Check for existing alerts to avoid duplicates (by plate + zone + type)
+      // Use plate_number column directly instead of extracting from breach_details JSON
       const { data: existingAlerts } = await supabaseAdmin
         .from('breach_alerts')
-        .select('zone_id, breach_type, breach_details')
+        .select('zone_id, breach_type, plate_number')
         .eq('status', 'pending');
 
       const existingAlertSet = new Set(
-        (existingAlerts || []).map(a => {
-          const plateFromDetails = (a.breach_details as any)?.plate_number;
-          return `${a.zone_id}-${plateFromDetails}-${a.breach_type}`;
-        })
+        (existingAlerts || []).map(a => `${a.zone_id}-${a.plate_number}-${a.breach_type}`)
       );
 
       const newAlerts = [];
@@ -372,7 +370,7 @@ Deno.serve(async (req) => {
 
         newAlerts.push({
           organization_id: breach.organizationId,
-          vehicle_record_id: null, // No vehicle_records in new schema
+          plate_number: breach.plateNumber,
           zone_id: breach.zoneId,
           breach_type: breach.breachType,
           breach_details: {

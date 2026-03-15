@@ -992,11 +992,10 @@ Deno.serve(async (req: Request) => {
       try {
         const { data: cv } = await supabase
           .from('canonical_vehicles')
-          .select('is_homeless, homeless_status')
+          .select('homeless_status')
           .eq('plate_number', plate)
           .maybeSingle();
-        isHomeless = !!(cv?.is_homeless) ||
-          cv?.homeless_status === 'confirmed' ||
+        isHomeless = cv?.homeless_status === 'confirmed' ||
           cv?.homeless_status === 'claimed';
       } catch { /* ignore */ }
     }
