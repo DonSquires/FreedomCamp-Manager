@@ -58,6 +58,12 @@ mkdir -p "$RUN_DIR"
   echo
 } >"$COMBINED_OUT"
 
+# ── Connectivity pre-check ──────────────────────────────────────────────
+if ! psql --no-psqlrc -c "SELECT 1" >/dev/null 2>&1; then
+  echo "Error: cannot connect to ${PGHOST}:${PGPORT} – aborting extraction." | tee -a "$COMBINED_OUT"
+  exit 1
+fi
+
 if command -v pg_dump >/dev/null 2>&1; then
   echo "[$(date -Iseconds)] Running: schema_dump.sql" | tee -a "$COMBINED_OUT"
   if pg_dump \
