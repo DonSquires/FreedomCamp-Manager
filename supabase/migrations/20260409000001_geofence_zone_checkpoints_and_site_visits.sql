@@ -5,6 +5,63 @@
 -- site visits (child zone entry/exit).
 -- ===========================================
 
+-- ─── 0. Guard: ensure patrol_checkpoints exists ─────────────────────────
+-- Migration 20260302000003_patrol_checkpoints.sql is the canonical creator
+-- of this table, but it references update_updated_at_column() which may not
+-- be defined in all environments, causing that migration to roll back.
+-- This guard recreates the table (with checkpoint_type included) if absent,
+-- so this migration is self-contained.
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.tables
+    WHERE table_schema = 'public' AND table_name = 'patrol_checkpoints'
+  ) THEN
+    CREATE TABLE public.patrol_checkpoints (
+      id                     UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+      organization_id        UUID        NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
+      zone_id                UUID        REFERENCES public.zones(id) ON DELETE SET NULL,
+      name                   TEXT        NOT NULL,
+      description            TEXT,
+      location_lat           DOUBLE PRECISION,
+      location_lng           DOUBLE PRECISION,
+      qr_code                TEXT        NOT NULL UNIQUE,
+      nfc_tag_id             TEXT,
+      is_active              BOOLEAN     NOT NULL DEFAULT true,
+      required_on_patrol     BOOLEAN     NOT NULL DEFAULT false,
+      check_in_radius_metres INT         NOT NULL DEFAULT 50,
+      created_by             UUID        REFERENCES public.user_profiles(id),
+      checkpoint_type        TEXT        NOT NULL DEFAULT 'manual'
+                                         CHECK (checkpoint_type IN ('manual', 'geofence_zone')),
+      created_at             TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at             TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_patrol_checkpoints_org   ON public.patrol_checkpoints(organization_id);
+    CREATE INDEX IF NOT EXISTS idx_patrol_checkpoints_zone  ON public.patrol_checkpoints(zone_id);
+    CREATE INDEX IF NOT EXISTS idx_patrol_checkpoints_qr    ON public.patrol_checkpoints(qr_code);
+
+    ALTER TABLE public.patrol_checkpoints ENABLE ROW LEVEL SECURITY;
+
+    CREATE POLICY "org_members_read_checkpoints"
+      ON public.patrol_checkpoints FOR SELECT TO authenticated
+      USING (organization_id IN (
+        SELECT organization_id FROM public.user_profiles WHERE id = auth.uid()
+      ));
+
+    CREATE POLICY "admins_manage_checkpoints"
+      ON public.patrol_checkpoints FOR ALL TO authenticated
+      USING (organization_id IN (
+        SELECT organization_id FROM public.user_profiles
+        WHERE id = auth.uid() AND role IN ('admin', 'admin_officer', 'master')
+      ))
+      WITH CHECK (organization_id IN (
+        SELECT organization_id FROM public.user_profiles
+        WHERE id = auth.uid() AND role IN ('admin', 'admin_officer', 'master')
+      ));
+  END IF;
+END $$;
+
 -- ─── 1. Add checkpoint_type to patrol_checkpoints ───────────────────────
 ALTER TABLE patrol_checkpoints
   ADD COLUMN IF NOT EXISTS checkpoint_type TEXT NOT NULL DEFAULT 'manual'
@@ -125,7 +182,7 @@ DROP TRIGGER IF EXISTS update_officer_shifts_updated_at ON officer_shifts;
 CREATE TRIGGER update_officer_shifts_updated_at
   BEFORE UPDATE ON officer_shifts
   FOR EACH ROW
-  EXECUTE FUNCTION update_updated_at_column();
+  EXECUTE FUNCTION update_updated_at();
 
 -- ─── 6. Sync zones as checkpoints function ──────────────────────────────
 

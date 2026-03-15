@@ -50,6 +50,20 @@ BEGIN
 END;
 $$;
 
+-- update_updated_at_column — alias for update_updated_at for backward compatibility.
+-- Many migrations (from 20250202 onwards) use EXECUTE FUNCTION update_updated_at_column()
+-- without ever defining it, relying on it being present in the live DB from
+-- pre-migration setup. This alias ensures all such migrations work on fresh databases.
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  NEW.updated_at = now();
+  RETURN NEW;
+END;
+$$;
+
 -- get_user_role — returns the role of the given user (default 'officer')
 -- Drop any prior definition (parameter name may differ, e.g. "uid" vs "p_user_id")
 DROP FUNCTION IF EXISTS get_user_role(UUID);

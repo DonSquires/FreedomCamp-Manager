@@ -890,8 +890,7 @@ Deno.serve(async (req: Request) => {
           if (nzscv.make)         vehicleUpsertData.vehicle_make  = nzscv.make;
           if (nzscv.model)        vehicleUpsertData.vehicle_model = nzscv.model;
           if (nzscv.year)         vehicleUpsertData.vehicle_year  = nzscv.year;
-          if (nzscv.vin)          vehicleUpsertData.vin           = nzscv.vin;
-          if (nzscv.colour)       vehicleUpsertData.colour        = nzscv.colour;
+          if (nzscv.colour)       vehicleUpsertData.vehicle_color = nzscv.colour;
         }
 
         const { data: existingVehicle } = await supabase

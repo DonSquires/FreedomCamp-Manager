@@ -18,9 +18,13 @@ export interface Database {
           parent_organization_id: string | null
           contact_email: string | null
           contact_phone: string | null
+          address: string | null
           enforcement_workflow: string
           overnight_verification_mode: 'two_photo_verification' | 'one_photo_per_day_inference'
           is_active: boolean
+          logo_url: string | null
+          requires_coa: boolean
+          requires_warrant_for_enforcement: boolean
           created_at: string
           updated_at: string
         }
@@ -32,9 +36,13 @@ export interface Database {
           parent_organization_id?: string | null
           contact_email?: string | null
           contact_phone?: string | null
+          address?: string | null
           enforcement_workflow?: string
           overnight_verification_mode?: 'two_photo_verification' | 'one_photo_per_day_inference'
           is_active?: boolean
+          logo_url?: string | null
+          requires_coa?: boolean
+          requires_warrant_for_enforcement?: boolean
           created_at?: string
           updated_at?: string
         }
@@ -46,9 +54,13 @@ export interface Database {
           parent_organization_id?: string | null
           contact_email?: string | null
           contact_phone?: string | null
+          address?: string | null
           enforcement_workflow?: string
           overnight_verification_mode?: 'two_photo_verification' | 'one_photo_per_day_inference'
           is_active?: boolean
+          logo_url?: string | null
+          requires_coa?: boolean
+          requires_warrant_for_enforcement?: boolean
           created_at?: string
           updated_at?: string
         }
