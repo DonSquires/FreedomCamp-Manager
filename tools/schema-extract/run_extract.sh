@@ -41,6 +41,8 @@ require_env "PGPASSWORD"
 require_env "PGDATABASE"
 
 export PGPORT="${PGPORT:-5432}"
+export PGSSLMODE="${PGSSLMODE:-require}"
+export PGCONNECT_TIMEOUT="${PGCONNECT_TIMEOUT:-30}"
 
 if ! command -v psql >/dev/null 2>&1; then
   echo "Error: 'psql' is required but not found in PATH." >&2
@@ -55,12 +57,18 @@ mkdir -p "$RUN_DIR"
   echo "Port: ${PGPORT}"
   echo "User: ${PGUSER}"
   echo "Database: ${PGDATABASE}"
+  echo "SSL mode: ${PGSSLMODE}"
+  echo "Connect timeout: ${PGCONNECT_TIMEOUT}s"
   echo
 } >"$COMBINED_OUT"
 
 # ── Connectivity pre-check ──────────────────────────────────────────────
-if ! psql --no-psqlrc -c "SELECT 1" >/dev/null 2>&1; then
+if ! psql --no-psqlrc -c "SELECT 1" >/dev/null 2>"$RUN_DIR/precheck_err.txt"; then
   echo "Error: cannot connect to ${PGHOST}:${PGPORT} – aborting extraction." | tee -a "$COMBINED_OUT"
+  if [ -s "$RUN_DIR/precheck_err.txt" ]; then
+    echo "psql error output:" | tee -a "$COMBINED_OUT"
+    cat "$RUN_DIR/precheck_err.txt" | tee -a "$COMBINED_OUT"
+  fi
   exit 1
 fi
 
