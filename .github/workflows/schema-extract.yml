@@ -63,11 +63,13 @@ jobs:
       - name: Run schema extraction
         if: steps.check_secrets.outputs.skip == 'false'
         env:
-          PGHOST:     aws-0-ap-southeast-2.pooler.supabase.com
-          PGPORT:     5432
-          PGUSER:     postgres.${{ secrets.SUPABASE_PROJECT_REF }}
-          PGPASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
-          PGDATABASE: postgres
+          PGHOST:            aws-0-ap-southeast-2.pooler.supabase.com
+          PGPORT:            "5432"
+          PGUSER:            postgres.${{ secrets.SUPABASE_PROJECT_REF }}
+          PGPASSWORD:        ${{ secrets.SUPABASE_DB_PASSWORD }}
+          PGDATABASE:        postgres
+          PGSSLMODE:         require
+          PGCONNECT_TIMEOUT: "30"
         run: |
           set -euo pipefail
           chmod +x tools/schema-extract/run_extract.sh
