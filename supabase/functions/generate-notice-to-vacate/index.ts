@@ -125,13 +125,10 @@ Deno.serve(async (req) => {
       .from('enforcement_actions')
       .insert({
         organization_id: legalConfig.organization_id,
-        user_id: issuedBy,
-        vehicle_record_id: notice.vehicle_record_id,
+        created_by: issuedBy,
         zone_id: zoneId,
+        plate_number: plateNumber,
         action_type: 'notice_to_vacate',
-        delivery_method: deliveryMethod || 'printed_onsite',
-        delivered_to_email: deliverToEmail,
-        delivered_to_officer: deliverToOfficer,
         status: 'issued',
         notes: `Notice to Vacate issued - Reference: ${notice.reference_number}\n\nBreach: ${breachReason}`,
         attachments: JSON.stringify([{
@@ -139,7 +136,6 @@ Deno.serve(async (req) => {
           notice_id: notice.id,
           reference: notice.reference_number,
         }]),
-        recorded_at: new Date().toISOString(),
       });
 
     if (enforcementError) {

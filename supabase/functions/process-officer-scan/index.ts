@@ -889,7 +889,7 @@ Deno.serve(async (req: Request) => {
           // Optional vehicle detail fields — only write when NZSCV provides them
           if (nzscv.make)         vehicleUpsertData.vehicle_make  = nzscv.make;
           if (nzscv.model)        vehicleUpsertData.vehicle_model = nzscv.model;
-          if (nzscv.year)         vehicleUpsertData.vehicle_year  = String(nzscv.year);
+          if (nzscv.year)         vehicleUpsertData.vehicle_year  = nzscv.year;
           if (nzscv.vin)          vehicleUpsertData.vin           = nzscv.vin;
           if (nzscv.colour)       vehicleUpsertData.colour        = nzscv.colour;
         }
@@ -992,11 +992,10 @@ Deno.serve(async (req: Request) => {
       try {
         const { data: cv } = await supabase
           .from('canonical_vehicles')
-          .select('is_homeless, homeless_status')
+          .select('homeless_status')
           .eq('plate_number', plate)
           .maybeSingle();
-        isHomeless = !!(cv?.is_homeless) ||
-          cv?.homeless_status === 'confirmed' ||
+        isHomeless = cv?.homeless_status === 'confirmed' ||
           cv?.homeless_status === 'claimed';
       } catch { /* ignore */ }
     }
@@ -1025,44 +1024,11 @@ Deno.serve(async (req: Request) => {
       })
       .eq('observation_id', observationId);
 
-    // ── Step 11: Insert / update compliance_results ────────────────────────
-    try {
-      // Look up matrix id/version for audit trail
-      let matrixId: string | null = null;
-      let matrixVersion: number | null = null;
-      try {
-        const { data: mx } = await supabase
-          .from('zone_compliance_matrix')
-          .select('id, version')
-          .eq('zone_id', zoneId)
-          .lte('effective_from', recordedAt)
-          .or(`effective_to.is.null,effective_to.gt.${recordedAt}`)
-          .order('version', { ascending: false })
-          .limit(1)
-          .maybeSingle();
-        matrixId      = mx?.id ?? null;
-        matrixVersion = mx?.version ?? null;
-      } catch { /* ignore */ }
-
-      await supabase
-        .from('compliance_results')
-        .upsert(
-          {
-            observation_id:  observationId,
-            zone_id:         zoneId,
-            organization_id: organizationId,
-            matrix_id:       matrixId,
-            matrix_version:  matrixVersion,
-            is_compliant:    compliance.isCompliant,
-            violation_reasons: compliance.violationReasons,
-            evaluated_at:    new Date().toISOString(),
-          },
-          { onConflict: 'observation_id' }
-        );
-      console.log('✅ compliance_results upserted');
-    } catch (crErr: any) {
-      console.warn('⚠️ compliance_results upsert failed:', crErr.message);
-    }
+    // ── Step 11: compliance_results table was dropped in 20260221_rebuild_observations_clean.sql.
+    //            Compliance state is stored directly on the observations row (is_compliant,
+    //            breach_type, breach_reason, nights_stayed_this_month, consecutive_nights).
+    //            Nothing to do here — the observations.update() call in Step 10 already
+    //            persists the full compliance result.
 
     // ── Step 12: Create breach_alert if non-compliant OR if critical discrepancies ──
     // A breach alert is raised both for compliance violations and for critical

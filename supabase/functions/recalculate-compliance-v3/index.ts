@@ -686,22 +686,8 @@ serve(async (req: Request) => {
           console.error(`Failed to update observation ${(obs as any)[keyCol]}:`, updateError.message);
         }
 
-        // Keep compliance_results in sync: update the pre-existing row if it
-        // exists (do not create a new one here — that is the trigger's job).
-        const { error: crError } = await supabaseAdmin
-          .from('compliance_results')
-          .update({
-            is_compliant: isCompliant,
-            violation_type: breachType,
-            violation_reasons: isCompliant ? [] : (breachType ? [breachType] : []),
-            evaluated_at: new Date().toISOString(),
-          })
-          .eq('observation_id', (obs as any)[keyCol]);
-        // A missing row or schema mismatch is non-critical; log only to aid
-        // debugging without surfacing an error to the caller.
-        if (crError) {
-          console.warn(`compliance_results sync skipped for ${(obs as any)[keyCol]}:`, crError.message);
-        }
+        // compliance_results was dropped in 20260221_rebuild_observations_clean.sql.
+        // Compliance state is stored directly on the observations row; nothing further needed here.
       }
 
       if (changed) complianceChanged++;

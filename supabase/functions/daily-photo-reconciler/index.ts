@@ -205,7 +205,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
       // Fetch observations in the last 7 days that have a photo_url
       const { data: toCheck } = await supabase
         .from('observations')
-        .select('id, organization_id, photo_url')
+        .select('observation_id, organization_id, photo_url')
         .not('photo_url', 'is', null)
         .gte('recorded_at', dateFrom)
         .lte('recorded_at', dateTo)
@@ -225,7 +225,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
           if (headResp.status === 404 || headResp.status === 403) {
             storageAnomalies.push({
-              observation_id: row.id,
+              observation_id: row.observation_id,
               photo_url:      row.photo_url,
               status:         'not_found',
               http_status:    headResp.status,
@@ -234,7 +234,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
             // Add to missing_photo_queue
             await supabase.from('missing_photo_queue').upsert(
               {
-                observation_id:  row.id,
+                observation_id:  row.observation_id,
                 organization_id: row.organization_id,
                 reason:          'object_404',
                 status:          'repairing',
@@ -246,7 +246,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
 
             // Audit
             await supabase.from('photo_recovery_audit_log').insert({
-              observation_id:  row.id,
+              observation_id:  row.observation_id,
               organization_id: row.organization_id,
               action:          'detect',
               source:          'storage-head-check',
@@ -259,7 +259,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
           }
         } catch (headErr: unknown) {
           storageAnomalies.push({
-            observation_id: row.id,
+            observation_id: row.observation_id,
             photo_url:      row.photo_url,
             status:         'error',
             error:          (headErr as Error).message,
@@ -317,7 +317,7 @@ Deno.serve(async (req: Request): Promise<Response> => {
     // -----------------------------------------------------------------------
     const { data: obsStats } = await supabase
       .from('observations')
-      .select('id, photo_url, photo_hash', { count: 'exact' });
+      .select('observation_id, photo_url, photo_hash', { count: 'exact' });
 
     const totalObs = obsStats?.length ?? 0;
     const withPhoto = (obsStats ?? []).filter(

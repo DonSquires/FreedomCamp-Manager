@@ -41,7 +41,7 @@ interface CanonicalVehicleRow {
   plate_number: string
   vehicle_make: string | null
   vehicle_model: string | null
-  vehicle_year: string | null   // TEXT in live DB
+  vehicle_year: number | null   // INTEGER (normalized in 20260411000003)
   vehicle_color: string | null
   owner_first_name: string | null
   owner_last_name: string | null

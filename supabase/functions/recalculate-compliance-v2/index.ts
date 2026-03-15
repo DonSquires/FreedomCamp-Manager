@@ -138,7 +138,8 @@ Deno.serve(async (req) => {
     }
 
     // Build query on observations table
-    let observationKeyColumn: 'id' | 'observation_id' = 'id';
+    // observations PK is observation_id (id is a nullable secondary column)
+    const observationKeyColumn = 'observation_id' as const;
     let query = supabaseAdmin
       .from('observations')
       .select('*', { count: 'exact' });
@@ -283,8 +284,7 @@ Deno.serve(async (req) => {
     for (const obs of observations) {
       try {
         const plateNumber = obs.plate_number;
-        const observationId = (obs as any).observation_id ?? (obs as any).id;
-        if ((obs as any).observation_id) observationKeyColumn = 'observation_id';
+        const observationId = (obs as any).observation_id;
         if (!plateNumber) {
           processed++;
           continue;

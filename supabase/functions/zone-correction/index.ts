@@ -99,7 +99,7 @@ serve(async (req) => {
 
     // Process each observation
     for (const obs of observations) {
-      const obsId = (obs as any).observation_id ?? (obs as any).id;
+      const obsId = (obs as any).observation_id;
       // Validate GPS data before processing
       if (!obs.gps_latitude || !obs.gps_longitude || typeof obs.gps_latitude !== 'number' || typeof obs.gps_longitude !== 'number') {
         console.warn(`⚠️ Skipping observation ${obsId}: Invalid GPS data`);
@@ -192,7 +192,7 @@ serve(async (req) => {
         const { error: updateError } = await supabaseAdmin
           .from('observations')
           .update({ zone_id: targetZoneId })
-          .eq((obs as any).observation_id ? 'observation_id' : 'id', obsId);
+          .eq('observation_id', obsId);
 
         if (updateError) {
           console.error(`   ❌ Update failed:`, updateError.message);

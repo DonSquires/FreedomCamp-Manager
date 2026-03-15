@@ -177,7 +177,7 @@ These triggers form the **observation insert pipeline**. They fire in the order 
 
 | # | Trigger name | Timing | Event | Condition | Function | Purpose |
 |---|---|---|---|---|---|---|
-| 1 | `trigger_populate_observation_from_canonical` | BEFORE | INSERT | — | `populate_observation_from_canonical()` | Looks up `canonical_vehicles` by `plate_number`; denormalises vehicle fields (`vehicle_make`, `vehicle_model`, `vehicle_color`, `vehicle_year` (cast TEXT→INTEGER via regex guard), `self_contained`, `self_contained_expiry`) onto `NEW`. Has top-level `EXCEPTION` block to degrade gracefully on type drift. |
+| 1 | `trigger_populate_observation_from_canonical` | BEFORE | INSERT | — | `populate_observation_from_canonical()` | Looks up `canonical_vehicles` by `plate_number`; denormalises vehicle fields (`vehicle_make`, `vehicle_model`, `vehicle_color`, `vehicle_year` (both columns are INTEGER since migration 20260411000003 — no cast required), `self_contained`, `self_contained_expiry`) onto `NEW`. Has top-level `EXCEPTION` block to degrade gracefully on type drift. |
 | 2 | `trg_auto_evaluate_compliance` | BEFORE | INSERT | — | `auto_evaluate_compliance()` | Calls `calculate_vehicle_compliance_v3`; sets `is_compliant`, `consecutive_nights`, `nights_stayed_this_month`, `compliance_snapshot`, `breach_type`, `breach_reason`, `is_breach` on `NEW` |
 | 3 | `trigger_auto_create_compliance_result` | AFTER | INSERT | — | `auto_create_compliance_result()` | Inserts a row into `compliance_results` from the computed compliance values |
 | 4 | `trigger_log_observation_deletion` | BEFORE | DELETE | — | `log_observation_deletion()` | Copies the full row snapshot into `observation_deletions` before the row is deleted |

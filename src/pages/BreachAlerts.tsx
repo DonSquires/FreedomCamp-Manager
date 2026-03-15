@@ -374,7 +374,7 @@ export default function BreachAlerts() {
       if (observationId) {
         const { data } = await (supabase.from('observations') as any)
           .select(OBSERVATION_SELECT_FIELDS)
-          .eq('id', observationId)
+          .eq('observation_id', observationId)
           .single()
         return data || null
       }
@@ -571,7 +571,7 @@ export default function BreachAlerts() {
           .update({
             vehicle_make: data.make,
             vehicle_model: data.model,
-            vehicle_year: data.year != null ? String(data.year) : null,
+            vehicle_year: data.year ?? null,
             vehicle_color: data.colour,
             owner_first_name: data.owner_name?.split(' ')[0] || null,
             owner_last_name: data.owner_name?.split(' ').slice(1).join(' ') || null,

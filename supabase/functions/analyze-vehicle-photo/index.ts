@@ -245,7 +245,8 @@ Respond ONLY with valid JSON (no markdown, no explanations):
       // Vehicle details from AI
       vehicle_make: aiAnalysis.make,
       vehicle_model: aiAnalysis.model,
-      vehicle_year: aiAnalysis.year ? parseInt(aiAnalysis.year) : null,
+      // canonical_vehicles.vehicle_year is INTEGER — store the parsed integer directly.
+      vehicle_year: aiAnalysis.year ? (parseInt(aiAnalysis.year, 10) || null) : null,
       vehicle_color: aiAnalysis.color,
       
       // Self-contained status from NZSCV (SOURCE OF TRUTH)

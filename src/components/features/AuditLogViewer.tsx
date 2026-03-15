@@ -208,18 +208,6 @@ export function AuditLogViewer({
                           )}
                         </div>
                       )}
-
-                      {/* IP and user agent */}
-                      {(log.ip_address || log.user_agent) && (
-                        <div className="text-xs text-muted-foreground mt-2">
-                          {log.ip_address && (
-                            <div>IP: {log.ip_address}</div>
-                          )}
-                          {log.user_agent && (
-                            <div className="truncate">Agent: {log.user_agent}</div>
-                          )}
-                        </div>
-                      )}
                     </div>
                   </div>
                 </CardContent>

@@ -37,7 +37,6 @@ const DEFAULT_TABLES = [
   'enforcement_actions',
   'incidents',
   'health_safety_reports',
-  'vehicle_records',
   'plate_scans',
   'user_profiles',
   'organizations',
@@ -147,7 +146,6 @@ function hasOrganizationColumn(tableName: string): boolean {
     'enforcement_actions',
     'incidents',
     'health_safety_reports',
-    'vehicle_records',
     'plate_scans',
     'user_profiles',
     'organizations',
@@ -168,12 +166,11 @@ function hasDateColumn(tableName: string): boolean {
 function getDateColumn(tableName: string): string {
   const dateColumns: Record<string, string> = {
     observations: 'recorded_at',
-    patrols: 'patrol_date',
+    patrols: 'created_at',
     breach_alerts: 'created_at',
     enforcement_actions: 'created_at',
     incidents: 'created_at',
     health_safety_reports: 'created_at',
-    vehicle_records: 'recorded_at',
     plate_scans: 'scanned_at',
   }
 

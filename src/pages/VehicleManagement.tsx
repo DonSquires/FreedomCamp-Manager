@@ -31,7 +31,7 @@ interface Vehicle {
   plate_number: string
   vehicle_make: string | null
   vehicle_model: string | null
-  vehicle_year: string | null   // TEXT in canonical_vehicles
+  vehicle_year: number | null   // INTEGER (normalized in 20260411000003)
   vehicle_color: string | null
   self_contained: boolean
   self_contained_expiry: string | null
@@ -376,7 +376,7 @@ export default function VehicleManagement() {
               plate_number: plate,
               vehicle_make: obs.vehicle_make ?? null,
               vehicle_model: obs.vehicle_model ?? null,
-              vehicle_year: obs.vehicle_year != null ? String(obs.vehicle_year) : null,
+              vehicle_year: obs.vehicle_year ?? null,
               vehicle_color: obs.vehicle_color ?? null,
               self_contained: !!obs.self_contained,
               self_contained_expiry: null,
@@ -398,7 +398,7 @@ export default function VehicleManagement() {
           }
           if (!existing.vehicle_make && obs.vehicle_make) existing.vehicle_make = obs.vehicle_make
           if (!existing.vehicle_model && obs.vehicle_model) existing.vehicle_model = obs.vehicle_model
-          if (!existing.vehicle_year && obs.vehicle_year) existing.vehicle_year = String(obs.vehicle_year)
+          if (!existing.vehicle_year && obs.vehicle_year) existing.vehicle_year = obs.vehicle_year
           if (!existing.vehicle_color && obs.vehicle_color) existing.vehicle_color = obs.vehicle_color
           existing.self_contained = existing.self_contained || !!obs.self_contained
         }
@@ -777,7 +777,7 @@ export default function VehicleManagement() {
           .update({
             vehicle_make: data.make,
             vehicle_model: data.model,
-            vehicle_year: data.year != null ? String(data.year) : null,
+            vehicle_year: data.year ?? null,
             vehicle_color: data.colour,
             owner_first_name: data.owner_name?.split(' ')[0],
             owner_last_name: data.owner_name?.split(' ').slice(1).join(' '),
