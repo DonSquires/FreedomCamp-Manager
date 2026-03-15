@@ -25,6 +25,7 @@ import { GlobalOperationsBar } from '@/components/features/GlobalOperationsBar'
 
 // Add your two new pages
 import ComplianceRecalculation from '@/pages/ComplianceRecalculation'
+import CleanupAndRecalculate from '@/pages/CleanupAndRecalculate'
 import LiveOfficerTracking from '@/pages/LiveOfficerTracking'
 import OrganizationProfile from '@/pages/OrganizationProfile'
 import AuditLog from '@/pages/AuditLog'
@@ -508,6 +509,17 @@ export default function App() {
               <ProtectedRoute>
                 <RoleRoute allowedRoles={['admin', 'master']}>
                   <DataCleanupUtility />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/admin/cleanup-recalculate"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'master']}>
+                  <CleanupAndRecalculate />
                 </RoleRoute>
               </ProtectedRoute>
             }
