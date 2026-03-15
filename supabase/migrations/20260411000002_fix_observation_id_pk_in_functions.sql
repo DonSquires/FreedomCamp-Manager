@@ -125,18 +125,56 @@ COMMENT ON FUNCTION public.evaluate_observation_requirements(uuid) IS
 -- The original backfill in 20260303000002 joined on o.id (nullable secondary)
 -- instead of o.observation_id (PK), so rows where o.id was NULL were missed.
 -- Re-running with the correct join fills any gaps.
-
-UPDATE public.observation_jobs oj
-SET
-  recorded_by     = o.recorded_by,
-  organization_id = o.organization_id
-FROM public.observations o
-WHERE oj.observation_id = o.observation_id
-  AND (oj.recorded_by IS NULL OR oj.organization_id IS NULL);
+--
+-- NOTE: observation_jobs has been created and dropped multiple times across the
+-- migration history.  This block is fully defensive: it only executes the
+-- UPDATE when the table and the required columns (recorded_by, organization_id)
+-- actually exist in the database.
 
 DO $$
+DECLARE
+  v_table_exists   boolean;
+  v_has_recorded_by boolean;
+  v_has_org_id      boolean;
 BEGIN
+  SELECT EXISTS (
+    SELECT 1 FROM pg_class c
+    JOIN pg_namespace n ON n.oid = c.relnamespace
+    WHERE c.relname = 'observation_jobs' AND n.nspname = 'public'
+  ) INTO v_table_exists;
+
+  IF NOT v_table_exists THEN
+    RAISE NOTICE '⚠️  observation_jobs table does not exist - skipping backfill (no action needed)';
+  ELSE
+    SELECT EXISTS (
+      SELECT 1 FROM information_schema.columns
+      WHERE table_schema = 'public'
+        AND table_name   = 'observation_jobs'
+        AND column_name  = 'recorded_by'
+    ) INTO v_has_recorded_by;
+
+    SELECT EXISTS (
+      SELECT 1 FROM information_schema.columns
+      WHERE table_schema = 'public'
+        AND table_name   = 'observation_jobs'
+        AND column_name  = 'organization_id'
+    ) INTO v_has_org_id;
+
+    IF v_has_recorded_by AND v_has_org_id THEN
+      UPDATE public.observation_jobs oj
+      SET
+        recorded_by     = o.recorded_by,
+        organization_id = o.organization_id
+      FROM public.observations o
+      WHERE oj.observation_id = o.observation_id
+        AND (oj.recorded_by IS NULL OR oj.organization_id IS NULL);
+
+      RAISE NOTICE '✅ observation_jobs backfill re-run with correct observation_id join';
+    ELSE
+      RAISE NOTICE '⚠️  observation_jobs exists but lacks recorded_by/organization_id columns - skipping backfill';
+    END IF;
+  END IF;
+
   RAISE NOTICE '✅ get_observation_result and evaluate_observation_requirements fixed to use observation_id PK';
-  RAISE NOTICE '✅ observation_jobs backfill re-run with correct observation_id join';
 END;
 $$;
