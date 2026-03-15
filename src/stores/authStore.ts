@@ -109,15 +109,20 @@ export const useAuthStore = create<AuthState>()(
       },
 
       login: async (email: string, password: string) => {
-        set({ loading: true })
-        
+        // Do NOT touch the global `loading` flag here.
+        // `loading` is reserved for the initial page-load auth check so that
+        // App.tsx can gate routing until the session is known.  Setting it to
+        // `true` during a normal login causes App.tsx to unmount all routes and
+        // render a full-screen dark spinner — which officers see as a black
+        // screen before the portal appears.  The Login page has its own local
+        // loading state (disabled button / "Signing in…" label) for UX feedback.
+
         const { data, error } = await supabase.auth.signInWithPassword({
           email,
           password,
         })
 
         if (error) {
-          set({ loading: false })
           throw error
         }
 
@@ -129,7 +134,6 @@ export const useAuthStore = create<AuthState>()(
           .single()
 
         if (profileError) {
-          set({ loading: false })
           throw profileError
         }
 
@@ -142,7 +146,7 @@ export const useAuthStore = create<AuthState>()(
           full_name: `${p.first_name} ${p.last_name}`,
         }
 
-        set({ user: authUser, isAuthenticated: true, loading: false })
+        set({ user: authUser, isAuthenticated: true })
         useSessionLockStore.getState().unlock()
       },
 
