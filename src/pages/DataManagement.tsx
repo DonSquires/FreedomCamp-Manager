@@ -11,6 +11,7 @@ import {
   Shield, 
   BarChart3,
   ArrowRight,
+  RefreshCw,
 } from 'lucide-react'
 
 export default function DataManagement() {
@@ -61,6 +62,27 @@ export default function DataManagement() {
               <Link to="/admin/data-cleanup">
                 <Button className="w-full">
                   Open Cleanup Utility
+                  <ArrowRight className="h-4 w-4 ml-2" />
+                </Button>
+              </Link>
+            </CardContent>
+          </Card>
+
+          {/* Cleanup & Recalculate */}
+          <Card className="hover:shadow-lg transition-shadow border-blue-200">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <RefreshCw className="h-5 w-5 text-blue-600" />
+                Cleanup &amp; Recalculate
+              </CardTitle>
+              <CardDescription>
+                Zone correction, duplicate removal and compliance recalculation in one pass
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Link to="/admin/cleanup-recalculate">
+                <Button className="w-full" variant="default">
+                  Open Cleanup &amp; Recalculate
                   <ArrowRight className="h-4 w-4 ml-2" />
                 </Button>
               </Link>

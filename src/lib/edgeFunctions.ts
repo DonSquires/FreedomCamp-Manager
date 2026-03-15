@@ -471,9 +471,15 @@ export const edgeFunctions = {
 
   /**
    * 3-phase cleanup: zone correction → dedup → compliance recalc
+   * Supports batched pagination: pass get_total=true first, then iterate with offset/batch_size.
    */
   cleanupAndRecalculate: async (params: {
-    organization_id?: string
+    zoneIds?: string[]
+    dateRangeStart?: string
+    dateRangeEnd?: string
+    offset?: number
+    batch_size?: number
+    get_total?: boolean
   }) => {
     return callEdgeFunction('cleanup-and-recalculate', params)
   },

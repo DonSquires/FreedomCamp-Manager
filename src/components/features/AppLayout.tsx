@@ -39,6 +39,8 @@ import {
   Monitor,
   CalendarDays,
   TrendingUp,
+  RefreshCw,
+  Upload,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
@@ -72,6 +74,8 @@ const navigationItems = [
   { path: '/patrol-schedule', icon: CalendarDays, label: 'Patrol Schedule', roles: ['admin', 'admin_officer', 'master'] },
   { path: '/patrol-kpis', icon: TrendingUp, label: 'Patrol KPIs', roles: ['admin', 'admin_officer', 'master'] },
   { path: '/data', icon: Database, label: 'Data Management', roles: ['admin', 'master'] },
+  { path: '/admin/cleanup-recalculate', icon: RefreshCw, label: 'Cleanup & Recalculate', roles: ['admin', 'master'] },
+  { path: '/import-historical', icon: Upload, label: 'Import Historical Data', roles: ['admin', 'master'] },
   { path: '/organization-profile', icon: Building2, label: 'Organisation Profile', roles: ['admin', 'admin_officer', 'master'] },
   { path: '/organizations', icon: Building2, label: 'Organisations', roles: ['master'] },
   { path: '/diagnostics', icon: Settings, label: 'System Diagnostics', roles: ['master'] },
