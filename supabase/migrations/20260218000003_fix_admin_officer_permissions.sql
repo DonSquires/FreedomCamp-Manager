@@ -33,7 +33,7 @@ DO $$
 DECLARE
   obs_table text;
 BEGIN
-  -- Support both legacy and current schema names.
+  -- Support both legacy (vehicle_observations_v2) and current (observations) schema names.
   IF EXISTS (
     SELECT 1 FROM information_schema.tables
     WHERE table_schema = 'public' AND table_name = 'observations'
@@ -41,9 +41,9 @@ BEGIN
     obs_table := 'observations';
   ELSIF EXISTS (
     SELECT 1 FROM information_schema.tables
-    WHERE table_schema = 'public' AND table_name = 'observations'
+    WHERE table_schema = 'public' AND table_name = 'vehicle_observations_v2'
   ) THEN
-    obs_table := 'observations';
+    obs_table := 'vehicle_observations_v2';
   ELSE
     RAISE NOTICE 'No observations table found; skipping observations policy updates.';
     RETURN;

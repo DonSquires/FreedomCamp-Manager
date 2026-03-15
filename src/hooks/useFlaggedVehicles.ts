@@ -8,6 +8,7 @@ import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { toast } from 'sonner'
 
+// Columns match migration 20260415000001_flagged_vehicles_missing_columns.sql
 interface FlaggedVehicle {
   id: string
   organization_id: string | null
@@ -15,6 +16,16 @@ interface FlaggedVehicle {
   reason: string | null
   priority: 'low' | 'medium' | 'high' | 'critical' | null
   flagged_by: string | null
+  // Columns added by 20260415000001
+  notes: string | null
+  is_active: boolean
+  last_known_site: string | null
+  date_recorded: string | null
+  vehicle_description: string | null
+  name_contact: string | null
+  confirmed_homeless: boolean
+  created_by: string | null
+  attachments: any  // jsonb array [{url, type, label}] — matches database.ts pattern
   created_at: string
   updated_at: string
   flagged_by_user: {
@@ -27,17 +38,24 @@ interface CreateFlaggedVehicleInput {
   plate_number: string
   reason?: string
   priority?: 'low' | 'medium' | 'high' | 'critical'
+  notes?: string
 }
 
 interface UpdateFlaggedVehicleInput {
   reason?: string
   priority?: 'low' | 'medium' | 'high' | 'critical'
+  notes?: string
+  is_active?: boolean
+  last_known_site?: string | null
+  name_contact?: string | null
+  confirmed_homeless?: boolean
 }
 
 export function useFlaggedVehicles(options?: {
   organizationId?: string
   priority?: string
   plateNumber?: string
+  activeOnly?: boolean
 }) {
   const { user } = useAuthStore()
   const queryClient = useQueryClient()
@@ -54,6 +72,11 @@ export function useFlaggedVehicles(options?: {
         `)
         .order('priority', { ascending: false })
         .order('created_at', { ascending: false })
+
+      // Only return active flags by default — is_active added by 20260415000001
+      if (options?.activeOnly !== false) {
+        query = query.eq('is_active', true)
+      }
 
       // Organization scoping
       if (user?.role !== 'master' && user?.organization_id) {
@@ -89,9 +112,12 @@ export function useFlaggedVehicles(options?: {
         .insert({
           organization_id: user?.organization_id,
           flagged_by: user?.id,
+          created_by: user?.id,
           plate_number: input.plate_number,
           reason: input.reason,
           priority: input.priority || 'medium',
+          notes: input.notes,
+          is_active: true,
         })
         .select()
         .single()
@@ -127,16 +153,15 @@ export function useFlaggedVehicles(options?: {
     },
   })
 
-  // Delete flagged vehicle mutation
+  // Soft-delete: set is_active = false instead of hard delete
   const deleteFlaggedVehicle = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase
-        .from('flagged_vehicles')
-        .delete()
+      const { error } = await (supabase.from('flagged_vehicles') as any)
+        .update({ is_active: false })
         .eq('id', id)
 
       if (error) {
-        toast.error('Failed to delete flagged vehicle')
+        toast.error('Failed to remove flagged vehicle')
         throw error
       }
     },
@@ -156,10 +181,11 @@ export function useFlaggedVehicles(options?: {
   }
 }
 
-// Hook to check if specific plate is flagged
+// Hook to check if specific plate is flagged (active flags only)
 export function useIsFlagged(plateNumber?: string) {
   const { flaggedVehicles, isLoading } = useFlaggedVehicles({
     plateNumber,
+    activeOnly: true,
   })
 
   return {
@@ -169,7 +195,8 @@ export function useIsFlagged(plateNumber?: string) {
   }
 }
 
-// Hook for active watchlist
+// Hook for active watchlist (active flags only — default behaviour)
 export function useActiveWatchlist() {
-  return useFlaggedVehicles()
+  return useFlaggedVehicles({ activeOnly: true })
 }
+
