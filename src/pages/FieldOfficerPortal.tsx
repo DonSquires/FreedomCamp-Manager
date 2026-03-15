@@ -65,6 +65,12 @@ export default function FieldOfficerPortal() {
   // Admin-assigned follow-up count — used to show badge on the queue card header
   const [followUpCount,     setFollowUpCount]      = useState(0)
 
+  // Jurisdiction status: null = not yet checked, true = inside, false = outside.
+  // Only block scanning when status is definitively false (outside).
+  const [isInsideJurisdiction, setIsInsideJurisdiction] = useState<boolean | null>(null)
+  // Ref for use inside callbacks/closures without recreating them on every check
+  const isOutsideJurisdictionRef = useRef(false)
+
   const [currentPatrolZone, setCurrentPatrolZone] = useState<string | null>(zoneId)
   // Ref so the geofence interval closure always sees the latest zone without
   // triggering a re-mount of the interval on every zone change.
@@ -263,10 +269,19 @@ export default function FieldOfficerPortal() {
       }
     }
     prevInsideRef.current = status.inside
+    setIsInsideJurisdiction(status.inside)
   }, [])
+
+  // true only when we KNOW the officer is outside — null (still checking) does NOT block
+  const isOutsideJurisdiction = isInsideJurisdiction === false
+  isOutsideJurisdictionRef.current = isOutsideJurisdiction
 
   // ── Detail scan: capture handler ─────────────────────────────────────────
   const handleDetailCapture = useCallback(async (file: File) => {
+    if (isOutsideJurisdictionRef.current) {
+      toast.error('⚠️ Cannot record observation — you are outside your authorised patrol jurisdiction.')
+      return
+    }
     if (!user?.id || !user?.organization_id) {
       toast.error('Session expired — please log out and back in')
       return
@@ -414,6 +429,8 @@ export default function FieldOfficerPortal() {
               onCapture={handleDetailCapture}
               onCancel={() => { setDetailCameraOpen(false); setScanMode(null) }}
               isProcessing={isProcessing}
+              isBlocked={isOutsideJurisdiction}
+              blockedReason="You are not within your authorised patrol jurisdiction. Move into your assigned patrol area to resume scanning."
             />
           </div>
         </div>
@@ -424,8 +441,12 @@ export default function FieldOfficerPortal() {
           <div className="grid gap-4 grid-cols-2 mb-6">
             {/* ── Detail Scan card ────────────────────────────── */}
             <Card
-              className="hover:shadow-lg transition-shadow border-2 border-blue-300 dark:border-blue-800 cursor-pointer"
+              className={`hover:shadow-lg transition-shadow border-2 border-blue-300 dark:border-blue-800 ${isOutsideJurisdiction ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}`}
               onClick={() => {
+                if (isOutsideJurisdiction) {
+                  toast.warning('⚠️ Camera disabled — move into your assigned patrol zone to scan vehicles.')
+                  return
+                }
                 if (!user?.id || !user?.organization_id) { toast.error('Session expired'); return }
                 if (!navigator.mediaDevices?.getUserMedia) { toast.error('Camera not available'); return }
                 setScanMode('detail')
@@ -436,8 +457,8 @@ export default function FieldOfficerPortal() {
             >
               <CardHeader className="pb-2">
                 <div className="flex items-center gap-2">
-                  <div className="p-2 bg-blue-100 dark:bg-blue-900 rounded-lg shrink-0">
-                    <Search className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                  <div className={`p-2 rounded-lg shrink-0 ${isOutsideJurisdiction ? 'bg-gray-100 dark:bg-gray-800' : 'bg-blue-100 dark:bg-blue-900'}`}>
+                    <Search className={`h-5 w-5 ${isOutsideJurisdiction ? 'text-gray-400' : 'text-blue-600 dark:text-blue-400'}`} />
                   </div>
                   <div>
                     <CardTitle className="text-sm">Detail Scan</CardTitle>
@@ -448,16 +469,26 @@ export default function FieldOfficerPortal() {
                 </div>
               </CardHeader>
               <CardContent className="pt-0">
-                <p className="text-[11px] text-muted-foreground">
-                  Targeted inspection. Edit corrections, add H&amp;S, issue warnings or notices.
-                </p>
+                {isOutsideJurisdiction ? (
+                  <p className="text-[11px] text-orange-600 dark:text-orange-400 font-medium">
+                    🚫 Outside patrol zone — scanning unavailable
+                  </p>
+                ) : (
+                  <p className="text-[11px] text-muted-foreground">
+                    Targeted inspection. Edit corrections, add H&amp;S, issue warnings or notices.
+                  </p>
+                )}
               </CardContent>
             </Card>
 
             {/* ── Bulk (Zoom) Scan card ────────────────────────── */}
             <Card
-              className="hover:shadow-lg transition-shadow border-2 border-yellow-300 dark:border-yellow-800 cursor-pointer"
+              className={`hover:shadow-lg transition-shadow border-2 border-yellow-300 dark:border-yellow-800 ${isOutsideJurisdiction ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}`}
               onClick={() => {
+                if (isOutsideJurisdiction) {
+                  toast.warning('⚠️ Camera disabled — move into your assigned patrol zone to scan vehicles.')
+                  return
+                }
                 if (!user?.id || !user?.organization_id) { toast.error('Session expired'); return }
                 if (!navigator.mediaDevices?.getUserMedia) { toast.error('Camera not available'); return }
                 setScanMode('bulk')
@@ -465,8 +496,8 @@ export default function FieldOfficerPortal() {
             >
               <CardHeader className="pb-2">
                 <div className="flex items-center gap-2">
-                  <div className="p-2 bg-yellow-100 dark:bg-yellow-900 rounded-lg shrink-0">
-                    <Zap className="h-5 w-5 text-yellow-600 dark:text-yellow-400" />
+                  <div className={`p-2 rounded-lg shrink-0 ${isOutsideJurisdiction ? 'bg-gray-100 dark:bg-gray-800' : 'bg-yellow-100 dark:bg-yellow-900'}`}>
+                    <Zap className={`h-5 w-5 ${isOutsideJurisdiction ? 'text-gray-400' : 'text-yellow-600 dark:text-yellow-400'}`} />
                   </div>
                   <div>
                     <CardTitle className="text-sm">Bulk Scan</CardTitle>
@@ -477,9 +508,15 @@ export default function FieldOfficerPortal() {
                 </div>
               </CardHeader>
               <CardContent className="pt-0">
-                <p className="text-[11px] text-muted-foreground">
-                  Camera stays open. Scan one after another with live breach tally.
-                </p>
+                {isOutsideJurisdiction ? (
+                  <p className="text-[11px] text-orange-600 dark:text-orange-400 font-medium">
+                    🚫 Outside patrol zone — scanning unavailable
+                  </p>
+                ) : (
+                  <p className="text-[11px] text-muted-foreground">
+                    Camera stays open. Scan one after another with live breach tally.
+                  </p>
+                )}
               </CardContent>
             </Card>
           </div>
