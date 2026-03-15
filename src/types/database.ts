@@ -876,7 +876,6 @@ export interface Database {
           vehicles_checked: number
           breaches_found: number
           duration_minutes: number | null
-          shift_id: string | null
           notification_sent: boolean
           notification_sent_at: string | null
           officer_accepted: boolean | null
@@ -909,7 +908,6 @@ export interface Database {
           vehicles_checked?: number
           breaches_found?: number
           duration_minutes?: number | null
-          shift_id?: string | null
           notification_sent?: boolean
           notification_sent_at?: string | null
           officer_accepted?: boolean | null
@@ -942,7 +940,6 @@ export interface Database {
           vehicles_checked?: number
           breaches_found?: number
           duration_minutes?: number | null
-          shift_id?: string | null
           notification_sent?: boolean
           notification_sent_at?: string | null
           officer_accepted?: boolean | null
@@ -1005,7 +1002,6 @@ export interface Database {
           required_on_patrol: boolean
           check_in_radius_metres: number
           created_by: string | null
-          checkpoint_type: 'manual' | 'geofence_zone'
           created_at: string
           updated_at: string
         }
@@ -1023,7 +1019,6 @@ export interface Database {
           required_on_patrol?: boolean
           check_in_radius_metres?: number
           created_by?: string | null
-          checkpoint_type?: 'manual' | 'geofence_zone'
           created_at?: string
           updated_at?: string
         }
@@ -1041,7 +1036,6 @@ export interface Database {
           required_on_patrol?: boolean
           check_in_radius_metres?: number
           created_by?: string | null
-          checkpoint_type?: 'manual' | 'geofence_zone'
           created_at?: string
           updated_at?: string
         }
