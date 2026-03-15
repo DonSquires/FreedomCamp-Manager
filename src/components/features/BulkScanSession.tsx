@@ -26,7 +26,7 @@ import { useAuthStore } from '@/stores/authStore'
 import { useGlobalFiltersStore } from '@/stores/globalFiltersStore'
 import {
   Camera, CheckCircle, XCircle, Clock, Zap,
-  FileWarning, Megaphone, Shield, ChevronDown, ChevronUp, Loader2, MapPin, AlertTriangle,
+  FileWarning, Megaphone, Shield, ChevronDown, ChevronUp, Loader2, MapPin,
 } from 'lucide-react'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -98,8 +98,6 @@ export function BulkScanSession({
   const [scans,         setScans]         = useState<SessionScan[]>([])
   const [showList,      setShowList]      = useState(true)
   const [showSummary,   setShowSummary]   = useState(false)
-  // 'checking' = first GPS fix pending; 'authorized' / 'unauthorized' = result known
-  const [authStatus,    setAuthStatus]    = useState<'checking' | 'authorized' | 'unauthorized'>('checking')
 
   // Keep a ref to the latest scans list for use inside polling closures
   const scansRef = useRef<SessionScan[]>([])
@@ -248,46 +246,6 @@ export function BulkScanSession({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scans.filter(s => s.processingPending).map(s => s.observationId).join(',')])
 
-  // ── Location authorization check ─────────────────────────────────────────
-  // Blocks scanning when officer is outside their assigned jurisdiction.
-  useEffect(() => {
-    if (!user?.organization_id) { setAuthStatus('authorized'); return }
-
-    const PGRST_NOT_FOUND = 'PGRST202'
-
-    const check = async () => {
-      const pos = await new Promise<GeolocationPosition | null>((resolve) => {
-        navigator.geolocation.getCurrentPosition(resolve, () => resolve(null), {
-          enableHighAccuracy: true,
-          timeout: 10000,
-        })
-      })
-      // GPS unavailable — don't block the officer
-      if (!pos) { setAuthStatus('authorized'); return }
-
-      try {
-        const { data, error } = await (supabase as any).rpc('check_location_in_org', {
-          org_id: user.organization_id,
-          lat: pos.coords.latitude,
-          lon: pos.coords.longitude,
-        })
-        if (error) {
-          // Function not deployed or other non-fatal error — don't block
-          if (error.code !== PGRST_NOT_FOUND) console.warn('Auth check error:', error.message)
-          setAuthStatus('authorized')
-          return
-        }
-        setAuthStatus((data as any)?.inside ? 'authorized' : 'unauthorized')
-      } catch {
-        setAuthStatus('authorized')
-      }
-    }
-
-    check()
-    const id = setInterval(check, 30000)
-    return () => clearInterval(id)
-  }, [user?.organization_id]) // eslint-disable-line react-hooks/exhaustive-deps
-
   // ── Summary / finish ─────────────────────────────────────────────────────
   const handleFinish = () => {
     if (scans.length === 0) { onFinish(); return }
@@ -307,11 +265,6 @@ export function BulkScanSession({
     )
   }
 
-  // ── Outside authorised jurisdiction ──────────────────────────────────────
-  // Instead of a full-screen replacement, we block the camera but keep the
-  // rest of the session UI (scan list, stats, finish button) functional.
-  const isOutsideJurisdiction = authStatus === 'unauthorized'
-
   return (
     <div className="flex flex-col h-full bg-background">
       {/* ── Camera (top 52%) ──────────────────────────────────────── */}
@@ -320,8 +273,6 @@ export function BulkScanSession({
           onCapture={handleCapture}
           onCancel={handleFinish}
           isProcessing={isCapturing}
-          isBlocked={isOutsideJurisdiction}
-          blockedReason="You are not within your authorised patrol jurisdiction. Move into your assigned patrol area to resume scanning."
         />
 
         {/* Session stats overlay — top left */}
@@ -330,48 +281,31 @@ export function BulkScanSession({
             <Zap className="h-3 w-3 text-yellow-400" />
             <span>Bulk Scan</span>
           </div>
-          {isOutsideJurisdiction ? (
-            <div className="flex items-center gap-1 rounded-full bg-orange-600/90 px-2.5 py-1 text-white text-xs font-semibold animate-pulse">
-              <AlertTriangle className="h-3 w-3" />
-              <span>Outside Zone</span>
-            </div>
-          ) : (
-            <>
-              {zoneName && (
-                <div className="flex items-center gap-1 rounded-full bg-black/70 px-2.5 py-1 text-white text-xs">
-                  <MapPin className="h-3 w-3 text-green-300" />
-                  <span className="max-w-[90px] truncate">{zoneName}</span>
-                </div>
-              )}
+          {zoneName && (
               <div className="flex items-center gap-1 rounded-full bg-black/70 px-2.5 py-1 text-white text-xs">
-                <Camera className="h-3 w-3 text-blue-300" />
-                <span>{totalScanned}</span>
+                <MapPin className="h-3 w-3 text-green-300" />
+                <span className="max-w-[90px] truncate">{zoneName}</span>
               </div>
-              {totalBreaches > 0 && (
-                <div className="flex items-center gap-1 rounded-full bg-red-600/90 px-2.5 py-1 text-white text-xs font-bold animate-pulse">
-                  <XCircle className="h-3 w-3" />
-                  <span>{totalBreaches}</span>
-                </div>
-              )}
-              {isCapturing && (
-                <div className="flex items-center gap-1 rounded-full bg-blue-600/90 px-2.5 py-1 text-white text-xs">
-                  <Loader2 className="h-3 w-3 animate-spin" />
-                  <span>Saving…</span>
-                </div>
-              )}
-            </>
-          )}
+            )}
+            <div className="flex items-center gap-1 rounded-full bg-black/70 px-2.5 py-1 text-white text-xs">
+              <Camera className="h-3 w-3 text-blue-300" />
+              <span>{totalScanned}</span>
+            </div>
+            {totalBreaches > 0 && (
+              <div className="flex items-center gap-1 rounded-full bg-red-600/90 px-2.5 py-1 text-white text-xs font-bold animate-pulse">
+                <XCircle className="h-3 w-3" />
+                <span>{totalBreaches}</span>
+              </div>
+            )}
+            {isCapturing && (
+              <div className="flex items-center gap-1 rounded-full bg-blue-600/90 px-2.5 py-1 text-white text-xs">
+                <Loader2 className="h-3 w-3 animate-spin" />
+                <span>Saving…</span>
+              </div>
+            )}
         </div>
         {/* SplitScanCamera's own × button (top-right) handles session end via onCancel */}
       </div>
-
-      {/* ── Out-of-jurisdiction warning strip ─────────────────────── */}
-      {isOutsideJurisdiction && (
-        <div className="shrink-0 flex items-center gap-2 px-4 py-2 bg-orange-50 dark:bg-orange-950 border-b border-orange-200 dark:border-orange-800 text-orange-800 dark:text-orange-200 text-xs">
-          <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-          <span>Camera blocked — outside authorised patrol area. You can still review previous scans below.</span>
-        </div>
-      )}
 
       {/* ── Session list (bottom 48%) ─────────────────────────────── */}
       <div className="flex-1 flex flex-col overflow-hidden border-t border-gray-200 dark:border-gray-800">
@@ -383,7 +317,7 @@ export function BulkScanSession({
           <span>
             {(() => {
               if (totalScanned > 0) return `${totalScanned} scanned · ${totalCompliant} compliant · ${totalBreaches} breach${totalBreaches !== 1 ? 'es' : ''}`
-              return isOutsideJurisdiction ? 'Outside patrol zone — no scanning available' : 'No scans yet — tap the shutter to scan'
+              return 'No scans yet — tap the shutter to scan'
             })()}
             {totalPending > 0 && ` · ${totalPending} processing`}
           </span>
@@ -394,9 +328,7 @@ export function BulkScanSession({
           <div className="flex-1 overflow-y-auto px-3 pb-3 space-y-1.5">
             {scans.length === 0 && (
               <p className="text-center text-sm text-muted-foreground py-8">
-                {isOutsideJurisdiction
-                  ? 'Move into your assigned patrol area to start scanning vehicles.'
-                  : 'Point the camera at a vehicle and tap the shutter button'}
+                Point the camera at a vehicle and tap the shutter button
               </p>
             )}
 
