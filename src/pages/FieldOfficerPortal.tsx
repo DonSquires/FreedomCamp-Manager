@@ -230,9 +230,11 @@ export default function FieldOfficerPortal() {
     return () => clearInterval(interval)
   }, [user, setZone]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── Immediate GPS ping on login + 15 s polling ────────────────────────────
-  // Ensures currentLocation is populated right away (before any scan), so the
-  // jurisdiction card and bulk-scan auth check work from the moment the portal loads.
+  // ── Delayed GPS ping on login + 15 s polling ─────────────────────────────
+  // UI is shown first; the initial GPS request is deferred by 2 s so the
+  // portal is fully rendered (and the browser permission prompt, if any, is
+  // shown after the user can see the interface).  Subsequent pings continue
+  // every 15 s as before.
   useEffect(() => {
     if (!user?.id) return
 
@@ -249,9 +251,16 @@ export default function FieldOfficerPortal() {
       )
     }
 
-    pollGPS()
+    // Wait 2 s for the UI to finish rendering before the first GPS request
+    const initialDelay = setTimeout(() => {
+      pollGPS()
+    }, 2000)
+
     const id = setInterval(pollGPS, 15000)
-    return () => clearInterval(id)
+    return () => {
+      clearTimeout(initialDelay)
+      clearInterval(id)
+    }
   }, [user?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Jurisdiction-change tracking ─────────────────────────────────────────
