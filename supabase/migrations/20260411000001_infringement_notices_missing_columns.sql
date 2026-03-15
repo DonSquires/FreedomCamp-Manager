@@ -11,9 +11,62 @@
 -- 20260220000005 schema that was never applied because the table already
 -- existed).  This migration adds those columns so the UI and Edge Function
 -- work correctly.
+--
+-- This migration also creates the table from scratch if it does not exist
+-- (handles databases where 20260219000002 or 20260220000005 did not apply).
 -- ============================================================================
 
--- 1. Add missing columns (safe, idempotent)
+-- 0. Create the table if it does not yet exist.
+--    All columns are nullable (except id, notice_number, status) so that
+--    ALTER TABLE ADD COLUMN IF NOT EXISTS below remains a safe no-op.
+CREATE TABLE IF NOT EXISTS public.infringement_notices (
+  id                   UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  organization_id      UUID        REFERENCES public.organizations(id) ON DELETE CASCADE,
+  case_id              UUID        REFERENCES public.enforcement_cases(id) ON DELETE CASCADE,
+  notice_number        TEXT        UNIQUE NOT NULL,
+  notice_type          TEXT,
+  plate_number         TEXT,
+  offence_description  TEXT,
+  legal_basis          TEXT,
+  offence_date         TIMESTAMPTZ,
+  offence_location     TEXT,
+  offence_location_gps TEXT,
+  zone_id              UUID        REFERENCES public.zones(id) ON DELETE SET NULL,
+  observation_id       UUID,        -- no FK: observations PK is observation_id; id is a nullable secondary column
+  breach_alert_id      UUID        REFERENCES public.breach_alerts(id) ON DELETE SET NULL,
+  amount_cents         INTEGER,
+  fee_amount           NUMERIC(10,2),
+  due_date             DATE,
+  payment_deadline     DATE,
+  payment_methods      JSONB       DEFAULT '["bank_transfer","online"]'::jsonb,
+  payment_reference    TEXT,
+  service_method       TEXT        CHECK (service_method IN ('hand', 'post', 'email')),
+  summary_of_rights    TEXT,
+  delivery_evidence    JSONB       DEFAULT '{}'::jsonb,
+  recipient_name       TEXT,
+  recipient_address    TEXT,
+  recipient_email      TEXT,
+  served_at            TIMESTAMPTZ,
+  status               TEXT        NOT NULL DEFAULT 'draft'
+                                   CHECK (status IN ('draft','issued','paid','reminder_sent','court_referred','withdrawn','cancelled')),
+  issued_by            UUID        REFERENCES public.user_profiles(id) ON DELETE SET NULL,
+  issued_at            TIMESTAMPTZ,
+  created_by           UUID        REFERENCES public.user_profiles(id) ON DELETE SET NULL,
+  reminder_sent_at     TIMESTAMPTZ,
+  court_referral_date  DATE,
+  withdrawn_reason     TEXT,
+  notice_pdf_url       TEXT,
+  notice_pdf_hash      TEXT,
+  evidence_bundle_url  TEXT,
+  evidence_bundle_hash TEXT,
+  created_at           TIMESTAMPTZ DEFAULT now(),
+  updated_at           TIMESTAMPTZ DEFAULT now()
+);
+
+-- Enable RLS (idempotent)
+ALTER TABLE public.infringement_notices ENABLE ROW LEVEL SECURITY;
+
+-- 1. Add missing columns (safe, idempotent — no-op if table was just created above)
 ALTER TABLE public.infringement_notices
   ADD COLUMN IF NOT EXISTS amount_cents   INTEGER,
   ADD COLUMN IF NOT EXISTS due_date       DATE,
