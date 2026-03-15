@@ -63,9 +63,9 @@ jobs:
       - name: Run schema extraction
         if: steps.check_secrets.outputs.skip == 'false'
         env:
-          PGHOST:     db.${{ secrets.SUPABASE_PROJECT_REF }}.supabase.co
+          PGHOST:     aws-0-ap-southeast-2.pooler.supabase.com
           PGPORT:     5432
-          PGUSER:     postgres
+          PGUSER:     postgres.${{ secrets.SUPABASE_PROJECT_REF }}
           PGPASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
           PGDATABASE: postgres
         run: |
