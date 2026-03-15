@@ -6,6 +6,70 @@
 -- schedule junction table. Adds an RPC for patrol KPIs.
 -- ===========================================
 
+-- ─── 0. Guard: ensure officer_shifts exists ──────────────────────────────
+-- Migration 20260409000000 should have created this table, but in some
+-- environments the migration history was repaired without executing the SQL.
+-- This guard ensures the table exists before we add a FK reference to it.
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.tables
+    WHERE table_schema = 'public' AND table_name = 'officer_shifts'
+  ) THEN
+    CREATE TABLE public.officer_shifts (
+      id              UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+      officer_id      UUID        NOT NULL REFERENCES public.user_profiles(id) ON DELETE CASCADE,
+      organization_id UUID        NOT NULL REFERENCES public.organizations(id) ON DELETE CASCADE,
+      parent_zone_id  UUID        REFERENCES public.zones(id) ON DELETE SET NULL,
+      started_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+      ended_at        TIMESTAMPTZ,
+      end_reason      TEXT        CHECK (end_reason IN ('logout', 'app_timeout', 'manual', 'zone_exit')),
+      gps_start_lat   DOUBLE PRECISION,
+      gps_start_lng   DOUBLE PRECISION,
+      gps_end_lat     DOUBLE PRECISION,
+      gps_end_lng     DOUBLE PRECISION,
+      created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_officer_shifts_officer
+      ON public.officer_shifts(officer_id, started_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_officer_shifts_org
+      ON public.officer_shifts(organization_id, started_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_officer_shifts_active
+      ON public.officer_shifts(officer_id) WHERE ended_at IS NULL;
+
+    ALTER TABLE public.officer_shifts ENABLE ROW LEVEL SECURITY;
+
+    CREATE POLICY "officers_read_own_shifts"
+      ON public.officer_shifts FOR SELECT TO authenticated
+      USING (officer_id = auth.uid());
+
+    CREATE POLICY "officers_insert_own_shift"
+      ON public.officer_shifts FOR INSERT TO authenticated
+      WITH CHECK (officer_id = auth.uid());
+
+    CREATE POLICY "officers_update_own_shift"
+      ON public.officer_shifts FOR UPDATE TO authenticated
+      USING (officer_id = auth.uid());
+
+    CREATE POLICY "admins_read_org_shifts"
+      ON public.officer_shifts FOR SELECT TO authenticated
+      USING (
+        organization_id IN (
+          SELECT organization_id FROM public.user_profiles
+          WHERE id = auth.uid() AND role IN ('admin', 'admin_officer', 'master')
+        )
+      );
+
+    DROP TRIGGER IF EXISTS update_officer_shifts_updated_at ON public.officer_shifts;
+    CREATE TRIGGER update_officer_shifts_updated_at
+      BEFORE UPDATE ON public.officer_shifts
+      FOR EACH ROW
+      EXECUTE FUNCTION update_updated_at();
+  END IF;
+END $$;
+
 -- ─── 1. Add scheduling & timing columns to patrols ─────────────────────
 
 ALTER TABLE patrols
