@@ -22,7 +22,7 @@
 CREATE TABLE IF NOT EXISTS public.infringement_notices (
   id                   UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
   organization_id      UUID        REFERENCES public.organizations(id) ON DELETE CASCADE,
-  case_id              UUID        REFERENCES public.enforcement_cases(id) ON DELETE CASCADE,
+  case_id              UUID,        -- FK added conditionally below (enforcement_cases may not exist yet)
   notice_number        TEXT        UNIQUE NOT NULL,
   notice_type          TEXT,
   plate_number         TEXT,
@@ -94,6 +94,35 @@ UPDATE public.infringement_notices
 -- 5. Index on created_by for the FK join used by the admin UI
 CREATE INDEX IF NOT EXISTS idx_infringement_notices_created_by
   ON public.infringement_notices (created_by);
+
+-- 6. Add FK from case_id → enforcement_cases only if that table exists.
+--    (enforcement_cases is created in 20260220000005; on some remotes it may
+--    have been repair-marked but never applied, so we guard here.)
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.tables
+     WHERE table_schema = 'public'
+       AND table_name   = 'enforcement_cases'
+  ) THEN
+    IF NOT EXISTS (
+      SELECT 1 FROM information_schema.table_constraints
+       WHERE table_schema    = 'public'
+         AND table_name      = 'infringement_notices'
+         AND constraint_name = 'infringement_notices_case_id_fkey'
+    ) THEN
+      ALTER TABLE public.infringement_notices
+        ADD CONSTRAINT infringement_notices_case_id_fkey
+        FOREIGN KEY (case_id) REFERENCES public.enforcement_cases(id) ON DELETE CASCADE;
+      RAISE NOTICE '✅ infringement_notices_case_id_fkey constraint added';
+    ELSE
+      RAISE NOTICE '✅ infringement_notices_case_id_fkey already exists, skipping';
+    END IF;
+  ELSE
+    RAISE NOTICE '⚠️  enforcement_cases does not exist; skipping case_id FK (will be added by 20260220000005 when it runs)';
+  END IF;
+END;
+$$;
 
 DO $$
 BEGIN
