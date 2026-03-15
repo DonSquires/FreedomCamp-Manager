@@ -147,7 +147,7 @@ export function useOfficerNotifications(options: { limit?: number; unreadOnly?: 
         })))
       }
 
-      // Flagged vehicle sightings
+      // Flagged vehicle sightings — only active flags (is_active added by 20260415000001)
       const { data: flaggedVehicles } = await supabase
         .from('flagged_vehicles')
         .select(`
@@ -157,6 +157,7 @@ export function useOfficerNotifications(options: { limit?: number; unreadOnly?: 
           reason,
           created_at
         `)
+        .eq('is_active', true)
         .limit(10)
 
       if (flaggedVehicles) {
@@ -252,10 +253,11 @@ export function useOfficerAlertCount() {
 
       count += breachCount || 0
 
-      // Count active flagged vehicles
+      // Count active flagged vehicles (is_active added by 20260415000001)
       const { count: flaggedCount } = await supabase
         .from('flagged_vehicles')
         .select('*', { count: 'exact', head: true })
+        .eq('is_active', true)
 
       count += flaggedCount || 0
 

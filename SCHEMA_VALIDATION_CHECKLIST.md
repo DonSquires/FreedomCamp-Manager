@@ -19,29 +19,37 @@
 
 ## Quick Reference for Audit Findings
 
+> **Last updated:** Schema Extract #8 (2026-03-15 run #8, main branch commit 5797ce9)
+
 ### 🔴 Critical: Know Which Columns Actually Exist
 
 The most dangerous class of bug is writing to a column that does not exist in the live DB.  
-The following columns are **absent from the live schema** as of 2026-03-13 — do not add them to any insert/update payload:
+The following columns are **absent from the live schema** — do not add them to any insert/update payload:
 
 **observations (absent):**
-- `weather_conditions` — never added to live DB
-- `processing_status`, `processing_started_at`, `processing_completed_at`, `processing_error` — AI pipeline tracking; never added
-- `plate_confidence`, `vehicle_make_confidence`, `vehicle_model_confidence`, `vehicle_color_confidence` — AI confidence scores; never added
-- `sticker_presence`, `sticker_color`, `sticker_bbox`, `sticker_detection_confidence`, `sticker_color_confidence` — sticker detection; never added
-- `movement_moved`, `movement_background_similarity`, `movement_vehicle_bbox_iou`, `movement_decision` — movement comparison; never added
-- `previous_observation_id` — movement chain; never added
 - `compliance_summary` — use `compliance_snapshot` instead
 - `image_url` — use `photo` (primary) or `photo_url` (secondary)
 
+> ⚠️ **Schema Extract #8 UPDATE** — the following columns were previously listed as absent but
+> are **confirmed PRESENT** in the live DB (added by migrations 20260312000010, 20260220000004,
+> 20260401000001):
+> `weather_conditions`, `processing_status`, `processing_started_at`, `processing_completed_at`,
+> `processing_error`, `plate_confidence`, `vehicle_make_confidence`, `vehicle_model_confidence`,
+> `vehicle_color_confidence`, `sticker_presence`, `sticker_color`, `sticker_bbox`,
+> `sticker_detection_confidence`, `sticker_color_confidence`,
+> `movement_moved`, `movement_background_similarity`, `movement_vehicle_bbox_iou`,
+> `movement_decision`, `previous_observation_id`
+> They remain in `OPTIONAL_SCHEMA_COLUMNS` only as a safety net for staging databases.
+
 **canonical_vehicles (absent):**
 - `id` — PK is `plate_number`; unique UUID is `vehicle_id`
-- `make`, `model`, `colour`, `year` (as integer) — live columns are `vehicle_make`, `vehicle_model`, `vehicle_color`, `vehicle_year` (TEXT)
+- `make`, `model`, `colour` — live columns are `vehicle_make`, `vehicle_model`, `vehicle_color`
 - `body_style`, `nzscv_warrant_number`, `nzscv_expires_on`, `vin`
 
 **breach_alerts (absent):**
 - `resolved_by` — use `admin_reviewed_by`
 - `detected_at` — added as a generated alias `GENERATED ALWAYS AS (created_at) STORED` by migration `20260313000002`. Verify it exists before using it; if absent, fall back to `created_at`.
+- `compliance_result_id` — column exists on the row but is always NULL; the `compliance_results` table was DROPPED in `20260221_rebuild_observations_clean.sql`. Use `observation_id` to link breach alerts to their source observation.
 
 These are tracked in `supabase/functions/_shared/observationInsert.ts::OPTIONAL_SCHEMA_COLUMNS` so that any stale code that still writes them fails gracefully (schema-cache error → column stripped → retry).
 
@@ -70,6 +78,7 @@ ORDER BY ordinal_position;
 | is_compliant | boolean | default true |
 | nights_stayed_this_month | integer | default 0 |
 | consecutive_nights | integer | default 0 |
+| processing_status | text | `pending\|processing\|completed\|failed` — present since 20260312000010 |
 | embedding_created_at | timestamptz | set when ALPR embedding written = "ALPR done" |
 
 **If broken:** `adaptiveObservationInsert()` in `_shared/observationInsert.ts` strips unknown columns and retries. Check edge-function logs for "Schema cache missing column" warnings.
@@ -94,7 +103,7 @@ ORDER BY ordinal_position;
 | vehicle_make | text | NOT `make` |
 | vehicle_model | text | NOT `model` |
 | vehicle_color | text | NOT `colour` |
-| vehicle_year | text | TEXT (not integer), NOT `year` |
+| vehicle_year | integer | **INTEGER** (normalised from TEXT by migration `20260411000003`), NOT `year` |
 | is_exempt | boolean | NOT NULL, default false |
 | is_homeless | boolean | NOT NULL, default false |
 
@@ -102,17 +111,24 @@ ORDER BY ordinal_position;
 
 ---
 
-#### 3. ALPR Processing State — No processing_status Column
+#### 3. ALPR Processing State — processing_status Column IS Present
 
-The `processing_status` column was never added to the live `observations` table.  
-**How to detect whether ALPR has completed:**
+> ⚠️ **Schema Extract #8 CORRECTION** — This section previously stated the column was absent.
+> That was incorrect. `processing_status` **exists** in the live `observations` table.
+
+`processing_status` was added by migration `20260312000010_fix_alpr_inference_columns_schema_cache.sql`.  
+Valid values (CHECK constraint): `pending | processing | completed | failed`  
+Default: `'pending'`
+
+**ALPR completion signals — use in priority order:**
 
 | Signal | Meaning |
 |---|---|
-| `plate_number = 'PROCESSING...'` | ALPR not yet complete |
+| `processing_status = 'completed'` | ALPR pipeline finished successfully |
+| `processing_status = 'failed'` | ALPR failed — check `processing_error` for reason |
+| `plate_number = 'PROCESSING...'` | ALPR not yet assigned a real plate |
 | `plate_number = 'MANUAL_REQUIRED'` | ALPR attempted but needs manual entry |
-| `embedding_created_at IS NOT NULL` | ALPR and embedding pipeline completed |
-| `plate_number` has a real plate | ALPR successful |
+| `embedding_created_at IS NOT NULL` | Embedding pipeline completed |
 
 Code location: `FieldOfficerPortal.tsx` — `isProcessingAI` check.
 
@@ -308,11 +324,17 @@ Before creating any migration or modifying schema-related code, follow this proc
 
 ## Deployment Readiness
 
-- ✅ Schema fully documented in `docs/LIVE_SCHEMA.md`
-- ✅ All phantom columns removed from TypeScript code (2026-03-13 audit)
+> **Schema Extract #8 audit — 2026-03-15**
+
+- ✅ Schema fully documented in `docs/LIVE_SCHEMA.md` (updated to Extract #8)
 - ✅ CODEOWNERS enforcing review on schema files and migrations
 - ✅ RLS policies in place
-- ✅ Adaptive insert/update handles COALESCE drift (`_shared/observationInsert.ts`)
+- ✅ Adaptive insert handles COALESCE drift and schema-cache misses (`_shared/observationInsert.ts`)
+- ✅ `OPTIONAL_SCHEMA_COLUMNS` updated: AI/ALPR columns confirmed present in live DB
+- ✅ `canonical_vehicles.vehicle_year` correctly typed as INTEGER (normalised by 20260411000003)
+- ✅ `flagged_vehicles.is_active` filter applied in `useFlaggedVehicles` and `useOfficerNotifications`
+- ✅ `DataIntegrityDashboard` breach check uses `observation_id` (not dropped `compliance_result_id`)
+- ✅ `DataIntegrityDashboard` vehicle check uses `vehicle_id` (not non-existent `id`)
 - ⚠️ Monitor edge-function logs for "Schema cache missing column" — indicates code/schema drift
 - ⚠️ Run `npx tsc -b --noEmit` before every migration to catch type mismatches
 

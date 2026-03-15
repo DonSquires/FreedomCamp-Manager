@@ -82,14 +82,16 @@ export default function DataIntegrityDashboard() {
         details: obsWithoutGPS > 0 ? `${obsWithoutGPS} observations missing GPS` : undefined,
       })
 
-      // 3. Breach alerts with compliance results
+      // 3. Breach alerts linked to an observation
+      // NOTE: compliance_results table was DROPPED in migration 20260221_rebuild_observations_clean.sql.
+      // Compliance state lives directly on observations rows. We check observation_id linkage instead.
       let breachQuery = supabase
         .from('breach_alerts')
         .select('id', { count: 'exact', head: true })
-        .is('compliance_result_id', null)
+        .is('observation_id', null)
 
       if (orgFilter) breachQuery = breachQuery.eq('organization_id', orgFilter)
-      const { count: breachesWithoutCompliance } = await breachQuery
+      const { count: breachesWithoutObs } = await breachQuery
 
       let totalBreachQuery = supabase
         .from('breach_alerts')
@@ -100,12 +102,12 @@ export default function DataIntegrityDashboard() {
 
       checks.push({
         id: 'breach-compliance',
-        title: 'Breaches with Compliance Results',
-        description: 'All breach alerts should reference compliance results',
-        status: breachesWithoutCompliance === 0 ? 'pass' : breachesWithoutCompliance > 10 ? 'fail' : 'warning',
-        count: (totalBreaches || 0) - (breachesWithoutCompliance || 0),
+        title: 'Breaches Linked to Observations',
+        description: 'All breach alerts should reference the triggering observation',
+        status: breachesWithoutObs === 0 ? 'pass' : breachesWithoutObs > 10 ? 'fail' : 'warning',
+        count: (totalBreaches || 0) - (breachesWithoutObs || 0),
         total: totalBreaches || 0,
-        details: breachesWithoutCompliance > 0 ? `${breachesWithoutCompliance} breaches missing compliance link` : undefined,
+        details: breachesWithoutObs > 0 ? `${breachesWithoutObs} breaches missing observation link` : undefined,
       })
 
       // 4. Zones with compliance matrix
@@ -128,8 +130,9 @@ export default function DataIntegrityDashboard() {
       })
 
       // 5. Vehicles with observations
+      // NOTE: canonical_vehicles PK is plate_number; use vehicle_id (UUID) for row identity
       const { data: vehiclesData } = await (supabase.from('canonical_vehicles') as any)
-        .select('id, total_observations')
+        .select('vehicle_id, total_observations')
 
       const vehiclesWithoutObs = vehiclesData?.filter(v => v.total_observations === 0).length || 0
 
