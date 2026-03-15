@@ -21,7 +21,7 @@ interface VehicleEditDrawerProps {
     plate_number: string
     vehicle_make?: string
     vehicle_model?: string
-    vehicle_year?: string
+    vehicle_year?: number | null
     vehicle_color?: string
     self_contained?: boolean
     notes?: string
@@ -33,7 +33,8 @@ export function VehicleEditDrawer({ open, onClose, vehicle, onSave }: VehicleEdi
   const [form, setForm] = useState({
     vehicle_make: vehicle.vehicle_make ?? '',
     vehicle_model: vehicle.vehicle_model ?? '',
-    vehicle_year: vehicle.vehicle_year ?? '',
+    // Form state is always strings (HTML inputs). Convert integer year to string for the field.
+    vehicle_year: vehicle.vehicle_year != null ? String(vehicle.vehicle_year) : '',
     vehicle_color: vehicle.vehicle_color ?? '',
     notes: vehicle.notes ?? '',
     self_contained: vehicle.self_contained ?? false,
@@ -54,7 +55,11 @@ export function VehicleEditDrawer({ open, onClose, vehicle, onSave }: VehicleEdi
       if (form.notes !== (vehicle.notes ?? '')) updates.notes = form.notes || undefined
       if (form.self_contained !== (vehicle.self_contained ?? false))
         updates.self_contained = form.self_contained
-      if (form.vehicle_year !== (vehicle.vehicle_year ?? '')) updates.vehicle_year = form.vehicle_year || undefined
+      // Compare against string representation of stored integer; convert back to integer on save.
+      const storedYear = vehicle.vehicle_year != null ? String(vehicle.vehicle_year) : ''
+      if (form.vehicle_year !== storedYear) {
+        updates.vehicle_year = form.vehicle_year ? (parseInt(form.vehicle_year, 10) || undefined) : null
+      }
 
       await onSave(updates)
       toast.success('Vehicle updated')

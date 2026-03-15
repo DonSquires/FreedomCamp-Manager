@@ -120,9 +120,9 @@ Deno.serve(async (req) => {
         // Extract vehicle details from Stream AI
         const vehicleMake = result.vehicle?.make?.[0]?.value || null;
         const vehicleColor = result.vehicle?.color?.[0]?.value || null;
-        // Stream AI returns year as a string (e.g. "2018"). Safe-parse to integer
-        // because observations.vehicle_year is INTEGER while canonical_vehicles.vehicle_year is TEXT.
-        const rawVehicleYear = result.vehicle?.year?.[0] || null;
+        // Stream AI returns year as a raw string (e.g. "2018"). Parse to integer
+        // so it matches canonical_vehicles.vehicle_year (INTEGER).
+        const rawVehicleYear: string | null = result.vehicle?.year?.[0] || null;
 
         // Check canonical vehicle for existing details
         const { data: canonicalVehicle } = await supabaseAdmin
@@ -131,17 +131,13 @@ Deno.serve(async (req) => {
           .eq('plate_number', plateNumber)
           .single();
 
-        const previousRecords = canonicalVehicle ? [canonicalVehicle] : null;
-
-        const finalMake = vehicleMake || previousRecords?.[0]?.vehicle_make || null;
-        const finalModel = previousRecords?.[0]?.vehicle_model || null;
-        const finalColor = vehicleColor || previousRecords?.[0]?.vehicle_color || null;
-        // Resolve the year from AI result or canonical record (both may be TEXT).
-        // Parse to integer for observations.vehicle_year (INTEGER column).
-        const rawFinalYear = rawVehicleYear || previousRecords?.[0]?.vehicle_year || null;
-        const finalYear: number | null = rawFinalYear
-          ? (parseInt(String(rawFinalYear), 10) || null)
-          : null;
+        const finalMake  = vehicleMake || canonicalVehicle?.vehicle_make  || null;
+        const finalModel = canonicalVehicle?.vehicle_model || null;
+        const finalColor = vehicleColor || canonicalVehicle?.vehicle_color || null;
+        // Prefer AI-detected year (parse from string); fall back to canonical integer.
+        const finalYear: number | null = rawVehicleYear
+          ? (parseInt(rawVehicleYear, 10) || null)
+          : (canonicalVehicle?.vehicle_year ?? null);
 
         // Check for flagged vehicle (OFFICER SAFETY)
         const { data: flaggedVehicle } = await supabaseAdmin

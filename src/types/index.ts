@@ -62,8 +62,8 @@ export interface Vehicle {
   plate_number: string
   vehicle_make: string | null
   vehicle_model: string | null
-  /** TEXT in the live canonical_vehicles table. */
-  vehicle_year: string | null
+  /** INTEGER — normalized from TEXT in migration 20260411000003. */
+  vehicle_year: number | null
   vehicle_color: string | null
   self_contained: boolean
   self_contained_expiry: string | null

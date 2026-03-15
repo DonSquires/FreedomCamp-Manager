@@ -40,7 +40,7 @@ interface CanonicalVehicle {
   plate_number: string
   vehicle_make: string | null
   vehicle_model: string | null
-  vehicle_year: string | null
+  vehicle_year: number | null
   vehicle_color: string | null
   self_contained: boolean
   self_contained_expiry: string | null

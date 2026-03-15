@@ -889,7 +889,7 @@ Deno.serve(async (req: Request) => {
           // Optional vehicle detail fields — only write when NZSCV provides them
           if (nzscv.make)         vehicleUpsertData.vehicle_make  = nzscv.make;
           if (nzscv.model)        vehicleUpsertData.vehicle_model = nzscv.model;
-          if (nzscv.year)         vehicleUpsertData.vehicle_year  = String(nzscv.year);
+          if (nzscv.year)         vehicleUpsertData.vehicle_year  = nzscv.year;
           if (nzscv.vin)          vehicleUpsertData.vin           = nzscv.vin;
           if (nzscv.colour)       vehicleUpsertData.colour        = nzscv.colour;
         }

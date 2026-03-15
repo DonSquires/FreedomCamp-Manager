@@ -48,7 +48,7 @@ interface Observation {
   breach_reason: string | null;
   vehicle_make: string | null;
   vehicle_model: string | null;
-  vehicle_year: string | null;
+  vehicle_year: number | null;
   vehicle_color: string | null;
   self_contained: boolean;
   nights_stayed_this_month: number;

@@ -571,7 +571,7 @@ export default function BreachAlerts() {
           .update({
             vehicle_make: data.make,
             vehicle_model: data.model,
-            vehicle_year: data.year != null ? String(data.year) : null,
+            vehicle_year: data.year ?? null,
             vehicle_color: data.colour,
             owner_first_name: data.owner_name?.split(' ')[0] || null,
             owner_last_name: data.owner_name?.split(' ').slice(1).join(' ') || null,

@@ -299,7 +299,7 @@ export interface Database {
           vehicle_make: string | null
           vehicle_model: string | null
           vehicle_color: string | null
-          vehicle_year: string | null        // TEXT in live DB, not integer
+          vehicle_year: number | null        // INTEGER (normalized in 20260411000003)
           self_contained: boolean
           self_contained_expiry: string | null
           nzscv_warrant_type: string | null
@@ -353,7 +353,7 @@ export interface Database {
           vehicle_make?: string | null
           vehicle_model?: string | null
           vehicle_color?: string | null
-          vehicle_year?: string | null
+          vehicle_year?: number | null
           self_contained?: boolean
           self_contained_expiry?: string | null
           nzscv_warrant_type?: string | null
@@ -407,7 +407,7 @@ export interface Database {
           vehicle_make?: string | null
           vehicle_model?: string | null
           vehicle_color?: string | null
-          vehicle_year?: string | null
+          vehicle_year?: number | null
           self_contained?: boolean
           self_contained_expiry?: string | null
           nzscv_warrant_type?: string | null
