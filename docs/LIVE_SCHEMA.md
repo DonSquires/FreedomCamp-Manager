@@ -6,8 +6,8 @@
 > from the repository owner (@DonSquires) via a reviewed and approved Pull Request.**
 > See [SCHEMA_VALIDATION_CHECKLIST.md](../SCHEMA_VALIDATION_CHECKLIST.md) for the full governance policy.
 
-**Last verified:** 2026-03-13  
-**Verified by:** Copilot schema alignment audit against live Supabase instance  
+**Last verified:** 2026-03-15  
+**Verified by:** Copilot schema alignment audit (Schema Extract #6 pass) against migrations  
 **Live row counts at verification:** observations 30,789 · canonical_vehicles 61,535 · zones 4,336 · breach_alerts 0 · user_profiles 7
 
 ---
@@ -86,17 +86,32 @@ Then update this file, update `src/types/database.ts`, and open a PR for review.
 | is_legacy_import | boolean | YES | false |
 | legacy_source_tag | text | YES | — |
 | idempotency_key | text | YES | — |
+| processing_status | text | YES | 'pending' |
+| processing_started_at | timestamptz | YES | — |
+| processing_completed_at | timestamptz | YES | — |
+| processing_error | text | YES | — |
+| plate_confidence | real | YES | — |
+| vehicle_make_confidence | real | YES | — |
+| vehicle_model_confidence | real | YES | — |
+| vehicle_color_confidence | real | YES | — |
+| sticker_presence | boolean | YES | — |
+| sticker_color | text | YES | — |
+| sticker_bbox | jsonb | YES | — |
+| sticker_detection_confidence | real | YES | — |
+| sticker_color_confidence | real | YES | — |
+| previous_observation_id | uuid | YES | — |
+| movement_moved | boolean | YES | — |
+| movement_background_similarity | real | YES | — |
+| movement_vehicle_bbox_iou | real | YES | — |
+| movement_decision | text | YES | — |
+| has_discrepancies | boolean | YES | false |
+| discrepancy_flags | jsonb | YES | — |
 | id | uuid | YES | gen_random_uuid() |
 | created_at | timestamptz | YES | now() |
 | updated_at | timestamptz | YES | now() |
 
 > **⛔ COLUMNS THAT DO NOT EXIST** (remove from any new code):
-> `weather_conditions`, `processing_status`, `processing_started_at`, `processing_completed_at`,
-> `processing_error`, `plate_confidence`, `vehicle_make_confidence`, `vehicle_model_confidence`,
-> `vehicle_color_confidence`, `sticker_presence`, `sticker_color`, `sticker_bbox`,
-> `sticker_detection_confidence`, `sticker_color_confidence`, `movement_moved`,
-> `movement_background_similarity`, `movement_vehicle_bbox_iou`, `movement_decision`,
-> `previous_observation_id`, `compliance_summary` (use `compliance_snapshot`),
+> `weather_conditions`, `compliance_summary` (use `compliance_snapshot`),
 > `image_url` (use `photo` or `photo_url`)
 
 ### Triggers on observations
@@ -135,7 +150,7 @@ Then update this file, update `src/types/database.ts`, and open a PR for review.
 | vehicle_make | text | YES | — |
 | vehicle_model | text | YES | — |
 | vehicle_color | text | YES | — |
-| vehicle_year | **text** | YES | — |
+| vehicle_year | integer | YES | — |
 | self_contained | boolean | YES | false |
 | self_contained_expiry | date | YES | — |
 | nzscv_warrant_type | text | YES | — |
@@ -183,8 +198,10 @@ Then update this file, update `src/types/database.ts`, and open a PR for review.
 | created_at | timestamptz | YES | now() |
 | updated_at | timestamptz | YES | now() |
 
-> **⛔ COLUMNS THAT DO NOT EXIST**: `id`, `make`, `model`, `colour`, `year` (as integer),
+> **⛔ COLUMNS THAT DO NOT EXIST**: `id`, `make`, `model`, `colour` (use `vehicle_color`), `year` (use `vehicle_year`),
 > `body_style`, `nzscv_warrant_number`, `nzscv_expires_on`, `vin`
+>
+> **vehicle_year** was normalised from TEXT → INTEGER in migration `20260411000003`. Use as `number | null` in TypeScript.
 
 ---
 
@@ -302,6 +319,15 @@ Then update this file, update `src/types/database.ts`, and open a PR for review.
 | warrant_verified | boolean | false |
 | warrant_expiry | date | — |
 | compliance_status | text | 'pending' |
+| last_location | jsonb | — |
+| portal_used | text | — |
+| push_token | text | — |
+| push_token_updated_at | timestamptz | — |
+| notification_preferences | jsonb | — |
+| bio | text | — |
+| emergency_contact_name | text | — |
+| emergency_contact_phone | text | — |
+| profile_photo_url | text | — |
 | created_at | timestamptz | now() |
 | updated_at | timestamptz | now() |
 
@@ -374,7 +400,41 @@ Then update this file, update `src/types/database.ts`, and open a PR for review.
 
 **Primary key:** `id` (uuid)
 
-Columns: `id`, `organization_id`, `zone_id`, `patrol_date` (default current_date), `shift`, `assigned_to`, `status` (default 'scheduled'), `notes`, `notification_sent`, `notification_sent_at`, `officer_accepted`, `officer_accepted_at`, `officer_declined`, `officer_decline_reason`, `auto_checkin_enabled` (default true), `geofence_radius` (default 100), `created_at`, `updated_at`
+| Column | Type | Default |
+|---|---|---|
+| id | uuid | gen_random_uuid() |
+| organization_id | uuid | — |
+| zone_id | uuid | — |
+| patrol_date | date | current_date |
+| shift | text | — |
+| assigned_to | uuid | — |
+| status | text | 'scheduled' |
+| notes | text | — |
+| notification_sent | boolean | false |
+| notification_sent_at | timestamptz | — |
+| officer_accepted | boolean | false |
+| officer_accepted_at | timestamptz | — |
+| officer_declined | boolean | false |
+| officer_decline_reason | text | — |
+| auto_checkin_enabled | boolean | true |
+| geofence_radius | integer | 100 |
+| scheduled_start_time | timestamptz | — |
+| scheduled_end_time | timestamptz | — |
+| actual_start_time | timestamptz | — |
+| actual_end_time | timestamptz | — |
+| duration_minutes | integer | — |
+| description | text | — |
+| priority | text | 'normal' |
+| recurrence | text | 'none' |
+| shift_id | uuid | — |
+| started_at | timestamptz | — |
+| ended_at | timestamptz | — |
+| vehicles_checked | integer | 0 |
+| breaches_found | integer | 0 |
+| created_at | timestamptz | — |
+| updated_at | timestamptz | — |
+
+> **Note:** `actual_start_time`/`actual_end_time` are the primary timestamps for patrol duration. `started_at`/`ended_at` are aliases added by migration `20260410000001`.
 
 ---
 
@@ -435,7 +495,16 @@ Columns: `id`, `batch_id`, `raw_data`, `enriched_data`, `status` (default 'pendi
 | photo_metadata | id | Evidence photo audit log |
 | plate_scans | id | Legacy scan records |
 | audit_log | id | General audit trail |
-| flagged_vehicles | id | Flagged vehicle watchlist |
+| flagged_vehicles | id | Flagged vehicle watchlist — columns: `id`, `organization_id`, `plate_number`, `reason`, `priority`, `flagged_by`, `notes`, `is_active` (bool, default true), `last_known_site`, `date_recorded`, `vehicle_description`, `name_contact`, `confirmed_homeless` (bool, default false), `created_by` (→ user_profiles), `attachments` (jsonb, default '[]'), `created_at`, `updated_at` |
+| vehicle_discrepancies | id | Cross-source vehicle data conflicts (make/model/colour/SC mismatch); FK to observations.observation_id — added `20260406000001` |
+| notifications | id | In-app / push notification records per user (type, title, body, data, priority, read, delivered) — added `20260315` |
+| user_sessions | id | Active session tracking (profile page) — added `20260315` |
+| restrictions | id | Spatial compliance restriction zones (GeoJSON upload) — added `20260315` |
+| admin_recalculation_actions | id | Audit log for bulk compliance recalculation jobs — added `20260317` |
+| officer_shifts | id | Officer shift lifecycle: started_at, ended_at, end_reason — added `20260409000001` |
+| patrol_site_visits | id | Zone entry/exit per shift: entered_at, exited_at, shift_id — added `20260409000001` |
+| patrol_schedule_zones | id | Junction table for multi-zone patrol routes — added `20260409000002` |
+| infringement_notices | id | Formal infringement notice documents; FK to observations.observation_id — added `20260311`, extended `20260411000001` |
 | drift_events | id | Compliance drift tracking |
 | person_records | id | Person of interest records (legacy; columns: first_name, last_name — no full_name) |
 | canonical_persons | id | Canonical person records — Phase 5 (has full_name, homeless_claimed/confirmed, location) |
@@ -450,7 +519,7 @@ Columns: `id`, `batch_id`, `raw_data`, `enriched_data`, `status` (default 'pendi
 | health_safety_reports | id | H&S incident reports |
 | officer_welfare_settings | id | Per-officer welfare config |
 | officer_activity_log | id | Officer GPS/activity log |
-| officer_welfare_alerts | id | Man-down / welfare alerts |
+| officer_welfare_alerts | id | Man-down / welfare alerts (acknowledged_by, acknowledged_at columns present) |
 | observation_deletions | id | Deleted observation audit |
 | alert_queue | id | In-app alert queue |
 | alert_acknowledgements | id | Alert acknowledgements |
@@ -520,7 +589,7 @@ Same governance applies: any new or modified function or trigger requires a migr
 The TypeScript types that must stay in sync with this document:
 
 - `src/types/database.ts` — generated Supabase types (`Database['public']['Tables']`)
-  - Tables with full Row/Insert/Update types: `organizations`, `user_profiles`, `zones`, `canonical_vehicles`, `observations`, `breach_alerts`, `patrols`, `patrol_checkpoints`, `checkpoint_visits`, `privacy_curtain_settings`, `privacy_access_log`, `import_batches`, `enforcement_actions`, `health_safety_reports`, `officer_welfare_alerts`, `compliance_results`, `incidents`
+  - Tables with full Row/Insert/Update types: `organizations`, `user_profiles`, `zones`, `canonical_vehicles`, `observations`, `breach_alerts`, `patrols`, `patrol_checkpoints`, `checkpoint_visits`, `privacy_curtain_settings`, `privacy_access_log`, `import_batches`, `enforcement_actions`, `health_safety_reports`, `officer_welfare_alerts`, `compliance_results`, `incidents`, `notifications`, `user_sessions`, `homeless_records`, `officer_activity_log`, `person_vehicle_links`, `infringement_notices`, `notices_to_vacate`, `admin_recalculation_actions`, `restrictions`, `zone_compliance_matrix`, `photo_metadata`, `vehicle_discrepancies`, `officer_shifts`, `patrol_site_visits`, `patrol_schedule_zones`, `flagged_vehicles`
 - `src/types/index.ts` — application-level interfaces (`Vehicle`, `Observation`, `BreachAlert`, etc.)
 
 When this schema changes, **both files must be updated in the same PR** as the migration.

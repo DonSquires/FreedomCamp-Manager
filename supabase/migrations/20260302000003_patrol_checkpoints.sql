@@ -110,4 +110,4 @@ DROP TRIGGER IF EXISTS update_patrol_checkpoints_updated_at ON patrol_checkpoint
 CREATE TRIGGER update_patrol_checkpoints_updated_at
   BEFORE UPDATE ON patrol_checkpoints
   FOR EACH ROW
-  EXECUTE FUNCTION update_updated_at_column();
+  EXECUTE FUNCTION update_updated_at();

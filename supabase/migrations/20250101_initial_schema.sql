@@ -50,6 +50,17 @@ BEGIN
 END;
 $$;
 
+-- update_updated_at_column — alias for update_updated_at (used by many migrations)
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  NEW.updated_at = now();
+  RETURN NEW;
+END;
+$$;
+
 -- get_user_role — returns the role of the given user (default 'officer')
 -- Drop any prior definition (parameter name may differ, e.g. "uid" vs "p_user_id")
 DROP FUNCTION IF EXISTS get_user_role(UUID);
