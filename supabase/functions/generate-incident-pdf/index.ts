@@ -46,28 +46,28 @@ serve(async (req) => {
         zone:zones!incidents_zone_id_fkey(id, name, description),
         organization:organizations(name),
         user:user_profiles(first_name, last_name, email),
-        approved_by_user:user_profiles!incidents_approved_by_fkey(first_name, last_name, email),
         incident_vehicles(
           vehicle:canonical_vehicles(plate_number, vehicle_make, vehicle_model, vehicle_color),
           vehicle_role
         ),
         incident_persons(person_name, person_role, contact_email, contact_phone),
-        enforcement_action:enforcement_actions(action_type, delivery_method, recipient_name, recipient_email, notes, status)
+        enforcement_action:enforcement_actions(action_type, notes, status)
       `)
       .eq('id', incident_id)
       .single();
 
 
 
-    // Fetch active compliance matrix at time of incident for matrix snapshot
+    // Fetch active compliance matrix at time of incident.
+    // Use incident.created_at as the reference timestamp (happened_at does not exist on incidents).
     let matrixSnapshot = null;
     if (incident.zone?.id) {
       const { data: matrix } = await supabase
         .from('zone_compliance_matrix')
         .select('*')
         .eq('zone_id', incident.zone.id)
-        .lte('effective_from', incident.happened_at)
-        .or(`effective_to.is.null,effective_to.gte.${incident.happened_at}`)
+        .lte('effective_from', incident.created_at)
+        .or(`effective_to.is.null,effective_to.gte.${incident.created_at}`)
         .order('version', { ascending: false })
         .limit(1)
         .single();
@@ -112,7 +112,7 @@ serve(async (req) => {
         html,
         metadata: pdfMetadata,
         incident_id: incident.id,
-        court_ready: incident.court_ready,
+        court_ready: incident.retention_hold ?? false,
         generated_at: new Date().toISOString(),
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
