@@ -277,22 +277,9 @@ BEGIN
     RAISE EXCEPTION 'safe_insert_observation: INSERT failed: %', SQLERRM;
   END;
 
-  -- ── Step 4: Belt-and-suspenders compliance_results row ──────────────────
-  BEGIN
-    INSERT INTO compliance_results (
-      observation_id, zone_id, organization_id,
-      matrix_id, matrix_version,
-      is_compliant, violation_reasons, matrix_snapshot, evaluated_at
-    ) VALUES (
-      v_obs_id, v_zone_id, v_org_id,
-      CASE WHEN v_matrix IS NOT NULL THEN v_matrix.id    ELSE NULL END,
-      CASE WHEN v_matrix IS NOT NULL THEN v_matrix.version ELSE NULL END,
-      v_is_compliant, v_violation_reasons, v_matrix_snapshot, now()
-    )
-    ON CONFLICT DO NOTHING;
-  EXCEPTION WHEN OTHERS THEN
-    RAISE WARNING 'safe_insert_observation: compliance_results insert failed: %', SQLERRM;
-  END;
+  -- ── Step 4: compliance_results was DROPPED in 20260221_rebuild_observations_clean.sql.
+  --            Compliance state is stored directly on the observations row set above.
+  --            Step 4 is intentionally a no-op here.
 
   -- ── Step 5: Belt-and-suspenders canonical stats update ──────────────────
   BEGIN

@@ -859,6 +859,10 @@ export interface Database {
           scheduled_end_time: string | null
           actual_start_time: string | null
           actual_end_time: string | null
+          started_at: string | null
+          ended_at: string | null
+          vehicles_checked: number
+          breaches_found: number
           duration_minutes: number | null
           shift_id: string | null
           notification_sent: boolean
@@ -888,6 +892,10 @@ export interface Database {
           scheduled_end_time?: string | null
           actual_start_time?: string | null
           actual_end_time?: string | null
+          started_at?: string | null
+          ended_at?: string | null
+          vehicles_checked?: number
+          breaches_found?: number
           duration_minutes?: number | null
           shift_id?: string | null
           notification_sent?: boolean
@@ -917,6 +925,10 @@ export interface Database {
           scheduled_end_time?: string | null
           actual_start_time?: string | null
           actual_end_time?: string | null
+          started_at?: string | null
+          ended_at?: string | null
+          vehicles_checked?: number
+          breaches_found?: number
           duration_minutes?: number | null
           shift_id?: string | null
           notification_sent?: boolean
@@ -1620,7 +1632,7 @@ export interface Database {
           reason: string | null
           priority: 'low' | 'medium' | 'high' | 'critical' | null
           flagged_by: string | null
-          // Columns added by 20260312000004_homeless_records_and_flagged_support.sql
+          // Columns added by 20260415000001_flagged_vehicles_missing_columns.sql
           notes: string | null
           is_active: boolean
           last_known_site: string | null
@@ -1629,6 +1641,7 @@ export interface Database {
           name_contact: string | null
           confirmed_homeless: boolean | null
           created_by: string | null
+          attachments: any
           created_at: string
           updated_at: string
         }
@@ -1647,6 +1660,7 @@ export interface Database {
           name_contact?: string | null
           confirmed_homeless?: boolean | null
           created_by?: string | null
+          attachments?: any
           created_at?: string
           updated_at?: string
         }
@@ -1665,10 +1679,26 @@ export interface Database {
           name_contact?: string | null
           confirmed_homeless?: boolean | null
           created_by?: string | null
+          attachments?: any
           created_at?: string
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "flagged_vehicles_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "flagged_vehicles_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          }
+        ]
       }
       plate_scans: {
         Row: {

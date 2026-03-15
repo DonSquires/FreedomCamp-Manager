@@ -326,7 +326,7 @@ function generateIncidentHTML(incident: any, auditTrail: any[], matrixSnapshot: 
   <div class="header">
     <h1>INCIDENT REPORT</h1>
     <div class="subtitle">FreedomCamp Manager - Court-Ready Documentation</div>
-    ${incident.court_ready ? '<div class="court-ready-badge">✓ COURT READY</div>' : ''}
+    ${incident.retention_hold ? '<div class="court-ready-badge">⚖ LEGAL HOLD — Retained for Legal/Court Use</div>' : ''}
   </div>
 
   <div class="section">
@@ -347,7 +347,7 @@ function generateIncidentHTML(incident: any, auditTrail: any[], matrixSnapshot: 
       <div class="field-value">${incident.status}</div>
       
       <div class="field-label">Date/Time of Incident:</div>
-      <div class="field-value">${formatDate(incident.happened_at)}</div>
+      <div class="field-value">${formatDate(incident.created_at)}</div>
       
       <div class="field-label">Zone:</div>
       <div class="field-value">${incident.zone?.name || 'N/A'}</div>
@@ -478,21 +478,10 @@ function generateIncidentHTML(incident: any, auditTrail: any[], matrixSnapshot: 
     <div class="field-grid">
       <div class="field-label">Action Type:</div>
       <div class="field-value">${incident.enforcement_action.action_type}</div>
-      
-      <div class="field-label">Delivery Method:</div>
-      <div class="field-value">${incident.enforcement_action.delivery_method || 'N/A'}</div>
-      
-      <div class="field-label">Recipient:</div>
-      <div class="field-value">${incident.enforcement_action.recipient_name || 'N/A'}</div>
-      
-      ${incident.enforcement_action.recipient_email ? `
-        <div class="field-label">Email:</div>
-        <div class="field-value">${incident.enforcement_action.recipient_email}</div>
-      ` : ''}
-      
+
       <div class="field-label">Status:</div>
       <div class="field-value">${incident.enforcement_action.status}</div>
-      
+
       ${incident.enforcement_action.notes ? `
         <div class="field-label">Notes:</div>
         <div class="field-value">${incident.enforcement_action.notes}</div>
@@ -543,21 +532,14 @@ function generateIncidentHTML(incident: any, auditTrail: any[], matrixSnapshot: 
       
       <div class="field-label">Reported At:</div>
       <div class="field-value">${formatDate(incident.created_at)}</div>
-      
-      ${incident.approved_by_user ? `
-        <div class="field-label">Approved By:</div>
-        <div class="field-value">${incident.approved_by_user.first_name} ${incident.approved_by_user.last_name}</div>
-        
-        <div class="field-label">Approved At:</div>
-        <div class="field-value">${formatDate(incident.approved_at)}</div>
-      ` : ''}
     </div>
   </div>
 
-  ${incident.court_ready ? `
+  ${incident.retention_hold ? `
   <div class="section signature-block">
-    <div class="section-title">Certification</div>
-    <p>I certify that the information contained in this report is true and correct to the best of my knowledge and belief.</p>
+    <div class="section-title">Legal Hold Certification</div>
+    <p>This incident record is under legal hold and must not be modified or deleted.
+       It is retained for potential use in legal proceedings or court.</p>
     
     <div class="signature-line">
       <strong>Signature:</strong> _______________________________
@@ -577,7 +559,7 @@ function generateIncidentHTML(incident: any, auditTrail: any[], matrixSnapshot: 
     <p><strong>FreedomCamp Manager</strong> - Court-Ready Incident Report</p>
     <p>Generated: ${formatDate(new Date().toISOString())}</p>
     <p>Document ID: ${incident.id}</p>
-    ${incident.court_ready ? '<p style="color: #22c55e; font-weight: bold;">✓ This document has been approved for court use</p>' : ''}
+    ${incident.retention_hold ? '<p style="color: #22c55e; font-weight: bold;">⚖ This document is under legal hold and retained for court use</p>' : ''}
   </div>
 </body>
 </html>
