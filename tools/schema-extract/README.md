@@ -18,7 +18,9 @@ Designed to be run locally (recommended) or via an opt-in GitHub Action that run
 - **Local run (recommended):** Run the extraction script locally with environment variables:
   - `PGHOST`, `PGPORT`, `PGUSER`, `PGPASSWORD`, `PGDATABASE`
   - Optional: `SUPABASE_URL` (for reference only) — not required for extraction.
-- **GitHub Action (opt-in):** Ensure secrets `SUPABASE_PROJECT_REF` and `SUPABASE_DB_PASSWORD` are configured in repository settings (these are shared with other workflows). The Action derives the PG connection details automatically. Manually dispatch the workflow to run it.
+- **GitHub Action (opt-in):** The workflow supports two secret configurations (checked in order):
+  1. **Individual PG secrets (preferred):** `PGHOST`, `PGUSER`, `PGPASSWORD` (plus optional `PGPORT`, `PGDATABASE`). This is consistent with the `extract-schema` job in `merge_all.yml`.
+  2. **Supabase secrets (fallback):** `SUPABASE_PROJECT_REF` and `SUPABASE_DB_PASSWORD`. The workflow derives the pooler host, user, and database automatically.
   - Workflow file: `.github/workflows/schema-extract.yml`
   - Trigger type: `workflow_dispatch` only
 

@@ -24,21 +24,25 @@ jobs:
       - name: Check required secrets
         id: check_secrets
         env:
-          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
-          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          PGHOST:                ${{ secrets.PGHOST }}
+          PGPORT:                ${{ secrets.PGPORT }}
+          PGUSER:                ${{ secrets.PGUSER }}
+          PGPASSWORD:            ${{ secrets.PGPASSWORD }}
+          PGDATABASE:            ${{ secrets.PGDATABASE }}
+          SUPABASE_PROJECT_REF:  ${{ secrets.SUPABASE_PROJECT_REF }}
+          SUPABASE_DB_PASSWORD:  ${{ secrets.SUPABASE_DB_PASSWORD }}
         run: |
-          missing=""
-          for var in SUPABASE_PROJECT_REF SUPABASE_DB_PASSWORD; do
-            eval "val=\${${var}:-}"
-            if [ -z "$val" ]; then
-              missing="$missing $var"
-            fi
-          done
-          if [ -n "$missing" ]; then
-            echo "::notice::Required secrets not configured:$missing – skipping extraction."
-            echo "skip=true" >> "$GITHUB_OUTPUT"
-          else
+          # Prefer individual PG* secrets (consistent with merge_all.yml extract-schema).
+          # Fall back to deriving connection details from SUPABASE_PROJECT_REF / SUPABASE_DB_PASSWORD.
+          if [ -n "${PGHOST:-}" ] && [ -n "${PGUSER:-}" ] && [ -n "${PGPASSWORD:-}" ]; then
+            echo "mode=pg" >> "$GITHUB_OUTPUT"
             echo "skip=false" >> "$GITHUB_OUTPUT"
+          elif [ -n "${SUPABASE_PROJECT_REF:-}" ] && [ -n "${SUPABASE_DB_PASSWORD:-}" ]; then
+            echo "mode=supabase" >> "$GITHUB_OUTPUT"
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::Required secrets not configured (need PGHOST/PGUSER/PGPASSWORD or SUPABASE_PROJECT_REF/SUPABASE_DB_PASSWORD) – skipping extraction."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Checkout
@@ -63,15 +67,28 @@ jobs:
       - name: Run schema extraction
         if: steps.check_secrets.outputs.skip == 'false'
         env:
-          PGHOST:            aws-0-ap-southeast-2.pooler.supabase.com
-          PGPORT:            "5432"
-          PGUSER:            postgres.${{ secrets.SUPABASE_PROJECT_REF }}
-          PGPASSWORD:        ${{ secrets.SUPABASE_DB_PASSWORD }}
-          PGDATABASE:        postgres
-          PGSSLMODE:         require
-          PGCONNECT_TIMEOUT: "30"
+          # When mode=pg the PG* secrets are used directly.
+          # When mode=supabase the connection details are derived below.
+          PGHOST:                ${{ secrets.PGHOST }}
+          PGPORT:                ${{ secrets.PGPORT }}
+          PGUSER:                ${{ secrets.PGUSER }}
+          PGPASSWORD:            ${{ secrets.PGPASSWORD }}
+          PGDATABASE:            ${{ secrets.PGDATABASE }}
+          SUPABASE_PROJECT_REF:  ${{ secrets.SUPABASE_PROJECT_REF }}
+          SUPABASE_DB_PASSWORD:  ${{ secrets.SUPABASE_DB_PASSWORD }}
+          CONNECTION_MODE:       ${{ steps.check_secrets.outputs.mode }}
         run: |
           set -euo pipefail
+
+          if [ "$CONNECTION_MODE" = "supabase" ]; then
+            export PGHOST="aws-0-ap-southeast-2.pooler.supabase.com"
+            export PGPORT="5432"
+            export PGUSER="postgres.${SUPABASE_PROJECT_REF}"
+            export PGPASSWORD="${SUPABASE_DB_PASSWORD}"
+            export PGDATABASE="postgres"
+          fi
+
+          # Defaults applied by run_extract.sh: PGSSLMODE=require, PGCONNECT_TIMEOUT=30
           chmod +x tools/schema-extract/run_extract.sh
           ./tools/schema-extract/run_extract.sh
           LATEST_DIR="$(ls -1dt tools/schema-extract/output/*/ | head -n 1)"
