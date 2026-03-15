@@ -25,8 +25,8 @@ import { captureAndSave } from '@/lib/scanPipeline'
 import { useAuthStore } from '@/stores/authStore'
 import { useGlobalFiltersStore } from '@/stores/globalFiltersStore'
 import {
-  Camera, CheckCircle, XCircle, Clock, Zap,
-  FileWarning, Megaphone, Shield, ChevronDown, ChevronUp, Loader2, MapPin,
+  Camera, CheckCircle, XCircle, Clock, Zap, X,
+  FileWarning, Megaphone, Shield, ChevronDown, ChevronUp, Loader2,
 } from 'lucide-react'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -45,8 +45,6 @@ interface SessionScan {
 interface BulkScanSessionProps {
   /** Called with (lat, lon) on every GPS fix — keeps man-down timer alive */
   recordGPSUpdate: (lat: number, lon: number) => void
-  /** Called after each scan capture — records vehicle_scan to officer_activity_log */
-  logVehicleScan?: (lat: number, lng: number, meta?: { observation_id?: string | null; zone_id?: string | null }) => void
   /** Active patrol session ID for incrementing vehicles_checked / breaches_found. Optional — counters are silently skipped when absent. */
   activePatrolId?: string | null
   orgWorkflow: string
@@ -83,7 +81,6 @@ function fmtTime(iso: string) {
 
 export function BulkScanSession({
   recordGPSUpdate,
-  logVehicleScan,
   activePatrolId,
   orgWorkflow,
   onIssueAction,
@@ -92,7 +89,7 @@ export function BulkScanSession({
   onScanSaved,
 }: BulkScanSessionProps) {
   const { user }   = useAuthStore()
-  const { zoneId, zoneName } = useGlobalFiltersStore()
+  const { zoneId } = useGlobalFiltersStore()
 
   const [isCapturing,   setIsCapturing]   = useState(false)
   const [scans,         setScans]         = useState<SessionScan[]>([])
@@ -117,27 +114,13 @@ export function BulkScanSession({
     }
 
     setIsCapturing(true)
-    let scanLat: number | null = null
-    let scanLon: number | null = null
     try {
       const result = await captureAndSave(
         file,
         { id: user.id, organization_id: user.organization_id, full_name: user.full_name },
         zoneId,
-        (lat, lon) => {
-          scanLat = lat
-          scanLon = lon
-          recordGPSUpdate(lat, lon)
-        },
+        recordGPSUpdate,
       )
-
-      // Log vehicle_scan activity for live welfare tracking
-      if (scanLat !== null && scanLon !== null) {
-        logVehicleScan?.(scanLat, scanLon, {
-          observation_id: result.observationId,
-          zone_id:        result.zoneId,
-        })
-      }
 
       // Add to session list immediately as pending
       const newScan: SessionScan = {
@@ -166,7 +149,7 @@ export function BulkScanSession({
     } finally {
       setIsCapturing(false)
     }
-  }, [user, zoneId, recordGPSUpdate, logVehicleScan, activePatrolId, onScanSaved])
+  }, [user, zoneId, recordGPSUpdate, activePatrolId, onScanSaved])
 
   // ── Background polling for each pending scan ─────────────────────────────
   useEffect(() => {
@@ -281,30 +264,33 @@ export function BulkScanSession({
             <Zap className="h-3 w-3 text-yellow-400" />
             <span>Bulk Scan</span>
           </div>
-          {zoneName && (
-              <div className="flex items-center gap-1 rounded-full bg-black/70 px-2.5 py-1 text-white text-xs">
-                <MapPin className="h-3 w-3 text-green-300" />
-                <span className="max-w-[90px] truncate">{zoneName}</span>
-              </div>
-            )}
-            <div className="flex items-center gap-1 rounded-full bg-black/70 px-2.5 py-1 text-white text-xs">
-              <Camera className="h-3 w-3 text-blue-300" />
-              <span>{totalScanned}</span>
+          <div className="flex items-center gap-1 rounded-full bg-black/70 px-2.5 py-1 text-white text-xs">
+            <Camera className="h-3 w-3 text-blue-300" />
+            <span>{totalScanned}</span>
+          </div>
+          {totalBreaches > 0 && (
+            <div className="flex items-center gap-1 rounded-full bg-red-600/90 px-2.5 py-1 text-white text-xs font-bold animate-pulse">
+              <XCircle className="h-3 w-3" />
+              <span>{totalBreaches}</span>
             </div>
-            {totalBreaches > 0 && (
-              <div className="flex items-center gap-1 rounded-full bg-red-600/90 px-2.5 py-1 text-white text-xs font-bold animate-pulse">
-                <XCircle className="h-3 w-3" />
-                <span>{totalBreaches}</span>
-              </div>
-            )}
-            {isCapturing && (
-              <div className="flex items-center gap-1 rounded-full bg-blue-600/90 px-2.5 py-1 text-white text-xs">
-                <Loader2 className="h-3 w-3 animate-spin" />
-                <span>Saving…</span>
-              </div>
-            )}
+          )}
+          {isCapturing && (
+            <div className="flex items-center gap-1 rounded-full bg-blue-600/90 px-2.5 py-1 text-white text-xs">
+              <Loader2 className="h-3 w-3 animate-spin" />
+              <span>Saving…</span>
+            </div>
+          )}
         </div>
-        {/* SplitScanCamera's own × button (top-right) handles session end via onCancel */}
+
+        {/* End session button — top right (replaces camera's own cancel) */}
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={handleFinish}
+          className="absolute top-2 right-12 z-30 h-7 text-xs bg-black/50 text-white hover:bg-black/70 rounded-full px-3"
+        >
+          <X className="h-3 w-3 mr-1" />End
+        </Button>
       </div>
 
       {/* ── Session list (bottom 48%) ─────────────────────────────── */}
@@ -315,10 +301,9 @@ export function BulkScanSession({
           onClick={() => setShowList(p => !p)}
         >
           <span>
-            {(() => {
-              if (totalScanned > 0) return `${totalScanned} scanned · ${totalCompliant} compliant · ${totalBreaches} breach${totalBreaches !== 1 ? 'es' : ''}`
-              return 'No scans yet — tap the shutter to scan'
-            })()}
+            {totalScanned === 0
+              ? 'No scans yet — tap the shutter to scan'
+              : `${totalScanned} scanned · ${totalCompliant} compliant · ${totalBreaches} breach${totalBreaches !== 1 ? 'es' : ''}`}
             {totalPending > 0 && ` · ${totalPending} processing`}
           </span>
           {showList ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronUp className="h-3.5 w-3.5" />}

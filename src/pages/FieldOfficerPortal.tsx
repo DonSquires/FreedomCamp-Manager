@@ -1,10 +1,9 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/stores/authStore'
 import { useGlobalFiltersStore } from '@/stores/globalFiltersStore'
 import { monitorGeofenceAndPatrol } from '@/lib/geofence'
-import { useShiftInactivityTimeout } from '@/hooks/useOfficerShift'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { AppLayout } from '@/components/features/AppLayout'
@@ -16,7 +15,6 @@ import { BulkScanSession } from '@/components/features/BulkScanSession'
 import { OfficerFollowUpQueue } from '@/components/features/OfficerFollowUpQueue'
 import { captureAndSave } from '@/lib/scanPipeline'
 import { useManDownDetection } from '@/hooks/useManDownDetection'
-import { useOfficerGPSLogger } from '@/hooks/useOfficerGPSLogger'
 import {
   Camera, Map, FileText, History, AlertTriangle, MapPin, QrCode,
   ShieldAlert, CheckCircle, Shield, Megaphone, FileWarning, XCircle,
@@ -65,52 +63,32 @@ export default function FieldOfficerPortal() {
   // Admin-assigned follow-up count — used to show badge on the queue card header
   const [followUpCount,     setFollowUpCount]      = useState(0)
 
-  // Jurisdiction status: null = not yet checked, true = inside, false = outside.
-  // Only block scanning when status is definitively false (outside).
-  const [isInsideJurisdiction, setIsInsideJurisdiction] = useState<boolean | null>(null)
-  // Ref for use inside callbacks/closures without recreating them on every check
-  const isOutsideJurisdictionRef = useRef(false)
-
   const [currentPatrolZone, setCurrentPatrolZone] = useState<string | null>(zoneId)
-  // Ref so the geofence interval closure always sees the latest zone without
-  // triggering a re-mount of the interval on every zone change.
-  const currentPatrolZoneRef = useRef(currentPatrolZone)
-  currentPatrolZoneRef.current = currentPatrolZone
   const [currentLocation, setCurrentLocation] = useState<{ latitude: number; longitude: number } | null>(null)
   const [scanTabFilter, setScanTabFilter] = useState<'all' | 'compliant' | 'breach' | 'at_risk' | 'homeless'>('all')
 
   // Man-Down Detection — records GPS updates and fires alert if stationary too long
   const { recordGPSUpdate, isManDownActive } = useManDownDetection()
 
-  // GPS Activity Logger — writes to officer_activity_log so admins can see officers
-  // on the live welfare-tracking map and the server-side welfare monitor can work
-  const { logGPSFix, logVehicleScan } = useOfficerGPSLogger()
-
-  // Shift inactivity timeout — auto-ends shift after 15 min of app being backgrounded
-  useShiftInactivityTimeout()
-
   // Display-friendly zone label for the officer status card
   const displayZone = zoneName || (zoneId ? `${zoneId.substring(0, 8)}...` : 'Scanning Geofence...')
 
-  // ── Fetch org enforcement_workflow and name ───────────────────────────────
-  const { data: orgData } = useQuery({
+  // ── Fetch org enforcement_workflow ────────────────────────────────────────
+  const { data: orgWorkflow } = useQuery({
     queryKey: ['org-workflow', user?.organization_id],
     queryFn: async () => {
-      if (!user?.organization_id) return null
+      if (!user?.organization_id) return 'admin_first'
       const { data, error } = await supabase
         .from('organizations')
-        .select('enforcement_workflow, name')
+        .select('enforcement_workflow')
         .eq('id', user.organization_id)
         .single()
-      if (error) return null
-      return data as any
+      if (error) return 'admin_first'
+      return ((data as any)?.enforcement_workflow as string) || 'admin_first'
     },
     enabled: !!user?.organization_id,
     staleTime: 1000 * 60 * 10,
   })
-
-  const orgWorkflow: string = (orgData?.enforcement_workflow as string) || 'admin_first'
-  const orgName: string | null = (orgData?.name as string) || null
 
   // ── Fetch officer's recent observations ───────────────────────────────────
   const { data: recentScans = [], refetch: refetchScans } = useQuery({
@@ -203,9 +181,7 @@ export default function FieldOfficerPortal() {
     },
   })
 
-  // Auto-monitor geofence and manage patrol.
-  // currentPatrolZone is accessed via ref so zone-state changes do NOT reset
-  // the 30 s interval (which would cause races and duplicate patrol starts).
+  // Auto-monitor geofence and manage patrol
   useEffect(() => {
     if (!user?.id || !user?.organization_id) return
 
@@ -213,113 +189,41 @@ export default function FieldOfficerPortal() {
       monitorGeofenceAndPatrol(
         user.id,
         user.organization_id!,
-        currentPatrolZoneRef.current,
+        currentPatrolZone,
         (newZoneId, newZoneName) => {
           setCurrentPatrolZone(newZoneId)
           setZone(newZoneId, newZoneName)
-        },
-        (lat, lng) => {
-          setCurrentLocation({ latitude: lat, longitude: lng })
-          recordGPSUpdate(lat, lng)
         }
       )
     }
 
-    checkGeofence()
+    // Defer first geofence check by 2 s so the portal finishes rendering before
+    // the browser GPS permission prompt appears (avoids a blank-screen flash).
+    const initialDelay = setTimeout(() => checkGeofence(), 2000)
     const interval = setInterval(checkGeofence, 30000)
-    return () => clearInterval(interval)
-  }, [user, setZone]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  // ── Delayed GPS ping on login + 15 s polling ─────────────────────────────
-  // UI is shown first; the initial GPS request is deferred by 2 s so the
-  // portal is fully rendered (and the browser permission prompt, if any, is
-  // shown after the user can see the interface).  Subsequent pings continue
-  // every 15 s as before.
-  useEffect(() => {
-    if (!user?.id) return
-
-    const pollGPS = () => {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          setCurrentLocation({ latitude: pos.coords.latitude, longitude: pos.coords.longitude })
-          recordGPSUpdate(pos.coords.latitude, pos.coords.longitude)
-          // Write to officer_activity_log for live welfare tracking map
-          logGPSFix(pos.coords.latitude, pos.coords.longitude, pos.coords.accuracy ?? undefined)
-        },
-        (err) => console.warn('GPS poll failed:', err.message),
-        { enableHighAccuracy: true, timeout: 10000 },
-      )
-    }
-
-    // Wait 2 s for the UI to finish rendering before the first GPS request
-    const initialDelay = setTimeout(() => {
-      pollGPS()
-    }, 2000)
-
-    const id = setInterval(pollGPS, 15000)
     return () => {
       clearTimeout(initialDelay)
-      clearInterval(id)
+      clearInterval(interval)
     }
-  }, [user?.id]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  // ── Jurisdiction-change tracking ─────────────────────────────────────────
-  const prevInsideRef = useRef<boolean | null>(null)
-  const handleJurisdictionChange = useCallback((status: any) => {
-    const wasInside = prevInsideRef.current
-    if (wasInside !== null && wasInside !== status.inside) {
-      if (status.inside) {
-        toast.success('✅ You have entered your authorised patrol jurisdiction.')
-      } else {
-        toast.warning(
-          '⚠️ You have left your authorised jurisdiction. Enforcement actions in this area may not be valid.',
-          { duration: 8000 },
-        )
-      }
-    }
-    prevInsideRef.current = status.inside
-    setIsInsideJurisdiction(status.inside)
-  }, [])
-
-  // true only when we KNOW the officer is outside — null (still checking) does NOT block
-  const isOutsideJurisdiction = isInsideJurisdiction === false
-  isOutsideJurisdictionRef.current = isOutsideJurisdiction
+  }, [user, currentPatrolZone, setZone])
 
   // ── Detail scan: capture handler ─────────────────────────────────────────
   const handleDetailCapture = useCallback(async (file: File) => {
-    if (isOutsideJurisdictionRef.current) {
-      toast.error('⚠️ Cannot record observation — you are outside your authorised patrol jurisdiction.')
-      return
-    }
     if (!user?.id || !user?.organization_id) {
       toast.error('Session expired — please log out and back in')
       return
     }
     setIsProcessing(true)
-    // Capture the GPS fix from the scan pipeline so we can log it
-    let scanLat: number | null = null
-    let scanLon: number | null = null
     try {
       const result = await captureAndSave(
         file,
         { id: user.id, organization_id: user.organization_id, full_name: user.full_name },
         zoneId,
         (lat, lon) => {
-          scanLat = lat
-          scanLon = lon
           setCurrentLocation({ latitude: lat, longitude: lon })
           recordGPSUpdate(lat, lon)
-          logGPSFix(lat, lon)
         },
       )
-
-      // Log the vehicle scan activity for live welfare tracking
-      if (scanLat !== null && scanLon !== null) {
-        logVehicleScan(scanLat, scanLon, {
-          observation_id: result.observationId,
-          zone_id:        result.zoneId,
-        })
-      }
 
       toast.success('✅ Observation captured — detecting plate…', {
         duration: CAPTURE_TOAST_DURATION_MS,
@@ -358,7 +262,7 @@ export default function FieldOfficerPortal() {
     } finally {
       setIsProcessing(false)
     }
-  }, [user, zoneId, zoneName, recordGPSUpdate, logGPSFix, logVehicleScan, refetchScans])
+  }, [user, zoneId, zoneName, recordGPSUpdate, refetchScans])
 
   const handleViewHistory = () => {
     if (user?.role === 'officer') {
@@ -390,7 +294,6 @@ export default function FieldOfficerPortal() {
       {scanMode === 'bulk' ? (
         <BulkScanSession
           recordGPSUpdate={recordGPSUpdate}
-          logVehicleScan={logVehicleScan}
           orgWorkflow={orgWorkflow || 'admin_first'}
           onIssueAction={(p) => issueAction.mutate(p)}
           isIssuingAction={issueAction.isPending}
@@ -438,8 +341,6 @@ export default function FieldOfficerPortal() {
               onCapture={handleDetailCapture}
               onCancel={() => { setDetailCameraOpen(false); setScanMode(null) }}
               isProcessing={isProcessing}
-              isBlocked={isOutsideJurisdiction}
-              blockedReason="You are not within your authorised patrol jurisdiction. Move into your assigned patrol area to resume scanning."
             />
           </div>
         </div>
@@ -450,12 +351,8 @@ export default function FieldOfficerPortal() {
           <div className="grid gap-4 grid-cols-2 mb-6">
             {/* ── Detail Scan card ────────────────────────────── */}
             <Card
-              className={`hover:shadow-lg transition-shadow border-2 border-blue-300 dark:border-blue-800 ${isOutsideJurisdiction ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}`}
+              className="hover:shadow-lg transition-shadow border-2 border-blue-300 dark:border-blue-800 cursor-pointer"
               onClick={() => {
-                if (isOutsideJurisdiction) {
-                  toast.warning('⚠️ Camera disabled — move into your assigned patrol zone to scan vehicles.')
-                  return
-                }
                 if (!user?.id || !user?.organization_id) { toast.error('Session expired'); return }
                 if (!navigator.mediaDevices?.getUserMedia) { toast.error('Camera not available'); return }
                 setScanMode('detail')
@@ -466,8 +363,8 @@ export default function FieldOfficerPortal() {
             >
               <CardHeader className="pb-2">
                 <div className="flex items-center gap-2">
-                  <div className={`p-2 rounded-lg shrink-0 ${isOutsideJurisdiction ? 'bg-gray-100 dark:bg-gray-800' : 'bg-blue-100 dark:bg-blue-900'}`}>
-                    <Search className={`h-5 w-5 ${isOutsideJurisdiction ? 'text-gray-400' : 'text-blue-600 dark:text-blue-400'}`} />
+                  <div className="p-2 bg-blue-100 dark:bg-blue-900 rounded-lg shrink-0">
+                    <Search className="h-5 w-5 text-blue-600 dark:text-blue-400" />
                   </div>
                   <div>
                     <CardTitle className="text-sm">Detail Scan</CardTitle>
@@ -478,26 +375,16 @@ export default function FieldOfficerPortal() {
                 </div>
               </CardHeader>
               <CardContent className="pt-0">
-                {isOutsideJurisdiction ? (
-                  <p className="text-[11px] text-orange-600 dark:text-orange-400 font-medium">
-                    🚫 Outside patrol zone — scanning unavailable
-                  </p>
-                ) : (
-                  <p className="text-[11px] text-muted-foreground">
-                    Targeted inspection. Edit corrections, add H&amp;S, issue warnings or notices.
-                  </p>
-                )}
+                <p className="text-[11px] text-muted-foreground">
+                  Targeted inspection. Edit corrections, add H&amp;S, issue warnings or notices.
+                </p>
               </CardContent>
             </Card>
 
             {/* ── Bulk (Zoom) Scan card ────────────────────────── */}
             <Card
-              className={`hover:shadow-lg transition-shadow border-2 border-yellow-300 dark:border-yellow-800 ${isOutsideJurisdiction ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}`}
+              className="hover:shadow-lg transition-shadow border-2 border-yellow-300 dark:border-yellow-800 cursor-pointer"
               onClick={() => {
-                if (isOutsideJurisdiction) {
-                  toast.warning('⚠️ Camera disabled — move into your assigned patrol zone to scan vehicles.')
-                  return
-                }
                 if (!user?.id || !user?.organization_id) { toast.error('Session expired'); return }
                 if (!navigator.mediaDevices?.getUserMedia) { toast.error('Camera not available'); return }
                 setScanMode('bulk')
@@ -505,8 +392,8 @@ export default function FieldOfficerPortal() {
             >
               <CardHeader className="pb-2">
                 <div className="flex items-center gap-2">
-                  <div className={`p-2 rounded-lg shrink-0 ${isOutsideJurisdiction ? 'bg-gray-100 dark:bg-gray-800' : 'bg-yellow-100 dark:bg-yellow-900'}`}>
-                    <Zap className={`h-5 w-5 ${isOutsideJurisdiction ? 'text-gray-400' : 'text-yellow-600 dark:text-yellow-400'}`} />
+                  <div className="p-2 bg-yellow-100 dark:bg-yellow-900 rounded-lg shrink-0">
+                    <Zap className="h-5 w-5 text-yellow-600 dark:text-yellow-400" />
                   </div>
                   <div>
                     <CardTitle className="text-sm">Bulk Scan</CardTitle>
@@ -517,15 +404,9 @@ export default function FieldOfficerPortal() {
                 </div>
               </CardHeader>
               <CardContent className="pt-0">
-                {isOutsideJurisdiction ? (
-                  <p className="text-[11px] text-orange-600 dark:text-orange-400 font-medium">
-                    🚫 Outside patrol zone — scanning unavailable
-                  </p>
-                ) : (
-                  <p className="text-[11px] text-muted-foreground">
-                    Camera stays open. Scan one after another with live breach tally.
-                  </p>
-                )}
+                <p className="text-[11px] text-muted-foreground">
+                  Camera stays open. Scan one after another with live breach tally.
+                </p>
               </CardContent>
             </Card>
           </div>
@@ -656,32 +537,19 @@ export default function FieldOfficerPortal() {
         </>
       )}
 
-      {/* Location Authorization Status — always visible outside bulk mode */}
-      {scanMode !== 'bulk' && user?.organization_id && (
+      {/* Location Authorization Status */}
+      {scanMode !== 'bulk' && currentLocation && user?.organization_id && (
         <div className="mt-6">
-          {currentLocation ? (
-            <LocationAuthorizationStatus
-              organizationId={user.organization_id}
-              latitude={currentLocation.latitude}
-              longitude={currentLocation.longitude}
-              refreshInterval={15000}
-              onStatusChange={handleJurisdictionChange}
-            />
-          ) : (
-            <Card>
-              <CardContent className="p-4">
-                <div className="flex items-center gap-2 text-gray-500">
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-600" />
-                  <span className="text-sm">Acquiring GPS location…</span>
-                </div>
-              </CardContent>
-            </Card>
-          )}
+          <LocationAuthorizationStatus
+            organizationId={user.organization_id}
+            latitude={currentLocation.latitude}
+            longitude={currentLocation.longitude}
+            refreshInterval={10000}
+          />
         </div>
       )}
 
       {/* Info Card — includes enforcement workflow badge */}
-      {scanMode !== 'bulk' && (
       <Card className="mt-6 bg-slate-50 dark:bg-slate-900/50">
         <CardHeader>
           <CardTitle className="text-sm">Officer Status</CardTitle>
@@ -694,7 +562,7 @@ export default function FieldOfficerPortal() {
             </div>
             <div className="flex justify-between">
               <span>Organisation:</span>
-              <span>{orgName || `${user?.organization_id?.substring(0, 8)}...`}</span>
+              <span>{user?.organization_id?.substring(0, 8)}...</span>
             </div>
             <div className="flex justify-between items-center">
               <span>Enforcement Mode:</span>
@@ -714,7 +582,6 @@ export default function FieldOfficerPortal() {
           </div>
         </CardContent>
       </Card>
-      )}
 
       {/* ── Recent Scans with enforcement actions ─────────────────────────── */}
       {scanMode !== 'bulk' && !showCheckpoint && !detailCameraOpen && recentScans.length > 0 && (
