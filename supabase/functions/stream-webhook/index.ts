@@ -120,7 +120,9 @@ Deno.serve(async (req) => {
         // Extract vehicle details from Stream AI
         const vehicleMake = result.vehicle?.make?.[0]?.value || null;
         const vehicleColor = result.vehicle?.color?.[0]?.value || null;
-        const vehicleYear = result.vehicle?.year?.[0] || null;
+        // Stream AI returns year as a string (e.g. "2018"). Safe-parse to integer
+        // because observations.vehicle_year is INTEGER while canonical_vehicles.vehicle_year is TEXT.
+        const rawVehicleYear = result.vehicle?.year?.[0] || null;
 
         // Check canonical vehicle for existing details
         const { data: canonicalVehicle } = await supabaseAdmin
@@ -134,7 +136,12 @@ Deno.serve(async (req) => {
         const finalMake = vehicleMake || previousRecords?.[0]?.vehicle_make || null;
         const finalModel = previousRecords?.[0]?.vehicle_model || null;
         const finalColor = vehicleColor || previousRecords?.[0]?.vehicle_color || null;
-        const finalYear = vehicleYear || previousRecords?.[0]?.vehicle_year || null;
+        // Resolve the year from AI result or canonical record (both may be TEXT).
+        // Parse to integer for observations.vehicle_year (INTEGER column).
+        const rawFinalYear = rawVehicleYear || previousRecords?.[0]?.vehicle_year || null;
+        const finalYear: number | null = rawFinalYear
+          ? (parseInt(String(rawFinalYear), 10) || null)
+          : null;
 
         // Check for flagged vehicle (OFFICER SAFETY)
         const { data: flaggedVehicle } = await supabaseAdmin

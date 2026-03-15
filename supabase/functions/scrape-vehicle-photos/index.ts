@@ -455,10 +455,11 @@ Deno.serve(async (req: Request) => {
     };
 
     // Only update make/model/year if we extracted them and the record
-    // doesn't already have authoritative values from MotorWeb
+    // doesn't already have authoritative values from MotorWeb.
+    // canonical_vehicles.vehicle_year is TEXT — convert number to string.
     if (vehicleMake) updatePayload.vehicle_make = vehicleMake;
     if (vehicleModel) updatePayload.vehicle_model = vehicleModel;
-    if (vehicleYear) updatePayload.vehicle_year = vehicleYear;
+    if (vehicleYear) updatePayload.vehicle_year = String(vehicleYear);
 
     // Ensure the canonical record exists (upsert with minimal required fields)
     const { data: updated, error: dbError } = await supabase
