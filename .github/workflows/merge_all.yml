@@ -26,14 +26,20 @@ name: FreedomCamp Manager — All Workflows
 #   Railway:                RAILWAY_TOKEN  (PROJECT token, not personal)
 #                           RAILWAY_SERVICE_ID
 #                           INFERENCE_SERVICE_URL  (optional, for health check)
-#   Supabase:               SUPABASE_ACCESS_TOKEN, SUPABASE_PROJECT_REF
-#                           SUPABASE_DB_PASSWORD
+#   Supabase (preferred):   SUPABASE_ACCESS_TOKEN
+#                           PRODUCTION_PROJECT_ID, PRODUCTION_DB_PASSWORD
+#                           STAGING_PROJECT_ID,    STAGING_DB_PASSWORD  (optional)
+#   Supabase (legacy):      SUPABASE_PROJECT_REF, SUPABASE_DB_PASSWORD
+#                           (accepted as fallbacks when PRODUCTION_* are absent)
 #   ParkPow / Maps:         SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
 #                           STATSNZ_API_KEY  (optional)
 #   Data migration:         SUPABASE_DB_PASSWORD_SOURCE, SUPABASE_DB_PASSWORD_TARGET
 #   Legacy data migration:  SUPABASEV2_SERVICE_ROLE_KEY
 #   Schema extraction:      DATABASE_URL (recommended) or PGHOST+PGUSER+PGPASSWORD+PGDATABASE
-#                           Falls back to SUPABASE_PROJECT_REF + SUPABASE_DB_PASSWORD
+#                           Falls back to PRODUCTION_PROJECT_ID + PRODUCTION_DB_PASSWORD
+#                           (or legacy SUPABASE_PROJECT_REF + SUPABASE_DB_PASSWORD)
+#
+# See docs/SUPABASE_GITHUB_SETUP.md for full secret setup instructions.
 # ===========================================================================
 
 on:
@@ -1460,17 +1466,28 @@ jobs:
       - name: Check Supabase secrets
         id: check_secrets
         env:
-          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-          SUPABASE_PROJECT_REF:  ${{ secrets.SUPABASE_PROJECT_REF }}
-          SUPABASE_DB_PASSWORD:  ${{ secrets.SUPABASE_DB_PASSWORD }}
+          SUPABASE_ACCESS_TOKEN:   ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          # Preferred production secret names
+          PRODUCTION_PROJECT_ID:   ${{ secrets.PRODUCTION_PROJECT_ID }}
+          PRODUCTION_DB_PASSWORD:  ${{ secrets.PRODUCTION_DB_PASSWORD }}
+          # Legacy fallback names
+          SUPABASE_PROJECT_REF:    ${{ secrets.SUPABASE_PROJECT_REF }}
+          SUPABASE_DB_PASSWORD:    ${{ secrets.SUPABASE_DB_PASSWORD }}
         run: |
-          if [ -n "$SUPABASE_ACCESS_TOKEN" ] && [ -n "$SUPABASE_PROJECT_REF" ]; then
+          # Resolve: prefer PRODUCTION_* names; fall back to legacy SUPABASE_* names.
+          PROJECT_ID="${PRODUCTION_PROJECT_ID:-${SUPABASE_PROJECT_REF:-}}"
+          DB_PASSWORD="${PRODUCTION_DB_PASSWORD:-${SUPABASE_DB_PASSWORD:-}}"
+
+          echo "project_id=${PROJECT_ID}"   >> "$GITHUB_OUTPUT"
+          echo "db_password=${DB_PASSWORD}" >> "$GITHUB_OUTPUT"
+
+          if [ -n "$SUPABASE_ACCESS_TOKEN" ] && [ -n "$PROJECT_ID" ]; then
             echo "has_api_secrets=true" >> "$GITHUB_OUTPUT"
           else
             echo "has_api_secrets=false" >> "$GITHUB_OUTPUT"
             echo "::notice::Supabase API secrets not configured — skipping Management API extraction."
           fi
-          if [ -n "$SUPABASE_ACCESS_TOKEN" ] && [ -n "$SUPABASE_PROJECT_REF" ] && [ -n "$SUPABASE_DB_PASSWORD" ]; then
+          if [ -n "$SUPABASE_ACCESS_TOKEN" ] && [ -n "$PROJECT_ID" ] && [ -n "$DB_PASSWORD" ]; then
             echo "has_full_secrets=true" >> "$GITHUB_OUTPUT"
           else
             echo "has_full_secrets=false" >> "$GITHUB_OUTPUT"
@@ -1480,13 +1497,12 @@ jobs:
         if: steps.check_secrets.outputs.has_api_secrets == 'true'
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-          SUPABASE_PROJECT_REF:  ${{ secrets.SUPABASE_PROJECT_REF }}
         run: |
           set -euo pipefail
           mkdir -p tools/schema-extract/output/live
 
           supabase gen types typescript \
-            --project-id "$SUPABASE_PROJECT_REF" \
+            --project-id "${{ steps.check_secrets.outputs.project_id }}" \
             --schema public \
             > tools/schema-extract/output/live/database.ts
 
@@ -1507,12 +1523,12 @@ jobs:
         if: steps.check_secrets.outputs.has_full_secrets == 'true'
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-          SUPABASE_PROJECT_REF:  ${{ secrets.SUPABASE_PROJECT_REF }}
-          SUPABASE_DB_PASSWORD:  ${{ secrets.SUPABASE_DB_PASSWORD }}
         run: |
           set -euo pipefail
           OUT="tools/schema-extract/output/live"
-          supabase link --project-ref "$SUPABASE_PROJECT_REF" --password "$SUPABASE_DB_PASSWORD"
+          supabase link \
+            --project-ref "${{ steps.check_secrets.outputs.project_id }}" \
+            --password    "${{ steps.check_secrets.outputs.db_password }}"
           supabase inspect db table-sizes --linked  > "$OUT/table_sizes.txt"  2>/dev/null || true
           supabase inspect db index-sizes --linked  > "$OUT/index_sizes.txt"  2>/dev/null || true
 
