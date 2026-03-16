@@ -14,6 +14,8 @@ interface QueuedObservation {
   photo_url: string
   photo_blob?: Blob
   zone_id: string
+  organization_id: string
+  idempotency_key: string
   gps_latitude: number
   gps_longitude: number
   gps_accuracy: number | null
@@ -147,13 +149,15 @@ export function useOfflineQueue() {
 
   // Add to queue mutation
   const addToQueue = useMutation({
-    mutationFn: async (observation: Omit<QueuedObservation, 'id' | 'created_at' | 'sync_attempts' | 'status'>) => {
+    mutationFn: async (observation: Omit<QueuedObservation, 'id' | 'created_at' | 'sync_attempts' | 'status' | 'organization_id' | 'idempotency_key'>) => {
       const queuedObs: QueuedObservation = {
         ...observation,
         id: crypto.randomUUID(),
         created_at: new Date().toISOString(),
         sync_attempts: 0,
         status: 'pending',
+        organization_id: user?.organization_id || '',
+        idempotency_key: `observation-${user?.id}-${Date.now()}-${crypto.randomUUID().slice(0, 8)}`,
       }
 
       await addToDB(queuedObs)
@@ -199,12 +203,15 @@ export function useOfflineQueue() {
           body: {
             plate: observation.plate_number,
             zoneId: observation.zone_id,
+            organizationId: observation.organization_id,
+            idempotencyKey: observation.idempotency_key,
             gpsLatitude: observation.gps_latitude,
             gpsLongitude: observation.gps_longitude,
             gpsAccuracy: observation.gps_accuracy,
             recordedAt: observation.recorded_at,
             notes: observation.officer_notes,
             ...(imageDataUrl ? { image: imageDataUrl } : {}),
+            ...(observation.photo_url && !imageDataUrl ? { photo_url: observation.photo_url } : {}),
             requires_manual_entry: !observation.plate_number,
           },
         })

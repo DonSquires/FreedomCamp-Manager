@@ -62,16 +62,7 @@ export default function ScanScreen() {
       if (status !== 'granted') throw new Error('Location permission denied')
       const loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High })
 
-      // 3. Weather (non-blocking)
-      let weatherConditions = 'Unknown'
-      try {
-        const { data: wd } = await supabase.functions.invoke('get-weather', {
-          body: { latitude: loc.coords.latitude, longitude: loc.coords.longitude },
-        })
-        if (wd?.weather) weatherConditions = wd.weather
-      } catch { /* non-critical */ }
-
-      // 4. Get or create zone
+      // 3. Get or create zone
       const { data: zoneId } = await supabase.rpc('ensure_other_location_zone', {
         p_organization_id: user?.organization_id,
       })
@@ -84,7 +75,7 @@ export default function ScanScreen() {
       })
       const imageDataUrl = `data:image/jpeg;base64,${imageBase64}`
 
-      // 5. Upload photo
+      // 4. Upload photo
       toast.loading('Uploading photo...')
       const timestamp = Date.now()
       const uniqueId = Array.from(crypto.getRandomValues(new Uint8Array(8)))
@@ -105,7 +96,7 @@ export default function ScanScreen() {
       const { data: urlData } = supabase.storage.from('scans').getPublicUrl(filePath)
       const photoUrl = urlData.publicUrl
 
-      // 6. Detect plate via ALPR
+      // 5. Detect plate via ALPR
       toast.loading('Running plate detection...')
       const alprTimeoutMs = 5000
       const alprResult = await Promise.race([
@@ -132,7 +123,7 @@ export default function ScanScreen() {
       const detectedPlate = alprData?.plate || alprData?.plate_number || null
       const detectedConfidence = alprData?.confidence || null
 
-      // 7. Create observation via unified ingest pipeline
+      // 6. Create observation via unified ingest pipeline
       toast.loading('Saving...')
       const idempotencyKey = `scan-${user?.id}-${timestamp}`
       const { data: ingestData, error: ingestError } = await supabase.functions.invoke('vehicle-ingest', {
@@ -146,7 +137,6 @@ export default function ScanScreen() {
           organizationId: user?.organization_id,
           zoneId,
           idempotencyKey,
-          weather: weatherConditions,
           plate: detectedPlate,
           confidence: detectedConfidence,
           requires_manual_entry: !detectedPlate,

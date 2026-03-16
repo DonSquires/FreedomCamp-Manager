@@ -347,6 +347,8 @@ function BreachesTab({
         return query;
       };
 
+      // Keep both id and observation_id variants for backward compatibility across
+      // environments. Relation selectors use legacy FK constraint names.
       const joinSelects = [
         'id, plate_number, recorded_at, breach_type, breach_reason, zone_id, zones!vehicle_observations_v2_zone_id_fkey(name), organizations!vehicle_observations_v2_organization_id_fkey(name)',
         'id:observation_id, plate_number, recorded_at, breach_type, breach_reason, zone_id, zones!vehicle_observations_v2_zone_id_fkey(name), organizations!vehicle_observations_v2_organization_id_fkey(name)',

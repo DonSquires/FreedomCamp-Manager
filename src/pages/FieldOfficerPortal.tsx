@@ -105,13 +105,6 @@ export default function FieldOfficerPortal() {
           'zone:zones!zone_id(name)',
           'vehicle:canonical_vehicles!plate_number(homeless_status, is_exempt)',
         ].join(', '),
-        // Fallback: try id alias in case schema cache is stale
-        [
-          'id:observation_id, plate_number, recorded_at, is_compliant',
-          'photo, photo_url, zone_id, breach_type, consecutive_nights, nights_stayed_this_month',
-          'zone:zones!zone_id(name)',
-          'vehicle:canonical_vehicles!plate_number(homeless_status, is_exempt)',
-        ].join(', '),
         // Minimal fallback
         [
           'observation_id, plate_number, recorded_at, is_compliant',

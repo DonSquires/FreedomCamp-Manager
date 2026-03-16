@@ -88,7 +88,7 @@ export function ScanQueue({ onRetrySuccess }: ScanQueueProps) {
         return <Clock className="h-4 w-4 text-yellow-600" />
       case 'failed':
         return <AlertCircle className="h-4 w-4 text-red-600" />
-      case 'success':
+      case 'synced':
         return <CheckCircle2 className="h-4 w-4 text-green-600" />
       default:
         return <Clock className="h-4 w-4" />
@@ -101,8 +101,8 @@ export function ScanQueue({ onRetrySuccess }: ScanQueueProps) {
         return <Badge variant="secondary">Pending</Badge>
       case 'failed':
         return <Badge variant="destructive">Failed</Badge>
-      case 'success':
-        return <Badge className="bg-green-600">Success</Badge>
+      case 'synced':
+        return <Badge className="bg-green-600">Synced</Badge>
       default:
         return <Badge>{status}</Badge>
     }

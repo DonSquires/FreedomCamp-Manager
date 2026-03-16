@@ -75,7 +75,7 @@ export default function ComplianceDashboard() {
     queryFn: async () => {
       let query = (supabase.from('observations') as any)
         .select(`
-          id:observation_id,
+          observation_id,
           plate_number,
           recorded_at,
           zones:zone_id(name)
@@ -99,7 +99,7 @@ export default function ComplianceDashboard() {
       const { data } = await query
 
       return (data || []).map(obs => ({
-        id: obs.id,
+        id: obs.observation_id,
         type: 'observation' as const,
         plate_number: obs.plate_number,
         zone_name: (obs.zones as any)?.name || 'Unknown Zone',
@@ -115,7 +115,7 @@ export default function ComplianceDashboard() {
     try {
       // Get recent observations with photos
       let query = (supabase.from('observations') as any)
-        .select('id:observation_id, photo_url, plate_number')
+        .select('observation_id, photo_url, plate_number')
         .not('photo_url', 'is', null)
         .order('recorded_at', { ascending: false })
         .limit(5)

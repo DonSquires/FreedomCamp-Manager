@@ -130,8 +130,7 @@ export default function ObservationRecords() {
       // Select BOTH photo columns so getObservationPhotoUrl() can find
       // the URL regardless of which column stores it.
       const primarySelects = [
-        `id, plate_number, recorded_at, zone_id, photo, photo_url, is_compliant, officer_notes, gps_latitude, gps_longitude${extraCols}${zoneJoin}`,
-        `id:observation_id, plate_number, recorded_at, zone_id, photo, photo_url, is_compliant, officer_notes, gps_latitude, gps_longitude${extraCols}${zoneJoin}`,
+        `observation_id, plate_number, recorded_at, zone_id, photo, photo_url, is_compliant, officer_notes, gps_latitude, gps_longitude${extraCols}${zoneJoin}`,
       ]
 
       // Primary path: use relationship join when schema cache has it.
@@ -144,15 +143,17 @@ export default function ObservationRecords() {
         primaryQuery = applyFilters(primaryQuery)
         const primary = await primaryQuery
         if (!primary.error) {
-          return (primary.data || []) as ObservationRow[]
+          return ((primary.data || []) as any[]).map((row: any) => ({
+            ...row,
+            id: row.observation_id,
+          })) as ObservationRow[]
         }
       }
 
       // Fallback path: fetch observations without join and resolve zone names manually.
       let fallback: any = null
       const fallbackSelects = [
-        `id, plate_number, recorded_at, zone_id, photo, photo_url, is_compliant, officer_notes, gps_latitude, gps_longitude${extraCols}`,
-        `id:observation_id, plate_number, recorded_at, zone_id, photo, photo_url, is_compliant, officer_notes, gps_latitude, gps_longitude${extraCols}`,
+        `observation_id, plate_number, recorded_at, zone_id, photo, photo_url, is_compliant, officer_notes, gps_latitude, gps_longitude${extraCols}`,
       ]
 
       for (const selectClause of fallbackSelects) {
@@ -181,6 +182,7 @@ export default function ObservationRecords() {
 
       return rawRows.map((row) => ({
         ...row,
+        id: row.observation_id,
         zone: row.zone_id ? { name: zoneNameById.get(row.zone_id) || 'Unknown zone' } : null,
       })) as ObservationRow[]
     },

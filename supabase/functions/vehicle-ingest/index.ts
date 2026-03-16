@@ -397,8 +397,8 @@ Deno.serve(async (req) => {
       }
     }
 
-    if (!organizationId || !zoneId) {
-      return new Response(JSON.stringify({ error: "Missing organizationId or zoneId" }), {
+    if (!zoneId) {
+      return new Response(JSON.stringify({ error: "Missing zoneId" }), {
         status: 400,
         headers: { ...getCorsHeaders(req), "content-type": "application/json" },
       });

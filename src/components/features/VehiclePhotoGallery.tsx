@@ -50,7 +50,7 @@ export function VehiclePhotoGallery({
     queryFn: async () => {
       const { data, error } = await (supabase.from('observations') as any)
         .select(`
-          id:observation_id,
+          observation_id,
           photo,
           photo_url,
           photo_hash,
@@ -71,6 +71,7 @@ export function VehiclePhotoGallery({
       // Resolve photo URL from whichever column has data (photo takes priority)
       return (data || []).map((row: any) => ({
         ...row,
+        id: row.observation_id,
         photo_url: getObservationPhotoUrl(row) ?? row.photo_url ?? row.photo,
       }))
     },

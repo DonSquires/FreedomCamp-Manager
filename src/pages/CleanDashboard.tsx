@@ -243,6 +243,7 @@ function OverviewTab() {
   const { data: recentObs, isLoading } = useQuery({
     queryKey: ['overview-recent'],
     queryFn: async () => {
+      // Relation selectors reference FK constraint names (legacy `vehicle_observations_v2_*`).
       const { data } = await supabase
         .from('observations')
         .select(

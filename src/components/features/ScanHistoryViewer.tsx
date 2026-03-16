@@ -44,7 +44,7 @@ export function ScanHistoryViewer({
     queryFn: async () => {
       let query = (supabase.from('observations') as any)
         .select(`
-          id:observation_id,
+          observation_id,
           plate_number,
           photo_url,
           recorded_at,
@@ -68,7 +68,10 @@ export function ScanHistoryViewer({
       const { data, error } = await query
 
       if (error) throw error
-      return data || []
+      return (data || []).map((row: any) => ({
+        ...row,
+        id: row.observation_id,
+      }))
     },
     enabled: !!user,
   })

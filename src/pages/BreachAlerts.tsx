@@ -75,6 +75,8 @@ interface BreachAlert {
   admin_review_notes: string | null
 }
 
+// Supabase relation selectors use FK constraint names. The `vehicle_observations_v2_*`
+// names are legacy constraint identifiers retained after table renames.
 const OBSERVATION_SELECT_FIELDS = 'id, photo, photo_url, recorded_at, gps_latitude, gps_longitude, vehicle_make, vehicle_model, vehicle_year, vehicle_color, has_homeless_claim, homeless_claim_notes, officer_notes, zones!vehicle_observations_v2_zone_id_fkey(name)'
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || ''
 
@@ -402,6 +404,7 @@ export default function BreachAlerts() {
         const resolved = await Promise.all(
           (rows || []).map(async (row: any) => ({
             ...row,
+            id: row.observation_id ?? row.id,
             display_url: await resolveEvidencePhotoUrl(row.photo ?? row.photo_url),
           }))
         )
@@ -412,7 +415,7 @@ export default function BreachAlerts() {
       const observationId = getBreachObservationId(activeBreach)
       if (observationId) {
         const byId = await (supabase.from('observations') as any)
-          .select('id:observation_id, photo, photo_url, recorded_at, gps_latitude, gps_longitude, zones!vehicle_observations_v2_zone_id_fkey(name)')
+          .select('observation_id, photo, photo_url, recorded_at, gps_latitude, gps_longitude, zones!vehicle_observations_v2_zone_id_fkey(name)')
           .eq('observation_id', observationId)
           .limit(1)
 
@@ -423,7 +426,7 @@ export default function BreachAlerts() {
       }
 
       const strictQuery = (supabase.from('observations') as any)
-        .select('id:observation_id, photo, photo_url, recorded_at, gps_latitude, gps_longitude, zones!vehicle_observations_v2_zone_id_fkey(name)')
+        .select('observation_id, photo, photo_url, recorded_at, gps_latitude, gps_longitude, zones!vehicle_observations_v2_zone_id_fkey(name)')
         .eq('plate_number', activeBreach.plate_number)
         .eq('organization_id', activeBreach.organization_id)
         .lte('recorded_at', activeBreach.created_at)
@@ -439,7 +442,7 @@ export default function BreachAlerts() {
 
       // Fallback: ignore org/date constraints when data quality is inconsistent.
       const fallback = await (supabase.from('observations') as any)
-        .select('id:observation_id, photo, photo_url, recorded_at, gps_latitude, gps_longitude, zones!vehicle_observations_v2_zone_id_fkey(name)')
+        .select('observation_id, photo, photo_url, recorded_at, gps_latitude, gps_longitude, zones!vehicle_observations_v2_zone_id_fkey(name)')
         .eq('plate_number', activeBreach.plate_number)
         .or('photo.not.is.null,photo_url.not.is.null')
         .order('recorded_at', { ascending: false })
