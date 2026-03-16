@@ -123,19 +123,33 @@ jobs:
             echo "No future-dated migration files detected."
           fi
 
+      - name: Resolve Supabase credentials
+        id: creds
+        run: |
+          if [[ -n "${SUPABASE_DB_PASSWORD:-}" && -n "${SUPABASE_PROJECT_REF:-}" ]]; then
+            echo "has_creds=true"                      >> "$GITHUB_OUTPUT"
+            echo "project_id=${SUPABASE_PROJECT_REF}" >> "$GITHUB_OUTPUT"
+            echo "target=${SUPABASE_PROJECT_REF}"      >> "$GITHUB_OUTPUT"
+          else
+            echo "has_creds=false"                    >> "$GITHUB_OUTPUT"
+            echo "project_id="                        >> "$GITHUB_OUTPUT"
+            echo "target=(not configured)"            >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Check remote migration state
-        if: ${{ env.SUPABASE_ACCESS_TOKEN != '' && env.SUPABASE_DB_PASSWORD != '' && env.SUPABASE_PROJECT_REF != '' }}
+        if: ${{ env.SUPABASE_ACCESS_TOKEN != '' && steps.creds.outputs.has_creds == 'true' }}
         run: |
           set -euo pipefail
+          echo "Checking remote migration state for ${{ steps.creds.outputs.target }}…"
           supabase link \
-            --project-ref "$SUPABASE_PROJECT_REF" \
+            --project-ref "${{ steps.creds.outputs.project_id }}" \
             --password    "$SUPABASE_DB_PASSWORD"
           echo "Current remote migration state:"
           supabase migration list || true
 
       - name: Warn if secrets are absent
-        if: ${{ env.SUPABASE_ACCESS_TOKEN == '' || env.SUPABASE_DB_PASSWORD == '' || env.SUPABASE_PROJECT_REF == '' }}
+        if: ${{ env.SUPABASE_ACCESS_TOKEN == '' || steps.creds.outputs.has_creds == 'false' }}
         run: |
           echo "::notice::Remote migration check skipped — Supabase secrets not configured."
-          echo "  Set SUPABASE_ACCESS_TOKEN, SUPABASE_DB_PASSWORD, and SUPABASE_PROJECT_REF"
-          echo "  in repository secrets to enable remote state validation."
+          echo "  To enable remote state validation, set the following repository secrets:"
+          echo "    SUPABASE_ACCESS_TOKEN, SUPABASE_DB_PASSWORD, SUPABASE_PROJECT_REF"
