@@ -40,6 +40,7 @@ export function useVehicleAnalysis(plateNumber?: string) {
         .from('observations')
         .select(`
           plate_number,
+          photo,
           photo_url,
           vehicle_make,
           vehicle_model,
@@ -50,7 +51,7 @@ export function useVehicleAnalysis(plateNumber?: string) {
         `)
         .eq('plate_number', plateNumber)
         
-        .not('photo_url', 'is', null)
+        .or('photo.not.is.null,photo_url.not.is.null')
         .order('recorded_at', { ascending: false })
 
       if (error) {
@@ -60,7 +61,7 @@ export function useVehicleAnalysis(plateNumber?: string) {
 
       return data.map(obs => ({
         plate_number: obs.plate_number,
-        photo_url: obs.photo_url,
+        photo_url: obs.photo ?? obs.photo_url,
         ai_make: obs.vehicle_make,
         ai_model: obs.vehicle_model,
         ai_color: obs.vehicle_color,
@@ -139,8 +140,8 @@ export function useAnalyzeObservation(observationId: string | null) {
       // Get observation
       const { data: obs, error: obsError } = await (supabase as any)
         .from('observations')
-        .select('photo_url, plate_number')
-        .eq('id', observationId)
+        .select('photo, photo_url, plate_number')
+        .eq('observation_id', observationId)
         .single()
 
       if (obsError) throw obsError
@@ -148,7 +149,7 @@ export function useAnalyzeObservation(observationId: string | null) {
       // Analyze photo
       const { data, error } = await supabase.functions.invoke('analyze-vehicle-photo', {
         body: { 
-          photo_url: obs.photo_url,
+          photo_url: obs.photo ?? obs.photo_url,
           plate_number: obs.plate_number,
         },
       })
