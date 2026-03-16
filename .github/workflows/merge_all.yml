@@ -1439,93 +1439,85 @@ jobs:
     if: github.event_name == 'workflow_dispatch' && github.event.inputs.job == 'extract-schema'
 
     steps:
-      - name: Resolve database connection
-        id: resolve_db
-        env:
-          DATABASE_URL:          ${{ secrets.DATABASE_URL }}
-          PGHOST:                ${{ secrets.PGHOST }}
-          PGUSER:                ${{ secrets.PGUSER }}
-          PGPASSWORD:            ${{ secrets.PGPASSWORD }}
-          PGDATABASE:            ${{ secrets.PGDATABASE }}
-          PGPORT:                ${{ secrets.PGPORT }}
-          SUPABASE_PROJECT_REF:  ${{ secrets.SUPABASE_PROJECT_REF }}
-          SUPABASE_DB_PASSWORD:  ${{ secrets.SUPABASE_DB_PASSWORD }}
-        run: |
-          if [ -n "${DATABASE_URL:-}" ]; then
-            echo "mode=database_url" >> "$GITHUB_OUTPUT"; exit 0
-          fi
-          if [ -n "${PGHOST:-}" ] && [ -n "${PGUSER:-}" ] && [ -n "${PGPASSWORD:-}" ] && [ -n "${PGDATABASE:-}" ]; then
-            echo "mode=pgvars" >> "$GITHUB_OUTPUT"; exit 0
-          fi
-          if [ -n "${SUPABASE_PROJECT_REF:-}" ] && [ -n "${SUPABASE_DB_PASSWORD:-}" ]; then
-            echo "mode=supabase" >> "$GITHUB_OUTPUT"; exit 0
-          fi
-          echo "::error::No database credentials configured. Set DATABASE_URL, PG* secrets, or SUPABASE_PROJECT_REF + SUPABASE_DB_PASSWORD."
-          exit 1
-
       - name: Checkout repository
         uses: actions/checkout@v5
 
-      - name: Install PostgreSQL client tools
-        run: |
-          sudo apt-get install -y --no-install-recommends curl ca-certificates
-          sudo install -d /usr/share/postgresql-common/pgdg
-          sudo curl -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc \
-            --fail https://www.postgresql.org/media/keys/ACCC4CF8.asc
-          . /etc/os-release
-          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt ${VERSION_CODENAME}-pgdg main" \
-            | sudo tee /etc/apt/sources.list.d/pgdg.list >/dev/null
-          sudo apt-get update -qq
-          sudo apt-get install -y --no-install-recommends postgresql-client-17
+      # ── Strategy 1: Supabase Management API (live schema) ───────────
+      - name: Setup Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
 
-      - name: Run schema extraction
+      - name: Check Supabase secrets
+        id: check_secrets
         env:
-          DATABASE_URL:          ${{ secrets.DATABASE_URL }}
-          PGHOST:                ${{ secrets.PGHOST }}
-          PGPORT:                ${{ secrets.PGPORT }}
-          PGUSER:                ${{ secrets.PGUSER }}
-          PGPASSWORD:            ${{ secrets.PGPASSWORD }}
-          PGDATABASE:            ${{ secrets.PGDATABASE }}
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_PROJECT_REF:  ${{ secrets.SUPABASE_PROJECT_REF }}
           SUPABASE_DB_PASSWORD:  ${{ secrets.SUPABASE_DB_PASSWORD }}
-          SUPABASE_POOLER_HOST:  ${{ secrets.SUPABASE_POOLER_HOST }}
-          CONNECTION_MODE:       ${{ steps.resolve_db.outputs.mode }}
-          EXTRACT_MODE:          ${{ github.event.inputs.extract_mode }}
+        run: |
+          if [ -n "$SUPABASE_ACCESS_TOKEN" ] && [ -n "$SUPABASE_PROJECT_REF" ]; then
+            echo "has_api_secrets=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_api_secrets=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Supabase API secrets not configured — skipping Management API extraction."
+          fi
+          if [ -n "$SUPABASE_ACCESS_TOKEN" ] && [ -n "$SUPABASE_PROJECT_REF" ] && [ -n "$SUPABASE_DB_PASSWORD" ]; then
+            echo "has_full_secrets=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_full_secrets=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Generate TypeScript types from live schema
+        if: steps.check_secrets.outputs.has_api_secrets == 'true'
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_REF:  ${{ secrets.SUPABASE_PROJECT_REF }}
         run: |
           set -euo pipefail
+          mkdir -p tools/schema-extract/output/live
 
-          # ── Guard: rewrite direct db.<ref>.supabase.co → pooler ──────
-          # Direct Supabase database hosts resolve to IPv6 which is
-          # unreachable from GitHub Actions runners.  When detected,
-          # do an in-place rewrite: extract the project ref from the
-          # hostname and swap to the pooler, preserving the original
-          # credentials so that separate SUPABASE_* secrets are not
-          # required to match.
-          if [[ "${DATABASE_URL:-}" == *"@db."*".supabase.co"* ]]; then
-            POOLER_HOST="${SUPABASE_POOLER_HOST:-aws-0-ap-southeast-2.pooler.supabase.com}"
-            URL_REF=$(echo "$DATABASE_URL" | sed -n 's|.*@db\.\([^.]*\)\.supabase\.co.*|\1|p')
-            if [ -n "$URL_REF" ]; then
-              NEW_URL="$DATABASE_URL"
-              # Prefix username for the pooler: postgres → postgres.<ref>
-              NEW_URL=$(echo "$NEW_URL" | sed "s|://postgres:|://postgres.${URL_REF}:|")
-              # Swap the direct host with the connection-pooler host
-              NEW_URL=$(echo "$NEW_URL" | sed "s|@db\.[^.]*\.supabase\.co:[0-9]*|@${POOLER_HOST}:5432|")
-              export DATABASE_URL="$NEW_URL"
-              echo "Rewrote direct db.*.supabase.co → pooler (${POOLER_HOST})."
+          supabase gen types typescript \
+            --project-id "$SUPABASE_PROJECT_REF" \
+            --schema public \
+            > tools/schema-extract/output/live/database.ts
+
+          echo "✅ Live types written to tools/schema-extract/output/live/database.ts"
+
+          if [ -f src/types/database.ts ]; then
+            if diff -u src/types/database.ts tools/schema-extract/output/live/database.ts \
+                 > tools/schema-extract/output/live/type_drift.diff 2>/dev/null; then
+              echo "✅ No type drift detected."
+              rm -f tools/schema-extract/output/live/type_drift.diff
             else
-              echo "::warning::DATABASE_URL uses a direct Supabase host (db.*.supabase.co) which resolves to IPv6."
-              echo "::warning::GitHub Actions runners cannot reach IPv6. Update DATABASE_URL to use the Session-mode pooler URI"
-              echo "::warning::from Supabase Dashboard → Project Settings → Database → Connection string."
+              echo "::warning::src/types/database.ts does not match the live schema."
+              head -100 tools/schema-extract/output/live/type_drift.diff
             fi
           fi
 
-          if [ "$CONNECTION_MODE" = "supabase" ] && [ -z "${DATABASE_URL:-}" ]; then
-            POOLER_HOST="${SUPABASE_POOLER_HOST:-aws-0-ap-southeast-2.pooler.supabase.com}"
-            export DATABASE_URL="postgresql://postgres.${SUPABASE_PROJECT_REF}:${SUPABASE_DB_PASSWORD}@${POOLER_HOST}:5432/postgres?sslmode=require"
-            echo "Using derived Supabase pooler connection (host: ${POOLER_HOST})."
-          fi
-          chmod +x tools/schema-extract/run_extract.sh
-          tools/schema-extract/run_extract.sh
+      - name: Inspect live schema details
+        if: steps.check_secrets.outputs.has_full_secrets == 'true'
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_REF:  ${{ secrets.SUPABASE_PROJECT_REF }}
+          SUPABASE_DB_PASSWORD:  ${{ secrets.SUPABASE_DB_PASSWORD }}
+        run: |
+          set -euo pipefail
+          OUT="tools/schema-extract/output/live"
+          supabase link --project-ref "$SUPABASE_PROJECT_REF" --password "$SUPABASE_DB_PASSWORD"
+          supabase inspect db table-sizes --linked  > "$OUT/table_sizes.txt"  2>/dev/null || true
+          supabase inspect db index-sizes --linked  > "$OUT/index_sizes.txt"  2>/dev/null || true
+
+      # ── Strategy 2: Local migration replay (no secrets needed) ──────
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends postgresql-client
+
+      - name: Run migration-replay extraction
+        run: |
+          set -euo pipefail
+          chmod +x tools/schema-extract/extract_via_migrations.sh
+          ./tools/schema-extract/extract_via_migrations.sh
 
       - name: Upload output as artifact
         uses: actions/upload-artifact@v5
