@@ -345,8 +345,9 @@ export const dataVerification = {
 
   /**
    * Verify compliance state is populated on all observations
-   * NOTE: compliance_results table was dropped in 20260221_rebuild_observations_clean.sql.
-   * Compliance state (is_compliant, breach_type) is now stored directly on observations.
+   * NOTE: compliance_results table EXISTS in the live DB (1,959 rows per Schema Extract #20)
+   * but compliance state is ALSO stored directly on observations (is_compliant, breach_type,
+   * breach_reason). The observations-row fields are authoritative for scan pipeline writes.
    */
   async verifyComplianceResults() {
     const { data: observationsData } = await supabase

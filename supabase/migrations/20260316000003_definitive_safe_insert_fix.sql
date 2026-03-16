@@ -6,11 +6,14 @@
 --   The safe_insert_observation function body in the live database still
 --   references vehicle_observations_v2 (from a pre-rename version of the
 --   function that was never successfully overwritten because:
---     (a) 20260416000001's ROLLBACK-on-verification-fail pattern may have
---         reverted the fix on the live DB, and
---     (b) every April migration uses GRANT...TO authenticated which
---         causes ROLLBACK in the migration-replay environment and hints
---         at similar fragility elsewhere.
+--     (a) migration 20260416000001's ROLLBACK-on-verification-fail pattern
+--         may have reverted the fix on the live DB, and
+--     (b) the GRANT...TO authenticated statement used in migrations
+--         20260404000001, 20260407000001, 20260408000001, 20260411000003,
+--         and 20260416000001 causes transaction ROLLBACK in the local
+--         migration-replay environment (no 'authenticated' role exists),
+--         and similar fragility may exist on the live DB if any prior
+--         migration failed mid-transaction.
 --
 -- This migration is the ONE TRUE FIX:
 --   • Drops and re-creates safe_insert_observation cleanly — no REPLACE,

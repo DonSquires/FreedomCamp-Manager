@@ -6,9 +6,9 @@
 > from the repository owner (@DonSquires) via a reviewed and approved Pull Request.**
 > See [SCHEMA_VALIDATION_CHECKLIST.md](../SCHEMA_VALIDATION_CHECKLIST.md) for the full governance policy.
 
-**Last verified:** 2026-03-15  
-**Verified by:** Copilot schema alignment audit (Schema Extract #8 pass) against migrations through 20260416000001  
-**Live row counts at verification:** observations 30,789 · canonical_vehicles 61,535 · zones 4,336 · breach_alerts 0 · user_profiles 7
+**Last verified:** 2026-03-16  
+**Verified by:** Copilot schema alignment audit (Schema Extract #20 pass) against migrations through 20260316000003  
+**Live row counts at verification:** observations 30,789 · canonical_vehicles 61,535 · zones 3,731 · breach_alerts 1,484 · user_profiles 7 · compliance_results 1,959
 
 ---
 
@@ -114,10 +114,11 @@ Then update this file, update `src/types/database.ts`, and open a PR for review.
 > `compliance_summary` (use `compliance_snapshot`),
 > `image_url` (use `photo` or `photo_url`)
 >
-> **Note:** `weather_conditions`, `processing_status`, `plate_confidence`, `sticker_presence`,
-> `movement_moved`, etc. are **present** in the live DB (added by migrations 20260220000004,
-> 20260312000010, 20260401000001). They were previously listed as absent in the checklist —
-> that was corrected in Schema Extract #8.
+> **Note:** `weather_conditions` is **NOT present** in the live DB (Schema Extract #20 confirmed
+> absent — column was referenced in migrations but not present in supabase gen types output).
+> `processing_status`, `plate_confidence`, `sticker_presence`, `movement_moved`, etc. **are present**
+> in the live DB (added by migrations 20260312000010, 20260401000001). Previously listed as absent
+> in the checklist — corrected in Schema Extract #8.
 
 ### Triggers on observations
 
@@ -250,9 +251,9 @@ Then update this file, update `src/types/database.ts`, and open a PR for review.
 > `resolved_by` — use `admin_reviewed_by` instead
 >
 > **⚠️ DEPRECATED LINK** — `compliance_result_id` column exists but is always NULL.
-> The `compliance_results` table was **DROPPED** in `20260221_rebuild_observations_clean.sql`.
-> Compliance state lives directly on `observations` rows. Use `observation_id` (FK to observations)
-> to link a breach alert to its source observation.
+> The `compliance_results` table **EXISTS** in the live DB (Schema Extract #20: 1,959 rows).
+> Compliance state is ALSO stored directly on `observations` rows (is_compliant, breach_type,
+> breach_reason). Use `observation_id` (FK to observations) to link a breach alert to its source observation.
 >
 > **⚠️ CONDITIONAL COLUMN** — may exist as a generated alias:  
 > `detected_at` — added by migration `20260313000002_schema_wiring_alignment.sql` as  

@@ -79,7 +79,10 @@ export const COMPLIANCE_DRIFT_COLUMNS = new Set([
  * DO NOT add columns that must always be written.
  */
 export const OPTIONAL_SCHEMA_COLUMNS = new Set([
-  // weather_conditions: added by 20260220000004 — present in live DB
+  // weather_conditions: migration 20260220000004 added this column but it is
+  // NOT present in the live DB (Schema Extract #20 confirmed absent).
+  // Listed here as a safety net: if a payload includes it, a schema-cache-miss
+  // error will be handled by stripping the column and retrying.
   "weather_conditions",
   // AI processing pipeline — added by 20260312000010 & 20260401000001
   "processing_status",

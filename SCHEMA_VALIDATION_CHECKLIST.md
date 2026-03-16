@@ -19,7 +19,7 @@
 
 ## Quick Reference for Audit Findings
 
-> **Last updated:** Schema Extract #8 (2026-03-15 run #8, main branch commit 5797ce9)
+> **Last updated:** Schema Extract #20 (2026-03-16 run, main branch)
 
 ### 🔴 Critical: Know Which Columns Actually Exist
 
@@ -30,10 +30,12 @@ The following columns are **absent from the live schema** — do not add them to
 - `compliance_summary` — use `compliance_snapshot` instead
 - `image_url` — use `photo` (primary) or `photo_url` (secondary)
 
-> ⚠️ **Schema Extract #8 UPDATE** — the following columns were previously listed as absent but
-> are **confirmed PRESENT** in the live DB (added by migrations 20260312000010, 20260220000004,
-> 20260401000001):
-> `weather_conditions`, `processing_status`, `processing_started_at`, `processing_completed_at`,
+> ⚠️ **Schema Extract #20 CORRECTION** — `weather_conditions` is **NOT present** in the live
+> DB (Schema Extract #20 live `gen types` output does not include it). It was previously listed
+> as confirmed present in Schema Extract #8 — that was incorrect.
+> The following columns **are confirmed PRESENT** in the live DB (added by migrations
+> 20260312000010, 20260401000001):
+> `processing_status`, `processing_started_at`, `processing_completed_at`,
 > `processing_error`, `plate_confidence`, `vehicle_make_confidence`, `vehicle_model_confidence`,
 > `vehicle_color_confidence`, `sticker_presence`, `sticker_color`, `sticker_bbox`,
 > `sticker_detection_confidence`, `sticker_color_confidence`,
@@ -49,7 +51,7 @@ The following columns are **absent from the live schema** — do not add them to
 **breach_alerts (absent):**
 - `resolved_by` — use `admin_reviewed_by`
 - `detected_at` — added as a generated alias `GENERATED ALWAYS AS (created_at) STORED` by migration `20260313000002`. Verify it exists before using it; if absent, fall back to `created_at`.
-- `compliance_result_id` — column exists on the row but is always NULL; the `compliance_results` table was DROPPED in `20260221_rebuild_observations_clean.sql`. Use `observation_id` to link breach alerts to their source observation.
+- `compliance_result_id` — column exists on the row but is always NULL; the `compliance_results` table **EXISTS** in the live DB (Schema Extract #20: 1,959 rows) but compliance state is ALSO stored directly on `observations` rows. Use `observation_id` to link breach alerts to their source observation.
 
 These are tracked in `supabase/functions/_shared/observationInsert.ts::OPTIONAL_SCHEMA_COLUMNS` so that any stale code that still writes them fails gracefully (schema-cache error → column stripped → retry).
 

@@ -2,10 +2,10 @@
  * Custom Hook: useVehicleCompliance
  * Real-time compliance checks and compliance history
  *
- * NOTE: The compliance_results table was dropped in migration
- * 20260221_rebuild_observations_clean.sql. Compliance state is now
- * stored directly on the observations table (is_compliant, breach_type,
- * breach_reason, nights_stayed_this_month, consecutive_nights).
+ * NOTE: The compliance_results table EXISTS in the live DB (Schema Extract #20:
+ * 1,959 rows). Compliance state is ALSO stored directly on the observations
+ * table (is_compliant, breach_type, breach_reason, nights_stayed_this_month,
+ * consecutive_nights). The observations-row fields are authoritative.
  */
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
