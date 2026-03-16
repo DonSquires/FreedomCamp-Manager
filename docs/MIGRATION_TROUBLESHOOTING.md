@@ -83,6 +83,7 @@ entries with no corresponding single local file:
 | `20260309` | `20260309000001_…` through `20260309000004_…` |
 | `20260312` | `20260312000001_…` through `20260312000012_…` |
 | `20260313` | `20260313000001_…`, `20260313000002_…`, `20260313000010_…`, `20260313_fix_admin_officer_rls.sql` |
+| `20260315` | `20260315000001_revert_officer_shifts_and_site_visits.sql` |
 | `20260316` | `20260316000001_…`, `20260316000002_…` |
 | `20260320` | `20260320000001_…` through `20260320000003_…` |
 
@@ -90,8 +91,56 @@ Revert all of them in one command:
 
 ```bash
 supabase migration repair --status reverted \
-  20250127 20260309 20260312 20260313 20260316 20260320
+  20250127 20260309 20260312 20260313 20260315 20260316 20260320
 ```
+
+---
+
+## Future-Dated Migrations
+
+**Background:** During March–April 2026 a number of migration files were
+committed with version dates in April 2026 (e.g. `20260401000001` through
+`20260416000001`) while the actual calendar date was still in March 2026.
+These migrations are correctly applied in the remote database with those
+version numbers.
+
+**Why this matters — the silent-skip trap:**
+
+Supabase applies migrations in ascending version order.  If a new migration is
+created today with the actual current date (e.g. `20260316XXXXXX`), it will
+sort _before_ the already-applied April migrations in the remote history.
+`supabase db push` will then detect "local migrations before remote tail" and
+— if the auto-repair logic in the workflow runs — silently mark the new file
+as *applied* without ever executing its SQL.  **Schema changes will be
+skipped without any error.**
+
+**Rule: always use a version dated AFTER the latest applied migration.**
+
+To find the latest applied version:
+
+```bash
+ls supabase/migrations | sort | tail -1
+# Example output: 20260416000001_fix_vehicle_observations_v2_normalisation.sql
+# → next safe version prefix: 20260417 (or 20260416000002 for same-day)
+```
+
+New migrations must use a version ≥ `20260417000001` until the wall-clock
+date catches up to April 17, 2026.
+
+**Detecting future-dated files:**
+
+The `migration-check` CI workflow (`.github/workflows/migration-check.yml`)
+includes a step that warns whenever migration files are dated ahead of the
+current calendar date, and prints the minimum version prefix that is safe to
+use for new work.
+
+**Summary table:**
+
+| Situation | Safe action |
+|-----------|-------------|
+| Adding a new migration now (< 2026-04-17) | Use version prefix `20260417000001` or later |
+| Adding a new migration after 2026-04-17 | Use actual date as normal (`YYYYMMDD000001`) |
+| Reviewing CI warning about future-dated files | Check the warning message for the minimum safe version |
 
 ---
 
@@ -182,10 +231,15 @@ supabase db push
    creating a matching local migration file first.
 2. **Use full timestamp versions** (`YYYYMMDDHHMMSS`) for all new migrations,
    especially when multiple migrations are created on the same day.
-3. **Avoid renaming migration files** after they have been applied remotely.
-4. **Always run `supabase migration list`** before and after pushing to verify
+3. **Never use a version date earlier than the latest applied migration.**
+   If future-dated migrations exist in the repo, new files must use a version
+   dated *after* the latest one.  Run `ls supabase/migrations | sort | tail -1`
+   to find the current tail, then use the next calendar day as your prefix.
+   See [Future-Dated Migrations](#future-dated-migrations) for details.
+4. **Avoid renaming migration files** after they have been applied remotely.
+5. **Always run `supabase migration list`** before and after pushing to verify
    the state.
-5. **The CI workflow** (`.github/workflows/supabase-db-push.yml`) handles known
+6. **The CI workflow** (`.github/workflows/supabase-db-push.yml`) handles known
    drift automatically.  If it fails, run `scripts/fix-migration-sync.sh`
    locally and commit any resulting migration repairs.
 
