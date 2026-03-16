@@ -2,11 +2,15 @@
 // Reingest Photos — Batch reprocess existing observation photos
 // ============================================================================
 // Purpose: Query existing observations that have photos, and for each one
-//          call the vehicle-ingest pipeline to create a NEW observation record.
+//          create a NEW observation record and run compliance evaluation.
 //          Treats every photo as if it were freshly submitted by an officer.
 //
 // Supports batched pagination via get_total / offset / batch_size, following
 // the same pattern used by recalculate-compliance-v3 and cleanup-and-recalculate.
+//
+// Performance: Photo hash is reused from the source observation (no photo
+// download).  Compliance evaluation is invoked via the
+// auto_evaluate_compliance_and_create_breach RPC after each insert.
 // ============================================================================
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.7";
@@ -22,37 +26,6 @@ function getCorsHeaders(_req?: Request) {
   };
 }
 
-async function sha256Hash(data: Uint8Array): Promise<string> {
-  const hashBuffer = await crypto.subtle.digest("SHA-256", data);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
-}
-
-function parseStorageLocation(raw: string): { bucket: string; path: string } | null {
-  const input = String(raw || "").trim();
-  if (!input) return null;
-
-  if (/^https?:\/\//i.test(input)) {
-    try {
-      const url = new URL(input);
-      const decodedPath = decodeURIComponent(url.pathname);
-      const match = decodedPath.match(/\/storage\/v1\/object\/(?:public|sign|authenticated)\/([^/]+)\/(.+)$/);
-      if (!match) return null;
-      return { bucket: match[1], path: match[2].replace(/^\/+/, "") };
-    } catch {
-      return null;
-    }
-  }
-
-  const cleaned = input.replace(/^\/+/, "");
-  const idx = cleaned.indexOf("/");
-  if (idx <= 0) return null;
-  const bucket = cleaned.slice(0, idx);
-  const path = cleaned.slice(idx + 1).replace(/^\/+/, "");
-  if (!bucket || !path) return null;
-  return { bucket, path };
-}
-
 const MAX_INSERT_ATTEMPTS = 8;
 
 Deno.serve(async (req) => {
@@ -62,9 +35,9 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+    const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
+    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     // ── Auth guard ──────────────────────────────────────────────────────────
@@ -142,7 +115,8 @@ Deno.serve(async (req) => {
 
     // ── get_total mode: return count only ────────────────────────────────────
     if (getTotal) {
-      const { count, error: countError } = await buildQuery("observation_id", "exact").range(0, 0);
+      const { count, error: countError } = await buildQuery("observation_id", "exact")
+        .limit(0);
       if (countError) {
         return new Response(
           JSON.stringify({ error: `Count query failed: ${countError.message}` }),
@@ -185,7 +159,6 @@ Deno.serve(async (req) => {
     for (const obs of observations) {
       const observationId = obs.observation_id || "";
       const photoUrl = obs.photo || obs.photo_url || "";
-      const photoHash = obs.photo_hash || null;
 
       if (!photoUrl) {
         failed++;
@@ -193,31 +166,9 @@ Deno.serve(async (req) => {
         continue;
       }
 
-      // Compute photo hash if not available from source observation
-      let resolvedPhotoHash = photoHash;
-      if (!resolvedPhotoHash) {
-        try {
-          const storageLocation = parseStorageLocation(photoUrl);
-          if (storageLocation) {
-            const { data: fileData, error: downloadError } = await supabase.storage
-              .from(storageLocation.bucket)
-              .download(storageLocation.path);
-            if (!downloadError && fileData) {
-              const bytes = new Uint8Array(await fileData.arrayBuffer());
-              resolvedPhotoHash = await sha256Hash(bytes);
-            }
-          }
-          if (!resolvedPhotoHash && /^https?:\/\//i.test(photoUrl)) {
-            const resp = await fetch(photoUrl, { signal: AbortSignal.timeout(8000) });
-            if (resp.ok) {
-              const bytes = new Uint8Array(await resp.arrayBuffer());
-              resolvedPhotoHash = await sha256Hash(bytes);
-            }
-          }
-        } catch {
-          // Continue without hash — it's not required for insert
-        }
-      }
+      // Reuse existing photo hash — no need to download the photo again.
+      // The hash is only used for dedup and is optional.
+      const resolvedPhotoHash = obs.photo_hash || null;
 
       // Build new observation data — same photo, fresh record
       const newIdempotencyKey = `reingest-${observationId}-${Date.now()}`;
@@ -225,7 +176,7 @@ Deno.serve(async (req) => {
         plate_number: obs.plate_number || "MANUAL_REQUIRED",
         photo: photoUrl,
         photo_url: photoUrl,
-        photo_hash: resolvedPhotoHash ?? null,
+        photo_hash: resolvedPhotoHash,
         recorded_at: obs.recorded_at ?? new Date().toISOString(),
         zone_id: obs.zone_id,
         organization_id: obs.organization_id,
@@ -267,6 +218,24 @@ Deno.serve(async (req) => {
             reason: (insertError as any)?.message || "insert_failed",
           });
           continue;
+        }
+
+        const newObservationId = (newObs as any).observation_id ?? (newObs as any).id;
+
+        // Trigger compliance evaluation for the new observation
+        if (newObservationId) {
+          try {
+            await supabase.rpc("auto_evaluate_compliance_and_create_breach", {
+              p_observation_id: newObservationId,
+            });
+          } catch (compErr: any) {
+            // Compliance evaluation failure is non-fatal — the observation was
+            // still created.  Log it so the admin can investigate.
+            console.warn(
+              `⚠️ Compliance evaluation failed for reingested observation ${newObservationId}:`,
+              compErr?.message || compErr,
+            );
+          }
         }
 
         created++;
