@@ -6,10 +6,23 @@ name: Migration check
 # This workflow runs automatically on push to main or pull requests that touch
 # migration files, and can also be triggered manually for ad-hoc checks.
 #
-# Required repository secrets (same as supabase-db-push.yml):
-#   SUPABASE_ACCESS_TOKEN   — Supabase personal access token (sbp_…)
-#   SUPABASE_DB_PASSWORD    — Database password for the linked project
-#   SUPABASE_PROJECT_REF    — Supabase project reference ID
+# Required repository secrets (set via Settings → Secrets and variables → Actions):
+#   SUPABASE_ACCESS_TOKEN    — Supabase personal access token (sbp_…)
+#                              Obtain from https://supabase.com/dashboard/account/tokens
+#
+# Production target (preferred names):
+#   PRODUCTION_PROJECT_ID    — Supabase project reference ID for production
+#   PRODUCTION_DB_PASSWORD   — Database password for the production project
+#
+# Legacy / fallback names (still accepted if the preferred names are absent):
+#   SUPABASE_PROJECT_REF     — Alias for PRODUCTION_PROJECT_ID
+#   SUPABASE_DB_PASSWORD     — Alias for PRODUCTION_DB_PASSWORD
+#
+# Staging target (optional — remote check is skipped when absent):
+#   STAGING_PROJECT_ID       — Supabase project reference ID for staging
+#   STAGING_DB_PASSWORD      — Database password for the staging project
+#
+# See docs/SUPABASE_GITHUB_SETUP.md for full setup instructions.
 
 on:
   push:
@@ -20,6 +33,15 @@ on:
     paths:
       - 'supabase/migrations/**'
   workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to check against (production or staging)'
+        required: false
+        default: 'production'
+        type: choice
+        options:
+          - production
+          - staging
 
 env:
   # supabase/setup-cli@v1 still bundles Node.js 20; force the runner to use
@@ -33,9 +55,16 @@ jobs:
     permissions:
       contents: read
     env:
-      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
-      SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
-      SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+      SUPABASE_ACCESS_TOKEN:    ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      # Preferred production secret names
+      PRODUCTION_PROJECT_ID:    ${{ secrets.PRODUCTION_PROJECT_ID }}
+      PRODUCTION_DB_PASSWORD:   ${{ secrets.PRODUCTION_DB_PASSWORD }}
+      # Legacy fallback names (used when preferred names are absent)
+      SUPABASE_PROJECT_REF:     ${{ secrets.SUPABASE_PROJECT_REF }}
+      SUPABASE_DB_PASSWORD:     ${{ secrets.SUPABASE_DB_PASSWORD }}
+      # Optional staging secrets
+      STAGING_PROJECT_ID:       ${{ secrets.STAGING_PROJECT_ID }}
+      STAGING_DB_PASSWORD:      ${{ secrets.STAGING_DB_PASSWORD }}
     steps:
       - name: Checkout repo
         uses: actions/checkout@v5
@@ -81,19 +110,51 @@ jobs:
             echo "No short-form/long-form migration conflicts detected."
           fi
 
-      - name: Check remote migration state
-        if: ${{ env.SUPABASE_ACCESS_TOKEN != '' && env.SUPABASE_DB_PASSWORD != '' && env.SUPABASE_PROJECT_REF != '' }}
+      - name: Resolve project credentials
+        id: creds
         run: |
           set -euo pipefail
+          # Determine target environment (manual dispatch may override; default to production).
+          TARGET="${{ inputs.environment || 'production' }}"
+
+          if [ "$TARGET" = "staging" ]; then
+            PROJECT_ID="${STAGING_PROJECT_ID:-}"
+            DB_PASSWORD="${STAGING_DB_PASSWORD:-}"
+          else
+            # Prefer new PRODUCTION_* names; fall back to legacy SUPABASE_* names.
+            PROJECT_ID="${PRODUCTION_PROJECT_ID:-${SUPABASE_PROJECT_REF:-}}"
+            DB_PASSWORD="${PRODUCTION_DB_PASSWORD:-${SUPABASE_DB_PASSWORD:-}}"
+          fi
+
+          echo "project_id=${PROJECT_ID}"   >> "$GITHUB_OUTPUT"
+          echo "db_password=${DB_PASSWORD}" >> "$GITHUB_OUTPUT"
+          echo "target=${TARGET}"           >> "$GITHUB_OUTPUT"
+
+          if [ -z "$PROJECT_ID" ] || [ -z "$DB_PASSWORD" ]; then
+            echo "has_creds=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_creds=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Check remote migration state
+        if: ${{ env.SUPABASE_ACCESS_TOKEN != '' && steps.creds.outputs.has_creds == 'true' }}
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ env.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          set -euo pipefail
+          echo "Checking remote migration state for ${{ steps.creds.outputs.target }}…"
           supabase link \
-            --project-ref "$SUPABASE_PROJECT_REF" \
-            --password    "$SUPABASE_DB_PASSWORD"
+            --project-ref "${{ steps.creds.outputs.project_id }}" \
+            --password    "${{ steps.creds.outputs.db_password }}"
           echo "Current remote migration state:"
           supabase migration list || true
 
       - name: Warn if secrets are absent
-        if: ${{ env.SUPABASE_ACCESS_TOKEN == '' || env.SUPABASE_DB_PASSWORD == '' || env.SUPABASE_PROJECT_REF == '' }}
+        if: ${{ env.SUPABASE_ACCESS_TOKEN == '' || steps.creds.outputs.has_creds == 'false' }}
         run: |
           echo "::notice::Remote migration check skipped — Supabase secrets not configured."
-          echo "  Set SUPABASE_ACCESS_TOKEN, SUPABASE_DB_PASSWORD, and SUPABASE_PROJECT_REF"
-          echo "  in repository secrets to enable remote state validation."
+          echo "  To enable remote state validation, set the following repository secrets:"
+          echo "  • SUPABASE_ACCESS_TOKEN   (from https://supabase.com/dashboard/account/tokens)"
+          echo "  • PRODUCTION_PROJECT_ID   (Supabase Dashboard → Project Settings → General → Reference ID)"
+          echo "  • PRODUCTION_DB_PASSWORD  (Supabase Dashboard → Project Settings → Database → Database password)"
+          echo "  See docs/SUPABASE_GITHUB_SETUP.md for full instructions."
