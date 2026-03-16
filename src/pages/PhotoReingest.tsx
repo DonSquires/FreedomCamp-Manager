@@ -64,6 +64,10 @@ export default function PhotoReingest() {
       setProgress(globalProgress)
     }
     if (globalLiveProgress) {
+      // Map generic OperationProgress fields to reingest-specific LiveRunState.
+      // OperationProgress is designed for compliance recalculation, so we reuse:
+      //   changed        → created (new observations created)
+      //   breachesCreated → failed  (observations that failed to reingest)
       setLiveRun({
         total: globalLiveProgress.total,
         processed: globalLiveProgress.processed,
@@ -72,6 +76,9 @@ export default function PhotoReingest() {
       })
     }
     if (globalResult && !result) {
+      // Map generic OperationResult fields to reingest-specific ReingestResult.
+      //   compliance_changed → created (new observations created)
+      //   breaches_created   → failed  (observations that failed to reingest)
       setResult({
         processed: globalResult.observations_processed,
         created: globalResult.compliance_changed,
@@ -157,6 +164,7 @@ export default function PhotoReingest() {
         failed: failedTotal,
       }
       setLiveRun(liveState)
+      // Map reingest fields to OperationProgress: changed=created, breachesCreated=failed
       updateProgress(OPERATION_ID, progressPct, {
         total,
         processed: processedTotal,
@@ -192,6 +200,7 @@ export default function PhotoReingest() {
     onSuccess: (data) => {
       setProgress(100)
       setResult(data)
+      // Map reingest fields to OperationResult: compliance_changed=created, breaches_created=failed
       completeOperation(OPERATION_ID, {
         observations_processed: data.processed,
         compliance_changed: data.created,
