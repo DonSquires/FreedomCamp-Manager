@@ -220,9 +220,10 @@ jobs:
     permissions:
       contents: read
     outputs:
-      admin-portal: ${{ steps.diff.outputs.admin-portal }}
-      mobile-app:   ${{ steps.diff.outputs.mobile-app }}
-      inference:    ${{ steps.diff.outputs.inference }}
+      admin-portal:   ${{ steps.diff.outputs.admin-portal }}
+      mobile-app:     ${{ steps.diff.outputs.mobile-app }}
+      inference:      ${{ steps.diff.outputs.inference }}
+      edge-functions: ${{ steps.diff.outputs.edge-functions }}
     steps:
       - uses: actions/checkout@v5
         with:
@@ -233,9 +234,10 @@ jobs:
         run: |
           if [ "$GITHUB_EVENT_NAME" != "push" ]; then
             # Non-push events: each job's own 'if:' condition handles routing
-            echo "admin-portal=false" >> "$GITHUB_OUTPUT"
-            echo "mobile-app=false"   >> "$GITHUB_OUTPUT"
-            echo "inference=false"    >> "$GITHUB_OUTPUT"
+            echo "admin-portal=false"   >> "$GITHUB_OUTPUT"
+            echo "mobile-app=false"     >> "$GITHUB_OUTPUT"
+            echo "inference=false"      >> "$GITHUB_OUTPUT"
+            echo "edge-functions=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
@@ -254,6 +256,10 @@ jobs:
           # Inference service
           INFER=$(echo "$CHANGED" | grep -cE '^inference-service/' || true)
           echo "inference=$([ "${INFER:-0}" -gt 0 ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
+
+          # Edge functions: any change inside supabase/functions/
+          EDGE=$(echo "$CHANGED" | grep -cE '^supabase/functions/' || true)
+          echo "edge-functions=$([ "${EDGE:-0}" -gt 0 ] && echo true || echo false)" >> "$GITHUB_OUTPUT"
 
   # ===========================================================================
   # 1. Deploy Admin Portal to Vercel
@@ -762,9 +768,12 @@ jobs:
   deploy-edge-functions:
     name: Deploy Supabase Edge Functions
     runs-on: ubuntu-latest
+    needs: [changed-paths]
     permissions:
       contents: read
-    if: github.event_name == 'workflow_dispatch' && github.event.inputs.job == 'deploy-edge-functions'
+    if: >-
+      (github.event_name == 'push' && needs.changed-paths.outputs.edge-functions == 'true') ||
+      (github.event_name == 'workflow_dispatch' && github.event.inputs.job == 'deploy-edge-functions')
     env:
       PUBLIC_FUNCTIONS: "orc-ingest vehicle-ingest alpr-process alpr-retry plate-scanner-photo-first stream-webhook get-weather send-push-notification"
 

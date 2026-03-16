@@ -650,6 +650,7 @@ export const edgeFunctions = {
   /**
    * Reingest photos — batch reprocess existing observation photos through
    * the vehicle-ingest pipeline, creating new observation records.
+   * Toast suppressed here; caller (PhotoReingest.tsx onError) handles it.
    */
   reingestPhotos: async (params: {
     get_total?: boolean
@@ -659,7 +660,7 @@ export const edgeFunctions = {
     date_from?: string
     date_to?: string
   }) => {
-    return callEdgeFunction('reingest-photos', params)
+    return callEdgeFunction('reingest-photos', params, { showToast: false })
   },
 
   // ============================================================================
