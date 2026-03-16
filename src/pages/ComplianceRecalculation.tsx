@@ -108,8 +108,8 @@ export default function ComplianceRecalculation() {
   const { data: recentActions, refetch: refetchActions } = useQuery<RecalcAction[]>({
     queryKey: ['recalculation-actions'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('admin_recalculation_actions' as any)
+      const { data, error } = await (supabase
+        .from('admin_recalculation_actions' as any) as any)
         .select('id, scope_type, observations_processed, compliance_changed, status, started_at, completed_at, duration_seconds, error_message')
         .order('started_at', { ascending: false })
         .limit(10)

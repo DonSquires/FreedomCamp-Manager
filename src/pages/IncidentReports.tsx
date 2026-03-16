@@ -36,8 +36,9 @@ interface Incident {
   severity: string | null
   status: string
   description: string | null
-  retention_hold: boolean
-  retention_until: string | null
+  // retention_hold and retention_until are planned columns not yet in the live DB
+  retention_hold?: boolean
+  retention_until?: string | null
   evidence_count: number
   primary_evidence_url: string | null
   location_lat: number | null
@@ -78,8 +79,6 @@ export default function IncidentReports() {
           severity,
           status,
           description,
-          retention_hold,
-          retention_until,
           evidence_count,
           primary_evidence_url,
           location_lat,
@@ -89,7 +88,7 @@ export default function IncidentReports() {
           metadata,
           created_at,
           zone:zones(name),
-          user_profile:user_profiles(first_name, last_name)
+          user_profile:user_profiles!incidents_user_id_fkey(first_name, last_name)
         `)
         
         .order('created_at', { ascending: false })
@@ -130,13 +129,13 @@ export default function IncidentReports() {
 
       // Filter by plate number search
       if (searchQuery) {
-        return (data as Incident[]).filter(incident =>
+        return (data as unknown as Incident[]).filter(incident =>
           incident.plate_number?.toLowerCase().includes(searchQuery.toLowerCase()) ||
           incident.description?.toLowerCase().includes(searchQuery.toLowerCase())
         )
       }
 
-      return data as Incident[]
+      return data as unknown as Incident[]
     },
   })
 

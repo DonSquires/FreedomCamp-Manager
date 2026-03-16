@@ -109,7 +109,7 @@ async function exportTable(
     dateTo?: string
   }
 ): Promise<any[]> {
-  let query = supabase.from(tableName).select('*')
+  let query = (supabase.from(tableName as any) as any).select('*')
 
   // Apply organization filter if applicable
   if (filters.organizationId && hasOrganizationColumn(tableName)) {

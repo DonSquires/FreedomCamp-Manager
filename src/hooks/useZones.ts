@@ -42,7 +42,7 @@ export function useZones(options: UseZonesOptions = {}) {
 
       // Deduplicate zones by (organization_id, name) — keep first occurrence
       const seen = new Set<string>()
-      const unique = ((data || []) as Zone[]).filter((zone) => {
+      const unique = ((data || []) as unknown as Zone[]).filter((zone) => {
         const key = `${zone.organization_id}::${zone.name.trim().toLowerCase()}`
         if (seen.has(key)) return false
         seen.add(key)
@@ -65,7 +65,7 @@ export function useZone(zoneId: string) {
         .single()
 
       if (error) throw error
-      return data as Zone
+      return data as unknown as Zone
     },
     enabled: !!zoneId,
   })

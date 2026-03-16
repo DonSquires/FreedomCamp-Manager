@@ -246,7 +246,7 @@ function OverviewTab() {
       const { data } = await supabase
         .from('observations')
         .select(
-          'observation_id, plate_number, recorded_at, is_compliant, breach_type, vehicle_make, vehicle_model, vehicle_color, zones(name), organizations(name)'
+          'observation_id, plate_number, recorded_at, is_compliant, breach_type, vehicle_make, vehicle_model, vehicle_color, zones!vehicle_observations_v2_zone_id_fkey(name), organizations!vehicle_observations_v2_organization_id_fkey(name)'
         )
         .order('recorded_at', { ascending: false })
         .limit(10);
@@ -345,7 +345,7 @@ function ObservationsTab() {
       let q = supabase
         .from('observations')
         .select(
-          'observation_id, plate_number, recorded_at, is_compliant, breach_type, breach_reason, vehicle_make, vehicle_model, vehicle_color, self_contained, nights_stayed_this_month, consecutive_nights, officer_notes, gps_latitude, gps_longitude, photo, photo_url, zones(name), organizations(name), user_profiles(first_name, last_name)',
+          'observation_id, plate_number, recorded_at, is_compliant, breach_type, breach_reason, vehicle_make, vehicle_model, vehicle_color, self_contained, nights_stayed_this_month, consecutive_nights, officer_notes, gps_latitude, gps_longitude, photo, photo_url, zones!vehicle_observations_v2_zone_id_fkey(name), organizations!vehicle_observations_v2_organization_id_fkey(name), user_profiles!vehicle_observations_v2_recorded_by_fkey(first_name, last_name)',
           { count: 'exact' }
         )
         .order('recorded_at', { ascending: false })
@@ -668,7 +668,7 @@ function ZonesTab() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('zones')
-        .select('id, name, organization_id, is_active, nights_per_month, max_consecutive_nights, self_contained_required, day_visit_only, organizations(name)')
+        .select('id, name, organization_id, is_active, nights_per_month, max_consecutive_nights, self_contained_required, day_visit_only, organizations!zones_organization_id_fkey(name)')
         .order('is_active', { ascending: false })
         .order('name');
       if (error) throw error;
@@ -818,7 +818,7 @@ function UsersTab() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('user_profiles')
-        .select('id, first_name, last_name, role, organization_id, organizations(name)')
+        .select('id, first_name, last_name, role, organization_id, organizations!user_profiles_organization_id_fkey(name)')
         .order('role')
         .order('last_name');
       if (error) throw error;

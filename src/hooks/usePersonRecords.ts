@@ -72,11 +72,11 @@ export function usePersonRecords(options?: {
   const query = useQuery({
     queryKey: ['person-records', options],
     queryFn: async () => {
-      let query = supabase
-        .from('canonical_persons')
+      let query = (supabase
+        .from('person_records') as any)
         .select(`
           *,
-          confirmer:user_profiles!canonical_persons_homeless_confirmed_by_fkey(first_name, last_name)
+          confirmer:user_profiles(first_name, last_name)
         `)
         .order('created_at', { ascending: false })
 
@@ -110,7 +110,7 @@ export function usePersonRecords(options?: {
   const createPersonRecord = useMutation({
     mutationFn: async (input: CreatePersonRecordInput) => {
       const { data, error } = await (supabase
-        .from('canonical_persons') as any)
+        .from('person_records') as any)
         .insert({
           full_name: input.full_name,
           date_of_birth: input.date_of_birth,
@@ -139,7 +139,7 @@ export function usePersonRecords(options?: {
   // Confirm homeless status mutation
   const confirmHomelessStatus = useMutation({
     mutationFn: async ({ id, confirmed }: { id: string; confirmed: boolean }) => {
-      const { error } = await (supabase.from('canonical_persons') as any)
+      const { error } = await (supabase.from('person_records') as any)
         .update({
           homeless_status: confirmed ? 'confirmed' : null,
           homeless_confirmed_by: confirmed ? user?.id : null,
@@ -161,7 +161,7 @@ export function usePersonRecords(options?: {
   // Update person record mutation
   const updatePersonRecord = useMutation({
     mutationFn: async ({ id, ...updates }: Partial<PersonRecord> & { id: string }) => {
-      const { error } = await (supabase.from('canonical_persons') as any)
+      const { error } = await (supabase.from('person_records') as any)
         .update(updates)
         .eq('id', id)
 
@@ -179,8 +179,8 @@ export function usePersonRecords(options?: {
   // Delete person record mutation
   const deletePersonRecord = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase
-        .from('canonical_persons')
+      const { error } = await (supabase
+        .from('person_records') as any)
         .delete()
         .eq('id', id)
 
@@ -221,17 +221,17 @@ export function usePersonObservations(personId: string | null) {
         .select(`
           *,
           zone:zones(name),
-          observer:user_profiles!person_observations_observed_by_fkey(first_name, last_name)
+          observer:user_profiles!person_observations_recorded_by_fkey(first_name, last_name)
         `)
         .eq('person_id', personId)
-        .order('observed_at', { ascending: false })
+        .order('recorded_at', { ascending: false })
 
       if (error) {
         toast.error('Failed to load observations')
         throw error
       }
 
-      return data as PersonObservation[]
+      return data as unknown as PersonObservation[]
     },
     enabled: !!personId,
   })

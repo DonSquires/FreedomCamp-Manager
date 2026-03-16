@@ -348,10 +348,10 @@ function BreachesTab({
       };
 
       const joinSelects = [
-        'id, plate_number, recorded_at, breach_type, breach_reason, zone_id, zones!observations_zone_id_fkey(name), organizations!observations_organization_id_fkey(name)',
-        'id:observation_id, plate_number, recorded_at, breach_type, breach_reason, zone_id, zones!observations_zone_id_fkey(name), organizations!observations_organization_id_fkey(name)',
-        'id, plate_number, recorded_at, breach_type, zone_id, zones!observations_zone_id_fkey(name), organizations!observations_organization_id_fkey(name)',
-        'id:observation_id, plate_number, recorded_at, breach_type, zone_id, zones!observations_zone_id_fkey(name), organizations!observations_organization_id_fkey(name)',
+        'id, plate_number, recorded_at, breach_type, breach_reason, zone_id, zones!vehicle_observations_v2_zone_id_fkey(name), organizations!vehicle_observations_v2_organization_id_fkey(name)',
+        'id:observation_id, plate_number, recorded_at, breach_type, breach_reason, zone_id, zones!vehicle_observations_v2_zone_id_fkey(name), organizations!vehicle_observations_v2_organization_id_fkey(name)',
+        'id, plate_number, recorded_at, breach_type, zone_id, zones!vehicle_observations_v2_zone_id_fkey(name), organizations!vehicle_observations_v2_organization_id_fkey(name)',
+        'id:observation_id, plate_number, recorded_at, breach_type, zone_id, zones!vehicle_observations_v2_zone_id_fkey(name), organizations!vehicle_observations_v2_organization_id_fkey(name)',
       ];
 
       for (const selectClause of joinSelects) {
@@ -359,7 +359,7 @@ function BreachesTab({
         q = applyObsFilters(q);
         const joined = await q;
         if (!joined.error) {
-          return { rows: (joined.data ?? []) as BreachObservation[], total: joined.count ?? 0 };
+          return { rows: (joined.data ?? []) as unknown as BreachObservation[], total: joined.count ?? 0 };
         }
       }
 

@@ -104,7 +104,7 @@ export function useHealthSafety(options?: {
         throw error
       }
 
-      return data as HealthSafetyReport[]
+      return data as unknown as HealthSafetyReport[]
     },
   })
 
@@ -212,13 +212,12 @@ export function useHSReport(id: string | null) {
     queryFn: async () => {
       if (!id) return null
 
-      const { data, error } = await supabase
-        .from('health_safety_reports')
+      const { data, error } = await (supabase
+        .from('health_safety_reports') as any)
         .select(`
           *,
           zone:zones(name),
-          reporter:user_profiles!health_safety_reports_reported_by_fkey(first_name, last_name),
-          resolver:user_profiles!health_safety_reports_resolved_by_fkey(first_name, last_name)
+          reporter:user_profiles!health_safety_reports_reported_by_fkey(first_name, last_name)
         `)
         .eq('id', id)
         .single()

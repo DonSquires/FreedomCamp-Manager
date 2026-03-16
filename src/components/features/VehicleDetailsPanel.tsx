@@ -57,7 +57,7 @@ export function VehicleDetailsPanel({
         .from('canonical_vehicles')
         .select(`
           *,
-          user_profiles!canonical_vehicles_flagged_by_fkey1 (
+          user_profiles!canonical_vehicles_flagged_by_fkey (
             first_name,
             last_name
           )
@@ -66,7 +66,7 @@ export function VehicleDetailsPanel({
         .single()
 
       if (error) throw error
-      return data as CanonicalVehicleWithFlaggedBy
+      return data as unknown as CanonicalVehicleWithFlaggedBy
     },
   })
 

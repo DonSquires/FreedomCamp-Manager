@@ -21,8 +21,7 @@ interface ComplianceResult {
 interface Jurisdiction {
   id: string
   name: string
-  type: string
-  geom: any
+  organization_type: string | null
 }
 
 interface Restriction {
@@ -49,8 +48,8 @@ export function SpatialComplianceMap({
     async function loadLayers() {
       try {
         const [jurisdictionsData, restrictionsData] = await Promise.all([
-          supabase.from('organizations').select('id, name, type, geom'),
-          supabase.from('restrictions').select('id, name, restriction_type, geom'),
+          supabase.from('organizations').select('id, name, organization_type'),
+          (supabase.from('restrictions') as any).select('id, name, restriction_type, geom'),
         ])
 
         if (jurisdictionsData.data) setJurisdictions(jurisdictionsData.data)
