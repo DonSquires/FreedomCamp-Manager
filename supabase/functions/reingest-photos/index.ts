@@ -9,17 +9,14 @@
 // the same pattern used by recalculate-compliance-v3 and cleanup-and-recalculate.
 //
 // Performance: Photo hash is reused from the source observation (no photo
-// download).  Compliance evaluation is invoked via the
-// auto_evaluate_compliance_and_create_breach RPC after each insert.
+// download). Each source photo is forwarded to vehicle-ingest so reingest uses
+// the same end-to-end ingest pipeline as live officer scans.
 //
 // Improved: Safe body parsing with error handling for empty/invalid JSON bodies.
 // ============================================================================
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.7";
 import { corsHeaders } from "../_shared/cors.ts";
-import {
-  adaptiveObservationInsert,
-} from "../_shared/observationInsert.ts";
 
 function getCorsHeaders(_req?: Request) {
   return {
@@ -28,7 +25,9 @@ function getCorsHeaders(_req?: Request) {
   };
 }
 
-const MAX_INSERT_ATTEMPTS = 8;
+const DEFAULT_BATCH_SIZE = 10;
+const MAX_BATCH_SIZE = 20;
+const VEHICLE_INGEST_TIMEOUT_MS = Number(Deno.env.get("REINGEST_VEHICLE_INGEST_TIMEOUT_MS") ?? "25000");
 
 Deno.serve(async (req) => {
   // Handle CORS preflight
@@ -100,8 +99,12 @@ Deno.serve(async (req) => {
       );
     }
     const getTotal = body.get_total === true;
-    const offset = Number(body.offset ?? 0);
-    const batchSize = Math.min(Number(body.batch_size ?? 50), 100);
+    const rawOffset = Number(body.offset ?? 0);
+    const offset = Number.isFinite(rawOffset) ? Math.max(0, Math.floor(rawOffset)) : 0;
+    const rawBatchSize = Number(body.batch_size ?? DEFAULT_BATCH_SIZE);
+    const batchSize = Number.isFinite(rawBatchSize)
+      ? Math.max(1, Math.min(Math.floor(rawBatchSize), MAX_BATCH_SIZE))
+      : DEFAULT_BATCH_SIZE;
     const organizationId = body.organization_id ?? (profile.role !== "master" ? profile.organization_id : null);
     const dateFrom = body.date_from ?? null;
     const dateTo = body.date_to ?? null;
@@ -164,10 +167,47 @@ Deno.serve(async (req) => {
       );
     }
 
-    // ── Process each observation ────────────────────────────────────────────
+    // ── Process each observation via vehicle-ingest pipeline ───────────────
     let created = 0;
     let failed = 0;
     const failures: Array<{ observation_id: string; reason: string }> = [];
+
+    async function invokeVehicleIngest(payload: Record<string, unknown>) {
+      const response = await fetch(`${supabaseUrl}/functions/v1/vehicle-ingest`, {
+        method: "POST",
+        headers: {
+          "Authorization": authHeader,
+          "Content-Type": "application/json",
+          "apikey": req.headers.get("apikey") || supabaseAnonKey,
+          "x-client-info": req.headers.get("x-client-info") || "reingest-photos/1.0",
+          "x-client-timezone": req.headers.get("x-client-timezone") || "Pacific/Auckland",
+        },
+        body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(VEHICLE_INGEST_TIMEOUT_MS),
+      });
+
+      const responseText = await response.text();
+      let parsed: Record<string, unknown> | null = null;
+      if (responseText) {
+        try {
+          parsed = JSON.parse(responseText);
+        } catch {
+          // Non-JSON response body; keep raw text handling below.
+        }
+      }
+
+      if (!response.ok) {
+        const message = String(
+          parsed?.error ??
+          parsed?.message ??
+          responseText ??
+          `vehicle-ingest upstream error HTTP ${response.status}`,
+        );
+        throw new Error(`[vehicle-ingest ${response.status}] ${message}`);
+      }
+
+      return parsed;
+    }
 
     for (const obs of observations) {
       const observationId = obs.observation_id || "";
@@ -182,81 +222,47 @@ Deno.serve(async (req) => {
       // Reuse existing photo hash — no need to download the photo again.
       // The hash is only used for dedup and is optional.
       const resolvedPhotoHash = obs.photo_hash || null;
+      const zoneId = obs.zone_id || null;
 
-      // Build new observation data — same photo, fresh record
+      if (!zoneId) {
+        failed++;
+        failures.push({ observation_id: observationId, reason: "missing_zone_id" });
+        continue;
+      }
+
+      // Build vehicle-ingest payload using source observation metadata.
       const newIdempotencyKey = `reingest-${observationId}-${Date.now()}`;
-      const observationData: Record<string, unknown> = {
-        plate_number: obs.plate_number || "MANUAL_REQUIRED",
-        photo: photoUrl,
+      const ingestPayload: Record<string, unknown> = {
         photo_url: photoUrl,
         photo_hash: resolvedPhotoHash,
         recorded_at: obs.recorded_at ?? new Date().toISOString(),
-        zone_id: obs.zone_id,
+        zone_id: zoneId,
+        zoneId,
         organization_id: obs.organization_id,
+        organizationId: obs.organization_id,
         gps_latitude: obs.gps_latitude,
         gps_longitude: obs.gps_longitude,
         gps_accuracy: obs.gps_accuracy ?? null,
-        recorded_by: obs.recorded_by ?? profile.id,
+        plate_number: obs.plate_number || null,
+        plate: obs.plate_number || null,
         officer_notes: obs.officer_notes
-          ? `[Reingested] ${obs.officer_notes}`
-          : `[Reingested from ${observationId}]`,
-        vehicle_make: null,
-        vehicle_model: null,
-        vehicle_year: null,
-        vehicle_color: null,
-        self_contained: false,
-        self_contained_expiry: null,
-        is_compliant: true,
-        breach_type: null,
-        breach_reason: null,
-        nights_stayed_this_month: 0,
-        consecutive_nights: 0,
-      };
-
-      // Try to include idempotency_key — the adaptive insert will strip it
-      // if the column doesn't exist.
-      const insertPayload: Record<string, unknown> = {
-        ...observationData,
+          ? `[Reingested from ${observationId}; original_officer=${obs.recorded_by ?? "unknown"}] ${obs.officer_notes}`
+          : `[Reingested from ${observationId}; original_officer=${obs.recorded_by ?? "unknown"}]`,
+        notes: obs.officer_notes
+          ? `[Reingested from ${observationId}; original_officer=${obs.recorded_by ?? "unknown"}] ${obs.officer_notes}`
+          : `[Reingested from ${observationId}; original_officer=${obs.recorded_by ?? "unknown"}]`,
+        idempotencyKey: newIdempotencyKey,
         idempotency_key: newIdempotencyKey,
       };
 
       try {
-        const { data: newObs, error: insertError } =
-          await adaptiveObservationInsert(supabase, insertPayload, MAX_INSERT_ATTEMPTS);
-
-        if (insertError || !newObs) {
-          failed++;
-          failures.push({
-            observation_id: observationId,
-            reason: (insertError as any)?.message || "insert_failed",
-          });
-          continue;
-        }
-
-        const newObservationId = (newObs as any).observation_id ?? (newObs as any).id;
-
-        // Trigger compliance evaluation for the new observation
-        if (newObservationId) {
-          try {
-            await supabase.rpc("auto_evaluate_compliance_and_create_breach", {
-              p_observation_id: newObservationId,
-            });
-          } catch (compErr: any) {
-            // Compliance evaluation failure is non-fatal — the observation was
-            // still created.  Log it so the admin can investigate.
-            console.warn(
-              `⚠️ Compliance evaluation failed for reingested observation ${newObservationId}:`,
-              compErr?.message || compErr,
-            );
-          }
-        }
-
+        await invokeVehicleIngest(ingestPayload);
         created++;
       } catch (err: any) {
         failed++;
         failures.push({
           observation_id: observationId,
-          reason: err?.message || "exception",
+          reason: err?.message || "vehicle_ingest_failed",
         });
       }
     }

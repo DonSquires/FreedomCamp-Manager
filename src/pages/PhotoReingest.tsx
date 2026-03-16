@@ -30,6 +30,14 @@ interface ReingestResult {
   error_message?: string
 }
 
+interface ReingestBatchResponse {
+  processed?: number
+  created?: number
+  failed?: number
+  total?: number
+  failures?: Array<{ observation_id: string; reason: string }>
+}
+
 interface LiveRunState {
   total: number
   processed: number
@@ -94,20 +102,38 @@ export default function PhotoReingest() {
 
   const { data: organizations } = useOrganizations()
 
+  const withTimeout = async <T,>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T> => {
+    let timeoutHandle: ReturnType<typeof setTimeout> | null = null
+    try {
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        timeoutHandle = setTimeout(() => {
+          reject(new Error(`${label} timed out after ${Math.round(timeoutMs / 1000)}s`))
+        }, timeoutMs)
+      })
+      return await Promise.race([promise, timeoutPromise])
+    } finally {
+      if (timeoutHandle) clearTimeout(timeoutHandle)
+    }
+  }
+
   const runReingestBatched = async (): Promise<ReingestResult> => {
     const startedAt = Date.now()
 
     // Step 1: Get total count of observations with photos
-    const { data: totalData, error: totalError } = await edgeFunctions.reingestPhotos({
-      get_total: true,
-      organization_id: effectiveOrgId || undefined,
-      date_from: dateFrom || undefined,
-      date_to: dateTo || undefined,
-    })
+    const { data: totalData, error: totalError } = await withTimeout(
+      edgeFunctions.reingestPhotos({
+        get_total: true,
+        organization_id: effectiveOrgId || undefined,
+        date_from: dateFrom || undefined,
+        date_to: dateTo || undefined,
+      }),
+      45_000,
+      'Initial reingest count request',
+    )
 
     if (totalError) throw new Error(totalError)
 
-    const total = Number((totalData as any)?.total ?? 0)
+    const total = Number((totalData as ReingestBatchResponse | null)?.total ?? 0)
 
     if (total <= 0) {
       return {
@@ -131,25 +157,35 @@ export default function PhotoReingest() {
     })
 
     let offset = 0
-    const batchSize = 50
+    const batchSize = 10
     let processedTotal = 0
     let createdTotal = 0
     let failedTotal = 0
+    let topFailureReason: string | null = null
 
     while (offset < total) {
-      const { data: batchData, error: batchError } = await edgeFunctions.reingestPhotos({
-        organization_id: effectiveOrgId || undefined,
-        date_from: dateFrom || undefined,
-        date_to: dateTo || undefined,
-        offset,
-        batch_size: batchSize,
-      })
+      const { data: batchData, error: batchError } = await withTimeout(
+        edgeFunctions.reingestPhotos({
+          organization_id: effectiveOrgId || undefined,
+          date_from: dateFrom || undefined,
+          date_to: dateTo || undefined,
+          offset,
+          batch_size: batchSize,
+        }),
+        90_000,
+        `Reingest batch request (offset ${offset})`,
+      )
 
       if (batchError) throw new Error(batchError)
 
-      const processed = Number((batchData as any)?.processed ?? 0)
-      const created = Number((batchData as any)?.created ?? 0)
-      const failed = Number((batchData as any)?.failed ?? 0)
+      const parsedBatch = (batchData as ReingestBatchResponse | null) ?? {}
+      const processed = Number(parsedBatch.processed ?? 0)
+      const created = Number(parsedBatch.created ?? 0)
+      const failed = Number(parsedBatch.failed ?? 0)
+      if (!topFailureReason && Array.isArray(parsedBatch.failures) && parsedBatch.failures.length > 0) {
+        const first = parsedBatch.failures[0]
+        topFailureReason = `${first.observation_id}: ${first.reason}`
+      }
 
       processedTotal += processed
       createdTotal += created
@@ -184,6 +220,10 @@ export default function PhotoReingest() {
       failed: failedTotal,
       duration_seconds: Math.round((Date.now() - startedAt) / 1000),
       status: 'completed',
+      error_message:
+        createdTotal === 0 && failedTotal > 0
+          ? (topFailureReason ? `Top failure: ${topFailureReason}` : 'No observations were created in this run')
+          : undefined,
     }
   }
 
@@ -236,7 +276,7 @@ export default function PhotoReingest() {
       toast.error('Please select an organisation')
       return
     }
-    toast.info('Starting photo reingest — creating new observations from existing photos (50 per batch)')
+    toast.info('Starting photo reingest — creating new observations from existing photos (10 per batch)')
     reingestMutation.mutate()
   }
 
@@ -265,7 +305,7 @@ export default function PhotoReingest() {
                 <ul className="text-sm text-orange-700 dark:text-orange-200 mt-2 space-y-1 list-disc list-inside">
                   <li>Create new observation records linked to existing photos</li>
                   <li>Trigger compliance evaluation for each new observation</li>
-                  <li>Preserve the original officer, zone, GPS, and timestamp data</li>
+                  <li>Preserve the original zone, GPS, and timestamp; original officer is recorded in notes metadata</li>
                   <li>Mark new records with "[Reingested]" in officer notes</li>
                 </ul>
               </div>
