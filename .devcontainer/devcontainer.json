@@ -9,9 +9,10 @@
   // -----------------------------------------------------------------------
   "features": {
     "ghcr.io/devcontainers/features/node:1": { "version": "20" },
+    "ghcr.io/devcontainers-contrib/features/bun:1": {},
     "ghcr.io/devcontainers/features/github-cli:1": {},
     "ghcr.io/devcontainers/features/postgres:1": { "version": "15" },
-    "ghcr.io/devcontainers-contrib/features/supabase-cli:1": { "version": "2.75.0" },
+    "ghcr.io/devcontainers-contrib/features/supabase-cli:1": { "version": "2.78.1" },
     "ghcr.io/devcontainers-contrib/features/deno:1": {}
   },
 
@@ -39,11 +40,19 @@
     }
   },
 
+  "containerEnv": {
+    "HOME": "/home/vscode"
+  },
+
+  "remoteEnv": {
+    "HOME": "/home/vscode"
+  },
+
   // -----------------------------------------------------------------------
   // Run once after the container is created.
   // Installs project dependencies so the app is ready immediately.
   // -----------------------------------------------------------------------
-  "postCreateCommand": "npm install 2>/dev/null || bun install 2>/dev/null || true",
+  "postCreateCommand": "bun install 2>/dev/null || npm install 2>/dev/null || true",
 
   // Forward the Vite dev server port so you can preview the app in your
   // browser tab directly from Codespaces.
@@ -55,5 +64,5 @@
     "8080": { "label": "Inference Service" }
   },
 
-  "remoteUser": "node"
+  "remoteUser": "vscode"
 }
