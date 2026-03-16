@@ -16,12 +16,14 @@ Designed to be run locally (recommended) or via an opt-in GitHub Action that run
 ## Modes
 
 - **Local run (recommended):** Run the extraction script locally with environment variables:
+  - `DATABASE_URL` — a full PostgreSQL connection string, **or**
   - `PGHOST`, `PGPORT`, `PGUSER`, `PGPASSWORD`, `PGDATABASE`
   - Optional: `SUPABASE_URL` (for reference only) — not required for extraction.
-- **GitHub Action (opt-in):** Configure the following repository secrets:
-  - `PGHOST`, `PGPORT`, `PGUSER`, `PGPASSWORD`, `PGDATABASE`
-  - This is consistent with the `extract-schema` job in `merge_all.yml`.
-  - If any of these secrets are missing the workflow skips gracefully.
+- **GitHub Action (opt-in):** Configure **one** of the following sets of repository secrets:
+  - **Option A (recommended):** `DATABASE_URL` — copy the full URI from Supabase Dashboard → Project Settings → Database → Connection string (use the *Session mode* pooler string for best compatibility).
+  - **Option B:** `PGHOST` + `PGUSER` + `PGPASSWORD` + `PGDATABASE` (+ optional `PGPORT`)
+  - **Option C:** `SUPABASE_PROJECT_REF` + `SUPABASE_DB_PASSWORD` — the workflow derives a pooler connection URL from these. This may not work if the pooler hostname differs from the default (`aws-0-ap-southeast-2`); prefer Option A.
+  - If no credentials are configured the workflow **fails** with instructions.
   - Workflow file: `.github/workflows/schema-extract.yml`
   - Trigger type: `workflow_dispatch` only
 
@@ -34,7 +36,13 @@ Designed to be run locally (recommended) or via an opt-in GitHub Action that run
    chmod +x tools/schema-extract/run_extract.sh
    ```
 
-3. Run:
+3. Run with a connection string:
+
+   ```bash
+   DATABASE_URL="postgresql://user:password@host:port/dbname?sslmode=require" ./tools/schema-extract/run_extract.sh
+   ```
+
+   Or with individual PG variables:
 
    ```bash
    PGHOST=<host> PGPORT=5432 PGUSER=<user> PGPASSWORD=<password> PGDATABASE=<db> ./tools/schema-extract/run_extract.sh

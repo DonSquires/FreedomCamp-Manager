@@ -3,6 +3,11 @@ name: Schema Extract
 # Reads the live schema and can push output to a branch for review.
 # After running, update docs/LIVE_SCHEMA.md with any new columns and open a PR
 # for review by @DonSquires before merging the changes into main.
+#
+# Connection priority:
+#   1. DATABASE_URL           – full connection string (copy from Supabase Dashboard)
+#   2. PG* secrets            – PGHOST, PGUSER, PGPASSWORD, PGDATABASE (+ optional PGPORT)
+#   3. SUPABASE_PROJECT_REF + SUPABASE_DB_PASSWORD – derives a pooler DATABASE_URL
 
 on:
   workflow_dispatch:
@@ -21,37 +26,52 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Check required secrets
-        id: check_secrets
+      - name: Resolve database connection
+        id: resolve_db
         env:
-          PGHOST:     ${{ secrets.PGHOST }}
-          PGPORT:     ${{ secrets.PGPORT }}
-          PGUSER:     ${{ secrets.PGUSER }}
-          PGPASSWORD: ${{ secrets.PGPASSWORD }}
-          PGDATABASE: ${{ secrets.PGDATABASE }}
+          DATABASE_URL:          ${{ secrets.DATABASE_URL }}
+          PGHOST:                ${{ secrets.PGHOST }}
+          PGUSER:                ${{ secrets.PGUSER }}
+          PGPASSWORD:            ${{ secrets.PGPASSWORD }}
+          PGDATABASE:            ${{ secrets.PGDATABASE }}
+          PGPORT:                ${{ secrets.PGPORT }}
+          SUPABASE_PROJECT_REF:  ${{ secrets.SUPABASE_PROJECT_REF }}
+          SUPABASE_DB_PASSWORD:  ${{ secrets.SUPABASE_DB_PASSWORD }}
         run: |
-          missing=""
-          for var in PGHOST PGPORT PGUSER PGPASSWORD PGDATABASE; do
-            eval "val=\${${var}:-}"
-            if [ -z "$val" ]; then
-              missing="$missing $var"
-            fi
-          done
-          if [ -n "$missing" ]; then
-            echo "::notice::Required secrets not configured:$missing – skipping extraction."
-            echo "skip=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "skip=false" >> "$GITHUB_OUTPUT"
+          # ── Method 1: DATABASE_URL ──
+          if [ -n "${DATABASE_URL:-}" ]; then
+            echo "mode=database_url" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
 
+          # ── Method 2: individual PG* secrets ──
+          if [ -n "${PGHOST:-}" ] && [ -n "${PGUSER:-}" ] && [ -n "${PGPASSWORD:-}" ] && [ -n "${PGDATABASE:-}" ]; then
+            echo "mode=pgvars" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # ── Method 3: Supabase secrets → derive pooler DATABASE_URL ──
+          if [ -n "${SUPABASE_PROJECT_REF:-}" ] && [ -n "${SUPABASE_DB_PASSWORD:-}" ]; then
+            echo "mode=supabase" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # ── No credentials available ──
+          echo "::error::No database credentials configured."
+          echo "::error::Configure ONE of the following in GitHub → Settings → Secrets → Actions:"
+          echo "::error::  Option A (recommended): DATABASE_URL"
+          echo "::error::    Copy the URI from: Supabase Dashboard → Project Settings → Database → Connection string → URI"
+          echo "::error::    Use the 'Session mode' pooler string (port 5432) for best compatibility."
+          echo "::error::  Option B: PGHOST + PGUSER + PGPASSWORD + PGDATABASE (+ optional PGPORT)"
+          echo "::error::  Option C: SUPABASE_PROJECT_REF + SUPABASE_DB_PASSWORD"
+          exit 1
+
       - name: Checkout
-        if: steps.check_secrets.outputs.skip == 'false'
         uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
       - name: Install PostgreSQL client
-        if: steps.check_secrets.outputs.skip == 'false'
         run: |
           sudo apt-get install -y --no-install-recommends curl ca-certificates
           sudo install -d /usr/share/postgresql-common/pgdg
@@ -64,15 +84,27 @@ jobs:
           sudo apt-get install -y --no-install-recommends postgresql-client-17
 
       - name: Run schema extraction
-        if: steps.check_secrets.outputs.skip == 'false'
         env:
-          PGHOST:     ${{ secrets.PGHOST }}
-          PGPORT:     ${{ secrets.PGPORT }}
-          PGUSER:     ${{ secrets.PGUSER }}
-          PGPASSWORD: ${{ secrets.PGPASSWORD }}
-          PGDATABASE: ${{ secrets.PGDATABASE }}
+          DATABASE_URL:          ${{ secrets.DATABASE_URL }}
+          PGHOST:                ${{ secrets.PGHOST }}
+          PGPORT:                ${{ secrets.PGPORT }}
+          PGUSER:                ${{ secrets.PGUSER }}
+          PGPASSWORD:            ${{ secrets.PGPASSWORD }}
+          PGDATABASE:            ${{ secrets.PGDATABASE }}
+          SUPABASE_PROJECT_REF:  ${{ secrets.SUPABASE_PROJECT_REF }}
+          SUPABASE_DB_PASSWORD:  ${{ secrets.SUPABASE_DB_PASSWORD }}
+          CONNECTION_MODE:       ${{ steps.resolve_db.outputs.mode }}
         run: |
           set -euo pipefail
+
+          # Derive DATABASE_URL from Supabase secrets when using the pooler fallback
+          if [ "$CONNECTION_MODE" = "supabase" ] && [ -z "${DATABASE_URL:-}" ]; then
+            export DATABASE_URL="postgresql://postgres.${SUPABASE_PROJECT_REF}:${SUPABASE_DB_PASSWORD}@aws-0-ap-southeast-2.pooler.supabase.com:5432/postgres?sslmode=require"
+            echo "Using derived Supabase pooler connection."
+            echo "If this fails with 'Tenant or user not found', add a DATABASE_URL secret"
+            echo "with the URI copied from Supabase Dashboard → Project Settings → Database → Connection string."
+          fi
+
           chmod +x tools/schema-extract/run_extract.sh
           ./tools/schema-extract/run_extract.sh
           LATEST_DIR="$(ls -1dt tools/schema-extract/output/*/ | head -n 1)"
@@ -80,7 +112,6 @@ jobs:
         id: extract
 
       - name: Upload extraction artifact
-        if: steps.check_secrets.outputs.skip == 'false'
         uses: actions/upload-artifact@v5
         with:
           name: schema-extract-${{ github.run_id }}
@@ -88,7 +119,7 @@ jobs:
           if-no-files-found: error
 
       - name: Push output branch (optional)
-        if: steps.check_secrets.outputs.skip == 'false' && inputs.push_results
+        if: inputs.push_results
         run: |
           set -euo pipefail
           branch="schema-extract/${{ github.run_id }}"
