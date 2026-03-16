@@ -2,69 +2,113 @@
 
 ## Purpose
 
-Provide safe, idempotent scripts to extract the Postgres / Supabase schema and definitions (tables, columns, functions, triggers, policies, indexes, views).
+Extract the Postgres / Supabase schema (tables, columns, functions, triggers,
+policies, indexes, views) and generate TypeScript types that match the live
+database — ensuring the UI and DB stay correctly wired.
 
-Designed to be run locally (recommended) or via an opt-in GitHub Action that runs only when you manually dispatch it and add DB secrets.
+## How it works — two complementary strategies
 
-## Important safety notes
+### Strategy 1 — Supabase Management API (live schema)
 
-- This tooling never writes to your database. It only reads schema and writes output into `tools/schema-extract/output/`.
-- Do NOT commit DB credentials to the repo. Use environment variables or repository secrets for the Action.
-- Use a read-only, least-privileged DB user when possible.
-- After using any temporary credentials, rotate them.
+Uses the **Supabase CLI** (`supabase gen types`, `supabase inspect db`) to query
+the hosted database through the **Management API** (HTTPS, no direct Postgres
+connection needed).
 
-## Modes
+| What it needs | How to get it |
+|---|---|
+| `SUPABASE_ACCESS_TOKEN` | Supabase Dashboard → Account → Access tokens |
+| `SUPABASE_PROJECT_REF` | Supabase Dashboard → Project Settings → General |
+| `SUPABASE_DB_PASSWORD` *(optional — needed for `inspect db`)* | Project Settings → Database |
 
-- **Local run (recommended):** Run the extraction script locally with environment variables:
-  - `DATABASE_URL` — a full PostgreSQL connection string, **or**
-  - `PGHOST`, `PGPORT`, `PGUSER`, `PGPASSWORD`, `PGDATABASE`
-  - Optional: `SUPABASE_URL` (for reference only) — not required for extraction.
-- **GitHub Action (opt-in):** Configure **one** of the following sets of repository secrets:
-  - **Option A (recommended):** `DATABASE_URL` — copy the full URI from Supabase Dashboard → Project Settings → Database → Connection string (use the *Session mode* pooler string for best compatibility).
-  - **Option B:** `PGHOST` + `PGUSER` + `PGPASSWORD` + `PGDATABASE` (+ optional `PGPORT`)
-  - **Option C:** `SUPABASE_PROJECT_REF` + `SUPABASE_DB_PASSWORD` — the workflow derives a pooler connection URL from these. This may not work if the pooler hostname differs from the default (`aws-0-ap-southeast-2`); prefer Option A.
-  - If no credentials are configured the workflow **fails** with instructions.
-  - Workflow file: `.github/workflows/schema-extract.yml`
-  - Trigger type: `workflow_dispatch` only
+**Outputs:**
 
-## How to run locally
+- `tools/schema-extract/output/live/database.ts` — generated TypeScript types
+- `tools/schema-extract/output/live/type_drift.diff` — diff vs committed `src/types/database.ts` (if any drift)
+- `tools/schema-extract/output/live/table_sizes.txt`, `index_sizes.txt` — live stats
 
-1. Ensure `psql` is installed and in your `PATH`. `pg_dump` is optional but recommended for a full schema dump.
-2. Make the script executable:
+### Strategy 2 — Local migration replay (no secrets needed)
 
-   ```bash
-   chmod +x tools/schema-extract/run_extract.sh
-   ```
+Spins up an **ephemeral PostgreSQL container** (Docker), applies every committed
+migration from `supabase/migrations/`, then runs `pg_dump` + SQL queries against
+the local database.
 
-3. Run with a connection string:
+| What it needs | Notes |
+|---|---|
+| Docker | Pre-installed on GHA runners and most dev machines |
+| `psql` | Standard PostgreSQL client |
 
-   ```bash
-   DATABASE_URL="postgresql://user:password@host:port/dbname?sslmode=require" ./tools/schema-extract/run_extract.sh
-   ```
+**Outputs** (timestamped directory):
 
-   Or with individual PG variables:
-
-   ```bash
-   PGHOST=<host> PGPORT=5432 PGUSER=<user> PGPASSWORD=<password> PGDATABASE=<db> ./tools/schema-extract/run_extract.sh
-   ```
-
-## Outputs
-
-- `tools/schema-extract/output/<timestamp>/schema_dump.sql` (if `pg_dump` available)
+- `tools/schema-extract/output/<timestamp>/schema_dump.sql`
 - `tools/schema-extract/output/<timestamp>/tables.txt`
 - `tools/schema-extract/output/<timestamp>/functions.sql`
 - `tools/schema-extract/output/<timestamp>/triggers.sql`
 - `tools/schema-extract/output/<timestamp>/policies.sql`
 - `tools/schema-extract/output/<timestamp>/indexes.sql`
 - `tools/schema-extract/output/<timestamp>/views.sql`
-- `tools/schema-extract/output/<timestamp>/all_combined.txt` (combined run output)
+- `tools/schema-extract/output/<timestamp>/all_combined.txt`
+
+## Important safety notes
+
+- This tooling never writes to your production database.
+- Do NOT commit DB credentials to the repo.
+- The migration-replay approach is 100% local and needs no external access.
+
+## How to run locally
+
+### Option A — Generate types from live Supabase (recommended for type sync)
+
+```bash
+# Install Supabase CLI: https://supabase.com/docs/guides/cli/getting-started
+supabase gen types typescript \
+  --project-id "$SUPABASE_PROJECT_REF" \
+  --schema public \
+  > src/types/database.ts
+```
+
+Requires `SUPABASE_ACCESS_TOKEN` in your environment.
+
+### Option B — Migration replay (recommended for full schema inspection)
+
+```bash
+chmod +x tools/schema-extract/extract_via_migrations.sh
+./tools/schema-extract/extract_via_migrations.sh
+```
+
+Requires Docker and `psql`. No credentials needed — uses an ephemeral local
+PostgreSQL container.
+
+### Option C — Direct database connection (legacy)
+
+If you have direct access to a PostgreSQL instance:
+
+```bash
+DATABASE_URL="postgresql://user:password@host:port/dbname?sslmode=require" \
+  ./tools/schema-extract/run_extract.sh
+```
+
+**Note:** Direct connections to Supabase (`db.*.supabase.co`) resolve to IPv6
+which is unreachable from GitHub Actions. Use Option A or B for CI.
+
+## GitHub Action
+
+- Workflow: `.github/workflows/schema-extract.yml` (also available in merge_all.yml)
+- Trigger: `workflow_dispatch` only (manual)
+- Both strategies run automatically:
+  - Strategy 1 runs if `SUPABASE_ACCESS_TOKEN` + `SUPABASE_PROJECT_REF` are set
+  - Strategy 2 always runs (no secrets needed)
 
 ## If you want results attached to a PR
 
-- Run locally and attach the `output/<timestamp>/` directory to the PR as files, or
-- Enable the Action and manually dispatch it with secrets; the workflow uploads an artifact, and can optionally push results to a branch for review.
+- Run locally and attach the output directory to the PR, or
+- Dispatch the workflow with "Push generated output to a new branch" enabled
 
 ## Troubleshooting
 
-- If `psql`/`pg_dump` are unavailable, install PostgreSQL client tools (`apt`, `brew`, etc.).
-- The script uses `PGPASSWORD` or `.pgpass` (if present) and never echoes the password.
+| Problem | Solution |
+|---|---|
+| CI: `Tenant or user not found` | This was the old approach. The new workflow uses the Management API instead of direct DB connections. |
+| CI: `Network is unreachable` (IPv6) | Same as above — no longer an issue with the new approach. |
+| Local: Docker not available | Use Option A (Supabase CLI) or Option C (direct connection) instead. |
+| Local: `psql` not found | Install PostgreSQL client tools (`apt install postgresql-client` / `brew install libpq`). |
+| Migration replay: some migrations fail | Non-fatal. Some migrations may reference Supabase extensions not in vanilla PostgreSQL. Check the log for details. |
