@@ -187,7 +187,12 @@ These triggers form the **observation insert pipeline**. They fire in the order 
 
 > **COALESCE type safety rule:** All BEFORE INSERT triggers that call `COALESCE` must cast column values through `::text` first. Use `BEGIN/EXCEPTION` blocks for type drift. See `SCHEMA_VALIDATION_CHECKLIST.md §5`.
 
-> **Pipeline contract:** Edge functions that insert observations must use `adaptiveObservationInsert()` from `supabase/functions/_shared/observationInsert.ts`. This handles COALESCE type mismatch errors by stripping compliance columns on retry.
+> **Pipeline contract:** The primary scan save path is the `safe_insert_observation(jsonb)` RPC
+> (migration 20260316000003). This function uses `session_replication_role = 'replica'` to bypass
+> all triggers, preventing stale trigger functions from causing INSERT failures. Edge functions that
+> insert observations via the secondary path should use `adaptiveObservationInsert()` from
+> `supabase/functions/_shared/observationInsert.ts`, which handles COALESCE type mismatch errors
+> by stripping compliance columns on retry.
 
 > **AFTER triggers fire post-INSERT only.** The `trigger_log_observation_deletion` trigger fires on DELETE, not INSERT — it is listed here for completeness.
 

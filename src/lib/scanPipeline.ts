@@ -142,13 +142,26 @@ export async function captureAndSave(
   if (!rpcErr && rpcData) {
     observationId = (rpcData as any).observation_id ?? (rpcData as any).id ?? null
   } else {
-    // RPC not deployed or schema cache miss — direct insert fallback
-    const isMissing =
-      rpcErr?.message?.includes('schema cache') ||
-      rpcErr?.message?.includes('Could not find') ||
+    // Fall back to direct insert when the RPC is missing, has a schema-cache
+    // miss, or its function body is broken (e.g. references the old table name
+    // vehicle_observations_v2 before migration 20260316000003 was applied).
+    const rpcErrMsg = rpcErr?.message ?? ''
+    const isFunctionUnavailable =
+      rpcErrMsg.includes('schema cache') ||
+      rpcErrMsg.includes('Could not find') ||
       rpcErr?.code === 'PGRST202'
+    const isBrokenFunctionBody =
+      rpcErrMsg.includes('vehicle_observations_v2') ||
+      rpcErrMsg.includes('INSERT failed') ||
+      rpcErrMsg.includes('INSERT into observations failed')
 
-    if (isMissing) {
+    if (isFunctionUnavailable || isBrokenFunctionBody) {
+      if (isBrokenFunctionBody) {
+        console.warn(
+          '⚠️ safe_insert_observation function body is broken; falling back to direct insert.',
+          rpcErrMsg,
+        )
+      }
       const { data: ins, error: insErr } = await (supabase.from('observations') as any)
         .insert({
           plate_number:    'PROCESSING...',
@@ -163,6 +176,7 @@ export async function captureAndSave(
           gps_accuracy:    accuracy,
           recorded_by:     user.id,
           idempotency_key: idempKey,
+          officer_notes:   weather !== 'Unknown' ? `Weather: ${weather}` : null,
         })
         .select('observation_id')
         .single()

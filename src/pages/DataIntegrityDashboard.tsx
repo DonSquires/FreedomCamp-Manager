@@ -83,8 +83,8 @@ export default function DataIntegrityDashboard() {
       })
 
       // 3. Breach alerts linked to an observation
-      // NOTE: compliance_results table was DROPPED in migration 20260221_rebuild_observations_clean.sql.
-      // Compliance state lives directly on observations rows. We check observation_id linkage instead.
+      // NOTE: compliance_results table EXISTS in the live DB (Schema Extract #20: 1,959 rows).
+      // Compliance state also lives directly on observations rows. We check observation_id linkage.
       let breachQuery = supabase
         .from('breach_alerts')
         .select('id', { count: 'exact', head: true })
