@@ -1496,11 +1496,21 @@ jobs:
 
           # ── Guard: rewrite direct db.<ref>.supabase.co → pooler ──────
           # Direct Supabase database hosts resolve to IPv6 which is
-          # unreachable from GitHub Actions runners.
+          # unreachable from GitHub Actions runners.  When detected,
+          # do an in-place rewrite: extract the project ref from the
+          # hostname and swap to the pooler, preserving the original
+          # credentials so that separate SUPABASE_* secrets are not
+          # required to match.
           if [[ "${DATABASE_URL:-}" == *"@db."*".supabase.co"* ]]; then
             POOLER_HOST="${SUPABASE_POOLER_HOST:-aws-0-ap-southeast-2.pooler.supabase.com}"
-            if [ -n "${SUPABASE_PROJECT_REF:-}" ] && [ -n "${SUPABASE_DB_PASSWORD:-}" ]; then
-              export DATABASE_URL="postgresql://postgres.${SUPABASE_PROJECT_REF}:${SUPABASE_DB_PASSWORD}@${POOLER_HOST}:5432/postgres?sslmode=require"
+            URL_REF=$(echo "$DATABASE_URL" | sed -n 's|.*@db\.\([^.]*\)\.supabase\.co.*|\1|p')
+            if [ -n "$URL_REF" ]; then
+              NEW_URL="$DATABASE_URL"
+              # Prefix username for the pooler: postgres → postgres.<ref>
+              NEW_URL=$(echo "$NEW_URL" | sed "s|://postgres:|://postgres.${URL_REF}:|")
+              # Swap the direct host with the connection-pooler host
+              NEW_URL=$(echo "$NEW_URL" | sed "s|@db\.[^.]*\.supabase\.co:[0-9]*|@${POOLER_HOST}:5432|")
+              export DATABASE_URL="$NEW_URL"
               echo "Rewrote direct db.*.supabase.co → pooler (${POOLER_HOST})."
             else
               echo "::warning::DATABASE_URL uses a direct Supabase host (db.*.supabase.co) which resolves to IPv6."
