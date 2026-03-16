@@ -127,13 +127,11 @@ export default function ObservationRecords() {
 
       const extraCols = ', breach_type, breach_reason, nights_stayed_this_month'
       const zoneJoin = ', zone:zones!vehicle_observations_v2_zone_id_fkey(name)'
+      // Select BOTH photo columns so getObservationPhotoUrl() can find
+      // the URL regardless of which column stores it.
       const primarySelects = [
-        `id, plate_number, recorded_at, zone_id, photo_url, is_compliant, officer_notes, gps_latitude, gps_longitude${extraCols}${zoneJoin}`,
-        `id, plate_number, recorded_at, zone_id, photo_url:image_url, is_compliant, officer_notes, gps_latitude, gps_longitude${extraCols}${zoneJoin}`,
-        `id, plate_number, recorded_at, zone_id, photo_url:photo, is_compliant, officer_notes, gps_latitude, gps_longitude${extraCols}${zoneJoin}`,
-        `id:observation_id, plate_number, recorded_at, zone_id, photo_url, is_compliant, officer_notes, gps_latitude, gps_longitude${extraCols}${zoneJoin}`,
-        `id:observation_id, plate_number, recorded_at, zone_id, photo_url:image_url, is_compliant, officer_notes, gps_latitude, gps_longitude${extraCols}${zoneJoin}`,
-        `id:observation_id, plate_number, recorded_at, zone_id, photo_url:photo, is_compliant, officer_notes, gps_latitude, gps_longitude${extraCols}${zoneJoin}`,
+        `id, plate_number, recorded_at, zone_id, photo, photo_url, is_compliant, officer_notes, gps_latitude, gps_longitude${extraCols}${zoneJoin}`,
+        `id:observation_id, plate_number, recorded_at, zone_id, photo, photo_url, is_compliant, officer_notes, gps_latitude, gps_longitude${extraCols}${zoneJoin}`,
       ]
 
       // Primary path: use relationship join when schema cache has it.
@@ -153,12 +151,8 @@ export default function ObservationRecords() {
       // Fallback path: fetch observations without join and resolve zone names manually.
       let fallback: any = null
       const fallbackSelects = [
-        `id, plate_number, recorded_at, zone_id, photo_url, is_compliant, officer_notes, gps_latitude, gps_longitude${extraCols}`,
-        `id, plate_number, recorded_at, zone_id, photo_url:image_url, is_compliant, officer_notes, gps_latitude, gps_longitude${extraCols}`,
-        `id, plate_number, recorded_at, zone_id, photo_url:photo, is_compliant, officer_notes, gps_latitude, gps_longitude${extraCols}`,
-        `id:observation_id, plate_number, recorded_at, zone_id, photo_url, is_compliant, officer_notes, gps_latitude, gps_longitude${extraCols}`,
-        `id:observation_id, plate_number, recorded_at, zone_id, photo_url:image_url, is_compliant, officer_notes, gps_latitude, gps_longitude${extraCols}`,
-        `id:observation_id, plate_number, recorded_at, zone_id, photo_url:photo, is_compliant, officer_notes, gps_latitude, gps_longitude${extraCols}`,
+        `id, plate_number, recorded_at, zone_id, photo, photo_url, is_compliant, officer_notes, gps_latitude, gps_longitude${extraCols}`,
+        `id:observation_id, plate_number, recorded_at, zone_id, photo, photo_url, is_compliant, officer_notes, gps_latitude, gps_longitude${extraCols}`,
       ]
 
       for (const selectClause of fallbackSelects) {
