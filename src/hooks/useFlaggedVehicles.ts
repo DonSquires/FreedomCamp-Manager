@@ -68,7 +68,7 @@ export function useFlaggedVehicles(options?: {
         .from('flagged_vehicles')
         .select(`
           *,
-          flagged_by_user:user_profiles(first_name, last_name)
+          flagged_by_user:user_profiles!flagged_vehicles_flagged_by_fkey(first_name, last_name)
         `)
         .order('priority', { ascending: false })
         .order('created_at', { ascending: false })

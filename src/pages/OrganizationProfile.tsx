@@ -28,7 +28,6 @@ interface Organization {
   overnight_verification_mode: 'two_photo_verification' | 'one_photo_per_day_inference'
   contact_email: string
   contact_phone: string
-  geom: any
 }
 
 interface Zone {
@@ -38,7 +37,6 @@ interface Zone {
   parent_zone_id: string | null
   is_active: boolean
   geometry: any
-  geom: any
   location_lat: number | null
   location_lng: number | null
   nights_per_month: number
@@ -86,7 +84,7 @@ export default function OrganizationProfile() {
         .single()
 
       if (error) throw error
-      return data as Organization
+      return data as unknown as Organization
     },
     enabled: !!organizationId,
   })
@@ -106,7 +104,7 @@ export default function OrganizationProfile() {
         .order('name', { ascending: true })
 
       if (error) throw error
-      return data as Zone[]
+      return data as unknown as Zone[]
     },
     enabled: !!organizationId,
   })
@@ -396,7 +394,7 @@ export default function OrganizationProfile() {
                           <Badge variant="outline" className="text-xs">Jurisdiction</Badge>
                         </div>
                         <div className="flex items-center gap-2">
-                          {zone.geometry || zone.geom ? (
+                          {zone.geometry ? (
                             <Badge variant="outline" className="bg-green-50 text-green-700 text-xs">
                               <CheckCircle className="h-3 w-3 mr-1" />
                               Boundary Set
@@ -417,12 +415,12 @@ export default function OrganizationProfile() {
                               }}
                             >
                               <Edit className="h-3 w-3 mr-1" />
-                              {zone.geometry || zone.geom ? 'Edit' : 'Set'} Boundary
+                              {zone.geometry ? 'Edit' : 'Set'} Boundary
                             </Button>
                           )}
                         </div>
                       </div>
-                      <ZoneGeofenceIndicator geometry={zone.geometry || zone.geom} className="mt-3" />
+                      <ZoneGeofenceIndicator geometry={zone.geometry} className="mt-3" />
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-3 text-sm">
                         <div className="text-gray-600">
                           <span className="block text-xs text-gray-500">Max Nights/Month</span>
@@ -499,7 +497,7 @@ export default function OrganizationProfile() {
                           )}
                         </div>
                         <div className="flex items-center gap-1">
-                          {zone.geometry || zone.geom ? (
+                          {zone.geometry ? (
                             <Badge variant="outline" className="bg-green-50 text-green-700 text-xs">
                               <CheckCircle className="h-3 w-3 mr-1" />
                               Boundary
@@ -519,7 +517,7 @@ export default function OrganizationProfile() {
                           </Button>
                         </div>
                       </div>
-                      <ZoneGeofenceIndicator geometry={zone.geometry || zone.geom} className="mb-2" />
+                      <ZoneGeofenceIndicator geometry={zone.geometry} className="mb-2" />
                       <div className="text-xs text-gray-600 space-y-0.5">
                         <div>Max nights: {zone.nights_per_month}/month, {zone.max_consecutive_nights} consecutive</div>
                         <div className="flex gap-2">

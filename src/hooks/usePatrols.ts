@@ -55,12 +55,12 @@ export function usePatrols(options: UsePatrolsOptions = {}) {
   return useQuery({
     queryKey: ['patrols', organizationId, zoneId, officerId, status],
     queryFn: async () => {
-      let query = supabase
-        .from('patrols')
+      let query = (supabase
+        .from('patrols') as any)
         .select(`
           *,
           zone:zones(name),
-          officer:user_profiles(first_name, last_name)
+          officer:user_profiles!patrols_officer_id_fkey(first_name, last_name)
         `)
         .order('created_at', { ascending: false })
 
@@ -97,7 +97,7 @@ export function usePatrol(patrolId: string) {
         .select(`
           *,
           zone:zones(name),
-          officer:user_profiles(first_name, last_name, email)
+          officer:user_profiles!patrols_officer_id_fkey(first_name, last_name, email)
         `)
         .eq('id', patrolId)
         .single()

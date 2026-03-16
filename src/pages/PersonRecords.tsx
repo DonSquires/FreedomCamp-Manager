@@ -45,8 +45,8 @@ interface Person {
 
 interface PersonObservation {
   id: string
-  observed_at: string
-  notes: string | null
+  recorded_at: string
+  officer_notes: string | null
   zone: { name: string } | null
   observed_by_user: { first_name: string; last_name: string } | null
 }
@@ -91,8 +91,8 @@ export default function PersonRecords() {
   const { data: persons = [], isLoading } = useQuery({
     queryKey: ['person-records', orgId, homelessFilter, search],
     queryFn: async () => {
-      let q = supabase
-        .from('canonical_persons')
+      let q = (supabase
+        .from('person_records') as any)
         .select('id, full_name, date_of_birth, contact_email, contact_phone, address, homeless_status, notes, created_at')
         .order('full_name')
         .limit(200)
@@ -111,15 +111,15 @@ export default function PersonRecords() {
   const { data: selectedObs = [] } = useQuery({
     queryKey: ['person-observations', viewTarget?.id],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('person_observations')
+      const { data, error } = await (supabase
+        .from('person_observations') as any)
         .select(`
-          id, observed_at, notes,
+          id, recorded_at, officer_notes,
           zone:zones!zone_id(name),
-          observed_by_user:user_profiles!observed_by(first_name, last_name)
+          observed_by_user:user_profiles!person_observations_recorded_by_fkey(first_name, last_name)
         `)
         .eq('person_id', viewTarget!.id)
-        .order('observed_at', { ascending: false })
+        .order('recorded_at', { ascending: false })
         .limit(50)
       if (error) throw error
       return (data || []) as unknown as PersonObservation[]
@@ -131,8 +131,8 @@ export default function PersonRecords() {
   const { data: vehicleLinks = [] } = useQuery({
     queryKey: ['person-vehicle-links', viewTarget?.id],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('person_vehicle_links')
+      const { data, error } = await (supabase
+        .from('person_vehicle_links' as any) as any)
         .select('plate_number, relationship_type, linked_at')
         .eq('person_id', viewTarget!.id)
         .order('linked_at', { ascending: false })
@@ -154,12 +154,12 @@ export default function PersonRecords() {
         notes: form.notes || null,
       }
       if (isEdit && editTarget) {
-        const { error } = await (supabase.from('canonical_persons') as any)
+        const { error } = await (supabase.from('person_records') as any)
           .update({ ...payload, updated_at: new Date().toISOString() })
           .eq('id', editTarget.id)
         if (error) throw error
       } else {
-        const { error } = await (supabase.from('canonical_persons') as any)
+        const { error } = await (supabase.from('person_records') as any)
           .insert(payload)
         if (error) throw error
       }
@@ -430,9 +430,9 @@ export default function PersonRecords() {
                 <div key={o.id} className="border rounded p-2 text-sm">
                   <div className="flex items-center gap-2">
                     {o.zone && <span className="flex items-center gap-1 text-muted-foreground"><MapPin className="h-3 w-3" />{o.zone.name}</span>}
-                    <span className="text-muted-foreground">{formatDateTime(o.observed_at)}</span>
+                    <span className="text-muted-foreground">{formatDateTime(o.recorded_at)}</span>
                   </div>
-                  {o.notes && <p className="mt-1 text-muted-foreground line-clamp-2">{o.notes}</p>}
+                  {o.officer_notes && <p className="mt-1 text-muted-foreground line-clamp-2">{o.officer_notes}</p>}
                 </div>
               ))}
             </TabsContent>

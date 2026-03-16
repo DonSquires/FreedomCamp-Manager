@@ -126,7 +126,7 @@ export default function ObservationRecords() {
       }
 
       const extraCols = ', breach_type, breach_reason, nights_stayed_this_month'
-      const zoneJoin = ', zone:zones!observations_zone_id_fkey(name)'
+      const zoneJoin = ', zone:zones!vehicle_observations_v2_zone_id_fkey(name)'
       const primarySelects = [
         `id, plate_number, recorded_at, zone_id, photo_url, is_compliant, officer_notes, gps_latitude, gps_longitude${extraCols}${zoneJoin}`,
         `id, plate_number, recorded_at, zone_id, photo_url:image_url, is_compliant, officer_notes, gps_latitude, gps_longitude${extraCols}${zoneJoin}`,

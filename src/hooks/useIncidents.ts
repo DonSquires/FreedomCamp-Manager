@@ -17,8 +17,6 @@ interface Incident {
   severity: string | null
   status: string
   description: string | null
-  retention_hold: boolean
-  retention_until: string | null
   evidence_count: number
   primary_evidence_url: string | null
   location_lat: number | null
@@ -72,8 +70,6 @@ export function useIncidents(options?: {
           severity,
           status,
           description,
-          retention_hold,
-          retention_until,
           evidence_count,
           primary_evidence_url,
           location_lat,
@@ -84,7 +80,7 @@ export function useIncidents(options?: {
           created_at,
           user_id,
           zone:zones(name),
-          user_profile:user_profiles(first_name, last_name)
+          user_profile:user_profiles!incidents_user_id_fkey(first_name, last_name)
         `)
         
         .order('created_at', { ascending: false })
@@ -217,13 +213,12 @@ export function useIncident(id: string | null) {
     queryFn: async () => {
       if (!id) return null
 
-      const { data, error } = await supabase
-        .from('incidents')
+      const { data, error } = await (supabase
+        .from('incidents') as any)
         .select(`
           *,
           zone:zones(name),
-          user_profile:user_profiles(first_name, last_name),
-          incident_attachments(*)
+          user_profile:user_profiles!incidents_user_id_fkey(first_name, last_name)
         `)
         .eq('id', id)
         .single()

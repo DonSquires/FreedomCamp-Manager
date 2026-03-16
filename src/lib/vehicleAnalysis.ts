@@ -117,7 +117,7 @@ export async function analyzeMovementPattern(
     .select(`
       zone_id,
       recorded_at,
-      zones!observations_zone_id_fkey (name)
+      zones!vehicle_observations_v2_zone_id_fkey (name)
     `)
     .eq('plate_number', plateNumber)
     .order('recorded_at', { ascending: true })
@@ -133,7 +133,7 @@ export async function analyzeMovementPattern(
     return null
   }
 
-  const typedData = data as ObservationMovement[]
+  const typedData = data as unknown as ObservationMovement[]
 
   // Group by zone
   const zoneVisits: Record<string, { count: number; lastVisit: string; name: string }> = {}

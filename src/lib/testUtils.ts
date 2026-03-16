@@ -335,7 +335,7 @@ export const dataVerification = {
    * Check for duplicate observations (same plate, zone, timestamp)
    */
   async checkDuplicateObservations() {
-    const { data, error } = await supabase.rpc('check_duplicate_observations')
+    const { data, error } = await (supabase as any).rpc('check_duplicate_observations')
     if (error) {
       console.error('Duplicate check failed:', error)
       return null

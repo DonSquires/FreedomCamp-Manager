@@ -26,7 +26,6 @@ interface EnforcementAction {
   completion_notes: string | null
   observation_id: string | null
   breach_status: string
-  attachments: any
 }
 
 interface CreateActionInput {
@@ -69,7 +68,6 @@ export function useEnforcementActions(options?: {
         .select(`
           *,
           zone:zones(name),
-          breach_alert:breach_alerts(breach_type, breach_details),
           created_by_user:user_profiles!enforcement_actions_created_by_fkey(first_name, last_name),
           assigned_user:user_profiles!enforcement_actions_assigned_to_fkey(first_name, last_name),
           completed_user:user_profiles!enforcement_actions_completed_by_fkey(first_name, last_name)

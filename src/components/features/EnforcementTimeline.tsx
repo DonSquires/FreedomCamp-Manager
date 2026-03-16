@@ -34,7 +34,6 @@ type EnforcementActionRow = {
   breach_status: string | null
   completion_outcome: string | null
   completion_notes: string | null
-  attachments: any
   created_at: string
   updated_at: string
 }
@@ -79,7 +78,7 @@ export function EnforcementTimeline({
         .limit(limit)
 
       if (error) throw error
-      return (data || []) as EnforcementActionWithRelations[]
+      return (data || []) as unknown as EnforcementActionWithRelations[]
     },
   })
 

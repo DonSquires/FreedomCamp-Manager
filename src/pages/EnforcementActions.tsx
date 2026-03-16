@@ -34,7 +34,6 @@ import { toast } from 'sonner'
 
 interface EnforcementAction {
   id: string
-  breach_alert_id: string
   action_type: string
   status: string
   assigned_to: string | null
@@ -43,13 +42,9 @@ interface EnforcementAction {
   completion_outcome: string | null
   notes: string | null
   created_at: string
-  breach_alert: {
-    id: string
-    plate_number: string
-    breach_type: string
-    status: string
-    zone: { name: string }
-  }
+  observation_id: string | null
+  plate_number: string | null
+  zone: { name: string } | null
   user_profile: {
     first_name: string
     last_name: string
@@ -93,7 +88,6 @@ export default function EnforcementActions() {
         .from('enforcement_actions')
         .select(`
           id,
-          breach_alert_id,
           action_type,
           status,
           assigned_to,
@@ -102,13 +96,9 @@ export default function EnforcementActions() {
           completion_outcome,
           notes,
           created_at,
-          breach_alert:breach_alerts(
-            id,
-            plate_number,
-            breach_type,
-            status,
-            zone:zones(name)
-          ),
+          observation_id,
+          plate_number,
+          zone:zones(name),
           user_profile:user_profiles!enforcement_actions_created_by_fkey(first_name, last_name),
           assigned_user:user_profiles!enforcement_actions_assigned_to_fkey(first_name, last_name)
         `)
@@ -147,7 +137,7 @@ export default function EnforcementActions() {
       // Filter by plate number search
       if (searchQuery) {
         return (data as EnforcementAction[]).filter(action =>
-          action.breach_alert?.plate_number?.toLowerCase().includes(searchQuery.toLowerCase())
+          action.plate_number?.toLowerCase().includes(searchQuery.toLowerCase())
         )
       }
 
@@ -197,6 +187,7 @@ export default function EnforcementActions() {
   // Create enforcement action mutation
   const createActionMutation = useMutation({
     mutationFn: async (data: { breach_alert_id: string; action_type: string; notes: string }) => {
+      // breach_alert_id is used to look up the breach; enforcement_actions links via observation_id
       const { error } = await (supabase
         .from('enforcement_actions') as any)
         .insert({
@@ -536,7 +527,7 @@ export default function EnforcementActions() {
                   <div className="flex-1">
                     <div className="flex items-center gap-3 mb-2">
                       <CardTitle className="text-xl font-bold font-mono">
-                        {action.breach_alert?.plate_number || 'Unknown'}
+                        {action.plate_number || 'Unknown'}
                       </CardTitle>
                       <Badge className={getActionTypeColor(action.action_type)}>
                         {getActionTypeIcon(action.action_type)}
@@ -550,11 +541,11 @@ export default function EnforcementActions() {
                       <div className="flex items-center gap-4 text-sm">
                         <span className="flex items-center gap-1">
                           <MapPin className="h-3 w-3" />
-                          {action.breach_alert?.zone?.name || 'Unknown Zone'}
+                          {action.zone?.name || 'Unknown Zone'}
                         </span>
                         <span className="flex items-center gap-1">
                           <AlertTriangle className="h-3 w-3" />
-                          {action.breach_alert?.breach_type?.replace(/_/g, ' ') || 'Unknown Breach'}
+                          {action.action_type?.replace(/_/g, ' ') || 'Unknown Action'}
                         </span>
                         <span className="flex items-center gap-1">
                           <Calendar className="h-3 w-3" />
@@ -668,14 +659,14 @@ export default function EnforcementActions() {
                         </Button>
                       </>
                     )}
-                    {action.breach_alert_id && (
+                    {action.observation_id && (
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => navigate(`/breaches?breach_id=${action.breach_alert_id}`)}
+                        onClick={() => navigate(`/breaches?observation_id=${action.observation_id}`)}
                       >
                         <Bell className="h-4 w-4 mr-1" />
-                        View Breach
+                        View Observation
                       </Button>
                     )}
                   </div>

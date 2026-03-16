@@ -103,8 +103,8 @@ export default function PatrolCheckpointManagement() {
   const { data: checkpoints = [], isLoading } = useQuery({
     queryKey: ['patrol_checkpoints', user?.organization_id],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('patrol_checkpoints')
+      const { data, error } = await (supabase
+        .from('patrol_checkpoints' as any) as any)
         .select('*, zone:zones(id, name)')
         .eq('organization_id', user!.organization_id!)
         .order('name')
@@ -133,7 +133,7 @@ export default function PatrolCheckpointManagement() {
 
   const createMutation = useMutation({
     mutationFn: async (f: CheckpointFormState) => {
-      const { error } = await (supabase.from('patrol_checkpoints') as any).insert({
+      const { error } = await (supabase.from('patrol_checkpoints' as any) as any).insert({
         organization_id: user!.organization_id!,
         name: f.name.trim(),
         description: f.description.trim() || null,
@@ -160,7 +160,7 @@ export default function PatrolCheckpointManagement() {
 
   const updateMutation = useMutation({
     mutationFn: async ({ id, f }: { id: string; f: CheckpointFormState }) => {
-      const { error } = await (supabase.from('patrol_checkpoints') as any)
+      const { error } = await (supabase.from('patrol_checkpoints' as any) as any)
         .update({
           name: f.name.trim(),
           description: f.description.trim() || null,
@@ -187,7 +187,7 @@ export default function PatrolCheckpointManagement() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from('patrol_checkpoints').delete().eq('id', id)
+      const { error } = await (supabase.from('patrol_checkpoints' as any) as any).delete().eq('id', id)
       if (error) throw error
     },
     onSuccess: () => {

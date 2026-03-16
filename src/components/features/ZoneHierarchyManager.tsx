@@ -14,14 +14,10 @@ interface Zone {
   zone_type: string
   parent_zone_id: string | null
   is_active: boolean
-  total_observations: number
-  total_breaches: number
   geometry?: any
-  geom?: any
   parent_zone?: {
     name: string
     geometry?: any
-    geom?: any
   }
 }
 
@@ -51,14 +47,10 @@ export function ZoneHierarchyManager({
           zone_type,
           parent_zone_id,
           is_active,
-          total_observations,
-          total_breaches,
           geometry,
-          geom,
           parent_zone:zones!parent_zone_id(
             name,
-            geometry,
-            geom
+            geometry
           )
         `)
         .eq('organization_id', organizationId)
@@ -93,8 +85,10 @@ export function ZoneHierarchyManager({
     total: zones?.length || 0,
     parent: parentZones.length,
     children: childZones.length,
-    observations: zones?.reduce((sum, z) => sum + (z.total_observations || 0), 0) || 0,
-    breaches: zones?.reduce((sum, z) => sum + (z.total_breaches || 0), 0) || 0,
+    // total_observations and total_breaches are not zone-level columns;
+    // aggregate counts would require a separate query per zone
+    observations: 0,
+    breaches: 0,
   }
 
   return (
@@ -179,10 +173,10 @@ export function ZoneHierarchyManager({
                       </Badge>
                     </div>
                     <div className="text-xs text-gray-600 mt-1">
-                      Observations: {zone.total_observations || 0} | Breaches: {zone.total_breaches || 0}
+                      Zone hierarchy
                     </div>
                     <div className="mt-2">
-                      <ZoneGeofenceIndicator geometry={zone.geometry || zone.geom} compact />
+                      <ZoneGeofenceIndicator geometry={zone.geometry} compact />
                     </div>
                   </div>
                   <div className="text-xs text-gray-500">
@@ -248,11 +242,10 @@ export function ZoneHierarchyManager({
                     </Button>
                   </div>
                   <div className="mt-2">
-                    <ZoneGeofenceIndicator geometry={zone.geometry || zone.geom} compact />
+                    <ZoneGeofenceIndicator geometry={zone.geometry} compact />
                   </div>
                   <div className="text-xs text-gray-600 space-y-0.5">
-                    <div>Observations: {zone.total_observations || 0}</div>
-                    <div>Breaches: <span className={zone.total_breaches ? 'text-red-600 font-medium' : ''}>{zone.total_breaches || 0}</span></div>
+                    <div>Child enforcement zone</div>
                   </div>
                 </div>
               ))}
@@ -282,7 +275,7 @@ export function ZoneHierarchyManager({
                     <div className="font-semibold text-sm">{zone.name}</div>
                     <Badge variant="outline" className="text-xs">Jurisdiction</Badge>
                   </div>
-                  <ZoneGeofenceIndicator geometry={zone.geometry || zone.geom} />
+                  <ZoneGeofenceIndicator geometry={zone.geometry} />
                 </div>
               ))}
             </div>

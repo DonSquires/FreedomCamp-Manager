@@ -65,8 +65,8 @@ export function useOfficerNotifications(options: { limit?: number; unreadOnly?: 
     queryFn: async () => {
       if (!user?.id) return null
 
-      const { data, error } = await supabase
-        .from('user_profiles')
+      const { data, error } = await (supabase
+        .from('user_profiles') as any)
         .select('notification_preferences')
         .eq('id', user.id)
         .single()
@@ -94,8 +94,8 @@ export function useOfficerNotifications(options: { limit?: number; unreadOnly?: 
         },
       }
 
-      const { error } = await supabase
-        .from('user_profiles')
+      const { error } = await (supabase
+        .from('user_profiles') as any)
         .update(updatePayload as unknown as never)
         .eq('id', user.id)
 

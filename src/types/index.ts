@@ -37,19 +37,19 @@ export interface Zone {
   location_lat: number | null
   location_lng: number | null
   geometry: any
-  geom: any
   is_active: boolean
   day_visit_only: boolean
   nights_per_month: number
   max_consecutive_nights: number
   self_contained_required: boolean
   allowed_days: any
-  zone_type: string
+  zone_type: string | null
   parent_zone_id: string | null
   needs_admin_review: boolean
-  boundary_source: string
-  created_at: string
-  updated_at: string
+  boundary_source: string | null
+  parkpow_lot_id: number | null
+  created_at: string | null
+  updated_at: string | null
   _count?: {
     observations: number
     breaches: number
