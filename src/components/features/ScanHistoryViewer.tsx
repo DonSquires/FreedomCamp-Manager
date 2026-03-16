@@ -53,7 +53,7 @@ export function ScanHistoryViewer({
           vehicle_make,
           vehicle_model,
           vehicle_color,
-          zones!observations_zone_id_fkey (name)
+          zones!vehicle_observations_v2_zone_id_fkey (name)
         `)
         .eq('recorded_by', user?.id ?? '')
         .order('recorded_at', { ascending: false })

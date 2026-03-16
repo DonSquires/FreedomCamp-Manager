@@ -55,7 +55,7 @@ export function VehiclePhotoGallery({
           photo_url,
           photo_hash,
           recorded_at,
-          zones!observations_zone_id_fkey (
+          zones!vehicle_observations_v2_zone_id_fkey (
             name
           ),
           gps_latitude,

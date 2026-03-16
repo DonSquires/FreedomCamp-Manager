@@ -187,6 +187,7 @@ export default function EnforcementActions() {
   // Create enforcement action mutation
   const createActionMutation = useMutation({
     mutationFn: async (data: { breach_alert_id: string; action_type: string; notes: string }) => {
+      // breach_alert_id is used to look up the breach; enforcement_actions links via observation_id
       const { error } = await (supabase
         .from('enforcement_actions') as any)
         .insert({

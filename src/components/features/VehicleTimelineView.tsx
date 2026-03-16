@@ -45,10 +45,10 @@ export function VehicleTimelineView({
       let query = (supabase.from('observations') as any)
         .select(`
           *,
-          zones!observations_zone_id_fkey (
+          zones!vehicle_observations_v2_zone_id_fkey (
             name
           ),
-          user_profiles!observations_recorded_by_fkey (
+          user_profiles!vehicle_observations_v2_recorded_by_fkey (
             first_name,
             last_name
           )

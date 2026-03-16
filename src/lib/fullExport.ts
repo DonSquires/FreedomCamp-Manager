@@ -281,14 +281,14 @@ export async function exportObservationsWithVehicles(
         homeless_status,
         is_flagged
       ),
-      zones!observations_zone_id_fkey (
+      zones!vehicle_observations_v2_zone_id_fkey (
         name,
         description,
         self_contained_required,
         nights_per_month,
         max_consecutive_nights
       ),
-      user_profiles!observations_recorded_by_fkey (
+      user_profiles!vehicle_observations_v2_recorded_by_fkey (
         first_name,
         last_name,
         email
