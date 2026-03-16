@@ -1504,7 +1504,8 @@ jobs:
               echo "Rewrote direct db.*.supabase.co → pooler (${POOLER_HOST})."
             else
               echo "::warning::DATABASE_URL uses a direct Supabase host (db.*.supabase.co) which resolves to IPv6."
-              echo "::warning::GitHub Actions runners cannot reach IPv6. Update DATABASE_URL to use the Session-mode pooler URI."
+              echo "::warning::GitHub Actions runners cannot reach IPv6. Update DATABASE_URL to use the Session-mode pooler URI"
+              echo "::warning::from Supabase Dashboard → Project Settings → Database → Connection string."
             fi
           fi
 
