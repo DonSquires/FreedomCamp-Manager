@@ -131,7 +131,7 @@ jobs:
           ./tools/schema-extract/extract_via_migrations.sh
 
       - name: Identify output directories
-        id: outputs
+        id: dirs
         run: |
           set -euo pipefail
           # Migration-replay output (timestamped directory)
@@ -145,7 +145,7 @@ jobs:
         uses: actions/upload-artifact@v5
         with:
           name: schema-extract-${{ github.run_id }}
-          path: ${{ steps.outputs.outputs.output_dir }}
+          path: ${{ steps.dirs.outputs.output_dir }}
           if-no-files-found: warn
 
       - name: Push output branch (optional)

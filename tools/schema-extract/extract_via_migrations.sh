@@ -30,7 +30,6 @@ PG_PASS="postgres"
 PG_DB="postgres"
 
 cleanup() {
-  echo "[$(date -Iseconds)] Cleaning up container $CONTAINER_NAME …" | tee -a "$COMBINED_OUT" 2>/dev/null || true
   docker rm -f "$CONTAINER_NAME" >/dev/null 2>&1 || true
 }
 trap cleanup EXIT
