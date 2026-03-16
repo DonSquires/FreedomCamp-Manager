@@ -11,6 +11,8 @@
 // Performance: Photo hash is reused from the source observation (no photo
 // download).  Compliance evaluation is invoked via the
 // auto_evaluate_compliance_and_create_breach RPC after each insert.
+//
+// Improved: Safe body parsing with error handling for empty/invalid JSON bodies.
 // ============================================================================
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.7";
@@ -85,7 +87,18 @@ Deno.serve(async (req) => {
     }
 
     // ── Parse request body ──────────────────────────────────────────────────
-    const body = await req.json();
+    let body: Record<string, unknown> = {};
+    try {
+      const text = await req.text();
+      if (text && text.trim().length > 0) {
+        body = JSON.parse(text);
+      }
+    } catch {
+      return new Response(
+        JSON.stringify({ error: "Invalid JSON in request body" }),
+        { status: 400, headers: { ...getCorsHeaders(req), "content-type": "application/json" } },
+      );
+    }
     const getTotal = body.get_total === true;
     const offset = Number(body.offset ?? 0);
     const batchSize = Math.min(Number(body.batch_size ?? 50), 100);
