@@ -110,6 +110,48 @@ jobs:
             echo "No short-form/long-form migration conflicts detected."
           fi
 
+      - name: Check for future-dated migration files
+        run: |
+          set -euo pipefail
+          echo "Checking for future-dated migration files..."
+
+          # Migration files should never be dated further ahead than the
+          # actual current date, because any migration added with today's date
+          # (YYYYMMDD) will sort *before* already-applied future-dated files.
+          # Supabase would then silently mark the new file as "applied" without
+          # running its SQL — schema changes would be skipped.
+          #
+          # This check computes the calendar date encoded in each migration
+          # filename and warns when it is more than 1 day ahead of today.
+
+          MIGRATION_DIR="supabase/migrations"
+          today=$(TZ=Pacific/Auckland date +%Y%m%d)
+          future_count=0
+          latest_future_version=""
+
+          while IFS= read -r file; do
+            base="$(basename "$file" .sql)"
+            version_prefix="${base%%_*}"
+            # Extract the 8-digit calendar date regardless of whether the
+            # version is YYYYMMDD or YYYYMMDDNNNNNN format.
+            cal_date="${version_prefix:0:8}"
+
+            if [[ "$cal_date" =~ ^[0-9]{8}$ ]] && [[ "$cal_date" -gt "$today" ]]; then
+              future_count=$((future_count + 1))
+              latest_future_version="$version_prefix"
+            fi
+          done < <(find "$MIGRATION_DIR" -name "*.sql" | sort)
+
+          if [ "$future_count" -gt 0 ]; then
+            echo "::warning::$future_count migration file(s) are dated in the future (latest: $latest_future_version, today: $today)."
+            echo "::warning::Any new migration added with today's date ($today) will sort BEFORE these files."
+            echo "::warning::Supabase db push will silently mark such files as 'applied' without running their SQL."
+            echo "::warning::New migrations MUST use a version dated AFTER $latest_future_version to avoid silent skipping."
+            echo "::warning::See docs/MIGRATION_TROUBLESHOOTING.md#future-dated-migrations for guidance."
+          else
+            echo "No future-dated migration files detected."
+          fi
+
       - name: Resolve project credentials
         id: creds
         run: |
@@ -158,3 +200,4 @@ jobs:
           echo "  • PRODUCTION_PROJECT_ID   (Supabase Dashboard → Project Settings → General → Reference ID)"
           echo "  • PRODUCTION_DB_PASSWORD  (Supabase Dashboard → Project Settings → Database → Database password)"
           echo "  See docs/SUPABASE_GITHUB_SETUP.md for full instructions."
+
