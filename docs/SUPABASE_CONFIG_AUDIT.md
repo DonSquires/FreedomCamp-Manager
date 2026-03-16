@@ -192,11 +192,12 @@ which tables each app reads/writes directly.
 
 ### 4.3 Schema Consistency Verdict
 
-**✅ Consistent.** The mobile app uses a subset of the tables available in the database.
-All table names, column names, and data types used by the mobile app match the canonical
-schema defined in `supabase/migrations/`.
+**✅ Consistent with the live schema.** The mobile app uses a subset of the tables available
+in the database, and the generated types align with the current live `observations` contract.
+Historical migrations briefly introduced fields that are not present in the live project;
+the live schema and generated types are the source of truth.
 
-Key shared fields on `observations` (verified against `20260221_rebuild_observations_clean.sql`):
+Key shared fields on `observations` (verified against the live schema and generated types):
 
 | Field | Mobile App Uses | Schema Has | Match |
 |---|---|---|---|
@@ -213,7 +214,7 @@ Key shared fields on `observations` (verified against `20260221_rebuild_observat
 | `plate_number` | ✅ | ✅ | ✅ |
 | `processing_status` | ✅ | ✅ | ✅ |
 | `is_compliant` | ✅ | ✅ (nullable) | ✅ |
-| `weather_conditions` | ✅ | ✅ | ✅ |
+| `weather_conditions` | Compatibility input only | ❌ | Not persisted |
 
 ---
 

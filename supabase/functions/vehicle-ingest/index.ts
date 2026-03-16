@@ -262,7 +262,6 @@ Deno.serve(async (req) => {
     let zoneId: string | null = null;
     let idempotencyKey: string | null = null;
     let officerNotes: string | null = null;
-    let weatherConditions: string | null = null;
     let photoUrlInput: string | null = null;
     // Pre-computed SHA-256 hash sent by FieldOfficerPortal.
     // When present alongside photo_url (no raw bytes), the function can skip
@@ -294,7 +293,6 @@ Deno.serve(async (req) => {
       zoneId = body.zoneId ?? body.zone_id;
       idempotencyKey = body.idempotencyKey ?? body.idempotency_key;
       officerNotes = body.notes ?? body.officer_notes;
-      weatherConditions = body.weather ?? body.weather_conditions;
       photoUrlInput = body.photo_url ?? body.photoUrl ?? null;
       hintPhotoHash = body.photo_hash ?? null;
       // Pre-detected ALPR hint (optional — sent by FieldOfficerPortal after the
@@ -321,7 +319,6 @@ Deno.serve(async (req) => {
       zoneId = formData.get("zoneId") as string;
       idempotencyKey = formData.get("idempotencyKey") as string;
       officerNotes = formData.get("notes") as string;
-      weatherConditions = formData.get("weather") as string;
       photoUrlInput = (formData.get("photo_url") as string) || (formData.get("photoUrl") as string) || null;
       hintPlate = (formData.get("plate") as string) || (formData.get("plate_number") as string) || null;
       const rawConfidence = formData.get("confidence");

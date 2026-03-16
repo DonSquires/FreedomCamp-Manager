@@ -623,9 +623,8 @@ Individual vehicle sightings — **the only operational table** for ALPR data.
 | vehicle_colour | text | |
 | vehicle_year | integer | Approximate year (from OpenAI Vision) |
 | is_compliant | boolean | Compliance result |
-| compliance_summary | jsonb | Immutable audit trail |
+| compliance_snapshot | jsonb | Stored compliance context on the observation row |
 | processing_status | text | `pending`, `processing`, `complete`, `failed` |
-| weather_description | text | Conditions at time of scan |
 | evidence_state | text | `original_present`, `legacy_no_photo`, etc. |
 | parkpow_session_id | text | ParkPow session |
 | parkpow_violation_id | text | ParkPow violation |

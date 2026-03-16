@@ -79,11 +79,12 @@ export default function RecentScansScreen() {
   const renderItem = ({ item }: { item: any }) => {
     const pending = item.plate_number === 'PROCESSING...'
     const inBreach = !item.is_compliant && !pending
+    const thumbUrl = item.photo || item.photo_url
     return (
       <View style={[styles.card, inBreach && styles.cardBreach]}>
         {/* Photo thumb */}
-        {item.photo_url ? (
-          <Image source={{ uri: item.photo_url }} style={styles.thumb} />
+        {thumbUrl ? (
+          <Image source={{ uri: thumbUrl }} style={styles.thumb} />
         ) : (
           <View style={styles.thumbPlaceholder}>
             <Ionicons name="car-outline" size={22} color="#9ca3af" />

@@ -27,6 +27,7 @@
  *       "zone_name": "Central",
  *       "is_compliant": false,
  *       "breach_type": "Overstay",
+ *       "photo": "https://...",
  *       "photo_url": "https://...",
  *       "gps_latitude": -43.53,
  *       "gps_longitude": 172.63
@@ -119,6 +120,7 @@ serve(withCors(async (req) => {
       recorded_by,
       is_compliant,
       breach_type,
+      photo,
       photo_url,
       gps_latitude,
       gps_longitude,
@@ -188,7 +190,8 @@ serve(withCors(async (req) => {
     zone_name: obs.zone?.name || 'Unknown Zone',
     is_compliant: obs.is_compliant,
     breach_type: obs.breach_type,
-    photo_url: obs.photo_url,
+    photo: obs.photo ?? obs.photo_url ?? null,
+    photo_url: obs.photo_url ?? obs.photo ?? null,
     gps_latitude: obs.gps_latitude,
     gps_longitude: obs.gps_longitude,
   }));

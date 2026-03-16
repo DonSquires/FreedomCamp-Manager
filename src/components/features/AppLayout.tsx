@@ -57,7 +57,7 @@ interface AppLayoutProps {
 const navigationItems = [
   { path: '/', icon: Home, label: 'Home', roles: ['admin', 'admin_officer', 'master', 'officer'] },
   { path: '/search', icon: Search, label: 'Universal Search', roles: ['admin', 'admin_officer', 'master', 'officer'] },
-  { path: '/compliance', icon: BarChart3, label: 'Compliance Dashboard', roles: ['admin', 'admin_officer', 'master', 'officer'] },
+  { path: '/compliance', icon: BarChart3, label: 'Compliance Dashboard', roles: ['admin', 'admin_officer', 'master'] },
   { path: '/observation-records', icon: ImageIcon, label: 'Observation Records', roles: ['admin', 'admin_officer', 'master', 'officer'] },
   { path: '/compliance-recalculation', icon: Shield, label: 'Manual Recalculation', roles: ['admin', 'admin_officer', 'master'] },
   { path: '/breaches', icon: AlertTriangle, label: 'Breach & Safety Alerts', roles: ['admin', 'admin_officer', 'master', 'officer'] },
@@ -121,7 +121,7 @@ function NavigationLinks({ onClick }: { onClick?: () => void }) {
 }
 
 export function AppLayout({ children, title, description, showBackButton }: AppLayoutProps) {
-  const brandLogoUrl = 'https://kxwjcupuxnnbnzcgmkoi.supabase.co/storage/v1/object/public/Logo/IES%20Logo.jpg'
+  const brandLogoUrl = '/iron-eagle-security-logo.jpg'
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [desktopNavOpen, setDesktopNavOpen] = useState(false)
   const [reLoginPassword, setReLoginPassword] = useState('')

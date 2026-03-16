@@ -20,6 +20,7 @@ export interface ObservationListRow {
   zone_name: string
   is_compliant: boolean | null
   breach_type: string | null
+  photo: string | null
   photo_url: string | null
   gps_latitude: number | null
   gps_longitude: number | null

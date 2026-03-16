@@ -162,9 +162,9 @@ OFFICER (phone)
      │      → UPSERT [vehicle_monthly_stays]
      │        Updates nights_stayed, consecutive_nights for plate+zone+month
      │
-     ═► TRIGGER: trigger_populate_compliance_summary (observations.updated_at)
-     │      → Builds compliance_summary JSONB in [observations]
-     │        {nights_stayed, consecutive_nights, max_allowed, is_compliant}
+     ═► TRIGGER: trg_auto_evaluate_compliance
+     │      → Writes compliance fields directly on [observations]
+     │        {is_compliant, breach_type, breach_reason}
      │
      ═► TRIGGER: trigger_auto_create_compliance_result
      │      → Calls calculate_vehicle_compliance_v3(plate, zone_id, obs_id, date)
@@ -664,12 +664,11 @@ OFFICER taps "Scan"                                    t=0ms
             processing_status = 'complete'
           │
           ═► trigger_update_monthly_stays              ← UPSERT vehicle_monthly_stays
-          ═► trigger_populate_compliance_summary       ← builds compliance_summary JSONB
-              ═► trigger_auto_evaluate_compliance          ← runs compliance engine
-              │     └─ UPDATE observations
-              │           is_compliant = false
-              │           breach_type = 'consecutive_nights'
-              │           breach_reason = '<computed reason>'
+            ═► trg_auto_evaluate_compliance              ← writes compliance fields directly
+            │     └─ UPDATE observations
+            │           is_compliant = false
+            │           breach_type = 'consecutive_nights'
+            │           breach_reason = '<computed reason>'
               │
               ═► breach-alert creation path                ← reads observations.is_compliant
           │     └─ INSERT breach_alerts
