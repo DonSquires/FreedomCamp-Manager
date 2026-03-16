@@ -6,7 +6,7 @@ import {
   Home, Car, MapPin, Users, BarChart3, FileText,
   LogOut, Settings, ChevronLeft, AlertTriangle, ChevronDown,
   Activity, Database, Search, Heart, ScrollText, Lock, Gavel,
-  Navigation, BookOpen, LayoutGrid, Map, Bell, Upload, Shield,
+  Navigation, BookOpen, LayoutGrid, Map, Bell, Upload, Shield, Camera,
 } from 'lucide-react'
 
 const primaryLinks = [
@@ -79,6 +79,7 @@ const moreGroups = [
       { to: '/import-data',     label: 'Import Data',  icon: Upload },
       { to: '/import-historical', label: 'Import Excel', icon: Upload },
       { to: '/data',            label: 'Data Tools',   icon: Database },
+      { to: '/photo-reingest',  label: 'Photo Reingest', icon: Camera },
       { to: '/settings',        label: 'Settings',     icon: Settings },
     ],
   },

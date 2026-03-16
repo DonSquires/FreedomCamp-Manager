@@ -647,6 +647,21 @@ export const edgeFunctions = {
     return callEdgeFunction('select-best-vehicle-photo', params)
   },
 
+  /**
+   * Reingest photos — batch reprocess existing observation photos through
+   * the vehicle-ingest pipeline, creating new observation records.
+   */
+  reingestPhotos: async (params: {
+    get_total?: boolean
+    offset?: number
+    batch_size?: number
+    organization_id?: string
+    date_from?: string
+    date_to?: string
+  }) => {
+    return callEdgeFunction('reingest-photos', params)
+  },
+
   // ============================================================================
   // DATA MANAGEMENT (6 functions)
   // ============================================================================

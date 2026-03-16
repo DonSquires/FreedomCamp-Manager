@@ -26,6 +26,7 @@ import { GlobalOperationsBar } from '@/components/features/GlobalOperationsBar'
 // Add your two new pages
 import ComplianceRecalculation from '@/pages/ComplianceRecalculation'
 import CleanupAndRecalculate from '@/pages/CleanupAndRecalculate'
+import PhotoReingest from '@/pages/PhotoReingest'
 import LiveOfficerTracking from '@/pages/LiveOfficerTracking'
 import OrganizationProfile from '@/pages/OrganizationProfile'
 import AuditLog from '@/pages/AuditLog'
@@ -377,6 +378,17 @@ export default function App() {
               <ProtectedRoute>
                   <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
                   <ComplianceRecalculation />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/photo-reingest"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <PhotoReingest />
                 </RoleRoute>
               </ProtectedRoute>
             }
