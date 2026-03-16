@@ -85,6 +85,8 @@ export function ZoneHierarchyManager({
     total: zones?.length || 0,
     parent: parentZones.length,
     children: childZones.length,
+    // total_observations and total_breaches are not zone-level columns;
+    // aggregate counts would require a separate query per zone
     observations: 0,
     breaches: 0,
   }

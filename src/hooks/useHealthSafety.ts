@@ -219,6 +219,7 @@ export function useHSReport(id: string | null) {
           zone:zones(name),
           reporter:user_profiles!health_safety_reports_reported_by_fkey(first_name, last_name)
         `)
+        // Note: resolver join removed — resolved_by column/FK does not exist in live schema
         .eq('id', id)
         .single()
 

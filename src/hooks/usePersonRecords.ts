@@ -74,10 +74,7 @@ export function usePersonRecords(options?: {
     queryFn: async () => {
       let query = (supabase
         .from('person_records') as any)
-        .select(`
-          *,
-          confirmer:user_profiles(first_name, last_name)
-        `)
+        .select('*')
         .order('created_at', { ascending: false })
 
       // Filters
