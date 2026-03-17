@@ -142,9 +142,9 @@ export async function captureAndSave(
   if (!rpcErr && rpcData) {
     observationId = (rpcData as any).observation_id ?? (rpcData as any).id ?? null
   } else {
-    // Fall back to direct insert when the RPC is missing, has a schema-cache
-    // miss, or its function body is broken (e.g. references the old table name
-    // vehicle_observations_v2 before migration 20260316000003 was applied).
+    // Always try a direct insert fallback if the RPC fails for any reason.
+    // This protects live scans from stale function bodies, schema-cache drift,
+    // permission quirks, and inconsistent error message formats.
     const rpcErrMsg = [
       rpcErr?.message,
       (rpcErr as any)?.details,
@@ -153,49 +153,39 @@ export async function captureAndSave(
     ]
       .filter(Boolean)
       .join(' ')
-      .toLowerCase()
-    const isFunctionUnavailable =
-      rpcErrMsg.includes('schema cache') ||
-      rpcErrMsg.includes('could not find') ||
-      rpcErr?.code === 'PGRST202'
-    const isBrokenFunctionBody =
-      rpcErrMsg.includes('vehicle_observations_v2') ||
-      rpcErrMsg.includes('insert failed') ||
-      rpcErrMsg.includes('insert into observations failed') ||
-      rpcErrMsg.includes('does not exist') ||
-      rpcErrMsg.includes('undefined_table') ||
-      rpcErrMsg.includes('42p01')
+      .trim()
 
-    if (isFunctionUnavailable || isBrokenFunctionBody) {
-      if (isBrokenFunctionBody) {
-        console.warn(
-          '⚠️ safe_insert_observation function body is broken; falling back to direct insert.',
-          rpcErrMsg,
-        )
-      }
-      const { data: ins, error: insErr } = await (supabase.from('observations') as any)
-        .insert({
-          plate_number:    'PROCESSING...',
-          photo:           photoUrl,
-          photo_url:       photoUrl,
-          photo_hash:      photoHash,
-          recorded_at:     nowIso,
-          zone_id:         finalZoneId,
-          organization_id: user.organization_id,
-          gps_latitude:    latitude,
-          gps_longitude:   longitude,
-          gps_accuracy:    accuracy,
-          recorded_by:     user.id,
-          idempotency_key: idempKey,
-          officer_notes:   weather !== 'Unknown' ? `Weather: ${weather}` : null,
-        })
-        .select('observation_id')
-        .single()
-      if (insErr || !ins) throw new Error(`Save failed: ${insErr?.message ?? 'Unknown'}`)
-      observationId = (ins as any).observation_id ?? null
-    } else {
-      throw new Error(`Save failed: ${rpcErr?.message ?? 'Unknown'}`)
+    if (rpcErrMsg) {
+      console.warn('⚠️ safe_insert_observation failed; trying direct insert fallback.', rpcErrMsg)
     }
+
+    const { data: ins, error: insErr } = await (supabase.from('observations') as any)
+      .insert({
+        plate_number:    'PROCESSING...',
+        photo:           photoUrl,
+        photo_url:       photoUrl,
+        photo_hash:      photoHash,
+        recorded_at:     nowIso,
+        zone_id:         finalZoneId,
+        organization_id: user.organization_id,
+        gps_latitude:    latitude,
+        gps_longitude:   longitude,
+        gps_accuracy:    accuracy,
+        recorded_by:     user.id,
+        idempotency_key: idempKey,
+        officer_notes:   weather !== 'Unknown' ? `Weather: ${weather}` : null,
+      })
+      .select('observation_id')
+      .single()
+
+    if (insErr || !ins) {
+      const combined = rpcErrMsg
+        ? `RPC failed (${rpcErrMsg}) and fallback insert failed (${insErr?.message ?? 'Unknown'})`
+        : (insErr?.message ?? 'Unknown')
+      throw new Error(`Save failed: ${combined}`)
+    }
+
+    observationId = (ins as any).observation_id ?? null
   }
 
   if (!observationId) throw new Error('Observation saved but ID not returned')
