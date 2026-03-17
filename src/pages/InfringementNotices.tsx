@@ -157,12 +157,21 @@ export default function InfringementNotices() {
       // Fall back to existing session token if refresh stalls.
     }
 
-    const { data: { session } } = await withAuthTimeout(
-      supabase.auth.getSession(),
-      4000,
-      'Session lookup timed out',
-    )
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+    if (sessionError) {
+      throw new Error(sessionError.message || 'Unable to verify session. Please retry.')
+    }
     if (session?.access_token) return session.access_token
+
+    // Final recovery attempt when local session cache is empty.
+    const { data: retryData, error: retryError } = await withAuthTimeout(
+      supabase.auth.refreshSession(),
+      10000,
+      'Unable to refresh session. Please retry.',
+    )
+    if (!retryError && retryData.session?.access_token) {
+      return retryData.session.access_token
+    }
 
     throw new Error('Session expired. Please sign in again.')
   }
