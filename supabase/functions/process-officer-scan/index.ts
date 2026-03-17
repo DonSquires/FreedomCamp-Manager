@@ -58,6 +58,7 @@ const MOVEMENT_THRESHOLD = 0.70;
 const MAKE_MISMATCH_MIN_CONF = Number(Deno.env.get('MAKE_MISMATCH_MIN_CONF') ?? '0.72');
 const MODEL_MISMATCH_MIN_CONF = Number(Deno.env.get('MODEL_MISMATCH_MIN_CONF') ?? '0.68');
 const COLOUR_MISMATCH_MIN_CONF = Number(Deno.env.get('COLOUR_MISMATCH_MIN_CONF') ?? '0.60');
+const PROCESSING_LOCK_STALE_MS = Number(Deno.env.get('PROCESSING_LOCK_STALE_MS') ?? '120000');
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -665,7 +666,7 @@ Deno.serve(async (req: Request) => {
     // ── Step 1: Load observation ────────────────────────────────────────────
     const { data: obs, error: obsLoadError } = await supabase
       .from('observations')
-      .select('observation_id, organization_id, zone_id, recorded_at, recorded_by, plate_number, is_compliant, sticker_presence, sticker_color, vehicle_make, vehicle_model, vehicle_year, vehicle_color')
+      .select('observation_id, organization_id, zone_id, recorded_at, recorded_by, updated_at, plate_number, is_compliant, sticker_presence, sticker_color, vehicle_make, vehicle_model, vehicle_year, vehicle_color')
       .eq('observation_id', observationId)
       .maybeSingle();
 
@@ -674,37 +675,20 @@ Deno.serve(async (req: Request) => {
       return jsonResp({ error: 'Observation not found' }, 404);
     }
 
+    const existingPlate = typeof obs.plate_number === 'string' ? obs.plate_number : null;
+    const isProcessingPlaceholder = !!existingPlate && (
+      existingPlate === 'PROCESSING...' || existingPlate.startsWith('PROCESSING_LOCKED:')
+    );
+
     // Idempotent fast-exit: if the observation already has a resolved plate,
     // background enrichment has already completed (or manual correction was
     // applied). This makes duplicate fire-and-forget invocations harmless.
-    if (obs.plate_number && obs.plate_number !== 'PROCESSING...' && obs.plate_number !== 'MANUAL_REQUIRED') {
+    if (existingPlate && !isProcessingPlaceholder && existingPlate !== 'MANUAL_REQUIRED') {
       console.log('ℹ️ process-officer-scan skipping already-enriched observation', {
         observationId,
-        plate: obs.plate_number,
+        plate: existingPlate,
       });
       return jsonResp({ success: true, skipped: true, reason: 'already_enriched' });
-    }
-
-    // Concurrency guard: ensure only one invocation claims this observation
-    // while it is in the PROCESSING placeholder state.
-    if (obs.plate_number === 'PROCESSING...') {
-      lockToken = `PROCESSING_LOCKED:${crypto.randomUUID().slice(0, 8)}`;
-      const { data: claimed, error: claimErr } = await supabase
-        .from('observations')
-        .update({ plate_number: lockToken })
-        .eq('observation_id', observationId)
-        .eq('plate_number', 'PROCESSING...')
-        .select('observation_id')
-        .maybeSingle();
-
-      if (claimErr) {
-        console.warn('⚠️ Failed to claim processing lock, continuing best-effort:', claimErr.message);
-      } else if (!claimed) {
-        console.log('⏭️ Duplicate in-flight invocation detected — skipping', { observationId });
-        return jsonResp({ success: true, skipped: true, reason: 'duplicate_in_flight' }, 202);
-      } else {
-        console.log('🔒 Claimed processing lock', { observationId });
-      }
     }
 
     // Verify officer owns this observation (master role can process any)
@@ -723,6 +707,55 @@ Deno.serve(async (req: Request) => {
       return jsonResp({ error: 'Failed to download photo' }, 500);
     }
     console.log(`📸 Photo loaded (${imageBytes.length} bytes)`);
+
+    // Concurrency guard: ensure only one invocation claims this observation
+    // while it is in a processing placeholder state.
+    if (isProcessingPlaceholder && existingPlate) {
+      let claimFromPlate = existingPlate;
+
+      if (existingPlate.startsWith('PROCESSING_LOCKED:')) {
+        const updatedAtMs = Date.parse(String((obs as any).updated_at ?? ''));
+        const lockAgeMs = Number.isFinite(updatedAtMs) ? Date.now() - updatedAtMs : PROCESSING_LOCK_STALE_MS + 1;
+        if (lockAgeMs < PROCESSING_LOCK_STALE_MS) {
+          console.log('⏭️ Active in-flight lock detected — skipping duplicate invocation', { observationId, lockAgeMs });
+          return jsonResp({ success: true, skipped: true, reason: 'duplicate_in_flight' }, 202);
+        }
+
+        const { data: reclaimed } = await supabase
+          .from('observations')
+          .update({ plate_number: 'PROCESSING...' })
+          .eq('observation_id', observationId)
+          .eq('plate_number', existingPlate)
+          .select('observation_id')
+          .maybeSingle();
+
+        if (!reclaimed) {
+          console.log('⏭️ Lock changed before reclaim — skipping duplicate invocation', { observationId });
+          return jsonResp({ success: true, skipped: true, reason: 'duplicate_in_flight' }, 202);
+        }
+
+        claimFromPlate = 'PROCESSING...';
+        console.log('🔁 Reclaimed stale processing lock', { observationId, lockAgeMs });
+      }
+
+      lockToken = `PROCESSING_LOCKED:${crypto.randomUUID().slice(0, 8)}`;
+      const { data: claimed, error: claimErr } = await supabase
+        .from('observations')
+        .update({ plate_number: lockToken })
+        .eq('observation_id', observationId)
+        .eq('plate_number', claimFromPlate)
+        .select('observation_id')
+        .maybeSingle();
+
+      if (claimErr) {
+        console.warn('⚠️ Failed to claim processing lock, continuing best-effort:', claimErr.message);
+      } else if (!claimed) {
+        console.log('⏭️ Duplicate in-flight invocation detected — skipping', { observationId });
+        return jsonResp({ success: true, skipped: true, reason: 'duplicate_in_flight' }, 202);
+      } else {
+        console.log('🔒 Claimed processing lock', { observationId });
+      }
+    }
 
     // ── Step 3: Plate detection and inference ─────────────────────────────
     // Start ALPR backup only when Railway inference is slow or returns no
