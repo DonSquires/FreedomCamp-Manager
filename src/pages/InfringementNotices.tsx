@@ -129,6 +129,45 @@ export default function InfringementNotices() {
     }
   }
 
+  const getValidAccessToken = async () => {
+    const { data: { session } } = await supabase.auth.getSession()
+    if (session?.access_token) return session.access_token
+
+    const { data, error } = await supabase.auth.refreshSession()
+    if (error || !data.session?.access_token) {
+      throw new Error('Session expired. Please sign in again.')
+    }
+
+    return data.session.access_token
+  }
+
+  const invokeFunctionWithAuthRetry = async (name: string, body: any, fallbackMessage: string) => {
+    const token = await getValidAccessToken()
+    let result = await supabase.functions.invoke(name, {
+      body,
+      headers: { Authorization: `Bearer ${token}` },
+    })
+
+    if (!result.error) return result
+
+    const message = await getFunctionErrorMessage(result.error, fallbackMessage)
+    if (!/invalid jwt|http\s*401|401\b/i.test(message)) {
+      return result
+    }
+
+    const { data, error } = await supabase.auth.refreshSession()
+    if (error || !data.session?.access_token) {
+      throw new Error('Session expired. Please sign in again.')
+    }
+
+    result = await supabase.functions.invoke(name, {
+      body,
+      headers: { Authorization: `Bearer ${data.session.access_token}` },
+    })
+
+    return result
+  }
+
   const copyIssueError = async () => {
     if (!issueErrorDetail) return
     try {
@@ -326,7 +365,7 @@ export default function InfringementNotices() {
       if (form.breach_alert_id) body.breach_alert_id = form.breach_alert_id
       if (form.observation_id)  body.observation_id = form.observation_id
 
-      const { data, error } = await supabase.functions.invoke('generate-infringement', { body })
+      const { data, error } = await invokeFunctionWithAuthRetry('generate-infringement', body, 'Edge function error')
       if (error) throw new Error(await getFunctionErrorMessage(error, 'Edge function error'))
       if (!data?.success) throw new Error(data?.error || 'Failed to generate notice')
 
@@ -360,9 +399,11 @@ export default function InfringementNotices() {
   const handleReprint = async (noticeId: string) => {
     setReprintingNoticeId(noticeId)
     try {
-      const { data, error } = await supabase.functions.invoke('render-infringement-notice', {
-        body: { notice_id: noticeId },
-      })
+      const { data, error } = await invokeFunctionWithAuthRetry(
+        'render-infringement-notice',
+        { notice_id: noticeId },
+        'Failed to load printable notice',
+      )
       if (error) throw new Error(await getFunctionErrorMessage(error, 'Failed to load printable notice'))
       if (!data?.success || !data?.html) throw new Error(data?.error || 'Printable notice unavailable')
       setPreviewHtml(data.html)

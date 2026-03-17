@@ -99,6 +99,45 @@ export default function InfringementNoticesScreen() {
     }
   }
 
+  const getValidAccessToken = async () => {
+    const { data: { session } } = await supabase.auth.getSession()
+    if (session?.access_token) return session.access_token
+
+    const { data, error } = await supabase.auth.refreshSession()
+    if (error || !data.session?.access_token) {
+      throw new Error('Session expired. Please sign in again.')
+    }
+
+    return data.session.access_token
+  }
+
+  const invokeFunctionWithAuthRetry = async (name: string, body: any, fallbackMessage: string) => {
+    const token = await getValidAccessToken()
+    let result = await supabase.functions.invoke(name, {
+      body,
+      headers: { Authorization: `Bearer ${token}` },
+    })
+
+    if (!result.error) return result
+
+    const message = await getFunctionErrorMessage(result.error, fallbackMessage)
+    if (!/invalid jwt|http\s*401|401\b/i.test(message)) {
+      return result
+    }
+
+    const { data, error } = await supabase.auth.refreshSession()
+    if (error || !data.session?.access_token) {
+      throw new Error('Session expired. Please sign in again.')
+    }
+
+    result = await supabase.functions.invoke(name, {
+      body,
+      headers: { Authorization: `Bearer ${data.session.access_token}` },
+    })
+
+    return result
+  }
+
   // Issue form state
   const [form, setForm] = useState({
     plate_number: '',
@@ -213,8 +252,9 @@ export default function InfringementNoticesScreen() {
     }
     setIssuing(true)
     try {
-      const { data, error } = await supabase.functions.invoke('generate-infringement', {
-        body: {
+      const { data, error } = await invokeFunctionWithAuthRetry(
+        'generate-infringement',
+        {
           plate_number: form.plate_number.toUpperCase().trim(),
           zone_id: form.zone_id,
           offence_description: form.offence_description,
@@ -227,7 +267,8 @@ export default function InfringementNoticesScreen() {
           breach_alert_id: form.breach_alert_id || undefined,
           observation_id: form.observation_id || undefined,
         },
-      })
+        'Failed to issue notice',
+      )
       if (error) throw new Error(await getFunctionErrorMessage(error, 'Failed to issue notice'))
       if (!data?.success) throw new Error(data?.error || 'Failed')
 
@@ -255,9 +296,11 @@ export default function InfringementNoticesScreen() {
   const handleReprint = async (noticeId: string) => {
     setReprintingNoticeId(noticeId)
     try {
-      const { data, error } = await supabase.functions.invoke('render-infringement-notice', {
-        body: { notice_id: noticeId },
-      })
+      const { data, error } = await invokeFunctionWithAuthRetry(
+        'render-infringement-notice',
+        { notice_id: noticeId },
+        'Failed to load printable notice',
+      )
       if (error) throw new Error(await getFunctionErrorMessage(error, 'Failed to load printable notice'))
       if (!data?.success || !data?.html) throw new Error(data?.error || 'Printable notice unavailable')
 
