@@ -146,12 +146,15 @@ export default function NoticeToVacate() {
     previewWindow.onload = finishOpen
   }
 
-  const orgId = user?.role === 'master' ? (organizationId || undefined) : user?.organization_id
+  const orgId = user?.role === 'master' ? (organizationId || user?.organization_id) : user?.organization_id
 
   // Fetch notices
   const { data: notices = [], isLoading } = useQuery({
     queryKey: ['notices-to-vacate', orgId, zoneId, dateFrom, dateTo, statusFilter],
     queryFn: async () => {
+      // Fail-safe: ensure orgId is always defined before query
+      if (!orgId) return []
+
       let q = supabase
         .from('notices_to_vacate')
         .select(`
@@ -163,8 +166,7 @@ export default function NoticeToVacate() {
         `)
         .order('issued_at', { ascending: false })
         .limit(200)
-
-      if (orgId) q = q.eq('organization_id', orgId)
+        .eq('organization_id', orgId)
       if (zoneId) q = q.eq('zone_id', zoneId)
       if (dateFrom) q = q.gte('issued_at', dateFrom)
       if (dateTo) q = q.lte('issued_at', dateTo + 'T23:59:59')

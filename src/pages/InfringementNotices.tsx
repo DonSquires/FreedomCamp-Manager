@@ -369,7 +369,7 @@ export default function InfringementNotices() {
         .select(`
           id, notice_number, plate_number, offence_description, legal_basis,
           offence_date, offence_location, amount_cents, due_date, service_method,
-          status, created_at,
+          status, created_at, issued_at,
           zone:zones!zone_id(name),
           issuer:user_profiles!created_by(first_name, last_name)
         `)

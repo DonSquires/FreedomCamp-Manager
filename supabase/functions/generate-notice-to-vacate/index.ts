@@ -44,6 +44,13 @@ Deno.serve(async (req) => {
       throw new Error('Legal configuration not found for this zone');
     }
 
+    // Validate all required legal configuration fields are present
+    const requiredFields = ['land_owner', 'legal_description', 'org_street_address', 'authorized_signatories'];
+    const missingFields = requiredFields.filter(field => !legalConfig[field]);
+    if (missingFields.length > 0) {
+      throw new Error(`Legal configuration incomplete for zone. Missing: ${missingFields.join(', ')}`);
+    }
+
     // 2. Get issuing user details
     const { data: issuingUser, error: userError } = await supabaseAdmin
       .from('user_profiles')
@@ -131,11 +138,12 @@ Deno.serve(async (req) => {
         action_type: 'notice_to_vacate',
         status: 'issued',
         notes: `Notice to Vacate issued - Reference: ${notice.reference_number}\n\nBreach: ${breachReason}`,
-        attachments: JSON.stringify([{
+        attachment: {
           type: 'notice_to_vacate',
           notice_id: notice.id,
           reference: notice.reference_number,
-        }]),
+        },
+      ]), // Native JSONB array, not stringified
       });
 
     if (enforcementError) {

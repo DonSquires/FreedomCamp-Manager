@@ -160,8 +160,12 @@ CREATE POLICY "officers_view_org_notices"
   ON public.notices_to_vacate FOR SELECT
   TO authenticated
   USING (
-    (get_user_role(auth.uid()) = 'master'::text)
-    OR (organization_id = get_user_organization_id(auth.uid()))
+    (
+      -- Master users can see all organization notices
+      (get_user_role(auth.uid()) = 'master'::text)
+      -- Admins can see notices for their organization
+      OR (get_user_role(auth.uid()) = 'admin'::text AND organization_id = get_user_organization_id(auth.uid()))
+    )
   );
 
 CREATE POLICY "service_role_manage_notices"
@@ -170,7 +174,7 @@ CREATE POLICY "service_role_manage_notices"
   USING (true)
   WITH CHECK (true);
 
--- Function to generate reference number
+-- Function to generate reference number (race-condition safe with FOR UPDATE lock)
 CREATE OR REPLACE FUNCTION generate_notice_reference()
 RETURNS TEXT AS $$
 DECLARE
@@ -180,11 +184,12 @@ DECLARE
 BEGIN
   v_year := TO_CHAR(NOW(), 'YYYY');
   
-  -- Get next counter for this year
+  -- Lock the latest notice to serialize reference generation and prevent concurrent duplicates
   SELECT COALESCE(MAX(CAST(SUBSTRING(reference_number FROM 'NTV' || v_year || '-([0-9]+)') AS INTEGER)), 0) + 1
   INTO v_counter
   FROM public.notices_to_vacate
-  WHERE reference_number LIKE 'NTV' || v_year || '-%';
+  WHERE reference_number LIKE 'NTV' || v_year || '-%'
+  FOR UPDATE;  -- Serialize access to prevent concurrent duplicate reference generation
   
   v_reference := 'NTV' || v_year || '-' || LPAD(v_counter::TEXT, 4, '0');
   

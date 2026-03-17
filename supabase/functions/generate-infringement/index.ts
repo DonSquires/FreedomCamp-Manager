@@ -56,21 +56,12 @@ function buildFallbackNoticeNumber() {
 }
 
 function extractBearerToken(req: Request): string | null {
-  const candidates = [
-    req.headers.get('Authorization'),
-    req.headers.get('authorization'),
-    req.headers.get('x-authorization'),
-    req.headers.get('x-forwarded-authorization'),
-    req.headers.get('x-supabase-authorization'),
-  ]
-
-  for (const value of candidates) {
-    if (!value) continue
-    const match = value.match(/^Bearer\s+(.+)$/i)
-    if (match?.[1]) return match[1].trim()
-  }
-
-  return null
+  // Accept only standard Authorization header (case-insensitive)
+  const authHeader = req.headers.get('Authorization') || req.headers.get('authorization')
+  if (!authHeader) return null
+  
+  const match = authHeader.match(/^Bearer\s+(.+)$/i)
+  return match?.[1]?.trim() ?? null
 }
 
 const NZ_DEFAULT_SUMMARY_OF_RIGHTS = `

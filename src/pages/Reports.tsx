@@ -129,14 +129,21 @@ export default function Reports() {
   const { data: statsRpc, isLoading: loadingStats } = useQuery({
     queryKey: ['report-stats', effectiveOrgId, zoneId, reportDateFrom, reportDateTo],
     queryFn: async () => {
-      const { data, error } = await (supabase.rpc as any)('get_compliance_stats', {
+      const rpcPromise = (supabase.rpc as any)('get_compliance_stats', {
         p_start:            startDate,
         p_end:              endDate,
         p_organization_id:  effectiveOrgId ?? null,
         p_zone_id:          zoneId ?? null,
       })
-      if (error) throw error
-      const row = Array.isArray(data) ? data[0] : data
+      
+      const result = await withTimeout(
+        rpcPromise,
+        30000,
+        'Compliance stats query timed out (30s)'
+      ) as {data: any; error: any}
+      
+      if (result.error) throw result.error
+      const row = Array.isArray(result.data) ? result.data[0] : result.data
       return {
         total:             Number(row?.total_observations ?? 0),
         compliant:         Number(row?.compliant_count    ?? 0),

@@ -73,12 +73,15 @@ CREATE POLICY "officers_insert_own_incidents" ON public.incidents
     AND organization_id = get_user_organization_id(auth.uid())
   );
 
--- Officers can view incidents from their organization
+-- Officers can view incidents from their organization (excluding soft-deleted)
 CREATE POLICY "org_users_view_incidents" ON public.incidents
   FOR SELECT TO authenticated
   USING (
-    (get_user_role(auth.uid()) = 'master'::text) 
-    OR (organization_id = ANY (get_user_organization_ids()))
+    deleted_at IS NULL
+    AND (
+      (get_user_role(auth.uid()) = 'master'::text) 
+      OR (organization_id = ANY (get_user_organization_ids()))
+    )
   );
 
 -- Officers can update their own incidents (before processing complete)

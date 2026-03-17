@@ -150,6 +150,8 @@ export default function ObservationsReport() {
     },
   })
 
+  const safeStats = stats ?? { total: 0, compliant: 0, breach: 0, rate: null as number | null }
+
   return (
     <AppLayout title="Observations Report" description="View, filter and export observation records">
       <GlobalFilterRibbon showZoneFilter showDateFilter />
@@ -157,10 +159,10 @@ export default function ObservationsReport() {
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         {[
-          { label: 'Total', value: stats.total, icon: <FileText className="h-5 w-5 text-blue-500" /> },
-          { label: 'Compliant', value: stats.compliant, icon: <CheckCircle className="h-5 w-5 text-green-500" /> },
-          { label: 'Breach', value: stats.breach, icon: <AlertTriangle className="h-5 w-5 text-red-500" /> },
-          { label: 'Compliance Rate', value: stats.rate !== null ? `${stats.rate}%` : '—', icon: <BarChart3 className="h-5 w-5 text-blue-500" /> },
+          { label: 'Total', value: safeStats.total, icon: <FileText className="h-5 w-5 text-blue-500" /> },
+          { label: 'Compliant', value: safeStats.compliant, icon: <CheckCircle className="h-5 w-5 text-green-500" /> },
+          { label: 'Breach', value: safeStats.breach, icon: <AlertTriangle className="h-5 w-5 text-red-500" /> },
+          { label: 'Compliance Rate', value: safeStats.rate !== null ? `${safeStats.rate}%` : '—', icon: <BarChart3 className="h-5 w-5 text-blue-500" /> },
         ].map(s => (
           <Card key={s.label}>
             <CardContent className="pt-4">

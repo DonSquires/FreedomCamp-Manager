@@ -113,6 +113,9 @@ export default function IncidentReports() {
         query = query.eq('zone_id', zoneId)
       }
 
+      // Exclude soft-deleted incidents
+      query = query.eq('deleted_at', null)
+
       // Severity filter
       if (severityFilter !== 'all') {
         query = query.eq('severity', severityFilter)
