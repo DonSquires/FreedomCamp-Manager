@@ -127,16 +127,21 @@ const navigationGroups: Array<{ label: string; icon: React.FC<{ className?: stri
 function NavigationLinks({ onClick }: { onClick?: () => void }) {
   const location = useLocation()
   const { user } = useAuthStore()
-  const [openGroups, setOpenGroups] = useState<Set<string>>(() => {
-    // Auto-expand the group containing the active path
-    const active = new Set<string>()
+  const [openGroups, setOpenGroups] = useState<Set<string>>(new Set())
+
+  // Auto-expand the group containing the active path on navigation
+  useEffect(() => {
     for (const group of navigationGroups) {
       if (group.items.some(item => location.pathname === item.path && user && item.roles.includes(user.role))) {
-        active.add(group.label)
+        setOpenGroups(prev => {
+          if (prev.has(group.label)) return prev
+          const next = new Set(prev)
+          next.add(group.label)
+          return next
+        })
       }
     }
-    return active
-  })
+  }, [location.pathname, user])
 
   const toggleGroup = (label: string) => {
     setOpenGroups(prev => {

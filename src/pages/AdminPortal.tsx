@@ -666,17 +666,22 @@ export default function AdminPortal() {
                   </span>
                 </button>
               ))}
-              {drilldowns.length > 5 && drilldowns.slice(5).map(({ title, to, icon: Icon, config }) => (
+              {drilldowns.length > 5 && drilldowns.slice(5).map(({ title, to, icon: Icon, metric, config }) => (
                 <button
                   key={to}
-                  className="flex w-full items-center justify-between rounded-lg border bg-gray-50 dark:bg-gray-800 px-3 py-2.5 text-left hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                  className="flex w-full items-center justify-between rounded-lg border bg-gray-50 dark:bg-gray-800 px-3 py-2.5 text-left hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors group"
                   onClick={() => openDrilldown(config)}
                 >
                   <span className="flex items-center gap-2 min-w-0">
                     <Icon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                     <span className="text-sm font-medium truncate">{title}</span>
                   </span>
-                  <ArrowRight className="h-3.5 w-3.5 text-muted-foreground" />
+                  <span className="flex items-center gap-1.5 shrink-0">
+                    <Badge variant="secondary" className="text-[10px] py-0 px-1.5 hidden group-hover:inline-flex">
+                      {metric}
+                    </Badge>
+                    <ArrowRight className="h-3.5 w-3.5 text-muted-foreground" />
+                  </span>
                 </button>
               ))}
             </CardContent>
