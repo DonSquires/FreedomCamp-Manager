@@ -482,6 +482,16 @@ export default function AdminPortal() {
     [buildQueryParams, navigate]
   )
 
+  const openInfringementFromObservation = useCallback((observationId?: string | null) => {
+    const id = String(observationId ?? '').trim()
+    if (!id) {
+      toast.error('Observation link missing. Opening infringements page instead.')
+      navigate('/infringements')
+      return
+    }
+    navigate(`/infringements?observation_id=${encodeURIComponent(id)}`)
+  }, [navigate])
+
   const drilldowns = [
     {
       title: 'Manual Recalculation',
@@ -829,7 +839,7 @@ export default function AdminPortal() {
                     size="sm"
                     variant="outline"
                     className="gap-1.5 shrink-0"
-                    onClick={() => navigate(`/infringements?observation_id=${encodeURIComponent(obs.observation_id)}`)}
+                    onClick={() => openInfringementFromObservation(obs.observation_id)}
                   >
                     <Printer className="h-3.5 w-3.5" />
                     Print Ticket

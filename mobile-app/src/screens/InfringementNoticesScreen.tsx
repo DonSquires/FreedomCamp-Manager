@@ -87,6 +87,18 @@ export default function InfringementNoticesScreen() {
   const [openingPrint, setOpeningPrint] = useState(false)
   const [reprintingNoticeId, setReprintingNoticeId] = useState<string | null>(null)
 
+  const getFunctionErrorMessage = async (err: any, fallback: string) => {
+    const baseMessage = err?.message || fallback
+    const context = err?.context
+    if (!context || typeof context.clone !== 'function') return baseMessage
+    try {
+      const payload = await context.clone().json()
+      return payload?.error || payload?.message || baseMessage
+    } catch {
+      return baseMessage
+    }
+  }
+
   // Issue form state
   const [form, setForm] = useState({
     plate_number: '',
@@ -216,7 +228,7 @@ export default function InfringementNoticesScreen() {
           observation_id: form.observation_id || undefined,
         },
       })
-      if (error) throw new Error(error.message)
+      if (error) throw new Error(await getFunctionErrorMessage(error, 'Failed to issue notice'))
       if (!data?.success) throw new Error(data?.error || 'Failed')
 
       toast.success(`✅ Notice ${data.notice_number} issued`)
@@ -246,7 +258,7 @@ export default function InfringementNoticesScreen() {
       const { data, error } = await supabase.functions.invoke('render-infringement-notice', {
         body: { notice_id: noticeId },
       })
-      if (error) throw new Error(error.message)
+      if (error) throw new Error(await getFunctionErrorMessage(error, 'Failed to load printable notice'))
       if (!data?.success || !data?.html) throw new Error(data?.error || 'Printable notice unavailable')
 
       setPrintableHtml(data.html)

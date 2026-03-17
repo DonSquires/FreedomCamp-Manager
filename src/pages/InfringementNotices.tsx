@@ -33,7 +33,7 @@ import { nzDateToUTCStart, nzDateToUTCEnd } from '@/lib/timezone'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   FileText, Plus, Search, RefreshCw, Printer, CheckCircle,
-  AlertTriangle, Scale, XCircle, Clock, DollarSign, Eye, Gavel,
+  AlertTriangle, Scale, XCircle, Clock, DollarSign, Eye, Gavel, Copy,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatDateTime } from '@/lib/utils'
@@ -103,6 +103,41 @@ export default function InfringementNotices() {
   const [issuing, setIssuing] = useState(false)
   const [prefillingFromObservation, setPrefillingFromObservation] = useState(false)
   const [reprintingNoticeId, setReprintingNoticeId] = useState<string | null>(null)
+  const [issueErrorDetail, setIssueErrorDetail] = useState<string | null>(null)
+  const computedDueDateLabel = new Date(Date.now() + 28 * 24 * 60 * 60 * 1000).toLocaleDateString('en-NZ', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    timeZone: 'Pacific/Auckland',
+  })
+
+  const getFunctionErrorMessage = async (err: any, fallback: string) => {
+    const baseMessage = err?.message || fallback
+    const context = err?.context
+    if (!context || typeof context.clone !== 'function') return baseMessage
+    const statusPrefix = typeof context?.status === 'number' ? `HTTP ${context.status}: ` : ''
+    try {
+      const payload = await context.clone().json()
+      return statusPrefix + (payload?.error || payload?.message || baseMessage)
+    } catch {
+      try {
+        const bodyText = await context.clone().text()
+        return statusPrefix + (bodyText || baseMessage)
+      } catch {
+        return statusPrefix + baseMessage
+      }
+    }
+  }
+
+  const copyIssueError = async () => {
+    if (!issueErrorDetail) return
+    try {
+      await navigator.clipboard.writeText(issueErrorDetail)
+      toast.success('Issue error copied to clipboard')
+    } catch {
+      toast.error('Could not copy automatically. Select and copy the error text manually.')
+    }
+  }
 
   // Issue form state
   const [form, setForm] = useState({
@@ -116,33 +151,39 @@ export default function InfringementNotices() {
     service_method: 'hand' as 'hand' | 'post' | 'email',
     recipient_name: '',
     recipient_email: '',
-    due_date: '',   // defaults to +28d if blank
     observation_id: '',
   })
 
   useEffect(() => {
     const observationId = searchParams.get('observation_id')
-    if (!observationId || !effectiveOrganizationId) return
+    if (!observationId) return
 
     let cancelled = false
     const loadObservation = async () => {
       setPrefillingFromObservation(true)
       try {
-        const { data: obs, error: obsError } = await (supabase.from('observations') as any)
-          .select('observation_id, plate_number, zone_id, breach_type, is_compliant, zones!zone_id(name)')
+        let obsQuery = (supabase.from('observations') as any)
+          .select('observation_id, plate_number, zone_id, breach_type, is_compliant, organization_id, zones!zone_id(name)')
           .eq('observation_id', observationId)
-          .eq('organization_id', effectiveOrganizationId)
-          .single()
+
+        if (effectiveOrganizationId) {
+          obsQuery = obsQuery.eq('organization_id', effectiveOrganizationId)
+        }
+
+        const { data: obs, error: obsError } = await obsQuery.single()
 
         if (obsError || !obs) throw new Error(obsError?.message || 'Observation not found')
 
-        const { data: breach } = await (supabase.from('breach_alerts') as any)
+        let breachQuery = (supabase.from('breach_alerts') as any)
           .select('id')
           .eq('observation_id', observationId)
-          .eq('organization_id', effectiveOrganizationId)
           .order('created_at', { ascending: false })
           .limit(1)
-          .maybeSingle()
+
+        const orgScope = effectiveOrganizationId || obs.organization_id
+        if (orgScope) breachQuery = breachQuery.eq('organization_id', orgScope)
+
+        const { data: breach } = await breachQuery.maybeSingle()
 
         const offence = obs.breach_type
           ? (BREACH_TYPE_LABELS[obs.breach_type] || String(obs.breach_type).replace(/_/g, ' '))
@@ -267,6 +308,7 @@ export default function InfringementNotices() {
       toast.error('Plate, zone, offence description and legal basis are required')
       return
     }
+    setIssueErrorDetail(null)
     setIssuing(true)
     try {
       const body: any = {
@@ -283,13 +325,13 @@ export default function InfringementNotices() {
       }
       if (form.breach_alert_id) body.breach_alert_id = form.breach_alert_id
       if (form.observation_id)  body.observation_id = form.observation_id
-      if (form.due_date)        body.due_date = form.due_date
 
       const { data, error } = await supabase.functions.invoke('generate-infringement', { body })
-      if (error) throw new Error(error.message || 'Edge function error')
+      if (error) throw new Error(await getFunctionErrorMessage(error, 'Edge function error'))
       if (!data?.success) throw new Error(data?.error || 'Failed to generate notice')
 
       toast.success(`Notice ${data.notice_number} issued successfully`)
+      setIssueErrorDetail(null)
       setPreviewHtml(data.html)
       setShowIssueDialog(false)
       queryClient.invalidateQueries({ queryKey: ['infringement-notices'] })
@@ -299,10 +341,17 @@ export default function InfringementNotices() {
         breach_alert_id: '', plate_number: '', zone_id: '',
         offence_description: '', legal_basis: 'Freedom Camping Act 2011 s20(1)(a)',
         offence_location: '', amount_cents: 20000, service_method: 'hand',
-        recipient_name: '', recipient_email: '', due_date: '', observation_id: '',
+        recipient_name: '', recipient_email: '', observation_id: '',
       })
     } catch (err: any) {
-      toast.error(err.message || 'Failed to issue notice')
+      const message = err?.message || 'Failed to issue notice'
+      setIssueErrorDetail(message)
+      try {
+        await navigator.clipboard.writeText(message)
+        toast.error(`${message} (copied to clipboard)`)
+      } catch {
+        toast.error(message)
+      }
     } finally {
       setIssuing(false)
     }
@@ -314,7 +363,7 @@ export default function InfringementNotices() {
       const { data, error } = await supabase.functions.invoke('render-infringement-notice', {
         body: { notice_id: noticeId },
       })
-      if (error) throw new Error(error.message || 'Failed to load printable notice')
+      if (error) throw new Error(await getFunctionErrorMessage(error, 'Failed to load printable notice'))
       if (!data?.success || !data?.html) throw new Error(data?.error || 'Printable notice unavailable')
       setPreviewHtml(data.html)
     } catch (err: any) {
@@ -322,6 +371,40 @@ export default function InfringementNotices() {
     } finally {
       setReprintingNoticeId(null)
     }
+  }
+
+  const openPreviewWindow = (mode: 'open' | 'print') => {
+    if (!previewHtml) {
+      toast.error('Printable notice unavailable')
+      return
+    }
+
+    const previewWindow = window.open('', '_blank')
+    if (!previewWindow) {
+      toast.error('Chrome blocked the print window. Allow popups for this site and try again.')
+      return
+    }
+
+    previewWindow.document.open()
+    previewWindow.document.write(previewHtml)
+    previewWindow.document.close()
+
+    const finishOpen = () => {
+      previewWindow.focus()
+      if (mode === 'print') {
+        window.setTimeout(() => {
+          previewWindow.focus()
+          previewWindow.print()
+        }, 250)
+      }
+    }
+
+    if (previewWindow.document.readyState === 'complete') {
+      finishOpen()
+      return
+    }
+
+    previewWindow.onload = finishOpen
   }
 
   // ── Populate form from selected breach alert ──────────────────────────────
@@ -405,6 +488,26 @@ export default function InfringementNotices() {
           </Button>
         )}
       </div>
+
+      {issueErrorDetail && (
+        <Card className="mb-4 border-red-200 bg-red-50">
+          <CardHeader className="py-3">
+            <CardTitle className="text-sm text-red-800">Latest Issue Notice Error</CardTitle>
+            <CardDescription className="text-red-700">
+              Copy and paste this exact error so we can diagnose the backend response.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <div className="flex items-center justify-end mb-2">
+              <Button type="button" variant="outline" size="sm" onClick={copyIssueError} className="gap-1.5">
+                <Copy className="h-3.5 w-3.5" />
+                Copy Error
+              </Button>
+            </div>
+            <Textarea readOnly value={issueErrorDetail} className="min-h-[80px] bg-white font-mono text-xs" />
+          </CardContent>
+        </Card>
+      )}
 
       {/* Notices list */}
       {isLoading ? (
@@ -529,7 +632,7 @@ export default function InfringementNotices() {
       )}
 
       {/* ── Issue Notice Dialog ─────────────────────────────────────────── */}
-      <Dialog open={showIssueDialog} onOpenChange={open => { if (!open) setShowIssueDialog(false) }}>
+      <Dialog open={showIssueDialog} onOpenChange={setShowIssueDialog}>
         <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Issue Infringement Notice</DialogTitle>
@@ -637,12 +740,7 @@ export default function InfringementNotices() {
               </div>
               <div className="space-y-1">
                 <Label>Payment Due</Label>
-                <Input
-                  type="date"
-                  value={form.due_date}
-                  onChange={e => setForm(f => ({ ...f, due_date: e.target.value }))}
-                  placeholder="Defaults to +28 days"
-                />
+                <Input value={computedDueDateLabel} readOnly />
               </div>
             </div>
 
@@ -684,6 +782,23 @@ export default function InfringementNotices() {
             </div>
           </div>
 
+          {issueErrorDetail && (
+            <div className="space-y-2 rounded-md border border-red-200 bg-red-50 p-3">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-sm font-medium text-red-800">Issue Notice Error</p>
+                <Button type="button" variant="outline" size="sm" onClick={copyIssueError} className="gap-1.5">
+                  <Copy className="h-3.5 w-3.5" />
+                  Copy Error
+                </Button>
+              </div>
+              <Textarea
+                readOnly
+                value={issueErrorDetail}
+                className="min-h-[90px] bg-white font-mono text-xs"
+              />
+            </div>
+          )}
+
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowIssueDialog(false)}>Cancel</Button>
             <Button onClick={handleIssue} disabled={issuing} className="gap-1.5">
@@ -702,6 +817,9 @@ export default function InfringementNotices() {
               <Printer className="h-5 w-5" />
               Infringement Notice — Preview &amp; Print
             </DialogTitle>
+            <DialogDescription>
+              Chrome works best when this opens from a direct click. If the print tab does not open, allow popups for this site and try again.
+            </DialogDescription>
           </DialogHeader>
           {previewHtml && (
             <div className="p-4">
@@ -715,11 +833,11 @@ export default function InfringementNotices() {
           )}
           <div className="p-4 pt-0 flex justify-end gap-2">
             <Button variant="outline" onClick={() => setPreviewHtml(null)}>Close</Button>
+            <Button variant="outline" onClick={() => openPreviewWindow('open')} className="gap-1.5">
+              <Eye className="h-4 w-4" /> Open in Tab
+            </Button>
             <Button
-              onClick={() => {
-                const w = window.open('', '_blank')
-                if (w) { w.document.write(previewHtml!); w.document.close(); w.print() }
-              }}
+              onClick={() => openPreviewWindow('print')}
               className="gap-1.5"
             >
               <Printer className="h-4 w-4" /> Print Notice

@@ -22,7 +22,7 @@
  *     offence_date,        // ISO string
  *     offence_location,    // Free text location description
  *     amount_cents,        // Fine in cents (default 20000 = NZD $200)
- *     due_date?,           // Payment deadline (default +28 days)
+ *     due_date?,           // Ignored: pay-by is always 28 days from issue date
  *     service_method,      // 'hand' | 'post' | 'email'
  *     recipient_name?,
  *     recipient_email?,
@@ -35,6 +35,16 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3'
 import { corsHeaders } from '../_shared/cors.ts'
 
 const PRINT_ARTIFACT_BUCKET = 'notice-artifacts'
+
+function formatDbError(err: { message?: string | null; code?: string | null; details?: string | null; hint?: string | null }) {
+  const parts = [
+    err.message || 'Database error',
+    err.code ? `code=${err.code}` : null,
+    err.details ? `details=${err.details}` : null,
+    err.hint ? `hint=${err.hint}` : null,
+  ].filter(Boolean)
+  return parts.join(' | ')
+}
 
 const NZ_DEFAULT_SUMMARY_OF_RIGHTS = `
 SUMMARY OF RIGHTS — FREEDOM CAMPING ACT 2011 (s20)
@@ -82,7 +92,6 @@ Deno.serve(async (req) => {
       offence_date,
       offence_location,
       amount_cents = 20000,
-      due_date,
       service_method = 'hand',
       recipient_name,
       recipient_email,
@@ -138,14 +147,36 @@ Deno.serve(async (req) => {
     }
 
     // Get zone + org details for the notice letterhead
-    const { data: zoneData } = await supabaseAdmin
+    const { data: zoneData, error: zoneError } = await supabaseAdmin
       .from('zones')
       .select('id, name, location_lat, location_lng, organizations!inner(id, name)')
       .eq('id', zone_id)
       .single()
 
+    if (zoneError || !zoneData) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Selected zone was not found. Please refresh and choose a valid zone.' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
     const orgName = (zoneData?.organizations as any)?.name ?? 'Issuing Authority'
-    const orgId = profile.organization_id ?? (zoneData?.organizations as any)?.id
+    const zoneOrgId = (zoneData?.organizations as any)?.id as string | undefined
+    const orgId = profile.organization_id ?? zoneOrgId
+
+    if (!orgId) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Could not determine issuing organization for this notice.' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    if (profile.role !== 'master' && profile.organization_id && zoneOrgId && profile.organization_id !== zoneOrgId) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Selected zone is outside your organization scope.' }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
 
     // Generate unique notice number
     const { data: noticeNumber, error: numError } = await supabaseAdmin
@@ -158,11 +189,10 @@ Deno.serve(async (req) => {
       )
     }
 
-    // Calculate due date
+    // Calculate dates
+    const issuedAt = new Date()
     const offenceDt = offence_date ? new Date(offence_date) : new Date()
-    const dueDt = due_date
-      ? new Date(due_date)
-      : new Date(offenceDt.getTime() + 28 * 24 * 60 * 60 * 1000)
+    const dueDt = new Date(issuedAt.getTime() + 28 * 24 * 60 * 60 * 1000)
 
     const rightsText = summary_of_rights || NZ_DEFAULT_SUMMARY_OF_RIGHTS
     const amountDollars = (amount_cents / 100).toFixed(2)
@@ -202,7 +232,7 @@ Deno.serve(async (req) => {
         notice_number: noticeNumber,
         notice_type: 'infringement',
         amount_cents,
-        issue_date: new Date().toISOString().split('T')[0],
+        issued_at: issuedAt.toISOString(),
         due_date: dueDt.toISOString().split('T')[0],
         service_method,
         recipient_name: recipient_name ?? null,
@@ -218,7 +248,7 @@ Deno.serve(async (req) => {
     if (insertError) {
       console.error('❌ Insert error:', insertError)
       return new Response(
-        JSON.stringify({ success: false, error: insertError.message }),
+        JSON.stringify({ success: false, error: formatDbError(insertError) }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }

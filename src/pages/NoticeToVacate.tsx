@@ -97,6 +97,40 @@ export default function NoticeToVacate() {
   })
   const [issuing, setIssuing] = useState(false)
 
+  const openPreviewWindow = (mode: 'open' | 'print') => {
+    if (!previewHtml) {
+      toast.error('Printable notice unavailable')
+      return
+    }
+
+    const previewWindow = window.open('', '_blank')
+    if (!previewWindow) {
+      toast.error('Chrome blocked the print window. Allow popups for this site and try again.')
+      return
+    }
+
+    previewWindow.document.open()
+    previewWindow.document.write(previewHtml)
+    previewWindow.document.close()
+
+    const finishOpen = () => {
+      previewWindow.focus()
+      if (mode === 'print') {
+        window.setTimeout(() => {
+          previewWindow.focus()
+          previewWindow.print()
+        }, 250)
+      }
+    }
+
+    if (previewWindow.document.readyState === 'complete') {
+      finishOpen()
+      return
+    }
+
+    previewWindow.onload = finishOpen
+  }
+
   const orgId = user?.role === 'master' ? (organizationId || undefined) : user?.organization_id
 
   // Fetch notices
@@ -528,6 +562,9 @@ export default function NoticeToVacate() {
               <Printer className="h-5 w-5" />
               Notice Preview
             </DialogTitle>
+            <DialogDescription>
+              Chrome works best when this opens from a direct click. If the print tab does not open, allow popups for this site and try again.
+            </DialogDescription>
           </DialogHeader>
           <div className="flex-1 overflow-hidden h-full">
             <iframe
@@ -538,15 +575,12 @@ export default function NoticeToVacate() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setPreviewHtml(null)}>Close</Button>
+            <Button variant="outline" onClick={() => openPreviewWindow('open')}>
+              <Eye className="h-4 w-4 mr-2" />
+              Open in Tab
+            </Button>
             <Button
-              onClick={() => {
-                const win = window.open('', '_blank')
-                if (win) {
-                  win.document.write(previewHtml || '')
-                  win.document.close()
-                  win.print()
-                }
-              }}
+              onClick={() => openPreviewWindow('print')}
             >
               <Printer className="h-4 w-4 mr-2" />
               Print
