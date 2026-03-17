@@ -737,6 +737,7 @@ Deno.serve(async (req: Request) => {
     let alprMake: string | null = null;
     let alprModel: string | null = null;
     let alprColour: string | null = null;
+    let alprColourConf: number | null = null;
     let alprOrientation: string | null = null;
 
     if (!finalPlate) {
@@ -749,6 +750,7 @@ Deno.serve(async (req: Request) => {
         alprMake = alprResult.make;
         alprModel = alprResult.model;
         alprColour = alprResult.color;
+        alprColourConf = alprResult.colorConfidence;
         alprOrientation = alprResult.orientation;
 
         if (alprResult.plate) {
@@ -915,6 +917,7 @@ Deno.serve(async (req: Request) => {
         alprMake = alprResult.make ?? alprMake;
         alprModel = alprResult.model ?? alprModel;
         alprColour = alprResult.color ?? alprColour;
+        alprColourConf = alprResult.colorConfidence ?? alprColourConf;
         alprOrientation = alprResult.orientation ?? alprOrientation;
         console.log('✅ ALPR attribute enrichment complete', {
           duration_ms: Date.now() - alprStartedAt,
@@ -1178,13 +1181,38 @@ Deno.serve(async (req: Request) => {
     const resolvedMake = nzscv?.make ?? canonicalMake ?? inference.inferMake ?? alprMake ?? null;
     const resolvedModel = nzscv?.model ?? canonicalModel ?? inference.inferModel ?? alprModel ?? null;
     const resolvedYear = nzscv?.year ?? canonicalYear ?? inference.inferYear ?? toIntOrNull(obs.vehicle_year) ?? null;
-    const resolvedColour = nzscv?.colour ?? canonicalColour ?? inference.inferColour ?? alprColour ?? null;
+    const hasHighConfidenceInferenceColour = !!inference.inferColour && (inference.inferColourConf ?? 0) >= COLOUR_MISMATCH_MIN_CONF;
+    const hasHighConfidenceAlprColour = !!alprColour && (alprColourConf ?? 0) >= COLOUR_MISMATCH_MIN_CONF;
+
+    // Color drifts frequently in canonical snapshots; prefer fresh, confident
+    // scan-time color when NZSCV does not provide a color.
+    let resolvedColour: string | null = null;
+    let resolvedColourSource: 'nzscv' | 'canonical' | 'inference' | 'alpr' | null = null;
+    if (nzscv?.colour) {
+      resolvedColour = nzscv.colour;
+      resolvedColourSource = 'nzscv';
+    } else if (hasHighConfidenceInferenceColour) {
+      resolvedColour = inference.inferColour;
+      resolvedColourSource = 'inference';
+    } else if (hasHighConfidenceAlprColour) {
+      resolvedColour = alprColour;
+      resolvedColourSource = 'alpr';
+    } else if (canonicalColour) {
+      resolvedColour = canonicalColour;
+      resolvedColourSource = 'canonical';
+    } else if (inference.inferColour) {
+      resolvedColour = inference.inferColour;
+      resolvedColourSource = 'inference';
+    } else if (alprColour) {
+      resolvedColour = alprColour;
+      resolvedColourSource = 'alpr';
+    }
 
     // Track attribute sources for transparency in UI
     const attributeSources = {
       make_source: nzscv?.make ? 'nzscv' : canonicalMake ? 'canonical' : inference.inferMake ? 'inference' : alprMake ? 'alpr' : null,
       model_source: nzscv?.model ? 'nzscv' : canonicalModel ? 'canonical' : inference.inferModel ? 'inference' : alprModel ? 'alpr' : null,
-      color_source: nzscv?.colour ? 'nzscv' : canonicalColour ? 'canonical' : inference.inferColour ? 'inference' : alprColour ? 'alpr' : null,
+      color_source: resolvedColourSource,
       year_source: nzscv?.year ? 'nzscv' : canonicalYear ? 'canonical' : inference.inferYear ? 'inference' : null,
     };
 
