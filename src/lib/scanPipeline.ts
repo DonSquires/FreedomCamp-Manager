@@ -246,6 +246,20 @@ export async function captureAndSave(
 
   if (!observationId) throw new Error('Observation saved but ID not returned')
 
+  // Kick off officer enrichment in the background. Do not block the save UX on
+  // plate recognition, NZSCV lookups, movement checks, or discrepancy analysis.
+  // The detail panel / recent scans UI already polls the observation row for the
+  // eventual result.
+  void edgeFunctions.processOfficerScan({
+    observation_id: observationId,
+    photo_url: photoUrl,
+    photo_hash: photoHash,
+  }).then(({ error }) => {
+    if (error) {
+      console.warn('⚠️ Background process-officer-scan failed:', error)
+    }
+  })
+
   emitScanProgress(onStageChange, 'complete')
 
   return { observationId, photoUrl, photoHash, zoneId: finalZoneId, recordedAt: nowIso, weather }

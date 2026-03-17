@@ -42,6 +42,8 @@ const SUPABASE_URL             = Deno.env.get('SUPABASE_URL')!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 const INFERENCE_SERVICE_URL    = Deno.env.get('INFERENCE_SERVICE_URL');
 const INFERENCE_TIMEOUT_MS     = Number(Deno.env.get('INFERENCE_TIMEOUT_MS') ?? '7000');
+const ALPR_BACKUP_TIMEOUT_MS   = Number(Deno.env.get('ALPR_TIMEOUT_MS') ?? '3500');
+const ALPR_BACKUP_START_DELAY_MS = Number(Deno.env.get('ALPR_BACKUP_START_DELAY_MS') ?? '1200');
 const NZSCV_PROXY_URL          = Deno.env.get('NZSCV_PROXY_URL');
 const NZSCV_PROXY_SECRET       = Deno.env.get('NZSCV_PROXY_SECRET') ?? '';
 
@@ -493,13 +495,38 @@ Deno.serve(async (req: Request) => {
     }
     console.log(`📸 Photo loaded (${imageBytes.length} bytes)`);
 
-    // ── Step 3: Railway inference ─────────────────────────────────────────
-    const inference = await callInference(imageBytes);
+    // ── Step 3: Plate detection and inference ─────────────────────────────
+    // Start ALPR backup only when Railway inference is slow or returns no
+    // plate. This keeps fast-path cost low while collapsing worst-case plate
+    // detection latency from sequential (inference + ALPR) to overlapping.
+    const inferenceStartedAt = Date.now();
+    const inferencePromise = callInference(imageBytes);
+
+    let alprPromise: Promise<ReturnType<typeof alprWithBytes> extends Promise<infer T> ? T : never> | null = null;
+    const startAlprBackup = () => {
+      if (!alprPromise) {
+        alprPromise = alprWithBytes(imageBytes, {
+          regions: Deno.env.get('ALPR_REGIONS') ?? 'nz',
+          mmc: true,
+          timeout: ALPR_BACKUP_TIMEOUT_MS,
+        });
+      }
+      return alprPromise;
+    };
+
+    const alprStartTimer = setTimeout(() => {
+      void startAlprBackup();
+    }, ALPR_BACKUP_START_DELAY_MS);
+
+    const inference = await inferencePromise;
+    clearTimeout(alprStartTimer);
+
     console.log('🚂 Inference result:', {
       plate: inference.plate,
       confidence: inference.confidence,
       hasEmbedding: !!inference.embedding,
       path: inference.path,
+      duration_ms: Date.now() - inferenceStartedAt,
     });
 
     // ── Step 4: ALPR backup ───────────────────────────────────────────────
@@ -509,11 +536,14 @@ Deno.serve(async (req: Request) => {
     if (!finalPlate) {
       console.log('🔄 No plate from inference — running ALPR backup...');
       try {
-        const alprResult = await alprWithBytes(imageBytes);
+        const alprStartedAt = Date.now();
+        const alprResult = await startAlprBackup();
         if (alprResult.plate) {
           finalPlate = normalizePlate(alprResult.plate);
           finalConfidence = alprResult.confidence;
-          console.log('✅ ALPR backup found plate:', finalPlate);
+          console.log('✅ ALPR backup found plate:', finalPlate, {
+            duration_ms: Date.now() - alprStartedAt,
+          });
         } else {
           console.warn('⚠️ ALPR backup returned no plate');
         }

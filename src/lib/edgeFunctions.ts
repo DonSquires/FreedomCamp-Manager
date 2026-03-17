@@ -203,7 +203,7 @@ export const edgeFunctions = {
     photo_url: string
     photo_hash?: string | null
   }) => {
-    return callEdgeFunction('process-officer-scan', params)
+    return callEdgeFunction('process-officer-scan', params, { showToast: false })
   },
 
   /**
