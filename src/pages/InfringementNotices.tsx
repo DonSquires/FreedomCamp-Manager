@@ -129,74 +129,10 @@ export default function InfringementNotices() {
     }
   }
 
-  const withAuthTimeout = async <T,>(promise: Promise<T>, ms: number, timeoutMessage: string): Promise<T> => {
-    return await new Promise<T>((resolve, reject) => {
-      const timer = window.setTimeout(() => reject(new Error(timeoutMessage)), ms)
-      promise
-        .then((value) => {
-          window.clearTimeout(timer)
-          resolve(value)
-        })
-        .catch((error) => {
-          window.clearTimeout(timer)
-          reject(error)
-        })
-    })
-  }
-  const getValidAccessToken = async () => {
-    let session: any = null
-
-    try {
-      const { data, error } = await withAuthTimeout(
-        supabase.auth.getSession(),
-        6000,
-        'Session lookup timed out',
-      )
-      if (error) {
-        throw new Error(error.message || 'Unable to verify session. Please retry.')
-      }
-      session = data?.session ?? null
-    } catch (error: any) {
-      throw error instanceof Error ? error : new Error(String(error?.message || error || 'Session lookup failed'))
-    }
-
-    const nowMs = Date.now()
-    const expiresAtMs = session?.expires_at ? session.expires_at * 1000 : 0
-    const hasUsableToken = !!session?.access_token && (!expiresAtMs || expiresAtMs > nowMs + 60_000)
-    if (hasUsableToken) {
-      return session.access_token
-    }
-
-    try {
-      const { data: refreshData, error: refreshError } = await withAuthTimeout(
-        supabase.auth.refreshSession(),
-        10000,
-        'Unable to refresh session. Please retry.',
-      )
-      if (!refreshError && refreshData.session?.access_token) {
-        return refreshData.session.access_token
-      }
-    } catch {
-      // If refresh fails but token is still valid right now, allow one request attempt.
-      if (session?.access_token && (!expiresAtMs || expiresAtMs > nowMs)) {
-        return session.access_token
-      }
-      throw new Error('Unable to refresh session. Please retry.')
-    }
-
-    if (session?.access_token && (!expiresAtMs || expiresAtMs > nowMs)) {
-      return session.access_token
-    }
-
-    throw new Error('Session expired. Please sign in again.')
-  }
-
+  // Invoke an edge function; the Supabase client supplies the session token
+  // automatically. Only refresh + retry once if the server returns 401.
   const invokeFunctionWithAuthRetry = async (name: string, body: any, fallbackMessage: string) => {
-    const token = await getValidAccessToken()
-    let result = await supabase.functions.invoke(name, {
-      body,
-      headers: { Authorization: `Bearer ${token}` },
-    })
+    let result = await supabase.functions.invoke(name, { body })
 
     if (!result.error) return result
 
@@ -205,6 +141,7 @@ export default function InfringementNotices() {
       return result
     }
 
+    // Auth error — force a token refresh and try once more.
     const { data, error } = await supabase.auth.refreshSession()
     if (error || !data.session?.access_token) {
       throw new Error('Session expired. Please sign in again.')
@@ -436,10 +373,13 @@ export default function InfringementNotices() {
           body,
           'Failed to generate notice',
         ),
-        35000,
+        30000,
         'Notice generation timed out. Please retry.',
       )
-      if (error) throw new Error(error)
+      if (error) {
+        const errMsg = await getFunctionErrorMessage(error, 'Failed to generate notice')
+        throw new Error(errMsg)
+      }
       if (!data?.success) throw new Error(data?.error || 'Failed to generate notice')
 
       toast.success(`Notice ${data.notice_number} issued successfully`)
