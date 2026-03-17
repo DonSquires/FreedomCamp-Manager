@@ -55,6 +55,9 @@ const NZSCV_PROXY_SECRET       = Deno.env.get('NZSCV_PROXY_SECRET') ?? '';
 // vehicle).  The 0.70–0.85 range is a grey zone where we conservatively treat
 // the vehicle as stationary to avoid false-positive "moved" alerts.
 const MOVEMENT_THRESHOLD = 0.70;
+const MAKE_MISMATCH_MIN_CONF = Number(Deno.env.get('MAKE_MISMATCH_MIN_CONF') ?? '0.72');
+const MODEL_MISMATCH_MIN_CONF = Number(Deno.env.get('MODEL_MISMATCH_MIN_CONF') ?? '0.68');
+const COLOUR_MISMATCH_MIN_CONF = Number(Deno.env.get('COLOUR_MISMATCH_MIN_CONF') ?? '0.60');
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -95,6 +98,32 @@ function normalizePlate(raw: string | null | undefined): string | null {
   if (!raw) return null;
   const n = String(raw).trim().toUpperCase().replace(/\s+/g, '').replace(/[^A-Z0-9]/g, '');
   return n || null;
+}
+
+function firstPresent(...values: Array<unknown>): string | null {
+  for (const value of values) {
+    if (value === null || value === undefined) continue;
+    const text = String(value).trim();
+    if (text) return text;
+  }
+  return null;
+}
+
+function normText(value: string | null | undefined): string | null {
+  if (!value) return null;
+  return value.toLowerCase().trim().replace(/[^a-z0-9]/g, '');
+}
+
+function isLikelyTextMismatch(a: string | null | undefined, b: string | null | undefined): boolean {
+  const left = normText(a);
+  const right = normText(b);
+  if (!left || !right) return false;
+  if (left === right) return false;
+  // Treat substrings as equivalent to avoid noisy mismatches like
+  // "Toyota Hiace" vs "Hiace" or punctuation-only differences.
+  if (left.length >= 4 && right.includes(left)) return false;
+  if (right.length >= 4 && left.includes(right)) return false;
+  return true;
 }
 
 /** Cosine similarity between two equal-length vectors. Returns 0 on error. */
@@ -287,12 +316,28 @@ async function lookupNZSCV(plate: string): Promise<NZSCVResult | null> {
     const cert = data?.result ?? data?.certification ?? null;
 
     // Derive expiry: prefer direct NZSCV field, fall back to wrapped shapes
-    const expiry: string | null =
-      vr?.CertificateExpiryDate ?? cert?.expiry_date ?? null;
+    const expiry: string | null = firstPresent(
+      vr?.CertificateExpiryDate,
+      vr?.certificateExpiryDate,
+      vr?.ExpiryDate,
+      cert?.expiry_date,
+      cert?.expiryDate,
+      cert?.certificate_expiry,
+      data?.CertificateExpiryDate,
+      data?.certificateExpiryDate,
+    );
 
     // Derive status: prefer direct NZSCV field, fall back to wrapped shapes
-    const status: string | null =
-      vr?.CertificateStatus ?? cert?.status ?? null;
+    const status: string | null = firstPresent(
+      vr?.CertificateStatus,
+      vr?.certificateStatus,
+      vr?.Status,
+      cert?.status,
+      cert?.certificate_status,
+      cert?.cert_status,
+      data?.CertificateStatus,
+      data?.certificateStatus,
+    );
 
     // A vehicle is self-contained if:
     //  a) The register explicitly says Current or Issued, OR
@@ -303,12 +348,74 @@ async function lookupNZSCV(plate: string): Promise<NZSCVResult | null> {
     const isSelfContained = isCurrentByStatus || (!status && isCurrentByExpiry);
 
     // Optional vehicle detail fields — present when NZSCV provides them
-    const rawMake   = vr?.make   ?? cert?.make   ?? null;
-    const rawModel  = vr?.model  ?? cert?.model  ?? null;
-    const rawYear   = vr?.year   ?? cert?.year   ?? null;
-    const rawVin    = vr?.vin    ?? cert?.vin    ?? null;
-    const rawColour = vr?.colour ?? cert?.colour ?? null;
-    const rawMaxOcc = vr?.MaxOccupants ?? cert?.max_occupants ?? null;
+    const rawMake = firstPresent(
+      vr?.make,
+      vr?.Make,
+      vr?.vehicle_make,
+      vr?.VehicleMake,
+      cert?.make,
+      cert?.Make,
+      cert?.vehicle_make,
+      cert?.VehicleMake,
+      data?.make,
+      data?.Make,
+    );
+    const rawModel = firstPresent(
+      vr?.model,
+      vr?.Model,
+      vr?.vehicle_model,
+      vr?.VehicleModel,
+      cert?.model,
+      cert?.Model,
+      cert?.vehicle_model,
+      cert?.VehicleModel,
+      data?.model,
+      data?.Model,
+    );
+    const rawYear = firstPresent(
+      vr?.year,
+      vr?.Year,
+      vr?.vehicle_year,
+      vr?.VehicleYear,
+      cert?.year,
+      cert?.Year,
+      cert?.vehicle_year,
+      data?.year,
+      data?.Year,
+    );
+    const rawVin = firstPresent(
+      vr?.vin,
+      vr?.VIN,
+      vr?.vehicle_vin,
+      cert?.vin,
+      cert?.VIN,
+      cert?.vehicle_vin,
+      data?.vin,
+      data?.VIN,
+    );
+    const rawColour = firstPresent(
+      vr?.colour,
+      vr?.color,
+      vr?.Colour,
+      vr?.Color,
+      vr?.vehicle_colour,
+      vr?.vehicle_color,
+      cert?.colour,
+      cert?.color,
+      cert?.Colour,
+      cert?.Color,
+      data?.colour,
+      data?.color,
+    );
+    const rawMaxOcc = firstPresent(
+      vr?.MaxOccupants,
+      vr?.max_occupants,
+      vr?.maxOccupants,
+      cert?.max_occupants,
+      cert?.maxOccupants,
+      data?.max_occupants,
+      data?.maxOccupants,
+    );
 
     return {
       isSelfContained,
@@ -754,16 +861,9 @@ Deno.serve(async (req: Request) => {
       } catch { /* non-critical */ }
     }
 
-    // Normalise helper — lowercase, trim, remove punctuation for fuzzy compare
-    const norm = (v: string | null | undefined) =>
-      v ? v.toLowerCase().trim().replace(/[^a-z0-9]/g, '') : null;
-
     // --- 3. Make mismatch ---
-    if (inference.inferMake && plate) {
-      const infN = norm(inference.inferMake);
-      const nzN  = norm(nzscv?.make);
-      const canN = norm(canonicalMake);
-      if (nzN && infN !== nzN) {
+    if (inference.inferMake && plate && (inference.inferMakeConf ?? 0) >= MAKE_MISMATCH_MIN_CONF) {
+      if (isLikelyTextMismatch(inference.inferMake, nzscv?.make)) {
         discrepancies.push({
           discrepancy_type: 'make_mismatch',
           source_a: 'inference',
@@ -774,7 +874,7 @@ Deno.serve(async (req: Request) => {
           sc_law_active: scLawActive,
           details: { inference_conf: inference.inferMakeConf },
         });
-      } else if (canN && infN !== canN) {
+      } else if (isLikelyTextMismatch(inference.inferMake, canonicalMake)) {
         discrepancies.push({
           discrepancy_type: 'make_mismatch',
           source_a: 'inference',
@@ -789,11 +889,8 @@ Deno.serve(async (req: Request) => {
     }
 
     // --- 4. Model mismatch ---
-    if (inference.inferModel && plate) {
-      const infN = norm(inference.inferModel);
-      const nzN  = norm(nzscv?.model);
-      const canN = norm(canonicalModel);
-      if (nzN && infN !== nzN) {
+    if (inference.inferModel && plate && (inference.inferModelConf ?? 0) >= MODEL_MISMATCH_MIN_CONF) {
+      if (isLikelyTextMismatch(inference.inferModel, nzscv?.model)) {
         discrepancies.push({
           discrepancy_type: 'model_mismatch',
           source_a: 'inference',
@@ -804,7 +901,7 @@ Deno.serve(async (req: Request) => {
           sc_law_active: scLawActive,
           details: { inference_conf: inference.inferModelConf },
         });
-      } else if (canN && infN !== canN) {
+      } else if (isLikelyTextMismatch(inference.inferModel, canonicalModel)) {
         discrepancies.push({
           discrepancy_type: 'model_mismatch',
           source_a: 'inference',
@@ -819,11 +916,8 @@ Deno.serve(async (req: Request) => {
     }
 
     // --- 5. Colour mismatch ---
-    if (inference.inferColour && plate) {
-      const infN = norm(inference.inferColour);
-      const nzN  = norm(nzscv?.colour);
-      const canN = norm(canonicalColour);
-      if (nzN && infN !== nzN) {
+    if (inference.inferColour && plate && (inference.inferColourConf ?? 0) >= COLOUR_MISMATCH_MIN_CONF) {
+      if (isLikelyTextMismatch(inference.inferColour, nzscv?.colour)) {
         discrepancies.push({
           discrepancy_type: 'colour_mismatch',
           source_a: 'inference',
@@ -834,7 +928,7 @@ Deno.serve(async (req: Request) => {
           sc_law_active: scLawActive,
           details: { inference_conf: inference.inferColourConf },
         });
-      } else if (canN && infN !== canN) {
+      } else if (isLikelyTextMismatch(inference.inferColour, canonicalColour)) {
         discrepancies.push({
           discrepancy_type: 'colour_mismatch',
           source_a: 'inference',
