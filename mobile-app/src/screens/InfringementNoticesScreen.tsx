@@ -138,6 +138,62 @@ export default function InfringementNoticesScreen() {
     return result
   }
 
+  const invokeFunctionDirectHttp = async (name: string, body: any, token: string) => {
+    const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL
+    const anonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY
+    if (!supabaseUrl || !anonKey) {
+      throw new Error('Missing Supabase environment configuration')
+    }
+
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), 15000)
+    try {
+      const response = await fetch(`${supabaseUrl}/functions/v1/${name}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          apikey: anonKey,
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(body),
+        signal: controller.signal,
+      })
+
+      const payload = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${payload?.error || payload?.message || 'Request failed'}`)
+      }
+
+      return payload
+    } catch (error: any) {
+      if (error?.name === 'AbortError') {
+        throw new Error('Ticket generation timed out. Please try again.')
+      }
+      throw error
+    } finally {
+      clearTimeout(timer)
+    }
+  }
+
+  const invokeFunctionDirectHttpWithAuthRetry = async (name: string, body: any, fallbackMessage: string) => {
+    try {
+      const token = await getValidAccessToken()
+      return await invokeFunctionDirectHttp(name, body, token)
+    } catch (error: any) {
+      const message = String(error?.message || fallbackMessage)
+      if (!/invalid jwt|http\s*401|401\b/i.test(message)) {
+        throw new Error(message || fallbackMessage)
+      }
+
+      const { data, error: refreshError } = await supabase.auth.refreshSession()
+      if (refreshError || !data.session?.access_token) {
+        throw new Error('Session expired. Please sign in again.')
+      }
+
+      return await invokeFunctionDirectHttp(name, body, data.session.access_token)
+    }
+  }
+
   const withTimeout = async <T,>(promise: Promise<T>, ms: number, timeoutMessage: string): Promise<T> => {
     return await new Promise<T>((resolve, reject) => {
       const timer = setTimeout(() => reject(new Error(timeoutMessage)), ms)
@@ -267,28 +323,23 @@ export default function InfringementNoticesScreen() {
     }
     setIssuing(true)
     try {
-      const { data, error } = await withTimeout(
-        invokeFunctionWithAuthRetry(
-          'generate-infringement',
-          {
-            plate_number: form.plate_number.toUpperCase().trim(),
-            zone_id: form.zone_id,
-            offence_description: form.offence_description,
-            legal_basis: form.legal_basis,
-            offence_location: form.offence_location || form.zone_name,
-            amount_cents: form.amount_cents,
-            service_method: form.service_method,
-            recipient_name: form.recipient_name || undefined,
-            offence_date: new Date().toISOString(),
-            breach_alert_id: form.breach_alert_id || undefined,
-            observation_id: form.observation_id || undefined,
-          },
-          'Failed to issue notice',
-        ),
-        25000,
-        'Ticket generation timed out. Please try again.',
+      const data = await invokeFunctionDirectHttpWithAuthRetry(
+        'generate-infringement',
+        {
+          plate_number: form.plate_number.toUpperCase().trim(),
+          zone_id: form.zone_id,
+          offence_description: form.offence_description,
+          legal_basis: form.legal_basis,
+          offence_location: form.offence_location || form.zone_name,
+          amount_cents: form.amount_cents,
+          service_method: form.service_method,
+          recipient_name: form.recipient_name || undefined,
+          offence_date: new Date().toISOString(),
+          breach_alert_id: form.breach_alert_id || undefined,
+          observation_id: form.observation_id || undefined,
+        },
+        'Failed to issue notice',
       )
-      if (error) throw new Error(await getFunctionErrorMessage(error, 'Failed to issue notice'))
       if (!data?.success) throw new Error(data?.error || 'Failed')
 
       toast.success(`✅ Notice ${data.notice_number} issued`)

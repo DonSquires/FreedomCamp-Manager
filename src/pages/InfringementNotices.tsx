@@ -195,8 +195,32 @@ export default function InfringementNotices() {
       }
 
       return payload
+    } catch (error: any) {
+      if (error?.name === 'AbortError') {
+        throw new Error('Ticket generation timed out. Please try again.')
+      }
+      throw error
     } finally {
       window.clearTimeout(timer)
+    }
+  }
+
+  const invokeFunctionDirectHttpWithAuthRetry = async (name: string, body: any, fallbackMessage: string) => {
+    try {
+      const token = await getValidAccessToken()
+      return await invokeFunctionDirectHttp(name, body, token)
+    } catch (error: any) {
+      const message = String(error?.message || fallbackMessage)
+      if (!/invalid jwt|http\s*401|401\b/i.test(message)) {
+        throw new Error(message || fallbackMessage)
+      }
+
+      const { data, error: refreshError } = await supabase.auth.refreshSession()
+      if (refreshError || !data.session?.access_token) {
+        throw new Error('Session expired. Please sign in again.')
+      }
+
+      return await invokeFunctionDirectHttp(name, body, data.session.access_token)
     }
   }
 
@@ -412,25 +436,11 @@ export default function InfringementNotices() {
       if (form.breach_alert_id) body.breach_alert_id = form.breach_alert_id
       if (form.observation_id)  body.observation_id = form.observation_id
 
-      let data: any
-      let error: any
-      try {
-        const result = await withTimeout(
-          invokeFunctionWithAuthRetry('generate-infringement', body, 'Edge function error'),
-          25000,
-          'Ticket generation timed out. Please try again.',
-        )
-        data = result.data
-        error = result.error
-      } catch (timeoutErr: any) {
-        if (!String(timeoutErr?.message || '').toLowerCase().includes('timed out')) {
-          throw timeoutErr
-        }
-        const token = await getValidAccessToken()
-        data = await invokeFunctionDirectHttp('generate-infringement', body, token)
-        error = null
-      }
-      if (error) throw new Error(await getFunctionErrorMessage(error, 'Edge function error'))
+      const data = await invokeFunctionDirectHttpWithAuthRetry(
+        'generate-infringement',
+        body,
+        'Failed to generate notice',
+      )
       if (!data?.success) throw new Error(data?.error || 'Failed to generate notice')
 
       toast.success(`Notice ${data.notice_number} issued successfully`)
