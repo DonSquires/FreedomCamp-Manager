@@ -144,47 +144,48 @@ export default function InfringementNotices() {
     })
   }
   const getValidAccessToken = async () => {
-    let sessionLookupError: Error | null = null
+    let session: any = null
 
     try {
       const { data, error } = await withAuthTimeout(
-        supabase.auth.refreshSession(),
-        6000,
-        'Auth refresh timed out',
-      )
-      if (!error && data.session?.access_token) {
-        return data.session.access_token
-      }
-    } catch {
-      // Fall back to existing session token if refresh stalls.
-    }
-
-    try {
-      const { data: { session }, error: sessionError } = await withAuthTimeout(
         supabase.auth.getSession(),
         6000,
         'Session lookup timed out',
       )
-      if (sessionError) {
-        throw new Error(sessionError.message || 'Unable to verify session. Please retry.')
+      if (error) {
+        throw new Error(error.message || 'Unable to verify session. Please retry.')
       }
-      if (session?.access_token) return session.access_token
+      session = data?.session ?? null
     } catch (error: any) {
-      sessionLookupError = error instanceof Error ? error : new Error(String(error?.message || error || 'Session lookup failed'))
+      throw error instanceof Error ? error : new Error(String(error?.message || error || 'Session lookup failed'))
     }
 
-    // Final recovery attempt when local session cache is empty.
-    const { data: retryData, error: retryError } = await withAuthTimeout(
-      supabase.auth.refreshSession(),
-      10000,
-      'Unable to refresh session. Please retry.',
-    )
-    if (!retryError && retryData.session?.access_token) {
-      return retryData.session.access_token
+    const nowMs = Date.now()
+    const expiresAtMs = session?.expires_at ? session.expires_at * 1000 : 0
+    const hasUsableToken = !!session?.access_token && (!expiresAtMs || expiresAtMs > nowMs + 60_000)
+    if (hasUsableToken) {
+      return session.access_token
     }
 
-    if (sessionLookupError) {
-      throw sessionLookupError
+    try {
+      const { data: refreshData, error: refreshError } = await withAuthTimeout(
+        supabase.auth.refreshSession(),
+        10000,
+        'Unable to refresh session. Please retry.',
+      )
+      if (!refreshError && refreshData.session?.access_token) {
+        return refreshData.session.access_token
+      }
+    } catch {
+      // If refresh fails but token is still valid right now, allow one request attempt.
+      if (session?.access_token && (!expiresAtMs || expiresAtMs > nowMs)) {
+        return session.access_token
+      }
+      throw new Error('Unable to refresh session. Please retry.')
+    }
+
+    if (session?.access_token && (!expiresAtMs || expiresAtMs > nowMs)) {
+      return session.access_token
     }
 
     throw new Error('Session expired. Please sign in again.')
