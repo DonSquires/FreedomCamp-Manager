@@ -168,6 +168,38 @@ export default function InfringementNotices() {
     return result
   }
 
+  const invokeFunctionDirectHttp = async (name: string, body: any, token: string) => {
+    const supabaseUrl = (import.meta as any)?.env?.VITE_SUPABASE_URL as string | undefined
+    const anonKey = (import.meta as any)?.env?.VITE_SUPABASE_ANON_KEY as string | undefined
+    if (!supabaseUrl || !anonKey) {
+      throw new Error('Missing Supabase environment configuration')
+    }
+
+    const controller = new AbortController()
+    const timer = window.setTimeout(() => controller.abort(), 15000)
+    try {
+      const response = await fetch(`${supabaseUrl}/functions/v1/${name}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          apikey: anonKey,
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(body),
+        signal: controller.signal,
+      })
+
+      const payload = await response.json().catch(() => ({}))
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${payload?.error || payload?.message || 'Request failed'}`)
+      }
+
+      return payload
+    } finally {
+      window.clearTimeout(timer)
+    }
+  }
+
   const copyIssueError = async () => {
     if (!issueErrorDetail) return
     try {
@@ -380,11 +412,24 @@ export default function InfringementNotices() {
       if (form.breach_alert_id) body.breach_alert_id = form.breach_alert_id
       if (form.observation_id)  body.observation_id = form.observation_id
 
-      const { data, error } = await withTimeout(
-        invokeFunctionWithAuthRetry('generate-infringement', body, 'Edge function error'),
-        25000,
-        'Ticket generation timed out. Please try again.',
-      )
+      let data: any
+      let error: any
+      try {
+        const result = await withTimeout(
+          invokeFunctionWithAuthRetry('generate-infringement', body, 'Edge function error'),
+          25000,
+          'Ticket generation timed out. Please try again.',
+        )
+        data = result.data
+        error = result.error
+      } catch (timeoutErr: any) {
+        if (!String(timeoutErr?.message || '').toLowerCase().includes('timed out')) {
+          throw timeoutErr
+        }
+        const token = await getValidAccessToken()
+        data = await invokeFunctionDirectHttp('generate-infringement', body, token)
+        error = null
+      }
       if (error) throw new Error(await getFunctionErrorMessage(error, 'Edge function error'))
       if (!data?.success) throw new Error(data?.error || 'Failed to generate notice')
 
