@@ -54,6 +54,24 @@ function buildFallbackNoticeNumber() {
   return `INF-${yy}-${epochPart}${randomPart}`
 }
 
+function extractBearerToken(req: Request): string | null {
+  const candidates = [
+    req.headers.get('Authorization'),
+    req.headers.get('authorization'),
+    req.headers.get('x-authorization'),
+    req.headers.get('x-forwarded-authorization'),
+    req.headers.get('x-supabase-authorization'),
+  ]
+
+  for (const value of candidates) {
+    if (!value) continue
+    const match = value.match(/^Bearer\s+(.+)$/i)
+    if (match?.[1]) return match[1].trim()
+  }
+
+  return null
+}
+
 const NZ_DEFAULT_SUMMARY_OF_RIGHTS = `
 SUMMARY OF RIGHTS — FREEDOM CAMPING ACT 2011 (s20)
 
@@ -116,19 +134,22 @@ Deno.serve(async (req) => {
     }
 
     // Get the calling user's ID from the auth header
-    const authHeader = req.headers.get('Authorization')
-    if (!authHeader) {
+    const token = extractBearerToken(req)
+    if (!token) {
       return new Response(
-        JSON.stringify({ success: false, error: 'Authentication required' }),
+        JSON.stringify({
+          success: false,
+          error: 'Authentication required (missing bearer token)',
+          hint: 'Ensure the client sends Authorization: Bearer <access_token> when invoking edge functions.',
+        }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
-    const token = authHeader.replace('Bearer ', '')
     const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token)
     if (authError || !user) {
       return new Response(
-        JSON.stringify({ success: false, error: 'Invalid session' }),
+        JSON.stringify({ success: false, error: 'Invalid session', details: authError?.message || null }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }

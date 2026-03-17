@@ -14,6 +14,24 @@ function formatDbError(err: { message?: string | null; code?: string | null; det
   return parts.join(' | ')
 }
 
+function extractBearerToken(req: Request): string | null {
+  const candidates = [
+    req.headers.get('Authorization'),
+    req.headers.get('authorization'),
+    req.headers.get('x-authorization'),
+    req.headers.get('x-forwarded-authorization'),
+    req.headers.get('x-supabase-authorization'),
+  ]
+
+  for (const value of candidates) {
+    if (!value) continue
+    const match = value.match(/^Bearer\s+(.+)$/i)
+    if (match?.[1]) return match[1].trim()
+  }
+
+  return null
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
@@ -25,18 +43,17 @@ Deno.serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    const authHeader = req.headers.get('Authorization')
-    if (!authHeader) {
+    const token = extractBearerToken(req)
+    if (!token) {
       return new Response(JSON.stringify({ success: false, error: 'Authentication required' }), {
         status: 401,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
     }
 
-    const token = authHeader.replace('Bearer ', '')
     const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token)
     if (authError || !user) {
-      return new Response(JSON.stringify({ success: false, error: 'Invalid session' }), {
+      return new Response(JSON.stringify({ success: false, error: 'Invalid session', details: authError?.message || null }), {
         status: 401,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
