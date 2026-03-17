@@ -603,6 +603,10 @@ Deno.serve(async (req: Request) => {
     return new Response('ok', { headers: corsHeaders });
   }
 
+  let lockToken: string | null = null;
+  let observationIdForCleanup: string | null = null;
+  let supabase: any = null;
+
   try {
     // ── Auth ────────────────────────────────────────────────────────────────
     const authHeader = req.headers.get('Authorization');
@@ -616,7 +620,7 @@ Deno.serve(async (req: Request) => {
       return jsonResp({ error: 'Missing Authorization header' }, 401);
     }
 
-    const supabase    = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+    supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
     const jwtPayload = decodeJwtPayload(jwt);
     let authUserId = typeof jwtPayload?.sub === 'string' && jwtPayload.sub.length > 0
@@ -654,6 +658,7 @@ Deno.serve(async (req: Request) => {
 
     if (!observationId) return jsonResp({ error: 'observation_id is required' }, 400);
     if (!photoUrl)       return jsonResp({ error: 'photo_url is required' }, 400);
+    observationIdForCleanup = observationId;
 
     console.log('🔍 process-officer-scan started', { observationId, officerId: profile.id });
 
@@ -678,6 +683,28 @@ Deno.serve(async (req: Request) => {
         plate: obs.plate_number,
       });
       return jsonResp({ success: true, skipped: true, reason: 'already_enriched' });
+    }
+
+    // Concurrency guard: ensure only one invocation claims this observation
+    // while it is in the PROCESSING placeholder state.
+    if (obs.plate_number === 'PROCESSING...') {
+      lockToken = `PROCESSING_LOCKED:${crypto.randomUUID().slice(0, 8)}`;
+      const { data: claimed, error: claimErr } = await supabase
+        .from('observations')
+        .update({ plate_number: lockToken })
+        .eq('observation_id', observationId)
+        .eq('plate_number', 'PROCESSING...')
+        .select('observation_id')
+        .maybeSingle();
+
+      if (claimErr) {
+        console.warn('⚠️ Failed to claim processing lock, continuing best-effort:', claimErr.message);
+      } else if (!claimed) {
+        console.log('⏭️ Duplicate in-flight invocation detected — skipping', { observationId });
+        return jsonResp({ success: true, skipped: true, reason: 'duplicate_in_flight' }, 202);
+      } else {
+        console.log('🔒 Claimed processing lock', { observationId });
+      }
     }
 
     // Verify officer owns this observation (master role can process any)
@@ -1519,6 +1546,20 @@ Deno.serve(async (req: Request) => {
 
   } catch (err: any) {
     console.error('❌ process-officer-scan error:', err.message, err.stack);
+
+    // Best-effort unlock on hard failure so the observation can be retried.
+    if (supabase && lockToken && observationIdForCleanup) {
+      try {
+        await supabase
+          .from('observations')
+          .update({ plate_number: 'PROCESSING...' })
+          .eq('observation_id', observationIdForCleanup)
+          .eq('plate_number', lockToken);
+      } catch {
+        // non-fatal cleanup path
+      }
+    }
+
     return jsonResp({ error: err.message || 'Internal server error' }, 500);
   }
 });
