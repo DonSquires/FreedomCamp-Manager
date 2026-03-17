@@ -235,13 +235,15 @@ async function callInference(imageBytes: Uint8Array): Promise<InferenceResult> {
       embedding:       Array.isArray(d?.embedding) ? d.embedding : null,
       embeddingQuality: d?.embedding_quality ?? null,
       path:            'railway_inference',
-      inferMake:       d?.vehicle_make   ? String(d.vehicle_make)   : null,
-      inferModel:      d?.vehicle_model  ? String(d.vehicle_model)  : null,
+      inferMake:       d?.vehicle_make   ? String(d.vehicle_make)   : (d?.make ? String(d.make) : null),
+      inferModel:      d?.vehicle_model  ? String(d.vehicle_model)  : (d?.model ? String(d.model) : null),
       inferYear:       toIntOrNull(d?.vehicle_year ?? d?.year ?? null),
-      inferColour:     d?.vehicle_colour ? String(d.vehicle_colour) : null,
+      inferColour:     d?.vehicle_colour
+        ? String(d.vehicle_colour)
+        : (d?.vehicle_color ? String(d.vehicle_color) : (d?.colour ? String(d.colour) : null)),
       inferMakeConf:   d?.vehicle_make_confidence   ?? null,
       inferModelConf:  d?.vehicle_model_confidence  ?? null,
-      inferColourConf: d?.vehicle_colour_confidence ?? null,
+      inferColourConf: d?.vehicle_colour_confidence ?? d?.vehicle_color_confidence ?? null,
       stickerPresence,
       stickerColor:    s?.color ?? null,
       stickerConf:     s?.detection_confidence ?? null,
@@ -899,6 +901,33 @@ Deno.serve(async (req: Request) => {
       } catch { /* non-critical */ }
     }
 
+    // If plate is known but key attributes are still missing from stronger sources,
+    // fetch ALPR attributes as a low-priority enrichment path.
+    const needsAlprAttributeEnrichment = !!plate && (
+      (!nzscv?.make && !canonicalMake && !inference.inferMake) ||
+      (!nzscv?.model && !canonicalModel && !inference.inferModel) ||
+      (!nzscv?.colour && !canonicalColour && !inference.inferColour)
+    );
+    if (needsAlprAttributeEnrichment && !alprMake && !alprModel && !alprColour) {
+      try {
+        const alprStartedAt = Date.now();
+        const alprResult = await startAlprBackup();
+        alprMake = alprResult.make ?? alprMake;
+        alprModel = alprResult.model ?? alprModel;
+        alprColour = alprResult.color ?? alprColour;
+        alprOrientation = alprResult.orientation ?? alprOrientation;
+        console.log('✅ ALPR attribute enrichment complete', {
+          duration_ms: Date.now() - alprStartedAt,
+          make: alprMake,
+          model: alprModel,
+          colour: alprColour,
+          orientation: alprOrientation,
+        });
+      } catch (alprErr: any) {
+        console.warn('⚠️ ALPR attribute enrichment failed:', alprErr.message);
+      }
+    }
+
     const isNewVehicle = !canonicalVehicle;
 
     if (inference.inferMake && plate && (inference.inferMakeConf ?? 0) >= MAKE_MISMATCH_MIN_CONF) {
@@ -1269,6 +1298,7 @@ Deno.serve(async (req: Request) => {
       .eq('observation_id', observationId);
 
     if (updateErr) {
+      console.warn('⚠️ Observation update failed, retrying without optional columns:', updateErr.message);
       // Strip optional columns that may not exist in schema and retry
       const optionalCols = [
         'vehicle_embedding', 'embedding_quality',
