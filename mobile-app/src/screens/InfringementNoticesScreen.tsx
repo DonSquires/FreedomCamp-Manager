@@ -15,7 +15,7 @@ import React, { useState } from 'react'
 import {
   View, Text, FlatList, StyleSheet, TouchableOpacity, RefreshControl,
   Modal, TextInput, ScrollView, ActivityIndicator, KeyboardAvoidingView,
-  Platform,
+  Platform, Linking,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
@@ -77,10 +77,14 @@ export default function InfringementNoticesScreen() {
   const route = useRoute<any>()
   const queryClient = useQueryClient()
   const [showIssueModal, setShowIssueModal] = useState(false)
+  const [showPrintPrompt, setShowPrintPrompt] = useState(false)
   const [showFineSheet, setShowFineSheet] = useState(false)
   const [showServiceSheet, setShowServiceSheet] = useState(false)
   const [showZoneSheet, setShowZoneSheet] = useState(false)
   const [statusFilter, setStatusFilter] = useState<'active' | 'all'>('active')
+  const [printableHtml, setPrintableHtml] = useState<string | null>(null)
+  const [printableNoticeNumber, setPrintableNoticeNumber] = useState<string>('')
+  const [openingPrint, setOpeningPrint] = useState(false)
 
   // Issue form state
   const [form, setForm] = useState({
@@ -170,6 +174,25 @@ export default function InfringementNoticesScreen() {
   })
 
   // ── Issue new notice ─────────────────────────────────────────────────────
+  const openPrintableNotice = async () => {
+    if (!printableHtml) {
+      toast.error('No printable notice available')
+      return
+    }
+
+    setOpeningPrint(true)
+    try {
+      const dataUrl = `data:text/html;charset=utf-8,${encodeURIComponent(printableHtml)}`
+      await Linking.openURL(dataUrl)
+      toast.success('Opened printable notice in browser')
+      setShowPrintPrompt(false)
+    } catch {
+      toast.error('Could not open printable notice on this device')
+    } finally {
+      setOpeningPrint(false)
+    }
+  }
+
   const handleIssue = async () => {
     if (!form.plate_number.trim() || !form.zone_id || !form.offence_description.trim()) {
       toast.error('Plate, zone and offence description are required')
@@ -196,6 +219,11 @@ export default function InfringementNoticesScreen() {
       if (!data?.success) throw new Error(data?.error || 'Failed')
 
       toast.success(`✅ Notice ${data.notice_number} issued`)
+      if (data?.html) {
+        setPrintableHtml(data.html)
+        setPrintableNoticeNumber(data.notice_number || '')
+        setShowPrintPrompt(true)
+      }
       setShowIssueModal(false)
       setForm({
         plate_number: '', zone_id: '', zone_name: '', offence_description: '',
@@ -584,6 +612,50 @@ export default function InfringementNoticesScreen() {
           </View>
         </Modal>
       </Modal>
+
+      {/* ── Print Prompt Modal ─────────────────────────────────────── */}
+      <Modal
+        visible={showPrintPrompt}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowPrintPrompt(false)}
+      >
+        <View style={styles.promptBackdrop}>
+          <View style={styles.promptCard}>
+            <View style={styles.promptHeader}>
+              <Ionicons name="print-outline" size={20} color="#1d4ed8" />
+              <Text style={styles.promptTitle}>Ticket Ready to Print</Text>
+            </View>
+            <Text style={styles.promptText}>
+              Notice {printableNoticeNumber || 'issued'} is ready. Open the printable page and use your browser print/share action.
+            </Text>
+
+            <View style={styles.promptActions}>
+              <TouchableOpacity
+                style={styles.promptSecondaryBtn}
+                onPress={() => setShowPrintPrompt(false)}
+              >
+                <Text style={styles.promptSecondaryText}>Later</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.promptPrimaryBtn, openingPrint && styles.promptPrimaryBtnDisabled]}
+                onPress={openPrintableNotice}
+                disabled={openingPrint}
+              >
+                {openingPrint ? (
+                  <ActivityIndicator color="#fff" size="small" />
+                ) : (
+                  <>
+                    <Ionicons name="open-outline" size={16} color="#fff" />
+                    <Text style={styles.promptPrimaryText}>Open Printable Ticket</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   )
 }
@@ -690,4 +762,45 @@ const styles = StyleSheet.create({
   },
   sheetItemActive: { backgroundColor: '#eff6ff' },
   sheetItemText: { fontSize: 14, color: '#374151' },
+
+  // Print prompt
+  promptBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(15,23,42,0.45)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+  },
+  promptCard: {
+    width: '100%',
+    maxWidth: 420,
+    backgroundColor: '#fff',
+    borderRadius: 14,
+    padding: 16,
+    gap: 10,
+  },
+  promptHeader: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  promptTitle: { fontSize: 17, fontWeight: '700', color: '#0f172a' },
+  promptText: { fontSize: 13, color: '#475569', lineHeight: 20 },
+  promptActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: 8, marginTop: 4 },
+  promptSecondaryBtn: {
+    borderWidth: 1,
+    borderColor: '#cbd5e1',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    backgroundColor: '#fff',
+  },
+  promptSecondaryText: { color: '#334155', fontWeight: '600', fontSize: 13 },
+  promptPrimaryBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    backgroundColor: '#1d4ed8',
+  },
+  promptPrimaryBtnDisabled: { backgroundColor: '#93c5fd' },
+  promptPrimaryText: { color: '#fff', fontWeight: '700', fontSize: 13 },
 })
