@@ -123,6 +123,12 @@ export default function ScanScreen() {
       const detectedPlate = alprData?.plate || alprData?.plate_number || null
       const detectedConfidence = alprData?.confidence || null
 
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession()
+      if (sessionError) throw new Error(sessionError.message || 'Unable to read current session')
+
+      const accessToken = sessionData.session?.access_token
+      if (!accessToken) throw new Error('No active session found. Please sign in again.')
+
       // 6. Create observation via unified ingest pipeline
       toast.loading('Saving...')
       const idempotencyKey = `scan-${user?.id}-${timestamp}`
@@ -140,6 +146,9 @@ export default function ScanScreen() {
           plate: detectedPlate,
           confidence: detectedConfidence,
           requires_manual_entry: !detectedPlate,
+        },
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
         },
       })
 

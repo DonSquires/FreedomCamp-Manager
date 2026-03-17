@@ -8,6 +8,22 @@ import { useAuthStore } from '@/stores/authStore'
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
 
+async function getEdgeFunctionAuthHeaders() {
+  const { data, error } = await supabase.auth.getSession()
+  if (error) {
+    throw new Error(error.message || 'Unable to read current session')
+  }
+
+  const accessToken = data.session?.access_token
+  if (!accessToken) {
+    throw new Error('No active session found. Please sign in again before syncing queued scans.')
+  }
+
+  return {
+    Authorization: `Bearer ${accessToken}`,
+  }
+}
+
 interface QueuedObservation {
   id: string
   plate_number: string
@@ -199,6 +215,8 @@ export function useOfflineQueue() {
         }
 
         // Call vehicle-ingest Edge Function to sync observation
+        const headers = await getEdgeFunctionAuthHeaders()
+
         const { error: invokeError } = await supabase.functions.invoke('vehicle-ingest', {
           body: {
             plate: observation.plate_number,
@@ -214,6 +232,7 @@ export function useOfflineQueue() {
             ...(observation.photo_url && !imageDataUrl ? { photo_url: observation.photo_url } : {}),
             requires_manual_entry: !observation.plate_number,
           },
+          headers,
         })
         if (invokeError) throw new Error(invokeError.message)
 

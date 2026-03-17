@@ -40,7 +40,6 @@ import { nzHour, toValidBreachType } from '../_shared/compliance.ts';
 // ─── Environment ────────────────────────────────────────────────────────────
 const SUPABASE_URL             = Deno.env.get('SUPABASE_URL')!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-const SUPABASE_ANON_KEY        = Deno.env.get('SUPABASE_ANON_KEY')!;
 const INFERENCE_SERVICE_URL    = Deno.env.get('INFERENCE_SERVICE_URL');
 const INFERENCE_TIMEOUT_MS     = Number(Deno.env.get('INFERENCE_TIMEOUT_MS') ?? '7000');
 const NZSCV_PROXY_URL          = Deno.env.get('NZSCV_PROXY_URL');
@@ -443,11 +442,8 @@ Deno.serve(async (req: Request) => {
     if (!jwt) return jsonResp({ error: 'Missing Authorization header' }, 401);
 
     const supabase    = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-    const authClient  = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-      auth: { persistSession: false, autoRefreshToken: false },
-    });
 
-    const { data: authData, error: authError } = await authClient.auth.getUser(jwt);
+    const { data: authData, error: authError } = await supabase.auth.getUser(jwt);
     if (authError || !authData?.user) return jsonResp({ error: 'Unauthorized' }, 401);
 
     const { data: profile } = await supabase

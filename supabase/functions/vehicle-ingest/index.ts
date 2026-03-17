@@ -205,15 +205,12 @@ Deno.serve(async (req) => {
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
-    const authClient = createClient(supabaseUrl, supabaseAnonKey, {
-      auth: { persistSession: false, autoRefreshToken: false },
-    });
 
     // Resolve authenticated user from token and enforce server-side identity/org.
-    const { data: authData, error: authError } = await authClient.auth.getUser(jwt);
+    const { data: authData, error: authError } = await supabase.auth.getUser(jwt);
     if (authError || !authData?.user) {
+      console.error("🚫 AUTH ERROR: Auth session verification failed", authError?.message ?? "unknown");
       return new Response(
         JSON.stringify({
           error: "Session expired or invalid. Please log out and log back in.",
