@@ -114,91 +114,28 @@ export async function captureAndSave(
   )
   if (!finalZoneId) throw new Error('Could not resolve patrol zone')
 
-  // ── Step 5: Fast initial save (plate = PROCESSING...) ────────────────────
+    // ── Step 5: Canonical ingest via vehicle-ingest edge function ────────────
+    // This is the single source of truth for observation creation and enrichment.
   const nowIso = new Date().toISOString()
-  let observationId: string | null = null
+    const { data: ingestData, error: ingestError } = await edgeFunctions.ingestVehicleObservation({
+      photo_url: photoUrl,
+      photo_hash: photoHash,
+      gpsLatitude: latitude,
+      gpsLongitude: longitude,
+      gpsAccuracy: accuracy,
+      recordedAt: nowIso,
+      officerId: user.id,
+      organizationId: user.organization_id,
+      zoneId: finalZoneId,
+      idempotencyKey: idempKey,
+      officer_notes: weather !== 'Unknown' ? `Weather: ${weather}` : null,
+    })
 
-  const { data: rpcData, error: rpcErr } = await (supabase as any).rpc(
-    'safe_insert_observation',
-    {
-      p_data: {
-        plate_number:    'PROCESSING...',
-        photo:           photoUrl,
-        photo_url:       photoUrl,
-        photo_hash:      photoHash,
-        recorded_at:     nowIso,
-        zone_id:         finalZoneId,
-        organization_id: user.organization_id,
-        gps_latitude:    latitude,
-        gps_longitude:   longitude,
-        gps_accuracy:    accuracy,
-        recorded_by:     user.id,
-        idempotency_key: idempKey,
-        officer_notes:   weather !== 'Unknown' ? `Weather: ${weather}` : null,
-      },
-    }
-  )
+    if (ingestError) throw new Error(`Save failed: ${ingestError}`)
 
-  if (!rpcErr && rpcData) {
-    observationId = (rpcData as any).observation_id ?? (rpcData as any).id ?? null
-  } else {
-    // Always try a direct insert fallback if the RPC fails for any reason.
-    // This protects live scans from stale function bodies, schema-cache drift,
-    // permission quirks, and inconsistent error message formats.
-    const rpcErrMsg = [
-      rpcErr?.message,
-      (rpcErr as any)?.details,
-      (rpcErr as any)?.hint,
-      (rpcErr as any)?.code,
-    ]
-      .filter(Boolean)
-      .join(' ')
-      .trim()
-
-    if (rpcErrMsg) {
-      console.warn('⚠️ safe_insert_observation failed; trying direct insert fallback.', rpcErrMsg)
-    }
-
-    const { data: ins, error: insErr } = await (supabase.from('observations') as any)
-      .insert({
-        plate_number:    'PROCESSING...',
-        photo:           photoUrl,
-        photo_url:       photoUrl,
-        photo_hash:      photoHash,
-        recorded_at:     nowIso,
-        zone_id:         finalZoneId,
-        organization_id: user.organization_id,
-        gps_latitude:    latitude,
-        gps_longitude:   longitude,
-        gps_accuracy:    accuracy,
-        recorded_by:     user.id,
-        idempotency_key: idempKey,
-        officer_notes:   weather !== 'Unknown' ? `Weather: ${weather}` : null,
-      })
-      .select('observation_id')
-      .single()
-
-    if (insErr || !ins) {
-      const combined = rpcErrMsg
-        ? `RPC failed (${rpcErrMsg}) and fallback insert failed (${insErr?.message ?? 'Unknown'})`
-        : (insErr?.message ?? 'Unknown')
-      throw new Error(`Save failed: ${combined}`)
-    }
-
-    observationId = (ins as any).observation_id ?? null
-  }
+    const observationId = (ingestData as any)?.observation_id ?? null
 
   if (!observationId) throw new Error('Observation saved but ID not returned')
-
-  // ── Step 6: Fire-and-forget enrichment ────────────────────────────────────
-  // process-officer-scan: inference → ALPR → NZSCV → movement → compliance
-  edgeFunctions.processOfficerScan({
-    observation_id: observationId,
-    photo_url:      photoUrl,
-    photo_hash:     photoHash,
-  }).catch((err: any) =>
-    console.warn('⚠️ process-officer-scan invoke error:', err?.message ?? err)
-  )
 
   return { observationId, photoUrl, photoHash, zoneId: finalZoneId, recordedAt: nowIso, weather }
 }
