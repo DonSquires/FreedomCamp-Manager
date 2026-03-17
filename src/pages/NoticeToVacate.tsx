@@ -97,6 +97,21 @@ export default function NoticeToVacate() {
   })
   const [issuing, setIssuing] = useState(false)
 
+  const withTimeout = async <T,>(promise: Promise<T>, ms: number, timeoutMessage: string): Promise<T> => {
+    return await new Promise<T>((resolve, reject) => {
+      const timer = window.setTimeout(() => reject(new Error(timeoutMessage)), ms)
+      promise
+        .then((value) => {
+          window.clearTimeout(timer)
+          resolve(value)
+        })
+        .catch((error) => {
+          window.clearTimeout(timer)
+          reject(error)
+        })
+    })
+  }
+
   const openPreviewWindow = (mode: 'open' | 'print') => {
     if (!previewHtml) {
       toast.error('Printable notice unavailable')
@@ -202,18 +217,22 @@ export default function NoticeToVacate() {
     }
     setIssuing(true)
     try {
-      const { data, error } = await supabase.functions.invoke('generate-notice-to-vacate', {
-        body: {
-          zoneId: form.zoneId,
-          plateNumber: form.plateNumber.toUpperCase().trim(),
-          nightsStayed: form.nightsStayed ? parseInt(form.nightsStayed) : undefined,
-          breachDetails: form.breachDetails ? { notes: form.breachDetails } : undefined,
-          issuedBy: user!.id,
-          deliveryMethod: form.deliveryMethod,
-          deliverToEmail: form.deliverToEmail || undefined,
-          breachAlertId: form.breachAlertId || undefined,
-        },
-      })
+      const { data, error } = await withTimeout(
+        supabase.functions.invoke('generate-notice-to-vacate', {
+          body: {
+            zoneId: form.zoneId,
+            plateNumber: form.plateNumber.toUpperCase().trim(),
+            nightsStayed: form.nightsStayed ? parseInt(form.nightsStayed) : undefined,
+            breachDetails: form.breachDetails ? { notes: form.breachDetails } : undefined,
+            issuedBy: user!.id,
+            deliveryMethod: form.deliveryMethod,
+            deliverToEmail: form.deliverToEmail || undefined,
+            breachAlertId: form.breachAlertId || undefined,
+          },
+        }),
+        25000,
+        'Notice generation timed out. Please try again.',
+      )
 
       if (error) throw new Error(error.message)
       if (!data?.success) throw new Error(data?.error || 'Failed to issue notice')
