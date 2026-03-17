@@ -181,9 +181,12 @@ export async function adaptiveObservationInsert(
 
     lastError = error;
 
-    // Handle missing schema column errors - drop column and retry
+    // Handle missing schema column errors.
+    // Drop ANY unrecognised column (not just those pre-listed in
+    // OPTIONAL_SCHEMA_COLUMNS) so that insert attempts never stall on an
+    // unknown-column schema-cache miss.
     const missingCol = extractMissingSchemaColumn(error);
-    if (missingCol && OPTIONAL_SCHEMA_COLUMNS.has(missingCol) && (missingCol in payload)) {
+    if (missingCol && (missingCol in payload)) {
       console.warn(`⚠️ Schema cache missing column '${missingCol}' — dropping from INSERT and retrying`);
       delete payload[missingCol];
       droppedColumns.push(missingCol);
@@ -203,9 +206,10 @@ export async function adaptiveObservationInsert(
       continue;
     }
 
-    // Can't recover via payload changes — break and try RPC fallback below
-    console.error("❌ Observation insert failed:", {
+    // Can't recover via payload changes — break and fall through to RPC
+    console.error("❌ Observation insert failed (non-retryable):", {
       error: (error as any)?.message,
+      code: (error as any)?.code,
       attempt: attempt + 1,
       droppedColumns,
     });
@@ -213,34 +217,34 @@ export async function adaptiveObservationInsert(
   }
 
   // ── Last-resort: safe_insert_observation RPC (bypasses triggers) ──
-  const shouldTrySafeInsertRpc =
-    (isCoalesceTypeMismatchError(lastError) ||
-      isLegacyVehicleObservationsRelationError(lastError)) &&
-    !!supabase.rpc;
-
-  if (shouldTrySafeInsertRpc) {
+  // Attempt the RPC for ANY unrecoverable error, not just specific known
+  // types. The RPC runs inline (no triggers) so it sidesteps schema-cache
+  // drift, trigger COALESCE errors, and legacy-table reference failures.
+  if (supabase.rpc) {
     if (isLegacyVehicleObservationsRelationError(lastError)) {
-      console.warn(
-        "⚠️ Legacy vehicle_observations_v2 reference detected — trying safe_insert_observation RPC"
-      );
-    } else {
+      console.warn("⚠️ Legacy vehicle_observations_v2 reference — trying safe_insert_observation RPC");
+    } else if (isCoalesceTypeMismatchError(lastError)) {
       console.warn("⚠️ COALESCE trigger error persists — trying safe_insert_observation RPC");
+    } else {
+      console.warn("⚠️ Insert failed after retries — falling back to safe_insert_observation RPC", {
+        error: (lastError as any)?.message,
+        code: (lastError as any)?.code,
+      });
     }
 
     try {
       const rpcPayload: Record<string, unknown> = {
-        plate_number: payload.plate_number ?? data.plate_number ?? "PROCESSING...",
-        photo: payload.photo ?? payload.photo_url,
-        photo_url: payload.photo_url,
-        photo_hash: payload.photo_hash,
-        recorded_at: payload.recorded_at,
-        zone_id: payload.zone_id,
-        organization_id: payload.organization_id,
-        gps_latitude: payload.gps_latitude,
-        gps_longitude: payload.gps_longitude,
-        gps_accuracy: payload.gps_accuracy,
-        recorded_by: payload.recorded_by,
-        idempotency_key: payload.idempotency_key ?? null,
+        plate_number: data.plate_number ?? "PROCESSING...",
+        photo_url: data.photo_url ?? data.photo,
+        photo_hash: data.photo_hash ?? null,
+        recorded_at: data.recorded_at,
+        zone_id: data.zone_id,
+        organization_id: data.organization_id,
+        gps_latitude: data.gps_latitude,
+        gps_longitude: data.gps_longitude,
+        gps_accuracy: data.gps_accuracy ?? null,
+        recorded_by: data.recorded_by,
+        idempotency_key: data.idempotency_key ?? null,
       };
 
       const { data: rpcResult, error: rpcError } = await supabase.rpc(
@@ -252,7 +256,7 @@ export async function adaptiveObservationInsert(
         console.log("✅ Observation created via safe_insert_observation RPC");
         return { data: rpcResult, error: null, droppedColumns };
       }
-      console.error("❌ safe_insert_observation RPC failed:", rpcError);
+      console.error("❌ safe_insert_observation RPC failed:", (rpcError as any)?.message ?? rpcError);
     } catch (rpcErr: any) {
       console.error("❌ safe_insert_observation RPC exception:", rpcErr?.message);
     }
