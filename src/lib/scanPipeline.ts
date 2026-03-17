@@ -9,8 +9,8 @@
  *   2.5 Evidence watermark  (timestamp + GPS + officer name baked into photo)
  *   3. SHA-256 hash + upload to `scans` storage bucket
  *   4. Resolve zone  (preferred → other-location fallback)
- *   5. fast INSERT via safe_insert_observation RPC  (plate = 'PROCESSING...')
- *   6. Fire-and-forget process-officer-scan enrichment
+ *   5. Canonical ingest via vehicle-ingest edge function
+ *      (with idempotency-based recovery if response is delayed)
  *
  * Returns initial result immediately; enrichment completes asynchronously.
  */
@@ -20,6 +20,42 @@ import { edgeFunctions } from '@/lib/edgeFunctions'
 import { resolveObservationZoneForOrg } from '@/lib/zoneResolution'
 import { fetchWeatherOnDevice } from '@/lib/weather'
 import { applyEvidenceWatermark } from '@/lib/imageWatermarking'
+
+const INGEST_TIMEOUT_MS = 45_000
+const RECOVERY_LOOKUP_TIMEOUT_MS = 20_000
+const RECOVERY_LOOKUP_POLL_MS = 2_000
+
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T> {
+  let timeoutHandle: ReturnType<typeof setTimeout> | null = null
+  try {
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      timeoutHandle = setTimeout(() => reject(new Error(`${label} timed out after ${Math.round(timeoutMs / 1000)}s`)), timeoutMs)
+    })
+    return await Promise.race([promise, timeoutPromise])
+  } finally {
+    if (timeoutHandle) clearTimeout(timeoutHandle)
+  }
+}
+
+async function recoverObservationByIdempotency(idempotencyKey: string): Promise<string | null> {
+  const deadline = Date.now() + RECOVERY_LOOKUP_TIMEOUT_MS
+
+  while (Date.now() < deadline) {
+    const { data, error } = await (supabase.from('observations') as any)
+      .select('observation_id, id')
+      .eq('idempotency_key', idempotencyKey)
+      .maybeSingle()
+
+    if (!error && data) {
+      return (data as any).observation_id ?? (data as any).id ?? null
+    }
+
+    // If the row isn't visible yet, allow the ingest function to finish and retry.
+    await new Promise((resolve) => setTimeout(resolve, RECOVERY_LOOKUP_POLL_MS))
+  }
+
+  return null
+}
 
 export interface ScanSaveResult {
   observationId: string
@@ -117,23 +153,42 @@ export async function captureAndSave(
     // ── Step 5: Canonical ingest via vehicle-ingest edge function ────────────
     // This is the single source of truth for observation creation and enrichment.
   const nowIso = new Date().toISOString()
-    const { data: ingestData, error: ingestError } = await edgeFunctions.ingestVehicleObservation({
-      photo_url: photoUrl,
-      photo_hash: photoHash,
-      gpsLatitude: latitude,
-      gpsLongitude: longitude,
-      gpsAccuracy: accuracy,
-      recordedAt: nowIso,
-      officerId: user.id,
-      organizationId: user.organization_id,
-      zoneId: finalZoneId,
-      idempotencyKey: idempKey,
-      officer_notes: weather !== 'Unknown' ? `Weather: ${weather}` : null,
-    })
+    let observationId: string | null = null
 
-    if (ingestError) throw new Error(`Save failed: ${ingestError}`)
+    try {
+      const ingestResult = await withTimeout(
+        edgeFunctions.ingestVehicleObservation({
+          photo_url: photoUrl,
+          photo_hash: photoHash,
+          gpsLatitude: latitude,
+          gpsLongitude: longitude,
+          gpsAccuracy: accuracy,
+          recordedAt: nowIso,
+          officerId: user.id,
+          organizationId: user.organization_id,
+          zoneId: finalZoneId,
+          idempotencyKey: idempKey,
+          officer_notes: weather !== 'Unknown' ? `Weather: ${weather}` : null,
+        }),
+        INGEST_TIMEOUT_MS,
+        'vehicle-ingest request',
+      )
 
-    const observationId = (ingestData as any)?.observation_id ?? null
+      if (ingestResult.error) {
+        throw new Error(String(ingestResult.error))
+      }
+
+      observationId = (ingestResult.data as any)?.observation_id ?? null
+    } catch (err: any) {
+      // If the request timed out or the network dropped after the backend started,
+      // recover using idempotency key so the UI can still complete.
+      const recoveredId = await recoverObservationByIdempotency(idempKey)
+      if (recoveredId) {
+        observationId = recoveredId
+      } else {
+        throw new Error(`Save failed: ${err?.message ?? 'vehicle-ingest request failed'}`)
+      }
+    }
 
   if (!observationId) throw new Error('Observation saved but ID not returned')
 
