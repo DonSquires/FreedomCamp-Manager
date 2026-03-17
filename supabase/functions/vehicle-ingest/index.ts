@@ -205,12 +205,40 @@ Deno.serve(async (req) => {
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     // Resolve authenticated user from token and enforce server-side identity/org.
-    const { data: authData, error: authError } = await supabase.auth.getUser(jwt);
-    if (authError || !authData?.user) {
-      console.error("🚫 AUTH ERROR: Auth session verification failed", authError?.message ?? "unknown");
+    let authUserId: string | null = null;
+
+    const { data: adminAuthData, error: adminAuthError } = await supabase.auth.getUser(jwt);
+    if (!adminAuthError && adminAuthData?.user?.id) {
+      authUserId = adminAuthData.user.id;
+    } else {
+      console.warn(
+        "⚠️ Auth verification via service-role client failed, retrying with anon client",
+        adminAuthError?.message ?? "unknown",
+      );
+
+      const authClient = createClient(supabaseUrl, supabaseAnonKey, {
+        auth: { persistSession: false, autoRefreshToken: false },
+      });
+
+      const { data: anonAuthData, error: anonAuthError } = await authClient.auth.getUser(jwt);
+      if (!anonAuthError && anonAuthData?.user?.id) {
+        authUserId = anonAuthData.user.id;
+      } else {
+        console.error(
+          "🚫 AUTH ERROR: Auth session verification failed via both clients",
+          {
+            admin: adminAuthError?.message ?? "unknown",
+            anon: anonAuthError?.message ?? "unknown",
+          },
+        );
+      }
+    }
+
+    if (!authUserId) {
       return new Response(
         JSON.stringify({
           error: "Session expired or invalid. Please log out and log back in.",
@@ -222,8 +250,6 @@ Deno.serve(async (req) => {
         }
       );
     }
-
-    const authUserId = authData.user.id;
 
     const { data: profile, error: profileError } = await supabase
       .from("user_profiles")
