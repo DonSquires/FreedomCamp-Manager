@@ -2767,6 +2767,7 @@ export type Database = {
           sticker_detection_confidence: number | null
           sticker_presence: boolean | null
           updated_at: string | null
+          vehicle_attribute_sources: Json | null
           vehicle_color: string | null
           vehicle_color_confidence: number | null
           vehicle_embedding: Json | null
@@ -2843,6 +2844,7 @@ export type Database = {
           sticker_detection_confidence?: number | null
           sticker_presence?: boolean | null
           updated_at?: string | null
+          vehicle_attribute_sources?: Json | null
           vehicle_color?: string | null
           vehicle_color_confidence?: number | null
           vehicle_embedding?: Json | null
@@ -2919,6 +2921,7 @@ export type Database = {
           sticker_detection_confidence?: number | null
           sticker_presence?: boolean | null
           updated_at?: string | null
+          vehicle_attribute_sources?: Json | null
           vehicle_color?: string | null
           vehicle_color_confidence?: number | null
           vehicle_embedding?: Json | null

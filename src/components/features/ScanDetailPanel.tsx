@@ -55,6 +55,12 @@ export interface DetailScanData {
   vehicleModel: string | null
   vehicleYear: string | null
   vehicleColor: string | null
+  vehicleAttributeSources: {
+    make_source: string | null
+    model_source: string | null
+    color_source: string | null
+    year_source: string | null
+  } | null
   isSelfContained: boolean
   selfContainedExpiry: string | null
   cscStatus: string | null
@@ -107,6 +113,18 @@ function fmtBreach(v: string | null | undefined) {
 function fmtDate(iso: string) {
   try { return new Date(iso).toLocaleString('en-NZ', { dateStyle: 'short', timeStyle: 'short' }) }
   catch { return iso }
+}
+
+/** Format attribute source name for display */
+function fmtSource(source: string | null): string {
+  if (!source) return 'Unknown'
+  const sourceMap: Record<string, string> = {
+    nzscv: 'NZSCV',
+    canonical: 'Database',
+    inference: 'AI Detection',
+    alpr: 'Plate Recognizer',
+  }
+  return sourceMap[source] || source
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -217,7 +235,7 @@ export function ScanDetailPanel({
       const { data } = await (supabase.from('observations') as any)
         .select(
           'observation_id, plate_number, is_compliant, breach_type, officer_notes,' +
-          'vehicle_make, vehicle_model, vehicle_year, vehicle_color,' +
+          'vehicle_make, vehicle_model, vehicle_year, vehicle_color, vehicle_attribute_sources,' +
           'self_contained, self_contained_expiry, zone_id,' +
           'has_discrepancies, discrepancy_flags,' +
           'zone:zones!zone_id(name)'
@@ -260,6 +278,7 @@ export function ScanDetailPanel({
         vehicleModel:      data.vehicle_model        ?? prev.vehicleModel,
         vehicleYear:       data.vehicle_year != null ? String(data.vehicle_year) : prev.vehicleYear,
         vehicleColor:      data.vehicle_color        ?? prev.vehicleColor,
+        vehicleAttributeSources: data.vehicle_attribute_sources ?? prev.vehicleAttributeSources,
         isSelfContained:   !!data.self_contained,
         selfContainedExpiry: data.self_contained_expiry ?? prev.selfContainedExpiry,
         officerNotes:      data.officer_notes        ?? prev.officerNotes,
@@ -577,17 +596,27 @@ export function ScanDetailPanel({
               /* Read-only details grid */
               <div className="space-y-2 text-sm">
                 {[
-                  { label: 'Plate',  value: plate || (pending ? 'Detecting…' : '—') },
-                  { label: 'Make',   value: obs.vehicleMake   || '—' },
-                  { label: 'Model',  value: obs.vehicleModel  || '—' },
-                  { label: 'Year',   value: obs.vehicleYear   || '—' },
-                  { label: 'Colour', value: obs.vehicleColor  || '—' },
-                ].map(({ label, value }) => (
-                  <div key={label} className="flex justify-between border-b pb-1.5 last:border-0">
-                    <span className="text-muted-foreground">{label}</span>
-                    <span className={`font-medium ${label === 'Plate' ? 'font-mono' : ''}`}>{value}</span>
-                  </div>
-                ))}
+                  { label: 'Plate',  value: plate || (pending ? 'Detecting…' : '—'), sourceKey: null },
+                  { label: 'Make',   value: obs.vehicleMake   || '—', sourceKey: 'make_source' as const },
+                  { label: 'Model',  value: obs.vehicleModel  || '—', sourceKey: 'model_source' as const },
+                  { label: 'Year',   value: obs.vehicleYear   || '—', sourceKey: 'year_source' as const },
+                  { label: 'Colour', value: obs.vehicleColor  || '—', sourceKey: 'color_source' as const },
+                ].map(({ label, value, sourceKey }) => {
+                  const source = sourceKey && obs.vehicleAttributeSources ? obs.vehicleAttributeSources[sourceKey] : null
+                  return (
+                    <div key={label} className="flex justify-between items-center border-b pb-1.5 last:border-0">
+                      <span className="text-muted-foreground">{label}</span>
+                      <div className="flex items-center gap-2">
+                        <span className={`font-medium ${label === 'Plate' ? 'font-mono' : ''}`}>{value}</span>
+                        {source && (
+                          <span className="text-[11px] bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded-full whitespace-nowrap">
+                            {fmtSource(source)}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
               </div>
             )}
           </TabsContent>

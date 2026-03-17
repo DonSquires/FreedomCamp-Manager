@@ -242,6 +242,7 @@ export default function FieldOfficerPortal() {
         vehicleModel:        null,
         vehicleYear:         null,
         vehicleColor:        null,
+        vehicleAttributeSources: null,
         isSelfContained:     false,
         selfContainedExpiry: null,
         cscStatus:           null,

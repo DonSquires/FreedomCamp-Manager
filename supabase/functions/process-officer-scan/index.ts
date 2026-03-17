@@ -1145,11 +1145,19 @@ Deno.serve(async (req: Request) => {
 
     // Build resolved details once and always write them to the observation row.
     // Source priority: NZSCV (authoritative when available) → canonical snapshot
-    // → inference.
+    // → inference → ALPR.
     const resolvedMake = nzscv?.make ?? canonicalMake ?? inference.inferMake ?? alprMake ?? null;
     const resolvedModel = nzscv?.model ?? canonicalModel ?? inference.inferModel ?? alprModel ?? null;
     const resolvedYear = nzscv?.year ?? canonicalYear ?? inference.inferYear ?? toIntOrNull(obs.vehicle_year) ?? null;
     const resolvedColour = nzscv?.colour ?? canonicalColour ?? inference.inferColour ?? alprColour ?? null;
+
+    // Track attribute sources for transparency in UI
+    const attributeSources = {
+      make_source: nzscv?.make ? 'nzscv' : canonicalMake ? 'canonical' : inference.inferMake ? 'inference' : alprMake ? 'alpr' : null,
+      model_source: nzscv?.model ? 'nzscv' : canonicalModel ? 'canonical' : inference.inferModel ? 'inference' : alprModel ? 'alpr' : null,
+      color_source: nzscv?.colour ? 'nzscv' : canonicalColour ? 'canonical' : inference.inferColour ? 'inference' : alprColour ? 'alpr' : null,
+      year_source: nzscv?.year ? 'nzscv' : canonicalYear ? 'canonical' : inference.inferYear ? 'inference' : null,
+    };
 
     const mismatchNotices = discrepancies.map((d) => {
       const mismatchLocation = (d.details as Record<string, unknown>)?.mismatch_location;
@@ -1217,6 +1225,8 @@ Deno.serve(async (req: Request) => {
     if (resolvedModel) observationUpdate.vehicle_model = resolvedModel;
     if (resolvedYear) observationUpdate.vehicle_year = resolvedYear;
     if (resolvedColour) observationUpdate.vehicle_color = resolvedColour;
+    // Track source of each attribute for UI transparency
+    observationUpdate.vehicle_attribute_sources = attributeSources;
     if (nzscv !== null) {
       // SC certification — always present when NZSCV lookup succeeded
       observationUpdate.self_contained        = nzscv.isSelfContained;
@@ -1265,6 +1275,7 @@ Deno.serve(async (req: Request) => {
         'embedding_model_version', 'embedding_created_at',
         'sticker_presence', 'sticker_color', 'sticker_detection_confidence',
         'vehicle_color', 'has_discrepancies', 'discrepancy_flags',
+        'vehicle_attribute_sources',
       ];
       for (const col of optionalCols) delete observationUpdate[col];
       await supabase
@@ -1399,6 +1410,8 @@ Deno.serve(async (req: Request) => {
         colour: resolvedColour,
         color:  resolvedColour,
         orientation: alprOrientation,
+        // Attribute source tracking for UI transparency
+        attribute_sources: attributeSources,
       },
       movement: {
         is_new_vehicle:             isNewVehicle,
