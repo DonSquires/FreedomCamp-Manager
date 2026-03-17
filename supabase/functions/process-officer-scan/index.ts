@@ -476,8 +476,18 @@ Deno.serve(async (req: Request) => {
       ? jwtPayload.sub
       : null;
 
-    // Compatibility fallback for tokens that don't decode cleanly in local
-    // parsing. This avoids regressions while preserving the faster local path.
+    // Compatibility fallback #1: ask Supabase Auth to parse claims from the
+    // same bearer token. This is lighter than a full getUser() round-trip.
+    if (!authUserId) {
+      const { data: claimsData, error: claimsError } = await supabase.auth.getClaims(jwt);
+      const claimSub = (claimsData?.claims as Record<string, unknown> | undefined)?.sub;
+      if (!claimsError && typeof claimSub === 'string' && claimSub.length > 0) {
+        authUserId = claimSub;
+      }
+    }
+
+    // Compatibility fallback #2: full user validation when claims extraction
+    // still fails. This avoids regressions while preserving the faster path.
     if (!authUserId) {
       const { data: authData, error: authError } = await supabase.auth.getUser(jwt);
       if (!authError && authData?.user?.id) {
@@ -485,7 +495,13 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    if (!authUserId) return jsonResp({ error: 'Unauthorized' }, 401);
+    if (!authUserId) {
+      console.error('🚫 process-officer-scan auth failed after all fallbacks', {
+        hasAuthHeader: !!req.headers.get('Authorization'),
+        hasLocalPayload: !!jwtPayload,
+      });
+      return jsonResp({ error: 'Unauthorized' }, 401);
+    }
 
     const { data: profile } = await supabase
       .from('user_profiles')
