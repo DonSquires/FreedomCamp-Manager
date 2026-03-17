@@ -23,6 +23,7 @@ import {
   Building2,
   LogOut,
   ChevronLeft,
+  ChevronDown,
   Search,
   Activity,
   Gavel,
@@ -42,6 +43,7 @@ import {
   CalendarDays,
   TrendingUp,
   Camera,
+  Wrench,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
@@ -54,51 +56,105 @@ interface AppLayoutProps {
   showBackButton?: boolean
 }
 
-const navigationItems = [
+type NavItem = { path: string; icon: React.FC<{ className?: string }>; label: string; roles: string[] }
+
+// Pinned items always visible at the top of the sidebar
+const pinnedItems: NavItem[] = [
   { path: '/', icon: Home, label: 'Home', roles: ['admin', 'admin_officer', 'master', 'officer'] },
-  { path: '/search', icon: Search, label: 'Universal Search', roles: ['admin', 'admin_officer', 'master', 'officer'] },
-  { path: '/compliance', icon: BarChart3, label: 'Compliance Dashboard', roles: ['admin', 'admin_officer', 'master'] },
-  { path: '/observation-records', icon: ImageIcon, label: 'Observation Records', roles: ['admin', 'admin_officer', 'master', 'officer'] },
-  { path: '/compliance-recalculation', icon: Shield, label: 'Manual Recalculation', roles: ['admin', 'admin_officer', 'master'] },
-  { path: '/breaches', icon: AlertTriangle, label: 'Breach & Safety Alerts', roles: ['admin', 'admin_officer', 'master', 'officer'] },
-  { path: '/enforcement-actions', icon: Gavel, label: 'Enforcement Actions', roles: ['admin', 'admin_officer', 'master', 'officer'] },
-  { path: '/infringements', icon: Receipt, label: 'Infringement Notices', roles: ['admin', 'admin_officer', 'master', 'officer'] },
-  { path: '/enforcement-command-center', icon: MonitorPlay, label: 'Command Centre', roles: ['admin', 'admin_officer', 'master'] },
-  { path: '/vehicles', icon: Car, label: 'Vehicle Management', roles: ['admin', 'admin_officer', 'master', 'officer'] },
-  { path: '/zones', icon: MapPin, label: 'Zone Management', roles: ['admin', 'admin_officer', 'master'] },
-  { path: '/users', icon: Users, label: 'User Management', roles: ['admin', 'master'] },
-  { path: '/incidents', icon: Shield, label: 'Incidents & Evidence', roles: ['admin', 'admin_officer', 'master', 'officer'] },
-  { path: '/reports', icon: FileText, label: 'Reports', roles: ['admin', 'admin_officer', 'master'] },
-  { path: '/audit-log', icon: Activity, label: 'Audit Log', roles: ['admin', 'admin_officer', 'master'] },
-  { path: '/privacy-curtain', icon: EyeOff, label: 'Privacy Curtain', roles: ['admin', 'master'] },
-  { path: '/patrol-checkpoints', icon: ScanLine, label: 'Patrol Checkpoints', roles: ['admin', 'admin_officer', 'master'] },
-  { path: '/patrol-schedule', icon: CalendarDays, label: 'Patrol Schedule', roles: ['admin', 'admin_officer', 'master'] },
-  { path: '/patrol-kpis', icon: TrendingUp, label: 'Patrol KPIs', roles: ['admin', 'admin_officer', 'master'] },
-  { path: '/data', icon: Database, label: 'Data Management', roles: ['admin', 'master'] },
-  { path: '/admin/cleanup-recalculate', icon: RefreshCw, label: 'Cleanup & Recalculate', roles: ['admin', 'master'] },
-  { path: '/import-historical', icon: Upload, label: 'Import Historical Data', roles: ['admin', 'master'] },
-  { path: '/photo-reingest', icon: Camera, label: 'Photo Reingest', roles: ['admin', 'admin_officer', 'master'] },
-  { path: '/organization-profile', icon: Building2, label: 'Organisation Profile', roles: ['admin', 'admin_officer', 'master'] },
-  { path: '/organizations', icon: Building2, label: 'Organisations', roles: ['master'] },
-  { path: '/diagnostics', icon: Settings, label: 'System Diagnostics', roles: ['master'] },
-  { path: '/profile', icon: User, label: 'My Profile', roles: ['admin', 'admin_officer', 'master', 'officer'] },
-  { path: '/settings', icon: Settings, label: 'Settings', roles: ['admin', 'admin_officer', 'master', 'officer'] },
+  { path: '/search', icon: Search, label: 'Search', roles: ['admin', 'admin_officer', 'master', 'officer'] },
+]
+
+// Grouped navigation — collapsed by default, each bucket holds related items
+const navigationGroups: Array<{ label: string; icon: React.FC<{ className?: string }>; items: NavItem[] }> = [
+  {
+    label: 'Operations',
+    icon: BarChart3,
+    items: [
+      { path: '/compliance', icon: BarChart3, label: 'Compliance', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/observation-records', icon: ImageIcon, label: 'Observations', roles: ['admin', 'admin_officer', 'master', 'officer'] },
+      { path: '/breaches', icon: AlertTriangle, label: 'Breaches & Alerts', roles: ['admin', 'admin_officer', 'master', 'officer'] },
+      { path: '/enforcement-actions', icon: Gavel, label: 'Enforcement Actions', roles: ['admin', 'admin_officer', 'master', 'officer'] },
+      { path: '/infringements', icon: Receipt, label: 'Infringements', roles: ['admin', 'admin_officer', 'master', 'officer'] },
+      { path: '/enforcement-command-center', icon: MonitorPlay, label: 'Command Centre', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/patrol-checkpoints', icon: ScanLine, label: 'Checkpoints', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/patrol-schedule', icon: CalendarDays, label: 'Patrol Schedule', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/patrol-kpis', icon: TrendingUp, label: 'Patrol KPIs', roles: ['admin', 'admin_officer', 'master'] },
+    ],
+  },
+  {
+    label: 'Management',
+    icon: Car,
+    items: [
+      { path: '/vehicles', icon: Car, label: 'Vehicles', roles: ['admin', 'admin_officer', 'master', 'officer'] },
+      { path: '/zones', icon: MapPin, label: 'Zones', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/users', icon: Users, label: 'Users', roles: ['admin', 'master'] },
+      { path: '/organization-profile', icon: Building2, label: 'Organisation', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/organizations', icon: Building2, label: 'Organisations', roles: ['master'] },
+    ],
+  },
+  {
+    label: 'Records',
+    icon: FileText,
+    items: [
+      { path: '/incidents', icon: Shield, label: 'Incidents & Evidence', roles: ['admin', 'admin_officer', 'master', 'officer'] },
+      { path: '/reports', icon: FileText, label: 'Reports', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/audit-log', icon: Activity, label: 'Audit Log', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/privacy-curtain', icon: EyeOff, label: 'Privacy Curtain', roles: ['admin', 'master'] },
+    ],
+  },
+  {
+    label: 'Tools',
+    icon: Wrench,
+    items: [
+      { path: '/compliance-recalculation', icon: Shield, label: 'Recalculation', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/admin/cleanup-recalculate', icon: RefreshCw, label: 'Cleanup & Recalculate', roles: ['admin', 'master'] },
+      { path: '/data', icon: Database, label: 'Data Management', roles: ['admin', 'master'] },
+      { path: '/import-historical', icon: Upload, label: 'Import Data', roles: ['admin', 'master'] },
+      { path: '/photo-reingest', icon: Camera, label: 'Photo Reingest', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/diagnostics', icon: Settings, label: 'Diagnostics', roles: ['master'] },
+    ],
+  },
+  {
+    label: 'Settings',
+    icon: Settings,
+    items: [
+      { path: '/profile', icon: User, label: 'My Profile', roles: ['admin', 'admin_officer', 'master', 'officer'] },
+      { path: '/settings', icon: Settings, label: 'Settings', roles: ['admin', 'admin_officer', 'master', 'officer'] },
+    ],
+  },
 ]
 
 function NavigationLinks({ onClick }: { onClick?: () => void }) {
   const location = useLocation()
   const { user } = useAuthStore()
+  const [openGroups, setOpenGroups] = useState<Set<string>>(() => {
+    // Auto-expand the group containing the active path
+    const active = new Set<string>()
+    for (const group of navigationGroups) {
+      if (group.items.some(item => location.pathname === item.path && user && item.roles.includes(user.role))) {
+        active.add(group.label)
+      }
+    }
+    return active
+  })
 
-  const filteredItems = navigationItems.filter(item => 
-    user && item.roles.includes(user.role)
-  )
+  const toggleGroup = (label: string) => {
+    setOpenGroups(prev => {
+      const next = new Set(prev)
+      if (next.has(label)) next.delete(label)
+      else next.add(label)
+      return next
+    })
+  }
+
+  const visiblePinned = pinnedItems.filter(item => user && item.roles.includes(user.role))
 
   return (
     <nav className="space-y-1">
-      {filteredItems.map((item) => {
+      {/* Pinned items */}
+      {visiblePinned.map((item) => {
         const Icon = item.icon
         const isActive = location.pathname === item.path
-        
         return (
           <Link
             key={item.path}
@@ -114,6 +170,63 @@ function NavigationLinks({ onClick }: { onClick?: () => void }) {
             <Icon className={cn('h-4 w-4 shrink-0', isActive ? 'text-primary' : 'text-gray-400 dark:text-gray-500')} />
             <span>{item.label}</span>
           </Link>
+        )
+      })}
+
+      <div className="my-2 border-t border-gray-200 dark:border-gray-700" />
+
+      {/* Grouped navigation with accordion */}
+      {navigationGroups.map((group) => {
+        const GroupIcon = group.icon
+        const visibleItems = group.items.filter(item => user && item.roles.includes(user.role))
+        if (visibleItems.length === 0) return null
+
+        const isOpen = openGroups.has(group.label)
+        const hasActiveChild = visibleItems.some(item => location.pathname === item.path)
+
+        return (
+          <div key={group.label}>
+            <button
+              onClick={() => toggleGroup(group.label)}
+              className={cn(
+                'flex w-full items-center justify-between px-3 py-2 rounded-md text-sm font-medium transition-all duration-150',
+                hasActiveChild
+                  ? 'text-primary bg-primary/5 dark:bg-primary/10'
+                  : 'text-gray-500 hover:bg-gray-100 hover:text-gray-700 dark:text-gray-400 dark:hover:bg-gray-700/60 dark:hover:text-gray-200'
+              )}
+            >
+              <span className="flex items-center gap-3">
+                <GroupIcon className={cn('h-4 w-4 shrink-0', hasActiveChild ? 'text-primary' : 'text-gray-400 dark:text-gray-500')} />
+                <span>{group.label}</span>
+              </span>
+              <ChevronDown className={cn('h-3.5 w-3.5 transition-transform duration-200', isOpen && 'rotate-180')} />
+            </button>
+
+            {isOpen && (
+              <div className="ml-4 mt-0.5 space-y-0.5 border-l border-gray-200 dark:border-gray-700 pl-3">
+                {visibleItems.map((item) => {
+                  const Icon = item.icon
+                  const isActive = location.pathname === item.path
+                  return (
+                    <Link
+                      key={item.path}
+                      to={item.path}
+                      onClick={onClick}
+                      className={cn(
+                        'flex items-center gap-3 px-2 py-1.5 rounded-md text-sm transition-all duration-150',
+                        isActive
+                          ? 'bg-primary/10 text-primary font-medium dark:bg-primary/15'
+                          : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700/60 dark:hover:text-gray-100'
+                      )}
+                    >
+                      <Icon className={cn('h-3.5 w-3.5 shrink-0', isActive ? 'text-primary' : 'text-gray-400 dark:text-gray-500')} />
+                      <span>{item.label}</span>
+                    </Link>
+                  )
+                })}
+              </div>
+            )}
+          </div>
         )
       })}
     </nav>
@@ -237,7 +350,7 @@ export function AppLayout({ children, title, description, showBackButton }: AppL
   }
 
   return (
-    <div className="min-h-screen bg-gray-50/80 dark:bg-gray-900 bg-[radial-gradient(ellipse_at_top_right,_rgba(59,130,246,0.04),_transparent_60%)]">
+    <div className="min-h-screen bg-gray-100 dark:bg-gray-900">
       {/* Mobile Header */}
       <header className="lg:hidden bg-white dark:bg-gray-800 shadow-sm sticky top-0 z-40">
         <div className="flex items-center justify-between px-4 py-3">

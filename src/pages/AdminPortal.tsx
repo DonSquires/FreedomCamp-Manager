@@ -4,7 +4,6 @@ import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@/stores/authStore'
 import { useGlobalFiltersStore } from '@/stores/globalFiltersStore'
 import { supabase } from '@/lib/supabase'
-import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { AppLayout } from '@/components/features/AppLayout'
@@ -16,19 +15,13 @@ import { toast } from 'sonner'
 import { 
   AlertTriangle,
   ArrowRight,
-  BarChart3,
-  Bookmark,
   Car,
-  Clock3,
   Eye,
   Gavel,
   Home,
-  Layers,
   Map,
-  Pin,
   Radio,
   Shield,
-  Star,
   Users,
 } from 'lucide-react'
 
@@ -41,49 +34,10 @@ type DrillConfig = {
   label?: string
 }
 
-type SavedView = {
-  id: string
-  name: string
-  to: string
-  params: Record<string, string>
-  createdAt: string
-}
-
-type ObservationSummaryRow = {
-  total_observations: number
-  compliant_count: number
-  breach_count: number
-  unique_vehicles: number
-  unique_zones: number
-}
-
-const SAVED_VIEWS_KEY = 'admin-dashboard-saved-views-v1'
-
-const QUICK_BOOKMARKS: Array<{ name: string; to: string; params: Record<string, string> }> = [
-  { name: 'Breach Triage', to: '/breaches', params: { metric: 'active_breaches', status: 'pending' } },
-  { name: 'Zone Performance', to: '/compliance', params: { metric: 'zone_compliance', tab: 'zones' } },
-  { name: 'Homeless Review', to: '/compliance', params: { metric: 'homeless_status', tab: 'homeless' } },
-  { name: 'Vehicle Exceptions', to: '/vehicles', params: { metric: 'active_vehicles', status: 'homeless' } },
-]
-
-function readSavedViews(): SavedView[] {
-  if (typeof window === 'undefined') return []
-  try {
-    const raw = localStorage.getItem(SAVED_VIEWS_KEY)
-    if (!raw) return []
-    const parsed = JSON.parse(raw)
-    return Array.isArray(parsed) ? parsed : []
-  } catch {
-    return []
-  }
-}
-
 export default function AdminPortal() {
   const { user } = useAuthStore()
   const { organizationId, zoneId, dateFrom, dateTo } = useGlobalFiltersStore()
   const navigate = useNavigate()
-  const [savedViews, setSavedViews] = useState<SavedView[]>(() => readSavedViews())
-  const [recentDrilldowns, setRecentDrilldowns] = useState<Array<{ label: string; at: string }>>([])
   const [lastZeroToastKey, setLastZeroToastKey] = useState<string | null>(null)
 
   const effectiveOrganizationId =
@@ -431,11 +385,6 @@ export default function AdminPortal() {
     lastZeroToastKey,
   ])
 
-  useEffect(() => {
-    if (typeof window === 'undefined') return
-    localStorage.setItem(SAVED_VIEWS_KEY, JSON.stringify(savedViews.slice(0, 12)))
-  }, [savedViews])
-
   const buildQueryParams = useCallback(
     (config: DrillConfig, extras?: Record<string, string>) => {
       const params = new URLSearchParams({
@@ -464,32 +413,8 @@ export default function AdminPortal() {
     (config: DrillConfig, extras?: Record<string, string>) => {
       const params = buildQueryParams(config, extras)
       navigate(`${config.to}?${params.toString()}`)
-      setRecentDrilldowns((prev) => [{ label: config.label || config.metric, at: new Date().toISOString() }, ...prev].slice(0, 5))
     },
     [buildQueryParams, navigate]
-  )
-
-  const saveView = useCallback(
-    (name: string, config: DrillConfig, extras?: Record<string, string>) => {
-      const params = Object.fromEntries(buildQueryParams(config, extras).entries())
-      const next: SavedView = {
-        id: `${Date.now()}`,
-        name,
-        to: config.to,
-        params,
-        createdAt: new Date().toISOString(),
-      }
-      setSavedViews((prev) => [next, ...prev].slice(0, 12))
-    },
-    [buildQueryParams]
-  )
-
-  const openSavedView = useCallback(
-    (to: string, params: Record<string, string>) => {
-      const q = new URLSearchParams(params)
-      navigate(`${to}?${q.toString()}`)
-    },
-    [navigate]
   )
 
   const drilldowns = [
@@ -551,7 +476,8 @@ export default function AdminPortal() {
     },
   ]
 
-  const kpiDrilldowns: Array<{
+  // ── Primary KPIs: the "Big Three" for at-a-glance operational status ──
+  const primaryKPIs: Array<{
     title: string
     value: string | number
     subtitle?: string
@@ -562,60 +488,65 @@ export default function AdminPortal() {
     accentColor: string
   }> = [
     {
-      title: 'Observations',
-      value: isLoading ? '...' : metrics.totalObservations,
-      icon: Eye,
-      iconBg: 'bg-blue-100 dark:bg-blue-900/40',
-      iconColor: 'text-blue-600 dark:text-blue-400',
-      accentColor: 'from-blue-500 to-blue-600',
-      config: { to: '/compliance', metric: 'observations', period: periodLabel, tab: 'overview', label: 'Observations KPI' },
-    },
-    {
-      title: 'Compliance Rate',
-      value: isLoading ? '...' : `${metrics.complianceRate}%`,
-      icon: Shield,
-      iconBg: 'bg-emerald-100 dark:bg-emerald-900/40',
-      iconColor: 'text-emerald-600 dark:text-emerald-400',
-      accentColor: 'from-emerald-500 to-emerald-600',
-      config: { to: '/compliance', metric: 'compliance_rate', period: periodLabel, tab: 'zones', label: 'Compliance Rate KPI' },
-    },
-    {
-      title: 'Total Breaches',
-      value: isLoading ? '...' : metrics.totalBreaches,
-      subtitle: isLoading ? undefined : `+${metrics.homelessExemptBreaches} exempt`,
+      title: 'Active Breaches',
+      value: isLoading ? '...' : metrics.activeBreaches,
+      subtitle: isLoading ? undefined : `${metrics.totalBreaches} total in period`,
       icon: AlertTriangle,
       iconBg: 'bg-red-100 dark:bg-red-900/40',
       iconColor: 'text-red-600 dark:text-red-400',
       accentColor: 'from-red-500 to-red-600',
-      config: { to: '/compliance', metric: 'active_breaches', period: periodLabel, tab: 'breaches', label: 'Total Breaches KPI' },
+      config: { to: '/breaches', metric: 'active_breaches', period: periodLabel, status: 'pending', label: 'Active Breaches' },
     },
     {
-      title: 'Exempt Breaches',
-      value: isLoading ? '...' : metrics.homelessExemptBreaches,
-      subtitle: 'FC Act (homeless)',
-      icon: Home,
-      iconBg: 'bg-purple-100 dark:bg-purple-900/40',
-      iconColor: 'text-purple-600 dark:text-purple-400',
-      accentColor: 'from-purple-500 to-purple-600',
-      config: { to: '/compliance', metric: 'homeless_status', period: periodLabel, tab: 'homeless', label: 'Exempt Breaches KPI' },
+      title: 'Compliance Rate',
+      value: isLoading ? '...' : `${metrics.complianceRate}%`,
+      subtitle: isLoading ? undefined : `${metrics.totalObservations.toLocaleString()} observations`,
+      icon: Shield,
+      iconBg: 'bg-emerald-100 dark:bg-emerald-900/40',
+      iconColor: 'text-emerald-600 dark:text-emerald-400',
+      accentColor: 'from-emerald-500 to-emerald-600',
+      config: { to: '/compliance', metric: 'compliance_rate', period: periodLabel, tab: 'zones', label: 'Compliance Rate' },
     },
     {
       title: 'Active Vehicles',
       value: isLoading ? '...' : metrics.activeVehicles,
+      subtitle: isLoading ? undefined : `${metrics.homelessVehicleCount} homeless-flagged`,
       icon: Car,
-      iconBg: 'bg-violet-100 dark:bg-violet-900/40',
-      iconColor: 'text-violet-600 dark:text-violet-400',
-      accentColor: 'from-violet-500 to-violet-600',
-      config: { to: '/vehicles', metric: 'active_vehicles', period: periodLabel, status: 'all', label: 'Active Vehicles KPI' },
+      iconBg: 'bg-blue-100 dark:bg-blue-900/40',
+      iconColor: 'text-blue-600 dark:text-blue-400',
+      accentColor: 'from-blue-500 to-blue-600',
+      config: { to: '/vehicles', metric: 'active_vehicles', period: periodLabel, status: 'all', label: 'Active Vehicles' },
+    },
+  ]
+
+  // ── Secondary KPIs: supplementary metrics shown with reduced weight ──
+  const secondaryKPIs: Array<{
+    title: string
+    value: string | number
+    config: DrillConfig
+    icon: React.FC<{ className?: string }>
+    iconColor: string
+  }> = [
+    {
+      title: 'Observations',
+      value: isLoading ? '...' : metrics.totalObservations.toLocaleString(),
+      icon: Eye,
+      iconColor: 'text-blue-500',
+      config: { to: '/compliance', metric: 'observations', period: periodLabel, tab: 'overview', label: 'Observations' },
+    },
+    {
+      title: 'Exempt Breaches',
+      value: isLoading ? '...' : metrics.homelessExemptBreaches,
+      icon: Home,
+      iconColor: 'text-purple-500',
+      config: { to: '/compliance', metric: 'homeless_status', period: periodLabel, tab: 'homeless', label: 'Exempt Breaches' },
     },
     {
       title: 'Homeless Vehicles',
       value: isLoading ? '...' : metrics.homelessVehicleCount,
       icon: Users,
-      iconBg: 'bg-orange-100 dark:bg-orange-900/40',
-      iconColor: 'text-orange-600 dark:text-orange-400',
-      accentColor: 'from-orange-500 to-orange-600',
-      config: { to: '/compliance', metric: 'homeless_status', period: periodLabel, tab: 'homeless', label: 'Homeless Vehicles KPI' },
+      iconColor: 'text-orange-500',
+      config: { to: '/compliance', metric: 'homeless_status', period: periodLabel, tab: 'homeless', label: 'Homeless Vehicles' },
     },
   ]
 
@@ -624,20 +555,20 @@ export default function AdminPortal() {
       title="Primary Operations Dashboard"
       description={user?.role === 'master' ? 'BI command view across organisations' : 'BI command view for your organisation'}
     >
+      {/* Filters anchored directly below the title */}
       <GlobalFilterRibbon />
 
-      <div className="space-y-6">
-        {/* KPI Cards */}
-        <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6">
-          {kpiDrilldowns.map((kpi) => {
+      <div className="space-y-4">
+        {/* ── STATUS: Primary KPIs — the "Big Three" ───────────────────────── */}
+        <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {primaryKPIs.map((kpi) => {
             const Icon = kpi.icon
             return (
               <Card
                 key={kpi.title}
-                className="cursor-pointer overflow-hidden group"
+                className="cursor-pointer overflow-hidden group bg-white dark:bg-gray-900 shadow-sm hover:shadow-md transition-shadow"
                 onClick={() => openDrilldown(kpi.config)}
               >
-                {/* Color accent bar at top */}
                 <div className={`h-1 w-full bg-gradient-to-r ${kpi.accentColor}`} />
                 <CardHeader className="pb-2 pt-4">
                   <CardDescription className="flex items-center justify-between text-xs font-medium uppercase tracking-wide">
@@ -653,24 +584,35 @@ export default function AdminPortal() {
                 </CardHeader>
                 <CardContent className="pt-0 pb-3">
                   {kpi.subtitle && (
-                    <p className="text-xs text-muted-foreground mb-1">{kpi.subtitle}</p>
+                    <p className="text-xs text-muted-foreground">{kpi.subtitle}</p>
                   )}
-                  <button
-                    type="button"
-                    className="text-xs text-muted-foreground hover:text-blue-600 opacity-0 group-hover:opacity-100 transition-opacity hover:underline"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      saveView(`KPI: ${kpi.title}`, kpi.config)
-                    }}
-                  >
-                    Save View
-                  </button>
                 </CardContent>
               </Card>
             )
           })}
         </section>
 
+        {/* ── Secondary KPI summary row — reduced visual weight ──────────── */}
+        <section className="grid gap-3 grid-cols-3">
+          {secondaryKPIs.map((kpi) => {
+            const Icon = kpi.icon
+            return (
+              <button
+                key={kpi.title}
+                onClick={() => openDrilldown(kpi.config)}
+                className="flex items-center gap-3 rounded-lg border bg-white dark:bg-gray-900 px-4 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors shadow-sm"
+              >
+                <Icon className={`h-4 w-4 shrink-0 ${kpi.iconColor}`} />
+                <div className="min-w-0">
+                  <p className="text-lg font-semibold text-gray-900 dark:text-white leading-tight">{kpi.value}</p>
+                  <p className="text-xs text-muted-foreground truncate">{kpi.title}</p>
+                </div>
+              </button>
+            )
+          })}
+        </section>
+
+        {/* ── Diagnostics (only when errors present) ─────────────────────── */}
         {Array.isArray((data as any)?.diagnostics) && (data as any).diagnostics.length > 0 && (
           <Card className="border-amber-300 bg-amber-50/60 dark:border-amber-800 dark:bg-amber-950/20">
             <CardHeader className="pb-2">
@@ -687,142 +629,58 @@ export default function AdminPortal() {
           </Card>
         )}
 
-        <section className="grid gap-6 xl:grid-cols-[300px_1.4fr_1fr]">
-          {/* Analysis Workspace */}
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="flex items-center gap-2 text-base">
-                <Bookmark className="h-4 w-4 text-blue-600" />
-                Analysis Workspace
-              </CardTitle>
-              <CardDescription className="text-xs">Saved views and rapid bookmarks for drill-down workflows.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4 pt-0">
-              <div className="space-y-1.5">
-                <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground px-1">Quick Bookmarks</p>
-                {QUICK_BOOKMARKS.map((item) => {
-                  const config: DrillConfig = { to: item.to, metric: item.params.metric || 'bookmark', period: periodLabel, tab: item.params.tab, status: item.params.status, label: item.name }
-                  return (
-                    <button
-                      key={item.name}
-                      onClick={() => openDrilldown(config)}
-                      className="flex w-full items-center justify-between rounded-lg border bg-muted/30 px-3 py-2 text-left text-sm hover:bg-muted hover:shadow-sm transition-all"
-                    >
-                      <span className="font-medium">{item.name}</span>
-                      <Star className="h-3.5 w-3.5 text-amber-500 shrink-0" />
-                    </button>
-                  )
-                })}
-              </div>
-
-              <div className="space-y-1.5">
-                <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground px-1">Saved Views</p>
-                {savedViews.length === 0 && <p className="text-xs text-muted-foreground px-1">No saved views yet.</p>}
-                {savedViews.map((view) => (
-                  <button
-                    key={view.id}
-                    onClick={() => openSavedView(view.to, view.params)}
-                    className="flex w-full items-center justify-between rounded-lg border bg-muted/30 px-3 py-2 text-left text-sm hover:bg-muted hover:shadow-sm transition-all"
-                  >
-                    <span className="truncate font-medium">{view.name}</span>
-                    <Pin className="h-3.5 w-3.5 text-sky-600 shrink-0" />
-                  </button>
-                ))}
-              </div>
-
-              <div className="space-y-1.5">
-                <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground px-1">Recent Drilldowns</p>
-                {recentDrilldowns.length === 0 && <p className="text-xs text-muted-foreground px-1">No recent drilldowns in this session.</p>}
-                {recentDrilldowns.map((item, idx) => (
-                  <div key={`${item.label}-${idx}`} className="flex items-center justify-between rounded-lg border px-3 py-2 text-xs bg-muted/20">
-                    <span className="truncate">{item.label}</span>
-                    <span className="inline-flex items-center gap-1 text-muted-foreground shrink-0 ml-2">
-                      <Clock3 className="h-3 w-3" />
-                      now
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-
+        {/* ── ANALYSIS: Hero chart + Urgent Actions feed ─────────────────── */}
+        <section className="grid gap-4 xl:grid-cols-[1fr_320px]">
+          {/* Hero: Compliance Performance chart */}
           <ComplianceTrendChart
             data={metrics.trendData}
             title="Compliance Performance"
             description="Rolling compliance vs breach signal for current filter scope"
           />
 
-          {/* BI Drill-Down Lanes */}
-          <Card>
+          {/* Pulse: Urgent actions / quick navigation */}
+          <Card className="bg-white dark:bg-gray-900 shadow-sm">
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center gap-2 text-base">
-                <Layers className="h-4 w-4 text-blue-600" />
-                BI Drill-Down Lanes
+                <Radio className="h-4 w-4 text-cyan-600" />
+                Quick Actions
               </CardTitle>
-              <CardDescription className="text-xs">
-                Start at macro KPIs, then jump into operational workflows.
-              </CardDescription>
+              <CardDescription className="text-xs">Jump into key operational workflows.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-1.5 pt-0">
-              {drilldowns.map(({ title, description, to, icon: Icon, metric, config }) => (
-                <div
+              {drilldowns.slice(0, 5).map(({ title, to, icon: Icon, metric, config }) => (
+                <button
                   key={to}
-                  className="group rounded-xl border bg-muted/20 hover:bg-muted/60 hover:shadow-sm transition-all duration-150 cursor-pointer"
+                  className="flex w-full items-center justify-between rounded-lg border bg-gray-50 dark:bg-gray-800 px-3 py-2.5 text-left hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors group"
                   onClick={() => openDrilldown(config)}
-                  role="button"
-                  tabIndex={0}
-                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openDrilldown(config) } }}
                 >
-                  <div className="px-3 py-2.5 flex items-center justify-between gap-2">
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <Icon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                        <span className="text-sm font-medium truncate">{title}</span>
-                      </div>
-                      <p className="text-[11px] text-muted-foreground mt-0.5 truncate">{description}</p>
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      <Badge variant="secondary" className="text-[10px] py-0 px-1.5 hidden group-hover:inline-flex">
-                        {metric}
-                      </Badge>
-                      <ArrowRight className="h-3.5 w-3.5 text-muted-foreground" />
-                    </div>
-                  </div>
-                </div>
+                  <span className="flex items-center gap-2 min-w-0">
+                    <Icon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                    <span className="text-sm font-medium truncate">{title}</span>
+                  </span>
+                  <span className="flex items-center gap-1.5 shrink-0">
+                    <Badge variant="secondary" className="text-[10px] py-0 px-1.5 hidden group-hover:inline-flex">
+                      {metric}
+                    </Badge>
+                    <ArrowRight className="h-3.5 w-3.5 text-muted-foreground" />
+                  </span>
+                </button>
+              ))}
+              {drilldowns.length > 5 && drilldowns.slice(5).map(({ title, to, icon: Icon, config }) => (
+                <button
+                  key={to}
+                  className="flex w-full items-center justify-between rounded-lg border bg-gray-50 dark:bg-gray-800 px-3 py-2.5 text-left hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                  onClick={() => openDrilldown(config)}
+                >
+                  <span className="flex items-center gap-2 min-w-0">
+                    <Icon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                    <span className="text-sm font-medium truncate">{title}</span>
+                  </span>
+                  <ArrowRight className="h-3.5 w-3.5 text-muted-foreground" />
+                </button>
               ))}
             </CardContent>
           </Card>
-        </section>
-
-        <section className="grid gap-3 md:grid-cols-3">
-          <Button
-            variant="outline"
-            onClick={() => openDrilldown({ to: '/compliance-recalculation', metric: 'manual_recalculation', period: periodLabel, label: 'Manual Recalculation' })}
-            className="justify-between hover:shadow-sm transition-shadow"
-          >
-            Manual Recalculation <Shield className="h-4 w-4" />
-          </Button>
-          <Button
-            variant="outline"
-            onClick={() => openDrilldown({ to: '/reports-hub', metric: 'reporting_workspace', period: periodLabel, label: 'Reporting Workspace' })}
-            className="justify-between hover:shadow-sm transition-shadow"
-          >
-            Reporting Workspace <BarChart3 className="h-4 w-4" />
-          </Button>
-          <Button
-            variant="outline"
-            onClick={() => openDrilldown({ to: '/users', metric: 'team_access', period: periodLabel, label: 'Team and Access' })}
-            className="justify-between hover:shadow-sm transition-shadow"
-          >
-            Team & Access <Users className="h-4 w-4" />
-          </Button>
-          <Button
-            variant="outline"
-            onClick={() => openDrilldown({ to: '/enforcement-command-center', metric: 'enforcement_control', period: periodLabel, label: 'Enforcement Control' })}
-            className="justify-between hover:shadow-sm transition-shadow"
-          >
-            Enforcement Control <Gavel className="h-4 w-4" />
-          </Button>
         </section>
       </div>
     </AppLayout>
