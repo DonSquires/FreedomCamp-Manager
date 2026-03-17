@@ -622,12 +622,20 @@ export default function BreachAlerts() {
       toast.warning('Breach is already closed')
       return
     }
-    dismissMutation.mutate({ breachId: activeBreach.id, reason: rejectionReason || undefined })
+    if (!rejectionReason.trim()) {
+      toast.warning('Select a rejection reason before rejecting this breach')
+      return
+    }
+    dismissMutation.mutate({ breachId: activeBreach.id, reason: rejectionReason })
     setRejectionReason('')
   }, [activeBreach, dismissMutation, rejectionReason])
 
   const handleResolve = () => {
     if (!activeBreach) return
+    if (!resolveNotes.trim()) {
+      toast.warning('Add resolution notes before marking this breach as resolved')
+      return
+    }
     resolveMutation.mutate({ breachId: activeBreach.id, notes: resolveNotes })
   }
 
@@ -1446,7 +1454,7 @@ export default function BreachAlerts() {
                 <Button
                   className="w-full bg-red-600 hover:bg-red-700 text-white justify-between"
                   onClick={handleReject}
-                  disabled={['resolved', 'dismissed'].includes(activeBreach.status) || dismissMutation.isPending}
+                  disabled={['resolved', 'dismissed'].includes(activeBreach.status) || dismissMutation.isPending || !rejectionReason.trim()}
                 >
                   <span className="flex items-center gap-2">
                     <XCircle className="h-4 w-4" />
@@ -1498,7 +1506,7 @@ export default function BreachAlerts() {
                     variant="outline"
                     className="w-full"
                     onClick={handleResolve}
-                    disabled={resolveMutation.isPending}
+                    disabled={resolveMutation.isPending || !resolveNotes.trim()}
                   >
                     <CheckCircle className="h-4 w-4 mr-2" />
                     {resolveMutation.isPending ? 'Resolving...' : 'Mark Resolved'}
@@ -1590,6 +1598,29 @@ export default function BreachAlerts() {
             )}
 
             {/* Mobile Decision Buttons */}
+            <div className="space-y-2">
+              <Label className="text-xs text-gray-500">Rejection Reason</Label>
+              <Select value={rejectionReason} onValueChange={setRejectionReason}>
+                <SelectTrigger className="h-9 text-sm">
+                  <SelectValue placeholder="Select canned reason..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {CANNED_REJECTION_REASONS.map((r) => (
+                    <SelectItem key={r} value={r}>{r}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Label className="text-xs text-gray-500">Resolution Notes</Label>
+              <Textarea
+                value={resolveNotes}
+                onChange={(e) => setResolveNotes(e.target.value)}
+                placeholder="Add resolution notes..."
+                rows={3}
+                className="text-sm resize-none"
+              />
+            </div>
+
             <div className="grid grid-cols-3 gap-2 pt-2">
               <Button
                 className="bg-green-600 hover:bg-green-700 text-white text-xs h-12"
@@ -1614,7 +1645,7 @@ export default function BreachAlerts() {
               <Button
                 className="bg-red-600 hover:bg-red-700 text-white text-xs h-12"
                 onClick={handleReject}
-                disabled={['resolved', 'dismissed'].includes(activeBreach.status)}
+                disabled={['resolved', 'dismissed'].includes(activeBreach.status) || !rejectionReason.trim()}
               >
                 <div className="text-center">
                   <XCircle className="h-4 w-4 mx-auto" />
@@ -1628,7 +1659,7 @@ export default function BreachAlerts() {
                 variant="outline"
                 className="w-full"
                 onClick={handleResolve}
-                disabled={resolveMutation.isPending}
+                disabled={resolveMutation.isPending || !resolveNotes.trim()}
               >
                 <CheckCircle className="h-4 w-4 mr-2" />
                 {resolveMutation.isPending ? 'Resolving...' : 'Mark Resolved'}
