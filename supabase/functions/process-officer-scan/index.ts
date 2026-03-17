@@ -466,8 +466,16 @@ Deno.serve(async (req: Request) => {
 
   try {
     // ── Auth ────────────────────────────────────────────────────────────────
-    const jwt = extractBearerToken(req.headers.get('Authorization'));
-    if (!jwt) return jsonResp({ error: 'Missing Authorization header' }, 401);
+    const authHeader = req.headers.get('Authorization');
+    const jwt = extractBearerToken(authHeader);
+    if (!jwt) {
+      const clientInfo = (req.headers.get('x-client-info') ?? '').toLowerCase();
+      if (clientInfo.startsWith('supabase-js-web/')) {
+        console.warn('⚠️ process-officer-scan missing Authorization from web client; skipping direct call and expecting backend kickoff');
+        return jsonResp({ success: true, skipped: true, reason: 'missing_auth_header_web_client' }, 202);
+      }
+      return jsonResp({ error: 'Missing Authorization header' }, 401);
+    }
 
     const supabase    = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
