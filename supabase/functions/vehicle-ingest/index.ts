@@ -21,6 +21,27 @@ import {
 const PHOTO_FETCH_TIMEOUT_MS = Number(Deno.env.get("INGEST_PHOTO_FETCH_TIMEOUT_MS") ?? "8000");
 const MAX_INSERT_ATTEMPTS = 8;
 
+function extractBearerToken(authHeader: string | null): string | null {
+  if (!authHeader) return null;
+  const match = authHeader.match(/^Bearer\s+(.+)$/i);
+  if (!match) return null;
+  return match[1].trim() || null;
+}
+
+function decodeJwtPayload(token: string): Record<string, unknown> | null {
+  try {
+    const parts = token.split(".");
+    if (parts.length !== 3) return null;
+
+    const base64Url = parts[1];
+    const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = base64 + "=".repeat((4 - (base64.length % 4)) % 4);
+    return JSON.parse(atob(padded));
+  } catch {
+    return null;
+  }
+}
+
 function getCorsHeaders(_req?: Request) {
   return {
     ...corsHeaders,
@@ -132,77 +153,6 @@ Deno.serve(async (req) => {
     return new Response("ok", { status: 200, headers: getCorsHeaders(req) });
   }
 
-  // ============================================================================
-  // AUTH GUARD - Verify user is logged in
-  // ============================================================================
-  const authHeader = req.headers.get("Authorization");
-  
-  if (!authHeader) {
-    console.error("🚫 AUTH ERROR: Missing Authorization header");
-    return new Response(
-      JSON.stringify({
-        error: "Missing login token. Please log out and log back in.",
-        auth_error: "MISSING_AUTHORIZATION_HEADER",
-        hint: "Make sure you're calling this via supabase.functions.invoke() from an authenticated session",
-      }),
-      {
-        status: 401,
-        headers: { ...getCorsHeaders(req), "content-type": "application/json" },
-      }
-    );
-  }
-
-  const jwt = authHeader.replace("Bearer ", "");
-  
-  if (!jwt || jwt === authHeader) {
-    console.error("🚫 AUTH ERROR: Malformed Authorization header");
-    return new Response(
-      JSON.stringify({
-        error: "Invalid login token format. Please log out and log back in.",
-        auth_error: "MALFORMED_AUTHORIZATION_HEADER",
-        hint: "Authorization header should be 'Bearer <token>'",
-      }),
-      {
-        status: 401,
-        headers: { ...getCorsHeaders(req), "content-type": "application/json" },
-      }
-    );
-  }
-
-  let jwtUserId: string | null = null;
-
-  // Verify JWT shape and extract authenticated subject
-  try {
-    const parts = jwt.split(".");
-    if (parts.length !== 3) {
-      throw new Error("Invalid JWT structure");
-    }
-    
-    const payload = JSON.parse(atob(parts[1]));
-    const userId = payload.sub || payload.user_id;
-
-    if (!userId || typeof userId !== "string") {
-      throw new Error("JWT missing user ID");
-    }
-
-    jwtUserId = userId;
-    console.log("✅ Authenticated user:", userId);
-  } catch (jwtError: any) {
-    console.error("🚫 AUTH ERROR: Invalid JWT:", jwtError.message);
-    return new Response(
-      JSON.stringify({
-        error: "Session expired or invalid. Please log out and log back in.",
-        auth_error: "INVALID_JWT",
-        hint: jwtError.message,
-      }),
-      {
-        status: 401,
-        headers: { ...getCorsHeaders(req), "content-type": "application/json" },
-      }
-    );
-  }
-  // ============================================================================
-
   try {
     let supportsIdempotencyKeyColumn = true;
 
@@ -210,16 +160,21 @@ Deno.serve(async (req) => {
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Use JWT subject extracted above. The Supabase gateway already validated
-    // token signature before invoking this function, and profile lookup below
-    // enforces that the user exists in this project.
-    const authUserId = jwtUserId;
-    if (!authUserId) {
-      console.error("🚫 AUTH ERROR: Missing JWT subject after parse");
+    // ============================================================================
+    // AUTH GUARD - Verify user is logged in
+    // ============================================================================
+    const authHeader = req.headers.get("Authorization");
+    const jwt = extractBearerToken(authHeader);
+
+    if (!jwt) {
+      console.error("🚫 AUTH ERROR: Missing or malformed Authorization header", {
+        has_header: !!authHeader,
+      });
       return new Response(
         JSON.stringify({
-          error: "Session expired or invalid. Please log out and log back in.",
-          auth_error: "INVALID_AUTH_SESSION",
+          error: "Missing login token. Please log out and log back in.",
+          auth_error: "MISSING_OR_MALFORMED_AUTHORIZATION_HEADER",
+          hint: "Authorization header must be 'Bearer <token>'",
         }),
         {
           status: 401,
@@ -227,6 +182,39 @@ Deno.serve(async (req) => {
         }
       );
     }
+
+    // The Supabase gateway has already verified the JWT signature
+    // ("invalid": null in request metadata) before the function runs.
+    // We only need to extract the subject locally — fast, no network call,
+    // no extra latency. The profile lookup below serves as the
+    // application-level auth gate: if the subject doesn't map to a real
+    // user_profiles row, the request is rejected (403).
+    const jwtPayload = decodeJwtPayload(jwt);
+    const authUserId: string | null =
+      typeof jwtPayload?.sub === "string" && jwtPayload.sub.length > 0
+        ? jwtPayload.sub
+        : null;
+
+    if (!authUserId) {
+      console.error("🚫 AUTH ERROR: Unable to extract subject from JWT", {
+        has_payload: !!jwtPayload,
+        payload_keys: jwtPayload ? Object.keys(jwtPayload) : [],
+      });
+      return new Response(
+        JSON.stringify({
+          error: "Session expired or invalid. Please log out and log back in.",
+          auth_error: "INVALID_JWT_SUBJECT",
+          hint: "JWT missing sub claim — please log out and log back in",
+        }),
+        {
+          status: 401,
+          headers: { ...getCorsHeaders(req), "content-type": "application/json" },
+        }
+      );
+    }
+
+    console.log("✅ Authenticated user:", authUserId);
+    // ============================================================================
 
     const { data: profile, error: profileError } = await supabase
       .from("user_profiles")
