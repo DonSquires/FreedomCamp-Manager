@@ -1428,6 +1428,11 @@ Deno.serve(async (req: Request) => {
       plate:            plate,
       plate_confidence: finalConfidence,
       requires_manual_entry: requiresManualEntry,
+      pipeline: {
+        inference_path: infer.path,
+        inference_url_configured: !!INFERENCE_SERVICE_URL,
+        alpr_fallback_used: infer.path !== 'railway_inference',
+      },
       vehicle: {
         // SC certification — primary purpose of NZSCV lookup
         self_contained:        nzscv?.isSelfContained ?? false,
@@ -1474,6 +1479,8 @@ Deno.serve(async (req: Request) => {
     console.log('✅ process-officer-scan complete', {
       observationId,
       plate,
+      inferencePath: infer.path,
+      inferenceUrlConfigured: !!INFERENCE_SERVICE_URL,
       isCompliant:       compliance.isCompliant,
       breachType:        compliance.breachType,
       discrepancies:     discrepancies.length,
