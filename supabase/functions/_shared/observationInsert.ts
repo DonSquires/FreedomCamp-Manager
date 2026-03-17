@@ -235,7 +235,8 @@ export async function adaptiveObservationInsert(
     try {
       const rpcPayload: Record<string, unknown> = {
         plate_number: data.plate_number ?? "PROCESSING...",
-        photo_url: data.photo_url ?? data.photo,
+        photo: data.photo ?? data.photo_url,     // col 9
+        photo_url: data.photo_url ?? data.photo, // col 50
         photo_hash: data.photo_hash ?? null,
         recorded_at: data.recorded_at,
         zone_id: data.zone_id,
