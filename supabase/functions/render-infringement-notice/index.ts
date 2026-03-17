@@ -4,6 +4,16 @@ import { generateNoticeHtml, NZ_DEFAULT_SUMMARY_OF_RIGHTS } from '../_shared/inf
 
 const PRINT_ARTIFACT_BUCKET = 'notice-artifacts'
 
+function formatDbError(err: { message?: string | null; code?: string | null; details?: string | null; hint?: string | null }) {
+  const parts = [
+    err.message || 'Database error',
+    err.code ? `code=${err.code}` : null,
+    err.details ? `details=${err.details}` : null,
+    err.hint ? `hint=${err.hint}` : null,
+  ].filter(Boolean)
+  return parts.join(' | ')
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
@@ -60,35 +70,56 @@ Deno.serve(async (req) => {
       })
     }
 
-    const { data: notice, error: noticeError } = await supabaseAdmin
+    const baseSelect = `
+      id,
+      notice_number,
+      notice_pdf_url,
+      plate_number,
+      offence_description,
+      legal_basis,
+      offence_date,
+      offence_location,
+      amount_cents,
+      due_date,
+      service_method,
+      recipient_name,
+      organization_id,
+      zone:zones!zone_id(name, organizations!inner(id, name)),
+      issuer:user_profiles!created_by(first_name, last_name, role),
+      summary_of_rights
+    `
+
+    let notice: any = null
+    const withArtifactSelect = `notice_html_path, ${baseSelect}`
+
+    const { data: noticeWithArtifact, error: noticeWithArtifactError } = await supabaseAdmin
       .from('infringement_notices')
-      .select(`
-        id,
-        notice_html_path,
-        notice_number,
-        notice_pdf_url,
-        plate_number,
-        offence_description,
-        legal_basis,
-        offence_date,
-        offence_location,
-        amount_cents,
-        due_date,
-        service_method,
-        recipient_name,
-        organization_id,
-        zone:zones!zone_id(name, organizations!inner(id, name)),
-        issuer:user_profiles!created_by(first_name, last_name, role),
-        summary_of_rights
-      `)
+      .select(withArtifactSelect)
       .eq('id', notice_id)
       .single()
 
-    if (noticeError || !notice) {
-      return new Response(JSON.stringify({ success: false, error: 'Notice not found' }), {
-        status: 404,
+    if (noticeWithArtifactError?.code === '42703') {
+      const { data: legacyNotice, error: legacyNoticeError } = await supabaseAdmin
+        .from('infringement_notices')
+        .select(baseSelect)
+        .eq('id', notice_id)
+        .single()
+
+      if (legacyNoticeError || !legacyNotice) {
+        return new Response(JSON.stringify({ success: false, error: formatDbError(legacyNoticeError || { message: 'Notice not found' }) }), {
+          status: 500,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        })
+      }
+
+      notice = { ...legacyNotice, notice_html_path: null }
+    } else if (noticeWithArtifactError || !noticeWithArtifact) {
+      return new Response(JSON.stringify({ success: false, error: formatDbError(noticeWithArtifactError || { message: 'Notice not found' }) }), {
+        status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
+    } else {
+      notice = noticeWithArtifact
     }
 
     if (profile.role !== 'master' && notice.organization_id !== profile.organization_id) {

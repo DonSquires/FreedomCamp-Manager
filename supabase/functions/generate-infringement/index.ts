@@ -46,6 +46,14 @@ function formatDbError(err: { message?: string | null; code?: string | null; det
   return parts.join(' | ')
 }
 
+function buildFallbackNoticeNumber() {
+  const now = new Date()
+  const yy = String(now.getUTCFullYear()).slice(-2)
+  const epochPart = String(Math.floor(now.getTime() / 1000)).slice(-8)
+  const randomPart = Math.floor(Math.random() * 900 + 100).toString()
+  return `INF-${yy}-${epochPart}${randomPart}`
+}
+
 const NZ_DEFAULT_SUMMARY_OF_RIGHTS = `
 SUMMARY OF RIGHTS — FREEDOM CAMPING ACT 2011 (s20)
 
@@ -179,14 +187,18 @@ Deno.serve(async (req) => {
     }
 
     // Generate unique notice number
-    const { data: noticeNumber, error: numError } = await supabaseAdmin
+    const { data: rpcNoticeNumber, error: numError } = await supabaseAdmin
       .rpc('generate_infringement_number', { p_org_id: orgId })
 
-    if (numError || !noticeNumber) {
-      return new Response(
-        JSON.stringify({ success: false, error: 'Failed to generate notice number' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
+    const noticeNumber = (!numError && rpcNoticeNumber)
+      ? String(rpcNoticeNumber)
+      : buildFallbackNoticeNumber()
+
+    if (numError || !rpcNoticeNumber) {
+      console.warn('⚠️ generate_infringement_number unavailable, using fallback notice number', {
+        error: numError ? formatDbError(numError) : 'missing_rpc_result',
+        noticeNumber,
+      })
     }
 
     // Calculate dates
