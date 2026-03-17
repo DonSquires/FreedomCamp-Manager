@@ -31,16 +31,10 @@ async function isJwtAuthError(error: unknown): Promise<boolean> {
   const statusCode = error.context?.status ?? 0
   if (statusCode !== 401) return false
 
-  const textContent = await readFunctionsErrorText(error)
-  if (!textContent) return false
-
-  try {
-    const parsed = JSON.parse(textContent)
-    const gatewayMsg: string = parsed?.message || ''
-    return gatewayMsg === 'Invalid JWT' || gatewayMsg === 'JWT expired'
-  } catch {
-    return false
-  }
+  // Treat all 401 responses as potentially recoverable by token refresh.
+  // Some Supabase gateway 401 responses vary in body shape/message even when
+  // the underlying issue is an expired or transiently rejected token.
+  return true
 }
 
 async function tryRefreshAccessToken(): Promise<string | null> {
