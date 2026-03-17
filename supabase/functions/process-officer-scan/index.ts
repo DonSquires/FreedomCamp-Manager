@@ -606,18 +606,7 @@ Deno.serve(async (req: Request) => {
       ? jwtPayload.sub
       : null;
 
-    // Compatibility fallback #1: ask Supabase Auth to parse claims from the
-    // same bearer token. This is lighter than a full getUser() round-trip.
-    if (!authUserId) {
-      const { data: claimsData, error: claimsError } = await supabase.auth.getClaims(jwt);
-      const claimSub = (claimsData?.claims as Record<string, unknown> | undefined)?.sub;
-      if (!claimsError && typeof claimSub === 'string' && claimSub.length > 0) {
-        authUserId = claimSub;
-      }
-    }
-
-    // Compatibility fallback #2: full user validation when claims extraction
-    // still fails. This avoids regressions while preserving the faster path.
+    // Fallback: full user validation when local JWT decode fails (e.g. non-HS256 tokens).
     if (!authUserId) {
       const { data: authData, error: authError } = await supabase.auth.getUser(jwt);
       if (!authError && authData?.user?.id) {
@@ -860,6 +849,7 @@ Deno.serve(async (req: Request) => {
     }
 
     // --- 2. Load canonical vehicle for cross-source attribute comparison ---
+    let canonicalVehicle: CanonicalVehicleSnapshot | null = null;
     let canonicalMake:   string | null = null;
     let canonicalModel:  string | null = null;
     let canonicalColour: string | null = null;
@@ -936,42 +926,6 @@ Deno.serve(async (req: Request) => {
 
     // --- 5. Colour mismatch ---
     if (inference.inferColour && plate && (inference.inferColourConf ?? 0) >= COLOUR_MISMATCH_MIN_CONF) {
-
-          // --- 6. Canonical vs NZSCV mismatch (only meaningful when NZSCV confirms SC) ---
-          if (!isNewVehicle && nzscv?.isSelfContained) {
-            const canonicalVsNzMakeMismatch = isLikelyTextMismatch(canonicalMake, nzscv.make);
-            const canonicalVsNzModelMismatch = isLikelyTextMismatch(canonicalModel, nzscv.model);
-            const canonicalVsNzYearMismatch = canonicalYear !== null && nzscv.year !== null && canonicalYear !== nzscv.year;
-            const canonicalVsNzColourMismatch = isLikelyTextMismatch(canonicalColour, nzscv.colour);
-
-            if (canonicalVsNzMakeMismatch || canonicalVsNzModelMismatch || canonicalVsNzYearMismatch || canonicalVsNzColourMismatch) {
-              discrepancies.push({
-                discrepancy_type: 'nzscv_registration_wrong_vehicle',
-                source_a: 'canonical',
-                source_b: 'nzscv',
-                value_a: [canonicalMake, canonicalModel, canonicalYear, canonicalColour].filter(Boolean).join(' | ') || null,
-                value_b: [nzscv.make, nzscv.model, nzscv.year, nzscv.colour].filter(Boolean).join(' | ') || null,
-                severity: 'critical',
-                sc_law_active: scLawActive,
-                details: {
-                  mismatch_location: 'canonical_vs_nzscv',
-                  reason: 'NZSCV registration may be attached to the wrong vehicle details',
-                  canonical: {
-                    make: canonicalMake,
-                    model: canonicalModel,
-                    year: canonicalYear,
-                    colour: canonicalColour,
-                  },
-                  nzscv: {
-                    make: nzscv.make,
-                    model: nzscv.model,
-                    year: nzscv.year,
-                    colour: nzscv.colour,
-                  },
-                },
-              });
-            }
-          }
       if (isLikelyTextMismatch(inference.inferColour, nzscv?.colour)) {
         discrepancies.push({
           discrepancy_type: 'colour_mismatch',
@@ -993,6 +947,42 @@ Deno.serve(async (req: Request) => {
           severity: 'warning',
           sc_law_active: scLawActive,
           details: { inference_conf: inference.inferColourConf },
+        });
+      }
+    }
+
+    // --- 6. Canonical vs NZSCV mismatch (only meaningful when NZSCV confirms SC) ---
+    if (!isNewVehicle && nzscv?.isSelfContained) {
+      const canonicalVsNzMakeMismatch = isLikelyTextMismatch(canonicalMake, nzscv.make);
+      const canonicalVsNzModelMismatch = isLikelyTextMismatch(canonicalModel, nzscv.model);
+      const canonicalVsNzYearMismatch = canonicalYear !== null && nzscv.year !== null && canonicalYear !== nzscv.year;
+      const canonicalVsNzColourMismatch = isLikelyTextMismatch(canonicalColour, nzscv.colour);
+
+      if (canonicalVsNzMakeMismatch || canonicalVsNzModelMismatch || canonicalVsNzYearMismatch || canonicalVsNzColourMismatch) {
+        discrepancies.push({
+          discrepancy_type: 'nzscv_registration_wrong_vehicle',
+          source_a: 'canonical',
+          source_b: 'nzscv',
+          value_a: [canonicalMake, canonicalModel, canonicalYear, canonicalColour].filter(Boolean).join(' | ') || null,
+          value_b: [nzscv.make, nzscv.model, nzscv.year, nzscv.colour].filter(Boolean).join(' | ') || null,
+          severity: 'critical',
+          sc_law_active: scLawActive,
+          details: {
+            mismatch_location: 'canonical_vs_nzscv',
+            reason: 'NZSCV registration may be attached to the wrong vehicle details',
+            canonical: {
+              make: canonicalMake,
+              model: canonicalModel,
+              year: canonicalYear,
+              colour: canonicalColour,
+            },
+            nzscv: {
+              make: nzscv.make,
+              model: nzscv.model,
+              year: nzscv.year,
+              colour: nzscv.colour,
+            },
+          },
         });
       }
     }
@@ -1026,8 +1016,6 @@ Deno.serve(async (req: Request) => {
     }
 
     // ── Step 6: Movement detection + plate-mismatch-same-vehicle check ───────
-    let vehicleMoved: boolean | null = null;
-    let isNewVehicle = false;
     let vehicleMoved: boolean | null = null;
     // Plate mismatch: same vehicle (high embedding similarity) but different plate
     let plateMismatchSameVehicle = false;
