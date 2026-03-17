@@ -218,66 +218,6 @@ export default function InfringementNotices() {
     return result
   }
 
-  const invokeFunctionDirectHttp = async (name: string, body: any, token: string) => {
-    const supabaseUrl = (import.meta as any)?.env?.VITE_SUPABASE_URL as string | undefined
-    const anonKey = (import.meta as any)?.env?.VITE_SUPABASE_ANON_KEY as string | undefined
-    if (!supabaseUrl || !anonKey) {
-      throw new Error('Missing Supabase environment configuration')
-    }
-
-    const controller = new AbortController()
-    const timer = window.setTimeout(() => controller.abort(), 15000)
-    try {
-      const response = await fetch(`${supabaseUrl}/functions/v1/${name}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          apikey: anonKey,
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(body),
-        signal: controller.signal,
-      })
-
-      const payload = await response.json().catch(() => ({}))
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${payload?.error || payload?.message || 'Request failed'}`)
-      }
-
-      return payload
-    } catch (error: any) {
-      if (error?.name === 'AbortError') {
-        throw new Error('Ticket generation timed out. Please try again.')
-      }
-      throw error
-    } finally {
-      window.clearTimeout(timer)
-    }
-  }
-
-  const invokeFunctionDirectHttpWithAuthRetry = async (name: string, body: any, fallbackMessage: string) => {
-    try {
-      const token = await getValidAccessToken()
-      return await invokeFunctionDirectHttp(name, body, token)
-    } catch (error: any) {
-      const message = String(error?.message || fallbackMessage)
-      if (!/invalid jwt|http\s*401|401\b/i.test(message)) {
-        throw new Error(message || fallbackMessage)
-      }
-
-      const { data, error: refreshError } = await withAuthTimeout(
-        supabase.auth.refreshSession(),
-        6000,
-        'Auth refresh timed out',
-      )
-      if (refreshError || !data.session?.access_token) {
-        throw new Error('Session expired. Please sign in again.')
-      }
-
-      return await invokeFunctionDirectHttp(name, body, data.session.access_token)
-    }
-  }
-
   const copyIssueError = async () => {
     if (!issueErrorDetail) return
     try {
@@ -490,15 +430,16 @@ export default function InfringementNotices() {
       if (form.breach_alert_id) body.breach_alert_id = form.breach_alert_id
       if (form.observation_id)  body.observation_id = form.observation_id
 
-      const data = await withTimeout(
-        invokeFunctionDirectHttpWithAuthRetry(
+      const { data, error } = await withTimeout(
+        invokeFunctionWithAuthRetry(
           'generate-infringement',
           body,
           'Failed to generate notice',
         ),
         35000,
-        'Notice generation timed out before reaching the server. Please retry.',
+        'Notice generation timed out. Please retry.',
       )
+      if (error) throw new Error(error)
       if (!data?.success) throw new Error(data?.error || 'Failed to generate notice')
 
       toast.success(`Notice ${data.notice_number} issued successfully`)
