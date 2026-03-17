@@ -1151,21 +1151,20 @@ Deno.serve(async (req: Request) => {
     if (plate) {
       try {
         const vehicleUpsertData: Record<string, unknown> = {
-        const vehicleUpsertData: Record<string, unknown> = {
           plate_number: plate,
           last_seen_at: recordedAt,
         };
         if (nzscv !== null) {
-        if (nzscv !== null) {
           // SC certification — always from NZSCV
           vehicleUpsertData.self_contained        = nzscv.isSelfContained;
           vehicleUpsertData.self_contained_expiry = nzscv.selfContainedExpiry;
+        }
+
         // Always keep canonical details current with the resolved values.
         if (resolvedMake)   vehicleUpsertData.vehicle_make = resolvedMake;
         if (resolvedModel)  vehicleUpsertData.vehicle_model = resolvedModel;
         if (resolvedYear)   vehicleUpsertData.vehicle_year = resolvedYear;
         if (resolvedColour) vehicleUpsertData.vehicle_color = resolvedColour;
-        }
 
         const { data: existingVehicle } = await supabase
           .from('canonical_vehicles')
