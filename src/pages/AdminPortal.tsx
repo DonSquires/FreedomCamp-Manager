@@ -16,12 +16,15 @@ import {
   AlertTriangle,
   ArrowRight,
   Car,
+  ClipboardCheck,
   Eye,
+  FileWarning,
   Gavel,
   Home,
   Map,
   Radio,
   Shield,
+  UserCheck,
   Users,
 } from 'lucide-react'
 
@@ -223,6 +226,42 @@ export default function AdminPortal() {
       const { count: activeBreaches, error: breachError } = await breachesQuery
       if (breachError) diagnostics.push(`breach_alerts_active: ${breachError.message || 'unknown error'}`)
 
+      // ── 7. Command snapshot metrics ─────────────────────────────────────
+      const nzToday = new Date().toLocaleDateString('en-CA', { timeZone: 'Pacific/Auckland' })
+      const todayStart = nzDateToUTCStart(nzToday)
+
+      let activeOfficersQuery = (supabase.from('user_profiles') as any)
+        .select('id', { count: 'exact', head: true })
+        .in('role', ['officer', 'admin_officer'])
+        .eq('is_active', true)
+        .gte('last_gps_update', new Date(Date.now() - 20 * 60 * 1000).toISOString())
+
+      if (effectiveOrganizationId) activeOfficersQuery = activeOfficersQuery.eq('organization_id', effectiveOrganizationId)
+      const { count: activeOfficers, error: activeOfficersErr } = await activeOfficersQuery
+      if (activeOfficersErr) diagnostics.push(`active_officers: ${activeOfficersErr.message || 'unknown error'}`)
+
+      let checksTodayQuery = (supabase.from('observations') as any)
+        .select('observation_id', { count: 'exact', head: true })
+        .gte('recorded_at', todayStart)
+      if (effectiveOrganizationId) checksTodayQuery = checksTodayQuery.eq('organization_id', effectiveOrganizationId)
+      if (zoneId) checksTodayQuery = checksTodayQuery.eq('zone_id', zoneId)
+      const { count: checksToday, error: checksTodayErr } = await checksTodayQuery
+      if (checksTodayErr) diagnostics.push(`checks_today: ${checksTodayErr.message || 'unknown error'}`)
+
+      let infringementsIssuedQuery = (supabase.from('infringement_notices') as any)
+        .select('id', { count: 'exact', head: true })
+        .gte('issued_at', todayStart)
+      if (effectiveOrganizationId) infringementsIssuedQuery = infringementsIssuedQuery.eq('organization_id', effectiveOrganizationId)
+      const { count: infringementsIssued, error: infringementsErr } = await infringementsIssuedQuery
+      if (infringementsErr) diagnostics.push(`infringements_issued: ${infringementsErr.message || 'unknown error'}`)
+
+      let disputesPendingQuery = (supabase.from('infringement_notices') as any)
+        .select('id', { count: 'exact', head: true })
+        .eq('status', 'disputed')
+      if (effectiveOrganizationId) disputesPendingQuery = disputesPendingQuery.eq('organization_id', effectiveOrganizationId)
+      const { count: disputesPending, error: disputesErr } = await disputesPendingQuery
+      if (disputesErr) diagnostics.push(`disputes_pending: ${disputesErr.message || 'unknown error'}`)
+
       // ── 6. Homeless-exempt breach count ──────────────────────────────────
       // Count non-compliant observations where the plate belongs to a homeless vehicle.
       // This is the exact number of "breaches" that are actually FC Act exempt.
@@ -247,6 +286,10 @@ export default function AdminPortal() {
         trendRows,
         homelessPlates: Array.from(homelessPlates),
         activeBreaches:            activeBreaches            ?? 0,
+        activeOfficers:            activeOfficers            ?? 0,
+        checksToday:               checksToday               ?? 0,
+        infringementsIssued:       infringementsIssued       ?? 0,
+        disputesPending:           disputesPending           ?? 0,
         homelessExemptBreachCount,
         diagnostics,
       }
@@ -559,6 +602,56 @@ export default function AdminPortal() {
       <GlobalFilterRibbon />
 
       <div className="space-y-4">
+        <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <Card className="bg-white dark:bg-gray-900 shadow-sm">
+            <CardContent className="pt-5 pb-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-muted-foreground uppercase tracking-wide">Active Officers</p>
+                  <p className="text-2xl font-bold">{isLoading ? '...' : ((data as any)?.activeOfficers ?? 0)}</p>
+                </div>
+                <UserCheck className="h-5 w-5 text-cyan-500" />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-white dark:bg-gray-900 shadow-sm">
+            <CardContent className="pt-5 pb-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-muted-foreground uppercase tracking-wide">Checks Today</p>
+                  <p className="text-2xl font-bold">{isLoading ? '...' : ((data as any)?.checksToday ?? 0)}</p>
+                </div>
+                <ClipboardCheck className="h-5 w-5 text-blue-500" />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-white dark:bg-gray-900 shadow-sm">
+            <CardContent className="pt-5 pb-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-muted-foreground uppercase tracking-wide">Infringements Issued</p>
+                  <p className="text-2xl font-bold">{isLoading ? '...' : ((data as any)?.infringementsIssued ?? 0)}</p>
+                </div>
+                <Gavel className="h-5 w-5 text-red-500" />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-white dark:bg-gray-900 shadow-sm">
+            <CardContent className="pt-5 pb-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-muted-foreground uppercase tracking-wide">Disputes Pending</p>
+                  <p className="text-2xl font-bold">{isLoading ? '...' : ((data as any)?.disputesPending ?? 0)}</p>
+                </div>
+                <FileWarning className="h-5 w-5 text-amber-500" />
+              </div>
+            </CardContent>
+          </Card>
+        </section>
+
         {/* ── STATUS: Primary KPIs — the "Big Three" ───────────────────────── */}
         <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {primaryKPIs.map((kpi) => {

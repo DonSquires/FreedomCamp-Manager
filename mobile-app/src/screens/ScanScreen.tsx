@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react'
 import {
-  View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, Platform,
+  View, Text, TouchableOpacity, StyleSheet, ActivityIndicator, Platform,
+  Vibration,
 } from 'react-native'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { CameraView, CameraType, useCameraPermissions } from 'expo-camera'
@@ -18,11 +19,16 @@ interface RNFileInfo {
   type: string
 }
 
-export default function ScanScreen() {
+export default function ScanScreen({ navigation }: any) {
   const { user } = useAuthStore()
   const [permission, requestPermission] = useCameraPermissions()
   const [isProcessing, setIsProcessing] = useState(false)
   const [lastResult, setLastResult] = useState<{ plate: string; compliant: boolean } | null>(null)
+  const [quickResult, setQuickResult] = useState<{
+    plate: string
+    status: 'compliant' | 'unknown'
+    lastCheckedLabel: string
+  } | null>(null)
   const cameraRef = useRef<CameraView>(null)
 
   if (!permission) return <View style={styles.container} />
@@ -154,9 +160,18 @@ export default function ScanScreen() {
 
       if (ingestError) throw new Error(`Save failed: ${ingestError.message}`)
 
+      Vibration.vibrate(40)
+
+      const isCompliant = ingestData?.is_compliant === true
+      setQuickResult({
+        plate: ingestData?.plate || detectedPlate || 'UNKNOWN',
+        status: isCompliant ? 'compliant' : 'unknown',
+        lastCheckedLabel: 'Last checked: just now',
+      })
+
       toast.dismiss()
       toast.success('✅ Observation captured and processed')
-      setLastResult({ plate: ingestData?.plate || 'MANUAL_REQUIRED', compliant: true })
+      setLastResult({ plate: ingestData?.plate || 'MANUAL_REQUIRED', compliant: isCompliant })
     } catch (err: any) {
       toast.dismiss()
       toast.error(err.message || 'Scan failed')
@@ -176,6 +191,39 @@ export default function ScanScreen() {
             </View>
             <View style={styles.frameBorder} />
             <View style={styles.bottomControls}>
+              {quickResult && (
+                <View style={styles.quickCard}>
+                  <Text style={styles.quickPlate}>{quickResult.plate}</Text>
+                  <View style={[
+                    styles.quickBadge,
+                    { backgroundColor: quickResult.status === 'compliant' ? '#14532d' : '#7f1d1d' },
+                  ]}>
+                    <Text style={styles.quickBadgeText}>
+                      {quickResult.status === 'compliant' ? 'CERTIFIED SELF-CONTAINED' : 'UNKNOWN / EXPIRED'}
+                    </Text>
+                  </View>
+                  <Text style={styles.quickHistory}>{quickResult.lastCheckedLabel}</Text>
+                  <TouchableOpacity
+                    style={[styles.quickAction, { backgroundColor: '#16a34a' }]}
+                    onPress={() => {
+                      setQuickResult(null)
+                      navigation.navigate('Scans')
+                    }}
+                  >
+                    <Text style={styles.quickActionText}>Log Compliant</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.quickAction, { backgroundColor: '#dc2626' }]}
+                    onPress={() => {
+                      setQuickResult(null)
+                      navigation.navigate('Fines')
+                    }}
+                  >
+                    <Text style={styles.quickActionText}>Issue Infringement</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+
               {lastResult && (
                 <View style={[
                   styles.resultPill,
@@ -245,7 +293,7 @@ const styles = StyleSheet.create({
     width: '85%',
     height: 140,
     borderWidth: 3,
-    borderColor: '#60a5fa',
+    borderColor: '#facc15',
     borderRadius: 12,
     backgroundColor: 'transparent',
   },
@@ -276,4 +324,28 @@ const styles = StyleSheet.create({
   },
   captureButtonDisabled: { backgroundColor: '#e2e8f0' },
   captureHint: { color: '#cbd5e1', fontSize: 12 },
+  quickCard: {
+    width: '100%',
+    borderRadius: 12,
+    backgroundColor: 'rgba(2,6,23,0.92)',
+    borderWidth: 1,
+    borderColor: '#334155',
+    padding: 10,
+    gap: 8,
+  },
+  quickPlate: { color: '#fff', fontSize: 22, fontWeight: '900', textAlign: 'center' },
+  quickBadge: {
+    borderRadius: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+    alignItems: 'center',
+  },
+  quickBadgeText: { color: '#fff', fontSize: 12, fontWeight: '800' },
+  quickHistory: { color: '#cbd5e1', fontSize: 12, textAlign: 'center' },
+  quickAction: {
+    borderRadius: 8,
+    paddingVertical: 10,
+    alignItems: 'center',
+  },
+  quickActionText: { color: '#fff', fontSize: 14, fontWeight: '800' },
 })

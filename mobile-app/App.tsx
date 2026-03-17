@@ -1,5 +1,6 @@
 import 'react-native-gesture-handler'
 import React, { useEffect } from 'react'
+import { useState } from 'react'
 import { NavigationContainer } from '@react-navigation/native'
 import { createNativeStackNavigator } from '@react-navigation/native-stack'
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs'
@@ -18,6 +19,9 @@ import RecentScansScreen from './src/screens/RecentScansScreen'
 import BreachAlertsScreen from './src/screens/BreachAlertsScreen'
 import EnforcementActionsScreen from './src/screens/EnforcementActionsScreen'
 import InfringementNoticesScreen from './src/screens/InfringementNoticesScreen'
+import OfflineModeBanner from './src/components/OfflineModeBanner'
+import { SUPABASE_URL } from './src/lib/supabase'
+import { highVis } from './src/lib/highVisTheme'
 
 const Stack = createNativeStackNavigator()
 const Tab = createBottomTabNavigator()
@@ -30,14 +34,19 @@ function OfficerTabs() {
     <Tab.Navigator
       screenOptions={({ route }) => ({
         headerShown: false,
-        tabBarActiveTintColor: '#1d4ed8',
-        tabBarInactiveTintColor: '#6b7280',
-        tabBarStyle: { paddingBottom: 4, height: 60 },
-        tabBarLabelStyle: { fontSize: 11 },
+        tabBarActiveTintColor: highVis.colors.actionBlue,
+        tabBarInactiveTintColor: highVis.colors.nightTextSecondary,
+        tabBarStyle: {
+          paddingBottom: 6,
+          height: 66,
+          backgroundColor: highVis.colors.nightSurface,
+          borderTopColor: '#1f2937',
+        },
+        tabBarLabelStyle: { fontSize: 11, fontWeight: '700' },
         tabBarIcon: ({ focused, color, size }) => {
           const icons: Record<string, string> = {
-            Home:     focused ? 'home'             : 'home-outline',
-            Scan:     focused ? 'camera'           : 'camera-outline',
+            Patrol:   focused ? 'map'              : 'map-outline',
+            Scan:     focused ? 'scan'             : 'scan-outline',
             Scans:    focused ? 'list'             : 'list-outline',
             Breaches: focused ? 'warning'          : 'warning-outline',
             Enforce:  focused ? 'shield-checkmark' : 'shield-checkmark-outline',
@@ -47,7 +56,7 @@ function OfficerTabs() {
         },
       })}
     >
-      <Tab.Screen name="Home"     component={HomeScreen} />
+      <Tab.Screen name="Patrol"   component={HomeScreen} />
       <Tab.Screen name="Scan"     component={ScanScreen} />
       <Tab.Screen name="Scans"    component={RecentScansScreen} options={{ tabBarLabel: 'My Scans' }} />
       <Tab.Screen name="Breaches" component={BreachAlertsScreen} options={{ tabBarLabel: 'Breaches' }} />
@@ -59,9 +68,39 @@ function OfficerTabs() {
 
 export default function App() {
   const { isAuthenticated, loading, checkSession } = useAuthStore()
+  const [offline, setOffline] = useState(false)
 
   useEffect(() => {
     checkSession()
+  }, [])
+
+  useEffect(() => {
+    let mounted = true
+    let timer: ReturnType<typeof setInterval> | null = null
+
+    const checkConnectivity = async () => {
+      try {
+        const controller = new AbortController()
+        const timeout = setTimeout(() => controller.abort(), 4000)
+        const res = await fetch(`${SUPABASE_URL}/auth/v1/health`, {
+          method: 'GET',
+          signal: controller.signal,
+          headers: { Accept: 'application/json' },
+        })
+        clearTimeout(timeout)
+        if (mounted) setOffline(!res.ok)
+      } catch {
+        if (mounted) setOffline(true)
+      }
+    }
+
+    checkConnectivity()
+    timer = setInterval(checkConnectivity, 15000)
+
+    return () => {
+      mounted = false
+      if (timer) clearInterval(timer)
+    }
   }, [])
 
   if (loading) {
@@ -76,7 +115,8 @@ export default function App() {
     <QueryClientProvider client={queryClient}>
       <SafeAreaProvider>
         <NavigationContainer>
-          <StatusBar style="auto" />
+          <StatusBar style="light" />
+          <OfflineModeBanner offline={offline} />
           <Stack.Navigator screenOptions={{ headerShown: false }}>
             {isAuthenticated ? (
               <Stack.Screen name="Main" component={OfficerTabs} />
