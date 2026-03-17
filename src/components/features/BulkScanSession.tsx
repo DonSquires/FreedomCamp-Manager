@@ -32,14 +32,21 @@ import {
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface SessionScan {
+  clientId: string
   observationId: string
   photoUrl: string
   plateNumber: string | null
   isCompliant: boolean | null
   breachType: string | null
   processingPending: boolean
+  queueState: 'queued' | 'processing' | null
   zoneId: string
   recordedAt: string
+}
+
+interface QueuedCaptureTask {
+  clientId: string
+  file: File
 }
 
 interface BulkScanSessionProps {
@@ -64,6 +71,7 @@ interface BulkScanSessionProps {
 
 const POLL_INTERVAL_MS  = 2_000
 const MAX_POLL_ATTEMPTS = 45
+const MAX_LOCAL_QUEUE_SIZE = 12
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -93,9 +101,12 @@ export function BulkScanSession({
 
   const [isCapturing,   setIsCapturing]   = useState(false)
   const [captureStageLabel, setCaptureStageLabel] = useState(SCAN_PROGRESS_LABELS.gps)
+  const [queueDepth, setQueueDepth] = useState(0)
   const [scans,         setScans]         = useState<SessionScan[]>([])
   const [showList,      setShowList]      = useState(true)
   const [showSummary,   setShowSummary]   = useState(false)
+  const captureQueueRef = useRef<QueuedCaptureTask[]>([])
+  const queueWorkerActiveRef = useRef(false)
 
   // Keep a ref to the latest scans list for use inside polling closures
   const scansRef = useRef<SessionScan[]>([])
@@ -105,67 +116,116 @@ export function BulkScanSession({
   const totalScanned = scans.length
   const totalBreaches = scans.filter(s => s.isCompliant === false).length
   const totalCompliant = scans.filter(s => s.isCompliant === true).length
-  const totalPending  = scans.filter(s => s.processingPending).length
+  const totalPending  = scans.filter(s => s.processingPending || s.queueState !== null).length
+
+  const runQueueWorker = useCallback(async () => {
+    if (queueWorkerActiveRef.current) return
+    queueWorkerActiveRef.current = true
+    setIsCapturing(true)
+
+    try {
+      while (captureQueueRef.current.length > 0) {
+        const task = captureQueueRef.current[0]
+
+        setScans(prev => prev.map(s =>
+          s.clientId === task.clientId ? { ...s, queueState: 'processing' } : s
+        ))
+
+        setCaptureStageLabel(SCAN_PROGRESS_LABELS.gps)
+
+        try {
+          const result = await captureAndSave(
+            task.file,
+            { id: user!.id, organization_id: user!.organization_id, full_name: user!.full_name },
+            zoneId,
+            recordGPSUpdate,
+            (_stage: ScanProgressStage, label: string) => setCaptureStageLabel(label),
+          )
+
+          setScans(prev => prev.map(s =>
+            s.clientId !== task.clientId ? s : {
+              ...s,
+              observationId: result.observationId,
+              photoUrl: result.photoUrl,
+              zoneId: result.zoneId,
+              recordedAt: result.recordedAt,
+              queueState: null,
+              processingPending: true,
+            }
+          ))
+
+          setShowList(true)
+          onScanSaved?.()
+
+          if (activePatrolId) {
+            ;(supabase as any)
+              .rpc('increment_patrol_vehicles_checked', { p_patrol_id: activePatrolId })
+              .catch(() => {/* non-critical */})
+          }
+        } catch (err: any) {
+          setScans(prev => prev.map(s =>
+            s.clientId !== task.clientId ? s : { ...s, processingPending: false, queueState: null }
+          ))
+          toast.error(err?.message || 'Queued scan failed')
+        } finally {
+          captureQueueRef.current.shift()
+          setQueueDepth(captureQueueRef.current.length)
+        }
+      }
+    } finally {
+      queueWorkerActiveRef.current = false
+      setIsCapturing(false)
+      setCaptureStageLabel(SCAN_PROGRESS_LABELS.gps)
+    }
+  }, [activePatrolId, onScanSaved, recordGPSUpdate, user, zoneId])
 
   // ── Capture handler ──────────────────────────────────────────────────────
-  const handleCapture = useCallback(async (file: File) => {
+  const handleCapture = useCallback((file: File) => {
     if (!user?.id || !user?.organization_id) {
       toast.error('Session expired — please log out and back in')
       return
     }
 
-    setIsCapturing(true)
-    setCaptureStageLabel(SCAN_PROGRESS_LABELS.gps)
-    try {
-      const result = await captureAndSave(
-        file,
-        { id: user.id, organization_id: user.organization_id, full_name: user.full_name },
-        zoneId,
-        recordGPSUpdate,
-        (_stage: ScanProgressStage, label: string) => setCaptureStageLabel(label),
-      )
-
-      // Add to session list immediately as pending
-      const newScan: SessionScan = {
-        observationId:   result.observationId,
-        photoUrl:        result.photoUrl,
-        plateNumber:     null,
-        isCompliant:     null,
-        breachType:      null,
-        processingPending: true,
-        zoneId:          result.zoneId,
-        recordedAt:      result.recordedAt,
-      }
-      setScans(prev => [newScan, ...prev])
-      setShowList(true)
-      onScanSaved?.()
-
-      // Update patrol counter (vehicles_checked) — fire-and-forget
-      if (activePatrolId) {
-        ;(supabase as any)
-          .rpc('increment_patrol_vehicles_checked', { p_patrol_id: activePatrolId })
-          .catch(() => {/* non-critical */})
-      }
-
-    } catch (err: any) {
-      toast.error(err.message || 'Scan failed')
-    } finally {
-      setIsCapturing(false)
-      setCaptureStageLabel(SCAN_PROGRESS_LABELS.gps)
+    if (captureQueueRef.current.length >= MAX_LOCAL_QUEUE_SIZE) {
+      toast.error(`Queue is full (${MAX_LOCAL_QUEUE_SIZE}). Please wait for current uploads to finish.`)
+      return
     }
-  }, [user, zoneId, recordGPSUpdate, activePatrolId, onScanSaved])
+
+    const clientId = `queued-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`
+    const nowIso = new Date().toISOString()
+
+    const queuedScan: SessionScan = {
+      clientId,
+      observationId: clientId,
+      photoUrl: '',
+      plateNumber: null,
+      isCompliant: null,
+      breachType: null,
+      processingPending: true,
+      queueState: 'queued',
+      zoneId: zoneId || '',
+      recordedAt: nowIso,
+    }
+
+    setScans(prev => [queuedScan, ...prev])
+    setShowList(true)
+
+    captureQueueRef.current.push({ clientId, file })
+    setQueueDepth(captureQueueRef.current.length)
+    void runQueueWorker()
+  }, [runQueueWorker, user, zoneId])
 
   // ── Background polling for each pending scan ─────────────────────────────
   useEffect(() => {
-    const pending = scans.filter(s => s.processingPending)
+    const pending = scans.filter(s => s.processingPending && s.queueState === null)
     if (!pending.length) return
 
     const controllers: Map<string, { cancelled: boolean; timer: ReturnType<typeof setTimeout> | null }> = new Map()
 
     pending.forEach(scan => {
-      if (controllers.has(scan.observationId)) return
+      if (controllers.has(scan.clientId)) return
       const ctrl = { cancelled: false, timer: null as ReturnType<typeof setTimeout> | null }
-      controllers.set(scan.observationId, ctrl)
+      controllers.set(scan.clientId, ctrl)
 
       let attempts = 0
 
@@ -191,12 +251,13 @@ export function BulkScanSession({
         const compliant = typeof data.is_compliant === 'boolean' ? data.is_compliant : null
 
         setScans(prev => prev.map(s =>
-          s.observationId !== scan.observationId ? s : {
+          s.clientId !== scan.clientId ? s : {
             ...s,
             plateNumber:       data.plate_number ?? null,
             isCompliant:       compliant,
             breachType:        data.breach_type ?? null,
             processingPending: !resolved,
+            queueState:        null,
           }
         ))
 
@@ -215,7 +276,7 @@ export function BulkScanSession({
           ctrl.timer = setTimeout(poll, POLL_INTERVAL_MS)
         } else {
           setScans(prev => prev.map(s =>
-            s.observationId !== scan.observationId ? s : { ...s, processingPending: false }
+            s.clientId !== scan.clientId ? s : { ...s, processingPending: false, queueState: null }
           ))
         }
       }
@@ -231,7 +292,7 @@ export function BulkScanSession({
     }
   // Re-run only when the set of pending IDs changes
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [scans.filter(s => s.processingPending).map(s => s.observationId).join(',')])
+  }, [scans.filter(s => s.processingPending && s.queueState === null).map(s => s.clientId).join(',')])
 
   // ── Summary / finish ─────────────────────────────────────────────────────
   const handleFinish = () => {
@@ -259,8 +320,8 @@ export function BulkScanSession({
         <SplitScanCamera
           onCapture={handleCapture}
           onCancel={handleFinish}
-          isProcessing={isCapturing}
-          statusLabel={captureStageLabel}
+          isProcessing={false}
+          statusLabel={queueDepth > 0 ? `${queueDepth} queued` : undefined}
         />
 
         {/* Session stats overlay — top left */}
@@ -283,6 +344,12 @@ export function BulkScanSession({
             <div className="flex items-center gap-1 rounded-full bg-blue-600/90 px-2.5 py-1 text-white text-xs">
               <Loader2 className="h-3 w-3 animate-spin" />
               <span>{captureStageLabel}</span>
+            </div>
+          )}
+          {queueDepth > 0 && (
+            <div className="flex items-center gap-1 rounded-full bg-amber-600/90 px-2.5 py-1 text-white text-xs">
+              <Clock className="h-3 w-3" />
+              <span>{queueDepth} queued</span>
             </div>
           )}
         </div>
@@ -324,10 +391,10 @@ export function BulkScanSession({
 
             {scans.map(scan => {
               const pending = scan.processingPending
-              const inBreach = scan.isCompliant === false && !pending
+              const inBreach = scan.isCompliant === false && !pending && scan.queueState === null
               return (
                 <div
-                  key={scan.observationId}
+                  key={scan.clientId}
                   className={`flex items-center gap-2.5 rounded-lg border p-2 ${
                     inBreach
                       ? 'border-red-200 bg-red-50 dark:bg-red-950/30'
@@ -335,16 +402,30 @@ export function BulkScanSession({
                   }`}
                 >
                   {/* Thumbnail */}
-                  <img
-                    src={scan.photoUrl}
-                    alt={scan.plateNumber || 'Scan'}
-                    className="h-9 w-9 rounded object-cover shrink-0 border"
-                  />
+                  {scan.photoUrl ? (
+                    <img
+                      src={scan.photoUrl}
+                      alt={scan.plateNumber || 'Scan'}
+                      className="h-9 w-9 rounded object-cover shrink-0 border"
+                    />
+                  ) : (
+                    <div className="h-9 w-9 rounded shrink-0 border bg-slate-200 dark:bg-slate-800" />
+                  )}
 
                   {/* Plate + status */}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5 flex-wrap">
-                      {pending ? (
+                      {scan.queueState === 'queued' ? (
+                        <span className="flex items-center gap-1 text-xs text-amber-600">
+                          <Clock className="h-3 w-3" />
+                          <span aria-label="Queued">Queued…</span>
+                        </span>
+                      ) : scan.queueState === 'processing' ? (
+                        <span className="flex items-center gap-1 text-xs text-blue-600">
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                          <span aria-label="Uploading">{captureStageLabel}</span>
+                        </span>
+                      ) : pending ? (
                         <span className="flex items-center gap-1 text-xs text-blue-600">
                           <Loader2 className="h-3 w-3 animate-spin" />
                           <span aria-label="Detecting">Detecting…</span>
