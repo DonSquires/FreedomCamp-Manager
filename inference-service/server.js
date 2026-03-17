@@ -21,6 +21,11 @@ const cors = require('cors');
 const app = express();
 const PORT = process.env.PORT || 3000;
 const YOLO_INPUT_SIZE = 640;
+const VEHICLE_ATTRS_PROVIDER = (process.env.VEHICLE_ATTRS_PROVIDER || 'basic').toLowerCase();
+const OPENAI_BASE_URL = process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1';
+const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
+const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-4o-mini';
+const ATTR_TIMEOUT_MS = Number(process.env.ATTR_TIMEOUT_MS || 2500);
 
 // Configure CORS (restrict to your Supabase Edge Function)
 const corsOptions = {
@@ -110,6 +115,73 @@ function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
 }
 
+function clamp01(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return null;
+  return Math.max(0, Math.min(1, n));
+}
+
+function parseYear(value) {
+  const n = parseInt(String(value ?? ''), 10);
+  if (!Number.isFinite(n)) return null;
+  if (n < 1950 || n > 2100) return null;
+  return n;
+}
+
+function cleanText(value) {
+  if (value === null || value === undefined) return null;
+  const text = String(value).trim();
+  return text.length > 0 ? text : null;
+}
+
+function nearestColourName(r, g, b) {
+  const palette = [
+    { name: 'white', rgb: [245, 245, 245] },
+    { name: 'silver', rgb: [192, 192, 192] },
+    { name: 'gray', rgb: [128, 128, 128] },
+    { name: 'black', rgb: [20, 20, 20] },
+    { name: 'red', rgb: [200, 40, 40] },
+    { name: 'orange', rgb: [230, 120, 30] },
+    { name: 'yellow', rgb: [235, 205, 40] },
+    { name: 'green', rgb: [45, 140, 55] },
+    { name: 'blue', rgb: [50, 90, 190] },
+    { name: 'brown', rgb: [120, 80, 45] },
+    { name: 'beige', rgb: [210, 190, 150] },
+  ];
+
+  let best = palette[0];
+  let bestDist = Number.POSITIVE_INFINITY;
+
+  for (const c of palette) {
+    const dr = r - c.rgb[0];
+    const dg = g - c.rgb[1];
+    const db = b - c.rgb[2];
+    const dist = dr * dr + dg * dg + db * db;
+    if (dist < bestDist) {
+      bestDist = dist;
+      best = c;
+    }
+  }
+
+  return best.name;
+}
+
+async function estimateDominantColour(imageBuffer) {
+  try {
+    const stats = await sharp(imageBuffer).stats();
+    const r = stats.channels?.[0]?.mean ?? 0;
+    const g = stats.channels?.[1]?.mean ?? 0;
+    const b = stats.channels?.[2]?.mean ?? 0;
+    return {
+      colour: nearestColourName(r, g, b),
+      confidence: 0.45,
+    };
+  } catch (error) {
+    console.warn('⚠️ Dominant colour estimation failed:', error.message);
+    return { colour: null, confidence: null };
+  }
+}
+
 // Convert model bbox to a safe Sharp extract rectangle in source-image pixels.
 // Handles both center-based (YOLO-style) and top-left-based interpretations.
 async function resolveSafeCrop(imageBuffer, bbox) {
@@ -152,6 +224,21 @@ async function resolveSafeCrop(imageBuffer, bbox) {
   }
 
   return null;
+}
+
+async function extractVehicleCropBuffer(imageBuffer, bbox = null) {
+  if (!bbox) return imageBuffer;
+  const safeCrop = await resolveSafeCrop(imageBuffer, bbox);
+  if (!safeCrop) return imageBuffer;
+
+  try {
+    return await sharp(imageBuffer)
+      .extract(safeCrop)
+      .jpeg({ quality: 92 })
+      .toBuffer();
+  } catch {
+    return imageBuffer;
+  }
 }
 
 // Preprocess image for MobileNet (224x224)
@@ -243,6 +330,121 @@ async function generateEmbedding(imageTensor) {
   return { embedding, quality, norm };
 }
 
+async function inferVehicleAttributesWithOpenAI(vehicleCropBuffer) {
+  if (!OPENAI_API_KEY) {
+    return null;
+  }
+
+  const imageBase64 = vehicleCropBuffer.toString('base64');
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), ATTR_TIMEOUT_MS);
+
+  try {
+    const response = await fetch(`${OPENAI_BASE_URL}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${OPENAI_API_KEY}`,
+      },
+      signal: controller.signal,
+      body: JSON.stringify({
+        model: OPENAI_MODEL,
+        temperature: 0,
+        response_format: { type: 'json_object' },
+        messages: [
+          {
+            role: 'system',
+            content: 'You are a vehicle vision assistant. Return strict JSON only.',
+          },
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'text',
+                text:
+                  'From this vehicle photo crop, infer vehicle attributes. Return JSON with keys: vehicle_make, vehicle_model, vehicle_year, vehicle_colour, vehicle_make_confidence, vehicle_model_confidence, vehicle_year_confidence, vehicle_colour_confidence, sticker (object with presence, color, detection_confidence, color_confidence). Use null for unknown values. Confidences must be 0..1.',
+              },
+              {
+                type: 'image_url',
+                image_url: { url: `data:image/jpeg;base64,${imageBase64}` },
+              },
+            ],
+          },
+        ],
+      }),
+    });
+
+    if (!response.ok) {
+      console.warn(`⚠️ OpenAI attrs returned ${response.status}`);
+      return null;
+    }
+
+    const payload = await response.json();
+    const content = payload?.choices?.[0]?.message?.content;
+    if (!content || typeof content !== 'string') return null;
+
+    const parsed = JSON.parse(content);
+    return {
+      vehicle_make: cleanText(parsed.vehicle_make),
+      vehicle_model: cleanText(parsed.vehicle_model),
+      vehicle_year: parseYear(parsed.vehicle_year),
+      vehicle_colour: cleanText(parsed.vehicle_colour),
+      vehicle_make_confidence: clamp01(parsed.vehicle_make_confidence),
+      vehicle_model_confidence: clamp01(parsed.vehicle_model_confidence),
+      vehicle_year_confidence: clamp01(parsed.vehicle_year_confidence),
+      vehicle_colour_confidence: clamp01(parsed.vehicle_colour_confidence),
+      sticker: {
+        presence: parsed?.sticker?.presence === null || parsed?.sticker?.presence === undefined
+          ? null
+          : Boolean(parsed.sticker.presence),
+        color: cleanText(parsed?.sticker?.color),
+        detection_confidence: clamp01(parsed?.sticker?.detection_confidence),
+        color_confidence: clamp01(parsed?.sticker?.color_confidence),
+      },
+    };
+  } catch (error) {
+    console.warn('⚠️ OpenAI attrs failed:', error.message);
+    return null;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function inferVehicleAttributes(fullImageBuffer, vehicleCropBuffer) {
+  const dominant = await estimateDominantColour(vehicleCropBuffer || fullImageBuffer);
+
+  const fallback = {
+    vehicle_make: null,
+    vehicle_model: null,
+    vehicle_year: null,
+    vehicle_colour: dominant.colour,
+    vehicle_make_confidence: null,
+    vehicle_model_confidence: null,
+    vehicle_year_confidence: null,
+    vehicle_colour_confidence: dominant.confidence,
+    sticker: {
+      presence: null,
+      color: null,
+      detection_confidence: null,
+      color_confidence: null,
+    },
+  };
+
+  if (VEHICLE_ATTRS_PROVIDER !== 'openai') {
+    return fallback;
+  }
+
+  const ai = await inferVehicleAttributesWithOpenAI(vehicleCropBuffer || fullImageBuffer);
+  if (!ai) return fallback;
+
+  return {
+    ...fallback,
+    ...ai,
+    vehicle_colour: ai.vehicle_colour || fallback.vehicle_colour,
+    vehicle_colour_confidence: ai.vehicle_colour_confidence ?? fallback.vehicle_colour_confidence,
+  };
+}
+
 // Main inference endpoint
 app.post('/infer', upload.single('photo'), async (req, res) => {
   const startTime = Date.now();
@@ -272,8 +474,13 @@ app.post('/infer', upload.single('photo'), async (req, res) => {
     console.log(`✅ Vehicle detected (confidence: ${detection.confidence.toFixed(2)})`);
 
     // Step 2: Generate embedding
+    const vehicleCropBuffer = await extractVehicleCropBuffer(req.file.buffer, detection.bbox);
     const embeddingInput = await preprocessForEmbedding(req.file.buffer, detection.bbox);
-    const { embedding, quality, norm } = await generateEmbedding(embeddingInput);
+    const [embeddingResult, vehicleAttrs] = await Promise.all([
+      generateEmbedding(embeddingInput),
+      inferVehicleAttributes(req.file.buffer, vehicleCropBuffer),
+    ]);
+    const { embedding, quality, norm } = embeddingResult;
 
     console.log(`✅ Embedding generated (quality: ${quality.toFixed(2)})`);
 
@@ -295,7 +502,17 @@ app.post('/infer', upload.single('photo'), async (req, res) => {
           norm: norm,
           dimension: embedding.length,
           processing_time_ms: duration
-        }
+        },
+        vehicle_make: vehicleAttrs.vehicle_make,
+        vehicle_model: vehicleAttrs.vehicle_model,
+        vehicle_year: vehicleAttrs.vehicle_year,
+        vehicle_colour: vehicleAttrs.vehicle_colour,
+        vehicle_color: vehicleAttrs.vehicle_colour,
+        vehicle_make_confidence: vehicleAttrs.vehicle_make_confidence,
+        vehicle_model_confidence: vehicleAttrs.vehicle_model_confidence,
+        vehicle_year_confidence: vehicleAttrs.vehicle_year_confidence,
+        vehicle_colour_confidence: vehicleAttrs.vehicle_colour_confidence,
+        sticker: vehicleAttrs.sticker,
       }
     });
 

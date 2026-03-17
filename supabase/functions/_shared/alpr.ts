@@ -6,6 +6,13 @@
 export interface ALPRResult {
   plate: string | null;
   confidence: number | null;
+  make: string | null;
+  model: string | null;
+  color: string | null;
+  orientation: string | null;
+  makeConfidence: number | null;
+  modelConfidence: number | null;
+  colorConfidence: number | null;
   raw: any;
 }
 
@@ -36,7 +43,18 @@ export async function alprWithBytes(
 
   if (!token) {
     console.error("❌ PLATERECOGNIZER_TOKEN (or PLATE_RECOGNIZER_TOKEN) not configured");
-    return { plate: null, confidence: null, raw: null };
+    return {
+      plate: null,
+      confidence: null,
+      make: null,
+      model: null,
+      color: null,
+      orientation: null,
+      makeConfidence: null,
+      modelConfidence: null,
+      colorConfidence: null,
+      raw: null,
+    };
   }
 
   try {
@@ -75,18 +93,59 @@ export async function alprWithBytes(
       const plate = best.plate?.toUpperCase() ?? null;
       const confidence = best.score ?? null;
 
-      return { plate, confidence, raw: data };
+      const make = best?.vehicle?.make?.[0]?.name ?? best?.vehicle?.make ?? null;
+      const makeConfidence = best?.vehicle?.make?.[0]?.score ?? null;
+      const model = best?.vehicle?.model?.[0]?.name ?? best?.vehicle?.model ?? null;
+      const modelConfidence = best?.vehicle?.model?.[0]?.score ?? null;
+      const color = best?.vehicle?.color?.[0]?.name ?? best?.vehicle?.color ?? null;
+      const colorConfidence = best?.vehicle?.color?.[0]?.score ?? null;
+      const orientation = best?.vehicle?.orientation?.[0]?.name ?? best?.vehicle?.orientation ?? null;
+
+      return {
+        plate,
+        confidence,
+        make: make ? String(make) : null,
+        model: model ? String(model) : null,
+        color: color ? String(color) : null,
+        orientation: orientation ? String(orientation) : null,
+        makeConfidence: typeof makeConfidence === 'number' ? makeConfidence : null,
+        modelConfidence: typeof modelConfidence === 'number' ? modelConfidence : null,
+        colorConfidence: typeof colorConfidence === 'number' ? colorConfidence : null,
+        raw: data,
+      };
     }
 
     console.warn("⚠️ ALPR: No plates detected");
-    return { plate: null, confidence: null, raw: data };
+    return {
+      plate: null,
+      confidence: null,
+      make: null,
+      model: null,
+      color: null,
+      orientation: null,
+      makeConfidence: null,
+      modelConfidence: null,
+      colorConfidence: null,
+      raw: data,
+    };
   } catch (error: any) {
     if (error.name === "AbortError") {
       console.error("❌ ALPR timeout after", timeout, "ms");
     } else {
       console.error("❌ ALPR error:", error.message);
     }
-    return { plate: null, confidence: null, raw: { error: error.message } };
+    return {
+      plate: null,
+      confidence: null,
+      make: null,
+      model: null,
+      color: null,
+      orientation: null,
+      makeConfidence: null,
+      modelConfidence: null,
+      colorConfidence: null,
+      raw: { error: error.message },
+    };
   }
 }
 

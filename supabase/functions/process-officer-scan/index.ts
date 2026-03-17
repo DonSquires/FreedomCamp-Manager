@@ -732,17 +732,32 @@ Deno.serve(async (req: Request) => {
     // ── Step 4: ALPR backup ───────────────────────────────────────────────
     let finalPlate = inference.plate;
     let finalConfidence = inference.confidence;
+    let alprMake: string | null = null;
+    let alprModel: string | null = null;
+    let alprColour: string | null = null;
+    let alprOrientation: string | null = null;
 
     if (!finalPlate) {
       console.log('🔄 No plate from inference — running ALPR backup...');
       try {
         const alprStartedAt = Date.now();
         const alprResult = await startAlprBackup();
+
+        // ALPR vehicle attributes are used as a low-priority fallback only.
+        alprMake = alprResult.make;
+        alprModel = alprResult.model;
+        alprColour = alprResult.color;
+        alprOrientation = alprResult.orientation;
+
         if (alprResult.plate) {
           finalPlate = normalizePlate(alprResult.plate);
           finalConfidence = alprResult.confidence;
           console.log('✅ ALPR backup found plate:', finalPlate, {
             duration_ms: Date.now() - alprStartedAt,
+            make: alprMake,
+            model: alprModel,
+            colour: alprColour,
+            orientation: alprOrientation,
           });
         } else {
           console.warn('⚠️ ALPR backup returned no plate');
@@ -1131,10 +1146,10 @@ Deno.serve(async (req: Request) => {
     // Build resolved details once and always write them to the observation row.
     // Source priority: NZSCV (authoritative when available) → canonical snapshot
     // → inference.
-    const resolvedMake = nzscv?.make ?? canonicalMake ?? inference.inferMake ?? null;
-    const resolvedModel = nzscv?.model ?? canonicalModel ?? inference.inferModel ?? null;
+    const resolvedMake = nzscv?.make ?? canonicalMake ?? inference.inferMake ?? alprMake ?? null;
+    const resolvedModel = nzscv?.model ?? canonicalModel ?? inference.inferModel ?? alprModel ?? null;
     const resolvedYear = nzscv?.year ?? canonicalYear ?? inference.inferYear ?? toIntOrNull(obs.vehicle_year) ?? null;
-    const resolvedColour = nzscv?.colour ?? canonicalColour ?? inference.inferColour ?? null;
+    const resolvedColour = nzscv?.colour ?? canonicalColour ?? inference.inferColour ?? alprColour ?? null;
 
     const mismatchNotices = discrepancies.map((d) => {
       const mismatchLocation = (d.details as Record<string, unknown>)?.mismatch_location;
@@ -1376,13 +1391,14 @@ Deno.serve(async (req: Request) => {
         // SC certification — primary purpose of NZSCV lookup
         self_contained:        nzscv?.isSelfContained ?? false,
         self_contained_expiry: nzscv?.selfContainedExpiry ?? null,
-        // Optional vehicle detail fields — null when NZSCV does not provide them
-        make:   nzscv?.make   ?? inference.inferMake   ?? null,
-        model:  nzscv?.model  ?? inference.inferModel  ?? null,
-        year:   nzscv?.year   ?? null,
-        vin:    nzscv?.vin    ?? null,
-        colour: nzscv?.colour ?? inference.inferColour ?? null,
-        color:  nzscv?.colour ?? inference.inferColour ?? null,
+        // Optional vehicle detail fields — resolved with source priority
+        make:   resolvedMake,
+        model:  resolvedModel,
+        year:   resolvedYear,
+        vin:    nzscv?.vin ?? null,
+        colour: resolvedColour,
+        color:  resolvedColour,
+        orientation: alprOrientation,
       },
       movement: {
         is_new_vehicle:             isNewVehicle,
