@@ -69,24 +69,25 @@ NOTES TO DEFENDANT — FREEDOM CAMPING ACT 2011
 
 This infringement notice is issued under the Freedom Camping Act 2011 (FCA) and the Freedom Camping (Penalties for Infringement Offences) Regulations 2023. Your rights and obligations are set out in sections 22–28 of the FCA and section 21 of the Summary Proceedings Act 1957.
 
-YOUR OPTIONS:
+YOU MAY:
 
 1. PAY THE INFRINGEMENT FEE (ss 22–23 FCA 2011)
    Pay the fee shown on the front of this notice to the enforcement authority within 28 days of the date of issue. If you pay within 28 days, no further action will be taken in respect of this notice.
 
-2. WRITE IN — DENY LIABILITY (s 24 FCA 2011)
-   If you deny liability for this offence, send a written notice to the enforcement authority within 28 days of the date of issue. You may include written submissions for consideration. If the infringement is not cancelled, you may be served with a reminder notice and the matter may then be referred to the District Court.
+2. MAKE OBJECTIONS (s 24 FCA 2011)
+   You may write to the enforcement authority within 28 days of the date of issue setting out the circumstances relating to the alleged offence. The enforcement authority will consider your objections and may cancel the notice if satisfied that it should not have been issued. This option does not require you to admit or deny liability.
 
 3. REQUEST A COURT HEARING (s 21 Summary Proceedings Act 1957; s 24 FCA 2011)
-   You may request that the matter be dealt with by a District Court. Contact the enforcement authority in writing within 28 days. Court costs may be awarded against you if you are found guilty.
+   If you deny liability for this offence, send a written notice to the enforcement authority within 28 days of the date of issue requesting that the matter be dealt with by a District Court. Court costs may be awarded against you if you are found guilty by the court.
 
-4. DO NOTHING
-   If you do not pay, deny liability, or request a hearing within 28 days, a reminder notice may be served for up to 1.5 times the original fee. Continued non-payment may result in the matter being referred to the District Court or the Ministry of Justice for debt collection.
+4. ADMISSION OF LIABILITY WITH SUBMISSIONS (s 24 FCA 2011)
+   If you wish to admit liability but want to make written submissions to the court regarding the penalty, write to the enforcement authority within 28 days. Your submissions will be placed before the court. The court may reduce the penalty in light of your circumstances.
+
+IF YOU DO NOTHING
+If you do not pay, make objections, or request a hearing within 28 days, a reminder notice may be served for up to 1.5 times the original fee. Continued non-payment may result in the matter being referred to the District Court or the Ministry of Justice for debt collection.
 
 DEFENCES (s 25 FCA 2011)
-It is a defence to this infringement notice if you prove that the act or omission was:
-  (a) necessary for the safety of any person; or
-  (b) necessary to prevent damage to land, property, or natural features.
+It is a defence to this infringement notice if you prove on the balance of probabilities that the act or omission was necessary to save life or to prevent serious damage to property.
 
 RENTAL / HIRE VEHICLES (s 26 FCA 2011)
 If this vehicle is a hired vehicle and the hirer does not pay the fee immediately, the enforcement officer is required to transfer this notice to the vehicle hire company. The hire company may then seek recovery from the hirer.
@@ -468,7 +469,7 @@ function generateNoticeHtml(params: {
     <div class="header">
       <div>
         <div class="org-name">${params.orgName}</div>
-        <div style="font-size:8.5pt;color:#555;font-weight:bold;margin-top:1pt;">FREEDOM CAMPING ENFORCEMENT</div>
+        <div style="font-size:8.5pt;color:#1e3a8a;font-weight:bold;margin-top:1pt;">Freedom Camping Act 2011 — Infringement Notice</div>
         ${orgContactLines ? `<div class="org-contact">${orgContactLines}</div>` : ''}
       </div>
       <div style="text-align:right;">
