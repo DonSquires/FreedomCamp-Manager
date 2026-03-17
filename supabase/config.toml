@@ -77,3 +77,11 @@ verify_jwt = false
 # Access-Control-Allow-Origin response headers.
 [functions.alpr-process]
 verify_jwt = false
+
+# process-officer-scan: called fire-and-forget from the FieldOfficerPortal and
+# also server-side from other edge functions (vehicle-ingest).  Server-side
+# callers use ES256-signed JWTs which Supabase gateway rejects at the
+# network layer before the function runs (execution_id: null in logs).
+# JWT ownership is validated inside the function using the service-role client.
+[functions.process-officer-scan]
+verify_jwt = false
