@@ -85,3 +85,14 @@ verify_jwt = false
 # JWT ownership is validated inside the function using the service-role client.
 [functions.process-officer-scan]
 verify_jwt = false
+
+# generate-infringement: ES256-signed user JWTs are rejected by the Supabase
+# gateway before the function runs (returns 401, execution_id: null).
+# The function verifies ownership internally via supabaseAdmin.auth.getUser(token).
+[functions.generate-infringement]
+verify_jwt = false
+
+# render-infringement-notice: same ES256 gateway issue as generate-infringement.
+# Auth is validated inside the function body using the service-role client.
+[functions.render-infringement-notice]
+verify_jwt = false
