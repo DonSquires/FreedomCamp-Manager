@@ -178,6 +178,21 @@ export default function InfringementNotices() {
     }
   }
 
+  const withTimeout = async <T,>(promise: Promise<T>, ms: number, timeoutMessage: string): Promise<T> => {
+    return await new Promise<T>((resolve, reject) => {
+      const timer = window.setTimeout(() => reject(new Error(timeoutMessage)), ms)
+      promise
+        .then((value) => {
+          window.clearTimeout(timer)
+          resolve(value)
+        })
+        .catch((error) => {
+          window.clearTimeout(timer)
+          reject(error)
+        })
+    })
+  }
+
   // Issue form state
   const [form, setForm] = useState({
     breach_alert_id: '',
@@ -365,7 +380,11 @@ export default function InfringementNotices() {
       if (form.breach_alert_id) body.breach_alert_id = form.breach_alert_id
       if (form.observation_id)  body.observation_id = form.observation_id
 
-      const { data, error } = await invokeFunctionWithAuthRetry('generate-infringement', body, 'Edge function error')
+      const { data, error } = await withTimeout(
+        invokeFunctionWithAuthRetry('generate-infringement', body, 'Edge function error'),
+        25000,
+        'Ticket generation timed out. Please try again.',
+      )
       if (error) throw new Error(await getFunctionErrorMessage(error, 'Edge function error'))
       if (!data?.success) throw new Error(data?.error || 'Failed to generate notice')
 
@@ -399,10 +418,14 @@ export default function InfringementNotices() {
   const handleReprint = async (noticeId: string) => {
     setReprintingNoticeId(noticeId)
     try {
-      const { data, error } = await invokeFunctionWithAuthRetry(
-        'render-infringement-notice',
-        { notice_id: noticeId },
-        'Failed to load printable notice',
+      const { data, error } = await withTimeout(
+        invokeFunctionWithAuthRetry(
+          'render-infringement-notice',
+          { notice_id: noticeId },
+          'Failed to load printable notice',
+        ),
+        25000,
+        'Ticket render timed out. Please try again.',
       )
       if (error) throw new Error(await getFunctionErrorMessage(error, 'Failed to load printable notice'))
       if (!data?.success || !data?.html) throw new Error(data?.error || 'Printable notice unavailable')

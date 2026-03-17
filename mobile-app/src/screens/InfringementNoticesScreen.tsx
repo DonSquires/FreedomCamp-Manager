@@ -138,6 +138,21 @@ export default function InfringementNoticesScreen() {
     return result
   }
 
+  const withTimeout = async <T,>(promise: Promise<T>, ms: number, timeoutMessage: string): Promise<T> => {
+    return await new Promise<T>((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error(timeoutMessage)), ms)
+      promise
+        .then((value) => {
+          clearTimeout(timer)
+          resolve(value)
+        })
+        .catch((error) => {
+          clearTimeout(timer)
+          reject(error)
+        })
+    })
+  }
+
   // Issue form state
   const [form, setForm] = useState({
     plate_number: '',
@@ -252,22 +267,26 @@ export default function InfringementNoticesScreen() {
     }
     setIssuing(true)
     try {
-      const { data, error } = await invokeFunctionWithAuthRetry(
-        'generate-infringement',
-        {
-          plate_number: form.plate_number.toUpperCase().trim(),
-          zone_id: form.zone_id,
-          offence_description: form.offence_description,
-          legal_basis: form.legal_basis,
-          offence_location: form.offence_location || form.zone_name,
-          amount_cents: form.amount_cents,
-          service_method: form.service_method,
-          recipient_name: form.recipient_name || undefined,
-          offence_date: new Date().toISOString(),
-          breach_alert_id: form.breach_alert_id || undefined,
-          observation_id: form.observation_id || undefined,
-        },
-        'Failed to issue notice',
+      const { data, error } = await withTimeout(
+        invokeFunctionWithAuthRetry(
+          'generate-infringement',
+          {
+            plate_number: form.plate_number.toUpperCase().trim(),
+            zone_id: form.zone_id,
+            offence_description: form.offence_description,
+            legal_basis: form.legal_basis,
+            offence_location: form.offence_location || form.zone_name,
+            amount_cents: form.amount_cents,
+            service_method: form.service_method,
+            recipient_name: form.recipient_name || undefined,
+            offence_date: new Date().toISOString(),
+            breach_alert_id: form.breach_alert_id || undefined,
+            observation_id: form.observation_id || undefined,
+          },
+          'Failed to issue notice',
+        ),
+        25000,
+        'Ticket generation timed out. Please try again.',
       )
       if (error) throw new Error(await getFunctionErrorMessage(error, 'Failed to issue notice'))
       if (!data?.success) throw new Error(data?.error || 'Failed')
@@ -296,10 +315,14 @@ export default function InfringementNoticesScreen() {
   const handleReprint = async (noticeId: string) => {
     setReprintingNoticeId(noticeId)
     try {
-      const { data, error } = await invokeFunctionWithAuthRetry(
-        'render-infringement-notice',
-        { notice_id: noticeId },
-        'Failed to load printable notice',
+      const { data, error } = await withTimeout(
+        invokeFunctionWithAuthRetry(
+          'render-infringement-notice',
+          { notice_id: noticeId },
+          'Failed to load printable notice',
+        ),
+        25000,
+        'Ticket render timed out. Please try again.',
       )
       if (error) throw new Error(await getFunctionErrorMessage(error, 'Failed to load printable notice'))
       if (!data?.success || !data?.html) throw new Error(data?.error || 'Printable notice unavailable')
