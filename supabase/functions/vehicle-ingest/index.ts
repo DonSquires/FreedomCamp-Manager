@@ -721,6 +721,36 @@ Deno.serve(async (req) => {
     const newObservationId = (observation as any).observation_id ?? (observation as any).id;
     console.log("✅ Observation created:", newObservationId);
 
+    // Start background officer enrichment from the backend so plate detection
+    // runs even if the browser is still on an older frontend build that does
+    // not yet fire process-officer-scan client-side.
+    const callerAuthHeader = req.headers.get("Authorization");
+    if (callerAuthHeader && photoUrl) {
+      const processOfficerScanUrl = `${supabaseUrl}/functions/v1/process-officer-scan`;
+      fetch(processOfficerScanUrl, {
+        method: "POST",
+        headers: {
+          "Authorization": callerAuthHeader,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          observation_id: newObservationId,
+          photo_url: photoUrl,
+          photo_hash: photoHash,
+        }),
+      }).then(async (response) => {
+        if (!response.ok) {
+          const text = await response.text().catch(() => "");
+          console.warn("⚠️ process-officer-scan background kickoff failed", {
+            status: response.status,
+            body: text,
+          });
+        }
+      }).catch((kickoffError) => {
+        console.warn("⚠️ process-officer-scan background kickoff exception", kickoffError);
+      });
+    }
+
     return new Response(
       JSON.stringify({
         success: true,

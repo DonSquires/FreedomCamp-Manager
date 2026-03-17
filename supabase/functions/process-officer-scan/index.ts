@@ -58,6 +58,26 @@ const MOVEMENT_THRESHOLD = 0.70;
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
+function extractBearerToken(authHeader: string | null): string | null {
+  if (!authHeader) return null;
+  const match = authHeader.match(/^Bearer\s+(.+)$/i);
+  if (!match) return null;
+  return match[1].trim() || null;
+}
+
+function decodeJwtPayload(token: string): Record<string, unknown> | null {
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) return null;
+    const base64Url = parts[1];
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const padded = base64 + '='.repeat((4 - (base64.length % 4)) % 4);
+    return JSON.parse(atob(padded));
+  } catch {
+    return null;
+  }
+}
+
 function jsonResp(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
@@ -440,18 +460,21 @@ Deno.serve(async (req: Request) => {
 
   try {
     // ── Auth ────────────────────────────────────────────────────────────────
-    const jwt = req.headers.get('Authorization')?.replace('Bearer ', '') ?? '';
+    const jwt = extractBearerToken(req.headers.get('Authorization'));
     if (!jwt) return jsonResp({ error: 'Missing Authorization header' }, 401);
 
     const supabase    = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
-    const { data: authData, error: authError } = await supabase.auth.getUser(jwt);
-    if (authError || !authData?.user) return jsonResp({ error: 'Unauthorized' }, 401);
+    const jwtPayload = decodeJwtPayload(jwt);
+    const authUserId = typeof jwtPayload?.sub === 'string' && jwtPayload.sub.length > 0
+      ? jwtPayload.sub
+      : null;
+    if (!authUserId) return jsonResp({ error: 'Unauthorized' }, 401);
 
     const { data: profile } = await supabase
       .from('user_profiles')
       .select('id, role, organization_id')
-      .eq('id', authData.user.id)
+      .eq('id', authUserId)
       .maybeSingle();
 
     if (!profile) return jsonResp({ error: 'User profile not found' }, 403);
@@ -476,6 +499,17 @@ Deno.serve(async (req: Request) => {
     if (obsLoadError || !obs) {
       console.error('❌ Observation not found:', obsLoadError?.message);
       return jsonResp({ error: 'Observation not found' }, 404);
+    }
+
+    // Idempotent fast-exit: if the observation already has a resolved plate,
+    // background enrichment has already completed (or manual correction was
+    // applied). This makes duplicate fire-and-forget invocations harmless.
+    if (obs.plate_number && obs.plate_number !== 'PROCESSING...' && obs.plate_number !== 'MANUAL_REQUIRED') {
+      console.log('ℹ️ process-officer-scan skipping already-enriched observation', {
+        observationId,
+        plate: obs.plate_number,
+      });
+      return jsonResp({ success: true, skipped: true, reason: 'already_enriched' });
     }
 
     // Verify officer owns this observation (master role can process any)
