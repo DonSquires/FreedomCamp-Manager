@@ -130,15 +130,15 @@ export default function InfringementNotices() {
   }
 
   const getValidAccessToken = async () => {
+    const { data, error } = await supabase.auth.refreshSession()
+    if (!error && data.session?.access_token) {
+      return data.session.access_token
+    }
+
     const { data: { session } } = await supabase.auth.getSession()
     if (session?.access_token) return session.access_token
 
-    const { data, error } = await supabase.auth.refreshSession()
-    if (error || !data.session?.access_token) {
-      throw new Error('Session expired. Please sign in again.')
-    }
-
-    return data.session.access_token
+    throw new Error('Session expired. Please sign in again.')
   }
 
   const invokeFunctionWithAuthRetry = async (name: string, body: any, fallbackMessage: string) => {
