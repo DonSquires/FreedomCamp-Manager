@@ -99,13 +99,40 @@ export default function InfringementNoticesScreen() {
     }
   }
 
+  const withAuthTimeout = async <T,>(promise: Promise<T>, ms: number, timeoutMessage: string): Promise<T> => {
+    return await new Promise<T>((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error(timeoutMessage)), ms)
+      promise
+        .then((value) => {
+          clearTimeout(timer)
+          resolve(value)
+        })
+        .catch((error) => {
+          clearTimeout(timer)
+          reject(error)
+        })
+    })
+  }
+
   const getValidAccessToken = async () => {
-    const { data, error } = await supabase.auth.refreshSession()
-    if (!error && data.session?.access_token) {
-      return data.session.access_token
+    try {
+      const { data, error } = await withAuthTimeout(
+        supabase.auth.refreshSession(),
+        6000,
+        'Auth refresh timed out',
+      )
+      if (!error && data.session?.access_token) {
+        return data.session.access_token
+      }
+    } catch {
+      // Fall back to existing session token if refresh stalls.
     }
 
-    const { data: { session } } = await supabase.auth.getSession()
+    const { data: { session } } = await withAuthTimeout(
+      supabase.auth.getSession(),
+      4000,
+      'Session lookup timed out',
+    )
     if (session?.access_token) return session.access_token
 
     throw new Error('Session expired. Please sign in again.')
@@ -185,7 +212,11 @@ export default function InfringementNoticesScreen() {
         throw new Error(message || fallbackMessage)
       }
 
-      const { data, error: refreshError } = await supabase.auth.refreshSession()
+      const { data, error: refreshError } = await withAuthTimeout(
+        supabase.auth.refreshSession(),
+        6000,
+        'Auth refresh timed out',
+      )
       if (refreshError || !data.session?.access_token) {
         throw new Error('Session expired. Please sign in again.')
       }
