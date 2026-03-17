@@ -102,6 +102,7 @@ export default function InfringementNotices() {
   const [previewHtml, setPreviewHtml] = useState<string | null>(null)
   const [issuing, setIssuing] = useState(false)
   const [prefillingFromObservation, setPrefillingFromObservation] = useState(false)
+  const [reprintingNoticeId, setReprintingNoticeId] = useState<string | null>(null)
 
   // Issue form state
   const [form, setForm] = useState({
@@ -307,6 +308,22 @@ export default function InfringementNotices() {
     }
   }
 
+  const handleReprint = async (noticeId: string) => {
+    setReprintingNoticeId(noticeId)
+    try {
+      const { data, error } = await supabase.functions.invoke('render-infringement-notice', {
+        body: { notice_id: noticeId },
+      })
+      if (error) throw new Error(error.message || 'Failed to load printable notice')
+      if (!data?.success || !data?.html) throw new Error(data?.error || 'Printable notice unavailable')
+      setPreviewHtml(data.html)
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to reprint notice')
+    } finally {
+      setReprintingNoticeId(null)
+    }
+  }
+
   // ── Populate form from selected breach alert ──────────────────────────────
   const handleBreachSelect = (breachId: string) => {
     const breach = breachOptions.find(b => b.id === breachId)
@@ -439,6 +456,16 @@ export default function InfringementNotices() {
 
                     {/* Action buttons */}
                     <div className="flex gap-1.5 flex-wrap shrink-0">
+                      <Button
+                        size="sm" variant="outline"
+                        className="h-7 text-xs gap-1"
+                        disabled={reprintingNoticeId === notice.id}
+                        onClick={() => handleReprint(notice.id)}
+                      >
+                        <Printer className="h-3 w-3" />
+                        {reprintingNoticeId === notice.id ? 'Loading...' : 'Reprint'}
+                      </Button>
+
                       {notice.status === 'issued' && (
                         <>
                           <Button

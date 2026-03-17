@@ -85,6 +85,7 @@ export default function InfringementNoticesScreen() {
   const [printableHtml, setPrintableHtml] = useState<string | null>(null)
   const [printableNoticeNumber, setPrintableNoticeNumber] = useState<string>('')
   const [openingPrint, setOpeningPrint] = useState(false)
+  const [reprintingNoticeId, setReprintingNoticeId] = useState<string | null>(null)
 
   // Issue form state
   const [form, setForm] = useState({
@@ -239,6 +240,25 @@ export default function InfringementNoticesScreen() {
     }
   }
 
+  const handleReprint = async (noticeId: string) => {
+    setReprintingNoticeId(noticeId)
+    try {
+      const { data, error } = await supabase.functions.invoke('render-infringement-notice', {
+        body: { notice_id: noticeId },
+      })
+      if (error) throw new Error(error.message)
+      if (!data?.success || !data?.html) throw new Error(data?.error || 'Printable notice unavailable')
+
+      setPrintableHtml(data.html)
+      setPrintableNoticeNumber(data.notice_number || '')
+      setShowPrintPrompt(true)
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to load printable notice')
+    } finally {
+      setReprintingNoticeId(null)
+    }
+  }
+
   // ── Stats ────────────────────────────────────────────────────────────────
   const today = new Date().toISOString().split('T')[0]
   const issuedToday = notices.filter(n => n.created_at?.startsWith(today)).length
@@ -277,6 +297,19 @@ export default function InfringementNoticesScreen() {
         <Text style={styles.noticeNum}>{item.notice_number}</Text>
 
         {/* Action buttons */}
+        <View style={styles.actions}>
+          <TouchableOpacity
+            style={styles.reprintBtn}
+            onPress={() => handleReprint(item.id)}
+            disabled={reprintingNoticeId === item.id}
+          >
+            <Ionicons name="print-outline" size={14} color="#1d4ed8" />
+            <Text style={styles.reprintText}>
+              {reprintingNoticeId === item.id ? 'Loading...' : 'Reprint'}
+            </Text>
+          </TouchableOpacity>
+        </View>
+
         {item.status === 'issued' && (
           <View style={styles.actions}>
             <TouchableOpacity
@@ -712,6 +745,12 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
   },
   actionText: { fontSize: 12, fontWeight: '600' },
+  reprintBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 4,
+    borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5,
+    backgroundColor: '#eff6ff', borderColor: '#bfdbfe',
+  },
+  reprintText: { fontSize: 12, fontWeight: '700', color: '#1d4ed8' },
   empty: { alignItems: 'center', paddingTop: 60, gap: 8 },
   emptyText: { fontSize: 18, fontWeight: '600', color: '#94a3b8' },
 
