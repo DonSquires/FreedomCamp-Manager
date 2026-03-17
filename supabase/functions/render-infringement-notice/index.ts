@@ -63,6 +63,7 @@ Deno.serve(async (req) => {
       .select(`
         id,
         notice_number,
+        notice_pdf_url,
         plate_number,
         offence_description,
         legal_basis,
@@ -94,6 +95,28 @@ Deno.serve(async (req) => {
       })
     }
 
+    if (notice.notice_pdf_url) {
+      try {
+        const artifactResponse = await fetch(notice.notice_pdf_url)
+        if (artifactResponse.ok) {
+          const artifactHtml = await artifactResponse.text()
+          if (artifactHtml.trim().length > 0) {
+            return new Response(JSON.stringify({
+              success: true,
+              notice_id: notice.id,
+              notice_number: notice.notice_number,
+              html: artifactHtml,
+              source: 'stored-artifact',
+            }), {
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            })
+          }
+        }
+      } catch {
+        // Fall back to server-side regeneration if artifact fetch is unavailable.
+      }
+    }
+
     const noticeHtml = generateNoticeHtml({
       noticeNumber: notice.notice_number,
       platNumber: notice.plate_number || 'UNKNOWN',
@@ -117,6 +140,7 @@ Deno.serve(async (req) => {
       notice_id: notice.id,
       notice_number: notice.notice_number,
       html: noticeHtml,
+      source: 'regenerated',
     }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })

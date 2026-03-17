@@ -34,6 +34,8 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3'
 import { corsHeaders } from '../_shared/cors.ts'
 
+const PRINT_ARTIFACT_BUCKET = 'scans'
+
 const NZ_DEFAULT_SUMMARY_OF_RIGHTS = `
 SUMMARY OF RIGHTS — FREEDOM CAMPING ACT 2011 (s20)
 
@@ -221,6 +223,37 @@ Deno.serve(async (req) => {
       )
     }
 
+    try {
+      const htmlHash = await sha256Hex(noticeHtml)
+      const artifactPath = `artifacts/infringements/${orgId}/${notice.notice_number}.html`
+      const uploadBody = new Blob([noticeHtml], { type: 'text/html;charset=utf-8' })
+
+      const { error: uploadError } = await supabaseAdmin.storage
+        .from(PRINT_ARTIFACT_BUCKET)
+        .upload(artifactPath, uploadBody, {
+          contentType: 'text/html; charset=utf-8',
+          upsert: true,
+        })
+
+      if (uploadError) {
+        console.error('⚠️ Failed to persist notice artifact:', uploadError)
+      } else {
+        const { data: publicUrlData } = supabaseAdmin.storage
+          .from(PRINT_ARTIFACT_BUCKET)
+          .getPublicUrl(artifactPath)
+
+        await supabaseAdmin
+          .from('infringement_notices')
+          .update({
+            notice_pdf_url: publicUrlData.publicUrl,
+            notice_pdf_hash: htmlHash,
+          })
+          .eq('id', notice.id)
+      }
+    } catch (artifactError) {
+      console.error('⚠️ Notice artifact persistence error:', artifactError)
+    }
+
     // Update breach alert status if provided
     if (breach_alert_id) {
       await supabaseAdmin
@@ -248,6 +281,14 @@ Deno.serve(async (req) => {
     )
   }
 })
+
+async function sha256Hex(input: string): Promise<string> {
+  const bytes = new TextEncoder().encode(input)
+  const digest = await crypto.subtle.digest('SHA-256', bytes)
+  return Array.from(new Uint8Array(digest))
+    .map((byte) => byte.toString(16).padStart(2, '0'))
+    .join('')
+}
 
 // ──────────────────────────────────────────────────────────────────────────────
 // HTML Notice Generator (ADR-style two-sided form)
