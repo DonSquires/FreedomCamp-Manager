@@ -35,7 +35,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3'
 import { corsHeaders } from '../_shared/cors.ts'
 
 const PRINT_ARTIFACT_BUCKET = 'notice-artifacts'
-const FUNCTION_BUILD = 'generate-infringement-2026-03-17d'
+const FUNCTION_BUILD = 'generate-infringement-2026-03-17e'
 
 function formatDbError(err: { message?: string | null; code?: string | null; details?: string | null; hint?: string | null }) {
   const parts = [
@@ -65,27 +65,36 @@ function extractBearerToken(req: Request): string | null {
 }
 
 const NZ_DEFAULT_SUMMARY_OF_RIGHTS = `
-SUMMARY OF RIGHTS — FREEDOM CAMPING ACT 2011 (s20)
+NOTES TO DEFENDANT — FREEDOM CAMPING ACT 2011
 
-You have received this infringement notice for an alleged offence under the Freedom Camping Act 2011 (FCA) and/or the applicable local authority bylaw.
+This infringement notice is issued under the Freedom Camping Act 2011 (FCA) and the Freedom Camping (Penalties for Infringement Offences) Regulations 2023. Your rights and obligations are set out in sections 22–28 of the FCA and section 21 of the Summary Proceedings Act 1957.
 
 YOUR OPTIONS:
 
-1. PAY THE FEE
-   Pay the infringement fee shown on the front of this notice within 28 days of the issue date. Payment details are on the front of this notice.
+1. PAY THE INFRINGEMENT FEE (ss 22–23 FCA 2011)
+   Pay the fee shown on the front of this notice to the enforcement authority within 28 days of the date of issue. If you pay within 28 days, no further action will be taken in respect of this notice.
 
-2. WRITE IN (DENY THE OFFENCE)
-   Send written submissions to the issuing authority within 28 days. Your submissions will be considered and you will be advised of the outcome. If the infringement is not cancelled, you may be served with a reminder notice.
+2. WRITE IN — DENY LIABILITY (s 24 FCA 2011)
+   If you deny liability for this offence, send a written notice to the enforcement authority within 28 days of the date of issue. You may include written submissions for consideration. If the infringement is not cancelled, you may be served with a reminder notice and the matter may then be referred to the District Court.
 
-3. REQUEST A COURT HEARING
-   You may elect to have the matter dealt with by a court. Contact the issuing authority in writing within 28 days to request a hearing. Court costs may be awarded against you if you are convicted.
+3. REQUEST A COURT HEARING (s 21 Summary Proceedings Act 1957; s 24 FCA 2011)
+   You may request that the matter be dealt with by a District Court. Contact the enforcement authority in writing within 28 days. Court costs may be awarded against you if you are found guilty.
 
 4. DO NOTHING
-   If you do not respond within 28 days, a reminder notice may be issued with an additional fee. The matter may then be referred to the District Court.
+   If you do not pay, deny liability, or request a hearing within 28 days, a reminder notice may be served for up to 1.5 times the original fee. Continued non-payment may result in the matter being referred to the District Court or the Ministry of Justice for debt collection.
 
-For further information contact the issuing authority shown on the front of this notice.
+DEFENCES (s 25 FCA 2011)
+It is a defence to this infringement notice if you prove that the act or omission was:
+  (a) necessary for the safety of any person; or
+  (b) necessary to prevent damage to land, property, or natural features.
 
-This notice is issued under the Freedom Camping Act 2011 and/or the applicable territorial authority bylaw.
+RENTAL / HIRE VEHICLES (s 26 FCA 2011)
+If this vehicle is a hired vehicle and the hirer does not pay the fee immediately, the enforcement officer is required to transfer this notice to the vehicle hire company. The hire company may then seek recovery from the hirer.
+
+PAYMENT AND INQUIRIES
+Direct all payments and inquiries regarding this notice to the enforcement authority shown on the front of this notice. Quote the infringement notice number in all correspondence.
+
+This notice is issued pursuant to section 20 of the Freedom Camping Act 2011.
 `.trim()
 
 Deno.serve(async (req) => {
@@ -109,12 +118,14 @@ Deno.serve(async (req) => {
       legal_basis,
       offence_date,
       offence_location,
-      amount_cents = 20000,
+      amount_cents = 40000,
       service_method = 'hand',
       recipient_name,
       recipient_email,
       recipient_address,
       summary_of_rights,
+      vehicle_make,
+      vehicle_model,
     } = body
 
     // Validate required fields
@@ -181,7 +192,7 @@ Deno.serve(async (req) => {
     // Get zone + org details for the notice letterhead
     const { data: zoneData, error: zoneError } = await supabaseAdmin
       .from('zones')
-      .select('id, name, location_lat, location_lng, organizations!inner(id, name)')
+      .select('id, name, location_lat, location_lng, organizations!inner(id, name, address, contact_phone, contact_email)')
       .eq('id', zone_id)
       .single()
 
@@ -192,9 +203,12 @@ Deno.serve(async (req) => {
       )
     }
 
-    const orgName = (zoneData?.organizations as any)?.name ?? 'Issuing Authority'
-    const zoneOrgId = (zoneData?.organizations as any)?.id as string | undefined
-    const orgId = profile.organization_id ?? zoneOrgId
+    const orgName    = (zoneData?.organizations as any)?.name           ?? 'Issuing Authority'
+    const orgAddress  = (zoneData?.organizations as any)?.address        ?? ''
+    const orgPhone    = (zoneData?.organizations as any)?.contact_phone  ?? ''
+    const orgEmail    = (zoneData?.organizations as any)?.contact_email  ?? ''
+    const zoneOrgId   = (zoneData?.organizations as any)?.id as string | undefined
+    const orgId       = profile.organization_id ?? zoneOrgId
 
     if (!orgId) {
       return new Response(
@@ -237,6 +251,8 @@ Deno.serve(async (req) => {
     const noticeHtml = generateNoticeHtml({
       noticeNumber,
       platNumber: plate_number,
+      vehicleMake: vehicle_make ?? null,
+      vehicleModel: vehicle_model ?? null,
       offenceDescription: offence_description,
       legalBasis: legal_basis,
       offenceDate: offenceDt,
@@ -248,6 +264,9 @@ Deno.serve(async (req) => {
       issuerName: `${profile.first_name} ${profile.last_name}`,
       issuerRole: profile.role,
       orgName,
+      orgAddress,
+      orgPhone,
+      orgEmail,
       zoneName: zoneData?.name ?? '',
       summaryOfRights: rightsText,
     })
@@ -277,6 +296,8 @@ Deno.serve(async (req) => {
         summary_of_rights: rightsText,
         status: 'issued',
         created_by: user.id,
+        vehicle_make: vehicle_make ?? null,
+        vehicle_model: vehicle_model ?? null,
       })
       .select('id, notice_number')
       .single()
@@ -358,6 +379,8 @@ async function sha256Hex(input: string): Promise<string> {
 function generateNoticeHtml(params: {
   noticeNumber: string
   platNumber: string
+  vehicleMake: string | null
+  vehicleModel: string | null
   offenceDescription: string
   legalBasis: string
   offenceDate: Date
@@ -369,6 +392,9 @@ function generateNoticeHtml(params: {
   issuerName: string
   issuerRole: string
   orgName: string
+  orgAddress: string
+  orgPhone: string
+  orgEmail: string
   zoneName: string
   summaryOfRights: string
 }): string {
@@ -377,6 +403,13 @@ function generateNoticeHtml(params: {
   const nzTime = (d: Date) =>
     d.toLocaleTimeString('en-NZ', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Pacific/Auckland' })
 
+  const vehicleDesc = [params.vehicleMake, params.vehicleModel].filter(Boolean).join(' ') || 'Not recorded'
+  const orgContactLines = [
+    params.orgAddress,
+    params.orgPhone ? `Ph: ${params.orgPhone}` : null,
+    params.orgEmail ? `Email: ${params.orgEmail}` : null,
+  ].filter(Boolean).join('&nbsp;&nbsp;|&nbsp;&nbsp;')
+
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -384,37 +417,41 @@ function generateNoticeHtml(params: {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Infringement Notice ${params.noticeNumber}</title>
   <style>
-    @page { size: A4; margin: 15mm; }
+    @page { size: A4; margin: 12mm 15mm; }
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: Arial, Helvetica, sans-serif; font-size: 11pt; color: #000; background: #fff; }
+    body { font-family: Arial, Helvetica, sans-serif; font-size: 10.5pt; color: #000; background: #fff; }
     .page { width: 100%; max-width: 180mm; margin: 0 auto; }
     .page-break { page-break-before: always; }
     /* Header */
-    .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 3px solid #1e3a8a; padding-bottom: 8pt; margin-bottom: 12pt; }
-    .org-name { font-size: 16pt; font-weight: bold; color: #1e3a8a; }
-    .notice-type { font-size: 20pt; font-weight: bold; color: #dc2626; text-align: right; }
-    .notice-number { font-size: 10pt; color: #666; text-align: right; }
+    .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 3px solid #1e3a8a; padding-bottom: 7pt; margin-bottom: 10pt; }
+    .org-name { font-size: 15pt; font-weight: bold; color: #1e3a8a; }
+    .org-contact { font-size: 7.5pt; color: #444; margin-top: 3pt; }
+    .notice-type { font-size: 18pt; font-weight: bold; color: #dc2626; text-align: right; }
+    .notice-meta { font-size: 9pt; color: #444; text-align: right; margin-top: 3pt; }
     /* Plate box */
-    .plate-box { border: 3px solid #000; padding: 8pt 16pt; display: inline-block; font-size: 28pt; font-weight: bold; font-family: 'Courier New', monospace; letter-spacing: 4pt; margin: 8pt 0; background: #fff; }
+    .plate-box { border: 3px solid #000; padding: 6pt 14pt; display: inline-block; font-size: 26pt; font-weight: bold; font-family: 'Courier New', monospace; letter-spacing: 4pt; margin: 6pt 0 2pt; background: #fff; }
     /* Sections */
-    .section { margin-bottom: 10pt; }
-    .section-title { font-weight: bold; font-size: 9pt; text-transform: uppercase; color: #555; border-bottom: 1px solid #ccc; padding-bottom: 2pt; margin-bottom: 4pt; }
-    .field-row { display: flex; gap: 16pt; margin-bottom: 4pt; }
+    .section { margin-bottom: 9pt; }
+    .section-title { font-weight: bold; font-size: 8.5pt; text-transform: uppercase; color: #444; border-bottom: 1px solid #bbb; padding-bottom: 2pt; margin-bottom: 4pt; letter-spacing: 0.5pt; }
+    .field-row { display: flex; gap: 14pt; margin-bottom: 4pt; }
     .field { flex: 1; }
-    .field-label { font-size: 8pt; color: #777; }
-    .field-value { font-size: 10pt; border-bottom: 1px solid #ccc; padding-bottom: 1pt; min-height: 14pt; }
+    .field-label { font-size: 7.5pt; color: #666; margin-bottom: 1pt; }
+    .field-value { font-size: 10pt; border-bottom: 1px solid #ccc; padding-bottom: 1pt; min-height: 13pt; }
     /* Amount box */
-    .amount-box { border: 2px solid #dc2626; padding: 8pt 12pt; text-align: center; margin: 8pt 0; }
-    .amount-label { font-size: 9pt; text-transform: uppercase; color: #dc2626; }
-    .amount-value { font-size: 24pt; font-weight: bold; color: #dc2626; }
+    .amount-box { border: 2.5px solid #dc2626; padding: 7pt 12pt; text-align: center; margin: 8pt 0; background: #fff9f9; }
+    .amount-label { font-size: 8.5pt; text-transform: uppercase; color: #dc2626; font-weight: bold; letter-spacing: 0.5pt; }
+    .amount-value { font-size: 22pt; font-weight: bold; color: #dc2626; margin: 2pt 0; }
     .amount-due { font-size: 9pt; color: #555; }
+    /* Authority payment box */
+    .payment-box { border: 1px solid #1e3a8a; padding: 6pt 10pt; margin: 8pt 0; background: #f0f4ff; font-size: 9pt; }
+    .payment-box-title { font-weight: bold; color: #1e3a8a; margin-bottom: 3pt; font-size: 8.5pt; text-transform: uppercase; }
     /* Footer */
-    .footer { margin-top: 12pt; font-size: 8pt; color: #777; border-top: 1px solid #ccc; padding-top: 6pt; }
+    .footer { margin-top: 10pt; font-size: 7.5pt; color: #666; border-top: 1px solid #ccc; padding-top: 5pt; }
     /* Rights page */
-    .rights-title { font-size: 14pt; font-weight: bold; color: #1e3a8a; margin-bottom: 12pt; border-bottom: 2px solid #1e3a8a; padding-bottom: 4pt; }
-    .rights-text { font-size: 10pt; line-height: 1.5; white-space: pre-wrap; }
+    .rights-title { font-size: 13pt; font-weight: bold; color: #1e3a8a; margin-bottom: 10pt; border-bottom: 2px solid #1e3a8a; padding-bottom: 4pt; }
+    .rights-text { font-size: 9.5pt; line-height: 1.55; white-space: pre-wrap; }
     /* Print bar */
-    @media screen { .print-bar { background: #f8fafc; border: 1px solid #e2e8f0; padding: 10px; margin-bottom: 16pt; display: flex; gap: 8px; align-items: center; } }
+    @media screen { .print-bar { background: #f8fafc; border: 1px solid #e2e8f0; padding: 10px; margin-bottom: 14pt; display: flex; gap: 8px; align-items: center; border-radius: 6px; } }
     @media print { .print-bar { display: none; } }
   </style>
 </head>
@@ -426,24 +463,48 @@ function generateNoticeHtml(params: {
 
   <!-- FRONT OF NOTICE -->
   <div class="page">
+
+    <!-- Header: enforcement authority + notice title -->
     <div class="header">
       <div>
         <div class="org-name">${params.orgName}</div>
-        <div style="font-size:9pt;color:#555;margin-top:2pt;">FREEDOM CAMPING ENFORCEMENT</div>
+        <div style="font-size:8.5pt;color:#555;font-weight:bold;margin-top:1pt;">FREEDOM CAMPING ENFORCEMENT</div>
+        ${orgContactLines ? `<div class="org-contact">${orgContactLines}</div>` : ''}
       </div>
-      <div>
+      <div style="text-align:right;">
         <div class="notice-type">INFRINGEMENT NOTICE</div>
-        <div class="notice-number">Notice No: <strong>${params.noticeNumber}</strong></div>
+        <div class="notice-meta">Notice No: <strong>${params.noticeNumber}</strong></div>
+        <div class="notice-meta">Date Issued: <strong>${nzDate(new Date())}</strong></div>
+        <div class="notice-meta">Time Issued: <strong>${nzTime(new Date())}</strong></div>
       </div>
     </div>
 
+    <!-- Vehicle details -->
     <div class="section">
-      <div class="section-title">Vehicle Registration</div>
-      <div class="plate-box">${params.platNumber}</div>
+      <div class="section-title">Vehicle Identification</div>
+      <div class="field-row">
+        <div class="field" style="flex:0 0 auto;">
+          <div class="field-label">Registration Plate</div>
+          <div class="plate-box">${params.platNumber}</div>
+        </div>
+        <div class="field" style="padding-top:6pt;">
+          <div class="field-row" style="margin-bottom:0;">
+            <div class="field">
+              <div class="field-label">Vehicle Make</div>
+              <div class="field-value">${params.vehicleMake ?? '&nbsp;'}</div>
+            </div>
+            <div class="field">
+              <div class="field-label">Vehicle Model</div>
+              <div class="field-value">${params.vehicleModel ?? '&nbsp;'}</div>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
 
+    <!-- Offence details -->
     <div class="section">
-      <div class="section-title">Offence Details</div>
+      <div class="section-title">Alleged Offence</div>
       <div class="field-row">
         <div class="field">
           <div class="field-label">Date of Offence</div>
@@ -455,75 +516,93 @@ function generateNoticeHtml(params: {
         </div>
       </div>
       <div class="field" style="margin-bottom:4pt;">
-        <div class="field-label">Location</div>
+        <div class="field-label">Location of Offence (precise address or GPS)</div>
         <div class="field-value">${params.offenceLocation}</div>
       </div>
       <div class="field" style="margin-bottom:4pt;">
-        <div class="field-label">Description of Offence</div>
-        <div class="field-value">${params.offenceDescription}</div>
+        <div class="field-label">Nature of Alleged Offence</div>
+        <div class="field-value" style="font-weight:bold;">${params.offenceDescription}</div>
       </div>
-      <div class="field">
-        <div class="field-label">Legal Basis</div>
-        <div class="field-value">${params.legalBasis}</div>
+      <div class="field-row">
+        <div class="field">
+          <div class="field-label">Legal Basis</div>
+          <div class="field-value">${params.legalBasis}</div>
+        </div>
+        <div class="field">
+          <div class="field-label">Offence Reference No.</div>
+          <div class="field-value">${params.noticeNumber}-01</div>
+        </div>
       </div>
     </div>
 
+    <!-- Fine amount -->
     <div class="amount-box">
-      <div class="amount-label">Infringement Fee</div>
+      <div class="amount-label">Infringement Fee Payable</div>
       <div class="amount-value">NZD $${params.amountDollars}</div>
-      <div class="amount-due">Payment due by: <strong>${nzDate(params.dueDt)}</strong></div>
+      <div class="amount-due">Payment due within 28 days — by <strong>${nzDate(params.dueDt)}</strong></div>
     </div>
 
+    <!-- Payment authority -->
+    <div class="payment-box">
+      <div class="payment-box-title">Direct Payment and Inquiries To</div>
+      <div>${params.orgName}${params.orgAddress ? ' &mdash; ' + params.orgAddress : ''}</div>
+      ${params.orgPhone ? `<div>Phone: ${params.orgPhone}</div>` : ''}
+      ${params.orgEmail ? `<div>Email: ${params.orgEmail}</div>` : ''}
+      <div style="margin-top:3pt;font-size:8.5pt;color:#444;">Quote infringement notice number <strong>${params.noticeNumber}</strong> in all correspondence.</div>
+    </div>
+
+    <!-- Issued to / service -->
     <div class="section">
       <div class="section-title">Issued To</div>
       <div class="field-row">
         <div class="field">
-          <div class="field-label">Name / Company</div>
-          <div class="field-value">${params.recipientName ?? 'Owner / Occupier of Vehicle'}</div>
+          <div class="field-label">Name (if known)</div>
+          <div class="field-value">${params.recipientName ?? 'Owner / Registered Operator of Vehicle'}</div>
         </div>
         <div class="field">
           <div class="field-label">Service Method</div>
-          <div class="field-value" style="text-transform:capitalize;">${params.serviceMethod}</div>
+          <div class="field-value" style="text-transform:capitalize;">${params.serviceMethod === 'hand' ? 'Hand delivered (on-site)' : params.serviceMethod === 'post' ? 'Posted' : 'Email'}</div>
         </div>
       </div>
     </div>
 
+    <!-- Issuing officer -->
     <div class="section">
-      <div class="section-title">Issuing Officer</div>
+      <div class="section-title">Enforcement Officer</div>
       <div class="field-row">
         <div class="field">
           <div class="field-label">Officer Name</div>
           <div class="field-value">${params.issuerName}</div>
         </div>
         <div class="field">
-          <div class="field-label">Date Issued</div>
-          <div class="field-value">${nzDate(new Date())}</div>
+          <div class="field-label">Authority / Role</div>
+          <div class="field-value" style="text-transform:capitalize;">${params.orgName} — ${params.issuerRole.replace('_', ' ')}</div>
         </div>
       </div>
       <div class="field-row">
         <div class="field" style="flex:2;">
-          <div class="field-label">Signature</div>
-          <div class="field-value" style="height:30pt;"></div>
+          <div class="field-label">Officer Signature</div>
+          <div class="field-value" style="height:28pt;"></div>
         </div>
         <div class="field">
-          <div class="field-label">Role</div>
-          <div class="field-value" style="text-transform:capitalize;">${params.issuerRole.replace('_', ' ')}</div>
+          <div class="field-label">Date Signed</div>
+          <div class="field-value" style="height:28pt;"></div>
         </div>
       </div>
     </div>
 
     <div class="footer">
-      See overleaf for your Summary of Rights. This notice is issued under the Freedom Camping Act 2011 and/or the applicable territorial authority bylaw.
-      Notice number ${params.noticeNumber} issued by ${params.orgName}.
+      See overleaf for Notes to Defendant (Summary of Rights). This notice is issued under section 20 of the Freedom Camping Act 2011 and/or the applicable territorial authority bylaw.
+      Infringement notice number <strong>${params.noticeNumber}</strong> issued by <strong>${params.orgName}</strong> on ${nzDate(new Date())}.
     </div>
   </div>
 
-  <!-- BACK OF NOTICE (page break for print) -->
+  <!-- BACK OF NOTICE — Notes to Defendant (page break for print) -->
   <div class="page page-break">
-    <div class="rights-title">SUMMARY OF RIGHTS</div>
+    <div class="rights-title">NOTES TO DEFENDANT — SUMMARY OF RIGHTS</div>
     <div class="rights-text">${params.summaryOfRights}</div>
-    <div class="footer" style="margin-top:24pt;">
-      Notice No: ${params.noticeNumber} | Plate: ${params.platNumber} | Issued: ${nzDate(new Date())} | ${params.orgName}
+    <div class="footer" style="margin-top:20pt;">
+      Notice No: ${params.noticeNumber}&nbsp;&nbsp;|&nbsp;&nbsp;Vehicle: ${params.platNumber} ${vehicleDesc}&nbsp;&nbsp;|&nbsp;&nbsp;Issued: ${nzDate(new Date())}&nbsp;&nbsp;|&nbsp;&nbsp;${params.orgName}
     </div>
   </div>
 </body>

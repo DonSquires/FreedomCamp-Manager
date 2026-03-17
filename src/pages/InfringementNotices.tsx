@@ -184,11 +184,13 @@ export default function InfringementNotices() {
   const [form, setForm] = useState({
     breach_alert_id: '',
     plate_number: '',
+    vehicle_make: '',
+    vehicle_model: '',
     zone_id: '',
     offence_description: '',
     legal_basis: 'Freedom Camping Act 2011 s20(1)(a)',
     offence_location: '',
-    amount_cents: 20000,
+    amount_cents: 40000,
     service_method: 'hand' as 'hand' | 'post' | 'email',
     recipient_name: '',
     recipient_email: '',
@@ -354,6 +356,8 @@ export default function InfringementNotices() {
     try {
       const body: any = {
         plate_number: form.plate_number.toUpperCase().trim(),
+        vehicle_make: form.vehicle_make.trim() || undefined,
+        vehicle_model: form.vehicle_model.trim() || undefined,
         zone_id: form.zone_id,
         offence_description: form.offence_description,
         legal_basis: form.legal_basis,
@@ -390,9 +394,9 @@ export default function InfringementNotices() {
 
       // Reset form
       setForm({
-        breach_alert_id: '', plate_number: '', zone_id: '',
+        breach_alert_id: '', plate_number: '', vehicle_make: '', vehicle_model: '', zone_id: '',
         offence_description: '', legal_basis: 'Freedom Camping Act 2011 s20(1)(a)',
-        offence_location: '', amount_cents: 20000, service_method: 'hand',
+        offence_location: '', amount_cents: 40000, service_method: 'hand',
         recipient_name: '', recipient_email: '', observation_id: '',
       })
     } catch (err: any) {
@@ -753,12 +757,66 @@ export default function InfringementNotices() {
               </div>
             </div>
 
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label>Vehicle Make</Label>
+                <Input
+                  value={form.vehicle_make}
+                  onChange={e => setForm(f => ({ ...f, vehicle_make: e.target.value }))}
+                  placeholder="e.g. Toyota"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label>Vehicle Model</Label>
+                <Input
+                  value={form.vehicle_model}
+                  onChange={e => setForm(f => ({ ...f, vehicle_model: e.target.value }))}
+                  placeholder="e.g. Hiace"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <Label>Offence Type <span className="text-red-500">*</span></Label>
+              <Select
+                value={form.offence_description}
+                onValueChange={v => {
+                  const presets: Record<string, { desc: string; basis: string; fee: number }> = {
+                    'Freedom camping in a prohibited area': { desc: 'Freedom camping in a prohibited area', basis: 'Freedom Camping Act 2011 s20(1)(a)', fee: 40000 },
+                    'Camping in breach of restrictions': { desc: 'Camping in breach of restrictions (nights/conditions)', basis: 'Freedom Camping Act 2011 s20(1)(b)', fee: 40000 },
+                    'Failing to display a valid self-containment warrant': { desc: 'Failing to display a valid self-containment warrant (NZS 5465)', basis: 'Freedom Camping Act 2011 s20(1)(c)', fee: 20000 },
+                    'Failing to leave when required by an officer': { desc: 'Failing to leave an area when directed by an enforcement officer', basis: 'Freedom Camping Act 2011 s20(1)(d)', fee: 40000 },
+                    'Damaging land, flora or fauna while camping': { desc: 'Interfering with, or damaging, the land, flora, or fauna while freedom camping', basis: 'Freedom Camping Act 2011 s20(1)(e)', fee: 80000 },
+                    'Improper disposal of waste while freedom camping': { desc: 'Improper disposal of waste while freedom camping', basis: 'Freedom Camping Act 2011 s20(1)(f)', fee: 40000 },
+                    'custom': { desc: '', basis: form.legal_basis, fee: form.amount_cents },
+                  }
+                  const p = presets[v]
+                  if (p && v !== 'custom') {
+                    setForm(f => ({ ...f, offence_description: p.desc, legal_basis: p.basis, amount_cents: p.fee }))
+                  } else {
+                    setForm(f => ({ ...f, offence_description: '' }))
+                  }
+                }}
+              >
+                <SelectTrigger><SelectValue placeholder="Select common offence or enter custom below..." /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Freedom camping in a prohibited area">$400 — Camping in prohibited area (s20(1)(a))</SelectItem>
+                  <SelectItem value="Camping in breach of restrictions">$400 — Camping in breach of restrictions (s20(1)(b))</SelectItem>
+                  <SelectItem value="Failing to display a valid self-containment warrant">$200 — No self-containment warrant displayed (s20(1)(c))</SelectItem>
+                  <SelectItem value="Failing to leave when required by an officer">$400 — Failed to leave when directed (s20(1)(d))</SelectItem>
+                  <SelectItem value="Damaging land, flora or fauna while camping">$800 — Damaging land/flora/fauna (s20(1)(e))</SelectItem>
+                  <SelectItem value="Improper disposal of waste while freedom camping">$400 — Improper waste disposal (s20(1)(f))</SelectItem>
+                  <SelectItem value="custom">Custom / enter manually below</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
             <div className="space-y-1">
               <Label>Offence Description <span className="text-red-500">*</span></Label>
               <Input
                 value={form.offence_description}
                 onChange={e => setForm(f => ({ ...f, offence_description: e.target.value }))}
-                placeholder="e.g. Camping for 4 consecutive nights exceeding the 3-night limit"
+                placeholder="Describe the alleged offence in detail"
               />
             </div>
 
@@ -789,10 +847,9 @@ export default function InfringementNotices() {
                 >
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="20000">$200.00 (standard FCA)</SelectItem>
-                    <SelectItem value="40000">$400.00 (repeat offender)</SelectItem>
-                    <SelectItem value="10000">$100.00 (warning notice)</SelectItem>
-                    <SelectItem value="60000">$600.00 (commercial vehicle)</SelectItem>
+                    <SelectItem value="20000">$200 — No warrant card displayed (s20(1)(c))</SelectItem>
+                    <SelectItem value="40000">$400 — Prohibited area / breach of restrictions</SelectItem>
+                    <SelectItem value="80000">$800 — Damaging land, flora or fauna</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
