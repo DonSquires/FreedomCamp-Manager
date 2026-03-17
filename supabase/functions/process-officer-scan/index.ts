@@ -60,9 +60,15 @@ const MOVEMENT_THRESHOLD = 0.70;
 
 function extractBearerToken(authHeader: string | null): string | null {
   if (!authHeader) return null;
-  const match = authHeader.match(/^Bearer\s+(.+)$/i);
-  if (!match) return null;
-  return match[1].trim() || null;
+  const trimmed = authHeader.trim();
+  if (!trimmed) return null;
+
+  const match = trimmed.match(/^Bearer\s+(.+)$/i);
+  if (match?.[1]) return match[1].trim() || null;
+
+  // Compatibility fallback: accept raw token strings for legacy callers.
+  if (!trimmed.includes(' ')) return trimmed;
+  return null;
 }
 
 function decodeJwtPayload(token: string): Record<string, unknown> | null {
@@ -466,9 +472,19 @@ Deno.serve(async (req: Request) => {
     const supabase    = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
 
     const jwtPayload = decodeJwtPayload(jwt);
-    const authUserId = typeof jwtPayload?.sub === 'string' && jwtPayload.sub.length > 0
+    let authUserId = typeof jwtPayload?.sub === 'string' && jwtPayload.sub.length > 0
       ? jwtPayload.sub
       : null;
+
+    // Compatibility fallback for tokens that don't decode cleanly in local
+    // parsing. This avoids regressions while preserving the faster local path.
+    if (!authUserId) {
+      const { data: authData, error: authError } = await supabase.auth.getUser(jwt);
+      if (!authError && authData?.user?.id) {
+        authUserId = authData.user.id;
+      }
+    }
+
     if (!authUserId) return jsonResp({ error: 'Unauthorized' }, 401);
 
     const { data: profile } = await supabase
