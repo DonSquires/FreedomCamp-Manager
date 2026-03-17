@@ -14,9 +14,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.7";
 import { corsHeaders } from "../_shared/cors.ts";
 import { alprWithBytes } from "../_shared/alpr.ts";
-import {
-  adaptiveObservationInsert,
-} from "../_shared/observationInsert.ts";
 
 const PHOTO_FETCH_TIMEOUT_MS = Number(Deno.env.get("INGEST_PHOTO_FETCH_TIMEOUT_MS") ?? "8000");
 const MAX_INSERT_ATTEMPTS = 8;
@@ -101,16 +98,6 @@ function normalizePlateNumber(raw: string | null | undefined): string | null {
   return normalized || null;
 }
 
-function isMissingIdempotencyColumnError(error: unknown): boolean {
-  const message =
-    typeof error === "string"
-      ? error
-      : (error as any)?.message || (error as any)?.error || "";
-
-  return /idempotency_key/i.test(String(message))
-    && /schema cache|does not exist|column/i.test(String(message));
-}
-
 async function downloadPhotoBytes(
   supabase: ReturnType<typeof createClient>,
   photoRef: string,
@@ -154,8 +141,6 @@ Deno.serve(async (req) => {
   }
 
   try {
-    let supportsIdempotencyKeyColumn = true;
-
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
@@ -468,13 +453,10 @@ Deno.serve(async (req) => {
       .eq("idempotency_key", idempotencyKey)
       .maybeSingle();
 
-    if (existingError && isMissingIdempotencyColumnError(existingError)) {
-      supportsIdempotencyKeyColumn = false;
-      console.warn("⚠️ observations.idempotency_key unavailable in schema cache; duplicate pre-check skipped", {
-        error: existingError.message,
-      });
-    } else if (existingError) {
-      throw existingError;
+    if (existingError) {
+      // idempotency_key is confirmed present in live DB (col 51) — any error
+      // here is unexpected; log and continue rather than hard-failing.
+      console.warn("⚠️ Idempotency duplicate check failed:", existingError.message);
     }
 
     if (existing) {
@@ -702,14 +684,15 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Step 4: Insert observation using shared adaptive insert helper
-    // This handles COALESCE type mismatch errors, schema cache misses,
-    // and falls back to safe_insert_observation RPC when triggers are broken.
-    // Based on working Feb 2025 trigger chain — see docs/SCAN_PIPELINE_REFERENCE.md
-    const observationData: Record<string, unknown> = {
+    // Step 4: Create the observation via safe_insert_observation.
+    // The live DB trigger inventory shows no observation-table business logic
+    // triggers, so a plain INSERT cannot be relied on to populate canonical
+    // vehicle details or run compliance evaluation. The RPC performs those
+    // steps inline and writes the canonical observations row directly.
+    const insertPayload: Record<string, unknown> = {
       plate_number: plateNumber || "MANUAL_REQUIRED",
-      photo: photoUrl,     // Primary photo column in live schema
-      photo_url: photoUrl, // Secondary for compatibility
+      photo: photoUrl,     // col 9 — primary photo
+      photo_url: photoUrl, // col 50 — compatibility alias
       photo_hash: photoHash,
       recorded_at: recordedAt ?? new Date().toISOString(),
       zone_id: zoneId,
@@ -719,37 +702,13 @@ Deno.serve(async (req) => {
       gps_accuracy: gpsAccuracy ?? null,
       recorded_by: officerId,
       officer_notes: officerNotes ?? null,
-      // Vehicle details populated by trigger_populate_observation_from_canonical
-      // or by safe_insert_observation RPC inline
-      vehicle_make: null,
-      vehicle_model: null,
-      vehicle_year: null,
-      vehicle_color: null,
-      self_contained: false,
-      self_contained_expiry: null,
-      // Compliance calculated by trg_auto_evaluate_compliance trigger
-      // or by safe_insert_observation RPC inline
-      is_compliant: true,
-      breach_type: null,
-      breach_reason: null,
-      nights_stayed_this_month: 0,
-      consecutive_nights: 0,
+      idempotency_key: idempotencyKey,
     };
 
-    const insertPayload: Record<string, unknown> = supportsIdempotencyKeyColumn
-      ? { ...observationData, idempotency_key: idempotencyKey }
-      : observationData;
-
-    // Use shared adaptive insert — handles schema drift, COALESCE errors,
-    // and falls back to safe_insert_observation RPC (which runs the full
-    // compliance pipeline inline: canonical lookup → compliance evaluation →
-    // compliance_results creation → breach_alert creation).
-    const { data: observation, error: obsError, droppedColumns } =
-      await adaptiveObservationInsert(supabase, insertPayload, MAX_INSERT_ATTEMPTS);
-
-    if (droppedColumns.length > 0) {
-      console.log("📝 Adaptive insert dropped columns:", droppedColumns);
-    }
+    const { data: observation, error: obsError } = await supabase.rpc(
+      "safe_insert_observation",
+      { p_data: insertPayload }
+    );
 
     if (obsError || !observation) {
       console.error("❌ Failed to create observation:", obsError);
