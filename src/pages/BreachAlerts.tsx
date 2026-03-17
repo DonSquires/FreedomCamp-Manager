@@ -259,7 +259,7 @@ export default function BreachAlerts() {
     queryFn: async () => {
       let q = (supabase.from('breach_alerts') as any)
         .select('id, plate_number, breach_type, created_at, status, zones!zone_id(name)')
-        .in('status', ['pending', 'acknowledged', 'enforcement_started'])
+        .eq('status', 'pending')
         .order('created_at', { ascending: false })
         .limit(10)
 
@@ -281,7 +281,7 @@ export default function BreachAlerts() {
     queryFn: async () => {
       let q = (supabase.from('officer_welfare_alerts') as any)
         .select('id, officer_name, alert_type, status, created_at, gps_latitude, gps_longitude')
-        .in('status', ['pending', 'acknowledged'])
+        .eq('status', 'pending')
         .order('created_at', { ascending: false })
         .limit(10)
 
