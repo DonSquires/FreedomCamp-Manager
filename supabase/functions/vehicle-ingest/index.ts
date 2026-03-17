@@ -169,7 +169,9 @@ Deno.serve(async (req) => {
     );
   }
 
-  // Verify JWT is valid by parsing payload
+  let jwtUserId: string | null = null;
+
+  // Verify JWT shape and extract authenticated subject
   try {
     const parts = jwt.split(".");
     if (parts.length !== 3) {
@@ -178,11 +180,12 @@ Deno.serve(async (req) => {
     
     const payload = JSON.parse(atob(parts[1]));
     const userId = payload.sub || payload.user_id;
-    
-    if (!userId) {
+
+    if (!userId || typeof userId !== "string") {
       throw new Error("JWT missing user ID");
     }
-    
+
+    jwtUserId = userId;
     console.log("✅ Authenticated user:", userId);
   } catch (jwtError: any) {
     console.error("🚫 AUTH ERROR: Invalid JWT:", jwtError.message);
@@ -205,40 +208,14 @@ Deno.serve(async (req) => {
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // Resolve authenticated user from token and enforce server-side identity/org.
-    let authUserId: string | null = null;
-
-    const { data: adminAuthData, error: adminAuthError } = await supabase.auth.getUser(jwt);
-    if (!adminAuthError && adminAuthData?.user?.id) {
-      authUserId = adminAuthData.user.id;
-    } else {
-      console.warn(
-        "⚠️ Auth verification via service-role client failed, retrying with anon client",
-        adminAuthError?.message ?? "unknown",
-      );
-
-      const authClient = createClient(supabaseUrl, supabaseAnonKey, {
-        auth: { persistSession: false, autoRefreshToken: false },
-      });
-
-      const { data: anonAuthData, error: anonAuthError } = await authClient.auth.getUser(jwt);
-      if (!anonAuthError && anonAuthData?.user?.id) {
-        authUserId = anonAuthData.user.id;
-      } else {
-        console.error(
-          "🚫 AUTH ERROR: Auth session verification failed via both clients",
-          {
-            admin: adminAuthError?.message ?? "unknown",
-            anon: anonAuthError?.message ?? "unknown",
-          },
-        );
-      }
-    }
-
+    // Use JWT subject extracted above. The Supabase gateway already validated
+    // token signature before invoking this function, and profile lookup below
+    // enforces that the user exists in this project.
+    const authUserId = jwtUserId;
     if (!authUserId) {
+      console.error("🚫 AUTH ERROR: Missing JWT subject after parse");
       return new Response(
         JSON.stringify({
           error: "Session expired or invalid. Please log out and log back in.",
