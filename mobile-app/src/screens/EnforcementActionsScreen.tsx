@@ -25,9 +25,9 @@ export default function EnforcementActionsScreen() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('enforcement_actions')
-        .select('id, action_type, status, plate_number, recorded_at, zone:zones!zone_id(name)')
+        .select('id, action_type, status, plate_number, created_at, zone:zones!zone_id(name)')
         .eq('organization_id', user!.organization_id)
-        .order('recorded_at', { ascending: false })
+        .order('created_at', { ascending: false })
         .limit(50)
       if (error) throw error
       return data as any[]
@@ -53,6 +53,10 @@ export default function EnforcementActionsScreen() {
   const renderItem = ({ item }: { item: any }) => {
     const meta = ACTION_META[item.action_type] || ACTION_META.warning
     const isPending = item.status === 'pending' || item.status === 'assigned'
+    const displayDate = item.created_at
+      ? new Date(item.created_at).toLocaleDateString('en-NZ')
+      : 'Unknown date'
+
     return (
       <View style={styles.card}>
         <View style={styles.cardTop}>
@@ -63,7 +67,7 @@ export default function EnforcementActionsScreen() {
             <Text style={styles.actionLabel}>{meta.label}</Text>
             <Text style={styles.plate}>{item.plate_number || '—'}</Text>
             <Text style={styles.meta}>
-              {item.zone?.name || 'Unknown zone'} · {new Date(item.recorded_at).toLocaleDateString('en-NZ')}
+              {item.zone?.name || 'Unknown zone'} · {displayDate}
             </Text>
           </View>
           <View style={[styles.statusDot, {
