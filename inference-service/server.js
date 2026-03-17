@@ -450,12 +450,37 @@ app.post('/infer', upload.single('photo'), async (req, res) => {
   const startTime = Date.now();
   
   try {
-    if (!yoloSession || !embeddingSession) {
-      return res.status(503).json({ error: 'Models not loaded — service is running in degraded mode' });
-    }
-
     if (!req.file) {
       return res.status(400).json({ error: 'No photo uploaded' });
+    }
+
+    const modelsLoaded = !!(yoloSession && embeddingSession);
+
+    // Degraded-mode path: ONNX models missing but AI attribute provider is active
+    if (!modelsLoaded) {
+      if (VEHICLE_ATTRS_PROVIDER === 'openai') {
+        console.log(`⚙️  Degraded mode — skipping YOLO/embedding, calling AI attribute provider`);
+        const vehicleAttrs = await inferVehicleAttributes(req.file.buffer, req.file.buffer);
+        const duration = Date.now() - startTime;
+        return res.json({
+          success: true,
+          degraded: true,
+          data: {
+            vehicle_make: vehicleAttrs.vehicle_make,
+            vehicle_model: vehicleAttrs.vehicle_model,
+            vehicle_year: vehicleAttrs.vehicle_year,
+            vehicle_colour: vehicleAttrs.vehicle_colour,
+            vehicle_color: vehicleAttrs.vehicle_colour,
+            vehicle_make_confidence: vehicleAttrs.vehicle_make_confidence,
+            vehicle_model_confidence: vehicleAttrs.vehicle_model_confidence,
+            vehicle_year_confidence: vehicleAttrs.vehicle_year_confidence,
+            vehicle_colour_confidence: vehicleAttrs.vehicle_colour_confidence,
+            sticker: vehicleAttrs.sticker,
+            metadata: { processing_time_ms: duration },
+          }
+        });
+      }
+      return res.status(503).json({ error: 'Models not loaded — service is running in degraded mode' });
     }
 
     console.log(`Processing ${req.file.originalname} (${req.file.size} bytes)`);
@@ -527,11 +552,22 @@ app.post('/infer', upload.single('photo'), async (req, res) => {
 
 // Health check
 app.get('/health', (req, res) => {
+  const modelsLoaded = !!(yoloSession && embeddingSession);
   res.json({
     status: 'healthy',
     models: {
       yolo: yoloSession ? 'loaded' : 'not loaded',
       embedding: embeddingSession ? 'loaded' : 'not loaded'
+    },
+    config: {
+      VEHICLE_ATTRS_PROVIDER,
+      OPENAI_BASE_URL: OPENAI_BASE_URL || null,
+      OPENAI_MODEL: OPENAI_MODEL || null,
+      OPENAI_API_KEY_SET: !!OPENAI_API_KEY,
+    },
+    capabilities: {
+      plate_inference: modelsLoaded,
+      ai_attributes: VEHICLE_ATTRS_PROVIDER === 'openai' && !!OPENAI_API_KEY,
     },
     uptime: process.uptime(),
     memory: process.memoryUsage()
@@ -552,10 +588,19 @@ app.use((err, req, res, next) => {
 loadModels().then(() => {
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 ORC/AI inference service running on port ${PORT}`);
+    // Config summary — makes misconfiguration visible at a glance in Railway logs
+    console.log(`⚙️  Config:`, {
+      VEHICLE_ATTRS_PROVIDER,
+      OPENAI_BASE_URL: OPENAI_BASE_URL || '(not set)',
+      OPENAI_MODEL: OPENAI_MODEL || '(not set)',
+      OPENAI_API_KEY: OPENAI_API_KEY ? `${OPENAI_API_KEY.slice(0, 6)}…` : '(not set)',
+    });
     if (yoloSession && embeddingSession) {
-      console.log(`📡 Ready to process vehicle photos`);
+      console.log(`📡 Ready to process vehicle photos — YOLO + embedding models loaded`);
     } else {
-      console.log(`⚠️  Running in degraded mode — /infer endpoint will return 503 (plate scan still works via Plate Recognizer API)`);
+      console.log(`⚠️  Running in degraded mode — ONNX models NOT loaded`);
+      console.log(`   /infer returns 503. Fix: ensure model files (yolov8n.onnx, mobilenetv3.onnx) are present at startup.`);
+      console.log(`   Vehicle attributes via OpenAI will still work if VEHICLE_ATTRS_PROVIDER=openai`);
     }
   });
 });
