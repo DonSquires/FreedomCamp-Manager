@@ -22,6 +22,32 @@ export function isCoalesceTypeMismatchError(error: unknown): boolean {
 }
 
 /**
+ * Detects legacy table-reference failures where stale trigger/function bodies
+ * still reference vehicle_observations_v2 after the table rename.
+ */
+export function isLegacyVehicleObservationsRelationError(error: unknown): boolean {
+  const parts = [
+    typeof error === "string" ? error : "",
+    (error as any)?.message,
+    (error as any)?.details,
+    (error as any)?.hint,
+    (error as any)?.error,
+    (error as any)?.code,
+  ].filter(Boolean);
+
+  const msg = String(parts.join(" ")).toLowerCase();
+  const referencesLegacyTable = msg.includes("vehicle_observations_v2");
+  const looksLikeMissingRelation =
+    msg.includes("relation") ||
+    msg.includes("does not exist") ||
+    msg.includes("does not exitst") ||
+    msg.includes("undefined_table") ||
+    msg.includes("42p01");
+
+  return referencesLegacyTable && looksLikeMissingRelation;
+}
+
+/**
  * Detects missing schema column errors.
  * Error pattern: "Could not find the 'column_name' column of 'table_name' in the schema cache"
  */
@@ -187,8 +213,20 @@ export async function adaptiveObservationInsert(
   }
 
   // ── Last-resort: safe_insert_observation RPC (bypasses triggers) ──
-  if (isCoalesceTypeMismatchError(lastError) && supabase.rpc) {
-    console.warn("⚠️ COALESCE trigger error persists — trying safe_insert_observation RPC");
+  const shouldTrySafeInsertRpc =
+    (isCoalesceTypeMismatchError(lastError) ||
+      isLegacyVehicleObservationsRelationError(lastError)) &&
+    !!supabase.rpc;
+
+  if (shouldTrySafeInsertRpc) {
+    if (isLegacyVehicleObservationsRelationError(lastError)) {
+      console.warn(
+        "⚠️ Legacy vehicle_observations_v2 reference detected — trying safe_insert_observation RPC"
+      );
+    } else {
+      console.warn("⚠️ COALESCE trigger error persists — trying safe_insert_observation RPC");
+    }
+
     try {
       const rpcPayload: Record<string, unknown> = {
         plate_number: payload.plate_number ?? data.plate_number ?? "PROCESSING...",

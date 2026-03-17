@@ -145,15 +145,26 @@ export async function captureAndSave(
     // Fall back to direct insert when the RPC is missing, has a schema-cache
     // miss, or its function body is broken (e.g. references the old table name
     // vehicle_observations_v2 before migration 20260316000003 was applied).
-    const rpcErrMsg = rpcErr?.message ?? ''
+    const rpcErrMsg = [
+      rpcErr?.message,
+      (rpcErr as any)?.details,
+      (rpcErr as any)?.hint,
+      (rpcErr as any)?.code,
+    ]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase()
     const isFunctionUnavailable =
       rpcErrMsg.includes('schema cache') ||
-      rpcErrMsg.includes('Could not find') ||
+      rpcErrMsg.includes('could not find') ||
       rpcErr?.code === 'PGRST202'
     const isBrokenFunctionBody =
       rpcErrMsg.includes('vehicle_observations_v2') ||
-      rpcErrMsg.includes('INSERT failed') ||
-      rpcErrMsg.includes('INSERT into observations failed')
+      rpcErrMsg.includes('insert failed') ||
+      rpcErrMsg.includes('insert into observations failed') ||
+      rpcErrMsg.includes('does not exist') ||
+      rpcErrMsg.includes('undefined_table') ||
+      rpcErrMsg.includes('42p01')
 
     if (isFunctionUnavailable || isBrokenFunctionBody) {
       if (isBrokenFunctionBody) {

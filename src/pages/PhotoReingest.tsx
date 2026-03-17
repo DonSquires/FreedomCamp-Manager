@@ -119,36 +119,21 @@ export default function PhotoReingest() {
   const runReingestBatched = async (): Promise<ReingestResult> => {
     const startedAt = Date.now()
 
-    // Step 1: Get total count of observations with photos
-    const { data: totalData, error: totalError } = await withTimeout(
-      edgeFunctions.reingestPhotos({
-        get_total: true,
-        organization_id: effectiveOrgId || undefined,
-        date_from: dateFrom || undefined,
-        date_to: dateTo || undefined,
-      }),
-      45_000,
-      'Initial reingest count request',
-    )
+    // No count query — just stream batches until the function returns processed=0.
+    // This avoids a slow full-table COUNT that was timing out before any work started.
+    let offset = 0
+    const batchSize = 10
+    let processedTotal = 0
+    let createdTotal = 0
+    let failedTotal = 0
+    let topFailureReason: string | null = null
+    let batchNumber = 0
 
-    if (totalError) throw new Error(totalError)
-
-    const total = Number((totalData as ReingestBatchResponse | null)?.total ?? 0)
-
-    if (total <= 0) {
-      return {
-        processed: 0,
-        created: 0,
-        failed: 0,
-        duration_seconds: Math.round((Date.now() - startedAt) / 1000),
-        status: 'completed',
-      }
-    }
-
-    const initialLiveState: LiveRunState = { total, processed: 0, created: 0, failed: 0 }
-    setLiveRun(initialLiveState)
-    updateProgress(OPERATION_ID, 0, {
-      total,
+    // Seed the live display immediately so the card appears.
+    setLiveRun({ total: 0, processed: 0, created: 0, failed: 0 })
+    setProgress(5)
+    updateProgress(OPERATION_ID, 5, {
+      total: 0,
       processed: 0,
       changed: 0,
       breachesCreated: 0,
@@ -156,14 +141,7 @@ export default function PhotoReingest() {
       skippedNoRules: 0,
     })
 
-    let offset = 0
-    const batchSize = 10
-    let processedTotal = 0
-    let createdTotal = 0
-    let failedTotal = 0
-    let topFailureReason: string | null = null
-
-    while (offset < total) {
+    while (true) {
       const { data: batchData, error: batchError } = await withTimeout(
         edgeFunctions.reingestPhotos({
           organization_id: effectiveOrgId || undefined,
@@ -173,7 +151,7 @@ export default function PhotoReingest() {
           batch_size: batchSize,
         }),
         90_000,
-        `Reingest batch request (offset ${offset})`,
+        `Reingest batch at offset ${offset}`,
       )
 
       if (batchError) throw new Error(batchError)
@@ -190,19 +168,19 @@ export default function PhotoReingest() {
       processedTotal += processed
       createdTotal += created
       failedTotal += failed
+      batchNumber++
 
-      const progressPct = total > 0 ? Math.min(100, Math.round((processedTotal / total) * 100)) : 0
-      setProgress(progressPct)
-      const liveState: LiveRunState = {
-        total,
+      // Pulse the progress bar: creep toward 95% as batches complete, never reach 100 until done.
+      const pulsedProgress = Math.min(95, 5 + batchNumber * 8)
+      setProgress(pulsedProgress)
+      setLiveRun({
+        total: processedTotal, // running count shown in place of "Target"
         processed: processedTotal,
         created: createdTotal,
         failed: failedTotal,
-      }
-      setLiveRun(liveState)
-      // Map reingest fields to OperationProgress: changed=created, breachesCreated=failed
-      updateProgress(OPERATION_ID, progressPct, {
-        total,
+      })
+      updateProgress(OPERATION_ID, pulsedProgress, {
+        total: processedTotal,
         processed: processedTotal,
         changed: createdTotal,
         breachesCreated: failedTotal,
@@ -408,14 +386,10 @@ export default function PhotoReingest() {
             </CardHeader>
             <CardContent className="space-y-4">
               <Progress value={progress} className="w-full" />
-              <p className="text-sm text-gray-600 text-center">{progress}% complete</p>
+              <p className="text-sm text-gray-600 text-center">Processing — {(liveRun?.processed ?? 0).toLocaleString()} photos sent through ingest pipeline</p>
 
               {liveRun && (
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  <div className="bg-white dark:bg-gray-800 p-3 rounded-lg">
-                    <div className="text-xs text-gray-600">Target</div>
-                    <div className="text-lg font-semibold mt-1">{liveRun.total.toLocaleString()}</div>
-                  </div>
+                <div className="grid grid-cols-3 gap-3">
                   <div className="bg-white dark:bg-gray-800 p-3 rounded-lg">
                     <div className="text-xs text-gray-600">Processed</div>
                     <div className="text-lg font-semibold mt-1">{liveRun.processed.toLocaleString()}</div>
