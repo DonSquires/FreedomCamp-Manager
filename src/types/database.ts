@@ -4989,6 +4989,8 @@ export type Database = {
           managing_authority: string | null
           max_consecutive_nights: number | null
           max_stay_nights: number | null
+          objections_email: string | null
+          objections_postal_address: string | null
           org_building: string | null
           org_city: string
           org_country: string | null
@@ -5000,6 +5002,9 @@ export type Database = {
           org_postcode: string
           org_street_address: string
           org_website: string | null
+          payment_bank_account: string | null
+          payment_instructions: string | null
+          payment_online_url: string | null
           organization_id: string
           self_contained_required: boolean | null
           trespass_duration_years: number | null
@@ -5021,6 +5026,8 @@ export type Database = {
           managing_authority?: string | null
           max_consecutive_nights?: number | null
           max_stay_nights?: number | null
+          objections_email?: string | null
+          objections_postal_address?: string | null
           org_building?: string | null
           org_city: string
           org_country?: string | null
@@ -5032,6 +5039,9 @@ export type Database = {
           org_postcode: string
           org_street_address: string
           org_website?: string | null
+          payment_bank_account?: string | null
+          payment_instructions?: string | null
+          payment_online_url?: string | null
           organization_id: string
           self_contained_required?: boolean | null
           trespass_duration_years?: number | null
@@ -5053,6 +5063,8 @@ export type Database = {
           managing_authority?: string | null
           max_consecutive_nights?: number | null
           max_stay_nights?: number | null
+          objections_email?: string | null
+          objections_postal_address?: string | null
           org_building?: string | null
           org_city?: string
           org_country?: string | null
@@ -5064,6 +5076,9 @@ export type Database = {
           org_postcode?: string
           org_street_address?: string
           org_website?: string | null
+          payment_bank_account?: string | null
+          payment_instructions?: string | null
+          payment_online_url?: string | null
           organization_id?: string
           self_contained_required?: boolean | null
           trespass_duration_years?: number | null

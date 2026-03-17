@@ -35,7 +35,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3'
 import { corsHeaders } from '../_shared/cors.ts'
 
 const PRINT_ARTIFACT_BUCKET = 'notice-artifacts'
-const FUNCTION_BUILD = 'generate-infringement-2026-03-17e'
+const FUNCTION_BUILD = 'generate-infringement-2026-03-17f'
 
 function formatDbError(err: { message?: string | null; code?: string | null; details?: string | null; hint?: string | null }) {
   const parts = [
@@ -62,6 +62,32 @@ function extractBearerToken(req: Request): string | null {
   
   const match = authHeader.match(/^Bearer\s+(.+)$/i)
   return match?.[1]?.trim() ?? null
+}
+
+function joinAddressParts(parts: Array<string | null | undefined>) {
+  return parts.map((part) => part?.trim()).filter(Boolean).join(', ')
+}
+
+function formatGpsCoordinates(latitude?: number | null, longitude?: number | null) {
+  if (latitude == null || longitude == null) return ''
+  return `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`
+}
+
+function deriveOfficerRole(profileRole?: string | null, issuingAuthority?: string | null, enforcementAuthority?: string | null) {
+  if (issuingAuthority?.trim()) return issuingAuthority.trim()
+  if (enforcementAuthority?.trim()) return enforcementAuthority.trim()
+
+  switch (profileRole) {
+    case 'admin_officer':
+    case 'officer':
+      return 'Warranted Enforcement Officer'
+    case 'admin':
+      return 'Authorised Enforcement Administrator'
+    case 'master':
+      return 'Authorised Enforcement Officer'
+    default:
+      return 'Authorised Enforcement Officer'
+  }
 }
 
 const NZ_DEFAULT_SUMMARY_OF_RIGHTS = `
@@ -137,6 +163,13 @@ Deno.serve(async (req) => {
       )
     }
 
+    if (!observation_id) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Manual infringement notices are not permitted. Issue notices from a recorded observation.' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
     // Get the calling user's ID from the auth header
     const token = extractBearerToken(req)
     if (!token) {
@@ -172,7 +205,7 @@ Deno.serve(async (req) => {
     // Get issuing officer profile + org
     const { data: profile, error: profileError } = await supabaseAdmin
       .from('user_profiles')
-      .select('id, first_name, last_name, organization_id, role')
+      .select('id, first_name, last_name, organization_id, role, warrant_number, warrant_expiry, issuing_authority')
       .eq('id', user.id)
       .single()
 
@@ -190,10 +223,24 @@ Deno.serve(async (req) => {
       )
     }
 
+    if (!profile.warrant_number?.trim()) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Issuing officer must have a warrant number before an infringement notice can be issued.' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    if (profile.warrant_expiry && profile.warrant_expiry < new Date().toISOString().split('T')[0]) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Issuing officer warrant has expired. Renew the warrant before issuing an infringement notice.' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
     // Get zone + org details for the notice letterhead
     const { data: zoneData, error: zoneError } = await supabaseAdmin
       .from('zones')
-      .select('id, name, location_lat, location_lng, organizations!inner(id, name, address, contact_phone, contact_email)')
+      .select('id, name, location_lat, location_lng, enforcement_authority, organizations!inner(id, name, address, contact_phone, contact_email)')
       .eq('id', zone_id)
       .single()
 
@@ -225,6 +272,75 @@ Deno.serve(async (req) => {
       )
     }
 
+    const { data: legalConfig, error: legalConfigError } = await supabaseAdmin
+      .from('zone_legal_config')
+      .select('org_office_name, org_street_address, org_po_box, org_city, org_postcode, org_phone, org_email, org_website, enforcement_authority, payment_online_url, payment_bank_account, payment_instructions, objections_email, objections_postal_address')
+      .eq('zone_id', zone_id)
+      .maybeSingle()
+
+    if (legalConfigError) {
+      console.warn('⚠️ zone_legal_config lookup failed', formatDbError(legalConfigError))
+    }
+
+    let observationData: {
+      gps_latitude: number | null
+      gps_longitude: number | null
+      recorded_at: string
+      vehicle_make: string | null
+      vehicle_model: string | null
+    } | null = null
+
+    if (observation_id) {
+      const { data: observation, error: observationError } = await supabaseAdmin
+        .from('observations')
+        .select('gps_latitude, gps_longitude, recorded_at, vehicle_make, vehicle_model')
+        .eq('observation_id', observation_id)
+        .single()
+
+      if (observationError || !observation) {
+        return new Response(
+          JSON.stringify({ success: false, error: 'Linked observation was not found. Refresh the page and try again.' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        )
+      }
+
+      observationData = observation
+    }
+
+    const legalOfficeAddress = joinAddressParts([
+      legalConfig?.org_street_address,
+      legalConfig?.org_po_box,
+      legalConfig?.org_city,
+      legalConfig?.org_postcode,
+    ])
+    const resolvedVehicleMake = vehicle_make ?? observationData?.vehicle_make ?? null
+    const resolvedVehicleModel = vehicle_model ?? observationData?.vehicle_model ?? null
+    const resolvedGps = formatGpsCoordinates(
+      observationData?.gps_latitude ?? zoneData?.location_lat,
+      observationData?.gps_longitude ?? zoneData?.location_lng,
+    )
+    const resolvedOffenceLocation = offence_location?.trim()
+      || legalOfficeAddress
+      || orgAddress
+      || zoneData?.name
+      || 'Location not recorded'
+    const jurisdictionLabel = zoneData?.name?.trim() || `${orgName} Jurisdiction`
+    const officerRoleLabel = deriveOfficerRole(
+      profile.role,
+      profile.issuing_authority,
+      legalConfig?.enforcement_authority ?? zoneData?.enforcement_authority,
+    )
+    const paymentOnlineUrl = legalConfig?.payment_online_url?.trim() || legalConfig?.org_website?.trim() || ''
+    const paymentBankAccount = legalConfig?.payment_bank_account?.trim() || ''
+    const paymentInstructions = legalConfig?.payment_instructions?.trim() || ''
+    const objectionsEmail = legalConfig?.objections_email?.trim() || legalConfig?.org_email?.trim() || orgEmail || ''
+    const objectionsPostalAddress = legalConfig?.objections_postal_address?.trim() || legalOfficeAddress || orgAddress || ''
+    const paymentMethods = [
+      paymentOnlineUrl ? 'online' : null,
+      paymentBankAccount ? 'bank_transfer' : null,
+      objectionsEmail ? 'email_contact' : null,
+    ].filter(Boolean)
+
     // Generate unique notice number
     const { data: rpcNoticeNumber, error: numError } = await supabaseAdmin
       .rpc('generate_infringement_number', { p_org_id: orgId })
@@ -242,7 +358,7 @@ Deno.serve(async (req) => {
 
     // Calculate dates
     const issuedAt = new Date()
-    const offenceDt = offence_date ? new Date(offence_date) : new Date()
+    const offenceDt = offence_date ? new Date(offence_date) : observationData?.recorded_at ? new Date(observationData.recorded_at) : new Date()
     const dueDt = new Date(issuedAt.getTime() + 28 * 24 * 60 * 60 * 1000)
 
     const rightsText = summary_of_rights || NZ_DEFAULT_SUMMARY_OF_RIGHTS
@@ -252,22 +368,29 @@ Deno.serve(async (req) => {
     const noticeHtml = generateNoticeHtml({
       noticeNumber,
       platNumber: plate_number,
-      vehicleMake: vehicle_make ?? null,
-      vehicleModel: vehicle_model ?? null,
+      vehicleMake: resolvedVehicleMake,
+      vehicleModel: resolvedVehicleModel,
       offenceDescription: offence_description,
       legalBasis: legal_basis,
       offenceDate: offenceDt,
-      offenceLocation: offence_location ?? zoneData?.name ?? 'See attached observation',
+      offenceLocation: resolvedOffenceLocation,
+      offenceGps: resolvedGps,
+      jurisdiction: jurisdictionLabel,
       amountDollars,
       dueDt,
       serviceMethod: service_method,
       recipientName: recipient_name,
-      issuerName: `${profile.first_name} ${profile.last_name}`,
-      issuerRole: profile.role,
+      issuerWarrantNumber: profile.warrant_number,
+      issuerRole: officerRoleLabel,
       orgName,
-      orgAddress,
-      orgPhone,
-      orgEmail,
+      orgAddress: legalOfficeAddress || orgAddress,
+      orgPhone: legalConfig?.org_phone ?? orgPhone,
+      orgEmail: legalConfig?.org_email ?? orgEmail,
+      paymentOnlineUrl,
+      paymentBankAccount,
+      paymentInstructions,
+      objectionsEmail,
+      objectionsPostalAddress,
       zoneName: zoneData?.name ?? '',
       summaryOfRights: rightsText,
     })
@@ -284,12 +407,16 @@ Deno.serve(async (req) => {
         offence_description,
         legal_basis,
         offence_date: offenceDt.toISOString(),
-        offence_location: offence_location ?? zoneData?.name,
+        offence_location: resolvedOffenceLocation,
+        offence_location_gps: resolvedGps || null,
         notice_number: noticeNumber,
         notice_type: 'infringement',
         amount_cents,
         issued_at: issuedAt.toISOString(),
         due_date: dueDt.toISOString().split('T')[0],
+        payment_deadline: dueDt.toISOString().split('T')[0],
+        payment_methods: paymentMethods.length > 0 ? paymentMethods : null,
+        payment_reference: noticeNumber,
         service_method,
         recipient_name: recipient_name ?? null,
         recipient_email: recipient_email ?? null,
@@ -297,8 +424,9 @@ Deno.serve(async (req) => {
         summary_of_rights: rightsText,
         status: 'issued',
         created_by: user.id,
-        vehicle_make: vehicle_make ?? null,
-        vehicle_model: vehicle_model ?? null,
+        issued_by: user.id,
+        vehicle_make: resolvedVehicleMake,
+        vehicle_model: resolvedVehicleModel,
       })
       .select('id, notice_number')
       .single()
@@ -386,16 +514,23 @@ function generateNoticeHtml(params: {
   legalBasis: string
   offenceDate: Date
   offenceLocation: string
+  offenceGps: string
+  jurisdiction: string
   amountDollars: string
   dueDt: Date
   serviceMethod: string
   recipientName?: string
-  issuerName: string
+  issuerWarrantNumber: string
   issuerRole: string
   orgName: string
   orgAddress: string
   orgPhone: string
   orgEmail: string
+  paymentOnlineUrl: string
+  paymentBankAccount: string
+  paymentInstructions: string
+  objectionsEmail: string
+  objectionsPostalAddress: string
   zoneName: string
   summaryOfRights: string
 }): string {
@@ -446,6 +581,8 @@ function generateNoticeHtml(params: {
     /* Authority payment box */
     .payment-box { border: 1px solid #1e3a8a; padding: 6pt 10pt; margin: 8pt 0; background: #f0f4ff; font-size: 9pt; }
     .payment-box-title { font-weight: bold; color: #1e3a8a; margin-bottom: 3pt; font-size: 8.5pt; text-transform: uppercase; }
+    .contact-box { border: 1px solid #334155; padding: 6pt 10pt; margin: 8pt 0; background: #f8fafc; font-size: 9pt; }
+    .contact-box-title { font-weight: bold; color: #0f172a; margin-bottom: 3pt; font-size: 8.5pt; text-transform: uppercase; }
     /* Footer */
     .footer { margin-top: 10pt; font-size: 7.5pt; color: #666; border-top: 1px solid #ccc; padding-top: 5pt; }
     /* Rights page */
@@ -517,8 +654,22 @@ function generateNoticeHtml(params: {
         </div>
       </div>
       <div class="field" style="margin-bottom:4pt;">
-        <div class="field-label">Location of Offence (precise address or GPS)</div>
+        <div class="field-label">Jurisdiction</div>
+        <div class="field-value">${params.jurisdiction}</div>
+      </div>
+      <div class="field" style="margin-bottom:4pt;">
+        <div class="field-label">Location of Offence (recorded address / locality)</div>
         <div class="field-value">${params.offenceLocation}</div>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <div class="field-label">GPS Coordinates</div>
+          <div class="field-value">${params.offenceGps || '&nbsp;'}</div>
+        </div>
+        <div class="field">
+          <div class="field-label">Zone</div>
+          <div class="field-value">${params.zoneName || '&nbsp;'}</div>
+        </div>
       </div>
       <div class="field" style="margin-bottom:4pt;">
         <div class="field-label">Nature of Alleged Offence</div>
@@ -545,11 +696,22 @@ function generateNoticeHtml(params: {
 
     <!-- Payment authority -->
     <div class="payment-box">
-      <div class="payment-box-title">Direct Payment and Inquiries To</div>
+      <div class="payment-box-title">How To Pay This Infringement</div>
       <div>${params.orgName}${params.orgAddress ? ' &mdash; ' + params.orgAddress : ''}</div>
       ${params.orgPhone ? `<div>Phone: ${params.orgPhone}</div>` : ''}
       ${params.orgEmail ? `<div>Email: ${params.orgEmail}</div>` : ''}
+      ${params.paymentOnlineUrl ? `<div>Online payment: ${params.paymentOnlineUrl}</div>` : ''}
+      ${params.paymentBankAccount ? `<div>Bank account: ${params.paymentBankAccount}</div>` : ''}
+      ${params.paymentInstructions ? `<div style="margin-top:3pt;">${params.paymentInstructions}</div>` : ''}
       <div style="margin-top:3pt;font-size:8.5pt;color:#444;">Quote infringement notice number <strong>${params.noticeNumber}</strong> in all correspondence.</div>
+    </div>
+
+    <div class="contact-box">
+      <div class="contact-box-title">How To Lodge An Objection</div>
+      ${params.objectionsEmail ? `<div>Email objections to: ${params.objectionsEmail}</div>` : ''}
+      ${params.objectionsPostalAddress ? `<div>Post objections to: ${params.objectionsPostalAddress}</div>` : ''}
+      ${!params.objectionsEmail && !params.objectionsPostalAddress ? `<div>Send written objections to ${params.orgName} using the contact details above.</div>` : ''}
+      <div style="margin-top:3pt;font-size:8.5pt;color:#444;">Written objections must quote notice number <strong>${params.noticeNumber}</strong> and be sent within 28 days.</div>
     </div>
 
     <!-- Issued to / service -->
@@ -572,12 +734,12 @@ function generateNoticeHtml(params: {
       <div class="section-title">Enforcement Officer</div>
       <div class="field-row">
         <div class="field">
-          <div class="field-label">Officer Name</div>
-          <div class="field-value">${params.issuerName}</div>
+          <div class="field-label">Officer Warrant No.</div>
+          <div class="field-value">${params.issuerWarrantNumber}</div>
         </div>
         <div class="field">
-          <div class="field-label">Authority / Role</div>
-          <div class="field-value" style="text-transform:capitalize;">${params.orgName} — ${params.issuerRole.replace('_', ' ')}</div>
+          <div class="field-label">Role / Authority</div>
+          <div class="field-value">${params.issuerRole}</div>
         </div>
       </div>
       <div class="field-row">

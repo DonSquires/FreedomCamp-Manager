@@ -60,6 +60,7 @@ interface InfringementNotice {
 
 interface BreachAlertOption {
   id: string
+  observation_id: string | null
   plate_number: string
   breach_type: string
   zone: { name: string; id: string } | null
@@ -298,7 +299,7 @@ export default function InfringementNotices() {
     queryFn: async () => {
       let q = supabase
         .from('breach_alerts')
-        .select('id, plate_number, breach_type, zone:zones!zone_id(name, id)')
+        .select('id, observation_id, plate_number, breach_type, zone:zones!zone_id(name, id)')
         .in('status', ['pending', 'acknowledged'])
         .order('created_at', { ascending: false })
         .limit(100)
@@ -347,8 +348,13 @@ export default function InfringementNotices() {
 
   // ── Issue new notice ──────────────────────────────────────────────────────
   const handleIssue = async () => {
+    if (!form.observation_id) {
+      toast.error('Manual notices are disabled. Issue from a recorded observation or breach alert.')
+      return
+    }
+
     if (!form.plate_number || !form.zone_id || !form.offence_description || !form.legal_basis) {
-      toast.error('Plate, zone, offence description and legal basis are required')
+      toast.error('Observation-linked plate, zone, offence description and legal basis are required')
       return
     }
     setIssueErrorDetail(null)
@@ -476,6 +482,7 @@ export default function InfringementNotices() {
     setForm(f => ({
       ...f,
       breach_alert_id: breachId,
+      observation_id: breach.observation_id || f.observation_id,
       plate_number: breach.plate_number,
       zone_id: (breach.zone as any)?.id ?? f.zone_id,
       offence_description: BREACH_TYPE_LABELS[breach.breach_type] || breach.breach_type,
@@ -545,8 +552,12 @@ export default function InfringementNotices() {
         </Button>
 
         {['admin', 'admin_officer', 'master', 'officer'].includes(user?.role ?? '') && (
-          <Button onClick={() => setShowIssueDialog(true)} className="gap-1.5">
-            <Plus className="h-4 w-4" /> Issue Notice
+          <Button
+            variant="outline"
+            onClick={() => toast.info('Manual notices are disabled. Open a historical observation or select a breach alert to issue a notice.')}
+            className="gap-1.5"
+          >
+            <Plus className="h-4 w-4" /> Issue From Evidence Only
           </Button>
         )}
       </div>
@@ -699,14 +710,17 @@ export default function InfringementNotices() {
           <DialogHeader>
             <DialogTitle>Issue Infringement Notice</DialogTitle>
             <DialogDescription>
-              Creates a formal NZD fine under the Freedom Camping Act 2011.
-              A printable notice will be generated on issue.
+              Creates a formal NZD fine under the Freedom Camping Act 2011 from a recorded observation only.
+              Manual notices are disabled.
             </DialogDescription>
             {prefillingFromObservation && (
               <p className="text-xs text-muted-foreground">Loading historical observation details...</p>
             )}
             {!prefillingFromObservation && form.observation_id && (
               <p className="text-xs text-blue-700">Linked observation: {form.observation_id}</p>
+            )}
+            {!prefillingFromObservation && !form.observation_id && (
+              <p className="text-xs text-amber-700">Select a breach alert with recorded evidence or open this page from a historical observation link.</p>
             )}
           </DialogHeader>
 
@@ -835,6 +849,7 @@ export default function InfringementNotices() {
                 value={form.offence_location}
                 onChange={e => setForm(f => ({ ...f, offence_location: e.target.value }))}
                 placeholder="e.g. Freedom camping area — North Beach Reserve, Bay of Plenty"
+                disabled={!form.observation_id}
               />
             </div>
 
@@ -916,7 +931,7 @@ export default function InfringementNotices() {
 
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowIssueDialog(false)}>Cancel</Button>
-            <Button onClick={handleIssue} disabled={issuing} className="gap-1.5">
+            <Button onClick={handleIssue} disabled={issuing || !form.observation_id} className="gap-1.5">
               <FileText className="h-4 w-4" />
               {issuing ? 'Generating...' : 'Issue Notice'}
             </Button>

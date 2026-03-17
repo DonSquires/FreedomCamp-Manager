@@ -4,6 +4,10 @@ import { generateNoticeHtml, NZ_DEFAULT_SUMMARY_OF_RIGHTS } from '../_shared/inf
 
 const PRINT_ARTIFACT_BUCKET = 'notice-artifacts'
 
+function joinAddressParts(parts: Array<string | null | undefined>) {
+  return parts.map((part) => part?.trim()).filter(Boolean).join(', ')
+}
+
 function formatDbError(err: { message?: string | null; code?: string | null; details?: string | null; hint?: string | null }) {
   const parts = [
     err.message || 'Database error',
@@ -91,34 +95,38 @@ Deno.serve(async (req) => {
       id,
       notice_number,
       notice_pdf_url,
+      notice_html_path,
       plate_number,
+      vehicle_make,
+      vehicle_model,
       offence_description,
       legal_basis,
       offence_date,
       offence_location,
+      offence_location_gps,
       amount_cents,
       due_date,
       service_method,
       recipient_name,
       organization_id,
-      zone:zones!zone_id(name, organizations!inner(id, name)),
-      issuer:user_profiles!created_by(first_name, last_name, role),
+      zone_id,
+      payment_reference,
+      zone:zones!zone_id(name, enforcement_authority, organizations!inner(id, name, address, contact_phone, contact_email)),
+      issuer:user_profiles!created_by(first_name, last_name, role, warrant_number, issuing_authority),
       summary_of_rights
     `
 
     let notice: any = null
-    const withArtifactSelect = `notice_html_path, ${baseSelect}`
-
     const { data: noticeWithArtifact, error: noticeWithArtifactError } = await supabaseAdmin
       .from('infringement_notices')
-      .select(withArtifactSelect)
+      .select(baseSelect)
       .eq('id', notice_id)
       .single()
 
     if (noticeWithArtifactError?.code === '42703') {
       const { data: legacyNotice, error: legacyNoticeError } = await supabaseAdmin
         .from('infringement_notices')
-        .select(baseSelect)
+        .select(baseSelect.replace('notice_html_path, ', ''))
         .eq('id', notice_id)
         .single()
 
@@ -193,20 +201,45 @@ Deno.serve(async (req) => {
       }
     }
 
+    const { data: legalConfig } = await supabaseAdmin
+      .from('zone_legal_config')
+      .select('org_street_address, org_po_box, org_city, org_postcode, org_phone, org_email, org_website, enforcement_authority, payment_online_url, payment_bank_account, payment_instructions, objections_email, objections_postal_address')
+      .eq('zone_id', notice.zone_id)
+      .maybeSingle()
+
+    const legalOfficeAddress = joinAddressParts([
+      legalConfig?.org_street_address,
+      legalConfig?.org_po_box,
+      legalConfig?.org_city,
+      legalConfig?.org_postcode,
+    ])
+
     const noticeHtml = generateNoticeHtml({
       noticeNumber: notice.notice_number,
       platNumber: notice.plate_number || 'UNKNOWN',
+      vehicleMake: notice.vehicle_make || null,
+      vehicleModel: notice.vehicle_model || null,
       offenceDescription: notice.offence_description || 'Freedom camping offence',
       legalBasis: notice.legal_basis || 'Freedom Camping Act 2011',
       offenceDate: notice.offence_date ? new Date(notice.offence_date) : new Date(),
       offenceLocation: notice.offence_location || notice.zone?.name || 'Unknown location',
+      offenceGps: notice.offence_location_gps || '',
+      jurisdiction: notice.zone?.name || '',
       amountDollars: (((notice.amount_cents || 0) as number) / 100).toFixed(2),
       dueDt: notice.due_date ? new Date(notice.due_date) : new Date(),
       serviceMethod: notice.service_method || 'hand',
       recipientName: notice.recipient_name || undefined,
-      issuerName: `${notice.issuer?.first_name || ''} ${notice.issuer?.last_name || ''}`.trim() || 'Unknown officer',
-      issuerRole: notice.issuer?.role || 'officer',
+      issuerWarrantNumber: notice.issuer?.warrant_number || '',
+      issuerRole: notice.issuer?.issuing_authority || legalConfig?.enforcement_authority || notice.zone?.enforcement_authority || 'Authorised Enforcement Officer',
       orgName: notice.zone?.organizations?.name || 'Issuing Authority',
+      orgAddress: legalOfficeAddress || notice.zone?.organizations?.address || '',
+      orgPhone: legalConfig?.org_phone || notice.zone?.organizations?.contact_phone || '',
+      orgEmail: legalConfig?.org_email || notice.zone?.organizations?.contact_email || '',
+      paymentOnlineUrl: legalConfig?.payment_online_url || legalConfig?.org_website || '',
+      paymentBankAccount: legalConfig?.payment_bank_account || '',
+      paymentInstructions: legalConfig?.payment_instructions || (notice.payment_reference ? `Use reference ${notice.payment_reference} when making payment.` : ''),
+      objectionsEmail: legalConfig?.objections_email || legalConfig?.org_email || notice.zone?.organizations?.contact_email || '',
+      objectionsPostalAddress: legalConfig?.objections_postal_address || legalOfficeAddress || notice.zone?.organizations?.address || '',
       zoneName: notice.zone?.name || '',
       summaryOfRights: notice.summary_of_rights || NZ_DEFAULT_SUMMARY_OF_RIGHTS,
     })
