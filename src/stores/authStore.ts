@@ -117,6 +117,12 @@ export const useAuthStore = create<AuthState>()(
         // screen before the portal appears.  The Login page has its own local
         // loading state (disabled button / "Signing in…" label) for UX feedback.
 
+        // Wipe any stale Supabase auth tokens from storage before creating a
+        // new session.  If the app was previously force-closed without logging
+        // out, a half-expired or corrupt token can cause the Supabase client to
+        // enter a broken state where it attempts to reuse the old session.
+        clearClientAuthArtifacts()
+
         const { data, error } = await supabase.auth.signInWithPassword({
           email,
           password,
@@ -125,6 +131,14 @@ export const useAuthStore = create<AuthState>()(
         if (error) {
           throw error
         }
+
+        // Revoke all other active sessions for this user on the server so any
+        // stale JWT from a previous force-closed session cannot be replayed.
+        // Fire-and-forget — we don't want sign-out of others to block or fail
+        // the current login if the network hiccups.
+        supabase.auth.signOut({ scope: 'others' }).catch((e) => {
+          console.warn('[authStore] Failed to revoke previous sessions on login:', e)
+        })
 
         // Fetch user profile
         const { data: profile, error: profileError } = await supabase
