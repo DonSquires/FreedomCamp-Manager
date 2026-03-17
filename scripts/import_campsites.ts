@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import * as dotenv from 'dotenv';
+import { parse as parseCsv } from 'csv-parse/sync';
 
 // Load environment variables
 dotenv.config();
@@ -68,6 +69,17 @@ const COUNCIL_FREEDOM_CAMPING_URLS: { council: string; url: string }[] = [
 // - Holiday Parks NZ:      https://holidayparks.co.nz             (no public API)
 // - Travellers Autobarn:   https://travellers-autobarn.co.nz      (rental company, recommends CamperMate/Rankers)
 // - NZYourWay:             https://nzyourway.com                  (aggregator map, no API)
+
+// 6. data.govt.nz Freedom Camping Sites – consolidated national dataset (Point/Polygon)
+//    Maintained by the Ministry for the Environment / DOC; covers sites from multiple councils.
+//    Catalogue page:  https://catalogue.data.govt.nz/dataset/freedom-camping-sites
+//    License:         Creative Commons Attribution 4.0 International (CC BY 4.0)
+//    CKAN API used to discover the current resource download URLs at runtime.
+const DATA_GOVT_NZ_CKAN_URL =
+  "https://catalogue.data.govt.nz/api/3/action/package_show?id=freedom-camping-sites";
+// Fallback GeoJSON served by ArcGIS Open Data (mirrors the same dataset)
+const DATA_GOVT_NZ_FALLBACK_GEOJSON_URL =
+  "https://doc-deptconservation.opendata.arcgis.com/api/v3/datasets/25e0950229b54e6d8a79d671aa108033_0/downloads/data?format=geojson&spatialRefId=4326";
 
 // Control which sources to import (env var, comma-separated)
 const IMPORT_SOURCES = (process.env.IMPORT_SOURCES || "all").toLowerCase().split(",").map(s => s.trim());
@@ -200,6 +212,7 @@ interface ZoneUpsertParams {
   lat: number;
   lng: number;
   geometry?: any;         // polygon geometry (if available)
+  boundarySource?: string; // Optional source attribution stored in the boundary_source column.
 }
 
 async function upsertZone(
@@ -220,6 +233,9 @@ async function upsertZone(
     };
     if (params.geometry) {
       updateData.geometry = params.geometry;
+    }
+    if (params.boundarySource) {
+      updateData.boundary_source = params.boundarySource;
     }
     const { error } = await supabase
       .from('zones')
@@ -244,6 +260,9 @@ async function upsertZone(
     };
     if (params.geometry) {
       insertData.geometry = params.geometry;
+    }
+    if (params.boundarySource) {
+      insertData.boundary_source = params.boundarySource;
     }
     const { error } = await supabase
       .from('zones')
@@ -607,6 +626,174 @@ async function importCouncilFreedomCamping(orgZones: OrgZone[]) {
 }
 
 // ---------------------------------------------------------------------------
+// Source 6: data.govt.nz Freedom Camping Sites (national consolidated dataset)
+// ---------------------------------------------------------------------------
+async function importDataGovtNzFreedomCamping(orgZones: OrgZone[]) {
+  console.log("\n📡 Fetching data.govt.nz freedom camping sites via CKAN API...");
+  console.log(`   Catalogue: ${DATA_GOVT_NZ_CKAN_URL}`);
+
+  // Step 1: Discover resource URLs via CKAN API, then fall back to known GeoJSON URL
+  let geojsonUrl: string | null = null;
+  let csvUrl: string | null = null;
+
+  try {
+    const ckanResp = await fetch(DATA_GOVT_NZ_CKAN_URL);
+    if (ckanResp.ok) {
+      const ckanData = await ckanResp.json();
+      const resources: any[] = ckanData?.result?.resources ?? [];
+      for (const res of resources) {
+        const fmt = (res.format || '').toUpperCase();
+        if (!geojsonUrl && (fmt === 'GEOJSON' || fmt === 'GEO+JSON')) {
+          geojsonUrl = res.url;
+        }
+        if (!csvUrl && fmt === 'CSV') {
+          csvUrl = res.url;
+        }
+      }
+      console.log(`   CKAN resources found: ${resources.length} (GeoJSON: ${!!geojsonUrl}, CSV: ${!!csvUrl})`);
+    } else {
+      console.warn(`   ⚠️  CKAN API returned ${ckanResp.status} – will try fallback URL.`);
+    }
+  } catch (err: any) {
+    console.warn(`   ⚠️  CKAN API unreachable (${err.message}) – will try fallback URL.`);
+  }
+
+  // Fall back to the ArcGIS-hosted mirror if CKAN did not yield a GeoJSON URL
+  if (!geojsonUrl) {
+    console.log(`   Using fallback GeoJSON URL: ${DATA_GOVT_NZ_FALLBACK_GEOJSON_URL}`);
+    geojsonUrl = DATA_GOVT_NZ_FALLBACK_GEOJSON_URL;
+  }
+
+  // Step 2: Download and parse the dataset (prefer GeoJSON over CSV)
+  let features: any[] = [];
+
+  if (geojsonUrl) {
+    let response: Response;
+    try {
+      response = await fetch(geojsonUrl);
+    } catch (err: any) {
+      throw new Error(`data.govt.nz GeoJSON fetch failed: ${err.message}`);
+    }
+    if (!response.ok) {
+      if (csvUrl) {
+        console.warn(`   ⚠️  GeoJSON fetch returned ${response.status} – falling back to CSV.`);
+        geojsonUrl = null;
+      } else {
+        throw new Error(`data.govt.nz GeoJSON request failed: ${response.status} ${response.statusText}`);
+      }
+    } else {
+      const geojson = await response.json();
+      features = geojson.features || [];
+      console.log(`🌐 Downloaded ${features.length} data.govt.nz freedom camping features (GeoJSON).`);
+    }
+  }
+
+  // CSV fallback: parse rows into pseudo-GeoJSON features
+  if (features.length === 0 && csvUrl) {
+    console.log(`   Falling back to CSV download: ${csvUrl}`);
+    let csvResponse: Response;
+    try {
+      csvResponse = await fetch(csvUrl);
+    } catch (err: any) {
+      throw new Error(`data.govt.nz CSV fetch failed: ${err.message}`);
+    }
+    if (!csvResponse.ok) {
+      throw new Error(`data.govt.nz CSV request failed: ${csvResponse.status} ${csvResponse.statusText}`);
+    }
+    const csvText = await csvResponse.text();
+    const rows: Record<string, string>[] = parseCsv(csvText, { columns: true, skip_empty_lines: true });
+    console.log(`🌐 Downloaded ${rows.length} data.govt.nz freedom camping rows (CSV).`);
+
+    // Convert CSV rows to GeoJSON-style features for uniform processing
+    for (const row of rows) {
+      const lngVal = parseFloat(row.longitude || row.Longitude || row.LONGITUDE || row.lng || row.x || '');
+      const latVal = parseFloat(row.latitude || row.Latitude || row.LATITUDE || row.lat || row.y || '');
+      features.push({
+        type: 'Feature',
+        geometry: (!isNaN(lngVal) && !isNaN(latVal))
+          ? { type: 'Point', coordinates: [lngVal, latVal] }
+          : null,
+        properties: row,
+      });
+    }
+  }
+
+  if (features.length === 0) {
+    console.warn("   ⚠️  No features found in data.govt.nz dataset – skipping.");
+    return;
+  }
+
+  // Step 3: Import features into zones
+  const existingZones = await fetchExistingZones();
+  console.log(`   Found ${existingZones.size} existing specific zones (for deduplication).`);
+
+  const counters = { created: 0, updated: 0 };
+  let unmatchedCount = 0;
+  let skipCount = 0;
+
+  for (const feature of features) {
+    const props = feature.properties || {};
+
+    // Extract name using common field names from the dataset
+    const name = props.name || props.Name || props.NAME
+      || props.SiteName || props.site_name || props.Site_Name
+      || props.LocationName || props.location_name || props.Location
+      || props.OBJECTID;
+    if (!name) { skipCount++; continue; }
+    if (name === props.OBJECTID) {
+      console.warn(`   ⚠️  Zone name fell back to OBJECTID (${name}) – site may lack a proper name.`);
+    }
+
+    // Determine coordinates (support both Point geometry and flat lon/lat properties)
+    let lng: number, lat: number, geometry: any = undefined;
+
+    if (feature.geometry?.type === 'Point' && feature.geometry.coordinates?.length >= 2) {
+      [lng, lat] = feature.geometry.coordinates;
+    } else if (feature.geometry?.type?.includes('Polygon')) {
+      geometry = feature.geometry;
+      const centroid = geometryCentroid(feature.geometry);
+      if (!centroid) { skipCount++; continue; }
+      [lng, lat] = centroid;
+    } else {
+      const rawLng = parseFloat(props.longitude || props.Longitude || props.lng || '');
+      const rawLat = parseFloat(props.latitude || props.Latitude || props.lat || '');
+      if (!isNaN(rawLng) && !isNaN(rawLat)) {
+        lng = rawLng; lat = rawLat;
+      } else { skipCount++; continue; }
+    }
+
+    const org = findOrgForPoint(lng, lat, orgZones);
+    if (!org) { unmatchedCount++; continue; }
+
+    const restriction = props.restriction || props.Restriction || props.RESTRICTION
+      || props.Classification || props.Status || props.STATUS || props.Type || '';
+    const region = props.region || props.Region || props.REGION || props.territorial_authority || '';
+    const description = [
+      restriction ? `Restriction: ${restriction}` : '',
+      region,
+      'Source: data.govt.nz',
+    ].filter(Boolean).join(' · ') || null;
+
+    await upsertZone({
+      name: String(name),
+      description,
+      orgId: org.org_id,
+      parentZoneId: org.zone_id,
+      lat,
+      lng,
+      geometry,
+      boundarySource: 'data.govt.nz',
+    }, existingZones, counters);
+  }
+
+  console.log(`\n🌐 DATA.GOVT.NZ FREEDOM CAMPING IMPORT COMPLETE`);
+  console.log(`✅ Created:    ${counters.created} zones`);
+  console.log(`🔄 Updated:    ${counters.updated} zones`);
+  console.log(`🗺️  Unmatched:  ${unmatchedCount} (no org boundary contains this point)`);
+  console.log(`⏭️  Skipped:    ${skipCount} (missing name or coordinates)`);
+}
+
+// ---------------------------------------------------------------------------
 // Main
 // ---------------------------------------------------------------------------
 function shouldImport(source: string): boolean {
@@ -615,7 +802,7 @@ function shouldImport(source: string): boolean {
 
 async function main() {
   console.log("🚀 Zone Import – NZ Public Data Sources");
-  console.log("   Available: doc_campsites, doc_huts, doc_freedom_camping, linz_crown, council");
+  console.log("   Available: doc_campsites, doc_huts, doc_freedom_camping, linz_crown, council, data_govt_nz");
   console.log(`   Importing: ${IMPORT_SOURCES.join(', ')}\n`);
 
   // Step 1: Load organization jurisdiction zones for spatial matching
@@ -652,6 +839,10 @@ async function main() {
 
   if (shouldImport('council')) {
     await runSource('Council freedom camping', () => importCouncilFreedomCamping(orgZones));
+  }
+
+  if (shouldImport('data_govt_nz')) {
+    await runSource('data.govt.nz freedom camping', () => importDataGovtNzFreedomCamping(orgZones));
   }
 
   console.log("\n🎉 ALL IMPORTS COMPLETE");
