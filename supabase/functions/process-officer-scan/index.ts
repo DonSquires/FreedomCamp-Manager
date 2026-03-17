@@ -273,6 +273,15 @@ interface NZSCVResult {
   maxOccupants: number | null;
 }
 
+interface CanonicalVehicleSnapshot {
+  plate_number: string;
+  vehicle_make: string | null;
+  vehicle_model: string | null;
+  vehicle_year: number | null;
+  vehicle_color: string | null;
+  self_contained: boolean | null;
+}
+
 async function lookupNZSCV(plate: string): Promise<NZSCVResult | null> {
   if (!NZSCV_PROXY_URL) {
     console.warn('⚠️ NZSCV_PROXY_URL not configured — skipping NZSCV lookup');
@@ -431,6 +440,12 @@ async function lookupNZSCV(plate: string): Promise<NZSCVResult | null> {
     console.error('❌ NZSCV lookup failed:', err.message);
     return null;
   }
+}
+
+function toIntOrNull(value: unknown): number | null {
+  if (value === null || value === undefined || value === '') return null;
+  const parsed = parseInt(String(value), 10);
+  return Number.isFinite(parsed) ? parsed : null;
 }
 
 // ─── Step 9: Inline compliance evaluation ────────────────────────────────────
@@ -848,20 +863,24 @@ Deno.serve(async (req: Request) => {
     let canonicalMake:   string | null = null;
     let canonicalModel:  string | null = null;
     let canonicalColour: string | null = null;
+    let canonicalYear: number | null = null;
     if (plate) {
       try {
         const { data: cv } = await supabase
           .from('canonical_vehicles')
-          .select('vehicle_make, vehicle_model, vehicle_color')
+          .select('plate_number, vehicle_make, vehicle_model, vehicle_year, vehicle_color, self_contained')
           .eq('plate_number', plate)
           .maybeSingle();
-        canonicalMake   = cv?.vehicle_make  ?? null;
-        canonicalModel  = cv?.vehicle_model ?? null;
-        canonicalColour = cv?.vehicle_color ?? null;
+        canonicalVehicle = cv as CanonicalVehicleSnapshot | null;
+        canonicalMake   = canonicalVehicle?.vehicle_make  ?? null;
+        canonicalModel  = canonicalVehicle?.vehicle_model ?? null;
+        canonicalColour = canonicalVehicle?.vehicle_color ?? null;
+        canonicalYear   = toIntOrNull(canonicalVehicle?.vehicle_year);
       } catch { /* non-critical */ }
     }
 
-    // --- 3. Make mismatch ---
+    const isNewVehicle = !canonicalVehicle;
+
     if (inference.inferMake && plate && (inference.inferMakeConf ?? 0) >= MAKE_MISMATCH_MIN_CONF) {
       if (isLikelyTextMismatch(inference.inferMake, nzscv?.make)) {
         discrepancies.push({
@@ -917,6 +936,42 @@ Deno.serve(async (req: Request) => {
 
     // --- 5. Colour mismatch ---
     if (inference.inferColour && plate && (inference.inferColourConf ?? 0) >= COLOUR_MISMATCH_MIN_CONF) {
+
+          // --- 6. Canonical vs NZSCV mismatch (only meaningful when NZSCV confirms SC) ---
+          if (!isNewVehicle && nzscv?.isSelfContained) {
+            const canonicalVsNzMakeMismatch = isLikelyTextMismatch(canonicalMake, nzscv.make);
+            const canonicalVsNzModelMismatch = isLikelyTextMismatch(canonicalModel, nzscv.model);
+            const canonicalVsNzYearMismatch = canonicalYear !== null && nzscv.year !== null && canonicalYear !== nzscv.year;
+            const canonicalVsNzColourMismatch = isLikelyTextMismatch(canonicalColour, nzscv.colour);
+
+            if (canonicalVsNzMakeMismatch || canonicalVsNzModelMismatch || canonicalVsNzYearMismatch || canonicalVsNzColourMismatch) {
+              discrepancies.push({
+                discrepancy_type: 'nzscv_registration_wrong_vehicle',
+                source_a: 'canonical',
+                source_b: 'nzscv',
+                value_a: [canonicalMake, canonicalModel, canonicalYear, canonicalColour].filter(Boolean).join(' | ') || null,
+                value_b: [nzscv.make, nzscv.model, nzscv.year, nzscv.colour].filter(Boolean).join(' | ') || null,
+                severity: 'critical',
+                sc_law_active: scLawActive,
+                details: {
+                  mismatch_location: 'canonical_vs_nzscv',
+                  reason: 'NZSCV registration may be attached to the wrong vehicle details',
+                  canonical: {
+                    make: canonicalMake,
+                    model: canonicalModel,
+                    year: canonicalYear,
+                    colour: canonicalColour,
+                  },
+                  nzscv: {
+                    make: nzscv.make,
+                    model: nzscv.model,
+                    year: nzscv.year,
+                    colour: nzscv.colour,
+                  },
+                },
+              });
+            }
+          }
       if (isLikelyTextMismatch(inference.inferColour, nzscv?.colour)) {
         discrepancies.push({
           discrepancy_type: 'colour_mismatch',
@@ -973,6 +1028,7 @@ Deno.serve(async (req: Request) => {
     // ── Step 6: Movement detection + plate-mismatch-same-vehicle check ───────
     let vehicleMoved: boolean | null = null;
     let isNewVehicle = false;
+    let vehicleMoved: boolean | null = null;
     // Plate mismatch: same vehicle (high embedding similarity) but different plate
     let plateMismatchSameVehicle = false;
 
@@ -1058,7 +1114,7 @@ Deno.serve(async (req: Request) => {
           console.log(`📍 Movement check: similarity=${bestSim.toFixed(3)}, moved=${vehicleMoved}`);
         } else {
           // No prior match → new vehicle in zone
-          isNewVehicle = true;
+          // No prior match in zone
           console.log('🆕 New vehicle in zone:', plate);
         }
       } catch (mvErr: any) {
@@ -1069,22 +1125,46 @@ Deno.serve(async (req: Request) => {
     // Recompute hasDiscrepancies after potential plate-mismatch addition
     const finalHasDiscrepancies = discrepancies.length > 0;
 
+    // Build resolved details once and always write them to the observation row.
+    // Source priority: NZSCV (authoritative when available) → canonical snapshot
+    // → inference.
+    const resolvedMake = nzscv?.make ?? canonicalMake ?? inference.inferMake ?? null;
+    const resolvedModel = nzscv?.model ?? canonicalModel ?? inference.inferModel ?? null;
+    const resolvedYear = nzscv?.year ?? canonicalYear ?? null;
+    const resolvedColour = nzscv?.colour ?? canonicalColour ?? inference.inferColour ?? null;
+
+    const mismatchNotices = discrepancies.map((d) => {
+      const mismatchLocation = (d.details as Record<string, unknown>)?.mismatch_location;
+      const locationText = typeof mismatchLocation === 'string' ? mismatchLocation : `${d.source_a}_vs_${d.source_b}`;
+      const reasonText = (d.details as Record<string, unknown>)?.reason;
+      return {
+        type: d.discrepancy_type,
+        location: locationText,
+        severity: d.severity,
+        reason: typeof reasonText === 'string' && reasonText.length > 0
+          ? reasonText
+          : `Mismatch detected between ${d.source_a} and ${d.source_b}`,
+      };
+    });
+
     // ── Step 7: Upsert canonical_vehicles ─────────────────────────────────
     if (plate) {
       try {
+        const vehicleUpsertData: Record<string, unknown> = {
         const vehicleUpsertData: Record<string, unknown> = {
           plate_number: plate,
           last_seen_at: recordedAt,
         };
         if (nzscv !== null) {
+        if (nzscv !== null) {
           // SC certification — always from NZSCV
           vehicleUpsertData.self_contained        = nzscv.isSelfContained;
           vehicleUpsertData.self_contained_expiry = nzscv.selfContainedExpiry;
-          // Optional vehicle detail fields — only write when NZSCV provides them
-          if (nzscv.make)         vehicleUpsertData.vehicle_make  = nzscv.make;
-          if (nzscv.model)        vehicleUpsertData.vehicle_model = nzscv.model;
-          if (nzscv.year)         vehicleUpsertData.vehicle_year  = nzscv.year;
-          if (nzscv.colour)       vehicleUpsertData.vehicle_color = nzscv.colour;
+        // Always keep canonical details current with the resolved values.
+        if (resolvedMake)   vehicleUpsertData.vehicle_make = resolvedMake;
+        if (resolvedModel)  vehicleUpsertData.vehicle_model = resolvedModel;
+        if (resolvedYear)   vehicleUpsertData.vehicle_year = resolvedYear;
+        if (resolvedColour) vehicleUpsertData.vehicle_color = resolvedColour;
         }
 
         const { data: existingVehicle } = await supabase
@@ -1115,15 +1195,15 @@ Deno.serve(async (req: Request) => {
     // ── Step 8: Update observation with plate + NZSCV data ────────────────
     const observationUpdate: Record<string, unknown> = {
       plate_number: plate ?? 'MANUAL_REQUIRED',
+      vehicle_make: resolvedMake,
+      vehicle_model: resolvedModel,
+      vehicle_year: resolvedYear,
+      vehicle_color: resolvedColour,
     };
     if (nzscv !== null) {
       // SC certification — always present when NZSCV lookup succeeded
       observationUpdate.self_contained        = nzscv.isSelfContained;
       observationUpdate.self_contained_expiry = nzscv.selfContainedExpiry;
-      // Optional vehicle detail fields — only write when NZSCV provides them
-      if (nzscv.make)   observationUpdate.vehicle_make  = nzscv.make;
-      if (nzscv.model)  observationUpdate.vehicle_model = nzscv.model;
-      if (nzscv.year)   observationUpdate.vehicle_year  = nzscv.year;
     }
     // Inference-provided vehicle attributes (also write when NZSCV didn't provide them)
     if (!observationUpdate.vehicle_make  && inference.inferMake)   observationUpdate.vehicle_make  = inference.inferMake;
@@ -1146,11 +1226,13 @@ Deno.serve(async (req: Request) => {
     if (finalHasDiscrepancies) {
       observationUpdate.discrepancy_flags = discrepancies.map(d => ({
         type:     d.discrepancy_type,
+        location: ((d.details as Record<string, unknown>)?.mismatch_location as string | undefined) ?? `${d.source_a}_vs_${d.source_b}`,
         severity: d.severity,
         source_a: d.source_a,
         source_b: d.source_b,
         value_a:  d.value_a,
         value_b:  d.value_b,
+        reason:   (d.details as Record<string, unknown>)?.reason ?? null,
       }));
     }
 
@@ -1314,12 +1396,14 @@ Deno.serve(async (req: Request) => {
       // Discrepancy summary — empty array when none detected
       discrepancies: discrepancies.map(d => ({
         type:     d.discrepancy_type,
+        location: ((d.details as Record<string, unknown>)?.mismatch_location as string | undefined) ?? `${d.source_a}_vs_${d.source_b}`,
         severity: d.severity,
         source_a: d.source_a,
         source_b: d.source_b,
         value_a:  d.value_a,
         value_b:  d.value_b,
       })),
+      mismatch_notices: mismatchNotices,
       has_discrepancies: finalHasDiscrepancies,
       sc_law_active:     scLawActive,
     };
