@@ -35,6 +35,7 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3'
 import { corsHeaders } from '../_shared/cors.ts'
 
 const PRINT_ARTIFACT_BUCKET = 'notice-artifacts'
+const FUNCTION_BUILD = 'generate-infringement-2026-03-17d'
 
 function formatDbError(err: { message?: string | null; code?: string | null; details?: string | null; hint?: string | null }) {
   const parts = [
@@ -136,11 +137,17 @@ Deno.serve(async (req) => {
     // Get the calling user's ID from the auth header
     const token = extractBearerToken(req)
     if (!token) {
+      const authHeader = req.headers.get('Authorization') ?? req.headers.get('authorization')
       return new Response(
         JSON.stringify({
           success: false,
           error: 'Authentication required (missing bearer token)',
           hint: 'Ensure the client sends Authorization: Bearer <access_token> when invoking edge functions.',
+          build: FUNCTION_BUILD,
+          auth_debug: {
+            has_authorization_header: Boolean(authHeader),
+            authorization_prefix: authHeader ? authHeader.slice(0, 16) : null,
+          },
         }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
@@ -149,7 +156,12 @@ Deno.serve(async (req) => {
     const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token)
     if (authError || !user) {
       return new Response(
-        JSON.stringify({ success: false, error: 'Invalid session', details: authError?.message || null }),
+        JSON.stringify({
+          success: false,
+          error: 'Invalid session',
+          details: authError?.message || null,
+          build: FUNCTION_BUILD,
+        }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
