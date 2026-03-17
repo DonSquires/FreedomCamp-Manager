@@ -37,36 +37,43 @@ EXCEPTION
 END
 $$;
 
-ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;
+DO $$
+BEGIN
+  ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;
 
-DROP POLICY IF EXISTS "notice_artifacts_org_select" ON storage.objects;
-CREATE POLICY "notice_artifacts_org_select" ON storage.objects
-  FOR SELECT
-  TO authenticated
-  USING (
-    bucket_id = 'notice-artifacts'
-    AND split_part(name, '/', 1) = 'infringements'
-    AND EXISTS (
-      SELECT 1
-      FROM unnest(get_user_organization_ids()) AS org_id
-      WHERE org_id::text = split_part(name, '/', 2)
-    )
-  );
+  DROP POLICY IF EXISTS "notice_artifacts_org_select" ON storage.objects;
+  CREATE POLICY "notice_artifacts_org_select" ON storage.objects
+    FOR SELECT
+    TO authenticated
+    USING (
+      bucket_id = 'notice-artifacts'
+      AND split_part(name, '/', 1) = 'infringements'
+      AND EXISTS (
+        SELECT 1
+        FROM unnest(get_user_organization_ids()) AS org_id
+        WHERE org_id::text = split_part(name, '/', 2)
+      )
+    );
 
-DROP POLICY IF EXISTS "notice_artifacts_admin_delete" ON storage.objects;
-CREATE POLICY "notice_artifacts_admin_delete" ON storage.objects
-  FOR DELETE
-  TO authenticated
-  USING (
-    bucket_id = 'notice-artifacts'
-    AND split_part(name, '/', 1) = 'infringements'
-    AND EXISTS (
-      SELECT 1
-      FROM unnest(get_user_organization_ids()) AS org_id
-      WHERE org_id::text = split_part(name, '/', 2)
-    )
-    AND get_user_role(auth.uid()) = ANY (ARRAY['admin'::text, 'admin_officer'::text, 'master'::text])
-  );
+  DROP POLICY IF EXISTS "notice_artifacts_admin_delete" ON storage.objects;
+  CREATE POLICY "notice_artifacts_admin_delete" ON storage.objects
+    FOR DELETE
+    TO authenticated
+    USING (
+      bucket_id = 'notice-artifacts'
+      AND split_part(name, '/', 1) = 'infringements'
+      AND EXISTS (
+        SELECT 1
+        FROM unnest(get_user_organization_ids()) AS org_id
+        WHERE org_id::text = split_part(name, '/', 2)
+      )
+      AND get_user_role(auth.uid()) = ANY (ARRAY['admin'::text, 'admin_officer'::text, 'master'::text])
+    );
+EXCEPTION
+  WHEN insufficient_privilege THEN
+    RAISE WARNING 'Skipping storage.objects policy updates for notice-artifacts: insufficient privileges for current role.';
+END
+$$;
 
 CREATE INDEX IF NOT EXISTS idx_infringement_notices_notice_html_path
   ON public.infringement_notices (notice_html_path)
