@@ -18,7 +18,7 @@ import { useManDownDetection } from '@/hooks/useManDownDetection'
 import {
   Camera, Map, FileText, History, AlertTriangle, MapPin, QrCode,
   ShieldAlert, CheckCircle, Shield, Megaphone, FileWarning, XCircle,
-  Clock, Home, X, Car, Zap, Search,
+  Clock, Home, X, Car, Zap, Search, Printer,
 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
@@ -740,12 +740,33 @@ export default function FieldOfficerPortal() {
                           Reported
                         </Badge>
                       )}
+
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 px-2 text-[11px] border-blue-300 text-blue-700 hover:bg-blue-50"
+                        onClick={() => navigate(`/infringements?observation_id=${encodeURIComponent(scan.id)}`)}
+                      >
+                        <Printer className="h-3 w-3 mr-1" />
+                        Ticket
+                      </Button>
                     </div>
                   )}
 
                   {/* Compliant: green tick */}
                   {!inBreach && !isProcessingAI && (
-                    <CheckCircle className="h-4 w-4 text-green-500 shrink-0" />
+                    <div className="flex items-center gap-1 shrink-0">
+                      <CheckCircle className="h-4 w-4 text-green-500" />
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 px-2 text-[11px] border-blue-300 text-blue-700 hover:bg-blue-50"
+                        onClick={() => navigate(`/infringements?observation_id=${encodeURIComponent(scan.id)}`)}
+                      >
+                        <Printer className="h-3 w-3 mr-1" />
+                        Ticket
+                      </Button>
+                    </div>
                   )}
                 </div>
               )

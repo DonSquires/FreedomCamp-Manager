@@ -5,7 +5,8 @@
  *   draft → issued → paid | reminder_sent → court_referred | withdrawn | cancelled
  */
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
@@ -87,6 +88,7 @@ const BREACH_TYPE_LABELS: Record<string, string> = {
 
 export default function InfringementNotices() {
   const { user } = useAuthStore()
+  const [searchParams, setSearchParams] = useSearchParams()
   const { organizationId, zoneId, dateFrom, dateTo } = useGlobalFiltersStore()
   const queryClient = useQueryClient()
   const effectiveOrganizationId =
@@ -99,6 +101,7 @@ export default function InfringementNotices() {
   const [showIssueDialog, setShowIssueDialog] = useState(false)
   const [previewHtml, setPreviewHtml] = useState<string | null>(null)
   const [issuing, setIssuing] = useState(false)
+  const [prefillingFromObservation, setPrefillingFromObservation] = useState(false)
 
   // Issue form state
   const [form, setForm] = useState({
@@ -113,7 +116,67 @@ export default function InfringementNotices() {
     recipient_name: '',
     recipient_email: '',
     due_date: '',   // defaults to +28d if blank
+    observation_id: '',
   })
+
+  useEffect(() => {
+    const observationId = searchParams.get('observation_id')
+    if (!observationId || !effectiveOrganizationId) return
+
+    let cancelled = false
+    const loadObservation = async () => {
+      setPrefillingFromObservation(true)
+      try {
+        const { data: obs, error: obsError } = await (supabase.from('observations') as any)
+          .select('observation_id, plate_number, zone_id, breach_type, is_compliant, zones!zone_id(name)')
+          .eq('observation_id', observationId)
+          .eq('organization_id', effectiveOrganizationId)
+          .single()
+
+        if (obsError || !obs) throw new Error(obsError?.message || 'Observation not found')
+
+        const { data: breach } = await (supabase.from('breach_alerts') as any)
+          .select('id')
+          .eq('observation_id', observationId)
+          .eq('organization_id', effectiveOrganizationId)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle()
+
+        const offence = obs.breach_type
+          ? (BREACH_TYPE_LABELS[obs.breach_type] || String(obs.breach_type).replace(/_/g, ' '))
+          : (obs.is_compliant === false ? 'Historical non-compliance observation' : 'Historical observation follow-up')
+
+        if (!cancelled) {
+          setForm((f) => ({
+            ...f,
+            observation_id: obs.observation_id,
+            breach_alert_id: breach?.id || '',
+            plate_number: obs.plate_number || f.plate_number,
+            zone_id: obs.zone_id || f.zone_id,
+            offence_location: obs?.zones?.name || f.offence_location,
+            offence_description: offence,
+          }))
+          setShowIssueDialog(true)
+          toast.success('Historical observation loaded for ticket issuance')
+        }
+      } catch (err: any) {
+        if (!cancelled) toast.error(err?.message || 'Could not load historical observation')
+      } finally {
+        if (!cancelled) {
+          setPrefillingFromObservation(false)
+          const next = new URLSearchParams(searchParams)
+          next.delete('observation_id')
+          setSearchParams(next, { replace: true })
+        }
+      }
+    }
+
+    void loadObservation()
+    return () => {
+      cancelled = true
+    }
+  }, [effectiveOrganizationId, searchParams, setSearchParams])
 
   // ── Fetch notices ──────────────────────────────────────────────────────────
   const { data: notices = [], isLoading, refetch } = useQuery({
@@ -218,6 +281,7 @@ export default function InfringementNotices() {
         offence_date: new Date().toISOString(),
       }
       if (form.breach_alert_id) body.breach_alert_id = form.breach_alert_id
+      if (form.observation_id)  body.observation_id = form.observation_id
       if (form.due_date)        body.due_date = form.due_date
 
       const { data, error } = await supabase.functions.invoke('generate-infringement', { body })
@@ -234,7 +298,7 @@ export default function InfringementNotices() {
         breach_alert_id: '', plate_number: '', zone_id: '',
         offence_description: '', legal_basis: 'Freedom Camping Act 2011 s20(1)(a)',
         offence_location: '', amount_cents: 20000, service_method: 'hand',
-        recipient_name: '', recipient_email: '', due_date: '',
+        recipient_name: '', recipient_email: '', due_date: '', observation_id: '',
       })
     } catch (err: any) {
       toast.error(err.message || 'Failed to issue notice')
@@ -446,6 +510,12 @@ export default function InfringementNotices() {
               Creates a formal NZD fine under the Freedom Camping Act 2011.
               A printable notice will be generated on issue.
             </DialogDescription>
+            {prefillingFromObservation && (
+              <p className="text-xs text-muted-foreground">Loading historical observation details...</p>
+            )}
+            {!prefillingFromObservation && form.observation_id && (
+              <p className="text-xs text-blue-700">Linked observation: {form.observation_id}</p>
+            )}
           </DialogHeader>
 
           <div className="space-y-4 py-2">

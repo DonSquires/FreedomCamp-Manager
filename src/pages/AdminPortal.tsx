@@ -6,6 +6,7 @@ import { useGlobalFiltersStore } from '@/stores/globalFiltersStore'
 import { supabase } from '@/lib/supabase'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { AppLayout } from '@/components/features/AppLayout'
 import { GlobalFilterRibbon } from '@/components/features/GlobalFilterRibbon'
 import { ComplianceTrendChart, type TrendDataPoint } from '@/components/features/ComplianceTrendChart'
@@ -22,6 +23,7 @@ import {
   Gavel,
   Home,
   Map,
+  Printer,
   Radio,
   Shield,
   UserCheck,
@@ -294,6 +296,26 @@ export default function AdminPortal() {
         diagnostics,
       }
     },
+  })
+
+  const { data: recentHistoricalObservations = [] } = useQuery({
+    queryKey: ['admin-recent-historical-observations', effectiveOrganizationId, zoneId, startDate, endDate],
+    queryFn: async () => {
+      let q = (supabase.from('observations') as any)
+        .select('observation_id, plate_number, recorded_at, breach_type, is_compliant, zone:zones!zone_id(name)')
+        .order('recorded_at', { ascending: false })
+        .limit(8)
+
+      if (effectiveOrganizationId) q = q.eq('organization_id', effectiveOrganizationId)
+      if (zoneId) q = q.eq('zone_id', zoneId)
+      if (startDate) q = q.gte('recorded_at', startDate)
+      if (endDate) q = q.lte('recorded_at', endDate)
+
+      const { data: rows, error: rowsError } = await q
+      if (rowsError) throw rowsError
+      return (rows || []) as any[]
+    },
+    enabled: !!effectiveOrganizationId,
   })
 
   const metrics = useMemo(() => {
@@ -776,6 +798,43 @@ export default function AdminPortal() {
                     <ArrowRight className="h-3.5 w-3.5 text-muted-foreground" />
                   </span>
                 </button>
+              ))}
+            </CardContent>
+          </Card>
+        </section>
+
+        <section>
+          <Card className="bg-white dark:bg-gray-900 shadow-sm">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">Historical Observations</CardTitle>
+              <CardDescription className="text-xs">
+                Print a ticket from prior observations in current filter scope.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-2 pt-0">
+              {recentHistoricalObservations.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No historical observations found.</p>
+              ) : recentHistoricalObservations.map((obs: any) => (
+                <div
+                  key={obs.observation_id}
+                  className="flex items-center justify-between gap-3 rounded-lg border bg-gray-50 dark:bg-gray-800 px-3 py-2"
+                >
+                  <div className="min-w-0">
+                    <p className="font-mono text-sm font-semibold truncate">{obs.plate_number || 'UNKNOWN'}</p>
+                    <p className="text-xs text-muted-foreground truncate">
+                      {obs?.zone?.name || 'Unknown zone'} · {new Date(obs.recorded_at).toLocaleString('en-NZ')}
+                    </p>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="gap-1.5 shrink-0"
+                    onClick={() => navigate(`/infringements?observation_id=${encodeURIComponent(obs.observation_id)}`)}
+                  >
+                    <Printer className="h-3.5 w-3.5" />
+                    Print Ticket
+                  </Button>
+                </div>
               ))}
             </CardContent>
           </Card>
