@@ -36,7 +36,7 @@ export default function BreachAlertsScreen() {
     queryFn: async () => {
       let q = supabase
         .from('breach_alerts')
-        .select('id, plate_number, breach_type, status, created_at, zone:zones!zone_id(name)')
+        .select('id, plate_number, breach_type, status, created_at, organization_id, zone_id, observation_id, zone:zones!zone_id(name)')
         .eq('organization_id', user!.organization_id)
         .order('created_at', { ascending: false })
         .limit(100)
@@ -67,9 +67,44 @@ export default function BreachAlertsScreen() {
     onError: (err: any) => toast.error(err.message || 'Failed'),
   })
 
+  const startEnforcementMutation = useMutation({
+    mutationFn: async (breach: any) => {
+      const insertPayload = {
+        action_type: 'notice_to_vacate',
+        organization_id: breach.organization_id,
+        zone_id: breach.zone_id,
+        observation_id: breach.observation_id || null,
+        plate_number: breach.plate_number || null,
+        created_by: user?.id,
+        status: 'pending',
+        notes: `Created from breach alert ${breach.id}`,
+      }
+
+      const { error: actionError } = await supabase
+        .from('enforcement_actions')
+        .insert(insertPayload)
+
+      if (actionError) throw actionError
+
+      const { error: breachError } = await supabase
+        .from('breach_alerts')
+        .update({ status: 'enforcement_started' })
+        .eq('id', breach.id)
+
+      if (breachError) throw breachError
+    },
+    onSuccess: () => {
+      toast.success('Enforcement started')
+      queryClient.invalidateQueries({ queryKey: ['breach-alerts-mobile'] })
+      queryClient.invalidateQueries({ queryKey: ['my-enforcement-actions'] })
+    },
+    onError: (err: any) => toast.error(err.message || 'Failed to start enforcement'),
+  })
+
   const renderItem = ({ item }: { item: any }) => {
     const statusMeta = STATUS_META[item.status] || STATUS_META.pending
-    const isActionable = item.status === 'pending'
+    const canAcknowledge = item.status === 'pending'
+    const canStartEnforcement = item.status === 'pending' || item.status === 'acknowledged'
     return (
       <View style={styles.card}>
         <View style={styles.cardTop}>
@@ -86,16 +121,29 @@ export default function BreachAlertsScreen() {
         <Text style={styles.meta}>
           {item.zone?.name || 'Unknown zone'} · {new Date(item.created_at).toLocaleDateString('en-NZ')}
         </Text>
-        {isActionable && (
-          <TouchableOpacity
-            style={styles.ackBtn}
-            onPress={() => acknowledgeMutation.mutate(item.id)}
-            disabled={acknowledgeMutation.isPending}
-          >
-            <Ionicons name="checkmark-circle-outline" size={16} color="#1d4ed8" />
-            <Text style={styles.ackText}>Acknowledge</Text>
-          </TouchableOpacity>
-        )}
+        <View style={styles.actionsRow}>
+          {canAcknowledge && (
+            <TouchableOpacity
+              style={styles.ackBtn}
+              onPress={() => acknowledgeMutation.mutate(item.id)}
+              disabled={acknowledgeMutation.isPending}
+            >
+              <Ionicons name="checkmark-circle-outline" size={16} color="#1d4ed8" />
+              <Text style={styles.ackText}>Acknowledge</Text>
+            </TouchableOpacity>
+          )}
+
+          {canStartEnforcement && (
+            <TouchableOpacity
+              style={styles.startBtn}
+              onPress={() => startEnforcementMutation.mutate(item)}
+              disabled={startEnforcementMutation.isPending}
+            >
+              <Ionicons name="shield-checkmark-outline" size={16} color="#dc2626" />
+              <Text style={styles.startText}>Start Enforcement</Text>
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
     )
   }
@@ -183,6 +231,25 @@ const styles = StyleSheet.create({
     backgroundColor: '#eff6ff',
   },
   ackText: { color: '#1d4ed8', fontWeight: '600', fontSize: 12 },
+  actionsRow: {
+    marginTop: 4,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  startBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    alignSelf: 'flex-start',
+    borderWidth: 1,
+    borderColor: '#fecaca',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    backgroundColor: '#fef2f2',
+  },
+  startText: { color: '#dc2626', fontWeight: '700', fontSize: 12 },
   empty: { alignItems: 'center', paddingTop: 60, gap: 8 },
   emptyText: { fontSize: 18, fontWeight: '600', color: '#94a3b8' },
 })
