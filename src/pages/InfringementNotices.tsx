@@ -144,6 +144,8 @@ export default function InfringementNotices() {
     })
   }
   const getValidAccessToken = async () => {
+    let sessionLookupError: Error | null = null
+
     try {
       const { data, error } = await withAuthTimeout(
         supabase.auth.refreshSession(),
@@ -157,11 +159,19 @@ export default function InfringementNotices() {
       // Fall back to existing session token if refresh stalls.
     }
 
-    const { data: { session }, error: sessionError } = await supabase.auth.getSession()
-    if (sessionError) {
-      throw new Error(sessionError.message || 'Unable to verify session. Please retry.')
+    try {
+      const { data: { session }, error: sessionError } = await withAuthTimeout(
+        supabase.auth.getSession(),
+        6000,
+        'Session lookup timed out',
+      )
+      if (sessionError) {
+        throw new Error(sessionError.message || 'Unable to verify session. Please retry.')
+      }
+      if (session?.access_token) return session.access_token
+    } catch (error: any) {
+      sessionLookupError = error instanceof Error ? error : new Error(String(error?.message || error || 'Session lookup failed'))
     }
-    if (session?.access_token) return session.access_token
 
     // Final recovery attempt when local session cache is empty.
     const { data: retryData, error: retryError } = await withAuthTimeout(
@@ -171,6 +181,10 @@ export default function InfringementNotices() {
     )
     if (!retryError && retryData.session?.access_token) {
       return retryData.session.access_token
+    }
+
+    if (sessionLookupError) {
+      throw sessionLookupError
     }
 
     throw new Error('Session expired. Please sign in again.')
@@ -475,10 +489,14 @@ export default function InfringementNotices() {
       if (form.breach_alert_id) body.breach_alert_id = form.breach_alert_id
       if (form.observation_id)  body.observation_id = form.observation_id
 
-      const data = await invokeFunctionDirectHttpWithAuthRetry(
-        'generate-infringement',
-        body,
-        'Failed to generate notice',
+      const data = await withTimeout(
+        invokeFunctionDirectHttpWithAuthRetry(
+          'generate-infringement',
+          body,
+          'Failed to generate notice',
+        ),
+        35000,
+        'Notice generation timed out before reaching the server. Please retry.',
       )
       if (!data?.success) throw new Error(data?.error || 'Failed to generate notice')
 
