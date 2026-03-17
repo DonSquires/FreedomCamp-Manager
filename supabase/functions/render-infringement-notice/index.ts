@@ -2,6 +2,8 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3'
 import { corsHeaders } from '../_shared/cors.ts'
 import { generateNoticeHtml, NZ_DEFAULT_SUMMARY_OF_RIGHTS } from '../_shared/infringement-notice.ts'
 
+const PRINT_ARTIFACT_BUCKET = 'notice-artifacts'
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
@@ -62,6 +64,7 @@ Deno.serve(async (req) => {
       .from('infringement_notices')
       .select(`
         id,
+        notice_html_path,
         notice_number,
         notice_pdf_url,
         plate_number,
@@ -93,6 +96,31 @@ Deno.serve(async (req) => {
         status: 403,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       })
+    }
+
+    if (notice.notice_html_path) {
+      try {
+        const { data: artifactData, error: artifactError } = await supabaseAdmin.storage
+          .from(PRINT_ARTIFACT_BUCKET)
+          .download(notice.notice_html_path)
+
+        if (!artifactError && artifactData) {
+          const artifactHtml = await artifactData.text()
+          if (artifactHtml.trim().length > 0) {
+            return new Response(JSON.stringify({
+              success: true,
+              notice_id: notice.id,
+              notice_number: notice.notice_number,
+              html: artifactHtml,
+              source: 'stored-artifact',
+            }), {
+              headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            })
+          }
+        }
+      } catch {
+        // Fall back to legacy URL or server-side regeneration.
+      }
     }
 
     if (notice.notice_pdf_url) {

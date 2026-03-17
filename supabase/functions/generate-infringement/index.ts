@@ -34,7 +34,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3'
 import { corsHeaders } from '../_shared/cors.ts'
 
-const PRINT_ARTIFACT_BUCKET = 'scans'
+const PRINT_ARTIFACT_BUCKET = 'notice-artifacts'
 
 const NZ_DEFAULT_SUMMARY_OF_RIGHTS = `
 SUMMARY OF RIGHTS — FREEDOM CAMPING ACT 2011 (s20)
@@ -238,15 +238,11 @@ Deno.serve(async (req) => {
       if (uploadError) {
         console.error('⚠️ Failed to persist notice artifact:', uploadError)
       } else {
-        const { data: publicUrlData } = supabaseAdmin.storage
-          .from(PRINT_ARTIFACT_BUCKET)
-          .getPublicUrl(artifactPath)
-
         await supabaseAdmin
           .from('infringement_notices')
           .update({
-            notice_pdf_url: publicUrlData.publicUrl,
-            notice_pdf_hash: htmlHash,
+            notice_html_path: artifactPath,
+            notice_html_hash: htmlHash,
           })
           .eq('id', notice.id)
       }

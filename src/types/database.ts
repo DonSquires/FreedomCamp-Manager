@@ -1877,6 +1877,8 @@ export type Database = {
           issued_at: string | null
           issued_by: string | null
           legal_basis: string | null
+          notice_html_hash: string | null
+          notice_html_path: string | null
           notice_number: string
           notice_pdf_hash: string | null
           notice_pdf_url: string | null
@@ -1919,6 +1921,8 @@ export type Database = {
           issued_at?: string | null
           issued_by?: string | null
           legal_basis?: string | null
+          notice_html_hash?: string | null
+          notice_html_path?: string | null
           notice_number: string
           notice_pdf_hash?: string | null
           notice_pdf_url?: string | null
@@ -1961,6 +1965,8 @@ export type Database = {
           issued_at?: string | null
           issued_by?: string | null
           legal_basis?: string | null
+          notice_html_hash?: string | null
+          notice_html_path?: string | null
           notice_number?: string
           notice_pdf_hash?: string | null
           notice_pdf_url?: string | null
