@@ -6,6 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Ionicons } from '@expo/vector-icons'
 import { toast } from 'sonner-native'
+import { useNavigation } from '@react-navigation/native'
 import { useAuthStore } from '../stores/authStore'
 import { supabase } from '../lib/supabase'
 
@@ -28,6 +29,7 @@ const STATUS_META: Record<string, { color: string; label: string }> = {
 
 export default function BreachAlertsScreen() {
   const { user } = useAuthStore()
+  const navigation = useNavigation<any>()
   const queryClient = useQueryClient()
   const [filter, setFilter] = useState<'active' | 'all'>('active')
 
@@ -77,6 +79,7 @@ export default function BreachAlertsScreen() {
         plate_number: breach.plate_number || null,
         created_by: user?.id,
         status: 'pending',
+        breach_status: 'active',
         notes: `Created from breach alert ${breach.id}`,
       }
 
@@ -105,6 +108,7 @@ export default function BreachAlertsScreen() {
     const statusMeta = STATUS_META[item.status] || STATUS_META.pending
     const canAcknowledge = item.status === 'pending'
     const canStartEnforcement = item.status === 'pending' || item.status === 'acknowledged'
+    const canIssueInfringement = item.status === 'enforcement_started'
     return (
       <View style={styles.card}>
         <View style={styles.cardTop}>
@@ -141,6 +145,25 @@ export default function BreachAlertsScreen() {
             >
               <Ionicons name="shield-checkmark-outline" size={16} color="#dc2626" />
               <Text style={styles.startText}>Start Enforcement</Text>
+            </TouchableOpacity>
+          )}
+
+          {canIssueInfringement && (
+            <TouchableOpacity
+              style={styles.issueBtn}
+              onPress={() => navigation.navigate('Fines', {
+                prefill: {
+                  plate_number: item.plate_number || '',
+                  zone_id: item.zone_id || '',
+                  offence_description: BREACH_LABELS[item.breach_type] || item.breach_type || '',
+                  offence_location: item.zone?.name || '',
+                  breach_alert_id: item.id,
+                  observation_id: item.observation_id || null,
+                },
+              })}
+            >
+              <Ionicons name="document-text-outline" size={16} color="#7c2d12" />
+              <Text style={styles.issueText}>Issue Infringement</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -250,6 +273,19 @@ const styles = StyleSheet.create({
     backgroundColor: '#fef2f2',
   },
   startText: { color: '#dc2626', fontWeight: '700', fontSize: 12 },
+  issueBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    alignSelf: 'flex-start',
+    borderWidth: 1,
+    borderColor: '#fdba74',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    backgroundColor: '#fff7ed',
+  },
+  issueText: { color: '#7c2d12', fontWeight: '700', fontSize: 12 },
   empty: { alignItems: 'center', paddingTop: 60, gap: 8 },
   emptyText: { fontSize: 18, fontWeight: '600', color: '#94a3b8' },
 })

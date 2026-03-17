@@ -6,6 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Ionicons } from '@expo/vector-icons'
 import { toast } from 'sonner-native'
+import { useNavigation } from '@react-navigation/native'
 import { useAuthStore } from '../stores/authStore'
 import { supabase } from '../lib/supabase'
 
@@ -18,6 +19,7 @@ const ACTION_META: Record<string, { icon: string; label: string; color: string }
 
 export default function EnforcementActionsScreen() {
   const { user, enforcementWorkflow } = useAuthStore()
+  const navigation = useNavigation<any>()
   const queryClient = useQueryClient()
 
   const { data: actions = [], isLoading, refetch } = useQuery({
@@ -25,7 +27,7 @@ export default function EnforcementActionsScreen() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('enforcement_actions')
-        .select('id, action_type, status, plate_number, created_at, assigned_to, assigned_at, zone:zones!zone_id(name)')
+        .select('id, action_type, status, breach_status, plate_number, created_at, assigned_to, assigned_at, observation_id, zone_id, zone:zones!zone_id(name)')
         .eq('organization_id', user!.organization_id)
         .order('created_at', { ascending: false })
         .limit(50)
@@ -39,7 +41,13 @@ export default function EnforcementActionsScreen() {
     mutationFn: async (id: string) => {
       const { error } = await supabase
         .from('enforcement_actions')
-        .update({ status: 'completed', completed_at: new Date().toISOString() })
+        .update({
+          status: 'completed',
+          breach_status: 'completed',
+          completion_outcome: 'completed',
+          completed_at: new Date().toISOString(),
+          completed_by: user?.id,
+        })
         .eq('id', id)
       if (error) throw error
     },
@@ -56,8 +64,10 @@ export default function EnforcementActionsScreen() {
         .from('enforcement_actions')
         .update({
           status: 'assigned',
+          breach_status: 'assigned',
           assigned_to: user?.id,
           assigned_at: new Date().toISOString(),
+          assigned_by: user?.id,
         })
         .eq('id', id)
       if (error) throw error
@@ -75,6 +85,7 @@ export default function EnforcementActionsScreen() {
     const isAssigned = item.status === 'assigned'
     const isOwnedByMe = !!user?.id && item.assigned_to === user.id
     const canComplete = isPending || (isAssigned && isOwnedByMe)
+    const canIssueInfringement = isPending || (isAssigned && isOwnedByMe)
     const displayDate = item.created_at
       ? new Date(item.created_at).toLocaleDateString('en-NZ')
       : 'Unknown date'
@@ -121,6 +132,24 @@ export default function EnforcementActionsScreen() {
             >
               <Ionicons name="checkmark-done-outline" size={15} color="#15803d" />
               <Text style={styles.completeBtnText}>Mark Complete</Text>
+            </TouchableOpacity>
+          )}
+
+          {canIssueInfringement && (
+            <TouchableOpacity
+              style={styles.issueBtn}
+              onPress={() => navigation.navigate('Fines', {
+                prefill: {
+                  plate_number: item.plate_number || '',
+                  zone_id: item.zone_id || '',
+                  offence_description: `${meta.label} enforcement action`,
+                  offence_location: item.zone?.name || '',
+                  observation_id: item.observation_id || null,
+                },
+              })}
+            >
+              <Ionicons name="document-text-outline" size={15} color="#7c2d12" />
+              <Text style={styles.issueBtnText}>Issue Infringement</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -231,6 +260,19 @@ const styles = StyleSheet.create({
     backgroundColor: '#f0fdf4',
   },
   completeBtnText: { color: '#15803d', fontWeight: '600', fontSize: 12 },
+  issueBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    alignSelf: 'flex-start',
+    borderWidth: 1,
+    borderColor: '#fdba74',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    backgroundColor: '#fff7ed',
+  },
+  issueBtnText: { color: '#7c2d12', fontWeight: '700', fontSize: 12 },
   empty: { alignItems: 'center', paddingTop: 60, gap: 8 },
   emptyText: { fontSize: 18, fontWeight: '600', color: '#94a3b8' },
 })

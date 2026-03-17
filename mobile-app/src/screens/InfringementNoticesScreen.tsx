@@ -21,6 +21,7 @@ import { SafeAreaView } from 'react-native-safe-area-context'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Ionicons } from '@expo/vector-icons'
 import { toast } from 'sonner-native'
+import { useRoute } from '@react-navigation/native'
 import { useAuthStore } from '../stores/authStore'
 import { supabase } from '../lib/supabase'
 
@@ -73,6 +74,7 @@ const SERVICE_OPTIONS: Array<{ label: string; value: 'hand' | 'post' | 'email' }
 
 export default function InfringementNoticesScreen() {
   const { user } = useAuthStore()
+  const route = useRoute<any>()
   const queryClient = useQueryClient()
   const [showIssueModal, setShowIssueModal] = useState(false)
   const [showFineSheet, setShowFineSheet] = useState(false)
@@ -91,8 +93,27 @@ export default function InfringementNoticesScreen() {
     amount_cents: 20000,
     service_method: 'hand' as 'hand' | 'post' | 'email',
     recipient_name: '',
+    breach_alert_id: null as string | null,
+    observation_id: null as string | null,
   })
   const [issuing, setIssuing] = useState(false)
+
+  React.useEffect(() => {
+    const prefill = route.params?.prefill
+    if (!prefill) return
+
+    setForm((f) => ({
+      ...f,
+      plate_number: prefill.plate_number || f.plate_number,
+      zone_id: prefill.zone_id || f.zone_id,
+      zone_name: prefill.offence_location || f.zone_name,
+      offence_description: prefill.offence_description || f.offence_description,
+      offence_location: prefill.offence_location || f.offence_location,
+      breach_alert_id: prefill.breach_alert_id || null,
+      observation_id: prefill.observation_id || null,
+    }))
+    setShowIssueModal(true)
+  }, [route.params?.prefill])
 
   // ── Fetch notices ────────────────────────────────────────────────────────
   const { data: notices = [], isLoading, refetch } = useQuery({
@@ -167,6 +188,8 @@ export default function InfringementNoticesScreen() {
           service_method: form.service_method,
           recipient_name: form.recipient_name || undefined,
           offence_date: new Date().toISOString(),
+          breach_alert_id: form.breach_alert_id || undefined,
+          observation_id: form.observation_id || undefined,
         },
       })
       if (error) throw new Error(error.message)
@@ -178,6 +201,7 @@ export default function InfringementNoticesScreen() {
         plate_number: '', zone_id: '', zone_name: '', offence_description: '',
         legal_basis: 'Freedom Camping Act 2011 s20(1)(a)', offence_location: '',
         amount_cents: 20000, service_method: 'hand', recipient_name: '',
+        breach_alert_id: null, observation_id: null,
       })
       queryClient.invalidateQueries({ queryKey: ['notices-mobile'] })
     } catch (err: any) {
