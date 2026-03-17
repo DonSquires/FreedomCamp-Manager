@@ -21,7 +21,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
-import { captureAndSave } from '@/lib/scanPipeline'
+import { captureAndSave, SCAN_PROGRESS_LABELS, type ScanProgressStage } from '@/lib/scanPipeline'
 import { useAuthStore } from '@/stores/authStore'
 import { useGlobalFiltersStore } from '@/stores/globalFiltersStore'
 import {
@@ -92,6 +92,7 @@ export function BulkScanSession({
   const { zoneId } = useGlobalFiltersStore()
 
   const [isCapturing,   setIsCapturing]   = useState(false)
+  const [captureStageLabel, setCaptureStageLabel] = useState(SCAN_PROGRESS_LABELS.gps)
   const [scans,         setScans]         = useState<SessionScan[]>([])
   const [showList,      setShowList]      = useState(true)
   const [showSummary,   setShowSummary]   = useState(false)
@@ -114,12 +115,14 @@ export function BulkScanSession({
     }
 
     setIsCapturing(true)
+    setCaptureStageLabel(SCAN_PROGRESS_LABELS.gps)
     try {
       const result = await captureAndSave(
         file,
         { id: user.id, organization_id: user.organization_id, full_name: user.full_name },
         zoneId,
         recordGPSUpdate,
+        (_stage: ScanProgressStage, label: string) => setCaptureStageLabel(label),
       )
 
       // Add to session list immediately as pending
@@ -148,6 +151,7 @@ export function BulkScanSession({
       toast.error(err.message || 'Scan failed')
     } finally {
       setIsCapturing(false)
+      setCaptureStageLabel(SCAN_PROGRESS_LABELS.gps)
     }
   }, [user, zoneId, recordGPSUpdate, activePatrolId, onScanSaved])
 
@@ -256,6 +260,7 @@ export function BulkScanSession({
           onCapture={handleCapture}
           onCancel={handleFinish}
           isProcessing={isCapturing}
+          statusLabel={captureStageLabel}
         />
 
         {/* Session stats overlay — top left */}
@@ -277,7 +282,7 @@ export function BulkScanSession({
           {isCapturing && (
             <div className="flex items-center gap-1 rounded-full bg-blue-600/90 px-2.5 py-1 text-white text-xs">
               <Loader2 className="h-3 w-3 animate-spin" />
-              <span>Saving…</span>
+              <span>{captureStageLabel}</span>
             </div>
           )}
         </div>

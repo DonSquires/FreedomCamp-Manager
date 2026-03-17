@@ -19,9 +19,11 @@ interface SplitScanCameraProps {
   onCancel: () => void
   /** Disable the capture button while a scan is in-flight */
   isProcessing?: boolean
+  /** Current pipeline step shown while capture is in flight */
+  statusLabel?: string
 }
 
-export function SplitScanCamera({ onCapture, onCancel, isProcessing = false }: SplitScanCameraProps) {
+export function SplitScanCamera({ onCapture, onCancel, isProcessing = false, statusLabel }: SplitScanCameraProps) {
   const videoRef  = useRef<HTMLVideoElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const streamRef = useRef<MediaStream | null>(null)
@@ -175,6 +177,10 @@ export function SplitScanCamera({ onCapture, onCancel, isProcessing = false }: S
         >
           <Camera className="h-7 w-7 text-white" />
         </button>
+
+        <div className="min-h-5 text-center text-xs font-medium text-white/90 drop-shadow">
+          {isProcessing ? (statusLabel || 'Processing…') : 'Tap to capture'}
+        </div>
       </div>
     </div>
   )

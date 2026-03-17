@@ -21,9 +21,36 @@ import { resolveObservationZoneForOrg } from '@/lib/zoneResolution'
 import { fetchWeatherOnDevice } from '@/lib/weather'
 import { applyEvidenceWatermark } from '@/lib/imageWatermarking'
 
+const WEATHER_TIMEOUT_MS = 4_000
+const WATERMARK_TIMEOUT_MS = 8_000
+const UPLOAD_TIMEOUT_MS = 30_000
+const ZONE_RESOLUTION_TIMEOUT_MS = 10_000
 const INGEST_TIMEOUT_MS = 45_000
 const RECOVERY_LOOKUP_TIMEOUT_MS = 20_000
 const RECOVERY_LOOKUP_POLL_MS = 2_000
+
+export type ScanProgressStage =
+  | 'gps'
+  | 'weather'
+  | 'watermark'
+  | 'hash'
+  | 'upload'
+  | 'zone'
+  | 'saving'
+  | 'recovery'
+  | 'complete'
+
+export const SCAN_PROGRESS_LABELS: Record<ScanProgressStage, string> = {
+  gps: 'Getting GPS location…',
+  weather: 'Checking weather…',
+  watermark: 'Preparing evidence photo…',
+  hash: 'Securing photo fingerprint…',
+  upload: 'Uploading photo evidence…',
+  zone: 'Resolving patrol zone…',
+  saving: 'Saving observation…',
+  recovery: 'Recovering saved observation…',
+  complete: 'Observation saved',
+}
 
 async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T> {
   let timeoutHandle: ReturnType<typeof setTimeout> | null = null
@@ -67,6 +94,12 @@ export interface ScanSaveResult {
   weather: string
 }
 
+type ScanProgressHandler = (stage: ScanProgressStage, label: string) => void
+
+function emitScanProgress(onStageChange: ScanProgressHandler | undefined, stage: ScanProgressStage) {
+  onStageChange?.(stage, SCAN_PROGRESS_LABELS[stage])
+}
+
 /**
  * Run the full capture pipeline for a single vehicle photo.
  *
@@ -80,8 +113,10 @@ export async function captureAndSave(
   user: { id: string; organization_id: string; full_name?: string | null },
   preferredZoneId: string | null,
   onGPSFix?: (lat: number, lon: number) => void,
+  onStageChange?: ScanProgressHandler,
 ): Promise<ScanSaveResult> {
   // ── Step 1: GPS ───────────────────────────────────────────────────────────
+  emitScanProgress(onStageChange, 'gps')
   const position = await new Promise<GeolocationPosition>((resolve, reject) =>
     navigator.geolocation.getCurrentPosition(resolve, reject, {
       enableHighAccuracy: true,
@@ -94,7 +129,8 @@ export async function captureAndSave(
   // ── Step 2: Weather (non-blocking) ────────────────────────────────────────
   let weather = 'Unknown'
   try {
-    const w = await fetchWeatherOnDevice(latitude, longitude)
+    emitScanProgress(onStageChange, 'weather')
+    const w = await withTimeout(fetchWeatherOnDevice(latitude, longitude), WEATHER_TIMEOUT_MS, 'weather lookup')
     if (w) weather = w
   } catch { /* non-critical */ }
 
@@ -103,16 +139,21 @@ export async function captureAndSave(
   // Falls back to original file if Canvas is unavailable (e.g. non-browser env).
   let uploadFile: Blob = file
   try {
+    emitScanProgress(onStageChange, 'watermark')
     const captureTimeNZ = new Date().toLocaleString('en-NZ', {
       dateStyle: 'short',
       timeStyle: 'medium',
       timeZone: 'Pacific/Auckland',
     })
-    uploadFile = await applyEvidenceWatermark(file, {
-      timestamp: captureTimeNZ,
-      gpsCoordinates: `${latitude.toFixed(6)}°, ${longitude.toFixed(6)}°`,
-      userName: user.full_name || undefined,
-    })
+    uploadFile = await withTimeout(
+      applyEvidenceWatermark(file, {
+        timestamp: captureTimeNZ,
+        gpsCoordinates: `${latitude.toFixed(6)}°, ${longitude.toFixed(6)}°`,
+        userName: user.full_name || undefined,
+      }),
+      WATERMARK_TIMEOUT_MS,
+      'evidence watermarking',
+    )
   } catch (err) {
     // Watermarking failed — upload the original photo without a watermark
     console.warn('⚠️ Watermarking failed — uploading original photo:', err)
@@ -127,6 +168,7 @@ export async function captureAndSave(
   const idempKey   = `scan-${user.id}-${timestamp}`
 
   // Compute SHA-256 before upload (File.arrayBuffer() does NOT consume the blob)
+  emitScanProgress(onStageChange, 'hash')
   let photoHash = `sha256:${randomHex}`
   try {
     const buf    = await uploadFile.arrayBuffer()
@@ -135,18 +177,28 @@ export async function captureAndSave(
       .map(b => b.toString(16).padStart(2, '0')).join('')
   } catch { /* fallback already set */ }
 
-  const { error: uploadErr } = await supabase.storage
-    .from('scans')
-    .upload(filePath, uploadFile, { contentType: 'image/jpeg', upsert: false })
+  emitScanProgress(onStageChange, 'upload')
+  const { error: uploadErr } = await withTimeout(
+    supabase.storage
+      .from('scans')
+      .upload(filePath, uploadFile, { contentType: 'image/jpeg', upsert: false }),
+    UPLOAD_TIMEOUT_MS,
+    'photo upload',
+  )
   if (uploadErr) throw new Error(`Photo upload failed: ${uploadErr.message}`)
 
   const { data: urlData } = supabase.storage.from('scans').getPublicUrl(filePath)
   const photoUrl = urlData.publicUrl
 
   // ── Step 4: Resolve zone ──────────────────────────────────────────────────
-  const { zoneId: finalZoneId } = await resolveObservationZoneForOrg(
-    user.organization_id,
-    preferredZoneId,
+  emitScanProgress(onStageChange, 'zone')
+  const { zoneId: finalZoneId } = await withTimeout(
+    resolveObservationZoneForOrg(
+      user.organization_id,
+      preferredZoneId,
+    ),
+    ZONE_RESOLUTION_TIMEOUT_MS,
+    'zone resolution',
   )
   if (!finalZoneId) throw new Error('Could not resolve patrol zone')
 
@@ -156,6 +208,7 @@ export async function captureAndSave(
     let observationId: string | null = null
 
     try {
+      emitScanProgress(onStageChange, 'saving')
       const ingestResult = await withTimeout(
         edgeFunctions.ingestVehicleObservation({
           photo_url: photoUrl,
@@ -182,6 +235,7 @@ export async function captureAndSave(
     } catch (err: any) {
       // If the request timed out or the network dropped after the backend started,
       // recover using idempotency key so the UI can still complete.
+      emitScanProgress(onStageChange, 'recovery')
       const recoveredId = await recoverObservationByIdempotency(idempKey)
       if (recoveredId) {
         observationId = recoveredId
@@ -191,6 +245,8 @@ export async function captureAndSave(
     }
 
   if (!observationId) throw new Error('Observation saved but ID not returned')
+
+  emitScanProgress(onStageChange, 'complete')
 
   return { observationId, photoUrl, photoHash, zoneId: finalZoneId, recordedAt: nowIso, weather }
 }

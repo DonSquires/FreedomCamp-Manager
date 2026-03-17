@@ -13,7 +13,7 @@ import { QRCheckpointScanner } from '@/components/features/QRCheckpointScanner'
 import { ScanDetailPanel, type DetailScanData } from '@/components/features/ScanDetailPanel'
 import { BulkScanSession } from '@/components/features/BulkScanSession'
 import { OfficerFollowUpQueue } from '@/components/features/OfficerFollowUpQueue'
-import { captureAndSave } from '@/lib/scanPipeline'
+import { captureAndSave, SCAN_PROGRESS_LABELS, type ScanProgressStage } from '@/lib/scanPipeline'
 import { useManDownDetection } from '@/hooks/useManDownDetection'
 import {
   Camera, Map, FileText, History, AlertTriangle, MapPin, QrCode,
@@ -57,6 +57,7 @@ export default function FieldOfficerPortal() {
   // Detail scan state — camera + result panel
   const [detailCameraOpen,  setDetailCameraOpen]  = useState(false)
   const [isProcessing,      setIsProcessing]       = useState(false)
+  const [scanProgressLabel, setScanProgressLabel]  = useState(SCAN_PROGRESS_LABELS.gps)
   const [detailScanData,    setDetailScanData]     = useState<DetailScanData | null>(null)
   const [showDetailPanel,   setShowDetailPanel]    = useState(false)
 
@@ -207,6 +208,7 @@ export default function FieldOfficerPortal() {
       return
     }
     setIsProcessing(true)
+    setScanProgressLabel(SCAN_PROGRESS_LABELS.gps)
     try {
       const result = await captureAndSave(
         file,
@@ -216,6 +218,7 @@ export default function FieldOfficerPortal() {
           setCurrentLocation({ latitude: lat, longitude: lon })
           recordGPSUpdate(lat, lon)
         },
+        (_stage: ScanProgressStage, label: string) => setScanProgressLabel(label),
       )
 
       toast.success('✅ Observation captured — detecting plate…', {
@@ -254,6 +257,7 @@ export default function FieldOfficerPortal() {
       toast.error(err.message || 'Scan failed — please try again')
     } finally {
       setIsProcessing(false)
+      setScanProgressLabel(SCAN_PROGRESS_LABELS.gps)
     }
   }, [user, zoneId, zoneName, recordGPSUpdate, refetchScans])
 
@@ -322,7 +326,7 @@ export default function FieldOfficerPortal() {
             <div className="flex items-center gap-3 rounded-xl border border-blue-200 bg-blue-50 dark:bg-blue-950/30 p-3">
               <div className="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-blue-500 border-t-transparent" />
               <span className="text-sm font-medium text-blue-700 dark:text-blue-300">
-                Uploading &amp; saving observation…
+                {scanProgressLabel}
               </span>
             </div>
           )}
@@ -334,6 +338,7 @@ export default function FieldOfficerPortal() {
               onCapture={handleDetailCapture}
               onCancel={() => { setDetailCameraOpen(false); setScanMode(null) }}
               isProcessing={isProcessing}
+              statusLabel={scanProgressLabel}
             />
           </div>
         </div>
