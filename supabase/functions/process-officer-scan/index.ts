@@ -189,6 +189,7 @@ interface InferenceResult {
   // Optional vehicle detail fields from inference service
   inferMake:   string | null;
   inferModel:  string | null;
+  inferYear:   number | null;
   inferColour: string | null;
   inferMakeConf:   number | null;
   inferModelConf:  number | null;
@@ -203,7 +204,7 @@ async function callInference(imageBytes: Uint8Array): Promise<InferenceResult> {
   const empty: InferenceResult = {
     plate: null, confidence: null, embedding: null, embeddingQuality: null,
     path: 'no_inference_url',
-    inferMake: null, inferModel: null, inferColour: null,
+    inferMake: null, inferModel: null, inferYear: null, inferColour: null,
     inferMakeConf: null, inferModelConf: null, inferColourConf: null,
     stickerPresence: null, stickerColor: null, stickerConf: null,
   };
@@ -236,6 +237,7 @@ async function callInference(imageBytes: Uint8Array): Promise<InferenceResult> {
       path:            'railway_inference',
       inferMake:       d?.vehicle_make   ? String(d.vehicle_make)   : null,
       inferModel:      d?.vehicle_model  ? String(d.vehicle_model)  : null,
+      inferYear:       toIntOrNull(d?.vehicle_year ?? d?.year ?? null),
       inferColour:     d?.vehicle_colour ? String(d.vehicle_colour) : null,
       inferMakeConf:   d?.vehicle_make_confidence   ?? null,
       inferModelConf:  d?.vehicle_model_confidence  ?? null,
@@ -453,6 +455,8 @@ interface ComplianceResult {
   isCompliant: boolean;
   breachType: string | null;
   breachReason: string | null;
+  isExempt: boolean;
+  exemptionReason: string | null;
   violationReasons: string[];
   nightsStayed: number;
   consecutiveNights: number;
@@ -498,7 +502,16 @@ async function evaluateCompliance(
   }
 
   if (!matrix) {
-    return { isCompliant: true, breachType: null, breachReason: null, violationReasons: [], nightsStayed: 0, consecutiveNights: 0 };
+    return {
+      isCompliant: true,
+      breachType: null,
+      breachReason: null,
+      isExempt: false,
+      exemptionReason: null,
+      violationReasons: [],
+      nightsStayed: 0,
+      consecutiveNights: 0,
+    };
   }
 
   // Count nights for this vehicle in this zone
@@ -574,6 +587,8 @@ async function evaluateCompliance(
     isCompliant,
     breachType: breachType ? toValidBreachType(breachType) : null,
     breachReason,
+    isExempt: homelessExempt,
+    exemptionReason: homelessExempt ? 'homeless_vehicle_exempt' : null,
     violationReasons: violations,
     nightsStayed,
     consecutiveNights,
@@ -643,7 +658,7 @@ Deno.serve(async (req: Request) => {
     // ── Step 1: Load observation ────────────────────────────────────────────
     const { data: obs, error: obsLoadError } = await supabase
       .from('observations')
-      .select('observation_id, organization_id, zone_id, recorded_at, recorded_by, plate_number, is_compliant, sticker_presence, sticker_color')
+      .select('observation_id, organization_id, zone_id, recorded_at, recorded_by, plate_number, is_compliant, sticker_presence, sticker_color, vehicle_make, vehicle_model, vehicle_year, vehicle_color')
       .eq('observation_id', observationId)
       .maybeSingle();
 
@@ -1118,7 +1133,7 @@ Deno.serve(async (req: Request) => {
     // → inference.
     const resolvedMake = nzscv?.make ?? canonicalMake ?? inference.inferMake ?? null;
     const resolvedModel = nzscv?.model ?? canonicalModel ?? inference.inferModel ?? null;
-    const resolvedYear = nzscv?.year ?? canonicalYear ?? null;
+    const resolvedYear = nzscv?.year ?? canonicalYear ?? inference.inferYear ?? toIntOrNull(obs.vehicle_year) ?? null;
     const resolvedColour = nzscv?.colour ?? canonicalColour ?? inference.inferColour ?? null;
 
     const mismatchNotices = discrepancies.map((d) => {
@@ -1182,11 +1197,11 @@ Deno.serve(async (req: Request) => {
     // ── Step 8: Update observation with plate + NZSCV data ────────────────
     const observationUpdate: Record<string, unknown> = {
       plate_number: plate ?? 'MANUAL_REQUIRED',
-      vehicle_make: resolvedMake,
-      vehicle_model: resolvedModel,
-      vehicle_year: resolvedYear,
-      vehicle_color: resolvedColour,
     };
+    if (resolvedMake) observationUpdate.vehicle_make = resolvedMake;
+    if (resolvedModel) observationUpdate.vehicle_model = resolvedModel;
+    if (resolvedYear) observationUpdate.vehicle_year = resolvedYear;
+    if (resolvedColour) observationUpdate.vehicle_color = resolvedColour;
     if (nzscv !== null) {
       // SC certification — always present when NZSCV lookup succeeded
       observationUpdate.self_contained        = nzscv.isSelfContained;
@@ -1378,6 +1393,8 @@ Deno.serve(async (req: Request) => {
         is_compliant:   compliance.isCompliant,
         breach_type:    compliance.breachType,
         breach_reason:  compliance.breachReason,
+        is_exempt:      compliance.isExempt,
+        exemption_reason: compliance.exemptionReason,
         violations:     compliance.violationReasons,
       },
       // Discrepancy summary — empty array when none detected

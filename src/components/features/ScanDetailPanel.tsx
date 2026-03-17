@@ -44,6 +44,8 @@ export interface DetailScanData {
   photoUrl: string | null
   plateNumber: string | null
   isCompliant: boolean | null
+  isHomelessExempt: boolean
+  homelessStatus: string | null
   breachType: string | null
   processingPending: boolean
   zoneName: string | null
@@ -233,10 +235,23 @@ export function ScanDetailPanel({
         data.plate_number !== 'PROCESSING...' &&
         data.plate_number !== 'MANUAL_REQUIRED'
 
+      let homelessStatus: string | null = null
+      if (resolved && data.plate_number) {
+        const { data: canonical } = await (supabase.from('canonical_vehicles') as any)
+          .select('homeless_status')
+          .eq('plate_number', data.plate_number)
+          .maybeSingle()
+        homelessStatus = canonical?.homeless_status ?? null
+      }
+
+      const isHomelessExempt = homelessStatus === 'confirmed' || homelessStatus === 'claimed'
+
       setObs(prev => prev ? {
         ...prev,
         plateNumber:       data.plate_number         ?? prev.plateNumber,
         isCompliant:       typeof data.is_compliant === 'boolean' ? data.is_compliant : prev.isCompliant,
+        isHomelessExempt:  isHomelessExempt,
+        homelessStatus:    homelessStatus,
         breachType:        data.breach_type          ?? prev.breachType,
         processingPending: resolved ? false : prev.processingPending,
         zoneName:          data.zone?.name           ?? prev.zoneName,
@@ -375,7 +390,8 @@ export function ScanDetailPanel({
                 {/* Compliance badge */}
                 {!pending && compliant === true && (
                   <Badge className="bg-green-600 text-white text-[10px]">
-                    <CheckCircle className="h-3 w-3 mr-1" />Compliant
+                    <CheckCircle className="h-3 w-3 mr-1" />
+                    {obs.isHomelessExempt ? 'Exempt (Homeless)' : 'Compliant'}
                   </Badge>
                 )}
                 {!pending && compliant === false && (

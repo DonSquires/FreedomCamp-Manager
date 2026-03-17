@@ -231,6 +231,8 @@ export default function FieldOfficerPortal() {
         photoUrl:            result.photoUrl,
         plateNumber:         null,
         isCompliant:         null,
+        isHomelessExempt:    false,
+        homelessStatus:      null,
         breachType:          null,
         processingPending:   true,
         zoneName:            zoneName ?? null,
