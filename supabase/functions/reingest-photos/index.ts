@@ -8,9 +8,9 @@
 // Supports batched pagination via get_total / offset / batch_size, following
 // the same pattern used by recalculate-compliance-v3 and cleanup-and-recalculate.
 //
-// Performance: Photo hash is reused from the source observation (no photo
-// download). Each source photo is forwarded to vehicle-ingest so reingest uses
-// the same end-to-end ingest pipeline as live officer scans.
+// Performance: this function only fetches candidate observations. The browser
+// then invokes vehicle-ingest per observation so each reingest appears as a
+// real vehicle-ingest invocation without risking a long-running batch timeout.
 //
 // Improved: Safe body parsing with error handling for empty/invalid JSON bodies.
 // ============================================================================
@@ -51,7 +51,6 @@ Deno.serve(async (req) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
     const supabase = createClient(supabaseUrl, supabaseKey);
-    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
 
     // ── Auth guard (local JWT decode — no network round-trip) ─────────────
     const authHeader = req.headers.get("Authorization");
@@ -171,82 +170,24 @@ Deno.serve(async (req) => {
       );
     }
 
-    const observations = rows || [];
-    if (observations.length === 0) {
-      return new Response(
-        JSON.stringify({ processed: 0, created: 0, failed: 0, failures: [] }),
-        { status: 200, headers: { ...getCorsHeaders(req), "content-type": "application/json" } },
-      );
-    }
-
-    // ── Process each observation: reset plate + fire process-officer-scan ──
-    // Strategy: instead of calling vehicle-ingest (expensive, synchronous),
-    // we directly reset plate_number = "PROCESSING..." in the DB (fast, service
-    // role), then fire process-officer-scan as fire-and-forget. This avoids
-    // function-to-function HTTP round-trips that exhaust the 60 s wall clock.
-    let updated = 0;
-    let failed = 0;
-    const failures: Array<{ observation_id: string; reason: string }> = [];
-    const processOfficerScanUrl = `${supabaseUrl}/functions/v1/process-officer-scan`;
-    const forwardHeaders = {
-      "Authorization": authHeader!,
-      "Content-Type": "application/json",
-      "apikey": req.headers.get("apikey") || supabaseAnonKey,
-    };
-
-    for (const obs of observations) {
-      const observationId = obs.observation_id || "";
-      const photoUrl = (obs.photo_url || obs.photo || "").trim();
-
-      if (!photoUrl) {
-        failed++;
-        failures.push({ observation_id: observationId, reason: "no_photo_url" });
-        continue;
-      }
-
-      try {
-        // Step 1: Reset plate to PROCESSING... so process-officer-scan does
-        // not hit the already_enriched fast-exit.
-        const { error: resetErr } = await supabase
-          .from("observations")
-          .update({ plate_number: "PROCESSING...", updated_at: new Date().toISOString() })
-          .eq("observation_id", observationId);
-
-        if (resetErr) {
-          throw new Error(`plate reset failed: ${resetErr.message}`);
-        }
-
-        // Step 2: Fire process-officer-scan (fire-and-forget — do NOT await).
-        // process-officer-scan handles ALPR, NZSCV, compliance, breach alerts.
-        fetch(processOfficerScanUrl, {
-          method: "POST",
-          headers: forwardHeaders,
-          body: JSON.stringify({
-            observation_id: observationId,
-            photo_url: photoUrl,
-            allow_admin_override: true,
-          }),
-        }).catch((err) => {
-          console.warn(`⚠️ process-officer-scan fire failed for ${observationId}:`, err?.message);
-        });
-
-        updated++;
-      } catch (err: any) {
-        failed++;
-        failures.push({
-          observation_id: observationId,
-          reason: err?.message || "reset_failed",
-        });
-      }
-    }
+    const observations = (rows || []).map((obs) => ({
+      observation_id: obs.observation_id,
+      photo_url: obs.photo_url || obs.photo || null,
+      photo_hash: obs.photo_hash ?? null,
+      recorded_at: obs.recorded_at ?? null,
+      zone_id: obs.zone_id ?? null,
+      organization_id: obs.organization_id ?? null,
+      gps_latitude: obs.gps_latitude ?? null,
+      gps_longitude: obs.gps_longitude ?? null,
+      gps_accuracy: obs.gps_accuracy ?? null,
+      plate_number: obs.plate_number ?? null,
+      officer_notes: obs.officer_notes ?? null,
+    }));
 
     return new Response(
       JSON.stringify({
         processed: observations.length,
-        updated,
-        created: updated,
-        failed,
-        failures: failures.slice(0, 20),
+        observations,
       }),
       { status: 200, headers: { ...getCorsHeaders(req), "content-type": "application/json" } },
     );

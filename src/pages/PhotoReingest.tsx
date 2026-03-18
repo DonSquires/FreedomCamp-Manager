@@ -32,11 +32,21 @@ interface ReingestResult {
 
 interface ReingestBatchResponse {
   processed?: number
-  updated?: number
-  created?: number
-  failed?: number
-  total?: number
-  failures?: Array<{ observation_id: string; reason: string }>
+  observations?: ReingestObservation[]
+}
+
+interface ReingestObservation {
+  observation_id: string
+  photo_url: string | null
+  photo_hash: string | null
+  recorded_at: string | null
+  zone_id: string | null
+  organization_id: string | null
+  gps_latitude: number | null
+  gps_longitude: number | null
+  gps_accuracy: number | null
+  plate_number: string | null
+  officer_notes: string | null
 }
 
 interface LiveRunState {
@@ -130,6 +140,39 @@ export default function PhotoReingest() {
     let topFailureReason: string | null = null
     let batchNumber = 0
 
+    const invokeVehicleIngest = async (observation: ReingestObservation) => {
+      const { data, error } = await withTimeout(
+        edgeFunctions.ingestVehicleObservation({
+          existing_observation_id: observation.observation_id,
+          observation_id: observation.observation_id,
+          photo_url: observation.photo_url,
+          photo_hash: observation.photo_hash,
+          recorded_at: observation.recorded_at,
+          recordedAt: observation.recorded_at,
+          zone_id: observation.zone_id,
+          zoneId: observation.zone_id,
+          organization_id: observation.organization_id,
+          organizationId: observation.organization_id,
+          gps_latitude: observation.gps_latitude,
+          gps_longitude: observation.gps_longitude,
+          gps_accuracy: observation.gps_accuracy,
+          plate_number: observation.plate_number,
+          plate: observation.plate_number,
+          officer_notes: observation.officer_notes,
+          notes: observation.officer_notes,
+          idempotencyKey: `reingest-update-${observation.observation_id}-${Date.now()}`,
+        }),
+        30_000,
+        `vehicle-ingest for ${observation.observation_id}`,
+      )
+
+      if (error) {
+        throw new Error(error)
+      }
+
+      return data
+    }
+
     // Seed the live display immediately so the card appears.
     setLiveRun({ total: 0, processed: 0, updated: 0, failed: 0 })
     setProgress(5)
@@ -158,17 +201,30 @@ export default function PhotoReingest() {
       if (batchError) throw new Error(batchError)
 
       const parsedBatch = (batchData as ReingestBatchResponse | null) ?? {}
-      const processed = Number(parsedBatch.processed ?? 0)
-      const updated = Number(parsedBatch.updated ?? parsedBatch.created ?? 0)
-      const failed = Number(parsedBatch.failed ?? 0)
-      if (!topFailureReason && Array.isArray(parsedBatch.failures) && parsedBatch.failures.length > 0) {
-        const first = parsedBatch.failures[0]
-        topFailureReason = `${first.observation_id}: ${first.reason}`
+      const observations = Array.isArray(parsedBatch.observations) ? parsedBatch.observations : []
+
+      for (const observation of observations) {
+        if (!observation.photo_url) {
+          failedTotal += 1
+          if (!topFailureReason) {
+            topFailureReason = `${observation.observation_id}: no_photo_url`
+          }
+          continue
+        }
+
+        try {
+          await invokeVehicleIngest(observation)
+          updatedTotal += 1
+        } catch (error: any) {
+          failedTotal += 1
+          if (!topFailureReason) {
+            topFailureReason = `${observation.observation_id}: ${error?.message || 'vehicle-ingest_failed'}`
+          }
+        }
+
+        processedTotal += 1
       }
 
-      processedTotal += processed
-      updatedTotal += updated
-      failedTotal += failed
       batchNumber++
 
       // Pulse the progress bar: creep toward 95% as batches complete, never reach 100 until done.
@@ -189,8 +245,8 @@ export default function PhotoReingest() {
         skippedNoRules: 0,
       })
 
-      if (processed <= 0) break
-      offset += processed
+      if (observations.length <= 0) break
+      offset += observations.length
     }
 
     return {

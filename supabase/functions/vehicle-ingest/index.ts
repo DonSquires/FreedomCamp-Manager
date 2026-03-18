@@ -316,6 +316,118 @@ Deno.serve(async (req) => {
       );
     }
 
+    const isUpdateExistingMode = !!existingObservationId;
+
+    if (isUpdateExistingMode && photoUrlInput) {
+      let existingObs: Record<string, unknown> | null = null;
+
+      const byObservationId = await supabase
+        .from("observations")
+        .select("observation_id, id, organization_id, zone_id, photo_hash")
+        .eq("observation_id", existingObservationId)
+        .maybeSingle();
+
+      if (byObservationId.data) {
+        existingObs = byObservationId.data as Record<string, unknown>;
+      } else {
+        const byId = await supabase
+          .from("observations")
+          .select("observation_id, id, organization_id, zone_id, photo_hash")
+          .eq("id", existingObservationId)
+          .maybeSingle();
+        existingObs = (byId.data as Record<string, unknown> | null) ?? null;
+      }
+
+      if (!existingObs) {
+        return new Response(JSON.stringify({ error: "Target observation for update was not found" }), {
+          status: 404,
+          headers: { ...getCorsHeaders(req), "content-type": "application/json" },
+        });
+      }
+
+      const canonicalObservationId = (existingObs as any).observation_id ?? (existingObs as any).id;
+
+      if (profile.role !== "master" && (existingObs as any).organization_id !== profile.organization_id) {
+        return new Response(JSON.stringify({ error: "Observation does not belong to your organization" }), {
+          status: 403,
+          headers: { ...getCorsHeaders(req), "content-type": "application/json" },
+        });
+      }
+
+      const photoHash = hintPhotoHash ?? ((existingObs as any).photo_hash as string | null) ?? null;
+      const updatePayload: Record<string, unknown> = {
+        plate_number: "PROCESSING...",
+        photo: photoUrlInput,
+        photo_url: photoUrlInput,
+        updated_at: new Date().toISOString(),
+      };
+
+      if (photoHash) {
+        updatePayload.photo_hash = photoHash;
+      }
+
+      const { error: updateErr } = await supabase
+        .from("observations")
+        .update(updatePayload)
+        .eq("observation_id", canonicalObservationId);
+
+      if (updateErr) {
+        return new Response(JSON.stringify({ error: `Failed to update observation: ${updateErr.message}` }), {
+          status: 500,
+          headers: { ...getCorsHeaders(req), "content-type": "application/json" },
+        });
+      }
+
+      console.log("✅ Observation queued for re-ingest via vehicle-ingest:", canonicalObservationId);
+
+      if (authHeader) {
+        const processOfficerScanUrl = `${supabaseUrl}/functions/v1/process-officer-scan`;
+        fetch(processOfficerScanUrl, {
+          method: "POST",
+          headers: {
+            "Authorization": authHeader,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            observation_id: canonicalObservationId,
+            photo_url: photoUrlInput,
+            photo_hash: photoHash,
+            allow_admin_override: true,
+          }),
+        }).then(async (response) => {
+          if (!response.ok) {
+            const text = await response.text().catch(() => "");
+            console.warn("⚠️ process-officer-scan background kickoff failed", {
+              status: response.status,
+              body: text,
+            });
+          }
+        }).catch((kickoffError) => {
+          console.warn("⚠️ process-officer-scan background kickoff exception", kickoffError);
+        });
+      }
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          observation_id: canonicalObservationId,
+          updated_existing: true,
+          source: "queued_reingest",
+          plate: null,
+          confidence: null,
+          photo_url: photoUrlInput,
+          photo_hash: photoHash,
+          requires_manual_entry: false,
+          is_compliant: null,
+          breach_type: null,
+        }),
+        {
+          status: 200,
+          headers: { ...getCorsHeaders(req), "content-type": "application/json" },
+        }
+      );
+    }
+
     // ── Storage-first fast path ─────────────────────────────────────────────
     // When the caller supplies both photo_url and photo_hash (no raw bytes),
     // we are in "storage-first" mode: the photo is already in Supabase Storage
@@ -453,8 +565,6 @@ Deno.serve(async (req) => {
       hasDataUrl: !!imageDataUrl,
       hasPhotoUrlInput: !!photoUrlInput,
     });
-
-    const isUpdateExistingMode = !!existingObservationId;
 
     // Check for duplicate (idempotency) only for new inserts.
     if (!isUpdateExistingMode) {
