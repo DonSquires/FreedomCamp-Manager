@@ -657,6 +657,23 @@ export const edgeFunctions = {
     return callEdgeFunction('reingest-photos', params, { showToast: false })
   },
 
+  /**
+   * Link evidence bucket photos to canonical vehicle records via ALPR.
+   * Runs plate recognition on each image in the evidence bucket and sets
+   * profile_photo / profile_photo_url on the matching canonical_vehicles row.
+   * Toast suppressed here; caller handles it.
+   */
+  linkEvidencePhotos: async (params: {
+    path_prefix?: string
+    paths?: string[]
+    min_confidence?: number
+    force_update?: boolean
+    dry_run?: boolean
+    limit?: number
+  }) => {
+    return callEdgeFunction('link-evidence-photos', params, { showToast: false })
+  },
+
   // ============================================================================
   // DATA MANAGEMENT (6 functions)
   // ============================================================================

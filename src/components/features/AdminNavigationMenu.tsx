@@ -6,7 +6,7 @@ import {
   Home, Car, MapPin, Users, BarChart3, FileText,
   LogOut, Settings, ChevronLeft, AlertTriangle, ChevronDown,
   Activity, Database, Search, Heart, ScrollText, Lock, Gavel,
-  Navigation, BookOpen, LayoutGrid, Map, Bell, Upload, Shield, Camera,
+  Navigation, BookOpen, LayoutGrid, Map, Bell, Upload, Shield, Camera, Link2,
 } from 'lucide-react'
 
 const primaryLinks = [
@@ -80,6 +80,7 @@ const moreGroups = [
       { to: '/import-historical', label: 'Import Excel', icon: Upload },
       { to: '/data',            label: 'Data Tools',   icon: Database },
       { to: '/photo-reingest',  label: 'Photo Reingest', icon: Camera },
+      { to: '/evidence-photo-linker', label: 'Evidence Linker', icon: Link2 },
       { to: '/settings',        label: 'Settings',     icon: Settings },
     ],
   },

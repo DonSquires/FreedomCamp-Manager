@@ -27,6 +27,7 @@ import { GlobalOperationsBar } from '@/components/features/GlobalOperationsBar'
 import ComplianceRecalculation from '@/pages/ComplianceRecalculation'
 import CleanupAndRecalculate from '@/pages/CleanupAndRecalculate'
 import PhotoReingest from '@/pages/PhotoReingest'
+import EvidencePhotoLinker from '@/pages/EvidencePhotoLinker'
 import LiveOfficerTracking from '@/pages/LiveOfficerTracking'
 import OrganizationProfile from '@/pages/OrganizationProfile'
 import AuditLog from '@/pages/AuditLog'
@@ -389,6 +390,17 @@ export default function App() {
               <ProtectedRoute>
                 <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
                   <PhotoReingest />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/evidence-photo-linker"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'master']}>
+                  <EvidencePhotoLinker />
                 </RoleRoute>
               </ProtectedRoute>
             }
