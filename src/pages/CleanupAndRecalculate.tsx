@@ -78,8 +78,30 @@ export default function CleanupAndRecalculate() {
   // Sync from global operation when returning to this page
   useEffect(() => {
     if (globalOp?.progress != null) setProgress(globalOp.progress)
-    if (globalOp?.liveProgress) setLiveRun(globalOp.liveProgress as unknown as LiveState)
-    if (globalOp?.result && !result) setResult(globalOp.result as unknown as CleanupResult)
+    if (globalOp?.liveProgress) {
+      setLiveRun({
+        total: Number(globalOp.liveProgress.total ?? 0),
+        processed: Number(globalOp.liveProgress.processed ?? 0),
+        zonesCorrected: Number((globalOp.liveProgress as any).zonesCorrected ?? 0),
+        duplicatesRemoved: Number((globalOp.liveProgress as any).duplicatesRemoved ?? 0),
+        complianceChanged: Number(globalOp.liveProgress.changed ?? 0),
+        breachesCreated: Number(globalOp.liveProgress.breachesCreated ?? 0),
+        skippedNoMatrix: Number(globalOp.liveProgress.skippedNoRules ?? 0),
+      })
+    }
+    if (globalOp?.result && !result) {
+      setResult({
+        processed: Number(globalOp.result.observations_processed ?? 0),
+        zonesCorrected: Number((globalOp.result as any).zones_corrected ?? 0),
+        duplicatesRemoved: Number((globalOp.result as any).duplicates_removed ?? 0),
+        complianceChanged: Number(globalOp.result.compliance_changed ?? 0),
+        breachesCreated: Number(globalOp.result.breaches_created ?? 0),
+        skippedNoMatrix: Number(globalOp.result.skipped_no_rules ?? 0),
+        duration_seconds: Number(globalOp.result.duration_seconds ?? 0),
+        status: globalOp.result.status,
+        error_message: globalOp.result.error_message,
+      })
+    }
   }, [globalOp?.progress, globalOp?.liveProgress, globalOp?.result, globalOp?.status, result])
 
   const effectiveOrgId = selectedOrgId || (user?.role !== 'master' ? user?.organization_id || '' : '')
@@ -295,6 +317,8 @@ export default function CleanupAndRecalculate() {
       setResult(res)
       completeOperation(OPERATION_ID, {
         observations_processed: res.processed,
+        zones_corrected: res.zonesCorrected,
+        duplicates_removed: res.duplicatesRemoved,
         compliance_changed: res.complianceChanged,
         breaches_created: res.breachesCreated,
         breaches_dismissed: 0,
@@ -584,6 +608,9 @@ function StatCard({
   total?: number
   icon?: React.ReactNode
 }) {
+  const safeValue = Number(value ?? 0)
+  const safeTotal = total != null ? Number(total) : null
+
   return (
     <div className="bg-muted/40 rounded-lg p-3">
       <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-1">
@@ -591,9 +618,9 @@ function StatCard({
         {label}
       </div>
       <div className="text-xl font-bold">
-        {value.toLocaleString()}
-        {total != null && (
-          <span className="text-sm font-normal text-muted-foreground ml-1">/ {total.toLocaleString()}</span>
+        {safeValue.toLocaleString()}
+        {safeTotal != null && (
+          <span className="text-sm font-normal text-muted-foreground ml-1">/ {safeTotal.toLocaleString()}</span>
         )}
       </div>
     </div>

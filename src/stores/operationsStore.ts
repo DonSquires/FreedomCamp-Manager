@@ -11,6 +11,8 @@ export interface OperationProgress {
 
 export interface OperationResult {
   observations_processed: number
+  zones_corrected?: number
+  duplicates_removed?: number
   compliance_changed: number
   breaches_created: number
   breaches_dismissed: number
