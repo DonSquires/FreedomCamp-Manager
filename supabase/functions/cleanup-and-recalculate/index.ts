@@ -17,6 +17,10 @@ import { nzHour, toValidBreachType } from '../_shared/compliance.ts';
 type OvernightVerificationMode = 'two_photo_verification' | 'one_photo_per_day_inference';
 type CleanupPhase = 'all' | 'zone' | 'dedup' | 'compliance';
 const EMBEDDING_MATCH_THRESHOLD = 0.86;
+const RECHECK_NZSCV_ON_FALSE_OR_EXPIRED = (Deno.env.get('RECHECK_NZSCV_ON_FALSE_OR_EXPIRED') ?? '1') !== '0';
+const NZSCV_PROXY_URL = Deno.env.get('NZSCV_PROXY_URL') ?? '';
+const NZSCV_PROXY_SECRET = Deno.env.get('NZSCV_PROXY_SECRET') ?? '';
+const NZSCV_RECHECK_TIMEOUT_MS = Number(Deno.env.get('NZSCV_RECHECK_TIMEOUT_MS') ?? '3000');
 
 const DUPLICATE_DISTANCE_METERS = 50;
 
@@ -143,6 +147,63 @@ function normalizePlateKey(value?: string | null): string {
     .replace(/[^A-Z0-9]/g, '');
 }
 
+function toEpoch(value?: string | null): number | null {
+  if (!value) return null;
+  const ts = new Date(value).getTime();
+  return Number.isNaN(ts) ? null : ts;
+}
+
+function parseExpiryToEpoch(expiry?: string | null): number | null {
+  if (!expiry) return null;
+  const normalized = /^\d{4}-\d{2}-\d{2}$/.test(expiry)
+    ? `${expiry}T23:59:59Z`
+    : expiry;
+  return toEpoch(normalized);
+}
+
+function isExpiredAt(expiry: string | null | undefined, referenceIso: string): boolean {
+  const expiryTs = parseExpiryToEpoch(expiry);
+  const refTs = toEpoch(referenceIso);
+  if (expiryTs === null || refTs === null) return false;
+  return expiryTs < refTs;
+}
+
+async function recheckNzscvSelfContained(plateNumber: string): Promise<{ isSelfContained: boolean; expiryDate: string | null } | null> {
+  if (!RECHECK_NZSCV_ON_FALSE_OR_EXPIRED || !NZSCV_PROXY_URL) return null;
+
+  try {
+    const response = await fetch(`${NZSCV_PROXY_URL}/api/nzscv/vehicle-info`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Proxy-Secret': NZSCV_PROXY_SECRET,
+      },
+      body: JSON.stringify({
+        RegistrationNumber: String(plateNumber ?? '').trim().toUpperCase(),
+      }),
+      signal: AbortSignal.timeout(NZSCV_RECHECK_TIMEOUT_MS),
+    });
+
+    if (!response.ok) {
+      return null;
+    }
+
+    const payload = await response.json();
+    const vr = payload?.VehicleRegistration;
+    const status = vr?.CertificateStatus ?? null;
+    const expiry = vr?.CertificateExpiryDate ?? null;
+
+    const byStatus = status === 'Current' || status === 'Issued';
+    const byExpiry = expiry != null && !isExpiredAt(expiry, new Date().toISOString());
+    return {
+      isSelfContained: Boolean(byStatus || (!status && byExpiry)),
+      expiryDate: expiry,
+    };
+  } catch {
+    return null;
+  }
+}
+
 function normalizeHomelessCategory(status?: string | null): 'confirmed' | 'claimed' | 'declined' | 'freedom_camper' {
   const s = String(status ?? '').toLowerCase();
   if (s === 'confirmed') return 'confirmed';
@@ -154,7 +215,12 @@ function normalizeHomelessCategory(status?: string | null): 'confirmed' | 'claim
 async function buildHomelessStatusMaps(
   supabaseAdmin: ReturnType<typeof createClient>,
   observations: any[],
-): Promise<{ byOrgPlate: Map<string, string>; byPlate: Map<string, string> }> {
+): Promise<{
+  byOrgPlate: Map<string, string>;
+  byPlate: Map<string, string>;
+  selfContainedByPlate: Map<string, boolean | null>;
+  selfContainedExpiryByPlate: Map<string, string | null>;
+}> {
   const plateKeys = [...new Set(
     observations
       .map((o: any) => normalizePlateKey(o.plate_number))
@@ -184,14 +250,19 @@ async function buildHomelessStatusMaps(
   }
 
   const byPlate = new Map<string, string>();
+  const selfContainedByPlate = new Map<string, boolean | null>();
+  const selfContainedExpiryByPlate = new Map<string, string | null>();
   if (plateKeys.length > 0) {
     const { data: canonicalRows } = await supabaseAdmin
       .from('canonical_vehicles')
-      .select('plate_number, homeless_status')
+      .select('plate_number, homeless_status, self_contained, self_contained_expiry')
       .in('plate_number', plateKeys);
 
     for (const row of canonicalRows ?? []) {
-      byPlate.set(normalizePlateKey((row as any).plate_number), String((row as any).homeless_status ?? ''));
+      const plateKey = normalizePlateKey((row as any).plate_number);
+      byPlate.set(plateKey, String((row as any).homeless_status ?? ''));
+      selfContainedByPlate.set(plateKey, (row as any).self_contained ?? null);
+      selfContainedExpiryByPlate.set(plateKey, (row as any).self_contained_expiry ?? null);
     }
   }
 
@@ -200,6 +271,8 @@ async function buildHomelessStatusMaps(
       [...byOrgPlate.entries()].map(([key, value]) => [key, value.status]),
     ),
     byPlate,
+    selfContainedByPlate,
+    selfContainedExpiryByPlate,
   };
 }
 
@@ -542,8 +615,15 @@ serve(async (req) => {
     const zoneMatrices = new Map<string, any>();
     const zonesWithoutMatrix = new Set<string>();
 
-    const { byOrgPlate: homelessStatusByOrgPlate, byPlate: homelessStatusByPlate } =
+    const {
+      byOrgPlate: homelessStatusByOrgPlate,
+      byPlate: homelessStatusByPlate,
+      selfContainedByPlate,
+      selfContainedExpiryByPlate,
+    } =
       await buildHomelessStatusMaps(supabaseAdmin, activeObservations as any[]);
+
+    const nzscvRecheckCache = new Map<string, { isSelfContained: boolean; expiryDate: string | null } | null>();
 
     for (const obs of activeObservations) {
       try {
@@ -685,7 +765,33 @@ serve(async (req) => {
         }
         // Self-contained
         if (isCompliant && (matrix.self_contained_required || matrix.requires_csc)) {
-          if (!obs.self_contained) {
+          const hasCanonicalSelfContained = selfContainedByPlate.has(plateKey);
+          const canonicalSelfContained = selfContainedByPlate.get(plateKey);
+          const canonicalExpiry = selfContainedExpiryByPlate.get(plateKey) ?? null;
+
+          let isSelfContained = hasCanonicalSelfContained && canonicalSelfContained !== null
+            ? Boolean(canonicalSelfContained)
+            : Boolean(obs.self_contained);
+
+          const canonicalLooksStale = hasCanonicalSelfContained
+            && (canonicalSelfContained === false || isExpiredAt(canonicalExpiry, obs.recorded_at));
+
+          if (!isHomelessExempt && canonicalLooksStale && plateKey) {
+            if (!nzscvRecheckCache.has(plateKey)) {
+              nzscvRecheckCache.set(plateKey, await recheckNzscvSelfContained(obs.plate_number));
+            }
+
+            const refreshed = nzscvRecheckCache.get(plateKey);
+            if (refreshed?.isSelfContained) {
+              isSelfContained = true;
+              selfContainedByPlate.set(plateKey, true);
+              if (refreshed.expiryDate) {
+                selfContainedExpiryByPlate.set(plateKey, refreshed.expiryDate);
+              }
+            }
+          }
+
+          if (!isSelfContained) {
             if (!isHomelessExempt) {
               isCompliant  = false;
               breachType   = 'self_contained';
@@ -694,6 +800,12 @@ serve(async (req) => {
           }
         }
 
+        const hasCanonicalSelfContained = selfContainedByPlate.has(plateKey);
+        const canonicalSelfContained = selfContainedByPlate.get(plateKey);
+        const shouldSyncSelfContained = hasCanonicalSelfContained
+          && canonicalSelfContained !== null
+          && Boolean(obs.self_contained) !== Boolean(canonicalSelfContained);
+
         // Update observation
         await supabaseAdmin
           .from('observations')
@@ -701,6 +813,9 @@ serve(async (req) => {
             is_compliant:  isCompliant,
             breach_type:   breachType,
             breach_reason: breachReason,
+            ...(shouldSyncSelfContained
+              ? { self_contained: Boolean(canonicalSelfContained) }
+              : {}),
           })
           .eq(observationKeyColumn, obsId);
 

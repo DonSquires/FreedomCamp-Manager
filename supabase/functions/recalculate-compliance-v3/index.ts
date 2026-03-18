@@ -34,6 +34,10 @@ type MatrixRuleSet = RuleSet & {
 
 type OvernightVerificationMode = 'two_photo_verification' | 'one_photo_per_day_inference';
 const EMBEDDING_MATCH_THRESHOLD = 0.86;
+const RECHECK_NZSCV_ON_FALSE_OR_EXPIRED = (Deno.env.get('RECHECK_NZSCV_ON_FALSE_OR_EXPIRED') ?? '1') !== '0';
+const NZSCV_PROXY_URL = Deno.env.get('NZSCV_PROXY_URL') ?? '';
+const NZSCV_PROXY_SECRET = Deno.env.get('NZSCV_PROXY_SECRET') ?? '';
+const NZSCV_RECHECK_TIMEOUT_MS = Number(Deno.env.get('NZSCV_RECHECK_TIMEOUT_MS') ?? '3000');
 
 function parseJwtPayload(token: string): Record<string, unknown> | null {
   try {
@@ -153,6 +157,57 @@ function toEpoch(value?: string | null): number | null {
   return Number.isNaN(ts) ? null : ts;
 }
 
+function parseExpiryToEpoch(expiry?: string | null): number | null {
+  if (!expiry) return null;
+  const normalized = /^\d{4}-\d{2}-\d{2}$/.test(expiry)
+    ? `${expiry}T23:59:59Z`
+    : expiry;
+  return toEpoch(normalized);
+}
+
+function isExpiredAt(expiry: string | null | undefined, referenceIso: string): boolean {
+  const expiryTs = parseExpiryToEpoch(expiry);
+  const refTs = toEpoch(referenceIso);
+  if (expiryTs === null || refTs === null) return false;
+  return expiryTs < refTs;
+}
+
+async function recheckNzscvSelfContained(plateNumber: string): Promise<{ isSelfContained: boolean; expiryDate: string | null } | null> {
+  if (!RECHECK_NZSCV_ON_FALSE_OR_EXPIRED || !NZSCV_PROXY_URL) return null;
+
+  try {
+    const response = await fetch(`${NZSCV_PROXY_URL}/api/nzscv/vehicle-info`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Proxy-Secret': NZSCV_PROXY_SECRET,
+      },
+      body: JSON.stringify({
+        RegistrationNumber: String(plateNumber ?? '').trim().toUpperCase(),
+      }),
+      signal: AbortSignal.timeout(NZSCV_RECHECK_TIMEOUT_MS),
+    });
+
+    if (!response.ok) {
+      return null;
+    }
+
+    const payload = await response.json();
+    const vr = payload?.VehicleRegistration;
+    const status = vr?.CertificateStatus ?? null;
+    const expiry = vr?.CertificateExpiryDate ?? null;
+
+    const byStatus = status === 'Current' || status === 'Issued';
+    const byExpiry = expiry != null && !isExpiredAt(expiry, new Date().toISOString());
+    return {
+      isSelfContained: Boolean(byStatus || (!status && byExpiry)),
+      expiryDate: expiry,
+    };
+  } catch {
+    return null;
+  }
+}
+
 function normalizePlateKey(value?: string | null): string {
   return String(value ?? '')
     .trim()
@@ -172,7 +227,12 @@ function normalizeHomelessCategory(status?: string | null): 'confirmed' | 'claim
 async function buildHomelessStatusMaps(
   supabaseAdmin: ReturnType<typeof createClient>,
   observations: any[],
-): Promise<{ byOrgPlate: Map<string, string>; byPlate: Map<string, string> }> {
+): Promise<{
+  byOrgPlate: Map<string, string>;
+  byPlate: Map<string, string>;
+  selfContainedByPlate: Map<string, boolean | null>;
+  selfContainedExpiryByPlate: Map<string, string | null>;
+}> {
   const plateKeys = [...new Set(
     observations
       .map((o: any) => normalizePlateKey(o.plate_number))
@@ -202,14 +262,19 @@ async function buildHomelessStatusMaps(
   }
 
   const byPlate = new Map<string, string>();
+  const selfContainedByPlate = new Map<string, boolean | null>();
+  const selfContainedExpiryByPlate = new Map<string, string | null>();
   if (plateKeys.length > 0) {
     const { data: canonicalRows } = await supabaseAdmin
       .from('canonical_vehicles')
-      .select('plate_number, homeless_status')
+      .select('plate_number, homeless_status, self_contained, self_contained_expiry')
       .in('plate_number', plateKeys);
 
     for (const row of canonicalRows ?? []) {
-      byPlate.set(normalizePlateKey((row as any).plate_number), String((row as any).homeless_status ?? ''));
+      const plateKey = normalizePlateKey((row as any).plate_number);
+      byPlate.set(plateKey, String((row as any).homeless_status ?? ''));
+      selfContainedByPlate.set(plateKey, (row as any).self_contained ?? null);
+      selfContainedExpiryByPlate.set(plateKey, (row as any).self_contained_expiry ?? null);
     }
   }
 
@@ -218,6 +283,8 @@ async function buildHomelessStatusMaps(
       [...byOrgPlate.entries()].map(([key, value]) => [key, value.status]),
     ),
     byPlate,
+    selfContainedByPlate,
+    selfContainedExpiryByPlate,
   };
 }
 
@@ -411,8 +478,15 @@ serve(async (req: Request) => {
       });
     }
 
-    const { byOrgPlate: homelessStatusByOrgPlate, byPlate: homelessStatusByPlate } =
+    const {
+      byOrgPlate: homelessStatusByOrgPlate,
+      byPlate: homelessStatusByPlate,
+      selfContainedByPlate,
+      selfContainedExpiryByPlate,
+    } =
       await buildHomelessStatusMaps(supabaseAdmin, observations as any[]);
+
+    const nzscvRecheckCache = new Map<string, { isSelfContained: boolean; expiryDate: string | null } | null>();
 
     const orgIds = [...new Set(observations.map((o: any) => o.organization_id).filter(Boolean))];
     const { data: orgRows } = await supabaseAdmin
@@ -654,7 +728,34 @@ serve(async (req: Request) => {
 
       if (isCompliant && (rules.self_contained_required || rules.requires_csc)) {
         const exempt = isHomelessExempt;
-        const isSelfContained = hasSelfContainedColumn ? Boolean(obs.self_contained) : false;
+        const hasCanonicalSelfContained = selfContainedByPlate.has(plateKey);
+        const canonicalSelfContained = selfContainedByPlate.get(plateKey);
+        const canonicalExpiry = selfContainedExpiryByPlate.get(plateKey) ?? null;
+
+        let isSelfContained = hasCanonicalSelfContained && canonicalSelfContained !== null
+          ? Boolean(canonicalSelfContained)
+          : hasSelfContainedColumn
+            ? Boolean(obs.self_contained)
+            : false;
+
+        const canonicalLooksStale = hasCanonicalSelfContained
+          && (canonicalSelfContained === false || isExpiredAt(canonicalExpiry, obs.recorded_at));
+
+        if (!exempt && canonicalLooksStale && plateKey) {
+          if (!nzscvRecheckCache.has(plateKey)) {
+            nzscvRecheckCache.set(plateKey, await recheckNzscvSelfContained(obs.plate_number));
+          }
+
+          const refreshed = nzscvRecheckCache.get(plateKey);
+          if (refreshed?.isSelfContained) {
+            isSelfContained = true;
+            selfContainedByPlate.set(plateKey, true);
+            if (refreshed.expiryDate) {
+              selfContainedExpiryByPlate.set(plateKey, refreshed.expiryDate);
+            }
+          }
+        }
+
         if (!isSelfContained && !exempt) {
           isCompliant = false;
           breachType = 'self_contained';
@@ -662,16 +763,27 @@ serve(async (req: Request) => {
         }
       }
 
+      const hasCanonicalSelfContained = selfContainedByPlate.has(plateKey);
+      const canonicalSelfContained = selfContainedByPlate.get(plateKey);
+      const shouldSyncSelfContained = hasSelfContainedColumn
+        && hasCanonicalSelfContained
+        && canonicalSelfContained !== null
+        && Boolean(obs.self_contained) !== Boolean(canonicalSelfContained);
+
       const previousReason = hasBreachReasonColumn ? (obs.breach_reason ?? null) : null;
       const changed = (obs.is_compliant ?? true) !== isCompliant
         || (obs.breach_type ?? null) !== breachType
         || (hasBreachReasonColumn && previousReason !== breachReason);
 
-      if (apply && changed) {
+      if (apply && (changed || shouldSyncSelfContained)) {
         const updatePayload: Record<string, unknown> = {
           is_compliant: isCompliant,
           breach_type: breachType,
         };
+
+        if (shouldSyncSelfContained) {
+          updatePayload.self_contained = Boolean(canonicalSelfContained);
+        }
 
         if (hasBreachReasonColumn) {
           updatePayload.breach_reason = breachReason;
