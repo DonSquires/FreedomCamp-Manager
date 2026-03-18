@@ -96,3 +96,16 @@ verify_jwt = false
 # Auth is validated inside the function body using the service-role client.
 [functions.render-infringement-notice]
 verify_jwt = false
+
+# vehicle-ingest: browser and mobile clients send ES256-signed user JWTs that
+# Supabase gateway can reject before the function runs (401 with execution_id:
+# null). The function validates the caller internally via service-role auth and
+# profile lookup, so gateway JWT verification must be disabled.
+[functions.vehicle-ingest]
+verify_jwt = false
+
+# reingest-photos: admin UI calls this directly from the browser and hits the
+# same gateway ES256 rejection pattern as vehicle-ingest. The function performs
+# its own auth/profile checks internally.
+[functions.reingest-photos]
+verify_jwt = false
