@@ -4,6 +4,10 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Progress } from '@/components/ui/progress'
 import { AppLayout } from '@/components/features/AppLayout'
+import { useAuthStore } from '@/stores/authStore'
+import { useSessionLockStore } from '@/stores/sessionLockStore'
+import { useSessionPreferencesStore } from '@/stores/sessionPreferencesStore'
+import { signalSessionActivity } from '@/hooks/useSessionInactivityLock'
 import { 
   CheckCircle, 
   XCircle, 
@@ -33,6 +37,19 @@ interface TestArea {
 }
 
 export default function TestDashboard() {
+  const { logout } = useAuthStore()
+  const {
+    isLocked,
+    isWarningVisible,
+    warningSecondsRemaining,
+    lock,
+    unlock,
+    showWarning,
+    updateWarningSeconds,
+    clearWarning,
+  } = useSessionLockStore()
+  const { autoLogoffEnabled, inactivityMinutes, setAutoLogoffEnabled, setInactivityMinutes } = useSessionPreferencesStore()
+
   const [testAreas, setTestAreas] = useState<TestArea[]>([])
   const [overallProgress, setOverallProgress] = useState(0)
   const [testResults, setTestResults] = useState<any>(null)
@@ -302,6 +319,79 @@ export default function TestDashboard() {
                 View Report
               </Button>
             </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Session Timeout Flow Test Controls */}
+      <Card className="mb-6 border-amber-300 dark:border-amber-700">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Clock className="h-5 w-5 text-amber-600" />
+            Session Timeout Flow Test
+          </CardTitle>
+          <CardDescription>
+            Manual controls to verify warning/continue/lock/logout behavior.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-2 rounded-lg border p-3">
+              <p className="text-sm font-medium">Current State</p>
+              <div className="text-xs text-gray-600 dark:text-gray-300 space-y-1">
+                <p>Warning visible: <strong>{isWarningVisible ? 'yes' : 'no'}</strong></p>
+                <p>Locked: <strong>{isLocked ? 'yes' : 'no'}</strong></p>
+                <p>Warning seconds: <strong>{warningSecondsRemaining}</strong></p>
+                <p>Auto logoff: <strong>{autoLogoffEnabled ? 'enabled' : 'disabled'}</strong></p>
+                <p>Inactivity minutes: <strong>{inactivityMinutes}</strong></p>
+              </div>
+            </div>
+
+            <div className="space-y-2 rounded-lg border p-3">
+              <p className="text-sm font-medium">Quick Actions</p>
+              <div className="grid grid-cols-2 gap-2">
+                <Button size="sm" variant="outline" onClick={() => showWarning(60)}>
+                  Show Warning (60s)
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => updateWarningSeconds(10)}>
+                  Set Warning to 10s
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => signalSessionActivity()}>
+                  Trigger Continue Event
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => clearWarning()}>
+                  Clear Warning
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => lock()}>
+                  Force Lock Screen
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => unlock()}>
+                  Unlock Screen
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => setAutoLogoffEnabled(!autoLogoffEnabled)}>
+                  Toggle Auto Logoff
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => setInactivityMinutes(5)}>
+                  Set Timeout to 5 min
+                </Button>
+              </div>
+              <Button
+                size="sm"
+                variant="destructive"
+                className="w-full"
+                onClick={async () => {
+                  await logout()
+                }}
+              >
+                Test Full Logout
+              </Button>
+            </div>
+          </div>
+          <div className="mt-4 rounded-lg bg-gray-50 dark:bg-gray-800 p-3 text-xs text-gray-700 dark:text-gray-300 space-y-1">
+            <p><strong>Expected behavior:</strong></p>
+            <p>1. Warning countdown should not auto-clear from mouse movement while warning is visible.</p>
+            <p>2. Only Trigger Continue Event should clear warning and reset timers.</p>
+            <p>3. Force Lock Screen then Test Full Logout should return to login and clear lock state.</p>
           </div>
         </CardContent>
       </Card>
