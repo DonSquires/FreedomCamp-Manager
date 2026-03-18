@@ -165,7 +165,7 @@ export function ScanDetailPanel({
     setEditColour(initialData?.vehicleColor ?? '')
     setEditNotes(initialData?.officerNotes  ?? '')
     setEditMode(false)
-  }, [initialData?.observationId]) // reset only when a new observation opens
+  }, [initialData?.observationId]) // eslint-disable-line react-hooks/exhaustive-deps -- intentional: reset only when a new observation is opened
 
   // ── Fetch breach_alert for this observation (admin response) ─────────────
   const { data: breachAlert } = useQuery({

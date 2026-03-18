@@ -6397,6 +6397,41 @@ export type Database = {
           zone_name: string
         }[]
       }
+        check_compliance: {
+          Args: { p_plate_number: string; p_zone_id: string; p_recorded_at?: string }
+          Returns: Json
+        }
+        check_duplicate_observations: {
+          Args: Record<PropertyKey, never>
+          Returns: {
+            count: number
+            plate_number: string
+            zone_id: string
+            observation_ids: string[]
+          }[]
+        }
+        get_duplicate_observations: {
+          Args: { p_organization_id?: string; p_limit?: number }
+          Returns: {
+            plate_number: string
+            zone_id: string
+            zone_name: string
+            observation_ids: string[]
+            count: number
+          }[]
+        }
+        increment_patrol_breaches_found: {
+          Args: { p_patrol_id: string }
+          Returns: undefined
+        }
+        increment_patrol_vehicles_checked: {
+          Args: { p_patrol_id: string }
+          Returns: undefined
+        }
+        set_org_geometry: {
+          Args: { org_id: string; geojson: Json }
+          Returns: undefined
+        }
       gettransactionid: { Args: never; Returns: unknown }
       is_same_calendar_day: {
         Args: {
