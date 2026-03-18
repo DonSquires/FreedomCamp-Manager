@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { Link, useNavigate, useLocation } from 'react-router-dom'
+import { useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/stores/authStore'
 import { Button } from '@/components/ui/button'
 import {
@@ -93,6 +94,7 @@ const MORE_DROPDOWN_CLS =
 
 export function AdminNavigationMenu() {
   const { user, logout } = useAuthStore()
+  const queryClient = useQueryClient()
   const navigate = useNavigate()
   const location = useLocation()
   const [moreOpen, setMoreOpen] = useState(false)
@@ -114,6 +116,7 @@ export function AdminNavigationMenu() {
 
   const handleLogout = async () => {
     await logout()
+    queryClient.clear()
     navigate('/login', { replace: true })
   }
 

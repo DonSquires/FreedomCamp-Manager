@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { FunctionsHttpError } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { useGlobalFiltersStore } from '@/stores/globalFiltersStore'
@@ -57,6 +58,7 @@ interface BreachAlert {
   id: string
   plate_number: string
   breach_type: string
+  zone_id: string | null
   zone: { name: string } | null
 }
 
@@ -110,6 +112,52 @@ export default function NoticeToVacate() {
           reject(error)
         })
     })
+  }
+
+  const getFunctionErrorMessage = async (error: unknown, fallbackMessage: string): Promise<string> => {
+    if (!(error instanceof FunctionsHttpError)) {
+      return fallbackMessage
+    }
+
+    const context = error.context
+    if (!context) return fallbackMessage
+
+    const statusPrefix = context.status ? `HTTP ${context.status}: ` : ''
+
+    try {
+      const payload = await context.clone().json()
+      return statusPrefix + (payload?.error || payload?.message || fallbackMessage)
+    } catch {
+      try {
+        const bodyText = await context.clone().text()
+        return statusPrefix + (bodyText || fallbackMessage)
+      } catch {
+        return statusPrefix + fallbackMessage
+      }
+    }
+  }
+
+  const invokeFunctionWithAuthRetry = async (name: string, body: any, fallbackMessage: string) => {
+    let result = await supabase.functions.invoke(name, { body })
+
+    if (!result.error) return result
+
+    const message = await getFunctionErrorMessage(result.error, fallbackMessage)
+    if (!/invalid jwt|http\s*401|401\b/i.test(message)) {
+      return result
+    }
+
+    const { data, error } = await supabase.auth.refreshSession()
+    if (error || !data.session?.access_token) {
+      throw new Error('Session expired. Please sign in again.')
+    }
+
+    result = await supabase.functions.invoke(name, {
+      body,
+      headers: { Authorization: `Bearer ${data.session.access_token}` },
+    })
+
+    return result
   }
 
   const openPreviewWindow = (mode: 'open' | 'print') => {
@@ -177,6 +225,10 @@ export default function NoticeToVacate() {
       return (data || []) as unknown as NoticeToVacateRecord[]
     },
     enabled: !!user,
+    staleTime: 15000,
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
+    refetchOnMount: 'always',
     refetchInterval: 60000,
   })
 
@@ -184,31 +236,39 @@ export default function NoticeToVacate() {
   const { data: zones = [] } = useQuery({
     queryKey: ['zones-ntv', orgId],
     queryFn: async () => {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('zones')
         .select('id, name')
         .eq('organization_id', orgId!)
         .eq('is_active', true)
         .order('name')
+      if (error) throw error
       return (data || []) as Zone[]
     },
     enabled: !!orgId,
+    staleTime: 60000,
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
   })
 
   // Fetch pending breach alerts for pre-filling
   const { data: pendingBreaches = [] } = useQuery({
     queryKey: ['breaches-for-ntv', orgId],
     queryFn: async () => {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('breach_alerts')
-        .select('id, plate_number, breach_type, zone:zones!zone_id(name)')
+        .select('id, plate_number, breach_type, zone_id, zone:zones!zone_id(name)')
         .eq('organization_id', orgId!)
         .in('status', ['pending', 'acknowledged'])
         .order('created_at', { ascending: false })
         .limit(50)
+      if (error) throw error
       return (data || []) as unknown as BreachAlert[]
     },
     enabled: !!orgId,
+    staleTime: 15000,
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
   })
 
   // Issue notice mutation
@@ -220,8 +280,9 @@ export default function NoticeToVacate() {
     setIssuing(true)
     try {
       const { data, error } = await withTimeout(
-        supabase.functions.invoke('generate-notice-to-vacate', {
-          body: {
+        invokeFunctionWithAuthRetry(
+          'generate-notice-to-vacate',
+          {
             zoneId: form.zoneId,
             plateNumber: form.plateNumber.toUpperCase().trim(),
             nightsStayed: form.nightsStayed ? parseInt(form.nightsStayed) : undefined,
@@ -231,12 +292,13 @@ export default function NoticeToVacate() {
             deliverToEmail: form.deliverToEmail || undefined,
             breachAlertId: form.breachAlertId || undefined,
           },
-        }),
+          'Failed to issue notice',
+        ),
         25000,
         'Notice generation timed out. Please try again.',
       )
 
-      if (error) throw new Error(error.message)
+      if (error) throw new Error(await getFunctionErrorMessage(error, 'Failed to issue notice'))
       if (!data?.success) throw new Error(data?.error || 'Failed to issue notice')
 
       toast.success(`✅ Notice ${data.notice.reference_number} issued`)
@@ -284,7 +346,7 @@ export default function NoticeToVacate() {
         ...f,
         breachAlertId: breach.id,
         plateNumber: breach.plate_number || '',
-        zoneId: zones.find(z => z.name === breach.zone?.name)?.id || f.zoneId,
+        zoneId: breach.zone_id || f.zoneId,
       }))
     }
   }

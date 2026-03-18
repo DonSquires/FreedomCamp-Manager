@@ -82,10 +82,21 @@ export const useAuthStore = create<AuthState>()(
               return
             }
 
-            const { data: profile } = await (supabase.from('user_profiles') as any)
+            const { data: profile, error: profileError } = await (supabase.from('user_profiles') as any)
               .select('id, email, role, organization_id, first_name, last_name')
               .eq('id', session.user.id)
               .single()
+
+            if (profileError) {
+              console.warn('[authStore] profile refresh failed on auth change:', profileError)
+              set((state) => {
+                if (state.user) {
+                  return { ...state, isAuthenticated: true, loading: false }
+                }
+                return { user: null, isAuthenticated: false, loading: false }
+              })
+              return
+            }
 
             if (!profile) {
               set({ user: null, isAuthenticated: false, loading: false })
@@ -103,7 +114,12 @@ export const useAuthStore = create<AuthState>()(
             set({ user: authUser, isAuthenticated: true, loading: false })
           } catch (error) {
             console.warn('[authStore] onAuthStateChange failed:', error)
-            set({ user: null, isAuthenticated: false, loading: false })
+            set((state) => {
+              if (state.user) {
+                return { ...state, isAuthenticated: true, loading: false }
+              }
+              return { user: null, isAuthenticated: false, loading: false }
+            })
           }
         })
       },
@@ -202,7 +218,12 @@ export const useAuthStore = create<AuthState>()(
           ])
 
           if (sessionError) {
-            set({ user: null, isAuthenticated: false, loading: false })
+            set((state) => {
+              if (state.user) {
+                return { ...state, isAuthenticated: true, loading: false }
+              }
+              return { user: null, isAuthenticated: false, loading: false }
+            })
             return
           }
 
@@ -212,10 +233,21 @@ export const useAuthStore = create<AuthState>()(
           }
 
           // Fetch user profile
-          const { data: profile } = await (supabase.from('user_profiles') as any)
+          const { data: profile, error: profileError } = await (supabase.from('user_profiles') as any)
             .select('id, email, role, organization_id, first_name, last_name')
             .eq('id', session.user.id)
             .single()
+
+          if (profileError) {
+            console.warn('[authStore] checkSession profile fetch failed:', profileError)
+            set((state) => {
+              if (state.user) {
+                return { ...state, isAuthenticated: true, loading: false }
+              }
+              return { user: null, isAuthenticated: false, loading: false }
+            })
+            return
+          }
 
           if (profile) {
             const authUser: AuthUser = {
@@ -231,7 +263,12 @@ export const useAuthStore = create<AuthState>()(
           }
         } catch (error) {
           console.warn('[authStore] checkSession failed:', error)
-          set({ user: null, isAuthenticated: false, loading: false })
+          set((state) => {
+            if (state.user) {
+              return { ...state, isAuthenticated: true, loading: false }
+            }
+            return { user: null, isAuthenticated: false, loading: false }
+          })
         }
       },
     }),
