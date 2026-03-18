@@ -14,7 +14,7 @@ export function signalSessionActivity(): void {
 
 export function useSessionInactivityLock() {
   const { user } = useAuthStore()
-  const { lock, showWarning, clearWarning, updateWarningSeconds } = useSessionLockStore()
+  const { isLocked, isWarningVisible, lock, showWarning, clearWarning, updateWarningSeconds } = useSessionLockStore()
   const { autoLogoffEnabled, inactivityMinutes } = useSessionPreferencesStore()
 
   const warningTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -66,9 +66,22 @@ export function useSessionInactivityLock() {
       }, timeoutMs)
     }
 
+    const handleActivity = (event: Event) => {
+      const isExplicitStayActive = event.type === STAY_ACTIVE_EVENT
+
+      // When warning/lock overlays are showing, do not auto-clear or auto-reset
+      // from incidental activity like mousemove/click/scroll. Only explicit
+      // Continue action dispatches `session:stay-active`.
+      if ((isWarningVisible || isLocked) && !isExplicitStayActive) {
+        return
+      }
+
+      resetInactivity()
+    }
+
     const activityEvents = ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll', 'click', STAY_ACTIVE_EVENT]
     activityEvents.forEach((eventName) => {
-      window.addEventListener(eventName, resetInactivity, { passive: true })
+      window.addEventListener(eventName, handleActivity, { passive: true })
     })
 
     resetInactivity()
@@ -77,8 +90,18 @@ export function useSessionInactivityLock() {
       clearTimers()
       clearWarning()
       activityEvents.forEach((eventName) => {
-        window.removeEventListener(eventName, resetInactivity)
+        window.removeEventListener(eventName, handleActivity)
       })
     }
-  }, [user, autoLogoffEnabled, inactivityMinutes, lock, showWarning, clearWarning, updateWarningSeconds])
+  }, [
+    user,
+    autoLogoffEnabled,
+    inactivityMinutes,
+    isWarningVisible,
+    isLocked,
+    lock,
+    showWarning,
+    clearWarning,
+    updateWarningSeconds,
+  ])
 }

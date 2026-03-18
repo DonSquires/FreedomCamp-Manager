@@ -344,8 +344,8 @@ export function AppLayout({ children, title, description, showBackButton }: AppL
   }
 
   const handleLogoutCompletely = async () => {
-    unlock()
     await handleLogout()
+    unlock()
   }
 
   const handleStaySignedIn = () => {
