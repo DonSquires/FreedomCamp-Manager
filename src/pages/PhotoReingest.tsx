@@ -33,6 +33,8 @@ interface ReingestResult {
 
 interface ReingestBatchResponse {
   processed?: number
+  scanned_rows?: number
+  next_before_recorded_at?: string | null
   observations?: ReingestObservation[]
 }
 
@@ -135,7 +137,7 @@ export default function PhotoReingest() {
 
     // No count query — just stream batches until the function returns processed=0.
     // This avoids a slow full-table COUNT that was timing out before any work started.
-    let offset = 0
+    let beforeRecordedAt: string | null = null
     const batchSize = 10
     let matchedTotal = 0
     let processedTotal = 0
@@ -196,17 +198,18 @@ export default function PhotoReingest() {
           organization_id: effectiveOrgId || undefined,
           date_from: dateFrom || undefined,
           date_to: dateTo || undefined,
-          offset,
           batch_size: batchSize,
+          before_recorded_at: beforeRecordedAt || undefined,
         }),
         90_000,
-        `Reingest batch at offset ${offset}`,
+        `Reingest batch before ${beforeRecordedAt || 'latest'}`,
       )
 
       if (batchError) throw new Error(batchError)
 
       const parsedBatch = (batchData as ReingestBatchResponse | null) ?? {}
       const observations = Array.isArray(parsedBatch.observations) ? parsedBatch.observations : []
+      const nextBeforeRecordedAt = parsedBatch.next_before_recorded_at ?? null
       matchedTotal += observations.length
       let batchFirstFailureReason: string | null = null
 
@@ -259,8 +262,8 @@ export default function PhotoReingest() {
         skippedNoRules: 0,
       })
 
-      if (observations.length <= 0) break
-      offset += observations.length
+      if (observations.length <= 0 || !nextBeforeRecordedAt) break
+      beforeRecordedAt = nextBeforeRecordedAt
     }
 
     return {

@@ -40,6 +40,8 @@ function decodeJwtPayload(token: string): Record<string, unknown> | null {
 
 const DEFAULT_BATCH_SIZE = 10;
 const MAX_BATCH_SIZE = 20;
+const DEFAULT_SCAN_CHUNK_SIZE = 50;
+const MAX_SCAN_ITERATIONS = 12;
 
 Deno.serve(async (req) => {
   // Handle CORS preflight
@@ -110,12 +112,13 @@ Deno.serve(async (req) => {
       );
     }
     const getTotal = body.get_total === true;
-    const rawOffset = Number(body.offset ?? 0);
-    const offset = Number.isFinite(rawOffset) ? Math.max(0, Math.floor(rawOffset)) : 0;
     const rawBatchSize = Number(body.batch_size ?? DEFAULT_BATCH_SIZE);
     const batchSize = Number.isFinite(rawBatchSize)
       ? Math.max(1, Math.min(Math.floor(rawBatchSize), MAX_BATCH_SIZE))
       : DEFAULT_BATCH_SIZE;
+    const beforeRecordedAt = typeof body.before_recorded_at === "string" && body.before_recorded_at.trim().length > 0
+      ? body.before_recorded_at.trim()
+      : null;
     const organizationId = body.organization_id ?? (profile.role !== "master" ? profile.organization_id : null);
     const dateFrom = body.date_from ?? null;
     const dateTo = body.date_to ?? null;
@@ -126,17 +129,20 @@ Deno.serve(async (req) => {
       organization_id: organizationId,
       date_from: dateFrom,
       date_to: dateTo,
-      offset,
+      before_recorded_at: beforeRecordedAt,
       batch_size: batchSize,
       get_total: getTotal,
     });
 
-    // ── Build query for observations with photos ────────────────────────────
+    // ── Build query for observations ordered by recorded_at ─────────────────
+    // We intentionally avoid filtering on photo/photo_url in SQL because that
+    // path is timing out on the live table. The table has recorded_at/org/date
+    // indexes, so we walk that index in chunks and filter photo presence in
+    // memory until we collect a small batch.
     function buildQuery(selectClause: string, count?: "exact") {
       let query = supabase
         .from("observations")
-        .select(selectClause, count ? { count } : undefined)
-        .or("photo.not.is.null,photo_url.not.is.null");
+        .select(selectClause, count ? { count } : undefined);
 
       if (organizationId) {
         query = query.eq("organization_id", organizationId);
@@ -147,41 +153,96 @@ Deno.serve(async (req) => {
       if (dateTo) {
         query = query.lte("recorded_at", dateTo);
       }
+      if (beforeRecordedAt) {
+        query = query.lt("recorded_at", beforeRecordedAt);
+      }
 
       return query;
     }
 
     // ── get_total mode: return count only ────────────────────────────────────
     if (getTotal) {
-      const { count, error: countError } = await buildQuery("observation_id", "exact")
-        .limit(0);
-      if (countError) {
-        return new Response(
-          JSON.stringify({ error: `Count query failed: ${countError.message}` }),
-          { status: 500, headers: { ...getCorsHeaders(req), "content-type": "application/json" } },
-        );
-      }
       return new Response(
-        JSON.stringify({ total: count ?? 0 }),
+        JSON.stringify({ total: null, warning: "Count disabled for performance; batches stream until no more rows remain." }),
         { status: 200, headers: { ...getCorsHeaders(req), "content-type": "application/json" } },
       );
     }
 
-    // ── Batch fetch observations ────────────────────────────────────────────
-    const { data: rows, error: fetchError } = await buildQuery(
-      "observation_id, plate_number, photo, photo_url, photo_hash, recorded_at, zone_id, organization_id, gps_latitude, gps_longitude, gps_accuracy, recorded_by, officer_notes",
-    )
-      .order("recorded_at", { ascending: false })
-      .range(offset, offset + batchSize - 1);
+    // ── Cursor scan observations, filter photo presence in memory ───────────
+    const scanChunkSize = Math.max(DEFAULT_SCAN_CHUNK_SIZE, batchSize * 5);
+    const observations: Array<Record<string, unknown>> = [];
+    let scanCursor = beforeRecordedAt;
+    let scannedRows = 0;
+    let lastRowRecordedAt: string | null = beforeRecordedAt;
 
-    if (fetchError) {
-      return new Response(
-        JSON.stringify({ error: `Fetch failed: ${fetchError.message}` }),
-        { status: 500, headers: { ...getCorsHeaders(req), "content-type": "application/json" } },
-      );
+    for (let iteration = 0; iteration < MAX_SCAN_ITERATIONS && observations.length < batchSize; iteration++) {
+      let query = supabase
+        .from("observations")
+        .select("observation_id, plate_number, photo, photo_url, photo_hash, recorded_at, zone_id, organization_id, gps_latitude, gps_longitude, gps_accuracy, recorded_by, officer_notes")
+        .order("recorded_at", { ascending: false })
+        .limit(scanChunkSize);
+
+      if (organizationId) {
+        query = query.eq("organization_id", organizationId);
+      }
+      if (dateFrom) {
+        query = query.gte("recorded_at", dateFrom);
+      }
+      if (dateTo) {
+        query = query.lte("recorded_at", dateTo);
+      }
+      if (scanCursor) {
+        query = query.lt("recorded_at", scanCursor);
+      }
+
+      const { data: rows, error: fetchError } = await query;
+
+      if (fetchError) {
+        return new Response(
+          JSON.stringify({ error: `Fetch failed: ${fetchError.message}` }),
+          { status: 500, headers: { ...getCorsHeaders(req), "content-type": "application/json" } },
+        );
+      }
+
+      const chunkRows = rows || [];
+      if (chunkRows.length === 0) {
+        lastRowRecordedAt = null;
+        break;
+      }
+
+      scannedRows += chunkRows.length;
+      const lastRow = chunkRows[chunkRows.length - 1];
+      lastRowRecordedAt = lastRow?.recorded_at ?? null;
+      scanCursor = lastRowRecordedAt;
+
+      for (const row of chunkRows) {
+        if (row.photo || row.photo_url) {
+          observations.push({
+            observation_id: row.observation_id,
+            photo_url: row.photo_url || row.photo || null,
+            photo_hash: row.photo_hash ?? null,
+            recorded_at: row.recorded_at ?? null,
+            zone_id: row.zone_id ?? null,
+            organization_id: row.organization_id ?? null,
+            gps_latitude: row.gps_latitude ?? null,
+            gps_longitude: row.gps_longitude ?? null,
+            gps_accuracy: row.gps_accuracy ?? null,
+            plate_number: row.plate_number ?? null,
+            officer_notes: row.officer_notes ?? null,
+          });
+        }
+
+        if (observations.length >= batchSize) {
+          break;
+        }
+      }
+
+      if (chunkRows.length < scanChunkSize) {
+        break;
+      }
     }
 
-    const observations = (rows || []).map((obs) => ({
+    const serializedObservations = observations.map((obs) => ({
       observation_id: obs.observation_id,
       photo_url: obs.photo_url || obs.photo || null,
       photo_hash: obs.photo_hash ?? null,
@@ -196,15 +257,19 @@ Deno.serve(async (req) => {
     }));
 
     console.log("📦 reingest-photos batch ready", {
-      offset,
+      before_recorded_at: beforeRecordedAt,
       batch_size: batchSize,
-      matched: observations.length,
+      matched: serializedObservations.length,
+      scanned_rows: scannedRows,
+      next_before_recorded_at: lastRowRecordedAt,
     });
 
     return new Response(
       JSON.stringify({
-        processed: observations.length,
-        observations,
+        processed: serializedObservations.length,
+        scanned_rows: scannedRows,
+        next_before_recorded_at: lastRowRecordedAt,
+        observations: serializedObservations,
       }),
       { status: 200, headers: { ...getCorsHeaders(req), "content-type": "application/json" } },
     );

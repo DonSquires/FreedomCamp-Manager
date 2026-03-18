@@ -648,8 +648,8 @@ export const edgeFunctions = {
    */
   reingestPhotos: async (params: {
     get_total?: boolean
-    offset?: number
     batch_size?: number
+    before_recorded_at?: string
     organization_id?: string
     date_from?: string
     date_to?: string
