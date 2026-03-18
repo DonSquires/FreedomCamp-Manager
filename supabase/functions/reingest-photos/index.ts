@@ -38,6 +38,24 @@ function decodeJwtPayload(token: string): Record<string, unknown> | null {
   }
 }
 
+function extractBearerToken(req: Request): string | null {
+  const candidates = [
+    req.headers.get("Authorization"),
+    req.headers.get("authorization"),
+    req.headers.get("x-authorization"),
+    req.headers.get("x-forwarded-authorization"),
+    req.headers.get("x-supabase-authorization"),
+  ];
+
+  for (const value of candidates) {
+    if (!value) continue;
+    const match = value.match(/^Bearer\s+(.+)$/i);
+    if (match?.[1]) return match[1].trim();
+  }
+
+  return null;
+}
+
 const DEFAULT_BATCH_SIZE = 10;
 const MAX_BATCH_SIZE = 20;
 const DEFAULT_SCAN_CHUNK_SIZE = 50;
@@ -55,24 +73,33 @@ Deno.serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     // ── Auth guard (local JWT decode — no network round-trip) ─────────────
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader) {
+    const jwt = extractBearerToken(req);
+    if (!jwt) {
       return new Response(
         JSON.stringify({ error: "Missing Authorization header" }),
         { status: 401, headers: { ...getCorsHeaders(req), "content-type": "application/json" } },
       );
     }
-
-    const jwt = authHeader.replace(/^Bearer\s+/i, "").trim();
     const jwtPayload = decodeJwtPayload(jwt);
-    const authUserId: string | null =
+    let authUserId: string | null =
       typeof jwtPayload?.sub === "string" && jwtPayload.sub.length > 0
         ? jwtPayload.sub
         : null;
 
     if (!authUserId) {
+      const { data: authData, error: authError } = await supabase.auth.getUser(jwt);
+      if (!authError && authData?.user?.id) {
+        authUserId = authData.user.id;
+      }
+    }
+
+    if (!authUserId) {
+      console.error("🚫 reingest-photos auth failed after all fallbacks", {
+        has_local_payload: !!jwtPayload,
+        x_client_info: req.headers.get("x-client-info"),
+      });
       return new Response(
-        JSON.stringify({ error: "Session expired or invalid. Please log in again." }),
+        JSON.stringify({ error: "Unauthorized" }),
         { status: 401, headers: { ...getCorsHeaders(req), "content-type": "application/json" } },
       );
     }

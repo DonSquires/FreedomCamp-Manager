@@ -18,11 +18,22 @@ import { alprWithBytes } from "../_shared/alpr.ts";
 const PHOTO_FETCH_TIMEOUT_MS = Number(Deno.env.get("INGEST_PHOTO_FETCH_TIMEOUT_MS") ?? "8000");
 const MAX_INSERT_ATTEMPTS = 8;
 
-function extractBearerToken(authHeader: string | null): string | null {
-  if (!authHeader) return null;
-  const match = authHeader.match(/^Bearer\s+(.+)$/i);
-  if (!match) return null;
-  return match[1].trim() || null;
+function extractBearerToken(req: Request): string | null {
+  const candidates = [
+    req.headers.get("Authorization"),
+    req.headers.get("authorization"),
+    req.headers.get("x-authorization"),
+    req.headers.get("x-forwarded-authorization"),
+    req.headers.get("x-supabase-authorization"),
+  ];
+
+  for (const authHeader of candidates) {
+    if (!authHeader) continue;
+    const match = authHeader.match(/^Bearer\s+(.+)$/i);
+    if (match?.[1]) return match[1].trim();
+  }
+
+  return null;
 }
 
 function decodeJwtPayload(token: string): Record<string, unknown> | null {
@@ -148,8 +159,11 @@ Deno.serve(async (req) => {
     // ============================================================================
     // AUTH GUARD - Verify user is logged in
     // ============================================================================
-    const authHeader = req.headers.get("Authorization");
-    const jwt = extractBearerToken(authHeader);
+    const authHeader = req.headers.get("Authorization")
+      ?? req.headers.get("authorization")
+      ?? req.headers.get("x-supabase-authorization")
+      ?? null;
+    const jwt = extractBearerToken(req);
 
     if (!jwt) {
       console.error("🚫 AUTH ERROR: Missing or malformed Authorization header", {
@@ -175,10 +189,17 @@ Deno.serve(async (req) => {
     // application-level auth gate: if the subject doesn't map to a real
     // user_profiles row, the request is rejected (403).
     const jwtPayload = decodeJwtPayload(jwt);
-    const authUserId: string | null =
+    let authUserId: string | null =
       typeof jwtPayload?.sub === "string" && jwtPayload.sub.length > 0
         ? jwtPayload.sub
         : null;
+
+    if (!authUserId) {
+      const { data: authData, error: authError } = await supabase.auth.getUser(jwt);
+      if (!authError && authData?.user?.id) {
+        authUserId = authData.user.id;
+      }
+    }
 
     if (!authUserId) {
       console.error("🚫 AUTH ERROR: Unable to extract subject from JWT", {
