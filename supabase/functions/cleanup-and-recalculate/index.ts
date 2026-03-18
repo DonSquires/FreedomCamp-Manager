@@ -19,6 +19,37 @@ const EMBEDDING_MATCH_THRESHOLD = 0.86;
 
 const DUPLICATE_DISTANCE_METERS = 50;
 
+function decodeJwtPayload(token: string): Record<string, unknown> | null {
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) return null;
+    const base64Url = parts[1];
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+    const padded = base64 + '='.repeat((4 - (base64.length % 4)) % 4);
+    return JSON.parse(atob(padded));
+  } catch {
+    return null;
+  }
+}
+
+function extractBearerToken(req: Request): string | null {
+  const candidates = [
+    req.headers.get('Authorization'),
+    req.headers.get('authorization'),
+    req.headers.get('x-authorization'),
+    req.headers.get('x-forwarded-authorization'),
+    req.headers.get('x-supabase-authorization'),
+  ];
+
+  for (const value of candidates) {
+    if (!value) continue;
+    const match = value.match(/^Bearer\s+(.+)$/i);
+    if (match?.[1]) return match[1].trim();
+  }
+
+  return null;
+}
+
 function nzDateKey(value: string): string {
   return new Intl.DateTimeFormat('en-CA', {
     timeZone: 'Pacific/Auckland',
@@ -115,6 +146,49 @@ serve(async (req) => {
   );
 
   try {
+    // Auth guard (manual because verify_jwt is disabled for this function to
+    // avoid gateway false-401 before execution).
+    const jwt = extractBearerToken(req);
+    if (!jwt) {
+      return new Response(
+        JSON.stringify({ error: 'Missing Authorization header' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    let authUserId: string | null = null;
+    const jwtPayload = decodeJwtPayload(jwt);
+    if (typeof jwtPayload?.sub === 'string' && jwtPayload.sub.length > 0) {
+      authUserId = jwtPayload.sub;
+    }
+
+    if (!authUserId) {
+      const { data: authData, error: authError } = await supabaseAdmin.auth.getUser(jwt);
+      if (!authError && authData?.user?.id) {
+        authUserId = authData.user.id;
+      }
+    }
+
+    if (!authUserId) {
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const { data: profile, error: profileError } = await supabaseAdmin
+      .from('user_profiles')
+      .select('role')
+      .eq('id', authUserId)
+      .single();
+
+    if (profileError || !profile || !['admin', 'master'].includes(String((profile as any).role))) {
+      return new Response(
+        JSON.stringify({ error: 'Admin or master role required' }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     const { zoneIds, dateRangeStart, dateRangeEnd, offset = 0, batch_size = 50, get_total = false } = await req.json();
 
     console.log('🔧 Cleanup Request:', { zoneIds, dateRangeStart, dateRangeEnd, offset, batch_size, get_total });

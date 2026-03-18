@@ -109,3 +109,9 @@ verify_jwt = false
 # its own auth/profile checks internally.
 [functions.reingest-photos]
 verify_jwt = false
+
+# cleanup-and-recalculate: browser calls can be rejected at the gateway with
+# 401 before execution_id is created (even with valid ES256 user JWTs). We
+# disable gateway verification and validate Authorization + role in function.
+[functions.cleanup-and-recalculate]
+verify_jwt = false
