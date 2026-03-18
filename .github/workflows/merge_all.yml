@@ -890,8 +890,8 @@ jobs:
               failed=$((failed + 1))
             fi
           done <<'EOF'
-${{ steps.resolve-functions.outputs.functions }}
-EOF
+          ${{ steps.resolve-functions.outputs.functions }}
+          EOF
 
           echo ""
           echo "========================================="
