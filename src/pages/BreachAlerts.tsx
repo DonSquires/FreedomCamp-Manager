@@ -705,6 +705,38 @@ export default function BreachAlerts() {
     [navigate]
   )
 
+  const handleIssueNoticeDirect = useCallback((serviceMethod: 'email' | 'post') => {
+    if (!activeBreach) return
+    if (!['admin', 'master'].includes(user?.role ?? '')) {
+      toast.warning('Only admin and master users can issue notices directly from adjudication')
+      return
+    }
+    if (['resolved', 'dismissed'].includes(activeBreach.status)) {
+      toast.warning('Cannot issue a notice for a closed breach')
+      return
+    }
+
+    const observationId = getBreachObservationId(activeBreach)
+    if (!observationId) {
+      toast.error('No linked observation found. Open Observation Records and issue from evidence.')
+      return
+    }
+
+    const query = new URLSearchParams({
+      observation_id: observationId,
+      service_method: serviceMethod,
+    })
+
+    const ownerName = [detailVehicle?.owner_first_name, detailVehicle?.owner_last_name].filter(Boolean).join(' ').trim()
+    if (ownerName) query.set('recipient_name', ownerName)
+
+    if (serviceMethod === 'post' && detailVehicle?.owner_address) {
+      query.set('recipient_address', detailVehicle.owner_address)
+    }
+
+    navigate(`/infringement-notices?${query.toString()}`)
+  }, [activeBreach, detailVehicle, navigate, user?.role])
+
   // ── Multi-select helpers ──────────────────────────────────────────────────
 
   const toggleSelect = (id: string, e: React.MouseEvent) => {
@@ -1426,6 +1458,33 @@ export default function BreachAlerts() {
                   <span className="text-xs opacity-75">⌃↵</span>
                 </Button>
 
+                {/* Direct notice issue for admin/master */}
+                {['admin', 'master'].includes(user?.role ?? '') && (
+                  <>
+                    <Button
+                      className="w-full bg-indigo-600 hover:bg-indigo-700 text-white justify-between"
+                      onClick={() => handleIssueNoticeDirect('email')}
+                      disabled={['resolved', 'dismissed'].includes(activeBreach.status)}
+                    >
+                      <span className="flex items-center gap-2">
+                        <ExternalLink className="h-4 w-4" />
+                        ISSUE NOTICE (EMAIL)
+                      </span>
+                    </Button>
+
+                    <Button
+                      className="w-full bg-slate-700 hover:bg-slate-800 text-white justify-between"
+                      onClick={() => handleIssueNoticeDirect('post')}
+                      disabled={['resolved', 'dismissed'].includes(activeBreach.status)}
+                    >
+                      <span className="flex items-center gap-2">
+                        <ExternalLink className="h-4 w-4" />
+                        ISSUE NOTICE (POST)
+                      </span>
+                    </Button>
+                  </>
+                )}
+
                 {/* Assign to Officer Follow-Up */}
                 <Button
                   className="w-full bg-blue-600 hover:bg-blue-700 text-white justify-between"
@@ -1620,6 +1679,25 @@ export default function BreachAlerts() {
                 className="text-sm resize-none"
               />
             </div>
+
+            {['admin', 'master'].includes(user?.role ?? '') && (
+              <div className="grid grid-cols-2 gap-2 pt-2">
+                <Button
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs h-12"
+                  onClick={() => handleIssueNoticeDirect('email')}
+                  disabled={['resolved', 'dismissed'].includes(activeBreach.status)}
+                >
+                  <div className="text-center">ISSUE NOTICE (EMAIL)</div>
+                </Button>
+                <Button
+                  className="bg-slate-700 hover:bg-slate-800 text-white text-xs h-12"
+                  onClick={() => handleIssueNoticeDirect('post')}
+                  disabled={['resolved', 'dismissed'].includes(activeBreach.status)}
+                >
+                  <div className="text-center">ISSUE NOTICE (POST)</div>
+                </Button>
+              </div>
+            )}
 
             <div className="grid grid-cols-3 gap-2 pt-2">
               <Button

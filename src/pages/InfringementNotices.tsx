@@ -195,12 +195,21 @@ export default function InfringementNotices() {
     service_method: 'hand' as 'hand' | 'post' | 'email',
     recipient_name: '',
     recipient_email: '',
+    recipient_address: '',
     observation_id: '',
   })
 
   useEffect(() => {
     const observationId = searchParams.get('observation_id')
     if (!observationId) return
+
+    const requestedServiceMethod = searchParams.get('service_method')
+    const requestedRecipientName = searchParams.get('recipient_name')
+    const requestedRecipientEmail = searchParams.get('recipient_email')
+    const requestedRecipientAddress = searchParams.get('recipient_address')
+    const serviceMethodFromQuery = requestedServiceMethod === 'post' || requestedServiceMethod === 'email' || requestedServiceMethod === 'hand'
+      ? requestedServiceMethod
+      : null
 
     let cancelled = false
     const loadObservation = async () => {
@@ -242,6 +251,10 @@ export default function InfringementNotices() {
             zone_id: obs.zone_id || f.zone_id,
             offence_location: obs?.zones?.name || f.offence_location,
             offence_description: offence,
+            service_method: (serviceMethodFromQuery as 'hand' | 'post' | 'email') || f.service_method,
+            recipient_name: requestedRecipientName || f.recipient_name,
+            recipient_email: requestedRecipientEmail || f.recipient_email,
+            recipient_address: requestedRecipientAddress || f.recipient_address,
           }))
           setShowIssueDialog(true)
           toast.success('Historical observation loaded for ticket issuance')
@@ -253,6 +266,10 @@ export default function InfringementNotices() {
           setPrefillingFromObservation(false)
           const next = new URLSearchParams(searchParams)
           next.delete('observation_id')
+          next.delete('service_method')
+          next.delete('recipient_name')
+          next.delete('recipient_email')
+          next.delete('recipient_address')
           setSearchParams(next, { replace: true })
         }
       }
@@ -372,6 +389,7 @@ export default function InfringementNotices() {
         service_method: form.service_method,
         recipient_name: form.recipient_name || undefined,
         recipient_email: form.recipient_email || undefined,
+        recipient_address: form.recipient_address || undefined,
         offence_date: new Date().toISOString(),
       }
       if (form.breach_alert_id) body.breach_alert_id = form.breach_alert_id
@@ -403,7 +421,7 @@ export default function InfringementNotices() {
         breach_alert_id: '', plate_number: '', vehicle_make: '', vehicle_model: '', zone_id: '',
         offence_description: '', legal_basis: 'Freedom Camping Act 2011 s20(1)(a)',
         offence_location: '', amount_cents: 40000, service_method: 'hand',
-        recipient_name: '', recipient_email: '', observation_id: '',
+        recipient_name: '', recipient_email: '', recipient_address: '', observation_id: '',
       })
     } catch (err: any) {
       const message = err?.message || 'Failed to issue notice'
@@ -906,6 +924,17 @@ export default function InfringementNotices() {
                     value={form.recipient_email}
                     onChange={e => setForm(f => ({ ...f, recipient_email: e.target.value }))}
                     placeholder="owner@example.com"
+                  />
+                </div>
+              )}
+              {form.service_method === 'post' && (
+                <div className="space-y-1 col-span-2">
+                  <Label>Postal Address</Label>
+                  <Textarea
+                    value={form.recipient_address}
+                    onChange={e => setForm(f => ({ ...f, recipient_address: e.target.value }))}
+                    placeholder="Recipient postal address for service by post"
+                    rows={2}
                   />
                 </div>
               )}
