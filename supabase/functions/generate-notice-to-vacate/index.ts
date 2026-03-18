@@ -378,9 +378,12 @@ function generateReviewContactSection(config: any, plateNumber: string, issueDat
   const resolvedPostal = postalAddress || fallbackAddress
   const lines: string[] = []
 
+  const portalUrl = String(config?.dispute_portal_url || '').trim()
+
   if (email) lines.push(`<div>Email: ${email}</div>`)
   if (phone) lines.push(`<div>Phone: ${phone}</div>`)
   if (resolvedPostal) lines.push(`<div>Post: ${resolvedPostal}</div>`)
+  if (portalUrl) lines.push(`<div><strong>Online dispute portal:</strong> <a href="${portalUrl}" style="color:#1e3a8a;">${portalUrl}</a></div>`)
 
   if (lines.length === 0) {
     return ''

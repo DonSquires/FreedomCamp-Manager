@@ -95,6 +95,7 @@ export default function ZoneManagement() {
   const [editPaymentInstructions, setEditPaymentInstructions] = useState('')
   const [editObjectionsEmail, setEditObjectionsEmail] = useState('')
   const [editObjectionsPostalAddress, setEditObjectionsPostalAddress] = useState('')
+  const [editDisputePortalUrl, setEditDisputePortalUrl] = useState('')
 
   // Create form state
   const [createName, setCreateName] = useState('')
@@ -231,7 +232,7 @@ export default function ZoneManagement() {
 
       // Upsert payment & objection fields into zone_legal_config if any provided
       if (editPaymentOnlineUrl || editPaymentBankAccount || editPaymentInstructions ||
-          editObjectionsEmail || editObjectionsPostalAddress) {
+          editObjectionsEmail || editObjectionsPostalAddress || editDisputePortalUrl) {
         const orgId = selectedZone.organization_id
         await (supabase.from('zone_legal_config') as any)
           .upsert({
@@ -242,6 +243,7 @@ export default function ZoneManagement() {
             payment_instructions: editPaymentInstructions || null,
             objections_email: editObjectionsEmail || null,
             objections_postal_address: editObjectionsPostalAddress || null,
+            dispute_portal_url: editDisputePortalUrl || null,
           }, { onConflict: 'zone_id' })
       }
     },
@@ -329,6 +331,7 @@ export default function ZoneManagement() {
     setEditPaymentInstructions('')
     setEditObjectionsEmail('')
     setEditObjectionsPostalAddress('')
+    setEditDisputePortalUrl('')
   }
 
   const resetCreateForm = () => {
@@ -362,7 +365,7 @@ export default function ZoneManagement() {
 
     // Load zone_legal_config payment & objection fields
     ;(supabase.from('zone_legal_config') as any)
-      .select('payment_online_url, payment_bank_account, payment_instructions, objections_email, objections_postal_address')
+      .select('payment_online_url, payment_bank_account, payment_instructions, objections_email, objections_postal_address, dispute_portal_url')
       .eq('zone_id', zone.id)
       .maybeSingle()
       .then(({ data }: { data: any }) => {
@@ -371,6 +374,7 @@ export default function ZoneManagement() {
         setEditPaymentInstructions(data?.payment_instructions || '')
         setEditObjectionsEmail(data?.objections_email || '')
         setEditObjectionsPostalAddress(data?.objections_postal_address || '')
+        setEditDisputePortalUrl(data?.dispute_portal_url || '')
       })
 
     setShowEditDialog(true)
@@ -847,6 +851,17 @@ export default function ZoneManagement() {
                   onChange={(e) => setEditObjectionsPostalAddress(e.target.value)}
                   placeholder="PO Box 123, City 1234"
                 />
+              </div>
+              <div>
+                <Label htmlFor="editDisputePortalUrl">Dispute Portal URL</Label>
+                <Input
+                  id="editDisputePortalUrl"
+                  type="url"
+                  value={editDisputePortalUrl}
+                  onChange={(e) => setEditDisputePortalUrl(e.target.value)}
+                  placeholder="https://yourapp.example.com/public/dispute"
+                />
+                <p className="text-xs text-muted-foreground mt-1">Printed on notices so recipients can self-serve a dispute online.</p>
               </div>
             </div>
 

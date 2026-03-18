@@ -274,7 +274,7 @@ Deno.serve(async (req) => {
 
     const { data: legalConfig, error: legalConfigError } = await supabaseAdmin
       .from('zone_legal_config')
-      .select('org_office_name, org_street_address, org_po_box, org_city, org_postcode, org_phone, org_email, org_website, enforcement_authority, payment_online_url, payment_bank_account, payment_instructions, objections_email, objections_postal_address')
+      .select('org_office_name, org_street_address, org_po_box, org_city, org_postcode, org_phone, org_email, org_website, enforcement_authority, payment_online_url, payment_bank_account, payment_instructions, objections_email, objections_postal_address, dispute_portal_url')
       .eq('zone_id', zone_id)
       .maybeSingle()
 
@@ -335,6 +335,7 @@ Deno.serve(async (req) => {
     const paymentInstructions = legalConfig?.payment_instructions?.trim() || ''
     const objectionsEmail = legalConfig?.objections_email?.trim() || legalConfig?.org_email?.trim() || orgEmail || ''
     const objectionsPostalAddress = legalConfig?.objections_postal_address?.trim() || legalOfficeAddress || orgAddress || ''
+    const disputePortalUrl = legalConfig?.dispute_portal_url?.trim() || ''
     const paymentMethods = [
       paymentOnlineUrl ? 'online' : null,
       paymentBankAccount ? 'bank_transfer' : null,
@@ -391,6 +392,7 @@ Deno.serve(async (req) => {
       paymentInstructions,
       objectionsEmail,
       objectionsPostalAddress,
+      disputePortalUrl,
       zoneName: zoneData?.name ?? '',
       summaryOfRights: rightsText,
     })
@@ -531,6 +533,7 @@ function generateNoticeHtml(params: {
   paymentInstructions: string
   objectionsEmail: string
   objectionsPostalAddress: string
+  disputePortalUrl: string
   zoneName: string
   summaryOfRights: string
 }): string {
@@ -712,6 +715,7 @@ function generateNoticeHtml(params: {
       ${params.objectionsPostalAddress ? `<div>Post objections to: ${params.objectionsPostalAddress}</div>` : ''}
       ${!params.objectionsEmail && !params.objectionsPostalAddress ? `<div>Send written objections to ${params.orgName} using the contact details above.</div>` : ''}
       <div style="margin-top:3pt;font-size:8.5pt;color:#444;">Written objections must quote notice number <strong>${params.noticeNumber}</strong> and be sent within 28 days.</div>
+      ${params.disputePortalUrl ? `<div style="margin-top:5pt;"><strong>Online dispute portal:</strong> <a href="${params.disputePortalUrl}" style="color:#1e3a8a;">${params.disputePortalUrl}</a></div>` : ''}
     </div>
 
     <!-- Issued to / service -->

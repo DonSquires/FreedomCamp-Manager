@@ -64,6 +64,8 @@ import PortalSelection from '@/pages/PortalSelection'
 import Settings from '@/pages/Settings'
 import Profile from '@/pages/Profile'
 import VehicleRegistry from '@/pages/VehicleRegistry'
+import PublicDisputePortal from '@/pages/PublicDisputePortal'
+import Disputes from '@/pages/Disputes'
 
 // Create a client
 const queryClient = new QueryClient({
@@ -245,6 +247,7 @@ export default function App() {
         <Routes>
           {/* Public routes */}
           <Route path="/login" element={<Login />} />
+          <Route path="/public/dispute" element={<PublicDisputePortal />} />
           <Route
             path="/portal-selection"
             element={
@@ -694,6 +697,17 @@ export default function App() {
               <ProtectedRoute>
                 <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
                   <NoticeToVacate />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/disputes"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <Disputes />
                 </RoleRoute>
               </ProtectedRoute>
             }

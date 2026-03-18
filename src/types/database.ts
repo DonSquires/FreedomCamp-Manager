@@ -294,6 +294,72 @@ export type Database = {
           },
         ]
       }
+      dispute_intake: {
+        Row: {
+          id: string
+          organization_id: string | null
+          zone_id: string | null
+          source_type: string
+          source_reference: string | null
+          plate_number: string | null
+          claimant_name: string | null
+          claimant_email: string | null
+          claimant_phone: string | null
+          message: string
+          request_homeless_review: boolean
+          hardship_context: string | null
+          evidence_statement: string | null
+          submitted_via: string
+          status: string
+          assigned_to: string | null
+          admin_notes: string | null
+          submitted_at: string
+          updated_at: string
+        }
+        Insert: {
+          id?: string
+          organization_id?: string | null
+          zone_id?: string | null
+          source_type: string
+          source_reference?: string | null
+          plate_number?: string | null
+          claimant_name?: string | null
+          claimant_email?: string | null
+          claimant_phone?: string | null
+          message: string
+          request_homeless_review?: boolean
+          hardship_context?: string | null
+          evidence_statement?: string | null
+          submitted_via?: string
+          status?: string
+          assigned_to?: string | null
+          admin_notes?: string | null
+          submitted_at?: string
+          updated_at?: string
+        }
+        Update: {
+          id?: string
+          organization_id?: string | null
+          zone_id?: string | null
+          source_type?: string
+          source_reference?: string | null
+          plate_number?: string | null
+          claimant_name?: string | null
+          claimant_email?: string | null
+          claimant_phone?: string | null
+          message?: string
+          request_homeless_review?: boolean
+          hardship_context?: string | null
+          evidence_statement?: string | null
+          submitted_via?: string
+          status?: string
+          assigned_to?: string | null
+          admin_notes?: string | null
+          submitted_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       breach_alerts: {
         Row: {
           admin_review_notes: string | null
@@ -4989,6 +5055,7 @@ export type Database = {
           managing_authority: string | null
           max_consecutive_nights: number | null
           max_stay_nights: number | null
+          dispute_portal_url: string | null
           objections_email: string | null
           objections_postal_address: string | null
           org_building: string | null
@@ -5026,6 +5093,7 @@ export type Database = {
           managing_authority?: string | null
           max_consecutive_nights?: number | null
           max_stay_nights?: number | null
+          dispute_portal_url?: string | null
           objections_email?: string | null
           objections_postal_address?: string | null
           org_building?: string | null
@@ -5053,6 +5121,7 @@ export type Database = {
           authorized_signatories?: Json | null
           breach_template?: string
           created_at?: string | null
+          dispute_portal_url?: string | null
           enforcement_authority?: string | null
           enforcement_type?: string
           fine_amount?: number | null

@@ -32,6 +32,7 @@ const moreGroups = [
     links: [
       { to: '/enforcement-command-center', label: 'Command Centre',   icon: Gavel },
       { to: '/enforcement-review',         label: 'Review',           icon: ScrollText },
+      { to: '/disputes',                   label: 'Disputes',         icon: AlertTriangle },
       { to: '/notice-to-vacate',           label: 'Notice to Vacate', icon: FileText },
       { to: '/infringements',              label: 'Infringements',    icon: Gavel },
       { to: '/breach-notices',             label: 'Breach Notices',   icon: Bell },
