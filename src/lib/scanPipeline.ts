@@ -135,30 +135,24 @@ export async function captureAndSave(
   } catch { /* non-critical */ }
 
   // ── Step 2.5: Apply evidence watermark ────────────────────────────────────
-  // Watermark is baked into the uploaded photo for legal evidence requirements.
-  // Falls back to original file if Canvas is unavailable (e.g. non-browser env).
+  // Watermark is mandatory for officer-captured evidence photos.
+  // If watermarking fails, abort capture instead of uploading an unwatermarked file.
   let uploadFile: Blob = file
-  try {
-    emitScanProgress(onStageChange, 'watermark')
-    const captureTimeNZ = new Date().toLocaleString('en-NZ', {
-      dateStyle: 'short',
-      timeStyle: 'medium',
-      timeZone: 'Pacific/Auckland',
-    })
-    uploadFile = await withTimeout(
-      applyEvidenceWatermark(file, {
-        timestamp: captureTimeNZ,
-        gpsCoordinates: `${latitude.toFixed(6)}°, ${longitude.toFixed(6)}°`,
-        userName: user.full_name || undefined,
-      }),
-      WATERMARK_TIMEOUT_MS,
-      'evidence watermarking',
-    )
-  } catch (err) {
-    // Watermarking failed — upload the original photo without a watermark
-    console.warn('⚠️ Watermarking failed — uploading original photo:', err)
-    uploadFile = file
-  }
+  emitScanProgress(onStageChange, 'watermark')
+  const captureTimeNZ = new Date().toLocaleString('en-NZ', {
+    dateStyle: 'short',
+    timeStyle: 'medium',
+    timeZone: 'Pacific/Auckland',
+  })
+  uploadFile = await withTimeout(
+    applyEvidenceWatermark(file, {
+      timestamp: captureTimeNZ,
+      gpsCoordinates: `${latitude.toFixed(6)}°, ${longitude.toFixed(6)}°`,
+      userName: user.full_name || undefined,
+    }),
+    WATERMARK_TIMEOUT_MS,
+    'evidence watermarking',
+  )
 
   // ── Step 3: Hash + upload ─────────────────────────────────────────────────
   const timestamp  = Date.now()

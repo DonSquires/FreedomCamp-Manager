@@ -144,20 +144,35 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Source 4: photo_metadata table (if exists)
+    // Source 4: photo_metadata table (observation-linked storage references)
     if (plateNumber) {
-      const { data: photoMetadata } = await supabaseClient
-        .from('photo_metadata')
-        .select('photo_url')
-        .eq('vehicle_id', plateNumber)
-        .not('photo_url', 'is', null);
+      const { data: obsIds } = await supabaseClient
+        .from('observations')
+        .select('observation_id')
+        .eq('plate_number', plateNumber)
+        .order('recorded_at', { ascending: false })
+        .limit(250);
 
-      if (photoMetadata && photoMetadata.length > 0) {
-        const metadataPhotos = photoMetadata
-          .map((m) => normalizePhotoUrl(m.photo_url))
-          .filter((p: string | null): p is string => !!p);
-        photoUrls.push(...metadataPhotos);
-        console.log(`Found ${metadataPhotos.length} photos from photo_metadata`);
+      const observationIds = (obsIds || [])
+        .map((row: any) => row.observation_id)
+        .filter((id: string | null): id is string => !!id);
+
+      if (observationIds.length > 0) {
+        const { data: photoMetadata } = await supabaseClient
+          .from('photo_metadata')
+          .select('storage_path')
+          .in('observation_id', observationIds)
+          .not('storage_path', 'is', null)
+          .order('created_at', { ascending: false })
+          .limit(250);
+
+        if (photoMetadata && photoMetadata.length > 0) {
+          const metadataPhotos = photoMetadata
+            .map((m) => normalizePhotoUrl(m.storage_path))
+            .filter((p: string | null): p is string => !!p);
+          photoUrls.push(...metadataPhotos);
+          console.log(`Found ${metadataPhotos.length} photos from photo_metadata`);
+        }
       }
     }
 

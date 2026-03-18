@@ -116,6 +116,83 @@ function normalizePlateNumber(raw: string | null | undefined): string | null {
   return normalized || null;
 }
 
+function extractFileName(rawPath: string | null | undefined): string | null {
+  if (!rawPath) return null;
+  const clean = String(rawPath).split('?')[0].replace(/\\/g, '/').replace(/\/+$/, '');
+  if (!clean) return null;
+  const parts = clean.split('/');
+  const last = parts[parts.length - 1]?.trim();
+  return last || null;
+}
+
+async function upsertPhotoMetadataLink(
+  supabase: ReturnType<typeof createClient>,
+  params: {
+    observationId: string;
+    userId: string;
+    photoRef: string;
+    photoHash?: string | null;
+    fileSize?: number | null;
+  },
+): Promise<void> {
+  const canonicalRef = canonicalizePhotoReference(params.photoRef);
+  const loc = parseStorageLocation(canonicalRef) ?? parseStorageLocation(params.photoRef);
+  const storagePath = loc ? `${loc.bucket}/${loc.path}` : canonicalRef;
+
+  if (!storagePath) return;
+
+  const fileName = extractFileName(loc?.path ?? storagePath);
+  const mimeType = fileName?.toLowerCase().endsWith('.png')
+    ? 'image/png'
+    : fileName?.toLowerCase().endsWith('.webp')
+    ? 'image/webp'
+    : 'image/jpeg';
+
+  const row = {
+    observation_id: params.observationId,
+    user_id: params.userId,
+    storage_path: storagePath,
+    file_name: fileName,
+    file_size: params.fileSize ?? null,
+    mime_type: mimeType,
+    sha256_hash: params.photoHash ?? null,
+  };
+
+  const { data: existing, error: findErr } = await supabase
+    .from('photo_metadata')
+    .select('id')
+    .eq('observation_id', params.observationId)
+    .eq('storage_path', storagePath)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (findErr) {
+    console.warn('⚠️ photo_metadata lookup failed, continuing without link:', findErr.message);
+    return;
+  }
+
+  if (existing?.id) {
+    const { error: updateErr } = await supabase
+      .from('photo_metadata')
+      .update(row)
+      .eq('id', existing.id);
+
+    if (updateErr) {
+      console.warn('⚠️ photo_metadata update failed:', updateErr.message);
+    }
+    return;
+  }
+
+  const { error: insertErr } = await supabase
+    .from('photo_metadata')
+    .insert(row);
+
+  if (insertErr) {
+    console.warn('⚠️ photo_metadata insert failed:', insertErr.message);
+  }
+}
+
 async function downloadPhotoBytes(
   supabase: ReturnType<typeof createClient>,
   photoRef: string,
@@ -415,6 +492,13 @@ Deno.serve(async (req) => {
           headers: { ...getCorsHeaders(req), "content-type": "application/json" },
         });
       }
+
+      await upsertPhotoMetadataLink(supabase, {
+        observationId: canonicalObservationId,
+        userId: profile.id,
+        photoRef: canonicalPhotoRef,
+        photoHash,
+      });
 
       console.log("✅ Observation queued for re-ingest via vehicle-ingest:", canonicalObservationId);
       console.log("🚀 vehicle-ingest fast-path kickoff", {
@@ -989,6 +1073,14 @@ Deno.serve(async (req) => {
         console.warn("⚠️ process-officer-scan background kickoff exception", kickoffError);
       });
     }
+
+    await upsertPhotoMetadataLink(supabase, {
+      observationId: newObservationId,
+      userId: profile.id,
+      photoRef: photoUrl,
+      photoHash,
+      fileSize: imageBytes?.length ?? null,
+    });
 
     return new Response(
       JSON.stringify({

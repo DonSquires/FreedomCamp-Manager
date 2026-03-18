@@ -159,6 +159,87 @@ function parseStorageLocation(raw: string): { bucket: string; path: string } | n
   return { bucket: cleaned.slice(0, idx), path: cleaned.slice(idx + 1) };
 }
 
+function canonicalizePhotoReference(raw: string): string {
+  const loc = parseStorageLocation(raw);
+  if (!loc) return String(raw || '').trim();
+  return `${loc.bucket}/${loc.path}`;
+}
+
+function extractFileName(rawPath: string | null | undefined): string | null {
+  if (!rawPath) return null;
+  const clean = String(rawPath).split('?')[0].replace(/\\/g, '/').replace(/\/+$/, '');
+  if (!clean) return null;
+  const parts = clean.split('/');
+  const last = parts[parts.length - 1]?.trim();
+  return last || null;
+}
+
+async function upsertPhotoMetadataLink(
+  supabase: ReturnType<typeof createClient>,
+  params: {
+    observationId: string;
+    userId: string;
+    photoRef: string;
+    photoHash?: string | null;
+    fileSize?: number | null;
+  },
+): Promise<void> {
+  const canonicalRef = canonicalizePhotoReference(params.photoRef);
+  const loc = parseStorageLocation(canonicalRef) ?? parseStorageLocation(params.photoRef);
+  const storagePath = loc ? `${loc.bucket}/${loc.path}` : canonicalRef;
+  if (!storagePath) return;
+
+  const fileName = extractFileName(loc?.path ?? storagePath);
+  const mimeType = fileName?.toLowerCase().endsWith('.png')
+    ? 'image/png'
+    : fileName?.toLowerCase().endsWith('.webp')
+    ? 'image/webp'
+    : 'image/jpeg';
+
+  const row = {
+    observation_id: params.observationId,
+    user_id: params.userId,
+    storage_path: storagePath,
+    file_name: fileName,
+    file_size: params.fileSize ?? null,
+    mime_type: mimeType,
+    sha256_hash: params.photoHash ?? null,
+  };
+
+  const { data: existing, error: findErr } = await supabase
+    .from('photo_metadata')
+    .select('id')
+    .eq('observation_id', params.observationId)
+    .eq('storage_path', storagePath)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (findErr) {
+    console.warn('⚠️ photo_metadata lookup failed, continuing without link:', findErr.message);
+    return;
+  }
+
+  if (existing?.id) {
+    const { error: updateErr } = await supabase
+      .from('photo_metadata')
+      .update(row)
+      .eq('id', existing.id);
+    if (updateErr) {
+      console.warn('⚠️ photo_metadata update failed:', updateErr.message);
+    }
+    return;
+  }
+
+  const { error: insertErr } = await supabase
+    .from('photo_metadata')
+    .insert(row);
+
+  if (insertErr) {
+    console.warn('⚠️ photo_metadata insert failed:', insertErr.message);
+  }
+}
+
 // ─── Step 2: Download photo ───────────────────────────────────────────────────
 async function downloadPhoto(
   supabase: ReturnType<typeof createClient>,
@@ -715,6 +796,14 @@ Deno.serve(async (req: Request) => {
       return jsonResp({ error: 'Failed to download photo' }, 500);
     }
     console.log(`📸 Photo loaded (${imageBytes.length} bytes)`);
+
+    await upsertPhotoMetadataLink(supabase, {
+      observationId,
+      userId: profile.id,
+      photoRef: photoUrl,
+      photoHash: body.photo_hash ?? null,
+      fileSize: imageBytes.length,
+    });
 
     // Concurrency guard: ensure only one invocation claims this observation
     // while it is in a processing placeholder state.
