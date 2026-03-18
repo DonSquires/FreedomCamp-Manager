@@ -89,6 +89,13 @@ export default function ZoneManagement() {
   const [editBylawUrl, setEditBylawUrl] = useState('')
   const [showGeofenceEditor, setShowGeofenceEditor] = useState(false)
 
+  // zone_legal_config payment & objections fields
+  const [editPaymentOnlineUrl, setEditPaymentOnlineUrl] = useState('')
+  const [editPaymentBankAccount, setEditPaymentBankAccount] = useState('')
+  const [editPaymentInstructions, setEditPaymentInstructions] = useState('')
+  const [editObjectionsEmail, setEditObjectionsEmail] = useState('')
+  const [editObjectionsPostalAddress, setEditObjectionsPostalAddress] = useState('')
+
   // Create form state
   const [createName, setCreateName] = useState('')
   const [createDescription, setCreateDescription] = useState('')
@@ -211,20 +218,32 @@ export default function ZoneManagement() {
         .update(updates)
         .eq('id', selectedZone.id)
 
-      if (!error) return
-
-      if (!isMissingZoneLegalColumnError(error)) {
-        throw error
+      if (error) {
+        if (!isMissingZoneLegalColumnError(error)) throw error
+        // Backward compatibility: allow updates to succeed on databases
+        // where legal columns are not yet migrated.
+        const { bylaw_clause, bylaw_source_url, ...legacySafeUpdates } = updates
+        const { error: fallbackError } = await (supabase.from('zones') as any)
+          .update(legacySafeUpdates)
+          .eq('id', selectedZone.id)
+        if (fallbackError) throw fallbackError
       }
 
-      // Backward compatibility: allow updates to succeed on databases
-      // where legal columns are not yet migrated.
-      const { bylaw_clause, bylaw_source_url, ...legacySafeUpdates } = updates
-      const { error: fallbackError } = await (supabase.from('zones') as any)
-        .update(legacySafeUpdates)
-        .eq('id', selectedZone.id)
-
-      if (fallbackError) throw fallbackError
+      // Upsert payment & objection fields into zone_legal_config if any provided
+      if (editPaymentOnlineUrl || editPaymentBankAccount || editPaymentInstructions ||
+          editObjectionsEmail || editObjectionsPostalAddress) {
+        const orgId = selectedZone.organization_id
+        await (supabase.from('zone_legal_config') as any)
+          .upsert({
+            zone_id: selectedZone.id,
+            organization_id: orgId,
+            payment_online_url: editPaymentOnlineUrl || null,
+            payment_bank_account: editPaymentBankAccount || null,
+            payment_instructions: editPaymentInstructions || null,
+            objections_email: editObjectionsEmail || null,
+            objections_postal_address: editObjectionsPostalAddress || null,
+          }, { onConflict: 'zone_id' })
+      }
     },
     onSuccess: () => {
       toast.success('Zone updated successfully')
@@ -305,6 +324,11 @@ export default function ZoneManagement() {
     setEditBylawClause('')
     setEditBylawUrl('')
     setShowGeofenceEditor(false)
+    setEditPaymentOnlineUrl('')
+    setEditPaymentBankAccount('')
+    setEditPaymentInstructions('')
+    setEditObjectionsEmail('')
+    setEditObjectionsPostalAddress('')
   }
 
   const resetCreateForm = () => {
@@ -335,6 +359,20 @@ export default function ZoneManagement() {
     setEditBylawClause(zone.bylaw_clause || '')
     setEditBylawUrl(zone.bylaw_source_url || '')
     setShowGeofenceEditor(false)
+
+    // Load zone_legal_config payment & objection fields
+    ;(supabase.from('zone_legal_config') as any)
+      .select('payment_online_url, payment_bank_account, payment_instructions, objections_email, objections_postal_address')
+      .eq('zone_id', zone.id)
+      .maybeSingle()
+      .then(({ data }: { data: any }) => {
+        setEditPaymentOnlineUrl(data?.payment_online_url || '')
+        setEditPaymentBankAccount(data?.payment_bank_account || '')
+        setEditPaymentInstructions(data?.payment_instructions || '')
+        setEditObjectionsEmail(data?.objections_email || '')
+        setEditObjectionsPostalAddress(data?.objections_postal_address || '')
+      })
+
     setShowEditDialog(true)
   }
 
@@ -756,6 +794,58 @@ export default function ZoneManagement() {
                   value={editBylawUrl}
                   onChange={(e) => setEditBylawUrl(e.target.value)}
                   placeholder="https://..."
+                />
+              </div>
+            </div>
+
+            {/* Notice Payment & Objections */}
+            <div className="border-t pt-4 space-y-3">
+              <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Notice Payment &amp; Objections</h4>
+              <p className="text-xs text-muted-foreground">These fields appear on infringement notices issued in this zone.</p>
+              <div>
+                <Label htmlFor="editPaymentOnlineUrl">Online Payment URL</Label>
+                <Input
+                  id="editPaymentOnlineUrl"
+                  value={editPaymentOnlineUrl}
+                  onChange={(e) => setEditPaymentOnlineUrl(e.target.value)}
+                  placeholder="https://pay.council.govt.nz/..."
+                />
+              </div>
+              <div>
+                <Label htmlFor="editPaymentBankAccount">Bank Account (for direct credit)</Label>
+                <Input
+                  id="editPaymentBankAccount"
+                  value={editPaymentBankAccount}
+                  onChange={(e) => setEditPaymentBankAccount(e.target.value)}
+                  placeholder="12-3456-7890123-00"
+                />
+              </div>
+              <div>
+                <Label htmlFor="editPaymentInstructions">Payment Instructions</Label>
+                <Input
+                  id="editPaymentInstructions"
+                  value={editPaymentInstructions}
+                  onChange={(e) => setEditPaymentInstructions(e.target.value)}
+                  placeholder="Include notice number as reference"
+                />
+              </div>
+              <div>
+                <Label htmlFor="editObjectionsEmail">Objections Email</Label>
+                <Input
+                  id="editObjectionsEmail"
+                  type="email"
+                  value={editObjectionsEmail}
+                  onChange={(e) => setEditObjectionsEmail(e.target.value)}
+                  placeholder="enforcement@council.govt.nz"
+                />
+              </div>
+              <div>
+                <Label htmlFor="editObjectionsPostalAddress">Objections Postal Address</Label>
+                <Input
+                  id="editObjectionsPostalAddress"
+                  value={editObjectionsPostalAddress}
+                  onChange={(e) => setEditObjectionsPostalAddress(e.target.value)}
+                  placeholder="PO Box 123, City 1234"
                 />
               </div>
             </div>

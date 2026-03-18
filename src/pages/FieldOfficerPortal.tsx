@@ -349,6 +349,18 @@ export default function FieldOfficerPortal() {
       ) : (
         /* ── PORTAL HOME ────────────────────────────────────────────── */
         <>
+          {/* ── Admin-assigned follow-ups — shown first so officer sees tasks immediately */}
+          <OfficerFollowUpQueue
+            onCountChange={setFollowUpCount}
+            orgWorkflow={orgWorkflow || 'admin_first'}
+            onIssueAction={(p) => issueAction.mutate(p)}
+            isIssuingAction={issueAction.isPending}
+            onActivity={() => recordGPSUpdate(
+              currentLocation?.latitude ?? 0,
+              currentLocation?.longitude ?? 0,
+            )}
+          />
+
           <div className="grid gap-4 grid-cols-2 mb-6">
             {/* ── Detail Scan card ────────────────────────────── */}
             <Card
@@ -775,16 +787,7 @@ export default function FieldOfficerPortal() {
         </Card>
       )}
 
-      {/* ── Admin-assigned follow-ups for this officer ────────────────── */}
-      {scanMode !== 'bulk' && !showCheckpoint && !detailCameraOpen && (
-        <OfficerFollowUpQueue
-          onCountChange={setFollowUpCount}
-          onActivity={() => recordGPSUpdate(
-            currentLocation?.latitude ?? 0,
-            currentLocation?.longitude ?? 0,
-          )}
-        />
-      )}
+
 
       {/* ── Detail Scan result panel (bottom Sheet) ──────────────────── */}
       <ScanDetailPanel

@@ -374,6 +374,15 @@ export default function InfringementNotices() {
       toast.error('Observation-linked plate, zone, offence description and legal basis are required')
       return
     }
+
+    if (form.service_method === 'email' && !form.recipient_email?.trim()) {
+      toast.error('Recipient email address is required when serving by email')
+      return
+    }
+    if (form.service_method === 'post' && !form.recipient_address?.trim()) {
+      toast.error('Recipient postal address is required when serving by post')
+      return
+    }
     setIssueErrorDetail(null)
     setIssuing(true)
     try {

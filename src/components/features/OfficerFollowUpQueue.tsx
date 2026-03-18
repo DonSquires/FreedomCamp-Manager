@@ -15,6 +15,7 @@
  */
 
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
@@ -25,7 +26,7 @@ import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import {
   ClipboardList, CheckCircle, AlertTriangle, MapPin, Calendar,
-  Clock, ChevronDown, ChevronUp, Loader2,
+  Clock, ChevronDown, ChevronUp, Loader2, FileWarning, Printer, ExternalLink,
 } from 'lucide-react'
 import { formatDateTime } from '@/lib/utils'
 
@@ -49,6 +50,12 @@ interface OfficerFollowUpQueueProps {
   onCountChange?: (count: number) => void
   /** Called on any interaction to keep man-down timer alive */
   onActivity?: () => void
+  /** Enforcement workflow for the org (admin_first | hybrid | officer_direct) */
+  orgWorkflow?: string
+  /** Trigger a warning or notice_to_vacate action */
+  onIssueAction?: (p: { observationId: string; zoneId: string; plateNumber: string; actionType: string }) => void
+  /** Whether an issue action is currently in-flight */
+  isIssuingAction?: boolean
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -64,9 +71,10 @@ function isDue(due: string | null): boolean {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export function OfficerFollowUpQueue({ onCountChange, onActivity }: OfficerFollowUpQueueProps) {
-  const { user } = useAuthStore()
-  const qc       = useQueryClient()
+export function OfficerFollowUpQueue({ onCountChange, onActivity, orgWorkflow, onIssueAction, isIssuingAction }: OfficerFollowUpQueueProps) {
+  const { user }   = useAuthStore()
+  const qc         = useQueryClient()
+  const navigate   = useNavigate()
 
   const [expanded,         setExpanded]         = useState(true)
   const [completingId,     setCompletingId]      = useState<string | null>(null)
@@ -216,8 +224,73 @@ export function OfficerFollowUpQueue({ onCountChange, onActivity }: OfficerFollo
                   </div>
                 )}
 
-                {/* Complete flow */}
-                {isCompleting ? (
+                {/* Action buttons */}
+                {!isCompleting && (
+                  <div className="flex flex-wrap gap-1.5">
+                    {/* Open in Breach Alerts */}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-8 px-2.5 text-xs border-gray-300 text-gray-700 hover:bg-gray-50"
+                      onClick={() => { onActivity?.(); navigate('/breaches') }}
+                    >
+                      <ExternalLink className="h-3 w-3 mr-1" />
+                      View Alert
+                    </Button>
+
+                    {/* Issue Warning — hybrid or officer_direct only, needs observation */}
+                    {fu.observation_id && (orgWorkflow === 'officer_direct' || orgWorkflow === 'hybrid') && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-8 px-2.5 text-xs border-yellow-400 text-yellow-700 hover:bg-yellow-50"
+                        disabled={isIssuingAction}
+                        onClick={() => {
+                          onActivity?.()
+                          onIssueAction?.({
+                            observationId: fu.observation_id!,
+                            zoneId: fu.zone_id,
+                            plateNumber: fu.plate_number || '',
+                            actionType: 'warning',
+                          })
+                        }}
+                      >
+                        <FileWarning className="h-3 w-3 mr-1" />
+                        Warning
+                      </Button>
+                    )}
+
+                    {/* Issue Infringement Ticket — needs observation */}
+                    {fu.observation_id && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-8 px-2.5 text-xs border-blue-400 text-blue-700 hover:bg-blue-50"
+                        onClick={() => {
+                          onActivity?.()
+                          navigate(`/infringements?observation_id=${encodeURIComponent(fu.observation_id!)}&breach_alert_id=${encodeURIComponent(fu.id)}`)
+                        }}
+                      >
+                        <Printer className="h-3 w-3 mr-1" />
+                        Issue Ticket
+                      </Button>
+                    )}
+
+                    {/* Mark complete */}
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-8 px-2.5 text-xs border-green-400 text-green-700 hover:bg-green-50"
+                      onClick={() => { setCompletingId(fu.id); setCompletionNotes(''); onActivity?.() }}
+                    >
+                      <CheckCircle className="h-3 w-3 mr-1" />
+                      Complete
+                    </Button>
+                  </div>
+                )}
+
+                {/* Complete confirmation flow */}
+                {isCompleting && (
                   <div className="space-y-2">
                     <Textarea
                       value={completionNotes}
@@ -247,16 +320,6 @@ export function OfficerFollowUpQueue({ onCountChange, onActivity }: OfficerFollo
                       </Button>
                     </div>
                   </div>
-                ) : (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="w-full h-8 text-xs border-blue-400 text-blue-700 hover:bg-blue-50"
-                    onClick={() => { setCompletingId(fu.id); setCompletionNotes(''); onActivity?.() }}
-                  >
-                    <CheckCircle className="h-3 w-3 mr-1.5" />
-                    Mark as Completed
-                  </Button>
                 )}
               </div>
             )
