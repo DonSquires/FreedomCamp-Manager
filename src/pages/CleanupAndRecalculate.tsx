@@ -348,6 +348,10 @@ export default function CleanupAndRecalculate() {
                   <li><strong>Phase 2 – Duplicate Removal:</strong> Removes duplicate observations in the same patrol window and zone (≤50 m apart)</li>
                   <li><strong>Phase 3 – Compliance Recalculation:</strong> Re-evaluates is_compliant, breach_type and breach_reason for each observation</li>
                 </ul>
+                <p className="text-xs text-blue-700 dark:text-blue-200 mt-2">
+                  Runtime logs for this workflow appear under the <strong>cleanup-and-recalculate</strong> edge function.
+                  The standalone <strong>zone-correction</strong> function is a separate tool and is not called by this page.
+                </p>
               </div>
             </div>
           </CardContent>
