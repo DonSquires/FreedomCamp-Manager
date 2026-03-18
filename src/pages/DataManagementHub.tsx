@@ -25,6 +25,7 @@ import {
   Shield,
   RefreshCw,
   Archive,
+  ShieldCheck,
 } from 'lucide-react'
 
 // Type for import history records mapped from import_batches table
@@ -68,10 +69,25 @@ function mapBatchRow(row: ImportBatchRow): ImportHistoryRecord {
   }
 }
 
+interface ScvSyncResult {
+  total_in_scv_list: number
+  canonical_vehicles_checked: number
+  set_to_current: number
+  set_to_not_current: number
+  expiry_corrected: number
+  unchanged: number
+  observations_updated: number
+  breach_alerts_resolved: number
+  errors: string[]
+}
+
 export default function DataManagementHub() {
   const { user } = useAuthStore()
   const { organizationId } = useGlobalFiltersStore()
   const [isExporting, setIsExporting] = useState(false)
+  const [isSyncingScv, setIsSyncingScv] = useState(false)
+  const [scvDryRun, setScvDryRun] = useState(false)
+  const [scvResult, setScvResult] = useState<ScvSyncResult | null>(null)
 
   // Fetch data statistics
   const { data: stats, isLoading } = useQuery({
@@ -151,6 +167,33 @@ export default function DataManagementHub() {
     },
     enabled: !!user,
   })
+
+  const handleSyncScvList = async (dryRun: boolean) => {
+    setIsSyncingScv(true)
+    setScvResult(null)
+    try {
+      const { data, error } = await edgeFunctions.syncScvList({ dry_run: dryRun })
+      if (error) {
+        toast.error(`SCV sync failed: ${error}`)
+        return
+      }
+      const result: ScvSyncResult = data?.result
+      setScvResult(result)
+      if (dryRun) {
+        toast.info(
+          `Dry run complete — ${result.set_to_current} to set current, ${result.set_to_not_current} to clear`,
+        )
+      } else {
+        toast.success(
+          `SCV sync complete — ${result.set_to_current} vehicles updated, ${result.breach_alerts_resolved} breach alerts resolved`,
+        )
+      }
+    } catch (err: any) {
+      toast.error(`SCV sync error: ${err.message}`)
+    } finally {
+      setIsSyncingScv(false)
+    }
+  }
 
   const handleExportData = async () => {
     setIsExporting(true)
@@ -353,6 +396,94 @@ export default function DataManagementHub() {
               <div className="text-center py-8 text-muted-foreground">
                 <Upload className="h-12 w-12 mx-auto mb-2 opacity-20" />
                 <p>No import history</p>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* SCV List Sync */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <ShieldCheck className="h-5 w-5" />
+              Self-Contained Vehicle (SCV) List Sync
+            </CardTitle>
+            <CardDescription>
+              Check canonical vehicle records against the NZSCV SCV list and update
+              self-contained status, expiry dates, and resolve incorrect CSC breach alerts.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                id="scv-dry-run"
+                checked={scvDryRun}
+                onChange={(e) => setScvDryRun(e.target.checked)}
+                className="h-4 w-4"
+              />
+              <label htmlFor="scv-dry-run" className="text-sm text-muted-foreground select-none cursor-pointer">
+                Dry run (preview changes only, no database writes)
+              </label>
+            </div>
+
+            <div className="flex gap-2">
+              <Button
+                onClick={() => handleSyncScvList(scvDryRun)}
+                disabled={isSyncingScv}
+                variant={scvDryRun ? 'outline' : 'default'}
+              >
+                {isSyncingScv ? (
+                  <>
+                    <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                    {scvDryRun ? 'Checking...' : 'Syncing...'}
+                  </>
+                ) : (
+                  <>
+                    <ShieldCheck className="h-4 w-4 mr-2" />
+                    {scvDryRun ? 'Preview Changes' : 'Sync SCV List'}
+                  </>
+                )}
+              </Button>
+            </div>
+
+            {scvResult && (
+              <div className="rounded-md border p-4 text-sm space-y-2 bg-muted/30">
+                <div className="font-semibold">
+                  {scvDryRun ? 'Dry Run Results' : 'Sync Results'}
+                </div>
+                <div className="grid grid-cols-2 gap-x-6 gap-y-1">
+                  <span className="text-muted-foreground">SCV list entries:</span>
+                  <span className="font-medium">{scvResult.total_in_scv_list.toLocaleString()}</span>
+                  <span className="text-muted-foreground">Canonical vehicles checked:</span>
+                  <span className="font-medium">{scvResult.canonical_vehicles_checked.toLocaleString()}</span>
+                  <span className="text-muted-foreground">Set to self-contained:</span>
+                  <span className="font-medium text-green-600">{scvResult.set_to_current}</span>
+                  <span className="text-muted-foreground">Expiry corrected:</span>
+                  <span className="font-medium text-blue-600">{scvResult.expiry_corrected}</span>
+                  <span className="text-muted-foreground">Cleared (not in list):</span>
+                  <span className="font-medium text-orange-600">{scvResult.set_to_not_current}</span>
+                  <span className="text-muted-foreground">Unchanged:</span>
+                  <span className="font-medium">{scvResult.unchanged}</span>
+                  {!scvDryRun && (
+                    <>
+                      <span className="text-muted-foreground">Observations updated:</span>
+                      <span className="font-medium">{scvResult.observations_updated}</span>
+                      <span className="text-muted-foreground">Breach alerts resolved:</span>
+                      <span className="font-medium text-green-600">{scvResult.breach_alerts_resolved}</span>
+                    </>
+                  )}
+                </div>
+                {scvResult.errors.length > 0 && (
+                  <div className="mt-2 text-red-600">
+                    <div className="font-medium">Errors ({scvResult.errors.length}):</div>
+                    <ul className="list-disc ml-4">
+                      {scvResult.errors.map((e, i) => (
+                        <li key={i}>{e}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
               </div>
             )}
           </CardContent>

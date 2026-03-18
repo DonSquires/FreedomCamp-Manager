@@ -1004,4 +1004,24 @@ export const edgeFunctions = {
   }) => {
     return callEdgeFunction('onspace-ai-chat', params)
   },
+
+  /**
+   * Sync canonical_vehicles self-contained status against the NZSCV SCV Excel list.
+   *
+   * Reads the published SCV list from Supabase Storage, compares every plate in
+   * canonical_vehicles, and:
+   *   - Sets self_contained = true + calculates expiry for plates in the list
+   *   - Sets self_contained = false for plates confirmed absent from the list
+   *   - Updates observations.self_contained for newly-confirmed plates
+   *   - Resolves pending 'self_contained' breach_alerts for confirmed plates
+   *
+   * Pass dry_run: true to preview changes without writing to the database.
+   */
+  syncScvList: async (params: {
+    dry_run?: boolean
+    file_date?: string
+    scv_url?: string
+  } = {}) => {
+    return callEdgeFunction('sync-scv-list', params, { showToast: false })
+  },
 }
