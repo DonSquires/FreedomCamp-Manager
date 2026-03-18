@@ -12,6 +12,8 @@ import { GlobalFilterRibbon } from '@/components/features/GlobalFilterRibbon'
 import { ComplianceTrendChart, type TrendDataPoint } from '@/components/features/ComplianceTrendChart'
 import { nzDateToUTCStart, nzDateToUTCEnd } from '@/lib/timezone'
 import { HOMELESS_UI_STATUSES } from '@/lib/homelessStatus'
+const HOMELESS_EXEMPT_STATUSES = ['confirmed', 'claimed'] as const
+
 import { toast } from 'sonner'
 import { 
   AlertTriangle,
@@ -180,6 +182,7 @@ export default function AdminPortal() {
       }
 
       const homelessPlates = new Set<string>()
+      const homelessExemptPlates = new Set<string>()
       {
         let homelessQuery = (supabase.from('homeless_records') as any)
           .select('plate_number, status')
@@ -197,6 +200,8 @@ export default function AdminPortal() {
           ;(homelessRows ?? []).forEach((row: any) => {
             const plate = String(row?.plate_number ?? '').trim().toUpperCase()
             if (plate) homelessPlates.add(plate)
+            const status = String(row?.status ?? '').trim().toLowerCase()
+            if (plate && HOMELESS_EXEMPT_STATUSES.includes(status as any)) homelessExemptPlates.add(plate)
           })
         }
       }
@@ -212,6 +217,8 @@ export default function AdminPortal() {
           ;(canonicalHomelessRows ?? []).forEach((row: any) => {
             const plate = String(row?.plate_number ?? '').trim().toUpperCase()
             if (plate) homelessPlates.add(plate)
+            const status = String((row as any)?.homeless_status ?? '').trim().toLowerCase()
+            if (plate && HOMELESS_EXEMPT_STATUSES.includes(status as any)) homelessExemptPlates.add(plate)
           })
         }
       }
@@ -282,7 +289,7 @@ export default function AdminPortal() {
       // Count non-compliant observations where the plate belongs to a homeless vehicle.
       // This is the exact number of "breaches" that are actually FC Act exempt.
       let homelessExemptBreachCount = 0
-      const homelessPlateList = Array.from(homelessPlates)
+      const homelessPlateList = Array.from(homelessExemptPlates)
       if (homelessPlateList.length > 0) {
         const { count: exemptCount, error: exemptErr } = await applyFilters(
           supabase
@@ -301,6 +308,7 @@ export default function AdminPortal() {
         activeVehicles,
         trendRows,
         homelessPlates: Array.from(homelessPlates),
+        homelessExemptPlates: Array.from(homelessExemptPlates),
         activeBreaches:            activeBreaches            ?? 0,
         activeInvestigations:      activeInvestigations      ?? 0,
         activeOfficers:            activeOfficers            ?? 0,
@@ -345,6 +353,7 @@ export default function AdminPortal() {
     // Homeless-confirmed/claimed vehicles are FC Act exempt – their non-compliant
     // observations must count as "homeless" (breach-exempt), NOT as breaches.
     const homelessPlateSet = new Set<string>((data as any)?.homelessPlates ?? [])
+    const homelessExemptPlateSet = new Set<string>((data as any)?.homelessExemptPlates ?? [])
     let homelessExemptTotal = 0
     const byDate = new globalThis.Map<string, { compliant: number; breaches: number; homeless: number; total: number }>()
     ;(data?.trendRows ?? []).forEach((o: any) => {
@@ -353,9 +362,10 @@ export default function AdminPortal() {
       current.total += 1
       const plate = String(o.plate_number ?? '').trim().toUpperCase()
       const isHomelessPlate = plate && homelessPlateSet.has(plate)
+      const isHomelessExemptPlate = plate && homelessExemptPlateSet.has(plate)
       if (o.is_compliant) {
         current.compliant += 1
-      } else if (isHomelessPlate) {
+      } else if (isHomelessExemptPlate) {
         // Homeless vehicle – breach exempt under FC Act; do NOT count as breach
         current.homeless += 1
         homelessExemptTotal += 1

@@ -135,6 +135,74 @@ function isDuplicateByRule(current: any, previous: any): boolean {
   return calculateDistance(lat1, lng1, lat2, lng2) <= DUPLICATE_DISTANCE_METERS;
 }
 
+function normalizePlateKey(value?: string | null): string {
+  return String(value ?? '')
+    .trim()
+    .toUpperCase()
+    .replace(/\s+/g, '')
+    .replace(/[^A-Z0-9]/g, '');
+}
+
+function normalizeHomelessCategory(status?: string | null): 'confirmed' | 'claimed' | 'declined' | 'freedom_camper' {
+  const s = String(status ?? '').toLowerCase();
+  if (s === 'confirmed') return 'confirmed';
+  if (s === 'claimed') return 'claimed';
+  if (s === 'declined') return 'declined';
+  return 'freedom_camper';
+}
+
+async function buildHomelessStatusMaps(
+  supabaseAdmin: ReturnType<typeof createClient>,
+  observations: any[],
+): Promise<{ byOrgPlate: Map<string, string>; byPlate: Map<string, string> }> {
+  const plateKeys = [...new Set(
+    observations
+      .map((o: any) => normalizePlateKey(o.plate_number))
+      .filter(Boolean),
+  )];
+  const orgIds = [...new Set(observations.map((o: any) => o.organization_id).filter(Boolean))];
+
+  const byOrgPlate = new Map<string, { status: string; ts: number }>();
+
+  if (plateKeys.length > 0 && orgIds.length > 0) {
+    const { data: homelessRows } = await (supabaseAdmin.from('homeless_records') as any)
+      .select('organization_id, plate_number, status, last_reported_at, updated_at, created_at')
+      .eq('is_active', true)
+      .in('organization_id', orgIds)
+      .in('plate_number', plateKeys);
+
+    for (const row of homelessRows ?? []) {
+      const key = `${row.organization_id}:${normalizePlateKey(row.plate_number)}`;
+      const ts = new Date(
+        row.last_reported_at ?? row.updated_at ?? row.created_at ?? '1970-01-01T00:00:00Z',
+      ).getTime();
+      const existing = byOrgPlate.get(key);
+      if (!existing || ts >= existing.ts) {
+        byOrgPlate.set(key, { status: String(row.status ?? ''), ts });
+      }
+    }
+  }
+
+  const byPlate = new Map<string, string>();
+  if (plateKeys.length > 0) {
+    const { data: canonicalRows } = await supabaseAdmin
+      .from('canonical_vehicles')
+      .select('plate_number, homeless_status')
+      .in('plate_number', plateKeys);
+
+    for (const row of canonicalRows ?? []) {
+      byPlate.set(normalizePlateKey((row as any).plate_number), String((row as any).homeless_status ?? ''));
+    }
+  }
+
+  return {
+    byOrgPlate: new Map<string, string>(
+      [...byOrgPlate.entries()].map(([key, value]) => [key, value.status]),
+    ),
+    byPlate,
+  };
+}
+
 serve(async (req) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
@@ -474,17 +542,8 @@ serve(async (req) => {
     const zoneMatrices = new Map<string, any>();
     const zonesWithoutMatrix = new Set<string>();
 
-    // Pre-load homeless plates
-    const uniquePlates = [...new Set(activeObservations.map(o => o.plate_number))];
-    const homelessSet = new Set<string>();
-    if (uniquePlates.length > 0) {
-      const { data: homelessVehicles } = await supabaseAdmin
-        .from('canonical_vehicles')
-        .select('plate_number')
-        .in('plate_number', uniquePlates)
-        .eq('homeless_status', 'confirmed');
-      for (const v of (homelessVehicles ?? [])) homelessSet.add(v.plate_number);
-    }
+    const { byOrgPlate: homelessStatusByOrgPlate, byPlate: homelessStatusByPlate } =
+      await buildHomelessStatusMaps(supabaseAdmin, activeObservations as any[]);
 
     for (const obs of activeObservations) {
       try {
@@ -527,7 +586,12 @@ serve(async (req) => {
           continue;
         }
 
-        const isHomeless = homelessSet.has(obs.plate_number);
+        const plateKey = normalizePlateKey(obs.plate_number);
+        const homelessCategory = normalizeHomelessCategory(
+          homelessStatusByOrgPlate.get(`${obs.organization_id}:${plateKey}`)
+            ?? homelessStatusByPlate.get(plateKey),
+        );
+        const isHomelessExempt = homelessCategory === 'confirmed' || homelessCategory === 'claimed';
         const overnightMode = overnightModeByOrg.get(String(obs.organization_id)) ?? 'two_photo_verification';
         const wasCompliant = obs.is_compliant ?? true;
 
@@ -586,7 +650,7 @@ serve(async (req) => {
         // Monthly limit
         if (isCompliant && matrix.nights_per_month != null) {
           if ((obs.nights_stayed_this_month ?? 0) > matrix.nights_per_month) {
-            if (!(isHomeless && matrix.homeless_exemption !== false)) {
+            if (!isHomelessExempt) {
               const overnightEvidenceOk = overnightMode === 'two_photo_verification'
                 ? hasTwoPhotoOvernightEvidence
                 : hasInferenceOvernightEvidence;
@@ -604,7 +668,7 @@ serve(async (req) => {
         // Consecutive nights
         if (isCompliant && matrix.max_consecutive_nights != null) {
           if ((obs.consecutive_nights ?? 0) > matrix.max_consecutive_nights) {
-            if (!(isHomeless && matrix.homeless_exemption !== false)) {
+            if (!isHomelessExempt) {
               const overnightEvidenceOk = overnightMode === 'two_photo_verification'
                 ? hasTwoPhotoOvernightEvidence
                 : hasInferenceOvernightEvidence;
@@ -622,7 +686,7 @@ serve(async (req) => {
         // Self-contained
         if (isCompliant && (matrix.self_contained_required || matrix.requires_csc)) {
           if (!obs.self_contained) {
-            if (!(isHomeless && matrix.homeless_exemption !== false)) {
+            if (!isHomelessExempt) {
               isCompliant  = false;
               breachType   = 'self_contained';
               breachReason = 'Zone requires a self-contained vehicle; no valid CSC on record';

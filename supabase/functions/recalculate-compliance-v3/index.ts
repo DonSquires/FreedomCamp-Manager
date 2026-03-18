@@ -614,7 +614,7 @@ serve(async (req: Request) => {
 
       if (isCompliant && rules.nights_per_month != null) {
         const nightsStayed = hasNightsStayedColumn ? (obs.nights_stayed_this_month ?? 0) : 0;
-        const exempt = isHomelessExempt && rules.homeless_exemption !== false;
+        const exempt = isHomelessExempt;
         if (nightsStayed > rules.nights_per_month && !exempt) {
           const overnightEvidenceOk = overnightMode === 'two_photo_verification'
             ? hasTwoPhotoOvernightEvidence(obs)
@@ -634,7 +634,7 @@ serve(async (req: Request) => {
 
       if (isCompliant && rules.max_consecutive_nights != null) {
         const consecutive = hasConsecutiveNightsColumn ? (obs.consecutive_nights ?? 0) : 0;
-        const exempt = isHomelessExempt && rules.homeless_exemption !== false;
+        const exempt = isHomelessExempt;
         if (consecutive > rules.max_consecutive_nights && !exempt) {
           const overnightEvidenceOk = overnightMode === 'two_photo_verification'
             ? hasTwoPhotoOvernightEvidence(obs)
@@ -653,7 +653,7 @@ serve(async (req: Request) => {
       }
 
       if (isCompliant && (rules.self_contained_required || rules.requires_csc)) {
-        const exempt = isHomelessExempt && rules.homeless_exemption !== false;
+        const exempt = isHomelessExempt;
         const isSelfContained = hasSelfContainedColumn ? Boolean(obs.self_contained) : false;
         if (!isSelfContained && !exempt) {
           isCompliant = false;
