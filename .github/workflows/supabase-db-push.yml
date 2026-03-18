@@ -229,4 +229,4 @@ jobs:
               ELSE ROUND((aligned_rows::numeric * 100.0) / linked_rows, 2)
             END AS aligned_percent
           FROM summary;
-SQL
+          SQL
