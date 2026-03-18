@@ -434,6 +434,22 @@ export default function InfringementNotices() {
       })
     } catch (err: any) {
       const message = err?.message || 'Failed to issue notice'
+      const lowerMessage = message.toLowerCase()
+      const isIssuanceAuthorizationError =
+        lowerMessage.includes('warrant number') ||
+        lowerMessage.includes('warrant has expired') ||
+        lowerMessage.includes('insufficient permissions')
+
+      if (isIssuanceAuthorizationError) {
+        const friendlyMessage = lowerMessage.includes('expired')
+          ? 'You are not authorized to issue infringements because your warrant has expired. Please contact an administrator.'
+          : 'You are not authorized to issue infringements. Please contact an administrator.'
+
+        setIssueErrorDetail(friendlyMessage)
+        toast.warning(friendlyMessage)
+        return
+      }
+
       setIssueErrorDetail(message)
       try {
         await navigator.clipboard.writeText(message)
