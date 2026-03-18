@@ -26,7 +26,7 @@ import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import {
   ClipboardList, CheckCircle, AlertTriangle, MapPin, Calendar,
-  Clock, ChevronDown, ChevronUp, Loader2, FileWarning, Printer, ExternalLink,
+  Clock, ChevronDown, ChevronUp, Loader2, FileWarning, Printer, ExternalLink, Search,
 } from 'lucide-react'
 import { formatDateTime } from '@/lib/utils'
 
@@ -131,6 +131,67 @@ export function OfficerFollowUpQueue({ onCountChange, onActivity, orgWorkflow, o
       onActivity?.()
     },
     onError: (err: any) => toast.error(err.message || 'Failed to update'),
+  })
+
+  // ── Start/continue investigation from assigned follow-up ──────────────────
+  const investigateMutation = useMutation({
+    mutationFn: async (fu: AssignedFollow) => {
+      if (!user?.id || !user.organization_id) {
+        throw new Error('Session expired. Please sign in again.')
+      }
+      if (!fu.observation_id) {
+        throw new Error('No linked observation found for this follow-up.')
+      }
+
+      // Reuse an active job for this observation if one already exists.
+      const { data: existingJob, error: existingErr } = await (supabase.from('investigation_jobs') as any)
+        .select('id')
+        .eq('organization_id', user.organization_id)
+        .eq('associated_observation_id', fu.observation_id)
+        .in('status', ['pending', 'assigned', 'in_progress', 'overdue'])
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+
+      if (existingErr) throw existingErr
+      if (existingJob?.id) return { reused: true as const, id: existingJob.id as string }
+
+      const referenceNumber = `BR-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${(fu.plate_number || 'UNK').replace(/\s+/g, '').toUpperCase()}`
+      const jobTitle = `Investigate breach follow-up: ${fu.plate_number || 'Unknown vehicle'}`
+      const jobDescription = fu.admin_review_notes?.trim()
+        ? `Assigned from breach alert ${fu.id}. Officer instructions: ${fu.admin_review_notes.trim()}`
+        : `Assigned from breach alert ${fu.id}.`
+
+      const { data: inserted, error: insertErr } = await (supabase.from('investigation_jobs') as any)
+        .insert({
+          organization_id: user.organization_id,
+          created_by: user.id,
+          assigned_to: user.id,
+          associated_observation_id: fu.observation_id,
+          associated_zone_id: fu.zone_id || null,
+          zone_id: fu.zone_id || null,
+          reference_number: referenceNumber,
+          job_type: 'breach_follow_up',
+          title: jobTitle,
+          description: jobDescription,
+          priority: isDue(fu.due_date) ? 'high' : 'normal',
+          status: 'assigned',
+          followup_notes: fu.admin_review_notes || null,
+        })
+        .select('id')
+        .single()
+
+      if (insertErr) throw insertErr
+      return { reused: false as const, id: inserted.id as string }
+    },
+    onSuccess: (result) => {
+      toast.success(result.reused ? 'Opened existing investigation job' : 'Investigation job created')
+      onActivity?.()
+      navigate('/investigations')
+    },
+    onError: (err: any) => {
+      toast.error(err.message || 'Failed to start investigation')
+    },
   })
 
   if (isLoading || followUps.length === 0) return null
@@ -273,6 +334,20 @@ export function OfficerFollowUpQueue({ onCountChange, onActivity, orgWorkflow, o
                       >
                         <Printer className="h-3 w-3 mr-1" />
                         Issue Ticket
+                      </Button>
+                    )}
+
+                    {/* Start investigation from this follow-up */}
+                    {fu.observation_id && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-8 px-2.5 text-xs border-purple-400 text-purple-700 hover:bg-purple-50"
+                        disabled={investigateMutation.isPending}
+                        onClick={() => investigateMutation.mutate(fu)}
+                      >
+                        <Search className="h-3 w-3 mr-1" />
+                        Investigate
                       </Button>
                     )}
 
