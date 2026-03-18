@@ -88,7 +88,10 @@ export default function FieldOfficerPortal() {
       return ((data as any)?.enforcement_workflow as string) || 'admin_first'
     },
     enabled: !!user?.organization_id,
-    staleTime: 1000 * 60 * 10,
+    staleTime: 1000 * 60 * 2,
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
+    refetchOnMount: 'always',
   })
 
   // ── Fetch officer's recent observations ───────────────────────────────────
@@ -138,8 +141,34 @@ export default function FieldOfficerPortal() {
       return []
     },
     enabled: !!user?.id,
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
+    refetchOnMount: 'always',
     refetchInterval: 15000,  // auto-refresh every 15 s so AI results appear
   })
+
+  useEffect(() => {
+    const refreshPortalData = () => {
+      queryClient.invalidateQueries({ queryKey: ['org-workflow'] })
+      queryClient.invalidateQueries({ queryKey: ['my-recent-scans'] })
+    }
+
+    const onFocus = () => refreshPortalData()
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        refreshPortalData()
+      }
+    }
+
+    refreshPortalData()
+    window.addEventListener('focus', onFocus)
+    document.addEventListener('visibilitychange', onVisibilityChange)
+
+    return () => {
+      window.removeEventListener('focus', onFocus)
+      document.removeEventListener('visibilitychange', onVisibilityChange)
+    }
+  }, [queryClient, user?.id, user?.organization_id])
 
   // ── Enforcement action mutation ────────────────────────────────────────────
   const issueAction = useMutation({

@@ -166,6 +166,43 @@ export default function App() {
     }
   }, [checkSession, ensureLoadingResolved, initializeAuth])
 
+  // Recover quickly when returning to the tab/app (desktop focus, browser back,
+  // or mobile app resume via pageshow) so dashboards do not appear stale.
+  useEffect(() => {
+    let inFlight = false
+
+    const refreshActiveState = async () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return
+      if (inFlight) return
+
+      inFlight = true
+      try {
+        await checkSession()
+        await queryClient.refetchQueries({ type: 'active' })
+      } finally {
+        inFlight = false
+      }
+    }
+
+    const onFocus = () => { void refreshActiveState() }
+    const onPageShow = () => { void refreshActiveState() }
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        void refreshActiveState()
+      }
+    }
+
+    window.addEventListener('focus', onFocus)
+    window.addEventListener('pageshow', onPageShow)
+    document.addEventListener('visibilitychange', onVisibilityChange)
+
+    return () => {
+      window.removeEventListener('focus', onFocus)
+      window.removeEventListener('pageshow', onPageShow)
+      document.removeEventListener('visibilitychange', onVisibilityChange)
+    }
+  }, [checkSession])
+
   // Show loading state while checking session
   if (loading) {
     return (

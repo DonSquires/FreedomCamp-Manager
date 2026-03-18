@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@/stores/authStore'
 import { useGlobalFiltersStore } from '@/stores/globalFiltersStore'
@@ -45,6 +45,7 @@ type DrillConfig = {
 export default function AdminPortal() {
   const { user } = useAuthStore()
   const { organizationId, zoneId, dateFrom, dateTo } = useGlobalFiltersStore()
+  const queryClient = useQueryClient()
   const navigate = useNavigate()
   const [lastZeroToastKey, setLastZeroToastKey] = useState<string | null>(null)
 
@@ -319,7 +320,33 @@ export default function AdminPortal() {
         diagnostics,
       }
     },
+    refetchOnWindowFocus: true,
+    refetchOnReconnect: true,
+    refetchOnMount: 'always',
+    staleTime: 15000,
   })
+
+  useEffect(() => {
+    const refreshDashboard = () => {
+      queryClient.invalidateQueries({ queryKey: ['admin-primary-dashboard'] })
+    }
+
+    const onFocus = () => refreshDashboard()
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        refreshDashboard()
+      }
+    }
+
+    refreshDashboard()
+    window.addEventListener('focus', onFocus)
+    document.addEventListener('visibilitychange', onVisibilityChange)
+
+    return () => {
+      window.removeEventListener('focus', onFocus)
+      document.removeEventListener('visibilitychange', onVisibilityChange)
+    }
+  }, [queryClient, effectiveOrganizationId, zoneId, dateFrom, dateTo])
 
   const { data: recentHistoricalObservations = [] } = useQuery({
     queryKey: ['admin-recent-historical-observations', effectiveOrganizationId, zoneId, startDate, endDate],
