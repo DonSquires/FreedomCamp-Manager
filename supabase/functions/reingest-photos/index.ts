@@ -2,7 +2,7 @@
 // Reingest Photos — Batch reprocess existing observation photos
 // ============================================================================
 // Purpose: Query existing observations that have photos, and for each one
-//          create a NEW observation record and run compliance evaluation.
+//          re-run ingest/enrichment against the EXISTING observation row.
 //          Treats every photo as if it were freshly submitted by an officer.
 //
 // Supports batched pagination via get_total / offset / batch_size, following
@@ -39,6 +39,7 @@ Deno.serve(async (req) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
     const supabase = createClient(supabaseUrl, supabaseKey);
+    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
 
     // ── Auth guard ──────────────────────────────────────────────────────────
     const authHeader = req.headers.get("Authorization");
@@ -165,7 +166,7 @@ Deno.serve(async (req) => {
     }
 
     // ── Process each observation via vehicle-ingest pipeline ───────────────
-    let created = 0;
+    let updated = 0;
     let failed = 0;
     const failures: Array<{ observation_id: string; reason: string }> = [];
 
@@ -228,8 +229,9 @@ Deno.serve(async (req) => {
       }
 
       // Build vehicle-ingest payload using source observation metadata.
-      const newIdempotencyKey = `reingest-${observationId}-${Date.now()}`;
+      const newIdempotencyKey = `reingest-update-${observationId}-${Date.now()}`;
       const ingestPayload: Record<string, unknown> = {
+        existing_observation_id: observationId,
         photo_url: photoUrl,
         photo_hash: resolvedPhotoHash,
         recorded_at: obs.recorded_at ?? new Date().toISOString(),
@@ -254,7 +256,7 @@ Deno.serve(async (req) => {
 
       try {
         await invokeVehicleIngest(ingestPayload);
-        created++;
+        updated++;
       } catch (err: any) {
         failed++;
         failures.push({
@@ -267,7 +269,8 @@ Deno.serve(async (req) => {
     return new Response(
       JSON.stringify({
         processed: observations.length,
-        created,
+        updated,
+        created: updated,
         failed,
         failures: failures.slice(0, 20),
       }),

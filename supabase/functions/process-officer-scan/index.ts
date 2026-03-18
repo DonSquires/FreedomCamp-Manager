@@ -656,6 +656,7 @@ Deno.serve(async (req: Request) => {
     const body = await req.json().catch(() => ({}));
     const observationId: string | null = body.observation_id ?? null;
     const photoUrl:       string | null = body.photo_url ?? null;
+    const allowAdminOverride = body.allow_admin_override === true;
 
     if (!observationId) return jsonResp({ error: 'observation_id is required' }, 400);
     if (!photoUrl)       return jsonResp({ error: 'photo_url is required' }, 400);
@@ -691,9 +692,15 @@ Deno.serve(async (req: Request) => {
       return jsonResp({ success: true, skipped: true, reason: 'already_enriched' });
     }
 
-    // Verify officer owns this observation (master role can process any)
+    // Verify officer owns this observation, unless explicit admin override is enabled.
+    // Reingest uses this override so admin/admin_officer can reprocess historical
+    // observations without changing original recorded_by metadata.
+    const isAdminRole = ['admin', 'admin_officer', 'master'].includes(profile.role);
+    const sameOrg = obs.organization_id === profile.organization_id;
     if (profile.role !== 'master' && obs.recorded_by !== profile.id) {
-      return jsonResp({ error: 'Forbidden: observation belongs to another officer' }, 403);
+      if (!(allowAdminOverride && isAdminRole && sameOrg)) {
+        return jsonResp({ error: 'Forbidden: observation belongs to another officer' }, 403);
+      }
     }
 
     const zoneId         = obs.zone_id as string;

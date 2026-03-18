@@ -234,6 +234,7 @@ Deno.serve(async (req) => {
     let organizationId: string | null = null;
     let zoneId: string | null = null;
     let idempotencyKey: string | null = null;
+    let existingObservationId: string | null = null;
     let officerNotes: string | null = null;
     let photoUrlInput: string | null = null;
     // Pre-computed SHA-256 hash sent by FieldOfficerPortal.
@@ -265,6 +266,7 @@ Deno.serve(async (req) => {
       organizationId = body.organizationId ?? body.organization_id;
       zoneId = body.zoneId ?? body.zone_id;
       idempotencyKey = body.idempotencyKey ?? body.idempotency_key;
+      existingObservationId = body.existing_observation_id ?? body.observation_id ?? null;
       officerNotes = body.notes ?? body.officer_notes;
       photoUrlInput = body.photo_url ?? body.photoUrl ?? null;
       hintPhotoHash = body.photo_hash ?? null;
@@ -291,6 +293,7 @@ Deno.serve(async (req) => {
       organizationId = formData.get("organizationId") as string;
       zoneId = formData.get("zoneId") as string;
       idempotencyKey = formData.get("idempotencyKey") as string;
+      existingObservationId = (formData.get("existing_observation_id") as string) || (formData.get("observation_id") as string) || null;
       officerNotes = formData.get("notes") as string;
       photoUrlInput = (formData.get("photo_url") as string) || (formData.get("photoUrl") as string) || null;
       hintPlate = (formData.get("plate") as string) || (formData.get("plate_number") as string) || null;
@@ -392,6 +395,11 @@ Deno.serve(async (req) => {
     }
 
     if (!idempotencyKey) {
+      idempotencyKey = existingObservationId
+        ? `reingest-update-${existingObservationId}-${Date.now()}`
+        : null;
+    }
+    if (!idempotencyKey) {
       return new Response(JSON.stringify({ error: "Missing idempotencyKey for offline sync" }), {
         status: 400,
         headers: { ...getCorsHeaders(req), "content-type": "application/json" },
@@ -446,33 +454,37 @@ Deno.serve(async (req) => {
       hasPhotoUrlInput: !!photoUrlInput,
     });
 
-    // Check for duplicate (idempotency)
-    const { data: existing, error: existingError } = await supabase
-      .from("observations")
-      .select("*")
-      .eq("idempotency_key", idempotencyKey)
-      .maybeSingle();
+    const isUpdateExistingMode = !!existingObservationId;
 
-    if (existingError) {
-      // idempotency_key is confirmed present in live DB (col 51) — any error
-      // here is unexpected; log and continue rather than hard-failing.
-      console.warn("⚠️ Idempotency duplicate check failed:", existingError.message);
-    }
+    // Check for duplicate (idempotency) only for new inserts.
+    if (!isUpdateExistingMode) {
+      const { data: existing, error: existingError } = await supabase
+        .from("observations")
+        .select("*")
+        .eq("idempotency_key", idempotencyKey)
+        .maybeSingle();
 
-    if (existing) {
-      const existingObservationId = (existing as any).observation_id ?? (existing as any).id;
-      console.log("⚠️ Duplicate observation detected:", idempotencyKey);
-      return new Response(
-        JSON.stringify({
-          success: true,
-          duplicate: true,
-          observation_id: existingObservationId,
-        }),
-        {
-          status: 200,
-          headers: { ...getCorsHeaders(req), "content-type": "application/json" },
-        }
-      );
+      if (existingError) {
+        // idempotency_key is confirmed present in live DB (col 51) — any error
+        // here is unexpected; log and continue rather than hard-failing.
+        console.warn("⚠️ Idempotency duplicate check failed:", existingError.message);
+      }
+
+      if (existing) {
+        const duplicateObservationId = (existing as any).observation_id ?? (existing as any).id;
+        console.log("⚠️ Duplicate observation detected:", idempotencyKey);
+        return new Response(
+          JSON.stringify({
+            success: true,
+            duplicate: true,
+            observation_id: duplicateObservationId,
+          }),
+          {
+            status: 200,
+            headers: { ...getCorsHeaders(req), "content-type": "application/json" },
+          }
+        );
+      }
     }
 
     // Convert imageDataUrl to bytes if needed
@@ -684,7 +696,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Step 4: Create the observation via safe_insert_observation.
+    // Step 4: Create a new observation OR update an existing observation.
     // The live DB trigger inventory shows no observation-table business logic
     // triggers, so a plain INSERT cannot be relied on to populate canonical
     // vehicle details or run compliance evaluation. The RPC performs those
@@ -705,21 +717,95 @@ Deno.serve(async (req) => {
       idempotency_key: idempotencyKey,
     };
 
-    const { data: observation, error: obsError } = await supabase.rpc(
-      "safe_insert_observation",
-      { p_data: insertPayload }
-    );
+    let newObservationId: string;
+    let responseObservation: Record<string, unknown> | null = null;
 
-    if (obsError || !observation) {
-      console.error("❌ Failed to create observation:", obsError);
-      return new Response(JSON.stringify({ error: "Failed to create observation: " + ((obsError as any)?.message || "Unknown error") }), {
-        status: 500,
-        headers: { ...getCorsHeaders(req), "content-type": "application/json" },
-      });
+    if (isUpdateExistingMode && existingObservationId) {
+      let existingObs: Record<string, unknown> | null = null;
+      let existingObsError: { message?: string } | null = null;
+
+      const byObservationId = await supabase
+        .from("observations")
+        .select("observation_id, id, organization_id, zone_id")
+        .eq("observation_id", existingObservationId)
+        .maybeSingle();
+
+      if (byObservationId.data) {
+        existingObs = byObservationId.data as Record<string, unknown>;
+      } else {
+        const byId = await supabase
+          .from("observations")
+          .select("observation_id, id, organization_id, zone_id")
+          .eq("id", existingObservationId)
+          .maybeSingle();
+        existingObs = (byId.data as Record<string, unknown> | null) ?? null;
+        existingObsError = (byId.error as { message?: string } | null) ?? null;
+      }
+
+      if (existingObsError || !existingObs) {
+        return new Response(JSON.stringify({ error: "Target observation for update was not found" }), {
+          status: 404,
+          headers: { ...getCorsHeaders(req), "content-type": "application/json" },
+        });
+      }
+
+      const canonicalObservationId = (existingObs as any).observation_id ?? (existingObs as any).id;
+
+      if (profile.role !== "master" && (existingObs as any).organization_id !== profile.organization_id) {
+        return new Response(JSON.stringify({ error: "Observation does not belong to your organization" }), {
+          status: 403,
+          headers: { ...getCorsHeaders(req), "content-type": "application/json" },
+        });
+      }
+
+      // Reingest update mode: preserve original scan metadata (recorded_at,
+      // recorded_by, GPS, zone, org, historical notes) and only refresh
+      // processing/photo fields before kicking off process-officer-scan.
+      const updatePayload: Record<string, unknown> = {
+        plate_number: "PROCESSING...",
+        photo: photoUrl,
+        photo_url: photoUrl,
+        photo_hash: photoHash,
+        updated_at: new Date().toISOString(),
+      };
+
+      const { error: updateErr } = await supabase
+        .from("observations")
+        .update(updatePayload)
+        .eq("observation_id", canonicalObservationId);
+
+      if (updateErr) {
+        return new Response(JSON.stringify({ error: `Failed to update observation: ${updateErr.message}` }), {
+          status: 500,
+          headers: { ...getCorsHeaders(req), "content-type": "application/json" },
+        });
+      }
+
+      newObservationId = canonicalObservationId;
+      responseObservation = {
+        observation_id: canonicalObservationId,
+        is_compliant: null,
+        breach_type: null,
+      };
+      console.log("✅ Observation updated for re-ingest:", newObservationId);
+    } else {
+      const { data: observation, error: obsError } = await supabase.rpc(
+        "safe_insert_observation",
+        { p_data: insertPayload }
+      );
+
+      if (obsError || !observation) {
+        console.error("❌ Failed to create observation:", obsError);
+        return new Response(JSON.stringify({ error: "Failed to create observation: " + ((obsError as any)?.message || "Unknown error") }), {
+          status: 500,
+          headers: { ...getCorsHeaders(req), "content-type": "application/json" },
+        });
+      }
+
+      newObservationId = (observation as any).observation_id ?? (observation as any).id;
+      responseObservation = observation as Record<string, unknown>;
+      console.log("✅ Observation created:", newObservationId);
     }
-
-    const newObservationId = (observation as any).observation_id ?? (observation as any).id;
-    console.log("✅ Observation created:", newObservationId);
 
     // Start background officer enrichment from the backend so plate detection
     // runs even if the browser is still on an older frontend build that does
@@ -737,6 +823,7 @@ Deno.serve(async (req) => {
           observation_id: newObservationId,
           photo_url: photoUrl,
           photo_hash: photoHash,
+          allow_admin_override: isUpdateExistingMode,
         }),
       }).then(async (response) => {
         if (!response.ok) {
@@ -755,14 +842,15 @@ Deno.serve(async (req) => {
       JSON.stringify({
         success: true,
         observation_id: newObservationId,
+        updated_existing: isUpdateExistingMode,
         source: inferenceResult.path,
         plate: plateNumber,
         confidence: plateConfidence,
         photo_url: photoUrl,
         photo_hash: photoHash,
         requires_manual_entry: requiresManualEntry,
-        is_compliant: (observation as any)?.is_compliant ?? null,
-        breach_type: (observation as any)?.breach_type ?? null,
+        is_compliant: (responseObservation as any)?.is_compliant ?? null,
+        breach_type: (responseObservation as any)?.breach_type ?? null,
       }),
       {
         status: 200,

@@ -23,7 +23,7 @@ import {
 
 interface ReingestResult {
   processed: number
-  created: number
+  updated: number
   failed: number
   duration_seconds: number
   status: 'completed' | 'failed'
@@ -32,6 +32,7 @@ interface ReingestResult {
 
 interface ReingestBatchResponse {
   processed?: number
+  updated?: number
   created?: number
   failed?: number
   total?: number
@@ -41,7 +42,7 @@ interface ReingestBatchResponse {
 interface LiveRunState {
   total: number
   processed: number
-  created: number
+  updated: number
   failed: number
 }
 
@@ -74,22 +75,22 @@ export default function PhotoReingest() {
     if (globalLiveProgress) {
       // Map generic OperationProgress fields to reingest-specific LiveRunState.
       // OperationProgress is designed for compliance recalculation, so we reuse:
-      //   changed        → created (new observations created)
+      //   changed        → updated (existing observations reprocessed)
       //   breachesCreated → failed  (observations that failed to reingest)
       setLiveRun({
         total: globalLiveProgress.total,
         processed: globalLiveProgress.processed,
-        created: globalLiveProgress.changed,
+        updated: globalLiveProgress.changed,
         failed: globalLiveProgress.breachesCreated,
       })
     }
     if (globalResult && !result) {
       // Map generic OperationResult fields to reingest-specific ReingestResult.
-      //   compliance_changed → created (new observations created)
+      //   compliance_changed → updated (existing observations reprocessed)
       //   breaches_created   → failed  (observations that failed to reingest)
       setResult({
         processed: globalResult.observations_processed,
-        created: globalResult.compliance_changed,
+        updated: globalResult.compliance_changed,
         failed: globalResult.breaches_created,
         duration_seconds: globalResult.duration_seconds,
         status: globalResult.status,
@@ -124,13 +125,13 @@ export default function PhotoReingest() {
     let offset = 0
     const batchSize = 10
     let processedTotal = 0
-    let createdTotal = 0
+    let updatedTotal = 0
     let failedTotal = 0
     let topFailureReason: string | null = null
     let batchNumber = 0
 
     // Seed the live display immediately so the card appears.
-    setLiveRun({ total: 0, processed: 0, created: 0, failed: 0 })
+    setLiveRun({ total: 0, processed: 0, updated: 0, failed: 0 })
     setProgress(5)
     updateProgress(OPERATION_ID, 5, {
       total: 0,
@@ -158,7 +159,7 @@ export default function PhotoReingest() {
 
       const parsedBatch = (batchData as ReingestBatchResponse | null) ?? {}
       const processed = Number(parsedBatch.processed ?? 0)
-      const created = Number(parsedBatch.created ?? 0)
+      const updated = Number(parsedBatch.updated ?? parsedBatch.created ?? 0)
       const failed = Number(parsedBatch.failed ?? 0)
       if (!topFailureReason && Array.isArray(parsedBatch.failures) && parsedBatch.failures.length > 0) {
         const first = parsedBatch.failures[0]
@@ -166,7 +167,7 @@ export default function PhotoReingest() {
       }
 
       processedTotal += processed
-      createdTotal += created
+      updatedTotal += updated
       failedTotal += failed
       batchNumber++
 
@@ -176,13 +177,13 @@ export default function PhotoReingest() {
       setLiveRun({
         total: processedTotal, // running count shown in place of "Target"
         processed: processedTotal,
-        created: createdTotal,
+        updated: updatedTotal,
         failed: failedTotal,
       })
       updateProgress(OPERATION_ID, pulsedProgress, {
         total: processedTotal,
         processed: processedTotal,
-        changed: createdTotal,
+        changed: updatedTotal,
         breachesCreated: failedTotal,
         breachesDismissed: 0,
         skippedNoRules: 0,
@@ -194,13 +195,13 @@ export default function PhotoReingest() {
 
     return {
       processed: processedTotal,
-      created: createdTotal,
+      updated: updatedTotal,
       failed: failedTotal,
       duration_seconds: Math.round((Date.now() - startedAt) / 1000),
       status: 'completed',
       error_message:
-        createdTotal === 0 && failedTotal > 0
-          ? (topFailureReason ? `Top failure: ${topFailureReason}` : 'No observations were created in this run')
+        updatedTotal === 0 && failedTotal > 0
+          ? (topFailureReason ? `Top failure: ${topFailureReason}` : 'No observations were updated in this run')
           : undefined,
     }
   }
@@ -218,17 +219,17 @@ export default function PhotoReingest() {
     onSuccess: (data) => {
       setProgress(100)
       setResult(data)
-      // Map reingest fields to OperationResult: compliance_changed=created, breaches_created=failed
+      // Map reingest fields to OperationResult: compliance_changed=updated, breaches_created=failed
       completeOperation(OPERATION_ID, {
         observations_processed: data.processed,
-        compliance_changed: data.created,
+        compliance_changed: data.updated,
         breaches_created: data.failed,
         breaches_dismissed: 0,
         skipped_no_rules: 0,
         duration_seconds: data.duration_seconds,
         status: 'completed',
       })
-      toast.success(`Photo reingest completed — ${data.created} new observations created`)
+      toast.success(`Photo reingest completed — ${data.updated} existing observations reprocessed`)
     },
     onError: (error: any) => {
       setProgress(0)
@@ -254,14 +255,14 @@ export default function PhotoReingest() {
       toast.error('Please select an organisation')
       return
     }
-    toast.info('Starting photo reingest — creating new observations from existing photos (10 per batch)')
+    toast.info('Starting photo reingest — reprocessing existing observations from stored photos (10 per batch)')
     reingestMutation.mutate()
   }
 
   return (
     <AppLayout
       title="Photo Reingest"
-      description="Reprocess existing observation photos through the vehicle ingest pipeline to create new observation records"
+      description="Reprocess existing observation photos through the vehicle ingest pipeline and update the original records"
       showBackButton
     >
       <div className="max-w-4xl mx-auto space-y-6">
@@ -273,18 +274,18 @@ export default function PhotoReingest() {
               <AlertTriangle className="h-5 w-5 text-orange-600 mt-0.5" />
               <div className="flex-1">
                 <h3 className="font-semibold text-orange-900 dark:text-orange-100">
-                  Important: This creates new observation records
+                  Important: This updates existing observation records
                 </h3>
                 <p className="text-sm text-orange-700 dark:text-orange-200 mt-1">
                   This operation queries all existing observations that have photos and creates
-                  a <strong>new</strong> observation record for each one, treating the photo as
+                  runs the ingest pipeline again against the <strong>same</strong> observation record, treating the photo as
                   if it were freshly submitted by an officer. This will:
                 </p>
                 <ul className="text-sm text-orange-700 dark:text-orange-200 mt-2 space-y-1 list-disc list-inside">
-                  <li>Create new observation records linked to existing photos</li>
-                  <li>Trigger compliance evaluation for each new observation</li>
-                  <li>Preserve the original zone, GPS, and timestamp; original officer is recorded in notes metadata</li>
-                  <li>Mark new records with "[Reingested]" in officer notes</li>
+                  <li>Reprocess existing observation records linked to stored photos</li>
+                  <li>Trigger compliance evaluation and enrichment again for each observation</li>
+                  <li>Preserve the original date/time, zone, GPS, and officer metadata</li>
+                  <li>Avoid creating duplicate observation rows</li>
                 </ul>
               </div>
             </div>
@@ -369,7 +370,7 @@ export default function PhotoReingest() {
                 )}
               </Button>
               <p className="mt-2 text-xs text-muted-foreground text-center">
-                Creates new observation records from existing photos via the vehicle ingest pipeline
+                Reprocesses existing observation records from stored photos via the vehicle ingest pipeline
               </p>
             </div>
           </CardContent>
@@ -395,8 +396,8 @@ export default function PhotoReingest() {
                     <div className="text-lg font-semibold mt-1">{liveRun.processed.toLocaleString()}</div>
                   </div>
                   <div className="bg-white dark:bg-gray-800 p-3 rounded-lg">
-                    <div className="text-xs text-gray-600">Created</div>
-                    <div className="text-lg font-semibold text-green-600 mt-1">{liveRun.created.toLocaleString()}</div>
+                    <div className="text-xs text-gray-600">Updated</div>
+                    <div className="text-lg font-semibold text-green-600 mt-1">{liveRun.updated.toLocaleString()}</div>
                   </div>
                   <div className="bg-white dark:bg-gray-800 p-3 rounded-lg">
                     <div className="text-xs text-gray-600">Failed</div>
@@ -430,9 +431,9 @@ export default function PhotoReingest() {
                   </div>
                 </div>
                 <div className="bg-white dark:bg-gray-800 p-4 rounded-lg">
-                  <div className="text-sm text-gray-600">Created</div>
+                  <div className="text-sm text-gray-600">Updated</div>
                   <div className="text-2xl font-bold text-green-600 mt-1">
-                    {result.created.toLocaleString()}
+                    {result.updated.toLocaleString()}
                   </div>
                 </div>
                 <div className="bg-white dark:bg-gray-800 p-4 rounded-lg">
@@ -454,10 +455,10 @@ export default function PhotoReingest() {
                 <div className="flex-1 text-sm text-blue-900 dark:text-blue-100">
                   <p className="font-semibold">What happened?</p>
                   <ul className="mt-2 space-y-1 list-disc list-inside">
-                    <li>Each existing observation photo was used to create a new observation record</li>
-                    <li>New records went through the compliance evaluation pipeline</li>
-                    <li>New observations are marked with "[Reingested]" in officer notes</li>
-                    <li>Check the Observations page to review the new records</li>
+                    <li>Each existing observation photo was reprocessed against the same observation record</li>
+                    <li>Updated records went back through the compliance evaluation pipeline</li>
+                    <li>Original scan metadata (time/zone/GPS/officer) was retained</li>
+                    <li>Check the Observations page to review updated compliance outcomes</li>
                   </ul>
                 </div>
               </div>
