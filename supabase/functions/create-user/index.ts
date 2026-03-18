@@ -11,6 +11,15 @@ function escapeHtml(value: unknown): string {
     .replace(/'/g, '&#39;');
 }
 
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, timeoutMessage: string): Promise<T> {
+  return await Promise.race([
+    promise,
+    new Promise<T>((_, reject) => {
+      setTimeout(() => reject(new Error(timeoutMessage)), timeoutMs);
+    }),
+  ]);
+}
+
 async function sendInvitationEmail(params: {
   toEmail: string;
   recipientName: string;
@@ -18,6 +27,7 @@ async function sendInvitationEmail(params: {
   organizationName: string;
   inviteLink: string;
 }) {
+  const SMTP_TIMEOUT_MS = 15000;
   const smtpHost = Deno.env.get('SMTP_HOST');
   const smtpPort = parseInt(Deno.env.get('SMTP_PORT') ?? '587', 10);
   const smtpUser = Deno.env.get('SMTP_USERNAME');
@@ -86,31 +96,46 @@ async function sendInvitationEmail(params: {
   const client = new SMTPClient();
   const useTls = smtpPort === 465;
   if (useTls) {
-    await client.connectTLS({
-      hostname: smtpHost,
-      port: smtpPort,
-      username: smtpUser,
-      password: smtpPass,
-    });
+    await withTimeout(
+      client.connectTLS({
+        hostname: smtpHost,
+        port: smtpPort,
+        username: smtpUser,
+        password: smtpPass,
+      }),
+      SMTP_TIMEOUT_MS,
+      'Timed out connecting to SMTP server (TLS).',
+    );
   } else {
-    await client.connect({
-      hostname: smtpHost,
-      port: smtpPort,
-      username: smtpUser,
-      password: smtpPass,
-    });
+    await withTimeout(
+      client.connect({
+        hostname: smtpHost,
+        port: smtpPort,
+        username: smtpUser,
+        password: smtpPass,
+      }),
+      SMTP_TIMEOUT_MS,
+      'Timed out connecting to SMTP server.',
+    );
   }
 
   try {
-    await client.send({
-      from: `${smtpFromName} <${smtpFrom}>`,
-      to: params.toEmail,
-      subject,
-      html,
-      content: text,
-    });
+    await withTimeout(
+      client.send({
+        from: `${smtpFromName} <${smtpFrom}>`,
+        to: params.toEmail,
+        subject,
+        html,
+        content: text,
+      }),
+      SMTP_TIMEOUT_MS,
+      'Timed out sending invitation email via SMTP.',
+    );
   } finally {
-    await client.close();
+    await Promise.race([
+      client.close(),
+      new Promise<void>((resolve) => setTimeout(resolve, 1500)),
+    ]);
   }
 
   return { ok: true as const };

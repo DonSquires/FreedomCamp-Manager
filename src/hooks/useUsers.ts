@@ -56,6 +56,13 @@ async function invokeFunctionWithAuthRetry(name: string, body: any, fallbackMess
   return result
 }
 
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, timeoutMessage: string): Promise<T> {
+  return await Promise.race([
+    promise,
+    new Promise<T>((_, reject) => setTimeout(() => reject(new Error(timeoutMessage)), timeoutMs)),
+  ])
+}
+
 export function useUsers(options: UseUsersOptions = {}) {
   const { searchQuery = '', role = 'all', isActive = null } = options
 
@@ -115,10 +122,14 @@ export function useCreateUser() {
       role: UserProfile['role']
       phone?: string
     }) => {
-      const { data, error } = await invokeFunctionWithAuthRetry(
-        'create-user',
-        userData,
-        'Failed to send user invitation',
+      const { data, error } = await withTimeout(
+        invokeFunctionWithAuthRetry(
+          'create-user',
+          userData,
+          'Failed to send user invitation',
+        ),
+        30000,
+        'Invitation request timed out. Check SMTP settings and try again.',
       )
 
       if (error) {

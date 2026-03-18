@@ -118,6 +118,13 @@ export default function UserManagement() {
     }
   }
 
+  const withTimeout = async <T,>(promise: Promise<T>, timeoutMs: number, timeoutMessage: string): Promise<T> => {
+    return await Promise.race([
+      promise,
+      new Promise<T>((_, reject) => setTimeout(() => reject(new Error(timeoutMessage)), timeoutMs)),
+    ])
+  }
+
   const invokeFunctionWithAuthRetry = async (name: string, body: any, fallbackMessage: string) => {
     let result = await supabase.functions.invoke(name, { body })
     if (!result.error) return result
@@ -229,10 +236,14 @@ export default function UserManagement() {
           employer_organization_id: employerOrgId || null,
       }
 
-      const { data, error } = await invokeFunctionWithAuthRetry(
-        'create-user',
-        payload,
-        'Failed to send user invitation',
+      const { data, error } = await withTimeout(
+        invokeFunctionWithAuthRetry(
+          'create-user',
+          payload,
+          'Failed to send user invitation',
+        ),
+        30000,
+        'Invitation request timed out. Check SMTP settings and try again.',
       )
       if (error) {
         const message = await getFunctionErrorMessage(error, 'Failed to send user invitation')
