@@ -657,7 +657,7 @@ export default function AdminPortal() {
       <GlobalFilterRibbon />
 
       <div className="space-y-4">
-        <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
           <Card className="bg-white dark:bg-gray-900 shadow-sm">
             <CardContent className="pt-5 pb-4">
               <div className="flex items-center justify-between">
@@ -702,6 +702,27 @@ export default function AdminPortal() {
                   <p className="text-2xl font-bold">{isLoading ? '...' : ((data as any)?.disputesPending ?? 0)}</p>
                 </div>
                 <FileWarning className="h-5 w-5 text-amber-500" />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card
+            className="bg-white dark:bg-gray-900 shadow-sm cursor-pointer hover:shadow-md transition-shadow"
+            onClick={() => openDrilldown({
+              to: '/investigations',
+              metric: 'active_investigations',
+              period: periodLabel,
+              status: 'active',
+              label: 'Active Investigations',
+            })}
+          >
+            <CardContent className="pt-5 pb-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-muted-foreground uppercase tracking-wide">Active Investigations</p>
+                  <p className="text-2xl font-bold">{isLoading ? '...' : ((data as any)?.activeInvestigations ?? 0)}</p>
+                </div>
+                <Search className="h-5 w-5 text-indigo-500" />
               </div>
             </CardContent>
           </Card>
