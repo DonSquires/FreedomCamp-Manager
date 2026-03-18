@@ -105,26 +105,35 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
     );
 
+    let authUserId: string | null = null;
     const jwtPayload = parseJwtPayload(token);
-    const isServiceRole = jwtPayload?.role === 'service_role';
-    const userId = typeof jwtPayload?.sub === 'string' ? jwtPayload.sub : null;
+    if (typeof jwtPayload?.sub === 'string' && jwtPayload.sub.length > 0) {
+      authUserId = jwtPayload.sub;
+    }
 
-    if (!isServiceRole) {
-      if (!userId) return json(401, { error: 'Unauthorized' });
-
-      const { data: userProfile, error: profileError } = await supabaseAdmin
-        .from('user_profiles')
-        .select('role')
-        .eq('id', userId)
-        .single();
-
-      if (profileError || !userProfile) {
-        return json(403, { error: 'Unable to resolve user role' });
+    if (!authUserId) {
+      const { data: authData, error: authError } = await supabaseAdmin.auth.getUser(token);
+      if (!authError && authData?.user?.id) {
+        authUserId = authData.user.id;
       }
+    }
 
-      if (!['admin', 'master'].includes(userProfile.role)) {
-        return json(403, { error: 'Insufficient permissions — admin or master role required' });
-      }
+    if (!authUserId) {
+      return json(401, { error: 'Unauthorized' });
+    }
+
+    const { data: userProfile, error: profileError } = await supabaseAdmin
+      .from('user_profiles')
+      .select('role')
+      .eq('id', authUserId)
+      .single();
+
+    if (profileError || !userProfile) {
+      return json(403, { error: 'Unable to resolve user role' });
+    }
+
+    if (!['admin', 'master'].includes(userProfile.role)) {
+      return json(403, { error: 'Insufficient permissions — admin or master role required' });
     }
 
     const body = await req.json().catch(() => ({}));
