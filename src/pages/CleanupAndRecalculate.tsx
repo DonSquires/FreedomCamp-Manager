@@ -56,6 +56,7 @@ interface LiveState {
 }
 
 const OPERATION_ID = 'cleanup-and-recalculate'
+const INVOKE_TIMEOUT_MS = 90_000
 
 export default function CleanupAndRecalculate() {
   const { user } = useAuthStore()
@@ -107,13 +108,43 @@ export default function CleanupAndRecalculate() {
   }): Promise<CleanupResult> => {
     const startedAt = Date.now()
 
-    // Get total count first
-    const { data: totalData, error: totalError } = await edgeFunctions.cleanupAndRecalculate({
+    const withTimeout = async <T,>(promise: Promise<T>, label: string): Promise<T> => {
+      let timeoutHandle: ReturnType<typeof setTimeout> | null = null
+      try {
+        const timeoutPromise = new Promise<never>((_, reject) => {
+          timeoutHandle = setTimeout(() => {
+            reject(new Error(`${label} timed out after ${Math.round(INVOKE_TIMEOUT_MS / 1000)}s`))
+          }, INVOKE_TIMEOUT_MS)
+        })
+        return await Promise.race([promise, timeoutPromise])
+      } finally {
+        if (timeoutHandle) clearTimeout(timeoutHandle)
+      }
+    }
+
+    const buildPayload = (base: {
+      offset?: number
+      batch_size?: number
+      get_total?: boolean
+    }) => ({
       zoneIds: params.zoneIds,
+      zone_ids: params.zoneIds,
       dateRangeStart: params.dateRangeStart,
+      date_range_start: params.dateRangeStart,
       dateRangeEnd: params.dateRangeEnd,
-      get_total: true,
+      date_range_end: params.dateRangeEnd,
+      ...base,
     })
+
+    // Get total count first
+    const { data: totalData, error: totalError } = await withTimeout(
+      edgeFunctions.cleanupAndRecalculate(
+        buildPayload({
+          get_total: true,
+        })
+      ),
+      'cleanup-and-recalculate get_total'
+    )
 
     if (totalError) throw new Error(totalError)
 
@@ -155,13 +186,15 @@ export default function CleanupAndRecalculate() {
     let skippedNoMatrixTotal = 0
 
     while (offset < total) {
-      const { data: batchData, error: batchError } = await edgeFunctions.cleanupAndRecalculate({
-        zoneIds: params.zoneIds,
-        dateRangeStart: params.dateRangeStart,
-        dateRangeEnd: params.dateRangeEnd,
-        offset,
-        batch_size: batchSize,
-      })
+      const { data: batchData, error: batchError } = await withTimeout(
+        edgeFunctions.cleanupAndRecalculate(
+          buildPayload({
+            offset,
+            batch_size: batchSize,
+          })
+        ),
+        `cleanup-and-recalculate batch offset ${offset}`
+      )
 
       if (batchError) throw new Error(batchError)
 
@@ -251,6 +284,7 @@ export default function CleanupAndRecalculate() {
     toast.info('Starting 3-phase cleanup: zone correction → duplicate removal → compliance recalculation')
 
     try {
+      setProgress(1)
       const res = await runCleanup({
         zoneIds,
         dateRangeStart: scope === 'date_range' ? dateFrom : undefined,
@@ -272,7 +306,10 @@ export default function CleanupAndRecalculate() {
         `✅ Cleanup complete: ${res.processed} processed, ${res.zonesCorrected} zones corrected, ${res.duplicatesRemoved} duplicates removed, ${res.complianceChanged} compliance changes`
       )
     } catch (error: any) {
-      const msg: string = error?.message || 'Cleanup failed'
+      let msg: string = error?.message || 'Cleanup failed'
+      if (msg.includes('timed out')) {
+        msg = `${msg}. Edge function did not respond in time. Check that cleanup-and-recalculate is deployed and inspect Supabase Edge Function logs.`
+      }
       setProgress(0)
       failOperation(OPERATION_ID, msg)
       const isSessionError =

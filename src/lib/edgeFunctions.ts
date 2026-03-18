@@ -469,8 +469,11 @@ export const edgeFunctions = {
    */
   cleanupAndRecalculate: async (params: {
     zoneIds?: string[]
+    zone_ids?: string[]
     dateRangeStart?: string
+    date_range_start?: string
     dateRangeEnd?: string
+    date_range_end?: string
     offset?: number
     batch_size?: number
     get_total?: boolean
