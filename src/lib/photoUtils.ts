@@ -20,6 +20,31 @@ interface VehicleLike {
   profile_photo_url?: string | null  // live schema secondary column
 }
 
+function resolvePhotoReference(input: string | null | undefined): string | null {
+  if (!input || typeof input !== 'string') return null
+  const value = input.trim()
+  if (!value) return null
+
+  if (isValidStorageUrl(value)) {
+    return value
+  }
+
+  // Relative storage endpoint path: /storage/v1/object/...
+  if (value.startsWith('/storage/v1/object/')) {
+    if (!SUPABASE_URL) return null
+    return `${SUPABASE_URL}${value}`
+  }
+
+  // Canonical bucket/path reference used by ingest updates.
+  const bucketPath = value.match(/^(scans|evidence|incident-evidence)\/(.+)$/)
+  if (bucketPath) {
+    const [, bucket, path] = bucketPath
+    return getPublicStorageUrl(bucket, path)
+  }
+
+  return null
+}
+
 /**
  * Check if a URL is a valid photo URL (Supabase Storage or any https endpoint)
  */
@@ -45,22 +70,16 @@ function isValidStorageUrl(url: string | null | undefined): boolean {
  */
 export function getObservationPhotoUrl(observation: ObservationLike | null | undefined): string | null {
   if (!observation) return null
-  
-  // Try primary 'photo' column first (live schema)
-  if (isValidStorageUrl(observation.photo)) {
-    return observation.photo!
-  }
 
-  // Fall back to photo_url
-  if (isValidStorageUrl(observation.photo_url)) {
-    return observation.photo_url!
-  }
-  
-  // Fall back to image_url (legacy)
-  if (isValidStorageUrl(observation.image_url)) {
-    return observation.image_url!
-  }
-  
+  const fromPhoto = resolvePhotoReference(observation.photo)
+  if (fromPhoto) return fromPhoto
+
+  const fromPhotoUrl = resolvePhotoReference(observation.photo_url)
+  if (fromPhotoUrl) return fromPhotoUrl
+
+  const fromImageUrl = resolvePhotoReference(observation.image_url)
+  if (fromImageUrl) return fromImageUrl
+
   return null
 }
 
@@ -73,17 +92,16 @@ export function getVehiclePhotoUrl(
   fallbackPhotoUrl?: string | null
 ): string | null {
   if (!vehicle) return null
-  
-  // Use profile_photo if available
-  if (isValidStorageUrl(vehicle.profile_photo)) {
-    return vehicle.profile_photo!
-  }
-  
-  // Use fallback if provided and valid
-  if (isValidStorageUrl(fallbackPhotoUrl)) {
-    return fallbackPhotoUrl!
-  }
-  
+
+  const fromProfilePhoto = resolvePhotoReference(vehicle.profile_photo)
+  if (fromProfilePhoto) return fromProfilePhoto
+
+  const fromProfilePhotoUrl = resolvePhotoReference(vehicle.profile_photo_url)
+  if (fromProfilePhotoUrl) return fromProfilePhotoUrl
+
+  const fromFallback = resolvePhotoReference(fallbackPhotoUrl)
+  if (fromFallback) return fromFallback
+
   return null
 }
 
