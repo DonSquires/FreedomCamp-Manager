@@ -20,6 +20,24 @@ interface UseUsersOptions {
   isActive?: boolean | null
 }
 
+async function getFunctionErrorMessage(error: any, fallbackMessage: string) {
+  const baseMessage = error?.message || fallbackMessage
+  const context = error?.context
+  if (!context || typeof context.clone !== 'function') return baseMessage
+  const statusPrefix = typeof context?.status === 'number' ? `HTTP ${context.status}: ` : ''
+  try {
+    const payload = await context.clone().json()
+    return statusPrefix + (payload?.error || payload?.message || baseMessage)
+  } catch {
+    try {
+      const bodyText = await context.clone().text()
+      return statusPrefix + (bodyText || baseMessage)
+    } catch {
+      return statusPrefix + baseMessage
+    }
+  }
+}
+
 export function useUsers(options: UseUsersOptions = {}) {
   const { searchQuery = '', role = 'all', isActive = null } = options
 
@@ -83,7 +101,10 @@ export function useCreateUser() {
         body: userData
       })
 
-      if (error) throw error
+      if (error) {
+        const message = await getFunctionErrorMessage(error, 'Failed to send user invitation')
+        throw new Error(message)
+      }
       return data
     },
     onSuccess: () => {

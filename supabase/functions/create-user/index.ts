@@ -27,14 +27,14 @@ Deno.serve(async (req) => {
     } = await req.json();
 
     // Validation
-    if (!email || !password || !role) {
+    if (!email || !role) {
       return new Response(
-        JSON.stringify({ error: 'Email, password, and role are required' }),
+        JSON.stringify({ error: 'Email and role are required' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    if (password.length < 6) {
+    if (password && password.length < 6) {
       return new Response(
         JSON.stringify({ error: 'Password must be at least 6 characters' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -49,25 +49,44 @@ Deno.serve(async (req) => {
       );
     }
 
-    console.log('Creating auth user:', email, '| Role:', role);
+    const normalizedEmail = String(email).trim().toLowerCase();
+    const isInvitationFlow = !password;
+
+    console.log('Creating auth user:', normalizedEmail, '| Role:', role, '| Invitation:', isInvitationFlow);
 
     // Generate default names for field staff
     const userFirstName = role === 'officer' ? (first_name || email.split('@')[0]) : first_name;
     const userLastName = role === 'officer' ? (last_name || 'Officer') : last_name;
 
-    // Step 1: Create auth user with password
-    const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
-      email,
-      password,
-      email_confirm: false, // ✅ SEND VERIFICATION EMAIL - User must confirm email before login
-      user_metadata: {
-        first_name: userFirstName,
-        last_name: userLastName,
-      },
-    });
+    const redirectOrigin = req.headers.get('origin') || Deno.env.get('SITE_URL') || 'https://www.ironeaglesecurity.co.nz';
+
+    // Step 1: Create auth user (invite flow by default, password flow optional)
+    const { data: authData, error: authError } = isInvitationFlow
+      ? await supabaseAdmin.auth.admin.inviteUserByEmail(normalizedEmail, {
+          redirectTo: `${redirectOrigin}/login`,
+          data: {
+            first_name: userFirstName,
+            last_name: userLastName,
+          },
+        })
+      : await supabaseAdmin.auth.admin.createUser({
+          email: normalizedEmail,
+          password,
+          email_confirm: false,
+          user_metadata: {
+            first_name: userFirstName,
+            last_name: userLastName,
+          },
+        });
 
     if (authError) {
       console.error('Auth user creation error:', authError);
+      if (authError.message?.toLowerCase().includes('already')) {
+        return new Response(
+          JSON.stringify({ error: 'A user with this email already exists' }),
+          { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
       throw authError;
     }
 
@@ -86,7 +105,7 @@ Deno.serve(async (req) => {
       .from('user_profiles')
       .upsert({
         id: authData.user.id,
-        email,
+        email: normalizedEmail,
         first_name: userFirstName,
         last_name: userLastName,
         role,
@@ -123,7 +142,7 @@ Deno.serve(async (req) => {
     return new Response(
       JSON.stringify({ 
         data: profile,
-        message: 'User created successfully',
+        message: isInvitationFlow ? 'User invitation sent successfully' : 'User created successfully',
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );

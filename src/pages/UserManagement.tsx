@@ -100,6 +100,24 @@ export default function UserManagement() {
   const [uploadingCOA, setUploadingCOA] = useState(false)
   const [uploadingWarrant, setUploadingWarrant] = useState(false)
 
+  const getFunctionErrorMessage = async (error: any, fallbackMessage: string) => {
+    const baseMessage = error?.message || fallbackMessage
+    const context = error?.context
+    if (!context || typeof context.clone !== 'function') return baseMessage
+    const statusPrefix = typeof context?.status === 'number' ? `HTTP ${context.status}: ` : ''
+    try {
+      const payload = await context.clone().json()
+      return statusPrefix + (payload?.error || payload?.message || baseMessage)
+    } catch {
+      try {
+        const bodyText = await context.clone().text()
+        return statusPrefix + (bodyText || baseMessage)
+      } catch {
+        return statusPrefix + baseMessage
+      }
+    }
+  }
+
   // Check user role
   const isAdmin = user?.role === 'admin' || user?.role === 'master'
   const isMaster = user?.role === 'master'
@@ -194,7 +212,10 @@ export default function UserManagement() {
           employer_organization_id: employerOrgId || null,
         }
       })
-      if (error) throw error
+      if (error) {
+        const message = await getFunctionErrorMessage(error, 'Failed to send user invitation')
+        throw new Error(message)
+      }
       return data
     },
     onSuccess: () => {
