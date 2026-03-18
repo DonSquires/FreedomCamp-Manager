@@ -77,8 +77,18 @@ interface BreachAlert {
 
 // Supabase relation selectors use FK constraint names. The `vehicle_observations_v2_*`
 // names are legacy constraint identifiers retained after table renames.
-const OBSERVATION_SELECT_FIELDS = 'id, photo, photo_url, recorded_at, gps_latitude, gps_longitude, vehicle_make, vehicle_model, vehicle_year, vehicle_color, has_homeless_claim, homeless_claim_notes, officer_notes, zones!vehicle_observations_v2_zone_id_fkey(name)'
+const OBSERVATION_SELECT_FIELDS = 'observation_id, photo, photo_url, recorded_at, gps_latitude, gps_longitude, vehicle_make, vehicle_model, vehicle_year, vehicle_color, has_homeless_claim, homeless_claim_notes, officer_notes, zones!vehicle_observations_v2_zone_id_fkey(name)'
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || ''
+
+async function resolveViaDownload(bucket: string, path: string): Promise<string | null> {
+  try {
+    const { data, error } = await supabase.storage.from(bucket).download(path)
+    if (error || !data) return null
+    return URL.createObjectURL(data)
+  } catch {
+    return null
+  }
+}
 
 function getBreachObservationId(breach: BreachAlert | null): string | null {
   if (!breach) return null
@@ -126,11 +136,29 @@ async function resolveEvidencePhotoUrl(rawUrl: string | null | undefined): Promi
         return data.signedUrl
       }
 
+      const downloadedUrl = await resolveViaDownload(maybeParsed.bucket, maybeParsed.path)
+      if (downloadedUrl) {
+        return downloadedUrl
+      }
+
       const { data: publicData } = supabase.storage.from(maybeParsed.bucket).getPublicUrl(maybeParsed.path)
       return publicData.publicUrl || url
     }
 
     if (url.includes('/storage/v1/object/public/')) {
+      const { data, error } = await supabase.storage
+        .from(maybeParsed.bucket)
+        .createSignedUrl(maybeParsed.path, 60 * 60)
+
+      if (!error && data?.signedUrl) {
+        return data.signedUrl
+      }
+
+      const downloadedUrl = await resolveViaDownload(maybeParsed.bucket, maybeParsed.path)
+      if (downloadedUrl) {
+        return downloadedUrl
+      }
+
       return url
     }
 
@@ -141,6 +169,11 @@ async function resolveEvidencePhotoUrl(rawUrl: string | null | undefined): Promi
 
       if (!error && data?.signedUrl) {
         return data.signedUrl
+      }
+
+      const downloadedUrl = await resolveViaDownload(maybeParsed.bucket, maybeParsed.path)
+      if (downloadedUrl) {
+        return downloadedUrl
       }
     }
 
@@ -181,6 +214,11 @@ async function resolveEvidencePhotoUrl(rawUrl: string | null | undefined): Promi
       return signedData.signedUrl
     }
 
+    const downloadedUrl = await resolveViaDownload(bucket, path)
+    if (downloadedUrl) {
+      return downloadedUrl
+    }
+
     const { data: publicData } = supabase.storage.from(bucket).getPublicUrl(path)
     return publicData.publicUrl || null
   }
@@ -188,6 +226,11 @@ async function resolveEvidencePhotoUrl(rawUrl: string | null | undefined): Promi
   const { data: signedData, error } = await supabase.storage.from('scans').createSignedUrl(normalizedPath, 60 * 60)
   if (!error && signedData?.signedUrl) {
     return signedData.signedUrl
+  }
+
+  const downloadedUrl = await resolveViaDownload('scans', normalizedPath)
+  if (downloadedUrl) {
+    return downloadedUrl
   }
 
   const { data: publicData } = supabase.storage.from('scans').getPublicUrl(normalizedPath)
@@ -456,6 +499,10 @@ export default function BreachAlerts() {
             return {
               ...row,
               display_url: primary ?? fallback,
+              fallback_urls: [row.photo_url, row.photo, fallbackPhotoByObservationId[row.id] ?? null]
+                .map((v: any) => (typeof v === 'string' ? v.trim() : null))
+                .filter((v: string | null): v is string => !!v)
+                .filter((v: string) => v !== (primary ?? fallback)),
             }
           })
         )
@@ -1301,9 +1348,31 @@ export default function BreachAlerts() {
                               src={photo.display_url}
                               alt={`Evidence ${formatDateTime(photo.recorded_at)}`}
                               className="w-full h-full object-cover transition-transform group-hover:scale-105"
-                              onError={(e) => {
-                                (e.target as HTMLImageElement).style.display = 'none'
-                                const parent = (e.target as HTMLElement).parentElement
+                              data-fallback-urls={JSON.stringify(photo.fallback_urls || [])}
+                              data-fallback-index="0"
+                              onError={async (e) => {
+                                const target = e.target as HTMLImageElement
+                                let urls: string[] = []
+                                try {
+                                  const raw = target.dataset.fallbackUrls
+                                  urls = raw ? (JSON.parse(raw) as string[]) : []
+                                } catch {
+                                  urls = []
+                                }
+
+                                let idx = Number(target.dataset.fallbackIndex || '0')
+                                while (idx < urls.length) {
+                                  const nextResolved = await resolveEvidencePhotoUrl(urls[idx])
+                                  idx += 1
+                                  target.dataset.fallbackIndex = String(idx)
+                                  if (nextResolved) {
+                                    target.src = nextResolved
+                                    return
+                                  }
+                                }
+
+                                target.style.display = 'none'
+                                const parent = target.parentElement
                                 if (parent && !parent.querySelector('[data-photo-fallback="true"]')) {
                                   const placeholder = document.createElement('div')
                                   placeholder.setAttribute('data-photo-fallback', 'true')
