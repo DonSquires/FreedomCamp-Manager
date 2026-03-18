@@ -38,6 +38,24 @@ async function getFunctionErrorMessage(error: any, fallbackMessage: string) {
   }
 }
 
+async function invokeFunctionWithAuthRetry(name: string, body: any, fallbackMessage: string) {
+  let result = await supabase.functions.invoke(name, { body })
+  if (!result.error) return result
+
+  const message = await getFunctionErrorMessage(result.error, fallbackMessage)
+  if (!/invalid jwt|http\s*401|401\b/i.test(message)) {
+    return result
+  }
+
+  const { data, error } = await supabase.auth.refreshSession()
+  if (error || !data.session?.access_token) {
+    throw new Error('Session expired. Please sign in again.')
+  }
+
+  result = await supabase.functions.invoke(name, { body })
+  return result
+}
+
 export function useUsers(options: UseUsersOptions = {}) {
   const { searchQuery = '', role = 'all', isActive = null } = options
 
@@ -97,9 +115,11 @@ export function useCreateUser() {
       role: UserProfile['role']
       phone?: string
     }) => {
-      const { data, error } = await supabase.functions.invoke('create-user', {
-        body: userData
-      })
+      const { data, error } = await invokeFunctionWithAuthRetry(
+        'create-user',
+        userData,
+        'Failed to send user invitation',
+      )
 
       if (error) {
         const message = await getFunctionErrorMessage(error, 'Failed to send user invitation')

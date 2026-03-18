@@ -118,6 +118,24 @@ export default function UserManagement() {
     }
   }
 
+  const invokeFunctionWithAuthRetry = async (name: string, body: any, fallbackMessage: string) => {
+    let result = await supabase.functions.invoke(name, { body })
+    if (!result.error) return result
+
+    const message = await getFunctionErrorMessage(result.error, fallbackMessage)
+    if (!/invalid jwt|http\s*401|401\b/i.test(message)) {
+      return result
+    }
+
+    const { data, error } = await supabase.auth.refreshSession()
+    if (error || !data.session?.access_token) {
+      throw new Error('Session expired. Please sign in again.')
+    }
+
+    result = await supabase.functions.invoke(name, { body })
+    return result
+  }
+
   // Check user role
   const isAdmin = user?.role === 'admin' || user?.role === 'master'
   const isMaster = user?.role === 'master'
@@ -201,8 +219,7 @@ export default function UserManagement() {
   // Create user mutation
   const createUserMutation = useMutation({
     mutationFn: async () => {
-      const { data, error } = await supabase.functions.invoke('create-user', {
-        body: { 
+      const payload = {
           email, 
           role,
           first_name: firstName,
@@ -210,8 +227,13 @@ export default function UserManagement() {
           phone,
           organization_id: organizationId || null,
           employer_organization_id: employerOrgId || null,
-        }
-      })
+      }
+
+      const { data, error } = await invokeFunctionWithAuthRetry(
+        'create-user',
+        payload,
+        'Failed to send user invitation',
+      )
       if (error) {
         const message = await getFunctionErrorMessage(error, 'Failed to send user invitation')
         throw new Error(message)
