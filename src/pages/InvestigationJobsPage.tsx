@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
@@ -89,6 +90,7 @@ const STATUS_META: Record<string, { label: string; variant: 'default' | 'seconda
 export default function InvestigationJobsPage() {
   const { user } = useAuthStore()
   const { organizationId, zoneId, dateFrom, dateTo } = useGlobalFiltersStore()
+  const location = useLocation()
   const queryClient = useQueryClient()
   const startDate = dateFrom ? nzDateToUTCStart(dateFrom) : null
   const endDate = dateTo ? nzDateToUTCEnd(dateTo) : null
@@ -101,6 +103,8 @@ export default function InvestigationJobsPage() {
   const [assignNotes, setAssignNotes] = useState('')
   const [completeTarget, setCompleteTarget] = useState<InvestigationJob | null>(null)
   const [completeSummary, setCompleteSummary] = useState('')
+
+  const selectedJobId = new URLSearchParams(location.search).get('job_id') || ''
 
   const orgId = user?.role === 'master' ? (organizationId || undefined) : user?.organization_id
 
@@ -240,6 +244,16 @@ export default function InvestigationJobsPage() {
 
   const isAdmin = ['admin', 'admin_officer', 'master'].includes(user?.role || '')
 
+  useEffect(() => {
+    if (!selectedJobId || isLoading) return
+    const timer = window.setTimeout(() => {
+      const card = document.getElementById(`investigation-job-${selectedJobId}`)
+      if (!card) return
+      card.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }, 80)
+    return () => window.clearTimeout(timer)
+  }, [selectedJobId, isLoading, filtered.length])
+
   return (
     <AppLayout title="Investigation Jobs" description="Assign and track investigation job types">
       <GlobalFilterRibbon showDateFilter showZoneFilter />
@@ -322,9 +336,13 @@ export default function InvestigationJobsPage() {
             return (
               <Card
                 key={job.id}
+                id={`investigation-job-${job.id}`}
                 className={
-                  job.status === 'overdue' ? 'border-red-300 bg-red-50/40' :
-                  job.priority === 'urgent' && isActive ? 'border-orange-300 bg-orange-50/40' : ''
+                  [
+                    selectedJobId === job.id ? 'ring-2 ring-indigo-500 border-indigo-400 bg-indigo-50/40' : '',
+                    job.status === 'overdue' ? 'border-red-300 bg-red-50/40' : '',
+                    job.priority === 'urgent' && isActive ? 'border-orange-300 bg-orange-50/40' : '',
+                  ].filter(Boolean).join(' ')
                 }
               >
                 <CardContent className="p-4">

@@ -187,7 +187,7 @@ export function OfficerFollowUpQueue({ onCountChange, onActivity, orgWorkflow, o
     onSuccess: (result) => {
       toast.success(result.reused ? 'Opened existing investigation job' : 'Investigation job created')
       onActivity?.()
-      navigate('/investigations')
+      navigate(`/investigations?job_id=${encodeURIComponent(result.id)}`)
     },
     onError: (err: any) => {
       toast.error(err.message || 'Failed to start investigation')
