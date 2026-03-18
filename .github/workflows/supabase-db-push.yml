@@ -164,3 +164,69 @@ jobs:
           echo "supabase db push failed after reconciliation attempts"
           cat "$LOG_FILE"
           exit 1
+
+      - name: Verify breach timestamp alignment
+        env:
+          SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
+          SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
+        run: |
+          set -euo pipefail
+
+          if ! command -v psql >/dev/null 2>&1; then
+            echo "::warning::psql is not available on this runner; skipping breach timestamp verification"
+            exit 0
+          fi
+
+          DB_URI="postgresql://postgres:${SUPABASE_DB_PASSWORD}@db.${SUPABASE_PROJECT_REF}.supabase.co:5432/postgres?sslmode=require"
+
+          echo "Running post-migration breach timestamp alignment check..."
+          psql "$DB_URI" -v ON_ERROR_STOP=1 <<'SQL'
+          WITH direct_links AS (
+            SELECT
+              ba.id,
+              ba.created_at,
+              o.recorded_at AS expected_at
+            FROM public.breach_alerts ba
+            JOIN public.observations o
+              ON o.observation_id = ba.observation_id
+          ),
+          detail_links AS (
+            SELECT
+              ba.id,
+              ba.created_at,
+              o.recorded_at AS expected_at
+            FROM public.breach_alerts ba
+            JOIN public.observations o
+              ON o.observation_id::text = (ba.breach_details ->> 'observation_id')
+            WHERE ba.observation_id IS NULL
+          ),
+          combined AS (
+            SELECT * FROM direct_links
+            UNION ALL
+            SELECT * FROM detail_links
+          ),
+          summary AS (
+            SELECT
+              COUNT(*)::bigint AS linked_rows,
+              COUNT(*) FILTER (
+                WHERE expected_at IS NOT NULL
+                  AND created_at IS NOT NULL
+                  AND ABS(EXTRACT(EPOCH FROM (created_at - expected_at))) <= 300
+              )::bigint AS aligned_rows,
+              COUNT(*) FILTER (
+                WHERE expected_at IS NOT NULL
+                  AND created_at IS NOT NULL
+                  AND ABS(EXTRACT(EPOCH FROM (created_at - expected_at))) > 300
+              )::bigint AS misaligned_rows
+            FROM combined
+          )
+          SELECT
+            linked_rows,
+            aligned_rows,
+            misaligned_rows,
+            CASE
+              WHEN linked_rows = 0 THEN 0
+              ELSE ROUND((aligned_rows::numeric * 100.0) / linked_rows, 2)
+            END AS aligned_percent
+          FROM summary;
+SQL
