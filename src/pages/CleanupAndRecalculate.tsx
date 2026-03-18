@@ -43,6 +43,7 @@ interface CleanupBatchResponse {
   complianceChanged?: number
   breachesCreated?: number
   skippedNoMatrix?: number
+  phase?: 'all' | 'zone' | 'dedup' | 'compliance'
 }
 
 interface LiveState {
@@ -71,6 +72,7 @@ export default function CleanupAndRecalculate() {
   const [progress, setProgress] = useState(0)
   const [liveRun, setLiveRun] = useState<LiveState | null>(null)
   const [localRunning, setLocalRunning] = useState(false)
+  const [currentStage, setCurrentStage] = useState<'zone' | 'dedup' | 'compliance' | null>(null)
 
   const globalOp = operations.find((op) => op.id === OPERATION_ID)
   const isRunning = localRunning || globalOp?.status === 'running'
@@ -145,6 +147,7 @@ export default function CleanupAndRecalculate() {
     }
 
     const buildPayload = (base: {
+        phase?: 'zone' | 'dedup' | 'compliance'
       offset?: number
       batch_size?: number
       get_total?: boolean
@@ -158,36 +161,7 @@ export default function CleanupAndRecalculate() {
       ...base,
     })
 
-    // Get total count first
-    const { data: totalData, error: totalError } = await withTimeout(
-      edgeFunctions.cleanupAndRecalculate(
-        buildPayload({
-          get_total: true,
-        })
-      ),
-      'cleanup-and-recalculate get_total'
-    )
-
-    if (totalError) throw new Error(totalError)
-
-    const totalResponse = totalData as CleanupBatchResponse
-    const total = Number(totalResponse?.total ?? 0)
-
-    if (total <= 0) {
-      return {
-        processed: 0,
-        zonesCorrected: 0,
-        duplicatesRemoved: 0,
-        complianceChanged: 0,
-        breachesCreated: 0,
-        skippedNoMatrix: 0,
-        duration_seconds: Math.round((Date.now() - startedAt) / 1000),
-        status: 'completed',
-      }
-    }
-
-    const initialLive: LiveState = {
-      total,
+    const aggregate = {
       processed: 0,
       zonesCorrected: 0,
       duplicatesRemoved: 0,
@@ -195,72 +169,104 @@ export default function CleanupAndRecalculate() {
       breachesCreated: 0,
       skippedNoMatrix: 0,
     }
-    setLiveRun(initialLive)
-    updateProgress(OPERATION_ID, 0, initialLive as any)
 
-    const batchSize = 50
-    let offset = 0
-    let processedTotal = 0
-    let zonesCorrectedTotal = 0
-    let duplicatesRemovedTotal = 0
-    let complianceChangedTotal = 0
-    let breachesCreatedTotal = 0
-    let skippedNoMatrixTotal = 0
+    let scopeTotal = 0
 
-    while (offset < total) {
-      const { data: batchData, error: batchError } = await withTimeout(
+    const runPhase = async (
+      phase: 'zone' | 'dedup' | 'compliance',
+      progressStart: number,
+      progressEnd: number,
+    ) => {
+      setCurrentStage(phase)
+
+      const { data: totalData, error: totalError } = await withTimeout(
         edgeFunctions.cleanupAndRecalculate(
           buildPayload({
-            offset,
-            batch_size: batchSize,
+            phase,
+            get_total: true,
           })
         ),
-        `cleanup-and-recalculate batch offset ${offset}`
+        `cleanup-and-recalculate ${phase} get_total`
       )
 
-      if (batchError) throw new Error(batchError)
+      if (totalError) throw new Error(totalError)
 
-      const batch = batchData as CleanupBatchResponse
-      const processed = Number(batch?.processed ?? 0)
-      const zonesCorrected = Number(batch?.zonesCorrected ?? 0)
-      const duplicatesRemoved = Number(batch?.duplicatesRemoved ?? 0)
-      const complianceChanged = Number(batch?.complianceChanged ?? 0)
-      const breachesCreated = Number(batch?.breachesCreated ?? 0)
-      const skippedNoMatrix = Number(batch?.skippedNoMatrix ?? 0)
+      const total = Number((totalData as CleanupBatchResponse | null)?.total ?? 0)
+      if (scopeTotal === 0) scopeTotal = total
 
-      processedTotal += processed
-      zonesCorrectedTotal += zonesCorrected
-      duplicatesRemovedTotal += duplicatesRemoved
-      complianceChangedTotal += complianceChanged
-      breachesCreatedTotal += breachesCreated
-      skippedNoMatrixTotal += skippedNoMatrix
-
-      const pct = total > 0 ? Math.min(100, Math.round((processedTotal / total) * 100)) : 0
-      setProgress(pct)
-
-      const live: LiveState = {
-        total,
-        processed: processedTotal,
-        zonesCorrected: zonesCorrectedTotal,
-        duplicatesRemoved: duplicatesRemovedTotal,
-        complianceChanged: complianceChangedTotal,
-        breachesCreated: breachesCreatedTotal,
-        skippedNoMatrix: skippedNoMatrixTotal,
+      if (total <= 0) {
+        setProgress(progressEnd)
+        return
       }
-      setLiveRun(live)
-      updateProgress(OPERATION_ID, pct, live as any)
 
-      if (processed <= 0) break
-      offset += processed
+      const batchSize = 50
+      let offset = 0
+      let phaseProcessed = 0
+
+      while (offset < total) {
+        const { data: batchData, error: batchError } = await withTimeout(
+          edgeFunctions.cleanupAndRecalculate(
+            buildPayload({
+              phase,
+              offset,
+              batch_size: batchSize,
+            })
+          ),
+          `cleanup-and-recalculate ${phase} batch offset ${offset}`
+        )
+
+        if (batchError) throw new Error(batchError)
+
+        const batch = batchData as CleanupBatchResponse
+        const processed = Number(batch?.processed ?? 0)
+        const zonesCorrected = Number(batch?.zonesCorrected ?? 0)
+        const duplicatesRemoved = Number(batch?.duplicatesRemoved ?? 0)
+        const complianceChanged = Number(batch?.complianceChanged ?? 0)
+        const breachesCreated = Number(batch?.breachesCreated ?? 0)
+        const skippedNoMatrix = Number(batch?.skippedNoMatrix ?? 0)
+
+        phaseProcessed += processed
+        aggregate.zonesCorrected += zonesCorrected
+        aggregate.duplicatesRemoved += duplicatesRemoved
+        aggregate.complianceChanged += complianceChanged
+        aggregate.breachesCreated += breachesCreated
+        aggregate.skippedNoMatrix += skippedNoMatrix
+
+        const phasePct = total > 0 ? Math.min(1, phaseProcessed / total) : 1
+        const pct = Math.round(progressStart + (progressEnd - progressStart) * phasePct)
+        setProgress(pct)
+
+        const live: LiveState = {
+          total: scopeTotal || total,
+          processed: phaseProcessed,
+          zonesCorrected: aggregate.zonesCorrected,
+          duplicatesRemoved: aggregate.duplicatesRemoved,
+          complianceChanged: aggregate.complianceChanged,
+          breachesCreated: aggregate.breachesCreated,
+          skippedNoMatrix: aggregate.skippedNoMatrix,
+        }
+        setLiveRun(live)
+        updateProgress(OPERATION_ID, pct, live as any)
+
+        if (processed <= 0) break
+        offset += processed
+      }
     }
 
+    // Explicit staged execution: full zone pass, then full dedup pass, then full compliance pass.
+    await runPhase('zone', 0, 33)
+    await runPhase('dedup', 33, 66)
+    await runPhase('compliance', 66, 100)
+
+    aggregate.processed = scopeTotal
+
     return {
-      processed: processedTotal,
-      zonesCorrected: zonesCorrectedTotal,
-      duplicatesRemoved: duplicatesRemovedTotal,
-      complianceChanged: complianceChangedTotal,
-      breachesCreated: breachesCreatedTotal,
-      skippedNoMatrix: skippedNoMatrixTotal,
+      processed: aggregate.processed,
+      zonesCorrected: aggregate.zonesCorrected,
+      duplicatesRemoved: aggregate.duplicatesRemoved,
+      complianceChanged: aggregate.complianceChanged,
+      breachesCreated: aggregate.breachesCreated,
+      skippedNoMatrix: aggregate.skippedNoMatrix,
       duration_seconds: Math.round((Date.now() - startedAt) / 1000),
       status: 'completed',
     }
@@ -302,8 +308,9 @@ export default function CleanupAndRecalculate() {
     setProgress(0)
     setResult(null)
     setLiveRun(null)
+    setCurrentStage(null)
     startOperation(OPERATION_ID, 'Zone Correction + Dedup + Compliance Recalculation')
-    toast.info('Starting 3-phase cleanup: zone correction → duplicate removal → compliance recalculation')
+    toast.info('Starting staged cleanup: complete zone correction → complete duplicate removal → complete compliance recalculation')
 
     try {
       setProgress(1)
@@ -347,6 +354,7 @@ export default function CleanupAndRecalculate() {
       }
     } finally {
       setLocalRunning(false)
+      setCurrentStage(null)
     }
   }
 
@@ -547,6 +555,11 @@ export default function CleanupAndRecalculate() {
             <CardContent className="space-y-4">
               <Progress value={progress} className="w-full h-3" />
               <p className="text-sm text-muted-foreground text-center">{progress}% complete</p>
+              {isRunning && currentStage && (
+                <p className="text-xs text-muted-foreground text-center">
+                  Stage: {currentStage === 'zone' ? 'Zone correction' : currentStage === 'dedup' ? 'Duplicate removal' : 'Compliance recalculation'}
+                </p>
+              )}
               {liveRun && (
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                   <StatCard label="Processed" value={liveRun.processed} total={liveRun.total} />

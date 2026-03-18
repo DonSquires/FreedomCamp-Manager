@@ -468,6 +468,7 @@ export const edgeFunctions = {
    * Supports batched pagination: pass get_total=true first, then iterate with offset/batch_size.
    */
   cleanupAndRecalculate: async (params: {
+    phase?: 'all' | 'zone' | 'dedup' | 'compliance'
     zoneIds?: string[]
     zone_ids?: string[]
     dateRangeStart?: string

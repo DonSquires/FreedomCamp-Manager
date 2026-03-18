@@ -15,6 +15,7 @@ import { corsHeaders } from '../_shared/cors.ts';
 import { nzHour, toValidBreachType } from '../_shared/compliance.ts';
 
 type OvernightVerificationMode = 'two_photo_verification' | 'one_photo_per_day_inference';
+type CleanupPhase = 'all' | 'zone' | 'dedup' | 'compliance';
 const EMBEDDING_MATCH_THRESHOLD = 0.86;
 
 const DUPLICATE_DISTANCE_METERS = 50;
@@ -189,9 +190,40 @@ serve(async (req) => {
       );
     }
 
-    const { zoneIds, dateRangeStart, dateRangeEnd, offset = 0, batch_size = 50, get_total = false } = await req.json();
+    const {
+      zoneIds,
+      zone_ids,
+      dateRangeStart,
+      date_range_start,
+      dateRangeEnd,
+      date_range_end,
+      offset = 0,
+      batch_size = 50,
+      get_total = false,
+      phase = 'all',
+    } = await req.json();
 
-    console.log('🔧 Cleanup Request:', { zoneIds, dateRangeStart, dateRangeEnd, offset, batch_size, get_total });
+    const normalizedZoneIds = Array.isArray(zoneIds)
+      ? zoneIds
+      : Array.isArray(zone_ids)
+      ? zone_ids
+      : [];
+    const normalizedDateStart = dateRangeStart ?? date_range_start ?? null;
+    const normalizedDateEnd = dateRangeEnd ?? date_range_end ?? null;
+    const normalizedPhase: CleanupPhase =
+      phase === 'zone' || phase === 'dedup' || phase === 'compliance' || phase === 'all'
+        ? phase
+        : 'all';
+
+    console.log('🔧 Cleanup Request:', {
+      zoneIds: normalizedZoneIds,
+      dateRangeStart: normalizedDateStart,
+      dateRangeEnd: normalizedDateEnd,
+      phase: normalizedPhase,
+      offset,
+      batch_size,
+      get_total,
+    });
 
     // Build base query
     let query = supabaseAdmin
@@ -199,14 +231,14 @@ serve(async (req) => {
       .select('*', { count: 'exact' });
 
     // Apply filters
-    if (zoneIds && zoneIds.length > 0) {
-      query = query.in('zone_id', zoneIds);
+    if (normalizedZoneIds && normalizedZoneIds.length > 0) {
+      query = query.in('zone_id', normalizedZoneIds);
     }
-    if (dateRangeStart) {
-      query = query.gte('recorded_at', dateRangeStart);
+    if (normalizedDateStart) {
+      query = query.gte('recorded_at', normalizedDateStart);
     }
-    if (dateRangeEnd) {
-      query = query.lte('recorded_at', dateRangeEnd);
+    if (normalizedDateEnd) {
+      query = query.lte('recorded_at', normalizedDateEnd);
     }
 
     // If just getting total, return count
@@ -222,7 +254,16 @@ serve(async (req) => {
     }
 
     // Get batch
-    query = query.range(offset, offset + batch_size - 1).order('recorded_at', { ascending: false });
+    query = query.range(offset, offset + batch_size - 1);
+
+    if (normalizedPhase === 'dedup') {
+      // Dedup works best when like plates are adjacent.
+      query = query
+        .order('plate_number', { ascending: true })
+        .order('recorded_at', { ascending: true });
+    } else {
+      query = query.order('recorded_at', { ascending: false });
+    }
     
     const { data: observations, error: obsError } = await query;
     if (obsError) throw obsError;
@@ -246,40 +287,48 @@ serve(async (req) => {
 
     // PHASE 1: ZONE CORRECTION
     let zonesCorrected = 0;
-    
-    // Load all zones for GPS matching
-    const { data: zones, error: zoneError } = await supabaseAdmin
-      .from('zones')
-      .select('id, name, organization_id, geometry, location_lat, location_lng')
-      .eq('is_active', true);
 
-    if (zoneError) throw zoneError;
+    let zones: any[] = [];
+    if (normalizedPhase === 'all' || normalizedPhase === 'zone') {
+      // Load all zones for GPS matching
+      const { data: zonesData, error: zoneError } = await supabaseAdmin
+        .from('zones')
+        .select('id, name, organization_id, geometry, location_lat, location_lng')
+        .eq('is_active', true);
 
-    console.log(`📍 Loaded ${zones?.length || 0} active zones for GPS matching`);
+      if (zoneError) throw zoneError;
+      zones = zonesData || [];
+      console.log(`📍 Loaded ${zones.length || 0} active zones for GPS matching`);
+    }
+
     let observationKeyColumn: 'id' | 'observation_id' = observations.some((obs: any) => obs.observation_id != null)
       ? 'observation_id'
       : 'id';
 
-    for (const obs of observations) {
-      const obsId = (obs as any).observation_id ?? (obs as any).id;
-      if ((obs as any).observation_id) observationKeyColumn = 'observation_id';
-      if (obs.gps_latitude && obs.gps_longitude && obs.gps_accuracy < 100) {
-        const correctZone = findZoneByGPS(
-          obs.gps_latitude,
-          obs.gps_longitude,
-          zones || [],
-          obs.organization_id
-        );
+    if (normalizedPhase === 'all' || normalizedPhase === 'zone') {
+      for (const obs of observations) {
+        const obsId = (obs as any).observation_id ?? (obs as any).id;
+        if ((obs as any).observation_id) observationKeyColumn = 'observation_id';
+        if (obs.gps_latitude && obs.gps_longitude && obs.gps_accuracy < 100) {
+          const correctZone = findZoneByGPS(
+            obs.gps_latitude,
+            obs.gps_longitude,
+            zones,
+            obs.organization_id
+          );
 
-        if (correctZone && correctZone.id !== obs.zone_id) {
-          const { error: updateError } = await supabaseAdmin
-            .from('observations')
-            .update({ zone_id: correctZone.id })
-            .eq(observationKeyColumn, obsId);
+          if (correctZone && correctZone.id !== obs.zone_id) {
+            const { error: updateError } = await supabaseAdmin
+              .from('observations')
+              .update({ zone_id: correctZone.id })
+              .eq(observationKeyColumn, obsId);
 
-          if (!updateError) {
-            zonesCorrected++;
-            console.log(`✅ Zone corrected: ${obs.plate_number} → ${correctZone.name}`);
+            if (!updateError) {
+              // Keep in-memory record aligned for subsequent phases in this same invocation.
+              obs.zone_id = correctZone.id;
+              zonesCorrected++;
+              console.log(`✅ Zone corrected: ${obs.plate_number} → ${correctZone.name}`);
+            }
           }
         }
       }
@@ -287,51 +336,51 @@ serve(async (req) => {
 
     // PHASE 2: DUPLICATE DETECTION
     let duplicatesRemoved = 0;
-    
-    const plateGroups = new Map<string, typeof observations>();
-    for (const obs of observations) {
-      const existing = plateGroups.get(obs.plate_number) || [];
-      existing.push(obs);
-      plateGroups.set(obs.plate_number, existing);
-    }
-
     const duplicatesToDelete: string[] = [];
+    if (normalizedPhase === 'all' || normalizedPhase === 'dedup') {
+      const plateGroups = new Map<string, typeof observations>();
+      for (const obs of observations) {
+        const existing = plateGroups.get(obs.plate_number) || [];
+        existing.push(obs);
+        plateGroups.set(obs.plate_number, existing);
+      }
 
-    for (const [plateNumber, plateObs] of plateGroups.entries()) {
-      if (plateObs.length <= 1) continue;
+      for (const [plateNumber, plateObs] of plateGroups.entries()) {
+        if (plateObs.length <= 1) continue;
 
-      // Sort by recorded_at ascending (oldest first)
-      plateObs.sort((a, b) => 
-        new Date(a.recorded_at).getTime() - new Date(b.recorded_at).getTime()
-      );
+        // Sort by recorded_at ascending (oldest first)
+        plateObs.sort((a, b) => 
+          new Date(a.recorded_at).getTime() - new Date(b.recorded_at).getTime()
+        );
 
-      // Keep first (oldest), check others
-      for (let i = 1; i < plateObs.length; i++) {
-        const current = plateObs[i];
-        
-        for (let j = 0; j < i; j++) {
-          const previous = plateObs[j];
+        // Keep first (oldest), check others
+        for (let i = 1; i < plateObs.length; i++) {
+          const current = plateObs[i];
           
-          if (isDuplicateByRule(current, previous)) {
-            const currentId = (current as any).observation_id ?? (current as any).id;
-            if (!duplicatesToDelete.includes(currentId)) {
-              duplicatesToDelete.push(currentId);
-              console.log(`🗑️ Duplicate: ${plateNumber} (same zone window + <=${DUPLICATE_DISTANCE_METERS}m)`);
+          for (let j = 0; j < i; j++) {
+            const previous = plateObs[j];
+            
+            if (isDuplicateByRule(current, previous)) {
+              const currentId = (current as any).observation_id ?? (current as any).id;
+              if (!duplicatesToDelete.includes(currentId)) {
+                duplicatesToDelete.push(currentId);
+                console.log(`🗑️ Duplicate: ${plateNumber} (same zone window + <=${DUPLICATE_DISTANCE_METERS}m)`);
+              }
+              break;
             }
-            break;
           }
         }
       }
-    }
 
-    if (duplicatesToDelete.length > 0) {
-      const { error: deleteError } = await supabaseAdmin
-        .from('observations')
-        .delete()
-        .in(observationKeyColumn, duplicatesToDelete);
+      if (duplicatesToDelete.length > 0) {
+        const { error: deleteError } = await supabaseAdmin
+          .from('observations')
+          .delete()
+          .in(observationKeyColumn, duplicatesToDelete);
 
-      if (!deleteError) {
-        duplicatesRemoved = duplicatesToDelete.length;
+        if (!deleteError) {
+          duplicatesRemoved = duplicatesToDelete.length;
+        }
       }
     }
 
@@ -343,10 +392,55 @@ serve(async (req) => {
     let breachesCreated = 0;
     let skippedNoMatrix = 0;
 
+    if (normalizedPhase !== 'all' && normalizedPhase !== 'compliance') {
+      return new Response(
+        JSON.stringify({
+          processed: observations.length,
+          zonesCorrected,
+          duplicatesRemoved,
+          complianceChanged,
+          breachesCreated,
+          skippedNoMatrix,
+          phase: normalizedPhase,
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     // Filter out soft-deleted / duplicate observations
     const activeObservations = observations.filter(
       obs => !duplicatesToDelete.includes((obs as any).observation_id ?? (obs as any).id)
     );
+
+    // Remove stale legacy compliance rows if table still exists in this DB.
+    let hasComplianceResults = false;
+    const { data: complianceTables, error: infoSchemaError } = await supabaseAdmin
+      .schema('information_schema')
+      .from('tables')
+      .select('table_name')
+      .eq('table_schema', 'public')
+      .eq('table_name', 'compliance_results')
+      .limit(1);
+    if (!infoSchemaError && (complianceTables?.length ?? 0) > 0) {
+      hasComplianceResults = true;
+    }
+
+    if (hasComplianceResults) {
+      const activeObservationIds = activeObservations
+        .map((obs: any) => obs.observation_id ?? obs.id)
+        .filter(Boolean);
+
+      if (activeObservationIds.length > 0) {
+        const { error: legacyDeleteError } = await supabaseAdmin
+          .from('compliance_results')
+          .delete()
+          .in('observation_id', activeObservationIds);
+
+        if (legacyDeleteError) {
+          console.warn('⚠️ Failed to remove stale compliance_results rows:', legacyDeleteError.message);
+        }
+      }
+    }
 
     const orgIds = [...new Set(activeObservations.map((o: any) => o.organization_id).filter(Boolean))];
     const { data: orgRows } = await supabaseAdmin
@@ -551,27 +645,94 @@ serve(async (req) => {
         if (!isCompliant && breachType) {
           const alertType = toValidBreachType(breachType);
 
-          const { data: existing } = await supabaseAdmin
+          let existing: { id: string; status: string | null } | null = null;
+
+          const { data: existingByObservation } = await supabaseAdmin
             .from('breach_alerts')
-            .select('id')
-            .eq('organization_id', obs.organization_id)
-            .eq('zone_id', obs.zone_id)
-            .eq('status', 'pending')
-            .contains('breach_details', { observation_id: obsId })
+            .select('id, status')
+            .eq('observation_id', obsId)
+            .order('created_at', { ascending: false })
+            .limit(1)
             .maybeSingle();
 
-          if (!existing) {
+          if (existingByObservation) {
+            existing = existingByObservation as { id: string; status: string | null };
+          } else {
+            const { data: existingByDetails } = await supabaseAdmin
+              .from('breach_alerts')
+              .select('id, status')
+              .eq('organization_id', obs.organization_id)
+              .eq('zone_id', obs.zone_id)
+              .contains('breach_details', { observation_id: obsId })
+              .order('created_at', { ascending: false })
+              .limit(1)
+              .maybeSingle();
+
+            if (existingByDetails) {
+              existing = existingByDetails as { id: string; status: string | null };
+            }
+          }
+
+          if (existing) {
+            const { error: amendError } = await supabaseAdmin
+              .from('breach_alerts')
+              .update({
+                organization_id: obs.organization_id,
+                zone_id: obs.zone_id,
+                plate_number: obs.plate_number,
+                observation_id: obsId,
+                breach_type: alertType,
+                breach_details: {
+                  observation_id: obsId,
+                  breach_reason: breachReason,
+                  recalculated: true,
+                },
+                created_at: obs.recorded_at,
+              })
+              .eq('id', existing.id);
+
+            if (amendError) {
+              console.warn(`⚠️ Failed to amend breach ${existing.id}:`, amendError.message);
+            }
+          } else {
             await supabaseAdmin.from('breach_alerts').insert({
               organization_id: obs.organization_id,
               zone_id:         obs.zone_id,
               plate_number:    obs.plate_number,
               breach_type:     alertType,
+              observation_id:  obsId,
               breach_details:  { observation_id: obsId, breach_reason: breachReason },
               created_at:      obs.recorded_at,
               status:          'pending',
             });
             breachesCreated++;
           }
+        } else if (isCompliant) {
+          // Observation is compliant after recalculation: dismiss unresolved alerts linked to it.
+          const resolutionNote = 'Auto-dismissed by cleanup recalculation (observation now compliant).';
+          const nowIso = new Date().toISOString();
+
+          await supabaseAdmin
+            .from('breach_alerts')
+            .update({
+              status: 'dismissed',
+              resolved_at: nowIso,
+              resolution_notes: resolutionNote,
+            })
+            .eq('observation_id', obsId)
+            .in('status', ['pending', 'acknowledged', 'enforcement_started']);
+
+          await supabaseAdmin
+            .from('breach_alerts')
+            .update({
+              status: 'dismissed',
+              resolved_at: nowIso,
+              resolution_notes: resolutionNote,
+            })
+            .eq('organization_id', obs.organization_id)
+            .eq('zone_id', obs.zone_id)
+            .contains('breach_details', { observation_id: obsId })
+            .in('status', ['pending', 'acknowledged', 'enforcement_started']);
         }
 
       } catch (err: any) {
@@ -589,6 +750,7 @@ serve(async (req) => {
         complianceChanged,
         breachesCreated,
         skippedNoMatrix,
+        phase: normalizedPhase,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
