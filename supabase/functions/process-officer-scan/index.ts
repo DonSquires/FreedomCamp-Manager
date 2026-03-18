@@ -684,7 +684,8 @@ Deno.serve(async (req: Request) => {
     // Idempotent fast-exit: if the observation already has a resolved plate,
     // background enrichment has already completed (or manual correction was
     // applied). This makes duplicate fire-and-forget invocations harmless.
-    if (existingPlate && !isProcessingPlaceholder && existingPlate !== 'MANUAL_REQUIRED') {
+    // Skipped when allow_admin_override=true (admin-triggered reingest).
+    if (!allowAdminOverride && existingPlate && !isProcessingPlaceholder && existingPlate !== 'MANUAL_REQUIRED') {
       console.log('ℹ️ process-officer-scan skipping already-enriched observation', {
         observationId,
         plate: existingPlate,

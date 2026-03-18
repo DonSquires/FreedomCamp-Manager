@@ -25,9 +25,21 @@ function getCorsHeaders(_req?: Request) {
   };
 }
 
+function decodeJwtPayload(token: string): Record<string, unknown> | null {
+  try {
+    const parts = token.split(".");
+    if (parts.length !== 3) return null;
+    const base64Url = parts[1];
+    const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = base64 + "=".repeat((4 - (base64.length % 4)) % 4);
+    return JSON.parse(atob(padded));
+  } catch {
+    return null;
+  }
+}
+
 const DEFAULT_BATCH_SIZE = 10;
 const MAX_BATCH_SIZE = 20;
-const VEHICLE_INGEST_TIMEOUT_MS = Number(Deno.env.get("REINGEST_VEHICLE_INGEST_TIMEOUT_MS") ?? "25000");
 
 Deno.serve(async (req) => {
   // Handle CORS preflight
@@ -41,7 +53,7 @@ Deno.serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseKey);
     const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? "";
 
-    // ── Auth guard ──────────────────────────────────────────────────────────
+    // ── Auth guard (local JWT decode — no network round-trip) ─────────────
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
       return new Response(
@@ -50,17 +62,19 @@ Deno.serve(async (req) => {
       );
     }
 
-    const jwt = authHeader.replace("Bearer ", "");
-    const { data: authData, error: authError } = await supabase.auth.getUser(jwt);
-    if (authError || !authData?.user) {
-      console.error("🚫 AUTH ERROR: Reingest session verification failed", authError?.message ?? "unknown");
+    const jwt = authHeader.replace(/^Bearer\s+/i, "").trim();
+    const jwtPayload = decodeJwtPayload(jwt);
+    const authUserId: string | null =
+      typeof jwtPayload?.sub === "string" && jwtPayload.sub.length > 0
+        ? jwtPayload.sub
+        : null;
+
+    if (!authUserId) {
       return new Response(
         JSON.stringify({ error: "Session expired or invalid. Please log in again." }),
         { status: 401, headers: { ...getCorsHeaders(req), "content-type": "application/json" } },
       );
     }
-
-    const authUserId = authData.user.id;
 
     // Verify user is admin or master
     const { data: profile, error: profileError } = await supabase
@@ -165,51 +179,24 @@ Deno.serve(async (req) => {
       );
     }
 
-    // ── Process each observation via vehicle-ingest pipeline ───────────────
+    // ── Process each observation: reset plate + fire process-officer-scan ──
+    // Strategy: instead of calling vehicle-ingest (expensive, synchronous),
+    // we directly reset plate_number = "PROCESSING..." in the DB (fast, service
+    // role), then fire process-officer-scan as fire-and-forget. This avoids
+    // function-to-function HTTP round-trips that exhaust the 60 s wall clock.
     let updated = 0;
     let failed = 0;
     const failures: Array<{ observation_id: string; reason: string }> = [];
-
-    async function invokeVehicleIngest(payload: Record<string, unknown>) {
-      const response = await fetch(`${supabaseUrl}/functions/v1/vehicle-ingest`, {
-        method: "POST",
-        headers: {
-          "Authorization": authHeader,
-          "Content-Type": "application/json",
-          "apikey": req.headers.get("apikey") || supabaseAnonKey,
-          "x-client-info": req.headers.get("x-client-info") || "reingest-photos/1.0",
-          "x-client-timezone": req.headers.get("x-client-timezone") || "Pacific/Auckland",
-        },
-        body: JSON.stringify(payload),
-        signal: AbortSignal.timeout(VEHICLE_INGEST_TIMEOUT_MS),
-      });
-
-      const responseText = await response.text();
-      let parsed: Record<string, unknown> | null = null;
-      if (responseText) {
-        try {
-          parsed = JSON.parse(responseText);
-        } catch {
-          // Non-JSON response body; keep raw text handling below.
-        }
-      }
-
-      if (!response.ok) {
-        const message = String(
-          parsed?.error ??
-          parsed?.message ??
-          responseText ??
-          `vehicle-ingest upstream error HTTP ${response.status}`,
-        );
-        throw new Error(`[vehicle-ingest ${response.status}] ${message}`);
-      }
-
-      return parsed;
-    }
+    const processOfficerScanUrl = `${supabaseUrl}/functions/v1/process-officer-scan`;
+    const forwardHeaders = {
+      "Authorization": authHeader!,
+      "Content-Type": "application/json",
+      "apikey": req.headers.get("apikey") || supabaseAnonKey,
+    };
 
     for (const obs of observations) {
       const observationId = obs.observation_id || "";
-      const photoUrl = obs.photo || obs.photo_url || "";
+      const photoUrl = (obs.photo_url || obs.photo || "").trim();
 
       if (!photoUrl) {
         failed++;
@@ -217,51 +204,38 @@ Deno.serve(async (req) => {
         continue;
       }
 
-      // Reuse existing photo hash — no need to download the photo again.
-      // The hash is only used for dedup and is optional.
-      const resolvedPhotoHash = obs.photo_hash || null;
-      const zoneId = obs.zone_id || null;
-
-      if (!zoneId) {
-        failed++;
-        failures.push({ observation_id: observationId, reason: "missing_zone_id" });
-        continue;
-      }
-
-      // Build vehicle-ingest payload using source observation metadata.
-      const newIdempotencyKey = `reingest-update-${observationId}-${Date.now()}`;
-      const ingestPayload: Record<string, unknown> = {
-        existing_observation_id: observationId,
-        photo_url: photoUrl,
-        photo_hash: resolvedPhotoHash,
-        recorded_at: obs.recorded_at ?? new Date().toISOString(),
-        zone_id: zoneId,
-        zoneId,
-        organization_id: obs.organization_id,
-        organizationId: obs.organization_id,
-        gps_latitude: obs.gps_latitude,
-        gps_longitude: obs.gps_longitude,
-        gps_accuracy: obs.gps_accuracy ?? null,
-        plate_number: obs.plate_number || null,
-        plate: obs.plate_number || null,
-        officer_notes: obs.officer_notes
-          ? `[Reingested from ${observationId}; original_officer=${obs.recorded_by ?? "unknown"}] ${obs.officer_notes}`
-          : `[Reingested from ${observationId}; original_officer=${obs.recorded_by ?? "unknown"}]`,
-        notes: obs.officer_notes
-          ? `[Reingested from ${observationId}; original_officer=${obs.recorded_by ?? "unknown"}] ${obs.officer_notes}`
-          : `[Reingested from ${observationId}; original_officer=${obs.recorded_by ?? "unknown"}]`,
-        idempotencyKey: newIdempotencyKey,
-        idempotency_key: newIdempotencyKey,
-      };
-
       try {
-        await invokeVehicleIngest(ingestPayload);
+        // Step 1: Reset plate to PROCESSING... so process-officer-scan does
+        // not hit the already_enriched fast-exit.
+        const { error: resetErr } = await supabase
+          .from("observations")
+          .update({ plate_number: "PROCESSING...", updated_at: new Date().toISOString() })
+          .eq("observation_id", observationId);
+
+        if (resetErr) {
+          throw new Error(`plate reset failed: ${resetErr.message}`);
+        }
+
+        // Step 2: Fire process-officer-scan (fire-and-forget — do NOT await).
+        // process-officer-scan handles ALPR, NZSCV, compliance, breach alerts.
+        fetch(processOfficerScanUrl, {
+          method: "POST",
+          headers: forwardHeaders,
+          body: JSON.stringify({
+            observation_id: observationId,
+            photo_url: photoUrl,
+            allow_admin_override: true,
+          }),
+        }).catch((err) => {
+          console.warn(`⚠️ process-officer-scan fire failed for ${observationId}:`, err?.message);
+        });
+
         updated++;
       } catch (err: any) {
         failed++;
         failures.push({
           observation_id: observationId,
-          reason: err?.message || "vehicle_ingest_failed",
+          reason: err?.message || "reset_failed",
         });
       }
     }
