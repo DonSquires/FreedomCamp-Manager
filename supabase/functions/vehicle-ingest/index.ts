@@ -99,6 +99,13 @@ function parseStorageLocation(raw: string): { bucket: string; path: string } | n
   return { bucket, path };
 }
 
+function canonicalizePhotoReference(raw: string): string {
+  const loc = parseStorageLocation(raw);
+  if (!loc) return String(raw || "").trim();
+  // Store canonical bucket/path to avoid persisting expiring signed URLs.
+  return `${loc.bucket}/${loc.path}`;
+}
+
 function normalizePlateNumber(raw: string | null | undefined): string | null {
   if (!raw) return null;
   const normalized = String(raw)
@@ -349,6 +356,7 @@ Deno.serve(async (req) => {
     });
 
     if (isUpdateExistingMode && photoUrlInput) {
+      const canonicalPhotoRef = canonicalizePhotoReference(photoUrlInput);
       let existingObs: Record<string, unknown> | null = null;
 
       const byObservationId = await supabase
@@ -387,8 +395,8 @@ Deno.serve(async (req) => {
       const photoHash = hintPhotoHash ?? ((existingObs as any).photo_hash as string | null) ?? null;
       const updatePayload: Record<string, unknown> = {
         plate_number: "PROCESSING...",
-        photo: photoUrlInput,
-        photo_url: photoUrlInput,
+        photo: canonicalPhotoRef,
+        photo_url: canonicalPhotoRef,
         updated_at: new Date().toISOString(),
       };
 
@@ -424,7 +432,7 @@ Deno.serve(async (req) => {
           },
           body: JSON.stringify({
             observation_id: canonicalObservationId,
-            photo_url: photoUrlInput,
+            photo_url: canonicalPhotoRef,
             photo_hash: photoHash,
             allow_admin_override: true,
           }),
@@ -449,7 +457,7 @@ Deno.serve(async (req) => {
           source: "queued_reingest",
           plate: null,
           confidence: null,
-          photo_url: photoUrlInput,
+          photo_url: canonicalPhotoRef,
           photo_hash: photoHash,
           requires_manual_entry: false,
           is_compliant: null,

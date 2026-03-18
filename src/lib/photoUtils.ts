@@ -108,13 +108,15 @@ export function parseStorageUrl(url: string | null | undefined): { bucket: strin
   if (!url || typeof url !== 'string') return null
   
   try {
-    // Match pattern: /storage/v1/object/{public|sign}/{bucket}/{path}
-    const match = url.match(/\/storage\/v1\/object\/(?:public|sign)\/([^/]+)\/(.+)/)
+    // Match pattern: /storage/v1/object/{public|sign|authenticated}/{bucket}/{path}
+    const parsed = new URL(url, SUPABASE_URL || 'http://localhost')
+    const decodedPath = decodeURIComponent(parsed.pathname)
+    const match = decodedPath.match(/\/storage\/v1\/object\/(?:public|sign|authenticated)\/([^/]+)\/(.+)$/)
     if (!match) return null
-    
+
     return {
       bucket: match[1],
-      path: match[2],
+      path: match[2].replace(/^\/+/, ''),
     }
   } catch {
     return null
