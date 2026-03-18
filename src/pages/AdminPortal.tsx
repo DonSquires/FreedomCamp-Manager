@@ -25,6 +25,7 @@ import {
   Map,
   Printer,
   Radio,
+  Search,
   Shield,
   UserCheck,
   Users,
@@ -228,6 +229,19 @@ export default function AdminPortal() {
       const { count: activeBreaches, error: breachError } = await breachesQuery
       if (breachError) diagnostics.push(`breach_alerts_active: ${breachError.message || 'unknown error'}`)
 
+      // ── 5b. Active investigations count ───────────────────────────────
+      let activeInvestigationsQuery = (supabase.from('investigation_jobs') as any)
+        .select('id', { count: 'exact', head: true })
+        .in('status', ['pending', 'assigned', 'in_progress', 'overdue'])
+
+      if (effectiveOrganizationId) activeInvestigationsQuery = activeInvestigationsQuery.eq('organization_id', effectiveOrganizationId)
+      if (zoneId) activeInvestigationsQuery = activeInvestigationsQuery.eq('associated_zone_id', zoneId)
+      if (startDate) activeInvestigationsQuery = activeInvestigationsQuery.gte('created_at', startDate)
+      if (endDate) activeInvestigationsQuery = activeInvestigationsQuery.lte('created_at', endDate)
+
+      const { count: activeInvestigations, error: investigationsErr } = await activeInvestigationsQuery
+      if (investigationsErr) diagnostics.push(`investigation_jobs_active: ${investigationsErr.message || 'unknown error'}`)
+
       // ── 7. Command snapshot metrics ─────────────────────────────────────
       const nzToday = new Date().toLocaleDateString('en-CA', { timeZone: 'Pacific/Auckland' })
       const todayStart = nzDateToUTCStart(nzToday)
@@ -288,6 +302,7 @@ export default function AdminPortal() {
         trendRows,
         homelessPlates: Array.from(homelessPlates),
         activeBreaches:            activeBreaches            ?? 0,
+        activeInvestigations:      activeInvestigations      ?? 0,
         activeOfficers:            activeOfficers            ?? 0,
         checksToday:               checksToday               ?? 0,
         infringementsIssued:       infringementsIssued       ?? 0,
@@ -516,6 +531,14 @@ export default function AdminPortal() {
       icon: AlertTriangle,
       metric: `${metrics.activeBreaches} active`,
       config: { to: '/breaches', metric: 'active_breaches', period: periodLabel, status: 'pending', label: 'Breach Command' },
+    },
+    {
+      title: 'Investigations',
+      description: 'Manage assigned investigation jobs and progress them to completion.',
+      to: '/investigations',
+      icon: Search,
+      metric: `${(data as any)?.activeInvestigations ?? 0} active jobs`,
+      config: { to: '/investigations', metric: 'active_investigations', period: periodLabel, status: 'active', label: 'Investigations' },
     },
     {
       title: 'Live Patrol & Welfare',
