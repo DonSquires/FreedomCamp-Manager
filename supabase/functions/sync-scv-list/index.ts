@@ -50,6 +50,13 @@ function parseJwtPayload(token: string): Record<string, unknown> | null {
   }
 }
 
+function normalizeBearerToken(rawAuthHeader: string | null): string | null {
+  if (!rawAuthHeader) return null;
+  const match = rawAuthHeader.match(/^Bearer\s+(.+)$/i);
+  if (!match?.[1]) return null;
+  return match[1].trim();
+}
+
 function json(status: number, payload: unknown): Response {
   return new Response(JSON.stringify(payload), {
     status,
@@ -90,10 +97,7 @@ serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
   try {
-    const authHeader = req.headers.get('Authorization');
-    if (!authHeader) return json(401, { error: 'Missing authorization' });
-
-    const token = authHeader.replace('Bearer ', '').trim();
+    const token = normalizeBearerToken(req.headers.get('Authorization'));
     if (!token) return json(401, { error: 'Missing bearer token' });
 
     const supabaseAdmin = createClient(
@@ -101,24 +105,17 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
     );
 
-    const supabaseClient = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
-    );
-
     const jwtPayload = parseJwtPayload(token);
     const isServiceRole = jwtPayload?.role === 'service_role';
+    const userId = typeof jwtPayload?.sub === 'string' ? jwtPayload.sub : null;
 
     if (!isServiceRole) {
-      const { data: userResp, error: userError } = await supabaseClient.auth.getUser(token);
-      if (userError || !userResp?.user) {
-        return json(401, { error: 'Unauthorized' });
-      }
+      if (!userId) return json(401, { error: 'Unauthorized' });
 
       const { data: userProfile, error: profileError } = await supabaseAdmin
         .from('user_profiles')
         .select('role')
-        .eq('id', userResp.user.id)
+        .eq('id', userId)
         .single();
 
       if (profileError || !userProfile) {
