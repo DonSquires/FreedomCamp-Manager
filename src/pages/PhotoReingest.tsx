@@ -22,6 +22,7 @@ import {
 } from 'lucide-react'
 
 interface ReingestResult {
+  matched: number
   processed: number
   updated: number
   failed: number
@@ -50,7 +51,7 @@ interface ReingestObservation {
 }
 
 interface LiveRunState {
-  total: number
+  matched: number
   processed: number
   updated: number
   failed: number
@@ -67,6 +68,7 @@ export default function PhotoReingest() {
   const [result, setResult] = useState<ReingestResult | null>(null)
   const [progress, setProgress] = useState(0)
   const [liveRun, setLiveRun] = useState<LiveRunState | null>(null)
+  const [batchFailureReason, setBatchFailureReason] = useState<string | null>(null)
 
   // Track running state from both local mutation and global store
   const globalOp = operations.find((op) => op.id === OPERATION_ID)
@@ -88,7 +90,7 @@ export default function PhotoReingest() {
       //   changed        → updated (existing observations reprocessed)
       //   breachesCreated → failed  (observations that failed to reingest)
       setLiveRun({
-        total: globalLiveProgress.total,
+        matched: globalLiveProgress.total,
         processed: globalLiveProgress.processed,
         updated: globalLiveProgress.changed,
         failed: globalLiveProgress.breachesCreated,
@@ -99,6 +101,7 @@ export default function PhotoReingest() {
       //   compliance_changed → updated (existing observations reprocessed)
       //   breaches_created   → failed  (observations that failed to reingest)
       setResult({
+        matched: globalResult.observations_processed,
         processed: globalResult.observations_processed,
         updated: globalResult.compliance_changed,
         failed: globalResult.breaches_created,
@@ -134,6 +137,7 @@ export default function PhotoReingest() {
     // This avoids a slow full-table COUNT that was timing out before any work started.
     let offset = 0
     const batchSize = 10
+    let matchedTotal = 0
     let processedTotal = 0
     let updatedTotal = 0
     let failedTotal = 0
@@ -174,7 +178,8 @@ export default function PhotoReingest() {
     }
 
     // Seed the live display immediately so the card appears.
-    setLiveRun({ total: 0, processed: 0, updated: 0, failed: 0 })
+    setBatchFailureReason(null)
+    setLiveRun({ matched: 0, processed: 0, updated: 0, failed: 0 })
     setProgress(5)
     updateProgress(OPERATION_ID, 5, {
       total: 0,
@@ -202,10 +207,15 @@ export default function PhotoReingest() {
 
       const parsedBatch = (batchData as ReingestBatchResponse | null) ?? {}
       const observations = Array.isArray(parsedBatch.observations) ? parsedBatch.observations : []
+      matchedTotal += observations.length
+      let batchFirstFailureReason: string | null = null
 
       for (const observation of observations) {
         if (!observation.photo_url) {
           failedTotal += 1
+          if (!batchFirstFailureReason) {
+            batchFirstFailureReason = `${observation.observation_id}: no_photo_url`
+          }
           if (!topFailureReason) {
             topFailureReason = `${observation.observation_id}: no_photo_url`
           }
@@ -217,6 +227,9 @@ export default function PhotoReingest() {
           updatedTotal += 1
         } catch (error: any) {
           failedTotal += 1
+          if (!batchFirstFailureReason) {
+            batchFirstFailureReason = `${observation.observation_id}: ${error?.message || 'vehicle-ingest_failed'}`
+          }
           if (!topFailureReason) {
             topFailureReason = `${observation.observation_id}: ${error?.message || 'vehicle-ingest_failed'}`
           }
@@ -226,18 +239,19 @@ export default function PhotoReingest() {
       }
 
       batchNumber++
+      setBatchFailureReason(batchFirstFailureReason)
 
       // Pulse the progress bar: creep toward 95% as batches complete, never reach 100 until done.
       const pulsedProgress = Math.min(95, 5 + batchNumber * 8)
       setProgress(pulsedProgress)
       setLiveRun({
-        total: processedTotal, // running count shown in place of "Target"
+        matched: matchedTotal,
         processed: processedTotal,
         updated: updatedTotal,
         failed: failedTotal,
       })
       updateProgress(OPERATION_ID, pulsedProgress, {
-        total: processedTotal,
+        total: matchedTotal,
         processed: processedTotal,
         changed: updatedTotal,
         breachesCreated: failedTotal,
@@ -250,6 +264,7 @@ export default function PhotoReingest() {
     }
 
     return {
+      matched: matchedTotal,
       processed: processedTotal,
       updated: updatedTotal,
       failed: failedTotal,
@@ -269,6 +284,7 @@ export default function PhotoReingest() {
       setProgress(0)
       setResult(null)
       setLiveRun(null)
+      setBatchFailureReason(null)
       startOperation(OPERATION_ID, 'Photo Reingest')
       return {}
     },
@@ -277,7 +293,7 @@ export default function PhotoReingest() {
       setResult(data)
       // Map reingest fields to OperationResult: compliance_changed=updated, breaches_created=failed
       completeOperation(OPERATION_ID, {
-        observations_processed: data.processed,
+        observations_processed: data.matched,
         compliance_changed: data.updated,
         breaches_created: data.failed,
         breaches_dismissed: 0,
@@ -333,8 +349,8 @@ export default function PhotoReingest() {
                   Important: This updates existing observation records
                 </h3>
                 <p className="text-sm text-orange-700 dark:text-orange-200 mt-1">
-                  This operation queries all existing observations that have photos and creates
-                  runs the ingest pipeline again against the <strong>same</strong> observation record, treating the photo as
+                    This operation queries all existing observations that have photos and
+                    runs the ingest pipeline again against the <strong>same</strong> observation record, treating the photo as
                   if it were freshly submitted by an officer. This will:
                 </p>
                 <ul className="text-sm text-orange-700 dark:text-orange-200 mt-2 space-y-1 list-disc list-inside">
@@ -443,10 +459,22 @@ export default function PhotoReingest() {
             </CardHeader>
             <CardContent className="space-y-4">
               <Progress value={progress} className="w-full" />
-              <p className="text-sm text-gray-600 text-center">Processing — {(liveRun?.processed ?? 0).toLocaleString()} photos sent through ingest pipeline</p>
+              <p className="text-sm text-gray-600 text-center">
+                Matched {(liveRun?.matched ?? 0).toLocaleString()} observations, attempted {(liveRun?.processed ?? 0).toLocaleString()} vehicle-ingest calls
+              </p>
+
+              {batchFailureReason && (
+                <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 dark:border-red-800 dark:bg-red-950/30 dark:text-red-200">
+                  Current batch first failure: {batchFailureReason}
+                </div>
+              )}
 
               {liveRun && (
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <div className="bg-white dark:bg-gray-800 p-3 rounded-lg">
+                    <div className="text-xs text-gray-600">Matched</div>
+                    <div className="text-lg font-semibold mt-1">{liveRun.matched.toLocaleString()}</div>
+                  </div>
                   <div className="bg-white dark:bg-gray-800 p-3 rounded-lg">
                     <div className="text-xs text-gray-600">Processed</div>
                     <div className="text-lg font-semibold mt-1">{liveRun.processed.toLocaleString()}</div>
@@ -479,7 +507,13 @@ export default function PhotoReingest() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                <div className="bg-white dark:bg-gray-800 p-4 rounded-lg">
+                  <div className="text-sm text-gray-600">Matched</div>
+                  <div className="text-2xl font-bold mt-1">
+                    {result.matched.toLocaleString()}
+                  </div>
+                </div>
                 <div className="bg-white dark:bg-gray-800 p-4 rounded-lg">
                   <div className="text-sm text-gray-600">Processed</div>
                   <div className="text-2xl font-bold mt-1">

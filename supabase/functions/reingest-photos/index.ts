@@ -120,6 +120,17 @@ Deno.serve(async (req) => {
     const dateFrom = body.date_from ?? null;
     const dateTo = body.date_to ?? null;
 
+    console.log("📦 reingest-photos request", {
+      user_id: authUserId,
+      role: profile.role,
+      organization_id: organizationId,
+      date_from: dateFrom,
+      date_to: dateTo,
+      offset,
+      batch_size: batchSize,
+      get_total: getTotal,
+    });
+
     // ── Build query for observations with photos ────────────────────────────
     function buildQuery(selectClause: string, count?: "exact") {
       let query = supabase
@@ -183,6 +194,12 @@ Deno.serve(async (req) => {
       plate_number: obs.plate_number ?? null,
       officer_notes: obs.officer_notes ?? null,
     }));
+
+    console.log("📦 reingest-photos batch ready", {
+      offset,
+      batch_size: batchSize,
+      matched: observations.length,
+    });
 
     return new Response(
       JSON.stringify({

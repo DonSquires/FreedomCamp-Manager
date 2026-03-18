@@ -318,6 +318,15 @@ Deno.serve(async (req) => {
 
     const isUpdateExistingMode = !!existingObservationId;
 
+    console.log("📥 vehicle-ingest parsed payload", {
+      mode: isUpdateExistingMode ? "reingest_update_existing" : "new_ingest",
+      existing_observation_id: existingObservationId,
+      has_photo_url: !!photoUrlInput,
+      has_photo_hash: !!hintPhotoHash,
+      zone_id: zoneId,
+      has_gps: gpsLatitude !== null && gpsLongitude !== null,
+    });
+
     if (isUpdateExistingMode && photoUrlInput) {
       let existingObs: Record<string, unknown> | null = null;
 
@@ -379,6 +388,10 @@ Deno.serve(async (req) => {
       }
 
       console.log("✅ Observation queued for re-ingest via vehicle-ingest:", canonicalObservationId);
+      console.log("🚀 vehicle-ingest fast-path kickoff", {
+        observation_id: canonicalObservationId,
+        source: "queued_reingest",
+      });
 
       if (authHeader) {
         const processOfficerScanUrl = `${supabaseUrl}/functions/v1/process-officer-scan`;
