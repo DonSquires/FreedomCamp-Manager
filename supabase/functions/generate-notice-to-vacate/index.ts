@@ -82,7 +82,20 @@ Deno.serve(async (req) => {
     const vacateDeadline = new Date();
     vacateDeadline.setHours(vacateDeadline.getHours() + (legalConfig.vacate_hours || 4));
 
-    // 6. Generate notice HTML
+    // 6. Fetch org logo
+    let orgLogoUrl = ''
+    const orgId = (legalConfig.zones as any)?.organization_id
+    if (orgId) {
+      const { data: orgData } = await supabaseAdmin
+        .from('organizations')
+        .select('logo_url')
+        .eq('id', orgId)
+        .single()
+      orgLogoUrl = orgData?.logo_url ?? ''
+    }
+    const appOrigin = req.headers.get('origin') ?? 'https://www.ironeaglesecurity.co.nz'
+
+    // 7. Generate notice HTML
     const noticeHtml = generateNoticeHtml({
       legalConfig,
       plateNumber,
@@ -91,9 +104,11 @@ Deno.serve(async (req) => {
       vacateDeadline,
       signatory,
       zone: legalConfig.zones,
+      orgLogoUrl,
+      appOrigin,
     });
 
-    // 7. Create notice record
+    // 8. Create notice record
     const { data: notice, error: noticeError } = await supabaseAdmin
       .from('notices_to_vacate')
       .insert({
@@ -127,7 +142,7 @@ Deno.serve(async (req) => {
 
     console.log('✅ Notice created:', notice.reference_number);
 
-    // 8. Create enforcement action record
+    // 9. Create enforcement action record
     const { error: enforcementError } = await supabaseAdmin
       .from('enforcement_actions')
       .insert({
@@ -153,7 +168,7 @@ Deno.serve(async (req) => {
       console.log('✅ Enforcement action created');
     }
 
-    // 9. Return notice details
+    // 10. Return notice details
     return new Response(
       JSON.stringify({
         success: true,
@@ -200,7 +215,7 @@ function generateBreachReason(config: any, nightsStayed: number, breachDetails: 
 }
 
 function generateNoticeHtml(params: any): string {
-  const { legalConfig, plateNumber, breachReason, vacateDeadline, signatory, zone } = params;
+  const { legalConfig, plateNumber, breachReason, vacateDeadline, signatory, zone, orgLogoUrl = '', appOrigin = '' } = params;
   
   const today = new Date().toLocaleDateString('en-NZ', {
     day: 'numeric',
@@ -224,6 +239,7 @@ function generateNoticeHtml(params: any): string {
 <html>
 <head>
   <meta charset="UTF-8">
+  <base href="${appOrigin}">
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -308,6 +324,7 @@ function generateNoticeHtml(params: any): string {
 </head>
 <body>
   <div class="letterhead">
+    ${orgLogoUrl ? `<img src="${orgLogoUrl}" alt="Organisation logo" style="max-height:60px;max-width:200px;object-fit:contain;display:block;margin-bottom:8px;">` : ''}
     <div class="org-name">${legalConfig.land_owner}</div>
     ${legalConfig.managing_authority ? `<div class="org-name">${legalConfig.managing_authority}</div>` : ''}
     
@@ -355,6 +372,10 @@ function generateNoticeHtml(params: any): string {
     
     <div class="signatory-name">${signatory.name}</div>
     <div class="signatory-title">${signatory.title}</div>
+  </div>
+  <div style="margin-top:24px;padding-top:8px;border-top:1px solid #e2e8f0;display:flex;justify-content:space-between;align-items:center;">
+    <span style="font-size:8pt;color:#94a3b8;">Enforcement management by <strong style="color:#1e3a8a;">FreedomCamp Manager</strong> &mdash; Iron Eagle Security / OnSpace AI</span>
+    <img src="/iron-eagle-security-logo.jpg" alt="Iron Eagle Security" style="height:24px;opacity:0.55;object-fit:contain;">
   </div>
 </body>
 </html>

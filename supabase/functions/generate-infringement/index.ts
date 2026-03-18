@@ -240,7 +240,7 @@ Deno.serve(async (req) => {
     // Get zone + org details for the notice letterhead
     const { data: zoneData, error: zoneError } = await supabaseAdmin
       .from('zones')
-      .select('id, name, location_lat, location_lng, enforcement_authority, organizations!inner(id, name, address, contact_phone, contact_email)')
+      .select('id, name, location_lat, location_lng, enforcement_authority, organizations!inner(id, name, address, contact_phone, contact_email, logo_url)')
       .eq('id', zone_id)
       .single()
 
@@ -255,6 +255,7 @@ Deno.serve(async (req) => {
     const orgAddress  = (zoneData?.organizations as any)?.address        ?? ''
     const orgPhone    = (zoneData?.organizations as any)?.contact_phone  ?? ''
     const orgEmail    = (zoneData?.organizations as any)?.contact_email  ?? ''
+    const orgLogoUrl  = (zoneData?.organizations as any)?.logo_url       ?? ''
     const zoneOrgId   = (zoneData?.organizations as any)?.id as string | undefined
     const orgId       = profile.organization_id ?? zoneOrgId
 
@@ -393,6 +394,7 @@ Deno.serve(async (req) => {
       objectionsEmail,
       objectionsPostalAddress,
       disputePortalUrl,
+      orgLogoUrl,
       zoneName: zoneData?.name ?? '',
       summaryOfRights: rightsText,
     })
@@ -528,6 +530,7 @@ function generateNoticeHtml(params: {
   orgAddress: string
   orgPhone: string
   orgEmail: string
+  orgLogoUrl: string
   paymentOnlineUrl: string
   paymentBankAccount: string
   paymentInstructions: string
@@ -555,6 +558,7 @@ function generateNoticeHtml(params: {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Infringement Notice ${params.noticeNumber}</title>
+  <base href="https://www.ironeaglesecurity.co.nz">
   <style>
     @page { size: A4; margin: 12mm 15mm; }
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -608,6 +612,7 @@ function generateNoticeHtml(params: {
     <!-- Header: enforcement authority + notice title -->
     <div class="header">
       <div>
+        ${params.orgLogoUrl ? `<img src="${params.orgLogoUrl}" alt="${params.orgName}" style="max-height:56px;max-width:200px;object-fit:contain;display:block;margin-bottom:5pt;">` : ''}
         <div class="org-name">${params.orgName}</div>
         <div style="font-size:8.5pt;color:#1e3a8a;font-weight:bold;margin-top:1pt;">Freedom Camping Act 2011 — Infringement Notice</div>
         ${orgContactLines ? `<div class="org-contact">${orgContactLines}</div>` : ''}
@@ -761,6 +766,10 @@ function generateNoticeHtml(params: {
     <div class="footer">
       See overleaf for Notes to Defendant (Summary of Rights). This notice is issued under section 20 of the Freedom Camping Act 2011 and/or the applicable territorial authority bylaw.
       Infringement notice number <strong>${params.noticeNumber}</strong> issued by <strong>${params.orgName}</strong> on ${nzDate(new Date())}.
+    </div>
+    <div style="margin-top:6pt;padding-top:4pt;border-top:1px solid #e2e8f0;display:flex;justify-content:space-between;align-items:center;">
+      <span style="font-size:7pt;color:#94a3b8;">Enforcement management by <strong style="color:#1e3a8a;">FreedomCamp Manager</strong> &mdash; Iron Eagle Security / OnSpace AI</span>
+      <img src="/iron-eagle-security-logo.jpg" alt="Iron Eagle Security" style="height:22px;opacity:0.55;object-fit:contain;">
     </div>
   </div>
 
