@@ -93,6 +93,19 @@ function getBreachObservationId(breach: BreachAlert | null): string | null {
   )
 }
 
+function getBreachDisplayTimestamp(breach: BreachAlert | null): string | null {
+  if (!breach) return null
+
+  const details = breach.breach_details || {}
+  return (
+    details.observation_recorded_at ||
+    details.triggering_recorded_at ||
+    details.source_recorded_at ||
+    breach.created_at ||
+    null
+  )
+}
+
 async function resolveEvidencePhotoUrl(rawUrl: string | null | undefined): Promise<string | null> {
   if (!rawUrl) return null
   const url = rawUrl.trim()
@@ -401,12 +414,50 @@ export default function BreachAlerts() {
       if (!activeBreach?.plate_number) return []
 
       const normalizePhotos = async (rows: any[]) => {
+        const normalizedRows = (rows || []).map((row: any) => ({
+          ...row,
+          id: row.observation_id ?? row.id,
+        }))
+
+        const missingPhotoObservationIds = normalizedRows
+          .filter((row: any) => !row.photo && !row.photo_url && !!row.id)
+          .map((row: any) => row.id)
+
+        const fallbackPhotoByObservationId: Record<string, string> = {}
+        if (missingPhotoObservationIds.length > 0) {
+          const { data: metadataRows } = await (supabase.from('photo_metadata') as any)
+            .select('observation_id, bucket_name, storage_path, file_name, created_at')
+            .in('observation_id', missingPhotoObservationIds)
+            .order('created_at', { ascending: false })
+
+          for (const meta of metadataRows || []) {
+            const observationId = meta.observation_id
+            if (!observationId || fallbackPhotoByObservationId[observationId]) continue
+
+            const candidate =
+              (meta.bucket_name && meta.storage_path ? `${meta.bucket_name}/${meta.storage_path}` : null)
+              || meta.storage_path
+              || meta.file_name
+              || null
+
+            if (candidate) {
+              fallbackPhotoByObservationId[observationId] = candidate
+            }
+          }
+        }
+
         const resolved = await Promise.all(
-          (rows || []).map(async (row: any) => ({
-            ...row,
-            id: row.observation_id ?? row.id,
-            display_url: await resolveEvidencePhotoUrl(row.photo ?? row.photo_url),
-          }))
+          normalizedRows.map(async (row: any) => {
+            const primary = await resolveEvidencePhotoUrl(row.photo ?? row.photo_url)
+            const fallback = primary
+              ? null
+              : await resolveEvidencePhotoUrl(fallbackPhotoByObservationId[row.id] ?? null)
+
+            return {
+              ...row,
+              display_url: primary ?? fallback,
+            }
+          })
         )
 
         return resolved.filter((row: any) => !!row.display_url)
@@ -430,7 +481,6 @@ export default function BreachAlerts() {
         .eq('plate_number', activeBreach.plate_number)
         .eq('organization_id', activeBreach.organization_id)
         .lte('recorded_at', activeBreach.created_at)
-        .or('photo.not.is.null,photo_url.not.is.null')
         .order('recorded_at', { ascending: false })
         .limit(12)
 
@@ -444,7 +494,6 @@ export default function BreachAlerts() {
       const fallback = await (supabase.from('observations') as any)
         .select('observation_id, photo, photo_url, recorded_at, gps_latitude, gps_longitude, zones!vehicle_observations_v2_zone_id_fkey(name)')
         .eq('plate_number', activeBreach.plate_number)
-        .or('photo.not.is.null,photo_url.not.is.null')
         .order('recorded_at', { ascending: false })
         .limit(12)
 
@@ -1072,7 +1121,7 @@ export default function BreachAlerts() {
                       {(breach.zones as any)?.name || 'Unknown Zone'}
                     </p>
                     <p className="text-xs text-gray-400 truncate">{getBreachTypeLabel(breach.breach_type)}</p>
-                    <p className="text-xs text-gray-400 mt-0.5">{formatDateTime(breach.created_at)}</p>
+                    <p className="text-xs text-gray-400 mt-0.5">{formatDateTime(getBreachDisplayTimestamp(breach) || breach.created_at)}</p>
                   </div>
                   <ChevronRight className="h-4 w-4 text-gray-400 mt-1 flex-shrink-0" />
                 </div>
@@ -1105,7 +1154,7 @@ export default function BreachAlerts() {
                   </span>
                   <span className="flex items-center gap-1">
                     <Calendar className="h-3 w-3" />
-                    {formatDateTime(activeBreach.created_at)}
+                    {formatDateTime(getBreachDisplayTimestamp(activeBreach) || activeBreach.created_at)}
                   </span>
                   {activeBreach.due_date && (
                     <span className="flex items-center gap-1 text-red-600">

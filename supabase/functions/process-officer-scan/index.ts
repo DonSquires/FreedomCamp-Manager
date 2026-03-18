@@ -1488,6 +1488,7 @@ Deno.serve(async (req: Request) => {
               violation_reasons:        compliance.violationReasons,
               nights_stayed_this_month: compliance.nightsStayed,
               consecutive_nights:       compliance.consecutiveNights,
+              observation_recorded_at:  recordedAt,
               is_self_contained:        nzscv?.isSelfContained ?? false,
               sc_expiry:                nzscv?.selfContainedExpiry ?? null,
               source:                   'process_officer_scan',
@@ -1506,7 +1507,7 @@ Deno.serve(async (req: Request) => {
               sc_law_active: scLawActive,
             },
             status:          'pending',
-            created_at:      new Date().toISOString(),
+            created_at:      recordedAt ?? new Date().toISOString(),
           })
           .select()
           .single();

@@ -104,17 +104,32 @@ jobs:
 
           LOG_FILE="$(mktemp)"
 
-          for attempt in 1 2 3; do
-            echo "supabase db push attempt $attempt..."
-            if supabase db push 2>&1 | tee "$LOG_FILE"; then
+          # Always use --include-all so legacy short-form local migration files
+          # are considered during reconciliation.
+          for attempt in 1 2 3 4 5; do
+            echo "supabase db push --include-all attempt $attempt..."
+            if supabase db push --include-all --yes 2>&1 | tee "$LOG_FILE"; then
+              echo "Migration push succeeded on attempt $attempt"
+              supabase migration list || true
               exit 0
             fi
 
             handled=false
 
-            # Case 1: local migrations appear before remote tail.
+            # Case 1: remote-only versions absent from local migration folder.
+            if grep -q "Remote migration versions not found in local migrations directory" "$LOG_FILE"; then
+              REVERT_VERSIONS=$(grep -oE 'supabase migration repair --status reverted [0-9 ]+' "$LOG_FILE" | sed -E 's/^supabase migration repair --status reverted //' | head -n1)
+              if [ -n "${REVERT_VERSIONS:-}" ]; then
+                echo "Reverting remote-only migration versions: $REVERT_VERSIONS"
+                # shellcheck disable=SC2086
+                supabase migration repair --status reverted $REVERT_VERSIONS || true
+                handled=true
+              fi
+            fi
+
+            # Case 2: out-of-order local files detected by CLI.
             if grep -q "Found local migration files to be inserted before the last migration on remote database" "$LOG_FILE"; then
-              echo "Detected out-of-order local migrations. Reconciling as applied..."
+              echo "Detected out-of-order local migrations. Marking listed versions as applied..."
               grep -oE 'supabase/migrations/[0-9][^[:space:]]*\.sql' "$LOG_FILE" \
                 | sed 's#supabase/migrations/##; s#\.sql$##' \
                 | awk -F'_' '{print $1}' \
@@ -128,13 +143,13 @@ jobs:
               handled=true
             fi
 
-            # Case 2: remote history contains versions absent locally.
-            if grep -q "Remote migration versions not found in local migrations directory" "$LOG_FILE"; then
-              REVERT_VERSIONS=$(grep -oE 'supabase migration repair --status reverted [0-9 ]+' "$LOG_FILE" | sed -E 's/^supabase migration repair --status reverted //' | head -n1)
-              if [ -n "${REVERT_VERSIONS:-}" ]; then
-                echo "Reverting remote-only migration versions: $REVERT_VERSIONS"
-                # shellcheck disable=SC2086
-                supabase migration repair --status reverted $REVERT_VERSIONS || true
+            # Case 3: duplicate insert in migration history table.
+            if grep -q 'duplicate key value violates unique constraint "schema_migrations_pkey"' "$LOG_FILE"; then
+              DUP_VERSION=$(grep -oE 'Key \(version\)=\([0-9]+\)' "$LOG_FILE" | sed -E 's/.*\(([0-9]+)\).*/\1/' | head -n1)
+              if [ -n "${DUP_VERSION:-}" ]; then
+                echo "Detected duplicate schema_migrations version: $DUP_VERSION"
+                echo "Repairing by marking the version applied, then retrying..."
+                supabase migration repair --status applied "$DUP_VERSION" || true
                 handled=true
               fi
             fi
@@ -147,29 +162,5 @@ jobs:
           done
 
           echo "supabase db push failed after reconciliation attempts"
-          cat "$LOG_FILE"
-
-          # Final attempt: force-apply all local migrations with --include-all.
-          # This executes the SQL of any local files that appear before the remote
-          # head (idempotent migrations: CREATE OR REPLACE, DROP … IF EXISTS, etc.).
-          echo "Final attempt: supabase db push --include-all..."
-          if supabase db push --include-all 2>&1 | tee "$LOG_FILE"; then
-            exit 0
-          fi
-
-          # If --include-all still reports remote-only versions, repair and retry once.
-          if grep -q "Remote migration versions not found in local migrations directory" "$LOG_FILE"; then
-            REVERT_VERSIONS=$(grep -oE 'supabase migration repair --status reverted [0-9 ]+' "$LOG_FILE" | sed -E 's/^supabase migration repair --status reverted //' | head -n1)
-            if [ -n "${REVERT_VERSIONS:-}" ]; then
-              echo "Post-include-all repair: reverting remote-only versions: $REVERT_VERSIONS"
-              # shellcheck disable=SC2086
-              supabase migration repair --status reverted $REVERT_VERSIONS || true
-              echo "Retrying supabase db push --include-all after post-repair..."
-              if supabase db push --include-all 2>&1 | tee "$LOG_FILE"; then
-                exit 0
-              fi
-            fi
-          fi
-
           cat "$LOG_FILE"
           exit 1
