@@ -217,6 +217,7 @@ function generateNoticeHtml(params: any): string {
   });
 
   const enforcementText = generateEnforcementText(legalConfig);
+  const reviewContactSection = generateReviewContactSection(legalConfig, plateNumber, today)
   
   return `
 <!DOCTYPE html>
@@ -268,6 +269,22 @@ function generateNoticeHtml(params: any): string {
     .content {
       text-align: justify;
       margin: 20px 0;
+    }
+    .contact-box {
+      border: 1px solid #334155;
+      background: #f8fafc;
+      padding: 12px;
+      margin: 20px 0;
+      font-size: 10pt;
+      line-height: 1.5;
+    }
+    .contact-title {
+      font-size: 9pt;
+      text-transform: uppercase;
+      font-weight: bold;
+      color: #0f172a;
+      margin-bottom: 6px;
+      letter-spacing: 0.4px;
     }
     .signature-block {
       margin-top: 50px;
@@ -327,6 +344,8 @@ function generateNoticeHtml(params: any): string {
     ${enforcementText}
 
     <p>It is important that you comply with this notice. If you do not, we will take steps to ${legalConfig.enforcement_type === 'trespass' ? 'trespass you from the land and' : ''} remove any vehicles or property. We wish to avoid this.</p>
+
+    ${reviewContactSection}
   </div>
 
   <div class="signature-block">
@@ -340,6 +359,44 @@ function generateNoticeHtml(params: any): string {
 </body>
 </html>
   `;
+}
+
+function generateReviewContactSection(config: any, plateNumber: string, issueDateLabel: string): string {
+  const email = String(config?.objections_email || config?.org_email || '').trim()
+  const phone = String(config?.org_phone || '').trim()
+  const postalAddress = [
+    config?.objections_postal_address,
+  ].filter(Boolean).join(' ').trim()
+
+  const fallbackAddress = [
+    config?.org_street_address,
+    config?.org_po_box,
+    [config?.org_city, config?.org_postcode].filter(Boolean).join(' '),
+    config?.org_country,
+  ].filter(Boolean).join(', ')
+
+  const resolvedPostal = postalAddress || fallbackAddress
+  const lines: string[] = []
+
+  if (email) lines.push(`<div>Email: ${email}</div>`)
+  if (phone) lines.push(`<div>Phone: ${phone}</div>`)
+  if (resolvedPostal) lines.push(`<div>Post: ${resolvedPostal}</div>`)
+
+  if (lines.length === 0) {
+    return ''
+  }
+
+  return `
+  <div class="contact-box">
+    <div class="contact-title">How To Request Review / Dispute This Notice</div>
+    <div>If you believe this notice is incorrect (including where circumstances such as housing hardship or homelessness may apply), contact the enforcement office using one of the channels below as soon as possible.</div>
+    <div style="margin-top: 6px;">
+      ${lines.join('')}
+    </div>
+    <div style="margin-top: 6px; font-size: 9pt; color: #334155;">
+      Include your vehicle plate <strong>${plateNumber}</strong> and notice issue date <strong>${issueDateLabel}</strong> in all correspondence.
+    </div>
+  </div>`
 }
 
 function generateEnforcementText(config: any): string {

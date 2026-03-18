@@ -62,6 +62,13 @@ interface BreachAlert {
   zone: { name: string } | null
 }
 
+interface ZoneNoticeContactConfig {
+  objections_email: string | null
+  objections_postal_address: string | null
+  org_phone: string | null
+  org_email: string | null
+}
+
 const STATUS_META: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline' }> = {
   issued:    { label: 'Issued',    variant: 'default' },
   complied:  { label: 'Complied', variant: 'secondary' },
@@ -269,6 +276,23 @@ export default function NoticeToVacate() {
     staleTime: 15000,
     refetchOnWindowFocus: true,
     refetchOnReconnect: true,
+  })
+
+  const { data: zoneNoticeContact } = useQuery({
+    queryKey: ['zone-notice-contact', form.zoneId],
+    queryFn: async () => {
+      if (!form.zoneId) return null
+      const { data, error } = await supabase
+        .from('zone_legal_config')
+        .select('objections_email, objections_postal_address, org_phone, org_email')
+        .eq('zone_id', form.zoneId)
+        .maybeSingle()
+      if (error) throw error
+      return (data ?? null) as ZoneNoticeContactConfig | null
+    },
+    enabled: !!form.zoneId && isIssueOpen,
+    refetchOnWindowFocus: true,
+    staleTime: 30000,
   })
 
   // Issue notice mutation
@@ -553,6 +577,31 @@ export default function NoticeToVacate() {
                 </SelectContent>
               </Select>
             </div>
+
+            {form.zoneId && (
+              <div className="rounded-lg border bg-muted/20 p-3 space-y-1.5">
+                <p className="text-sm font-medium">Dispute / review contacts shown on notice</p>
+                {zoneNoticeContact?.objections_email && (
+                  <p className="text-xs text-muted-foreground">Email: {zoneNoticeContact.objections_email}</p>
+                )}
+                {zoneNoticeContact?.org_phone && (
+                  <p className="text-xs text-muted-foreground">Phone: {zoneNoticeContact.org_phone}</p>
+                )}
+                {(zoneNoticeContact?.objections_postal_address || zoneNoticeContact?.org_email) && (
+                  <p className="text-xs text-muted-foreground">
+                    Postal / fallback contact: {zoneNoticeContact.objections_postal_address || zoneNoticeContact.org_email}
+                  </p>
+                )}
+                {!zoneNoticeContact?.objections_email &&
+                  !zoneNoticeContact?.org_phone &&
+                  !zoneNoticeContact?.objections_postal_address &&
+                  !zoneNoticeContact?.org_email && (
+                    <p className="text-xs text-amber-700">
+                      No dispute contact channels are configured for this zone yet. Add objections email/postal or org phone/email in zone legal config.
+                    </p>
+                  )}
+              </div>
+            )}
 
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
