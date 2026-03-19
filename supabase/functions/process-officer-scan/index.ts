@@ -14,6 +14,7 @@
 //   3.  Railway inference  → plate candidate + vehicle embedding + sticker detection
 //       + make/model/colour/sticker presence (all optional)
 //   4.  ALPR backup (Plate Recognizer) if inference returns no plate
+//       (plate recognition only — not used for visual attribute updates)
 //   5.  NZSCV lookup  → self-contained certificate status + expiry date (guaranteed)
 //       + make/model/year/vin/colour/maxOccupants when provided (optional/nullable)
 //   5b. Cross-source discrepancy detection:
@@ -888,13 +889,9 @@ Deno.serve(async (req: Request) => {
       duration_ms: Date.now() - inferenceStartedAt,
     });
 
-    // ── Step 4: ALPR backup ───────────────────────────────────────────────
+    // ── Step 4: ALPR backup (plate recognition only) ─────────────────────
     let finalPlate = inference.plate;
     let finalConfidence = inference.confidence;
-    let alprMake: string | null = null;
-    let alprModel: string | null = null;
-    let alprColour: string | null = null;
-    let alprColourConf: number | null = null;
     let alprOrientation: string | null = null;
 
     if (!finalPlate) {
@@ -903,11 +900,7 @@ Deno.serve(async (req: Request) => {
         const alprStartedAt = Date.now();
         const alprResult = await startAlprBackup();
 
-        // ALPR vehicle attributes are used as a low-priority fallback only.
-        alprMake = alprResult.make;
-        alprModel = alprResult.model;
-        alprColour = alprResult.color;
-        alprColourConf = alprResult.colorConfidence;
+        // ALPR is used only for plate fallback and orientation metadata.
         alprOrientation = alprResult.orientation;
 
         if (alprResult.plate) {
@@ -915,9 +908,6 @@ Deno.serve(async (req: Request) => {
           finalConfidence = alprResult.confidence;
           console.log('✅ ALPR backup found plate:', finalPlate, {
             duration_ms: Date.now() - alprStartedAt,
-            make: alprMake,
-            model: alprModel,
-            colour: alprColour,
             orientation: alprOrientation,
           });
         } else {
@@ -1058,34 +1048,6 @@ Deno.serve(async (req: Request) => {
         canonicalColour = canonicalVehicle?.vehicle_color ?? null;
         canonicalYear   = toIntOrNull(canonicalVehicle?.vehicle_year);
       } catch { /* non-critical */ }
-    }
-
-    // If plate is known but key attributes are still missing from stronger sources,
-    // fetch ALPR attributes as a low-priority enrichment path.
-    const needsAlprAttributeEnrichment = !!plate && (
-      (!nzscv?.make && !canonicalMake && !inference.inferMake) ||
-      (!nzscv?.model && !canonicalModel && !inference.inferModel) ||
-      (!nzscv?.colour && !canonicalColour && !inference.inferColour)
-    );
-    if (needsAlprAttributeEnrichment && !alprMake && !alprModel && !alprColour) {
-      try {
-        const alprStartedAt = Date.now();
-        const alprResult = await startAlprBackup();
-        alprMake = alprResult.make ?? alprMake;
-        alprModel = alprResult.model ?? alprModel;
-        alprColour = alprResult.color ?? alprColour;
-        alprColourConf = alprResult.colorConfidence ?? alprColourConf;
-        alprOrientation = alprResult.orientation ?? alprOrientation;
-        console.log('✅ ALPR attribute enrichment complete', {
-          duration_ms: Date.now() - alprStartedAt,
-          make: alprMake,
-          model: alprModel,
-          colour: alprColour,
-          orientation: alprOrientation,
-        });
-      } catch (alprErr: any) {
-        console.warn('⚠️ ALPR attribute enrichment failed:', alprErr.message);
-      }
     }
 
     const isNewVehicle = !canonicalVehicle;
@@ -1333,58 +1295,23 @@ Deno.serve(async (req: Request) => {
     const finalHasDiscrepancies = discrepancies.length > 0;
 
     // Build resolved details once and always write them to the observation row.
-    // Source priority for VISUAL ATTRIBUTES: Inference (HIGH confidence, can see photo) > Canonical (trusted local DB)
-    // > NZSCV (optional enrichment) > Inference (lower confidence) > ALPR (plate recognizer).
-    // NZSCV's primary role is SC certification, not attribute authority.
-    // Confidence thresholds: Make (0.72), Model (0.68), Year (0.72), Color (0.60)
-    const hasHighConfidenceMake = !!inference.inferMake && (inference.inferMakeConf ?? 0) >= MAKE_MISMATCH_MIN_CONF;
-    const hasHighConfidenceModel = !!inference.inferModel && (inference.inferModelConf ?? 0) >= MODEL_MISMATCH_MIN_CONF;
-    const hasHighConfidenceYear = !!inference.inferYear; // Accept any year from inference
-    const hasHighConfidenceInferenceColour = !!inference.inferColour && (inference.inferColourConf ?? 0) >= COLOUR_MISMATCH_MIN_CONF;
-    const hasHighConfidenceAlprColour = !!alprColour && (alprColourConf ?? 0) >= COLOUR_MISMATCH_MIN_CONF;
-    
-    // Prefer high-confidence inference for make/model/year (AI can see photo better than external registry)
-    const resolvedMake = hasHighConfidenceMake ? inference.inferMake : canonicalMake ?? nzscv?.make ?? inference.inferMake ?? alprMake ?? null;
-    const resolvedModel = hasHighConfidenceModel ? inference.inferModel : canonicalModel ?? nzscv?.model ?? inference.inferModel ?? alprModel ?? null;
-    const resolvedYear = hasHighConfidenceYear ? inference.inferYear : canonicalYear ?? nzscv?.year ?? toIntOrNull(obs.vehicle_year) ?? null;
+    // Visual attributes are INFERENCE-ONLY update sources.
+    // Canonical and NZSCV are used for comparison/mismatch logic, not attribute writes.
+    const hasAcceptedInferenceMake = !!inference.inferMake && (inference.inferMakeConf ?? 0) >= MAKE_MISMATCH_MIN_CONF;
+    const hasAcceptedInferenceModel = !!inference.inferModel && (inference.inferModelConf ?? 0) >= MODEL_MISMATCH_MIN_CONF;
+    const hasAcceptedInferenceColour = !!inference.inferColour && (inference.inferColourConf ?? 0) >= COLOUR_MISMATCH_MIN_CONF;
 
-    // Color resolution priority: HIGH-confidence inference (AI sees photo) > Canonical > NZSCV
-    // > LOW-confidence inference > ALPR.
-    // Inference can detect actual vehicle color from photo better than external registry.
-    let resolvedColour: string | null = null;
-    let resolvedColourSource: 'nzscv' | 'canonical' | 'inference' | 'alpr' | null = null;
-    if (hasHighConfidenceInferenceColour) {
-      // Inference has high confidence — trust it over anything else
-      resolvedColour = inference.inferColour;
-      resolvedColourSource = 'inference';
-    } else if (canonicalColour) {
-      // Fall back to canonical if inference is not confident
-      resolvedColour = canonicalColour;
-      resolvedColourSource = 'canonical';
-    } else if (nzscv?.colour) {
-      // NZSCV as optional enrichment (may be stale)
-      resolvedColour = nzscv.colour;
-      resolvedColourSource = 'nzscv';
-    } else if (hasHighConfidenceAlprColour) {
-      // ALPR with confidence
-      resolvedColour = alprColour;
-      resolvedColourSource = 'alpr';
-    } else if (inference.inferColour) {
-      // Inference with low confidence as fallback
-      resolvedColour = inference.inferColour;
-      resolvedColourSource = 'inference';
-    } else if (alprColour) {
-      resolvedColour = alprColour;
-      resolvedColourSource = 'alpr';
-    }
+    const resolvedMake = hasAcceptedInferenceMake ? inference.inferMake : null;
+    const resolvedModel = hasAcceptedInferenceModel ? inference.inferModel : null;
+    const resolvedYear = inference.inferYear ?? null;
+    const resolvedColour = hasAcceptedInferenceColour ? inference.inferColour : null;
 
     // Track attribute sources for transparency in UI
-    // Priority: HIGH-confidence inference > Canonical > NZSCV > LOW-confidence inference > ALPR
     const attributeSources = {
-      make_source: hasHighConfidenceMake ? 'inference' : canonicalMake ? 'canonical' : nzscv?.make ? 'nzscv' : inference.inferMake ? 'inference' : alprMake ? 'alpr' : null,
-      model_source: hasHighConfidenceModel ? 'inference' : canonicalModel ? 'canonical' : nzscv?.model ? 'nzscv' : inference.inferModel ? 'inference' : alprModel ? 'alpr' : null,
-      color_source: resolvedColourSource,
-      year_source: hasHighConfidenceYear ? 'inference' : canonicalYear ? 'canonical' : nzscv?.year ? 'nzscv' : inference.inferYear ? 'inference' : null,
+      make_source: resolvedMake ? 'inference' : null,
+      model_source: resolvedModel ? 'inference' : null,
+      color_source: resolvedColour ? 'inference' : null,
+      year_source: resolvedYear ? 'inference' : null,
     };
 
     const mismatchNotices = discrepancies.map((d) => {
@@ -1460,10 +1387,6 @@ Deno.serve(async (req: Request) => {
       observationUpdate.self_contained        = nzscv.isSelfContained;
       observationUpdate.self_contained_expiry = nzscv.selfContainedExpiry;
     }
-    // Inference-provided vehicle attributes (also write when NZSCV didn't provide them)
-    if (!observationUpdate.vehicle_make  && inference.inferMake)   observationUpdate.vehicle_make  = inference.inferMake;
-    if (!observationUpdate.vehicle_model && inference.inferModel)  observationUpdate.vehicle_model = inference.inferModel;
-    if (!observationUpdate.vehicle_color && inference.inferColour) observationUpdate.vehicle_color = inference.inferColour;
     // Sticker presence (fresh from inference, or leave as-is if inference was inconclusive)
     if (inference.stickerPresence !== null) {
       observationUpdate.sticker_presence            = inference.stickerPresence;
@@ -1629,9 +1552,9 @@ Deno.serve(async (req: Request) => {
       plate_confidence: finalConfidence,
       requires_manual_entry: requiresManualEntry,
       pipeline: {
-        inference_path: infer.path,
+        inference_path: inference.path,
         inference_url_configured: !!INFERENCE_SERVICE_URL,
-        alpr_fallback_used: infer.path !== 'railway_inference',
+        alpr_fallback_used: inference.path !== 'railway_inference',
       },
       vehicle: {
         // SC certification — primary purpose of NZSCV lookup
@@ -1679,7 +1602,7 @@ Deno.serve(async (req: Request) => {
     console.log('✅ process-officer-scan complete', {
       observationId,
       plate,
-      inferencePath: infer.path,
+      inferencePath: inference.path,
       inferenceUrlConfigured: !!INFERENCE_SERVICE_URL,
       isCompliant:       compliance.isCompliant,
       breachType:        compliance.breachType,
