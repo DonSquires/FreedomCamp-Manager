@@ -7,6 +7,7 @@ import { StatCard } from '@/components/features/StatCard'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
+import { Progress } from '@/components/ui/progress'
 import { supabase } from '@/lib/supabase'
 import { edgeFunctions } from '@/lib/edgeFunctions'
 import { useAuthStore } from '@/stores/authStore'
@@ -81,12 +82,66 @@ interface ScvSyncResult {
   errors: string[]
 }
 
+interface ScvSyncBatch {
+  offset: number
+  batch_size: number
+  processed: number
+  total_canonical_vehicles: number
+  next_offset: number | null
+  has_more: boolean
+  batch_number: number
+  total_batches: number
+}
+
+interface ScvSyncResponse {
+  result: ScvSyncResult
+  batch: ScvSyncBatch
+}
+
+interface ScvSyncProgress {
+  processed: number
+  total: number
+  batchNumber: number
+  totalBatches: number
+}
+
+const EMPTY_SCV_RESULT: ScvSyncResult = {
+  total_in_scv_list: 0,
+  canonical_vehicles_checked: 0,
+  set_to_current: 0,
+  set_to_not_current: 0,
+  expiry_corrected: 0,
+  unchanged: 0,
+  observations_updated: 0,
+  breach_alerts_resolved: 0,
+  errors: [],
+}
+
+const SCV_BATCH_SIZE = 500
+
+function mergeScvResults(current: ScvSyncResult, incoming: ScvSyncResult): ScvSyncResult {
+  return {
+    total_in_scv_list: incoming.total_in_scv_list || current.total_in_scv_list,
+    canonical_vehicles_checked:
+      current.canonical_vehicles_checked + incoming.canonical_vehicles_checked,
+    set_to_current: current.set_to_current + incoming.set_to_current,
+    set_to_not_current: current.set_to_not_current + incoming.set_to_not_current,
+    expiry_corrected: current.expiry_corrected + incoming.expiry_corrected,
+    unchanged: current.unchanged + incoming.unchanged,
+    observations_updated: current.observations_updated + incoming.observations_updated,
+    breach_alerts_resolved: current.breach_alerts_resolved + incoming.breach_alerts_resolved,
+    errors: [...current.errors, ...incoming.errors],
+  }
+}
+
 export default function DataManagementHub() {
   const { user } = useAuthStore()
   const { organizationId } = useGlobalFiltersStore()
   const [isExporting, setIsExporting] = useState(false)
   const [isSyncingScv, setIsSyncingScv] = useState(false)
   const [scvDryRun, setScvDryRun] = useState(false)
+  const [scvLastRunDryRun, setScvLastRunDryRun] = useState(false)
+  const [scvProgress, setScvProgress] = useState<ScvSyncProgress | null>(null)
   const [scvResult, setScvResult] = useState<ScvSyncResult | null>(null)
 
   // Fetch data statistics
@@ -170,27 +225,58 @@ export default function DataManagementHub() {
 
   const handleSyncScvList = async (dryRun: boolean) => {
     setIsSyncingScv(true)
+    setScvLastRunDryRun(dryRun)
     setScvResult(null)
+    setScvProgress(null)
     try {
-      const { data, error } = await edgeFunctions.syncScvList({ dry_run: dryRun })
-      if (error) {
-        toast.error(`SCV sync failed: ${error}`)
-        return
+      let offset = 0
+      let aggregate = { ...EMPTY_SCV_RESULT }
+      let hasMore = true
+
+      while (hasMore) {
+        const { data, error } = await edgeFunctions.syncScvList({
+          dry_run: dryRun,
+          offset,
+          batch_size: SCV_BATCH_SIZE,
+        })
+
+        if (error) {
+          toast.error(`SCV sync failed: ${error}`)
+          return
+        }
+
+        const response = data as ScvSyncResponse | null
+        if (!response?.result || !response.batch) {
+          toast.error('SCV sync returned an invalid response')
+          return
+        }
+
+        aggregate = mergeScvResults(aggregate, response.result)
+        setScvProgress({
+          processed: response.batch.processed,
+          total: response.batch.total_canonical_vehicles,
+          batchNumber: response.batch.batch_number,
+          totalBatches: response.batch.total_batches,
+        })
+
+        hasMore = response.batch.has_more
+        offset = response.batch.next_offset ?? 0
       }
-      const result: ScvSyncResult = data?.result
-      setScvResult(result)
+
+      setScvResult(aggregate)
       if (dryRun) {
         toast.info(
-          `Dry run complete — ${result.set_to_current} to set current, ${result.set_to_not_current} to clear`,
+          `Dry run complete — ${aggregate.set_to_current} to set current, ${aggregate.set_to_not_current} to clear`,
         )
       } else {
         toast.success(
-          `SCV sync complete — ${result.set_to_current} vehicles updated, ${result.breach_alerts_resolved} breach alerts resolved`,
+          `SCV sync complete — ${aggregate.set_to_current} vehicles updated, ${aggregate.breach_alerts_resolved} breach alerts resolved`,
         )
       }
     } catch (err: any) {
       toast.error(`SCV sync error: ${err.message}`)
     } finally {
+      setScvProgress(null)
       setIsSyncingScv(false)
     }
   }
@@ -421,6 +507,7 @@ export default function DataManagementHub() {
                 checked={scvDryRun}
                 onChange={(e) => setScvDryRun(e.target.checked)}
                 className="h-4 w-4"
+                disabled={isSyncingScv}
               />
               <label htmlFor="scv-dry-run" className="text-sm text-muted-foreground select-none cursor-pointer">
                 Dry run (preview changes only, no database writes)
@@ -447,10 +534,30 @@ export default function DataManagementHub() {
               </Button>
             </div>
 
+            {isSyncingScv && scvProgress && (
+              <div className="rounded-md border p-4 space-y-3 bg-muted/30">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="font-medium">
+                    {scvDryRun ? 'Previewing SCV sync batches' : 'Running SCV sync batches'}
+                  </span>
+                  <span className="text-muted-foreground">
+                    Batch {scvProgress.batchNumber} of {scvProgress.totalBatches || 1}
+                  </span>
+                </div>
+                <Progress
+                  value={scvProgress.total > 0 ? (scvProgress.processed / scvProgress.total) * 100 : 0}
+                />
+                <div className="flex items-center justify-between text-xs text-muted-foreground">
+                  <span>{scvProgress.processed.toLocaleString()} vehicles processed</span>
+                  <span>{scvProgress.total.toLocaleString()} total</span>
+                </div>
+              </div>
+            )}
+
             {scvResult && (
               <div className="rounded-md border p-4 text-sm space-y-2 bg-muted/30">
                 <div className="font-semibold">
-                  {scvDryRun ? 'Dry Run Results' : 'Sync Results'}
+                  {scvLastRunDryRun ? 'Dry Run Results' : 'Sync Results'}
                 </div>
                 <div className="grid grid-cols-2 gap-x-6 gap-y-1">
                   <span className="text-muted-foreground">SCV list entries:</span>
@@ -465,7 +572,7 @@ export default function DataManagementHub() {
                   <span className="font-medium text-orange-600">{scvResult.set_to_not_current}</span>
                   <span className="text-muted-foreground">Unchanged:</span>
                   <span className="font-medium">{scvResult.unchanged}</span>
-                  {!scvDryRun && (
+                  {!scvLastRunDryRun && (
                     <>
                       <span className="text-muted-foreground">Observations updated:</span>
                       <span className="font-medium">{scvResult.observations_updated}</span>

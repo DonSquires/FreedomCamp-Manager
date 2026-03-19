@@ -1021,6 +1021,8 @@ export const edgeFunctions = {
     dry_run?: boolean
     file_date?: string
     scv_url?: string
+    offset?: number
+    batch_size?: number
   } = {}) => {
     return callEdgeFunction('sync-scv-list', params, { showToast: false })
   },

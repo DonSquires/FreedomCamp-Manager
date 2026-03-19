@@ -19,6 +19,8 @@
  *   dry_run   boolean  — if true, only report what would change (no DB writes)
  *   file_date string   — ISO timestamp to stamp as nzscv_last_checked (default: 2026-02-17T00:00:00Z)
  *   scv_url   string   — override storage URL for the Excel file
+ *   offset    number   — canonical_vehicles pagination offset (default: 0)
+ *   batch_size number  — canonical_vehicles page size, max 1000 (default: 500)
  */
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.7';
@@ -36,6 +38,17 @@ interface SyncResult {
   observations_updated: number;
   breach_alerts_resolved: number;
   errors: string[];
+}
+
+interface BatchMeta {
+  offset: number;
+  batch_size: number;
+  processed: number;
+  total_canonical_vehicles: number;
+  next_offset: number | null;
+  has_more: boolean;
+  batch_number: number;
+  total_batches: number;
 }
 
 function parseJwtPayload(token: string): Record<string, unknown> | null {
@@ -62,6 +75,11 @@ function json(status: number, payload: unknown): Response {
     status,
     headers: { ...corsHeaders, 'Content-Type': 'application/json' },
   });
+}
+
+function parseBatchNumber(value: unknown, fallback: number): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return fallback;
+  return Math.max(0, Math.floor(value));
 }
 
 /**
@@ -139,6 +157,8 @@ serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     const dryRun: boolean = body.dry_run === true;
     const fileDate: string = body.file_date ?? '2026-02-17T00:00:00Z';
+    const offset = parseBatchNumber(body.offset, 0);
+    const batchSize = Math.min(1000, Math.max(1, parseBatchNumber(body.batch_size, 500)));
     const scvUrl: string =
       body.scv_url ??
       `${Deno.env.get('SUPABASE_URL')}/storage/v1/object/public/Scv%20list/Vehicle%20List%20-%2017022026.xlsx`;
@@ -185,17 +205,33 @@ serve(async (req) => {
       return json(500, { error: `Failed to load SCV list: ${msg}` });
     }
 
-    // ── Step 2: Load all canonical vehicles ─────────────────────────────────
+    // ── Step 2: Load a canonical_vehicles batch ─────────────────────────────
 
-    const { data: canonicalVehicles, error: cvError } = await supabaseAdmin
+    const { data: canonicalVehicles, error: cvError, count: totalCanonicalVehicles } = await supabaseAdmin
       .from('canonical_vehicles')
-      .select('plate_number, self_contained, self_contained_expiry, nzscv_source');
+      .select('plate_number, self_contained, self_contained_expiry, nzscv_source', { count: 'exact' })
+      .order('plate_number', { ascending: true })
+      .range(offset, offset + batchSize - 1);
 
     if (cvError) {
       return json(500, { error: `Failed to fetch canonical vehicles: ${cvError.message}` });
     }
 
     result.canonical_vehicles_checked = canonicalVehicles?.length ?? 0;
+
+    const processed = offset + result.canonical_vehicles_checked;
+    const totalVehicles = totalCanonicalVehicles ?? result.canonical_vehicles_checked;
+    const hasMore = processed < totalVehicles;
+    const batch: BatchMeta = {
+      offset,
+      batch_size: batchSize,
+      processed,
+      total_canonical_vehicles: totalVehicles,
+      next_offset: hasMore ? processed : null,
+      has_more: hasMore,
+      batch_number: totalVehicles === 0 ? 0 : Math.floor(offset / batchSize) + 1,
+      total_batches: totalVehicles === 0 ? 0 : Math.ceil(totalVehicles / batchSize),
+    };
 
     // ── Step 3: Classify changes ─────────────────────────────────────────────
 
@@ -272,6 +308,7 @@ serve(async (req) => {
       return json(200, {
         dry_run: true,
         result,
+        batch,
         sample_set_to_current: toSetCurrent.slice(0, 20),
         sample_set_to_not_current: toSetNotCurrent.slice(0, 20),
       });
@@ -346,6 +383,7 @@ serve(async (req) => {
       success: true,
       dry_run: false,
       result,
+      batch,
     });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
