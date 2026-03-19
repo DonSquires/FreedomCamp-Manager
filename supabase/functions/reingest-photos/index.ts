@@ -238,9 +238,7 @@ Deno.serve(async (req) => {
       }
 
       scannedRows += chunkRows.length;
-      const lastRow = chunkRows[chunkRows.length - 1];
-      lastRowRecordedAt = lastRow?.recorded_at ?? null;
-      scanCursor = lastRowRecordedAt;
+      let reachedBatchLimit = false;
 
       for (const row of chunkRows) {
         if (row.photo || row.photo_url) {
@@ -260,8 +258,20 @@ Deno.serve(async (req) => {
         }
 
         if (observations.length >= batchSize) {
+          // Advance pagination from the last emitted observation, not from
+          // the end of the scanned chunk. Otherwise we can skip rows and
+          // stop early after only a small subset is processed.
+          lastRowRecordedAt = row.recorded_at ?? null;
+          scanCursor = lastRowRecordedAt;
+          reachedBatchLimit = true;
           break;
         }
+      }
+
+      if (!reachedBatchLimit) {
+        const lastRow = chunkRows[chunkRows.length - 1];
+        lastRowRecordedAt = lastRow?.recorded_at ?? null;
+        scanCursor = lastRowRecordedAt;
       }
 
       if (chunkRows.length < scanChunkSize) {

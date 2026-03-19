@@ -36,6 +36,10 @@ interface SessionScan {
   observationId: string
   photoUrl: string
   plateNumber: string | null
+  vehicleMake: string | null
+  vehicleModel: string | null
+  vehicleYear: string | null
+  vehicleColor: string | null
   isCompliant: boolean | null
   breachType: string | null
   processingPending: boolean
@@ -199,6 +203,10 @@ export function BulkScanSession({
       observationId: clientId,
       photoUrl: '',
       plateNumber: null,
+      vehicleMake: null,
+      vehicleModel: null,
+      vehicleYear: null,
+      vehicleColor: null,
       isCompliant: null,
       breachType: null,
       processingPending: true,
@@ -234,7 +242,7 @@ export function BulkScanSession({
         attempts++
 
         const { data } = await (supabase.from('observations') as any)
-          .select('observation_id, plate_number, is_compliant, breach_type')
+          .select('observation_id, plate_number, is_compliant, breach_type, vehicle_make, vehicle_model, vehicle_year, vehicle_color')
           .eq('observation_id', scan.observationId)
           .maybeSingle()
 
@@ -254,6 +262,10 @@ export function BulkScanSession({
           s.clientId !== scan.clientId ? s : {
             ...s,
             plateNumber:       data.plate_number ?? null,
+            vehicleMake:       data.vehicle_make ?? null,
+            vehicleModel:      data.vehicle_model ?? null,
+            vehicleYear:       data.vehicle_year != null ? String(data.vehicle_year) : null,
+            vehicleColor:      data.vehicle_color ?? null,
             isCompliant:       compliant,
             breachType:        data.breach_type ?? null,
             processingPending: !resolved,
@@ -392,6 +404,9 @@ export function BulkScanSession({
             {scans.map(scan => {
               const pending = scan.processingPending
               const inBreach = scan.isCompliant === false && !pending && scan.queueState === null
+              const vehicleSummary = [scan.vehicleYear, scan.vehicleMake, scan.vehicleModel, scan.vehicleColor]
+                .filter(Boolean)
+                .join(' · ')
               return (
                 <div
                   key={scan.clientId}
@@ -445,6 +460,9 @@ export function BulkScanSession({
                       )}
                     </div>
                     <p className="text-[11px] text-muted-foreground">{fmtTime(scan.recordedAt)}</p>
+                    {vehicleSummary && (
+                      <p className="text-[11px] text-muted-foreground truncate">{vehicleSummary}</p>
+                    )}
                   </div>
 
                   {/* Quick enforcement buttons for breach */}

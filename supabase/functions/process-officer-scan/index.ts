@@ -366,6 +366,7 @@ interface CanonicalVehicleSnapshot {
   vehicle_year: number | null;
   vehicle_color: string | null;
   self_contained: boolean | null;
+  self_contained_expiry: string | null;
 }
 
 async function lookupNZSCV(plate: string): Promise<NZSCVResult | null> {
@@ -931,25 +932,51 @@ Deno.serve(async (req: Request) => {
     const plate = finalPlate ?? null;
     const requiresManualEntry = !plate;
 
-    // ── Step 5: NZSCV lookup ──────────────────────────────────────────────
-    // SC certification fields (isSelfContained + selfContainedExpiry) are the
-    // core purpose. make/model/year/vin/colour are optional — used when present.
+    // ── Step 5: Canonical vehicle + SCV lookup ────────────────────────────
+    // Use canonical_vehicles as the active SCV source because there is no live
+    // NZSCV API in production for this flow.
+    let canonicalVehicle: CanonicalVehicleSnapshot | null = null;
+    let canonicalMake:   string | null = null;
+    let canonicalModel:  string | null = null;
+    let canonicalColour: string | null = null;
+    let canonicalYear: number | null = null;
     let nzscv: NZSCVResult | null = null;
     if (plate) {
-      console.log(`🔍 NZSCV lookup for plate: ${plate}`);
-      nzscv = await lookupNZSCV(plate);
-      if (nzscv) {
-        console.log('✅ NZSCV result:', {
+      try {
+        const { data: cv } = await supabase
+          .from('canonical_vehicles')
+          .select('plate_number, vehicle_make, vehicle_model, vehicle_year, vehicle_color, self_contained, self_contained_expiry')
+          .eq('plate_number', plate)
+          .maybeSingle();
+
+        canonicalVehicle = cv as CanonicalVehicleSnapshot | null;
+        canonicalMake   = canonicalVehicle?.vehicle_make  ?? null;
+        canonicalModel  = canonicalVehicle?.vehicle_model ?? null;
+        canonicalColour = canonicalVehicle?.vehicle_color ?? null;
+        canonicalYear   = toIntOrNull(canonicalVehicle?.vehicle_year);
+
+        nzscv = {
+          isSelfContained: !!canonicalVehicle?.self_contained,
+          selfContainedExpiry: canonicalVehicle?.self_contained_expiry ?? null,
+          make: null,
+          model: null,
+          year: null,
+          vin: null,
+          colour: null,
+          maxOccupants: null,
+        };
+
+        console.log('✅ SCV result from canonical vehicle:', {
+          plate,
           isSelfContained: nzscv.isSelfContained,
-          expiry:  nzscv.selfContainedExpiry,
-          make:    nzscv.make,
-          model:   nzscv.model,
-          year:    nzscv.year,
-          vin:     nzscv.vin,
-          colour:  nzscv.colour,
+          expiry: nzscv.selfContainedExpiry,
+          canonicalMake,
+          canonicalModel,
+          canonicalYear,
+          canonicalColour,
         });
-      } else {
-        console.warn('⚠️ NZSCV returned no data for', plate);
+      } catch (canonicalErr: any) {
+        console.warn('⚠️ canonical_vehicles lookup failed:', canonicalErr.message);
       }
     }
 
@@ -981,42 +1008,42 @@ Deno.serve(async (req: Request) => {
         ? inference.stickerPresence
         : (obs.sticker_presence !== undefined ? (obs.sticker_presence as boolean | null) : null);
 
-    // --- 1. SC sticker vs NZSCV register ---
+    // --- 1. SC sticker vs canonical SCV record ---
     if (nzscv !== null && effectiveStickerPresence !== null && plate) {
       if (effectiveStickerPresence === true && !nzscv.isSelfContained) {
-        // Sticker on vehicle but NOT in NZSCV register → potential fraudulent sticker
+        // Sticker on vehicle but not marked self-contained in canonical record
         discrepancies.push({
           discrepancy_type: 'sc_sticker_not_in_register',
           source_a: 'inference',
-          source_b: 'nzscv',
+          source_b: 'canonical',
           value_a: `sticker_present (color=${inference.stickerColor ?? 'unknown'}, conf=${(inference.stickerConf ?? 0).toFixed(2)})`,
-          value_b: 'not_in_register',
+          value_b: 'not_self_contained_in_canonical',
           severity: 'critical',
           sc_law_active: scLawActive,
           details: {
             sticker_color:    inference.stickerColor ?? obs.sticker_color ?? null,
             sticker_conf:     inference.stickerConf,
-            nzscv_status:     'not_found_or_expired',
-            nzscv_expiry:     nzscv.selfContainedExpiry,
+            canonical_scv_status: 'not_self_contained',
+            canonical_scv_expiry: nzscv.selfContainedExpiry,
             note: scLawActive
-              ? 'SC law active (1 Jun 2026): physical sticker present but not registered — potential fraud'
-              : 'Sticker present on vehicle but no valid NZSCV registration — verify manually',
+              ? 'SC law active (1 Jun 2026): physical sticker present but canonical record is not self-contained — verify manually'
+              : 'Sticker present on vehicle but canonical vehicle record is not self-contained — verify manually',
           },
         });
       } else if (effectiveStickerPresence === false && nzscv.isSelfContained) {
-        // No sticker visible but NZSCV says self-contained → sticker may be hidden, damaged, or removed
+        // No sticker visible but canonical record says self-contained
         discrepancies.push({
           discrepancy_type: 'sc_in_register_no_sticker',
-          source_a: 'nzscv',
+          source_a: 'canonical',
           source_b: 'inference',
-          value_a: `in_register (expiry=${nzscv.selfContainedExpiry ?? 'unknown'})`,
+          value_a: `self_contained_in_canonical (expiry=${nzscv.selfContainedExpiry ?? 'unknown'})`,
           value_b: 'no_sticker_detected',
           severity: scLawActive ? 'critical' : 'warning',
           sc_law_active: scLawActive,
           details: {
-            nzscv_expiry: nzscv.selfContainedExpiry,
+            canonical_scv_expiry: nzscv.selfContainedExpiry,
             sticker_conf: inference.stickerConf,
-            note: 'Vehicle is on the NZSCV register but no SC sticker was detected — sticker may be hidden, faded, or removed',
+            note: 'Vehicle is marked self-contained in canonical records but no SC sticker was detected — sticker may be hidden, faded, or removed',
           },
         });
       }
@@ -1025,39 +1052,18 @@ Deno.serve(async (req: Request) => {
       discrepancies.push({
         discrepancy_type: 'sc_sticker_inconclusive',
         source_a: 'inference',
-        source_b: 'nzscv',
+        source_b: 'canonical',
         value_a: 'inconclusive',
-        value_b: nzscv.isSelfContained ? 'in_register' : 'not_in_register',
+        value_b: nzscv.isSelfContained ? 'self_contained_in_canonical' : 'not_self_contained_in_canonical',
         severity: 'warning',
         sc_law_active: scLawActive,
         details: {
           sticker_conf:  inference.stickerConf,
-          nzscv_status: nzscv.isSelfContained ? 'registered' : 'not_registered',
-          nzscv_expiry: nzscv.selfContainedExpiry,
+          canonical_scv_status: nzscv.isSelfContained ? 'self_contained' : 'not_self_contained',
+          canonical_scv_expiry: nzscv.selfContainedExpiry,
           note: 'Sticker detection was inconclusive — manual review required to confirm SC status',
         },
       });
-    }
-
-    // --- 2. Load canonical vehicle for cross-source attribute comparison ---
-    let canonicalVehicle: CanonicalVehicleSnapshot | null = null;
-    let canonicalMake:   string | null = null;
-    let canonicalModel:  string | null = null;
-    let canonicalColour: string | null = null;
-    let canonicalYear: number | null = null;
-    if (plate) {
-      try {
-        const { data: cv } = await supabase
-          .from('canonical_vehicles')
-          .select('plate_number, vehicle_make, vehicle_model, vehicle_year, vehicle_color, self_contained')
-          .eq('plate_number', plate)
-          .maybeSingle();
-        canonicalVehicle = cv as CanonicalVehicleSnapshot | null;
-        canonicalMake   = canonicalVehicle?.vehicle_make  ?? null;
-        canonicalModel  = canonicalVehicle?.vehicle_model ?? null;
-        canonicalColour = canonicalVehicle?.vehicle_color ?? null;
-        canonicalYear   = toIntOrNull(canonicalVehicle?.vehicle_year);
-      } catch { /* non-critical */ }
     }
 
     // If plate is known but key attributes are still missing from stronger sources,
@@ -1166,42 +1172,6 @@ Deno.serve(async (req: Request) => {
           severity: 'warning',
           sc_law_active: scLawActive,
           details: { inference_conf: inference.inferColourConf },
-        });
-      }
-    }
-
-    // --- 6. Canonical vs NZSCV mismatch (only meaningful when NZSCV confirms SC) ---
-    if (!isNewVehicle && nzscv?.isSelfContained) {
-      const canonicalVsNzMakeMismatch = isLikelyTextMismatch(canonicalMake, nzscv.make);
-      const canonicalVsNzModelMismatch = isLikelyTextMismatch(canonicalModel, nzscv.model);
-      const canonicalVsNzYearMismatch = canonicalYear !== null && nzscv.year !== null && canonicalYear !== nzscv.year;
-      const canonicalVsNzColourMismatch = isLikelyTextMismatch(canonicalColour, nzscv.colour);
-
-      if (canonicalVsNzMakeMismatch || canonicalVsNzModelMismatch || canonicalVsNzYearMismatch || canonicalVsNzColourMismatch) {
-        discrepancies.push({
-          discrepancy_type: 'nzscv_registration_wrong_vehicle',
-          source_a: 'canonical',
-          source_b: 'nzscv',
-          value_a: [canonicalMake, canonicalModel, canonicalYear, canonicalColour].filter(Boolean).join(' | ') || null,
-          value_b: [nzscv.make, nzscv.model, nzscv.year, nzscv.colour].filter(Boolean).join(' | ') || null,
-          severity: 'critical',
-          sc_law_active: scLawActive,
-          details: {
-            mismatch_location: 'canonical_vs_nzscv',
-            reason: 'NZSCV registration may be attached to the wrong vehicle details',
-            canonical: {
-              make: canonicalMake,
-              model: canonicalModel,
-              year: canonicalYear,
-              colour: canonicalColour,
-            },
-            nzscv: {
-              make: nzscv.make,
-              model: nzscv.model,
-              year: nzscv.year,
-              colour: nzscv.colour,
-            },
-          },
         });
       }
     }
@@ -1652,9 +1622,9 @@ Deno.serve(async (req: Request) => {
       plate_confidence: finalConfidence,
       requires_manual_entry: requiresManualEntry,
       pipeline: {
-        inference_path: infer.path,
+        inference_path: inference.path,
         inference_url_configured: !!INFERENCE_SERVICE_URL,
-        alpr_fallback_used: infer.path !== 'railway_inference',
+        alpr_fallback_used: inference.path !== 'railway_inference',
       },
       vehicle: {
         // SC certification — primary purpose of NZSCV lookup
@@ -1702,7 +1672,7 @@ Deno.serve(async (req: Request) => {
     console.log('✅ process-officer-scan complete', {
       observationId,
       plate,
-      inferencePath: infer.path,
+      inferencePath: inference.path,
       inferenceUrlConfigured: !!INFERENCE_SERVICE_URL,
       isCompliant:       compliance.isCompliant,
       breachType:        compliance.breachType,
