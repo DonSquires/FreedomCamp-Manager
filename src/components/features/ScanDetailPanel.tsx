@@ -8,7 +8,8 @@
  *  - Three tabs: Details | Notes & H&S | Actions
  *  - Editable: plate, make, model, year, colour (for ALPR/AI corrections)
  *  - Officer notes field (saved to observations.officer_notes)
- *  - H&S incident quick-link (pre-fills zone + plate)
+ *  - H&S incident inline quick-form (pre-filled with zone + plate + GPS address)
+ *  - Homeless claim inline form (updates canonical_vehicles.homeless_status)
  *  - Enforcement actions: Warning, Notice to Vacate (workflow-gated)
  *  - Shows admin-assigned follow-up instructions if admin has responded
  *  - "Escalate to Admin" button when admin review is needed (admin_first / hybrid)
@@ -27,6 +28,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
@@ -34,7 +36,8 @@ import { reverseGeocode } from '@/lib/geocoding'
 import {
   Camera, Car, CheckCircle, XCircle, Clock, Save, AlertTriangle,
   ShieldAlert, MapPin, FileWarning, Megaphone, Shield, ExternalLink,
-  Loader2, Edit3, Bell, ClipboardList, Home, Printer,
+  Loader2, Edit3, Bell, ClipboardList, Home, Printer, Heart, Users,
+  Wrench, Flag,
 } from 'lucide-react'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -163,6 +166,20 @@ export function ScanDetailPanel({
   // Reverse-geocoded address derived from GPS coordinates
   const [locationAddress, setLocationAddress] = useState<string | null>(null)
 
+  // ── Inline H&S quick-report form state ─────────────────────────────────────
+  const [showHSForm,       setShowHSForm]       = useState(false)
+  const [hsIncidentType,   setHSIncidentType]   = useState('threatening_behaviour')
+  const [hsSeverity,       setHSSeverity]       = useState<'low'|'medium'|'high'|'critical'>('medium')
+  const [hsDescription,    setHSDescription]    = useState('')
+  const [hsActionTaken,    setHSActionTaken]    = useState('')
+  const [isSavingHS,       setIsSavingHS]       = useState(false)
+
+  // ── Inline homeless claim form state ────────────────────────────────────────
+  const [showHomelessForm,    setShowHomelessForm]    = useState(false)
+  const [homelessClaimType,   setHomelessClaimType]   = useState<'claimed'|'confirmed'>('claimed')
+  const [homelessClaimNotes,  setHomelessClaimNotes]  = useState('')
+  const [isSavingHomeless,    setIsSavingHomeless]    = useState(false)
+
   // Keep local state in sync when initialData changes (new scan opened)
   useEffect(() => {
     setObs(initialData)
@@ -175,6 +192,11 @@ export function ScanDetailPanel({
     setEditAddress('')
     setEditMode(false)
     setLocationAddress(null)
+    setShowHSForm(false)
+    setHSDescription('')
+    setHSActionTaken('')
+    setShowHomelessForm(false)
+    setHomelessClaimNotes('')
   }, [initialData?.observationId]) // eslint-disable-line react-hooks/exhaustive-deps -- intentional: reset only when a new observation is opened
 
   // Auto-resolve reverse geocoded address when GPS coords become available
@@ -448,11 +470,86 @@ export function ScanDetailPanel({
     }
   }, [obs, editPlate, editMake, editModel, editYear, editColour, editNotes, editAddress, onActivity])
 
-  // ── H&S incident ─────────────────────────────────────────────────────────
+  // ── Inline H&S quick-report submit ──────────────────────────────────────────
+  const handleSubmitHS = useCallback(async () => {
+    if (!user || !obs) return
+    if (!hsDescription.trim()) { toast.warning('Please describe the incident'); return }
+    setIsSavingHS(true)
+    try {
+      const { error } = await (supabase.from('health_safety_reports') as any)
+        .insert({
+          organization_id: user.organization_id,
+          reported_by:     user.id,
+          zone_id:         obs.observationZoneId || null,
+          incident_type:   hsIncidentType,
+          severity:        hsSeverity,
+          description:     hsDescription.trim() +
+            (hsActionTaken.trim() ? `\n\nAction taken: ${hsActionTaken.trim()}` : '') +
+            (obs.plateNumber && obs.plateNumber !== 'MANUAL_REQUIRED'
+              ? `\n\nLinked vehicle: ${obs.plateNumber}` : '') +
+            (locationAddress ? `\n\nLocation: ${locationAddress}` : ''),
+          status:          'pending',
+        })
+      if (error) throw error
+      toast.success('H&S report submitted — admin has been notified')
+      setShowHSForm(false)
+      setHSDescription('')
+      setHSActionTaken('')
+      onActivity?.()
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to submit H&S report')
+    } finally {
+      setIsSavingHS(false)
+    }
+  }, [user, obs, hsIncidentType, hsSeverity, hsDescription, hsActionTaken, locationAddress, onActivity])
+
+  // ── Homeless claim submit ─────────────────────────────────────────────────
+  const handleSubmitHomelessClaim = useCallback(async () => {
+    const plate = obs?.plateNumber
+    if (!plate || plate === 'MANUAL_REQUIRED') {
+      toast.warning('Cannot record homeless claim before plate is confirmed')
+      return
+    }
+    if (!user) return
+    setIsSavingHomeless(true)
+    try {
+      // Upsert the canonical vehicle homeless_status
+      const { error: cvErr } = await (supabase.from('canonical_vehicles') as any)
+        .upsert({
+          plate_number:     plate,
+          organization_id:  user.organization_id,
+          homeless_status:  homelessClaimType,
+          is_exempt:        homelessClaimType === 'confirmed',
+        }, { onConflict: 'plate_number' })
+      if (cvErr) throw cvErr
+
+      // Add officer notes on the observation
+      if (obs?.observationId) {
+        const claimNote = `[Homeless ${homelessClaimType === 'confirmed' ? 'Confirmed' : 'Claimed'}] ${homelessClaimNotes.trim()}`
+        const currentNotes = obs.officerNotes ?? ''
+        const updatedNotes = currentNotes ? `${currentNotes}\n${claimNote}` : claimNote
+        await (supabase.from('observations') as any)
+          .update({ officer_notes: updatedNotes })
+          .eq('observation_id', obs.observationId)
+        setObs(prev => prev ? { ...prev, officerNotes: updatedNotes, homelessStatus: homelessClaimType, isHomelessExempt: homelessClaimType === 'confirmed' } : null)
+        setEditNotes(updatedNotes)
+      }
+
+      toast.success(`Homeless ${homelessClaimType === 'confirmed' ? 'confirmation' : 'claim'} recorded for ${plate}`)
+      setShowHomelessForm(false)
+      setHomelessClaimNotes('')
+      onActivity?.()
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to record homeless claim')
+    } finally {
+      setIsSavingHomeless(false)
+    }
+  }, [obs, user, homelessClaimType, homelessClaimNotes, onActivity])
+
+  // ── H&S incident (navigate away — kept as fallback for full form) ─────────
   const handleHSIncident = () => {
     const plate = obs?.plateNumber || ''
     const zone  = obs?.observationZoneId || ''
-    // Navigate to incident creation, pre-filling plate + zone via query params
     navigate(`/incidents?plate=${encodeURIComponent(plate)}&zone=${encodeURIComponent(zone)}&from=scan`)
     onActivity?.()
   }
@@ -555,6 +652,39 @@ export function ScanDetailPanel({
 
           {/* ── DETAILS TAB ────────────────────────────────────────── */}
           <TabsContent value="details" className="flex-1 overflow-y-auto px-4 py-3 space-y-4">
+
+            {/* ── Scan result notification banner ──────────────────────
+                Shown immediately when processing completes so officer gets
+                a clear pass / fail callout at the top of the Details tab   */}
+            {!pending && plate && plate !== 'MANUAL_REQUIRED' && (
+              compliant === false ? (
+                <div className="rounded-xl border-2 border-red-400 bg-red-50 dark:bg-red-950/30 p-3 flex items-start gap-3">
+                  <XCircle className="h-5 w-5 text-red-600 mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-sm font-bold text-red-800 dark:text-red-300">
+                      ⚠️ Breach Detected — {fmtBreach(obs.breachType)}
+                    </p>
+                    <p className="text-xs text-red-700 dark:text-red-400 mt-0.5">
+                      Go to the <strong>Actions</strong> tab to issue a warning, notice to vacate, or infringement.
+                    </p>
+                  </div>
+                </div>
+              ) : compliant === true ? (
+                <div className="rounded-xl border border-green-200 bg-green-50 dark:bg-green-950/30 p-3 flex items-start gap-3">
+                  <CheckCircle className="h-5 w-5 text-green-600 mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-sm font-bold text-green-800 dark:text-green-300">
+                      ✅ Vehicle Compliant
+                    </p>
+                    <p className="text-xs text-green-700 dark:text-green-400 mt-0.5">
+                      {obs.isHomelessExempt
+                        ? 'Homeless exemption applies — no enforcement action required.'
+                        : 'No enforcement action required. Observation recorded.'}
+                    </p>
+                  </div>
+                </div>
+              ) : null
+            )}
 
             {/* Manual plate entry prompt */}
             {plate === 'MANUAL_REQUIRED' && !editMode && (
@@ -828,27 +958,173 @@ export function ScanDetailPanel({
                 : <><Save className="h-4 w-4 mr-2" />Save Notes</>}
             </Button>
 
-            {/* H&S incident */}
-            <div className="rounded-xl border border-orange-200 bg-orange-50 dark:bg-orange-950/30 p-3 space-y-2">
-              <div className="flex items-center gap-2">
-                <ShieldAlert className="h-4 w-4 text-orange-600 shrink-0" />
-                <p className="text-sm font-semibold text-orange-800 dark:text-orange-300">
-                  Health &amp; Safety Incident
-                </p>
+            {/* ── Homeless claim ──────────────────────────────────────── */}
+            <div className="rounded-xl border border-purple-200 bg-purple-50 dark:bg-purple-950/30 p-3 space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Home className="h-4 w-4 text-purple-600 shrink-0" />
+                  <p className="text-sm font-semibold text-purple-800 dark:text-purple-300">
+                    Homeless Status
+                  </p>
+                </div>
+                {obs.homelessStatus ? (
+                  <Badge className="bg-purple-600 text-white text-[10px]">
+                    {obs.homelessStatus === 'confirmed' ? 'Confirmed' : 'Claimed'}
+                  </Badge>
+                ) : (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 text-xs border-purple-400 text-purple-700 hover:bg-purple-100"
+                    onClick={() => setShowHomelessForm(v => !v)}
+                  >
+                    <Flag className="h-3 w-3 mr-1" />
+                    {showHomelessForm ? 'Cancel' : 'Flag Claim'}
+                  </Button>
+                )}
               </div>
-              <p className="text-xs text-orange-700 dark:text-orange-400">
-                If this scan involves threatening behaviour, a medical emergency, property damage,
-                or any H&amp;S risk — log a formal incident report now.
-              </p>
-              <Button
-                variant="outline"
-                className="w-full h-8 text-xs border-orange-400 text-orange-700 hover:bg-orange-100"
-                onClick={handleHSIncident}
-              >
-                <AlertTriangle className="h-3 w-3 mr-1.5" />
-                Create H&amp;S Incident Report
-                <ExternalLink className="h-3 w-3 ml-1.5 opacity-60" />
-              </Button>
+
+              {showHomelessForm && !obs.homelessStatus && (
+                <div className="space-y-2 pt-1">
+                  <div className="space-y-1">
+                    <Label className="text-xs">Claim type</Label>
+                    <Select value={homelessClaimType} onValueChange={v => setHomelessClaimType(v as 'claimed'|'confirmed')}>
+                      <SelectTrigger className="h-8 text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="claimed">Claimed — occupant self-reports (unverified)</SelectItem>
+                        <SelectItem value="confirmed">Confirmed — officer verified / documented evidence</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <Textarea
+                    value={homelessClaimNotes}
+                    onChange={e => setHomelessClaimNotes(e.target.value)}
+                    rows={2}
+                    className="text-xs resize-none"
+                    placeholder="Notes (e.g. spoke to occupant, visible bedding, welfare check done)"
+                  />
+                  <Button
+                    size="sm"
+                    className="w-full h-8 text-xs bg-purple-600 hover:bg-purple-700 text-white"
+                    disabled={isSavingHomeless || !plate || plate === 'MANUAL_REQUIRED'}
+                    onClick={handleSubmitHomelessClaim}
+                  >
+                    {isSavingHomeless
+                      ? <><Loader2 className="h-3 w-3 mr-1 animate-spin" />Saving…</>
+                      : <><Home className="h-3 w-3 mr-1" />Record Homeless {homelessClaimType === 'confirmed' ? 'Confirmation' : 'Claim'}</>}
+                  </Button>
+                  <p className="text-[10px] text-purple-700 dark:text-purple-400">
+                    This updates the vehicle record and may exempt the vehicle from enforcement.
+                  </p>
+                </div>
+              )}
+
+              {obs.homelessStatus && (
+                <p className="text-xs text-purple-700 dark:text-purple-400">
+                  {obs.homelessStatus === 'confirmed'
+                    ? 'Vehicle is confirmed homeless — exempt from standard enforcement rules.'
+                    : 'Homeless claim recorded (unverified) — awaiting admin review.'}
+                </p>
+              )}
+            </div>
+
+            {/* ── H&S incident inline form ──────────────────────────── */}
+            <div className="rounded-xl border border-orange-200 bg-orange-50 dark:bg-orange-950/30 p-3 space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <ShieldAlert className="h-4 w-4 text-orange-600 shrink-0" />
+                  <p className="text-sm font-semibold text-orange-800 dark:text-orange-300">
+                    Health &amp; Safety Incident
+                  </p>
+                </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-7 text-xs border-orange-400 text-orange-700 hover:bg-orange-100"
+                  onClick={() => setShowHSForm(v => !v)}
+                >
+                  <AlertTriangle className="h-3 w-3 mr-1" />
+                  {showHSForm ? 'Cancel' : 'Log Incident'}
+                </Button>
+              </div>
+
+              {showHSForm ? (
+                <div className="space-y-2 pt-1">
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-1">
+                      <Label className="text-xs">Incident type</Label>
+                      <Select value={hsIncidentType} onValueChange={setHSIncidentType}>
+                        <SelectTrigger className="h-8 text-xs">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="threatening_behaviour">Threatening Behaviour</SelectItem>
+                          <SelectItem value="medical_emergency">Medical Emergency</SelectItem>
+                          <SelectItem value="property_damage">Property Damage</SelectItem>
+                          <SelectItem value="welfare_concern">Welfare Concern</SelectItem>
+                          <SelectItem value="noise_complaint">Noise Complaint</SelectItem>
+                          <SelectItem value="hazard">Hazard / Safety Risk</SelectItem>
+                          <SelectItem value="other">Other</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Severity</Label>
+                      <Select value={hsSeverity} onValueChange={v => setHSSeverity(v as 'low'|'medium'|'high'|'critical')}>
+                        <SelectTrigger className="h-8 text-xs">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="low">Low</SelectItem>
+                          <SelectItem value="medium">Medium</SelectItem>
+                          <SelectItem value="high">High</SelectItem>
+                          <SelectItem value="critical">Critical</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <Textarea
+                    value={hsDescription}
+                    onChange={e => setHSDescription(e.target.value)}
+                    rows={3}
+                    className="text-xs resize-none"
+                    placeholder="Describe what happened — be specific about the risk, who was involved, and the location"
+                  />
+                  <Textarea
+                    value={hsActionTaken}
+                    onChange={e => setHSActionTaken(e.target.value)}
+                    rows={2}
+                    className="text-xs resize-none"
+                    placeholder="Action taken (e.g. police contacted, person warned, area secured)"
+                  />
+                  {locationAddress && (
+                    <p className="text-[10px] text-orange-700 dark:text-orange-400 flex items-center gap-1">
+                      <MapPin className="h-3 w-3 shrink-0" />
+                      Location: {locationAddress}
+                    </p>
+                  )}
+                  <Button
+                    size="sm"
+                    className="w-full h-8 text-xs bg-orange-600 hover:bg-orange-700 text-white"
+                    disabled={isSavingHS || !hsDescription.trim()}
+                    onClick={handleSubmitHS}
+                  >
+                    {isSavingHS
+                      ? <><Loader2 className="h-3 w-3 mr-1 animate-spin" />Submitting…</>
+                      : <><ShieldAlert className="h-3 w-3 mr-1" />Submit H&amp;S Report</>}
+                  </Button>
+                  <p className="text-[10px] text-orange-700">
+                    Admin will be notified immediately. Linked to this observation.
+                  </p>
+                </div>
+              ) : (
+                <p className="text-xs text-orange-700 dark:text-orange-400">
+                  If this scan involves threatening behaviour, a medical emergency, property damage,
+                  or any H&amp;S risk — log a formal incident report now.
+                </p>
+              )}
             </div>
           </TabsContent>
 
