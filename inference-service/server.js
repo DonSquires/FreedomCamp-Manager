@@ -769,8 +769,6 @@ app.post('/infer', upload.single('photo'), async (req, res) => {
             vehicle_year_confidence: vehicleAttrs.vehicle_year_confidence,
             vehicle_colour_confidence: vehicleAttrs.vehicle_colour_confidence,
             sticker: vehicleAttrs.sticker,
-            attribute_provider: VEHICLE_ATTRS_PROVIDER,
-            ai_attributes_enabled: VEHICLE_ATTRS_PROVIDER === 'openai' && !!OPENAI_API_KEY,
             metadata: { processing_time_ms: duration },
           }
         });
@@ -833,8 +831,6 @@ app.post('/infer', upload.single('photo'), async (req, res) => {
         vehicle_year_confidence: vehicleAttrs.vehicle_year_confidence,
         vehicle_colour_confidence: vehicleAttrs.vehicle_colour_confidence,
         sticker: vehicleAttrs.sticker,
-        attribute_provider: VEHICLE_ATTRS_PROVIDER,
-        ai_attributes_enabled: VEHICLE_ATTRS_PROVIDER === 'openai' && !!OPENAI_API_KEY,
       }
     });
 
