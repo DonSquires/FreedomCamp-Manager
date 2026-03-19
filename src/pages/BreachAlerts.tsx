@@ -274,6 +274,8 @@ export default function BreachAlerts() {
   const [rejectionReason, setRejectionReason] = useState('')
   const [activeTab, setActiveTab] = useState<'evidence' | 'rapsheet'>('evidence')
   const [showFollowUpDrawer, setShowFollowUpDrawer] = useState(false)
+  const [manualPlateInput, setManualPlateInput] = useState('')
+  const [isSavingManualPlate, setIsSavingManualPlate] = useState(false)
 
   // 3-Zone state
   const [activeBreachId, setActiveBreachId] = useState<string | null>(null)
@@ -731,6 +733,40 @@ export default function BreachAlerts() {
     }
     resolveMutation.mutate({ breachId: activeBreach.id, notes: resolveNotes })
   }
+
+  // Update plate for MANUAL_REQUIRED observations
+  const handleSaveManualPlate = useCallback(async () => {
+    if (!activeBreach || !manualPlateInput.trim()) return
+    const plate = manualPlateInput.trim().toUpperCase().replace(/\s/g, '')
+    if (!plate) { toast.warning('Enter a plate number first'); return }
+
+    const observationId = getBreachObservationId(activeBreach)
+    if (!observationId) { toast.error('No linked observation found'); return }
+
+    setIsSavingManualPlate(true)
+    try {
+      // Update the observation with the real plate
+      const { error: obsErr } = await (supabase.from('observations') as any)
+        .update({ plate_number: plate })
+        .eq('observation_id', observationId)
+      if (obsErr) throw obsErr
+
+      // Update the breach alert plate
+      const { error: breachErr } = await (supabase.from('breach_alerts') as any)
+        .update({ plate_number: plate })
+        .eq('id', activeBreach.id)
+      if (breachErr) throw breachErr
+
+      toast.success(`Plate updated to ${plate} — compliance re-evaluation will run shortly`)
+      setManualPlateInput('')
+      queryClient.invalidateQueries({ queryKey: ['breach-alerts'] })
+      queryClient.invalidateQueries({ queryKey: ['breach-vehicle', plate] })
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to update plate number')
+    } finally {
+      setIsSavingManualPlate(false)
+    }
+  }, [activeBreach, manualPlateInput, queryClient])
 
   // ── Queue navigation ──────────────────────────────────────────────────────
 
@@ -1210,7 +1246,7 @@ export default function BreachAlerts() {
                 <p className="text-sm font-medium text-orange-700 dark:text-orange-400 mt-1">
                   {getBreachTypeLabel(activeBreach.breach_type)}
                 </p>
-                {activeBreach.plate_number && (
+                {activeBreach.plate_number && activeBreach.plate_number !== 'MANUAL_REQUIRED' && (
                   <Button
                     size="sm"
                     variant="outline"
@@ -1220,6 +1256,33 @@ export default function BreachAlerts() {
                     <ExternalLink className="h-3.5 w-3.5 mr-1" />
                     Open Observation Records
                   </Button>
+                )}
+
+                {/* Manual plate entry — when ALPR failed to detect the plate */}
+                {activeBreach.plate_number === 'MANUAL_REQUIRED' && (
+                  <div className="mt-3 p-3 rounded-lg border-2 border-orange-400 bg-orange-50 dark:bg-orange-950/30 space-y-2">
+                    <p className="text-xs font-semibold text-orange-800 dark:text-orange-300 flex items-center gap-1.5">
+                      <Keyboard className="h-3.5 w-3.5" />
+                      Plate number not detected — enter manually
+                    </p>
+                    <div className="flex gap-2">
+                      <Input
+                        className="h-8 text-sm font-mono uppercase flex-1"
+                        placeholder="e.g. ABC123"
+                        value={manualPlateInput}
+                        onChange={e => setManualPlateInput(e.target.value.toUpperCase())}
+                        onKeyDown={e => { if (e.key === 'Enter') handleSaveManualPlate() }}
+                      />
+                      <Button
+                        size="sm"
+                        className="h-8 text-xs bg-orange-600 hover:bg-orange-700 text-white"
+                        disabled={isSavingManualPlate || !manualPlateInput.trim()}
+                        onClick={handleSaveManualPlate}
+                      >
+                        {isSavingManualPlate ? 'Saving…' : 'Save'}
+                      </Button>
+                    </div>
+                  </div>
                 )}
               </div>
 
@@ -1741,7 +1804,9 @@ export default function BreachAlerts() {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Car className="h-5 w-5 text-gray-500" />
-                <span className="font-mono font-bold text-xl">{activeBreach.plate_number}</span>
+                <span className={`font-mono font-bold text-xl ${activeBreach.plate_number === 'MANUAL_REQUIRED' ? 'text-orange-600' : ''}`}>
+                  {activeBreach.plate_number === 'MANUAL_REQUIRED' ? 'Enter Plate ↓' : (activeBreach.plate_number || 'Unknown')}
+                </span>
                 <Badge className={getStatusColor(activeBreach.status)}>
                   {activeBreach.status?.replace(/_/g, ' ')}
                 </Badge>
@@ -1753,6 +1818,32 @@ export default function BreachAlerts() {
             <p className="text-sm text-gray-500 mt-1">
               {(activeBreach.zones as any)?.name} • {getBreachTypeLabel(activeBreach.breach_type)}
             </p>
+
+            {/* Mobile manual plate entry */}
+            {activeBreach.plate_number === 'MANUAL_REQUIRED' && (
+              <div className="mt-3 p-3 rounded-lg border-2 border-orange-400 bg-orange-50 dark:bg-orange-950/30 space-y-2">
+                <p className="text-xs font-semibold text-orange-800 dark:text-orange-300">
+                  ⚠ Plate not detected — enter manually
+                </p>
+                <div className="flex gap-2">
+                  <Input
+                    className="h-9 text-sm font-mono uppercase flex-1"
+                    placeholder="e.g. ABC123"
+                    value={manualPlateInput}
+                    onChange={e => setManualPlateInput(e.target.value.toUpperCase())}
+                    onKeyDown={e => { if (e.key === 'Enter') handleSaveManualPlate() }}
+                  />
+                  <Button
+                    size="sm"
+                    className="h-9 text-xs bg-orange-600 hover:bg-orange-700 text-white"
+                    disabled={isSavingManualPlate || !manualPlateInput.trim()}
+                    onClick={handleSaveManualPlate}
+                  >
+                    {isSavingManualPlate ? 'Saving…' : 'Save'}
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="p-4 space-y-3">

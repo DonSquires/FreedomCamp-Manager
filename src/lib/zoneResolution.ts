@@ -1,7 +1,9 @@
 import { supabase } from '@/lib/supabase'
+import { detectCurrentZones } from '@/lib/geofence'
 
 export type ZoneResolutionSource =
   | 'preferred'
+  | 'gps_detected'
   | 'jurisdiction_zone'
   | 'fallback_any_active_zone'
 
@@ -12,10 +14,22 @@ interface ResolvedZone {
 
 export async function resolveObservationZoneForOrg(
   organizationId: string,
-  preferredZoneId?: string | null
+  preferredZoneId?: string | null,
+  gpsLatitude?: number | null,
+  gpsLongitude?: number | null,
 ): Promise<ResolvedZone> {
   if (preferredZoneId) {
     return { zoneId: preferredZoneId, source: 'preferred' }
+  }
+
+  // If we have GPS coordinates, try to detect which zone the officer is in.
+  if (gpsLatitude != null && gpsLongitude != null) {
+    try {
+      const detectedZones = await detectCurrentZones(gpsLatitude, gpsLongitude, organizationId)
+      if (detectedZones.length > 0) {
+        return { zoneId: detectedZones[0].id, source: 'gps_detected' }
+      }
+    } catch { /* fall through to other strategies */ }
   }
 
   // Fall back to the organisation's jurisdiction (parent) zone:

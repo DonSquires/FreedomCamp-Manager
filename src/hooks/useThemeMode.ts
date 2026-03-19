@@ -1,8 +1,8 @@
 import { useEffect } from 'react'
 import { useThemePreferencesStore } from '@/stores/themePreferencesStore'
 
-function resolveTheme(mode: 'light' | 'dark' | 'high-contrast' | 'system'): 'light' | 'dark' | 'high-contrast' {
-  if (mode === 'light' || mode === 'dark' || mode === 'high-contrast') return mode
+function resolveTheme(mode: 'light' | 'dark' | 'high-contrast' | 'night-patrol' | 'system'): 'light' | 'dark' | 'high-contrast' | 'night-patrol' {
+  if (mode === 'light' || mode === 'dark' || mode === 'high-contrast' || mode === 'night-patrol') return mode
   if (typeof window === 'undefined') return 'light'
   return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
 }
@@ -15,11 +15,14 @@ export function useThemeMode() {
 
     const applyTheme = () => {
       const resolved = resolveTheme(themeMode)
-      document.documentElement.classList.remove('dark', 'high-contrast')
+      document.documentElement.classList.remove('dark', 'high-contrast', 'night-patrol')
       if (resolved === 'dark') {
         document.documentElement.classList.add('dark')
       } else if (resolved === 'high-contrast') {
         document.documentElement.classList.add('high-contrast')
+      } else if (resolved === 'night-patrol') {
+        // Night patrol overlays dark mode as a base
+        document.documentElement.classList.add('dark', 'night-patrol')
       }
     }
 

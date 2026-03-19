@@ -6,6 +6,11 @@ import { useGlobalFiltersStore } from '@/stores/globalFiltersStore'
 import { monitorGeofenceAndPatrol } from '@/lib/geofence'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { AppLayout } from '@/components/features/AppLayout'
 import { SplitScanCamera } from '@/components/features/SplitScanCamera'
 import { LocationAuthorizationStatus } from '@/components/features/LocationAuthorizationStatus'
@@ -15,10 +20,13 @@ import { BulkScanSession } from '@/components/features/BulkScanSession'
 import { OfficerFollowUpQueue } from '@/components/features/OfficerFollowUpQueue'
 import { captureAndSave, SCAN_PROGRESS_LABELS, type ScanProgressStage } from '@/lib/scanPipeline'
 import { useManDownDetection } from '@/hooks/useManDownDetection'
+import { reverseGeocode } from '@/lib/geocoding'
+import { useThemePreferencesStore } from '@/stores/themePreferencesStore'
 import {
   Camera, Map, FileText, History, AlertTriangle, MapPin, QrCode,
   ShieldAlert, CheckCircle, Shield, Megaphone, FileWarning, XCircle,
-  Clock, Home, X, Car, Zap, Search, Printer,
+  Clock, Home, X, Car, Zap, Search, Printer, PlusCircle, Wrench, Heart, Users,
+  Moon, Sun,
 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
@@ -48,6 +56,8 @@ export default function FieldOfficerPortal() {
   const { zoneId, zoneName, setZone } = useGlobalFiltersStore()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  const { themeMode, setThemeMode } = useThemePreferencesStore()
+  const isNightPatrol = themeMode === 'night-patrol'
 
   // ── Scan mode: null = portal home, 'detail' = single-vehicle scan,
   //              'bulk' = quick area sweep, 'checkpoint' = QR check-in
@@ -67,6 +77,17 @@ export default function FieldOfficerPortal() {
   const [currentPatrolZone, setCurrentPatrolZone] = useState<string | null>(zoneId)
   const [currentLocation, setCurrentLocation] = useState<{ latitude: number; longitude: number } | null>(null)
   const [scanTabFilter, setScanTabFilter] = useState<'all' | 'compliant' | 'breach' | 'at_risk' | 'homeless'>('all')
+
+  // ── Quick standalone report modal ─────────────────────────────────────────
+  const [showQuickReport,      setShowQuickReport]      = useState(false)
+  const [qrReportType,         setQRReportType]         = useState<'hs'|'incident'|'maintenance'>('incident')
+  const [qrIncidentType,       setQRIncidentType]       = useState('general_incident')
+  const [qrSeverity,           setQRSeverity]           = useState<'low'|'medium'|'high'|'critical'>('medium')
+  const [qrDescription,        setQRDescription]        = useState('')
+  const [qrActionTaken,        setQRActionTaken]        = useState('')
+  const [qrVehiclePlate,       setQRVehiclePlate]       = useState('')
+  const [qrLocationAddress,    setQRLocationAddress]    = useState('')
+  const [isSubmittingReport,   setIsSubmittingReport]   = useState(false)
 
   // Man-Down Detection — records GPS updates and fires alert if stationary too long
   const { recordGPSUpdate, isManDownActive } = useManDownDetection()
@@ -286,6 +307,8 @@ export default function FieldOfficerPortal() {
         vehicleMoved:        null,
         isNewVehicle:        false,
         officerNotes:        result.weather !== 'Unknown' ? `Weather: ${result.weather}` : null,
+        gpsLatitude:         result.gpsLatitude,
+        gpsLongitude:        result.gpsLongitude,
         hasDiscrepancies:    false,
         discrepancyFlags:    null,
       })
@@ -310,6 +333,89 @@ export default function FieldOfficerPortal() {
     navigate('/compliance')
   }
 
+  // ── Open quick-report modal, auto-fill location from GPS ─────────────────
+  const handleOpenQuickReport = useCallback(() => {
+    setQRVehiclePlate('')
+    setQRDescription('')
+    setQRActionTaken('')
+    setQRLocationAddress('')
+    setQRReportType('incident')
+    setQRIncidentType('general_incident')
+    setQRSeverity('medium')
+    setShowQuickReport(true)
+    // Auto-fill location from GPS
+    if (currentLocation?.latitude && currentLocation?.longitude) {
+      reverseGeocode(currentLocation.latitude, currentLocation.longitude)
+        .then(result => {
+          if (!result) return
+          const parts = [
+            result.street_number && result.street_name
+              ? `${result.street_number} ${result.street_name}`
+              : result.street_name,
+            result.suburb,
+            result.city,
+          ].filter(Boolean)
+          if (parts.length > 0) setQRLocationAddress(parts.join(', '))
+        })
+        .catch(() => { /* non-critical */ })
+    }
+  }, [currentLocation])
+
+  // ── Submit standalone quick report ────────────────────────────────────────
+  const handleSubmitQuickReport = useCallback(async () => {
+    if (!user || !qrDescription.trim()) {
+      toast.warning('Please describe the incident')
+      return
+    }
+    setIsSubmittingReport(true)
+    try {
+      const descFull = qrDescription.trim() +
+        (qrActionTaken.trim() ? `\n\nAction taken: ${qrActionTaken.trim()}` : '') +
+        (qrVehiclePlate.trim() ? `\n\nLinked vehicle: ${qrVehiclePlate.trim().toUpperCase()}` : '') +
+        (qrLocationAddress.trim() ? `\n\nLocation: ${qrLocationAddress.trim()}` : '')
+
+      if (qrReportType === 'hs') {
+        const { error } = await (supabase.from('health_safety_reports') as any)
+          .insert({
+            organization_id: user.organization_id,
+            reported_by:     user.id,
+            zone_id:         zoneId || null,
+            incident_type:   qrIncidentType,
+            severity:        qrSeverity,
+            description:     descFull,
+            status:          'pending',
+          })
+        if (error) throw error
+        toast.success('H&S report submitted — admin notified')
+      } else {
+        const { error } = await (supabase.from('incidents') as any)
+          .insert({
+            organization_id: user.organization_id,
+            reported_by:     user.id,
+            zone_id:         zoneId || null,
+            plate_number:    qrVehiclePlate.trim().toUpperCase() || null,
+            incident_type:   qrReportType === 'maintenance' ? 'maintenance' : qrIncidentType,
+            severity:        qrSeverity,
+            description:     descFull,
+            location_address: qrLocationAddress.trim() || null,
+            location_lat:    currentLocation?.latitude ?? null,
+            location_lng:    currentLocation?.longitude ?? null,
+            status:          'open',
+          })
+        if (error) throw error
+        toast.success(qrReportType === 'maintenance' ? 'Maintenance report submitted' : 'Incident report submitted — admin notified')
+      }
+      setShowQuickReport(false)
+      setQRDescription('')
+      setQRActionTaken('')
+      setQRVehiclePlate('')
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to submit report')
+    } finally {
+      setIsSubmittingReport(false)
+    }
+  }, [user, qrReportType, qrIncidentType, qrSeverity, qrDescription, qrActionTaken, qrVehiclePlate, qrLocationAddress, zoneId, currentLocation])
+
   return (
     <AppLayout
       title="Field Officer Portal"
@@ -326,6 +432,40 @@ export default function FieldOfficerPortal() {
           </div>
         </div>
       )}
+
+      {/* ── Night Patrol mode toggle strip ───────────────────────────── */}
+      <div className={`flex items-center justify-between rounded-xl px-4 py-2.5 mb-4 transition-colors ${
+        isNightPatrol
+          ? 'bg-cyan-950 border border-cyan-700'
+          : 'bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700'
+      }`}>
+        <div className="flex items-center gap-2">
+          {isNightPatrol
+            ? <Moon className="h-4 w-4 text-cyan-400" />
+            : <Sun className="h-4 w-4 text-amber-500" />}
+          <div>
+            <p className={`text-sm font-semibold ${isNightPatrol ? 'text-cyan-300' : 'text-gray-800 dark:text-gray-200'}`}>
+              {isNightPatrol ? 'Night Patrol Mode' : 'Standard Mode'}
+            </p>
+            <p className={`text-[11px] ${isNightPatrol ? 'text-cyan-500' : 'text-gray-500'}`}>
+              {isNightPatrol ? 'Dark display · Large buttons · High contrast' : 'Tap 🌙 for night field work'}
+            </p>
+          </div>
+        </div>
+        <Button
+          size="sm"
+          variant={isNightPatrol ? 'default' : 'outline'}
+          className={`h-10 px-4 text-sm font-semibold ${
+            isNightPatrol
+              ? 'bg-cyan-600 hover:bg-cyan-500 text-white border-cyan-600'
+              : 'border-gray-300 dark:border-gray-600'
+          }`}
+          onClick={() => setThemeMode(isNightPatrol ? 'dark' : 'night-patrol')}
+        >
+          {isNightPatrol ? <Sun className="h-4 w-4 mr-1.5" /> : <Moon className="h-4 w-4 mr-1.5" />}
+          {isNightPatrol ? 'Day Mode' : '🌙 Night Mode'}
+        </Button>
+      </div>
 
       {/* ── BULK SCAN MODE — full screen ────────────────────────────── */}
       {scanMode === 'bulk' ? (
@@ -507,11 +647,15 @@ export default function FieldOfficerPortal() {
                 </div>
                 Create Report
               </CardTitle>
-              <CardDescription>Submit incident or H&S</CardDescription>
+              <CardDescription>H&amp;S, incident or maintenance</CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-2">
+              <Button className="w-full" onClick={handleOpenQuickReport}>
+                <PlusCircle className="h-4 w-4 mr-2" />
+                New Quick Report
+              </Button>
               <Button className="w-full" variant="outline" onClick={() => navigate('/incidents')}>
-                New Report
+                View All Reports
               </Button>
             </CardContent>
           </Card>
@@ -690,13 +834,21 @@ export default function FieldOfficerPortal() {
               }
               return true
             }).map((scan: any) => {
-              const isProcessingAI = scan.plate_number === 'PROCESSING...' || scan.plate_number === 'MANUAL_REQUIRED'
+              const isManualRequired = scan.plate_number === 'MANUAL_REQUIRED'
+              const isProcessingAI = scan.plate_number === 'PROCESSING...' || isManualRequired
               const inBreach = scan.is_compliant === false && !isProcessingAI
+              const vehicle = scan.vehicle as any
+              const homelessStatus = vehicle?.homeless_status
+              const isHomelessExempt = homelessStatus === 'confirmed' || homelessStatus === 'claimed'
               return (
                 <div
                   key={scan.id}
                   className={`flex items-center gap-3 rounded-lg border p-2.5 ${
-                    inBreach ? 'border-red-200 bg-red-50 dark:bg-red-950/30' : 'border-gray-100 bg-white dark:bg-slate-900'
+                    isManualRequired
+                      ? 'border-orange-300 bg-orange-50 dark:bg-orange-950/20'
+                      : inBreach
+                      ? 'border-red-200 bg-red-50 dark:bg-red-950/30'
+                      : 'border-gray-100 bg-white dark:bg-slate-900'
                   }`}
                 >
                   {/* Thumbnail */}
@@ -716,7 +868,11 @@ export default function FieldOfficerPortal() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5 flex-wrap">
                       <span className="font-mono font-bold text-sm">
-                        {isProcessingAI ? '⏳ Scanning...' : (scan.plate_number || '—')}
+                        {isManualRequired
+                          ? <span className="text-orange-600">⚠ Enter Plate</span>
+                          : scan.plate_number === 'PROCESSING...'
+                          ? '⏳ Scanning...'
+                          : (scan.plate_number || '—')}
                       </span>
                       {!isProcessingAI && scan.is_compliant !== null && (
                         <Badge
@@ -731,38 +887,57 @@ export default function FieldOfficerPortal() {
                           Pending
                         </Badge>
                       )}
+                      {isHomelessExempt && (
+                        <Badge className="bg-purple-600 text-white text-[10px] px-1.5 py-0">
+                          <Home className="h-2.5 w-2.5 mr-1" />
+                          {homelessStatus === 'confirmed' ? 'Confirmed Homeless' : 'Homeless Claimed'}
+                        </Badge>
+                      )}
                     </div>
                     <div className="text-[11px] text-muted-foreground truncate">
                       {scan.zone?.name} · {formatDateTime(scan.recorded_at)}
                     </div>
                   </div>
 
+                  {/* Manual entry — show edit button */}
+                  {isManualRequired && (
+                    <div className="flex gap-1 shrink-0">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 px-2 text-[11px] border-orange-400 text-orange-700 hover:bg-orange-50"
+                        onClick={() => navigate(`/observation-records?observation_id=${encodeURIComponent(scan.id)}`)}
+                      >
+                        <X className="h-3 w-3 mr-1" />
+                        Edit Plate
+                      </Button>
+                    </div>
+                  )}
+
                   {/* Enforcement action buttons — only shown for breach + AI complete */}
                   {inBreach && (
                     <div className="flex gap-1 shrink-0">
-                      {/* Warning: shown for officer_direct AND hybrid */}
-                      {(orgWorkflow === 'officer_direct' || orgWorkflow === 'hybrid') && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-7 px-2 text-[11px] border-yellow-400 text-yellow-700 hover:bg-yellow-50"
-                          disabled={issueAction.isPending}
-                          onClick={() =>
-                            issueAction.mutate({
-                              observationId: scan.id,
-                              zoneId: scan.zone_id || '',
-                              plateNumber: scan.plate_number,
-                              actionType: 'warning',
-                            })
-                          }
-                        >
-                          <FileWarning className="h-3 w-3 mr-1" />
-                          Warning
-                        </Button>
-                      )}
+                      {/* Warning: shown for all workflows */}
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 px-2 text-[11px] border-yellow-400 text-yellow-700 hover:bg-yellow-50"
+                        disabled={issueAction.isPending}
+                        onClick={() =>
+                          issueAction.mutate({
+                            observationId: scan.id,
+                            zoneId: scan.zone_id || '',
+                            plateNumber: scan.plate_number,
+                            actionType: 'warning',
+                          })
+                        }
+                      >
+                        <FileWarning className="h-3 w-3 mr-1" />
+                        Warn
+                      </Button>
 
-                      {/* Notice to Vacate: officer_direct only */}
-                      {orgWorkflow === 'officer_direct' && (
+                      {/* Notice to Vacate: officer_direct and hybrid */}
+                      {(orgWorkflow === 'officer_direct' || orgWorkflow === 'hybrid') && (
                         <Button
                           size="sm"
                           variant="outline"
@@ -778,11 +953,11 @@ export default function FieldOfficerPortal() {
                           }
                         >
                           <Megaphone className="h-3 w-3 mr-1" />
-                          Notice
+                          Vacate
                         </Button>
                       )}
 
-                      {/* Admin First: read-only badge */}
+                      {/* Admin First: reported badge */}
                       {(!orgWorkflow || orgWorkflow === 'admin_first') && (
                         <Badge variant="secondary" className="text-[10px]">
                           <Shield className="h-2.5 w-2.5 mr-1" />
@@ -842,6 +1017,170 @@ export default function FieldOfficerPortal() {
           currentLocation?.longitude ?? 0,
         )}
       />
+
+      {/* ── Quick Standalone Report Modal ─────────────────────────────── */}
+      <Dialog open={showQuickReport} onOpenChange={setShowQuickReport}>
+        <DialogContent className="max-w-md max-h-[90dvh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FileText className="h-5 w-5 text-purple-600" />
+              New Report
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4 pt-1">
+            {/* Report type selector */}
+            <div className="grid grid-cols-3 gap-2">
+              {([
+                { key: 'incident',    label: 'Incident',    Icon: AlertTriangle, color: 'border-orange-400 text-orange-700 bg-orange-50' },
+                { key: 'hs',         label: 'H&S',         Icon: ShieldAlert,   color: 'border-red-400 text-red-700 bg-red-50' },
+                { key: 'maintenance', label: 'Maintenance', Icon: Wrench,        color: 'border-blue-400 text-blue-700 bg-blue-50' },
+              ] as const).map(({ key, label, Icon, color }) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setQRReportType(key)}
+                  className={`flex flex-col items-center gap-1 rounded-lg border-2 p-2.5 text-xs font-medium transition-colors ${
+                    qrReportType === key
+                      ? color
+                      : 'border-gray-200 text-gray-500 hover:border-gray-300'
+                  }`}
+                >
+                  <Icon className="h-4 w-4" />
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            {/* Incident type (not for maintenance) */}
+            {qrReportType !== 'maintenance' && (
+              <div className="space-y-1">
+                <Label className="text-xs">Incident Type</Label>
+                <Select value={qrIncidentType} onValueChange={setQRIncidentType}>
+                  <SelectTrigger className="h-9 text-sm">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {qrReportType === 'hs' ? (
+                      <>
+                        <SelectItem value="threatening_behaviour">Threatening Behaviour</SelectItem>
+                        <SelectItem value="medical_emergency">Medical Emergency</SelectItem>
+                        <SelectItem value="property_damage">Property Damage</SelectItem>
+                        <SelectItem value="welfare_concern">Welfare Concern</SelectItem>
+                        <SelectItem value="hazard">Hazard / Safety Risk</SelectItem>
+                        <SelectItem value="other">Other</SelectItem>
+                      </>
+                    ) : (
+                      <>
+                        <SelectItem value="general_incident">General Incident</SelectItem>
+                        <SelectItem value="breach_of_rules">Breach of Rules</SelectItem>
+                        <SelectItem value="threatening_behaviour">Threatening Behaviour</SelectItem>
+                        <SelectItem value="noise_complaint">Noise Complaint</SelectItem>
+                        <SelectItem value="vehicle_accident">Vehicle Accident</SelectItem>
+                        <SelectItem value="other">Other</SelectItem>
+                      </>
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {/* Severity */}
+            <div className="space-y-1">
+              <Label className="text-xs">Severity</Label>
+              <Select value={qrSeverity} onValueChange={v => setQRSeverity(v as 'low'|'medium'|'high'|'critical')}>
+                <SelectTrigger className="h-9 text-sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="low">Low</SelectItem>
+                  <SelectItem value="medium">Medium</SelectItem>
+                  <SelectItem value="high">High — admin notified</SelectItem>
+                  <SelectItem value="critical">Critical — immediate attention</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Description */}
+            <div className="space-y-1">
+              <Label className="text-xs">Description <span className="text-red-500">*</span></Label>
+              <Textarea
+                value={qrDescription}
+                onChange={e => setQRDescription(e.target.value)}
+                rows={4}
+                className="resize-none text-sm"
+                placeholder={
+                  qrReportType === 'maintenance'
+                    ? 'Describe the maintenance issue, location, and urgency'
+                    : 'Describe what happened — who, what, where, and any risk'
+                }
+              />
+            </div>
+
+            {/* Action taken */}
+            <div className="space-y-1">
+              <Label className="text-xs">Action Taken</Label>
+              <Textarea
+                value={qrActionTaken}
+                onChange={e => setQRActionTaken(e.target.value)}
+                rows={2}
+                className="resize-none text-sm"
+                placeholder="Immediate action taken (police called, area secured, etc.)"
+              />
+            </div>
+
+            {/* Vehicle plate (optional) */}
+            <div className="space-y-1">
+              <Label className="text-xs">Linked Vehicle Plate (optional)</Label>
+              <Input
+                value={qrVehiclePlate}
+                onChange={e => setQRVehiclePlate(e.target.value.toUpperCase())}
+                placeholder="e.g. ABC123"
+                className="h-9 text-sm font-mono"
+              />
+            </div>
+
+            {/* Location (auto-filled, editable) */}
+            <div className="space-y-1">
+              <Label className="text-xs flex items-center gap-1">
+                <MapPin className="h-3 w-3" />
+                Location (auto-filled from GPS)
+              </Label>
+              <Input
+                value={qrLocationAddress}
+                onChange={e => setQRLocationAddress(e.target.value)}
+                placeholder="Street address or description"
+                className="h-9 text-sm"
+              />
+              {zoneName && (
+                <p className="text-[10px] text-muted-foreground">
+                  Zone: {zoneName}
+                </p>
+              )}
+            </div>
+
+            <div className="flex gap-2 pt-1">
+              <Button
+                variant="outline"
+                className="flex-1"
+                onClick={() => setShowQuickReport(false)}
+                disabled={isSubmittingReport}
+              >
+                Cancel
+              </Button>
+              <Button
+                className="flex-1"
+                disabled={isSubmittingReport || !qrDescription.trim()}
+                onClick={handleSubmitQuickReport}
+              >
+                {isSubmittingReport
+                  ? <><span className="animate-spin mr-2">⏳</span>Submitting…</>
+                  : 'Submit Report'}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </AppLayout>
   )
 }

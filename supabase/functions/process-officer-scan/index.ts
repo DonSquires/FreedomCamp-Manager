@@ -1518,12 +1518,49 @@ Deno.serve(async (req: Request) => {
       } catch { /* ignore */ }
     }
 
+    // Determine self-contained status for compliance evaluation.
+    //
+    // Priority order:
+    //   1. NZSCV returned a real result (including 404 → not registered) → use it.
+    //   2. NZSCV returned null (proxy unavailable / network error) → fall back to
+    //      canonical_vehicles.self_contained (last known good value from a prior lookup).
+    //   3. Both unavailable → benefit-of-the-doubt = true so we don't flood admins
+    //      with false "SCV not found" breaches whenever the proxy is down.
+    let isSelfContainedForCompliance: boolean;
+    if (nzscv !== null) {
+      // nzscv is a real result — could be confirmed self-contained or a 404 not-in-register
+      isSelfContainedForCompliance = nzscv.isSelfContained;
+    } else if (plate) {
+      // NZSCV unavailable — check canonical_vehicles for last known status
+      try {
+        const { data: cvFallback } = await supabase
+          .from('canonical_vehicles')
+          .select('self_contained')
+          .eq('plate_number', plate)
+          .maybeSingle();
+        if (cvFallback?.self_contained != null) {
+          isSelfContainedForCompliance = cvFallback.self_contained as boolean;
+          console.log('ℹ️ NZSCV unavailable — using canonical_vehicles.self_contained fallback:', isSelfContainedForCompliance);
+        } else {
+          // No prior data either — benefit of the doubt, avoid false breach
+          isSelfContainedForCompliance = true;
+          console.warn('⚠️ NZSCV unavailable and no canonical fallback — defaulting to self_contained=true (benefit of doubt)');
+        }
+      } catch {
+        isSelfContainedForCompliance = true;
+        console.warn('⚠️ canonical_vehicles fallback query failed — defaulting to self_contained=true');
+      }
+    } else {
+      // No plate yet (MANUAL_REQUIRED) — benefit of the doubt
+      isSelfContainedForCompliance = true;
+    }
+
     const compliance = await evaluateCompliance(supabase, {
       zoneId,
       organizationId,
       plate: plate ?? 'MANUAL_REQUIRED',
       recordedAt,
-      isSelfContained: nzscv?.isSelfContained ?? false,
+      isSelfContained: isSelfContainedForCompliance,
       isHomeless,
     });
 

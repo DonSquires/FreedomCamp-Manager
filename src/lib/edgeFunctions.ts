@@ -546,6 +546,9 @@ export const edgeFunctions = {
     photoDataUrl?: string
     photo_url?: string
     photo_hash?: string
+    /** Pass to UPDATE an existing observation row instead of creating a new one */
+    existing_observation_id?: string
+    observation_id?: string
     gpsLatitude?: number
     gps_latitude?: number
     gps?: { lat: number; lng: number; accuracy?: number }
@@ -567,6 +570,7 @@ export const edgeFunctions = {
     notes?: string
     officer_notes?: string
     plate?: string | null
+    plate_number?: string | null
     confidence?: number | null
     requires_manual_entry?: boolean
     raw_candidates?: string[]
