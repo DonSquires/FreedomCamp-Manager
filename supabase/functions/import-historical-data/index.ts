@@ -473,6 +473,9 @@ Deno.serve(async (req) => {
         const headers: Record<string, string> = {
           'Content-Type': 'application/json',
         };
+        if (token) {
+          headers['Authorization'] = `Bearer ${token}`;
+        }
         if (INFERENCE_API_KEY) {
           headers['x-inference-api-key'] = INFERENCE_API_KEY;
         }

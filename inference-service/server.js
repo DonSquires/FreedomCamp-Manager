@@ -31,6 +31,13 @@ const TABULAR_NLP_TIMEOUT_MS = Number(process.env.TABULAR_NLP_TIMEOUT_MS || 2500
 const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434';
 const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'llama3.1:8b';
 const INFERENCE_API_KEY = process.env.INFERENCE_API_KEY || '';
+const SUPABASE_URL = (process.env.SUPABASE_URL || '').replace(/\/+$/, '');
+const SUPABASE_JWKS_URL = process.env.SUPABASE_JWKS_URL || (SUPABASE_URL ? `${SUPABASE_URL}/auth/v1/.well-known/jwks.json` : '');
+const SUPABASE_JWT_ISSUER = process.env.SUPABASE_JWT_ISSUER || (SUPABASE_URL ? `${SUPABASE_URL}/auth/v1` : '');
+const SUPABASE_JWT_AUDIENCE = process.env.SUPABASE_JWT_AUDIENCE || '';
+
+let joseRuntimePromise = null;
+let supabaseJwks = null;
 
 // Configure CORS (restrict to your Supabase Edge Function)
 const corsOptions = {
@@ -42,15 +49,68 @@ const corsOptions = {
 app.use(cors(corsOptions));
 app.use(express.json({ limit: '10mb' }));
 
-function requireInferenceApiKey(req, res, next) {
-  if (!INFERENCE_API_KEY) return next();
+function getBearerToken(req) {
+  const authHeader = req.get('authorization') || '';
+  const match = authHeader.match(/^Bearer\s+(.+)$/i);
+  return match?.[1] || '';
+}
 
-  const header = req.get('x-inference-api-key') || req.get('authorization')?.replace(/^Bearer\s+/i, '');
-  if (!header || header !== INFERENCE_API_KEY) {
-    return res.status(401).json({ error: 'Unauthorized inference request' });
+async function getJoseRuntime() {
+  if (!joseRuntimePromise) {
+    joseRuntimePromise = import('jose').then(({ createRemoteJWKSet, jwtVerify }) => ({
+      createRemoteJWKSet,
+      jwtVerify,
+    }));
+  }
+  return joseRuntimePromise;
+}
+
+async function verifySupabaseJwt(token) {
+  if (!SUPABASE_JWKS_URL) {
+    throw new Error('SUPABASE_JWKS_URL is not configured');
   }
 
-  return next();
+  const { createRemoteJWKSet, jwtVerify } = await getJoseRuntime();
+  if (!supabaseJwks) {
+    supabaseJwks = createRemoteJWKSet(new URL(SUPABASE_JWKS_URL));
+  }
+
+  const verifyOptions = {};
+  if (SUPABASE_JWT_ISSUER) verifyOptions.issuer = SUPABASE_JWT_ISSUER;
+  if (SUPABASE_JWT_AUDIENCE) verifyOptions.audience = SUPABASE_JWT_AUDIENCE;
+
+  const { payload } = await jwtVerify(token, supabaseJwks, verifyOptions);
+  return payload;
+}
+
+async function requireInferenceAuth(req, res, next) {
+  try {
+    const apiKeyCandidate = req.get('x-inference-api-key') || getBearerToken(req);
+    if (INFERENCE_API_KEY && apiKeyCandidate && apiKeyCandidate === INFERENCE_API_KEY) {
+      req.inferenceAuth = { method: 'api_key' };
+      return next();
+    }
+
+    const bearerToken = getBearerToken(req);
+    if (bearerToken && SUPABASE_JWKS_URL) {
+      const jwtPayload = await verifySupabaseJwt(bearerToken);
+      req.inferenceAuth = {
+        method: 'supabase_jwt',
+        sub: jwtPayload?.sub || null,
+        role: jwtPayload?.role || jwtPayload?.user_role || null,
+      };
+      return next();
+    }
+
+    const authConfigured = Boolean(INFERENCE_API_KEY || SUPABASE_JWKS_URL);
+    if (!authConfigured) {
+      return next();
+    }
+
+    return res.status(401).json({ error: 'Unauthorized inference request' });
+  } catch (error) {
+    return res.status(401).json({ error: 'Unauthorized inference request', details: error.message });
+  }
 }
 
 // Configure multer for image uploads
@@ -342,7 +402,7 @@ async function analyzeTabularDataWithOllama(sampleRows) {
   }
 }
 
-app.post('/nlp/tabular/analyze', requireInferenceApiKey, async (req, res) => {
+app.post('/nlp/tabular/analyze', requireInferenceAuth, async (req, res) => {
   try {
     const sampleRows = req.body?.sampleRows;
     if (!Array.isArray(sampleRows) || sampleRows.length === 0) {
@@ -794,14 +854,21 @@ app.get('/health', (req, res) => {
     },
     config: {
       VEHICLE_ATTRS_PROVIDER,
+      TABULAR_NLP_PROVIDER,
+      SUPABASE_JWKS_URL: SUPABASE_JWKS_URL || null,
+      SUPABASE_JWT_ISSUER: SUPABASE_JWT_ISSUER || null,
+      SUPABASE_JWT_AUDIENCE: SUPABASE_JWT_AUDIENCE || null,
       OPENAI_BASE_URL: OPENAI_BASE_URL || null,
       OPENAI_MODEL: OPENAI_MODEL || null,
       OPENAI_API_KEY_SET: !!OPENAI_API_KEY,
+      INFERENCE_API_KEY_SET: !!INFERENCE_API_KEY,
     },
     capabilities: {
       plate_inference: modelsLoaded,
       ai_attributes: VEHICLE_ATTRS_PROVIDER === 'openai' && !!OPENAI_API_KEY,
       tabular_nlp: true,
+      tabular_nlp_auth_api_key: !!INFERENCE_API_KEY,
+      tabular_nlp_auth_supabase_jwt: !!SUPABASE_JWKS_URL,
     },
     uptime: process.uptime(),
     memory: process.memoryUsage()
@@ -830,6 +897,9 @@ loadModels().then(() => {
       OLLAMA_BASE_URL,
       OLLAMA_MODEL,
       INFERENCE_API_KEY_SET: !!INFERENCE_API_KEY,
+      SUPABASE_JWKS_URL: SUPABASE_JWKS_URL || '(not set)',
+      SUPABASE_JWT_ISSUER: SUPABASE_JWT_ISSUER || '(not set)',
+      SUPABASE_JWT_AUDIENCE: SUPABASE_JWT_AUDIENCE || '(not set)',
       OPENAI_BASE_URL: OPENAI_BASE_URL || '(not set)',
       OPENAI_MODEL: OPENAI_MODEL || '(not set)',
       OPENAI_API_KEY: OPENAI_API_KEY ? `${OPENAI_API_KEY.slice(0, 6)}…` : '(not set)',

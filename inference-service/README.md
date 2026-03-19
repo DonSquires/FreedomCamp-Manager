@@ -83,6 +83,10 @@ Analyze tabular import samples (XLSX/CSV rows) for date format and data quality.
 This endpoint is designed for historical import workflows and can run fully local with
 `TABULAR_NLP_PROVIDER=heuristic` (no external providers required).
 
+Authentication for this endpoint supports either:
+- `x-inference-api-key` matching `INFERENCE_API_KEY`
+- `Authorization: Bearer <supabase_jwt>` verified against Supabase JWKS
+
 **Request:**
 ```bash
 curl -X POST http://localhost:3000/nlp/tabular/analyze \
