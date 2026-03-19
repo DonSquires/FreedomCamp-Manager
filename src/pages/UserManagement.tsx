@@ -242,8 +242,8 @@ export default function UserManagement() {
           payload,
           'Failed to send user invitation',
         ),
-        30000,
-        'Invitation request timed out. Check SMTP settings and try again.',
+        60000,
+        'Invitation request timed out after 60 seconds. Check SMTP settings/network and try again.',
       )
       if (error) {
         const message = await getFunctionErrorMessage(error, 'Failed to send user invitation')
