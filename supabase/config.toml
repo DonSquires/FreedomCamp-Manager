@@ -126,3 +126,11 @@ verify_jwt = false
 # inside the function body.
 [functions.sync-scv-list]
 verify_jwt = false
+
+# create-user: admin/master users invite new users from the browser; their
+# ES256-signed JWTs are rejected by the Supabase gateway before the function
+# runs (401, execution_id: null). The function validates the caller's JWT
+# internally via supabaseAdmin.auth.getUser(token) and checks role before
+# creating any auth users.
+[functions.create-user]
+verify_jwt = false
