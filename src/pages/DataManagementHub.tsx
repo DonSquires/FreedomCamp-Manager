@@ -168,11 +168,30 @@ async function loadScvCurrentEntries(): Promise<Array<{ plate_number: string; ex
   }
 
   const xlsxModule = await import('xlsx')
-  const XLSX = (xlsxModule as any).default ?? xlsxModule
+  const candidate =
+    (xlsxModule as any).default ??
+    (xlsxModule as any).XLSX ??
+    xlsxModule
+
+  const readFn =
+    (candidate as any)?.read ??
+    (xlsxModule as any)?.read ??
+    (xlsxModule as any)?.default?.read
+
+  const utils =
+    (candidate as any)?.utils ??
+    (xlsxModule as any)?.utils ??
+    (xlsxModule as any)?.default?.utils
+
+  if (typeof readFn !== 'function' || !utils?.sheet_to_json) {
+    const moduleKeys = Object.keys(xlsxModule as Record<string, unknown>)
+    throw new Error(`XLSX module is missing expected APIs (read/utils). Keys: ${moduleKeys.join(', ')}`)
+  }
+
   const arrayBuffer = await response.arrayBuffer()
-  const workbook = XLSX.read(arrayBuffer, { type: 'array' })
+  const workbook = readFn(arrayBuffer, { type: 'array' })
   const worksheet = workbook.Sheets[workbook.SheetNames[0]]
-  const rows = XLSX.utils.sheet_to_json<Record<string, string>>(worksheet)
+  const rows = utils.sheet_to_json<Record<string, string>>(worksheet)
 
   const entries: Array<{ plate_number: string; expiry: string | null }> = []
   for (const row of rows) {
