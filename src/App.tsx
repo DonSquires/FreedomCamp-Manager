@@ -131,9 +131,10 @@ function RouteChangeCleanup() {
   const qc = useQueryClient()
 
   useEffect(() => {
-    // Cancel any in-flight queries when the route changes so that callbacks
-    // from the previous page don't run against unmounted component state.
-    qc.cancelQueries()
+    // Cancel only actively fetching queries when the route changes so that
+    // callbacks from the previous page don't run against unmounted components.
+    // Using { fetchStatus: 'fetching' } avoids cancelling idle/background queries.
+    qc.cancelQueries({ fetchStatus: 'fetching' })
   }, [location.pathname]) // eslint-disable-line react-hooks/exhaustive-deps
 
   return null

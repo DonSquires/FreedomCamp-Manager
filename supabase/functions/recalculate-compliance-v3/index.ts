@@ -845,14 +845,10 @@ serve(async (req: Request) => {
           .maybeSingle();
 
         if (existingBreach) {
-          // Update existing breach instead of creating a duplicate
+          // Update mutable fields on existing breach instead of creating a duplicate
           await supabaseAdmin
             .from('breach_alerts')
             .update({
-              organization_id: obs.organization_id,
-              zone_id: obs.zone_id,
-              plate_number: obs.plate_number,
-              observation_id: observationId,
               breach_type: validBreachType,
               breach_details: {
                 observation_id: observationId,
