@@ -1021,10 +1021,14 @@ export const edgeFunctions = {
   syncScvList: async (params: {
     dry_run?: boolean
     file_date?: string
-    scv_url?: string
     offset?: number
     batch_size?: number
     include_related_updates?: boolean
+    scv_total_in_list?: number
+    scv_current_entries?: Array<{
+      plate_number: string
+      expiry: string | null
+    }>
   } = {}) => {
     return callEdgeFunction('sync-scv-list', params, { showToast: false })
   },

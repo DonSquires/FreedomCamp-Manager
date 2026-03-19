@@ -134,6 +134,57 @@ function mergeScvResults(current: ScvSyncResult, incoming: ScvSyncResult): ScvSy
   }
 }
 
+function parseNZDateToISO(s: string): string | null {
+  if (!s) return null
+  const parts = s.trim().split('/')
+  if (parts.length !== 3) return null
+  const [dd, mm, yyyy] = parts
+  if (!dd || !mm || !yyyy || yyyy.length !== 4) return null
+  return `${yyyy}-${mm.padStart(2, '0')}-${dd.padStart(2, '0')}`
+}
+
+function calculateScvExpiry(issueDateStr: string): string | null {
+  const iso = parseNZDateToISO(issueDateStr)
+  if (!iso) return null
+  const d = new Date(`${iso}T00:00:00Z`)
+  d.setUTCFullYear(d.getUTCFullYear() + 4)
+  d.setUTCDate(d.getUTCDate() - 1)
+  const yyyy = d.getUTCFullYear()
+  const mm = String(d.getUTCMonth() + 1).padStart(2, '0')
+  const dd = String(d.getUTCDate()).padStart(2, '0')
+  return `${yyyy}-${mm}-${dd}`
+}
+
+async function loadScvCurrentEntries(): Promise<Array<{ plate_number: string; expiry: string | null }>> {
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined
+  if (!supabaseUrl) {
+    throw new Error('Missing VITE_SUPABASE_URL')
+  }
+
+  const scvUrl = `${supabaseUrl}/storage/v1/object/public/Scv%20list/Vehicle%20List%20-%2017022026.xlsx`
+  const response = await fetch(scvUrl)
+  if (!response.ok) {
+    throw new Error(`Failed to fetch SCV list: HTTP ${response.status}`)
+  }
+
+  const { default: XLSX } = await import('xlsx')
+  const arrayBuffer = await response.arrayBuffer()
+  const workbook = XLSX.read(arrayBuffer, { type: 'array' })
+  const worksheet = workbook.Sheets[workbook.SheetNames[0]]
+  const rows = XLSX.utils.sheet_to_json<Record<string, string>>(worksheet)
+
+  const entries: Array<{ plate_number: string; expiry: string | null }> = []
+  for (const row of rows) {
+    const plate = (row['Vehicle Registration'] ?? '').trim().toUpperCase()
+    const status = (row['Certificate Status'] ?? '').trim()
+    const issueDateRaw = (row['Certificate Issue Date'] ?? '').trim()
+    if (!plate || status !== 'Current') continue
+    entries.push({ plate_number: plate, expiry: calculateScvExpiry(issueDateRaw) })
+  }
+
+  return entries
+}
+
 export default function DataManagementHub() {
   const { user } = useAuthStore()
   const { organizationId } = useGlobalFiltersStore()
@@ -229,6 +280,12 @@ export default function DataManagementHub() {
     setScvResult(null)
     setScvProgress(null)
     try {
+      const scvCurrentEntries = await loadScvCurrentEntries()
+      if (scvCurrentEntries.length === 0) {
+        toast.error('SCV list contains no current entries')
+        return
+      }
+
       let offset = 0
       let aggregate = { ...EMPTY_SCV_RESULT }
       let hasMore = true
@@ -239,6 +296,8 @@ export default function DataManagementHub() {
           offset,
           batch_size: SCV_BATCH_SIZE,
           include_related_updates: false,
+          scv_total_in_list: scvCurrentEntries.length,
+          scv_current_entries: scvCurrentEntries,
         })
 
         if (error) {

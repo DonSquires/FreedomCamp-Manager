@@ -1,8 +1,8 @@
 /**
  * SYNC SCV LIST
  *
- * Reads the NZSCV Self-Contained Vehicle Excel list from Supabase Storage,
- * compares it against canonical_vehicles, and updates records accordingly.
+ * Syncs SCV status using client-supplied SCV entries,
+ * compares them against canonical_vehicles, and updates records accordingly.
  *
  * For vehicles found in the list with "Current" status:
  *   - Sets self_contained = true
@@ -18,7 +18,8 @@
  * POST body (all optional):
  *   dry_run   boolean  — if true, only report what would change (no DB writes)
  *   file_date string   — ISO timestamp to stamp as nzscv_last_checked (default: 2026-02-17T00:00:00Z)
- *   scv_url   string   — override storage URL for the Excel file
+ *   scv_current_entries array — [{ plate_number, expiry }] for Current SCV vehicles
+ *   scv_total_in_list number  — total Current vehicles in source list
  *   offset    number   — canonical_vehicles pagination offset (default: 0)
  *   batch_size number  — canonical_vehicles page size, max 1000 (default: 500)
  *   include_related_updates boolean — if true, also update observations and breach_alerts (default: false)
@@ -27,7 +28,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.7';
 import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
 import { corsHeaders } from '../_shared/cors.ts';
-import * as XLSX from 'npm:xlsx';
 
 interface SyncResult {
   total_in_scv_list: number;
@@ -50,6 +50,11 @@ interface BatchMeta {
   has_more: boolean;
   batch_number: number;
   total_batches: number | null;
+}
+
+interface ScvCurrentEntry {
+  plate_number: string;
+  expiry: string | null;
 }
 
 function parseJwtPayload(token: string): Record<string, unknown> | null {
@@ -161,9 +166,16 @@ serve(async (req) => {
     const fileDate: string = body.file_date ?? '2026-02-17T00:00:00Z';
     const offset = parseBatchNumber(body.offset, 0);
     const batchSize = Math.min(1000, Math.max(1, parseBatchNumber(body.batch_size, 500)));
-    const scvUrl: string =
-      body.scv_url ??
-      `${Deno.env.get('SUPABASE_URL')}/storage/v1/object/public/Scv%20list/Vehicle%20List%20-%2017022026.xlsx`;
+    const scvCurrentEntries: ScvCurrentEntry[] = Array.isArray(body.scv_current_entries)
+      ? body.scv_current_entries
+      : [];
+    const scvTotalInList = parseBatchNumber(body.scv_total_in_list, 0);
+
+    if (scvCurrentEntries.length === 0) {
+      return json(400, {
+        error: 'Missing scv_current_entries. Please update client to pre-parse SCV list.',
+      });
+    }
 
     const result: SyncResult = {
       total_in_scv_list: 0,
@@ -205,83 +217,17 @@ serve(async (req) => {
       total_batches: null,
     };
 
-    // ── Step 2: Download and scan the SCV Excel list for this batch only ───
+    // ── Step 2: Build SCV lookup from client-supplied entries ───────────────
 
-    type ScvEntry = { status: string; expiry: string | null };
+    type ScvEntry = { expiry: string | null };
     const scvMap: Map<string, ScvEntry> = new Map();
 
-    try {
-      const batchPlates = new Set<string>();
-      for (const cv of canonicalVehicles as Array<{ plate_number: string | null }>) {
-        const normalized = (cv.plate_number ?? '').trim().toUpperCase();
-        if (normalized) batchPlates.add(normalized);
-      }
-
-      // No vehicles in this batch: skip SCV file work entirely.
-      if (batchPlates.size > 0) {
-        const scvRes = await fetch(scvUrl);
-        if (!scvRes.ok) {
-          throw new Error(`HTTP ${scvRes.status} ${scvRes.statusText} fetching SCV list`);
-        }
-
-        const buf = await scvRes.arrayBuffer();
-        const wb = XLSX.read(new Uint8Array(buf), {
-          type: 'array',
-          cellFormula: false,
-          cellHTML: false,
-          cellStyles: false,
-          cellText: false,
-          dense: false,
-        });
-        const ws = wb.Sheets[wb.SheetNames[0]];
-        const ref = ws?.['!ref'];
-        if (!ref) {
-          throw new Error('SCV list worksheet has no range reference');
-        }
-
-        const range = XLSX.utils.decode_range(ref);
-        const headerRowIndex = range.s.r;
-
-        let regCol = -1;
-        let statusCol = -1;
-        let issueDateCol = -1;
-
-        for (let c = range.s.c; c <= range.e.c; c++) {
-          const headerCell = ws[XLSX.utils.encode_cell({ c, r: headerRowIndex })];
-          const header = String(headerCell?.v ?? '').trim();
-          if (header === 'Vehicle Registration') regCol = c;
-          if (header === 'Certificate Status') statusCol = c;
-          if (header === 'Certificate Issue Date') issueDateCol = c;
-        }
-
-        if (regCol < 0 || statusCol < 0 || issueDateCol < 0) {
-          throw new Error('SCV list headers missing required columns');
-        }
-
-        let currentCount = 0;
-        for (let r = headerRowIndex + 1; r <= range.e.r; r++) {
-          const plateCell = ws[XLSX.utils.encode_cell({ c: regCol, r })];
-          const statusCell = ws[XLSX.utils.encode_cell({ c: statusCol, r })];
-          const issueDateCell = ws[XLSX.utils.encode_cell({ c: issueDateCol, r })];
-
-          const plate = String(plateCell?.v ?? '').trim().toUpperCase();
-          const status = String(statusCell?.v ?? '').trim();
-          const issueDateRaw = String(issueDateCell?.v ?? '').trim();
-
-          if (!plate || status !== 'Current') continue;
-          currentCount++;
-
-          if (batchPlates.has(plate)) {
-            scvMap.set(plate, { status, expiry: calculateExpiry(issueDateRaw) });
-          }
-        }
-
-        result.total_in_scv_list = currentCount;
-      }
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      return json(500, { error: `Failed to load SCV list: ${msg}` });
+    for (const entry of scvCurrentEntries) {
+      const plate = String(entry?.plate_number ?? '').trim().toUpperCase();
+      if (!plate) continue;
+      scvMap.set(plate, { expiry: entry?.expiry ?? null });
     }
+    result.total_in_scv_list = scvTotalInList || scvMap.size;
 
     // ── Step 3: Classify changes ─────────────────────────────────────────────
 
@@ -305,7 +251,7 @@ serve(async (req) => {
     for (const cv of canonicalVehicles ?? []) {
       const plate = (cv.plate_number ?? '').trim().toUpperCase();
       const scvEntry = scvMap.get(plate);
-      const isCurrent = scvEntry?.status === 'Current';
+      const isCurrent = !!scvEntry;
       const expectedExpiry = scvEntry?.expiry ?? null;
 
       if (isCurrent) {
