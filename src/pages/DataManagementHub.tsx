@@ -167,7 +167,8 @@ async function loadScvCurrentEntries(): Promise<Array<{ plate_number: string; ex
     throw new Error(`Failed to fetch SCV list: HTTP ${response.status}`)
   }
 
-  const { default: XLSX } = await import('xlsx')
+  const xlsxModule = await import('xlsx')
+  const XLSX = (xlsxModule as any).default ?? xlsxModule
   const arrayBuffer = await response.arrayBuffer()
   const workbook = XLSX.read(arrayBuffer, { type: 'array' })
   const worksheet = workbook.Sheets[workbook.SheetNames[0]]
