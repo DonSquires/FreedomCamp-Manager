@@ -70,41 +70,53 @@ To confirm it's working:
 
 ## Step 5: Understanding Source Priority
 
-When multiple sources provide vehicle attributes, the system uses this priority order:
+Current production behavior is:
 
-### For Visual Attributes (make, model, year, color):
-$$\text{Inference (HIGH confidence)} \gg \text{Canonical} \gg \text{NZSCV} \gg \text{Inference (low)} \gg \text{ALPR}$$
+### Plate Recognition
+$$\text{Inference} \rightarrow \text{ALPR fallback if no plate from inference}$$
 
-**Rationale**: The inference service (GPT-4o vision) can actually **see the vehicle in the photo**, making it more reliable for visual attributes than external registries.
+- **Inference** tries first.
+- **ALPR** is used only when inference returns no plate.
+- ALPR is **not** used as a source for make/model/year/color updates.
 
-- **Inference (high confidence)**: AI vision with confidence ≥ threshold (Make: 72%, Model: 68%, Color: 60%) — **HIGHEST PRIORITY**
-- **Canonical**: Internal database (vehicle previously verified in zone) — used if inference is not confident enough
-- **NZSCV**: Registry enrichment (optional attributes) — may be stale or incorrect for visual data
-- **Inference (low confidence)**: AI vision with confidence below threshold — fallback
-- **ALPR**: Plate Recognizer — last resort
-- **null**: No data available
+### Visual Attribute Updates (make, model, year, color)
+$$\text{Inference only}$$
 
-### For SC Certification (self_contained, self_contained_expiry):
-$$\text{NZSCV} \text{ (authorities)}$$
+- `vehicle_make`, `vehicle_model`, `vehicle_year`, and `vehicle_color` are updated only from inference outputs.
+- Confidence gating is applied for text/color fields before writing:
+  - Make: ≥ 0.72
+  - Model: ≥ 0.68
+  - Color: ≥ 0.60
+- Year uses inference year when provided.
+- Canonical and NZSCV are used for comparison/discrepancy checks, but not as write sources for visual attributes.
 
-NZSCV always has priority for certification status — the register is the sole authoritative source.
+### SC Certification (self_contained, self_contained_expiry)
+$$\text{NZSCV authoritative}$$
+
+NZSCV remains the source of truth for SC certification status and expiry.
+
+### SC Sticker Detection
+$$\text{Inference only}$$
+
+- Sticker fields (`sticker_presence`, `sticker_color`, `sticker_detection_confidence`) are updated from inference.
+- These are cross-checked against NZSCV for discrepancy alerts.
 
 ### Example
 
 ```
-Vehicle: Toyota HiAce (actually white) — first observation
+Vehicle: Toyota HiAce (white)
 
 Scan results:
-- Inference (GPT-4o): Color "White" (confidence 91%), Make "Toyota" (88%), Model "HiAce" (76%)
-- Canonical: Empty (new in zone)
-- NZSCV: Make "Toyota", Model "HiAce", Color "Black" (stale registry data)
-- ALPR: Color "White" (85%)
+- Inference: plate=ABC123, make=Toyota (0.88), model=HiAce (0.76), color=White (0.91), sticker=present
+- ALPR: used only if inference plate is missing
+- Canonical: used for mismatch checks only
+- NZSCV: used for SC cert status + mismatch checks only
 
-Resolution:
-- Make: "Toyota" (inference 88% ≥ 72% threshold) ✅ **Inference used (high confidence)**
-- Model: "HiAce" (inference 76% ≥ 68% threshold) ✅ **Inference used (high confidence)**
-- **Color: "White"** (inference 91% ≥ 60% threshold) — overrides stale NZSCV "Black" ✅ **Inference used (high confidence)**
-- SC Status: From NZSCV register (if vehicle registered with SC warrant)
+Resolution writes:
+- plate_number: inference plate (or ALPR fallback if inference has none)
+- vehicle_make/model/year/color: inference only
+- sticker fields: inference only
+- self_contained + expiry: NZSCV
 ```
 
 ## Step 6: Monitor API Usage
