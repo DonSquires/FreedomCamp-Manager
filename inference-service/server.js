@@ -21,13 +21,10 @@ const cors = require('cors');
 const app = express();
 const PORT = process.env.PORT || 3000;
 const YOLO_INPUT_SIZE = 640;
+const VEHICLE_ATTRS_PROVIDER = (process.env.VEHICLE_ATTRS_PROVIDER || 'basic').toLowerCase();
 const OPENAI_BASE_URL = process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1';
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
 const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-4o-mini';
-const CONFIGURED_VEHICLE_ATTRS_PROVIDER = (process.env.VEHICLE_ATTRS_PROVIDER || 'basic').toLowerCase();
-const VEHICLE_ATTRS_PROVIDER = OPENAI_API_KEY
-  ? 'openai'
-  : CONFIGURED_VEHICLE_ATTRS_PROVIDER;
 const ATTR_TIMEOUT_MS = Number(process.env.ATTR_TIMEOUT_MS || 2500);
 const TABULAR_NLP_PROVIDER = (process.env.TABULAR_NLP_PROVIDER || 'heuristic').toLowerCase();
 const TABULAR_NLP_TIMEOUT_MS = Number(process.env.TABULAR_NLP_TIMEOUT_MS || 2500);
@@ -772,7 +769,6 @@ app.post('/infer', upload.single('photo'), async (req, res) => {
             vehicle_year_confidence: vehicleAttrs.vehicle_year_confidence,
             vehicle_colour_confidence: vehicleAttrs.vehicle_colour_confidence,
             sticker: vehicleAttrs.sticker,
-            attribute_provider_configured: CONFIGURED_VEHICLE_ATTRS_PROVIDER,
             attribute_provider: VEHICLE_ATTRS_PROVIDER,
             ai_attributes_enabled: VEHICLE_ATTRS_PROVIDER === 'openai' && !!OPENAI_API_KEY,
             metadata: { processing_time_ms: duration },
@@ -837,7 +833,6 @@ app.post('/infer', upload.single('photo'), async (req, res) => {
         vehicle_year_confidence: vehicleAttrs.vehicle_year_confidence,
         vehicle_colour_confidence: vehicleAttrs.vehicle_colour_confidence,
         sticker: vehicleAttrs.sticker,
-        attribute_provider_configured: CONFIGURED_VEHICLE_ATTRS_PROVIDER,
         attribute_provider: VEHICLE_ATTRS_PROVIDER,
         ai_attributes_enabled: VEHICLE_ATTRS_PROVIDER === 'openai' && !!OPENAI_API_KEY,
       }
@@ -862,8 +857,7 @@ app.get('/health', (req, res) => {
       embedding: embeddingSession ? 'loaded' : 'not loaded'
     },
     config: {
-      VEHICLE_ATTRS_PROVIDER_CONFIGURED: CONFIGURED_VEHICLE_ATTRS_PROVIDER,
-      VEHICLE_ATTRS_PROVIDER_EFFECTIVE: VEHICLE_ATTRS_PROVIDER,
+      VEHICLE_ATTRS_PROVIDER,
       TABULAR_NLP_PROVIDER,
       SUPABASE_JWKS_URL: SUPABASE_JWKS_URL || null,
       SUPABASE_JWT_ISSUER: SUPABASE_JWT_ISSUER || null,
@@ -901,8 +895,7 @@ loadModels().then(() => {
     console.log(`🚀 ORC/AI inference service running on port ${PORT}`);
     // Config summary — makes misconfiguration visible at a glance in Railway logs
     console.log(`⚙️  Config:`, {
-      VEHICLE_ATTRS_PROVIDER_CONFIGURED: CONFIGURED_VEHICLE_ATTRS_PROVIDER,
-      VEHICLE_ATTRS_PROVIDER_EFFECTIVE: VEHICLE_ATTRS_PROVIDER,
+      VEHICLE_ATTRS_PROVIDER,
       TABULAR_NLP_PROVIDER,
       TABULAR_NLP_TIMEOUT_MS,
       OLLAMA_BASE_URL,
