@@ -177,37 +177,7 @@ serve(async (req) => {
       errors: [],
     };
 
-    // ── Step 1: Download and parse the SCV Excel list ────────────────────────
-
-    type ScvEntry = { status: string; expiry: string | null };
-    let scvMap: Map<string, ScvEntry>;
-
-    try {
-      const scvRes = await fetch(scvUrl);
-      if (!scvRes.ok) {
-        throw new Error(`HTTP ${scvRes.status} ${scvRes.statusText} fetching SCV list`);
-      }
-      const buf = await scvRes.arrayBuffer();
-      const wb = XLSX.read(new Uint8Array(buf), { type: 'array' });
-      const ws = wb.Sheets[wb.SheetNames[0]];
-      const rows = XLSX.utils.sheet_to_json<Record<string, string>>(ws);
-
-      scvMap = new Map();
-      for (const row of rows) {
-        const plate = (row['Vehicle Registration'] ?? '').trim().toUpperCase();
-        const status = (row['Certificate Status'] ?? '').trim();
-        const issueDateRaw = (row['Certificate Issue Date'] ?? '').trim();
-        if (plate && status === 'Current') {
-          scvMap.set(plate, { status, expiry: status === 'Current' ? calculateExpiry(issueDateRaw) : null });
-        }
-      }
-      result.total_in_scv_list = scvMap.size;
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      return json(500, { error: `Failed to load SCV list: ${msg}` });
-    }
-
-    // ── Step 2: Load a canonical_vehicles batch ─────────────────────────────
+    // ── Step 1: Load a canonical_vehicles batch ─────────────────────────────
 
     const { data: canonicalVehicleRows, error: cvError } = await supabaseAdmin
       .from('canonical_vehicles')
@@ -234,6 +204,84 @@ serve(async (req) => {
       batch_number: result.canonical_vehicles_checked === 0 && offset === 0 ? 0 : Math.floor(offset / batchSize) + 1,
       total_batches: null,
     };
+
+    // ── Step 2: Download and scan the SCV Excel list for this batch only ───
+
+    type ScvEntry = { status: string; expiry: string | null };
+    const scvMap: Map<string, ScvEntry> = new Map();
+
+    try {
+      const batchPlates = new Set<string>();
+      for (const cv of canonicalVehicles as Array<{ plate_number: string | null }>) {
+        const normalized = (cv.plate_number ?? '').trim().toUpperCase();
+        if (normalized) batchPlates.add(normalized);
+      }
+
+      // No vehicles in this batch: skip SCV file work entirely.
+      if (batchPlates.size > 0) {
+        const scvRes = await fetch(scvUrl);
+        if (!scvRes.ok) {
+          throw new Error(`HTTP ${scvRes.status} ${scvRes.statusText} fetching SCV list`);
+        }
+
+        const buf = await scvRes.arrayBuffer();
+        const wb = XLSX.read(new Uint8Array(buf), {
+          type: 'array',
+          cellFormula: false,
+          cellHTML: false,
+          cellStyles: false,
+          cellText: false,
+          dense: false,
+        });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const ref = ws?.['!ref'];
+        if (!ref) {
+          throw new Error('SCV list worksheet has no range reference');
+        }
+
+        const range = XLSX.utils.decode_range(ref);
+        const headerRowIndex = range.s.r;
+
+        let regCol = -1;
+        let statusCol = -1;
+        let issueDateCol = -1;
+
+        for (let c = range.s.c; c <= range.e.c; c++) {
+          const headerCell = ws[XLSX.utils.encode_cell({ c, r: headerRowIndex })];
+          const header = String(headerCell?.v ?? '').trim();
+          if (header === 'Vehicle Registration') regCol = c;
+          if (header === 'Certificate Status') statusCol = c;
+          if (header === 'Certificate Issue Date') issueDateCol = c;
+        }
+
+        if (regCol < 0 || statusCol < 0 || issueDateCol < 0) {
+          throw new Error('SCV list headers missing required columns');
+        }
+
+        let currentCount = 0;
+        for (let r = headerRowIndex + 1; r <= range.e.r; r++) {
+          const plateCell = ws[XLSX.utils.encode_cell({ c: regCol, r })];
+          const statusCell = ws[XLSX.utils.encode_cell({ c: statusCol, r })];
+          const issueDateCell = ws[XLSX.utils.encode_cell({ c: issueDateCol, r })];
+
+          const plate = String(plateCell?.v ?? '').trim().toUpperCase();
+          const status = String(statusCell?.v ?? '').trim();
+          const issueDateRaw = String(issueDateCell?.v ?? '').trim();
+
+          if (!plate || status !== 'Current') continue;
+          currentCount++;
+
+          if (batchPlates.has(plate)) {
+            scvMap.set(plate, { status, expiry: calculateExpiry(issueDateRaw) });
+          }
+        }
+
+        result.total_in_scv_list = currentCount;
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      return json(500, { error: `Failed to load SCV list: ${msg}` });
+    }
 
     // ── Step 3: Classify changes ─────────────────────────────────────────────
 
