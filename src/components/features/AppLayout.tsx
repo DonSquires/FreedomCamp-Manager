@@ -60,8 +60,8 @@ type NavItem = { path: string; icon: React.FC<{ className?: string }>; label: st
 
 // Pinned items always visible at the top of the sidebar
 const pinnedItems: NavItem[] = [
-  { path: '/', icon: Home, label: 'Home', roles: ['admin', 'admin_officer', 'master', 'officer'] },
-  { path: '/search', icon: Search, label: 'Search', roles: ['admin', 'admin_officer', 'master', 'officer'] },
+  { path: '/', icon: Home, label: 'Home', roles: ['admin', 'admin_officer', 'master', 'officer', 'nzscv_monitor'] },
+  { path: '/search', icon: Search, label: 'Search', roles: ['admin', 'admin_officer', 'master', 'officer', 'nzscv_monitor'] },
 ]
 
 // Grouped navigation — collapsed by default, each bucket holds related items
@@ -87,6 +87,7 @@ const navigationGroups: Array<{ label: string; icon: React.FC<{ className?: stri
     icon: Car,
     items: [
       { path: '/vehicles', icon: Car, label: 'Vehicles', roles: ['admin', 'admin_officer', 'master', 'officer'] },
+      { path: '/vehicle-registry', icon: Car, label: 'Vehicle Registry', roles: ['admin', 'admin_officer', 'master', 'nzscv_monitor'] },
       { path: '/zones', icon: MapPin, label: 'Zones', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/users', icon: Users, label: 'Users', roles: ['admin', 'master'] },
       { path: '/organization-profile', icon: Building2, label: 'Organisation', roles: ['admin', 'admin_officer', 'master'] },
@@ -120,7 +121,7 @@ const navigationGroups: Array<{ label: string; icon: React.FC<{ className?: stri
     icon: Settings,
     items: [
       { path: '/profile', icon: User, label: 'My Profile', roles: ['admin', 'admin_officer', 'master', 'officer'] },
-      { path: '/settings', icon: Settings, label: 'Settings', roles: ['admin', 'admin_officer', 'master', 'officer'] },
+      { path: '/settings', icon: Settings, label: 'Settings', roles: ['admin', 'admin_officer', 'master', 'officer', 'nzscv_monitor'] },
     ],
   },
 ]
@@ -377,7 +378,8 @@ export function AppLayout({ children, title, description, showBackButton }: AppL
                     <p className="text-xs text-gray-500 dark:text-gray-500">
                       {user?.role === 'master' ? 'System Admin' : 
                        user?.role === 'admin' ? 'Admin' :
-                       user?.role === 'admin_officer' ? 'Admin Officer' : 'Officer'}
+                        user?.role === 'admin_officer' ? 'Admin Officer' :
+                        user?.role === 'nzscv_monitor' ? 'NZSCV Monitor' : 'Officer'}
                     </p>
                   </div>
                   
@@ -428,7 +430,8 @@ export function AppLayout({ children, title, description, showBackButton }: AppL
             <p className="text-xs text-cyan-200 mt-0.5">
               {user?.role === 'master' ? 'System Administrator' : 
                user?.role === 'admin' ? 'Administrator' :
-               user?.role === 'admin_officer' ? 'Admin Officer' : 'Field Officer'}
+              user?.role === 'admin_officer' ? 'Admin Officer' :
+              user?.role === 'nzscv_monitor' ? 'NZSCV Monitor' : 'Field Officer'}
             </p>
           </div>
           

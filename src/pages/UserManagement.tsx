@@ -639,6 +639,7 @@ export default function UserManagement() {
                 <SelectContent>
                   <SelectItem value="all">All Roles</SelectItem>
                   <SelectItem value="officer">Officers</SelectItem>
+                  <SelectItem value="nzscv_monitor">NZSCV Monitors</SelectItem>
                   <SelectItem value="admin_officer">Admin Officers</SelectItem>
                   <SelectItem value="admin">Admins</SelectItem>
                   <SelectItem value="master">Masters</SelectItem>
@@ -874,6 +875,7 @@ export default function UserManagement() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="officer">Officer</SelectItem>
+                  <SelectItem value="nzscv_monitor">NZSCV Monitor</SelectItem>
                   <SelectItem value="admin_officer">Admin Officer</SelectItem>
                   <SelectItem value="admin">Admin</SelectItem>
                   {user?.role === 'master' && (
@@ -955,6 +957,12 @@ export default function UserManagement() {
                     <div className="flex flex-col items-start">
                       <span className="font-medium">Officer</span>
                       <span className="text-xs text-gray-500">Field operations only</span>
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="nzscv_monitor">
+                    <div className="flex flex-col items-start">
+                      <span className="font-medium">NZSCV Monitor</span>
+                      <span className="text-xs text-gray-500">Read-only vehicle registry monitoring</span>
                     </div>
                   </SelectItem>
                   <SelectItem value="admin_officer">

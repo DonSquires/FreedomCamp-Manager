@@ -7,7 +7,7 @@ interface UserProfile {
   email: string
   first_name: string
   last_name: string
-  role: 'master' | 'admin' | 'officer' | 'admin_officer'
+  role: 'master' | 'admin' | 'officer' | 'admin_officer' | 'nzscv_monitor'
   organization_id: string | null
   is_active: boolean
   phone: string | null

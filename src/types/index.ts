@@ -4,7 +4,7 @@ export interface User {
   email: string
   first_name: string
   last_name: string
-  role: 'master' | 'admin' | 'officer' | 'admin_officer'
+  role: 'master' | 'admin' | 'officer' | 'admin_officer' | 'nzscv_monitor'
   organization_id: string | null
   employer_organization_id: string | null
   authorized_work_locations: string[]

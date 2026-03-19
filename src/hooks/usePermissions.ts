@@ -19,6 +19,7 @@ const ROLE_HIERARCHY = {
   admin: 4,
   admin_officer: 3,
   officer: 2,
+  nzscv_monitor: 1,
   viewer: 1,
 }
 
@@ -50,6 +51,10 @@ const PERMISSION_MATRIX = {
     'create_incidents',
     'edit_own_observations',
     'edit_own_incidents',
+  ],
+  nzscv_monitor: [
+    'view_own_data',
+    'view_reports',
   ],
   viewer: [
     'view_own_data',

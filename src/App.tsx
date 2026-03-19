@@ -128,6 +128,14 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
     return <Navigate to="/portal-selection" replace />
   }
 
+  // NZSCV monitor users are limited to registry monitoring and basic account pages.
+  if (
+    user.role === 'nzscv_monitor' &&
+    !['/vehicle-registry', '/search', '/profile', '/settings'].includes(location.pathname)
+  ) {
+    return <Navigate to="/vehicle-registry" replace />
+  }
+
   return <>{children}</>
 }
 
@@ -279,6 +287,8 @@ export default function App() {
                   <FieldOfficerPortal />
                 ) : user?.role === 'admin_officer' ? (
                   <Navigate to="/portal-selection" replace />
+                ) : user?.role === 'nzscv_monitor' ? (
+                  <Navigate to="/vehicle-registry" replace />
                 ) : (
                   <AdminPortal />
                 )}
@@ -828,7 +838,7 @@ export default function App() {
             path="/vehicle-registry"
             element={
               <ProtectedRoute>
-                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master', 'nzscv_monitor']}>
                   <VehicleRegistry />
                 </RoleRoute>
               </ProtectedRoute>

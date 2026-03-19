@@ -218,8 +218,9 @@ Deno.serve(async (req) => {
     console.log('Creating auth user:', normalizedEmail, '| Role:', role, '| Invitation:', isInvitationFlow);
 
     // Generate default names for field staff
-    const userFirstName = role === 'officer' ? (first_name || email.split('@')[0]) : first_name;
-    const userLastName = role === 'officer' ? (last_name || 'Officer') : last_name;
+    const isFieldStyleRole = role === 'officer' || role === 'nzscv_monitor';
+    const userFirstName = isFieldStyleRole ? (first_name || email.split('@')[0]) : first_name;
+    const userLastName = isFieldStyleRole ? (last_name || 'Officer') : last_name;
     const recipientName = [userFirstName, userLastName].filter(Boolean).join(' ').trim() || normalizedEmail;
 
     const redirectOrigin = req.headers.get('origin') || Deno.env.get('SITE_URL') || 'https://www.ironeaglesecurity.co.nz';

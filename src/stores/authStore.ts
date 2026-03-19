@@ -37,7 +37,7 @@ function clearClientAuthArtifacts() {
 interface AuthUser {
   id: string
   email: string
-  role: 'master' | 'admin' | 'officer' | 'admin_officer'
+  role: 'master' | 'admin' | 'officer' | 'admin_officer' | 'nzscv_monitor'
   organization_id: string | null
   full_name: string | null
 }
