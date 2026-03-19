@@ -49,6 +49,7 @@ interface ParsedRecord {
   plate: string;
   notes: string | null;
   attachments: number;
+  time: string; // HH:MM in 24-hour format, parsed from Modified column
 }
 
 interface ProcessedRecord extends ParsedRecord {
@@ -524,7 +525,24 @@ Deno.serve(async (req) => {
         // ROBUST DATE PARSING - Handle all Excel formats
         let dateObj: Date | null = null;
         
-        // Case 1: JavaScript Date object (from XLSX library)
+        // STEP 1: Try to parse Modified column (G, index 6) for actual datetime first
+        let recordedTime: string = '00:00'; // Default time
+        const modifiedValue = row[6]; // Modified column with "DD/MM/YYYY HH:MM"
+        const dateValue = row[2]; // RecordedDate fallback
+        
+          // Extract time from Modified column if available (format: "18/03/2026 20:45")
+          if (modifiedValue && typeof modifiedValue === 'string') {
+            const modParts = modifiedValue.trim().split(' ');
+            if (modParts.length >= 2) {
+              const timePart = modParts[1]; // "20:45"
+              if (/^\d{2}:\d{2}/.test(timePart)) {
+                recordedTime = timePart;
+                console.log(`⏰ Row ${i + 1}: Time extracted from Modified column: ${recordedTime}`);
+              }
+            }
+          }
+        
+          // Case 1: JavaScript Date object (from XLSX library)
         if (dateValue instanceof Date) {
           dateObj = dateValue;
           console.log(`📅 Row ${i + 1}: Date object detected - ${dateValue.toISOString()}`);

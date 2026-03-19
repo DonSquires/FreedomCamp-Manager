@@ -216,7 +216,15 @@ export default function FieldOfficerPortal() {
         (newZoneId, newZoneName) => {
           setCurrentPatrolZone(newZoneId)
           setZone(newZoneId, newZoneName)
-        }
+        },
+        {
+          onLocationUpdate: ({ latitude, longitude }) => {
+            setCurrentLocation({ latitude, longitude })
+            recordGPSUpdate(latitude, longitude)
+          },
+          activityType: 'gps_update',
+          currentZoneName: zoneName,
+        },
       )
     }
 
@@ -228,7 +236,7 @@ export default function FieldOfficerPortal() {
       clearTimeout(initialDelay)
       clearInterval(interval)
     }
-  }, [user, currentPatrolZone, setZone])
+  }, [user, currentPatrolZone, setZone, recordGPSUpdate, zoneName])
 
   // ── Detail scan: capture handler ─────────────────────────────────────────
   const handleDetailCapture = useCallback(async (file: File) => {

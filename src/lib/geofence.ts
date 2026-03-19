@@ -16,6 +16,25 @@ export interface GeofenceZone {
   geometry?: any
 }
 
+interface ActivePatrol {
+  patrol_id: string
+  zone_id: string
+  zone_name: string
+  geofence_radius: number | null
+  auto_checkin_enabled: boolean | null
+  status: string
+  checked_in_at: string | null
+  completed_at: string | null
+  zone_center_lat: number | null
+  zone_center_lng: number | null
+}
+
+interface MonitorOptions {
+  onLocationUpdate?: (coords: { latitude: number; longitude: number; accuracy: number }) => void
+  activityType?: string
+  currentZoneName?: string | null
+}
+
 /**
  * Calculate distance between two GPS coordinates (in meters)
  * Uses Haversine formula
@@ -93,6 +112,111 @@ export async function detectCurrentZones(
   } catch (error: any) {
     console.error('Geofence detection error:', error)
     return []
+  }
+}
+
+async function logOfficerGpsUpdate(
+  userId: string,
+  gpsLat: number,
+  gpsLng: number,
+  gpsAccuracy: number,
+  activityType = 'gps_update'
+): Promise<void> {
+  try {
+    const { error } = await (supabase as any).rpc('log_officer_gps_update', {
+      p_user_id: userId,
+      p_latitude: gpsLat,
+      p_longitude: gpsLng,
+      p_accuracy: gpsAccuracy,
+      p_activity_type: activityType,
+    })
+
+    if (error) {
+      console.warn('GPS activity logging failed:', error)
+    }
+  } catch (error) {
+    console.warn('GPS activity logging exception:', error)
+  }
+}
+
+async function getOfficerActivePatrols(userId: string): Promise<ActivePatrol[]> {
+  try {
+    const { data, error } = await (supabase as any).rpc('get_officer_active_patrols', {
+      p_officer_id: userId,
+    })
+
+    if (error) {
+      console.warn('Could not load active patrols for geofence auto-checkin:', error)
+      return []
+    }
+
+    return (data || []) as ActivePatrol[]
+  } catch (error) {
+    console.warn('Active patrol lookup failed:', error)
+    return []
+  }
+}
+
+function findPatrolInGeofence(
+  patrols: ActivePatrol[],
+  userLat: number,
+  userLng: number
+): ActivePatrol | null {
+  const candidates = patrols
+    .map((patrol) => {
+      if (!patrol.zone_center_lat || !patrol.zone_center_lng) return null
+      const distance = calculateDistance(
+        userLat,
+        userLng,
+        Number(patrol.zone_center_lat),
+        Number(patrol.zone_center_lng)
+      )
+      const radius = patrol.geofence_radius || 100
+      return distance <= radius ? { patrol, distance } : null
+    })
+    .filter((v): v is { patrol: ActivePatrol; distance: number } => v !== null)
+    .sort((a, b) => a.distance - b.distance)
+
+  return candidates[0]?.patrol || null
+}
+
+async function rpcPatrolAutoCheckin(patrolId: string, gpsLat: number, gpsLng: number): Promise<void> {
+  try {
+    const { data, error } = await (supabase as any).rpc('patrol_auto_checkin', {
+      p_patrol_id: patrolId,
+      p_gps_lat: gpsLat,
+      p_gps_lng: gpsLng,
+    })
+
+    if (error) {
+      console.warn('patrol_auto_checkin failed:', error)
+      return
+    }
+
+    if (data?.success) {
+      toast.success(data?.message || 'Patrol auto sign-on completed')
+    }
+  } catch (error) {
+    console.warn('patrol_auto_checkin exception:', error)
+  }
+}
+
+async function rpcPatrolAutoCheckout(patrolId: string): Promise<void> {
+  try {
+    const { data, error } = await (supabase as any).rpc('patrol_auto_checkout', {
+      p_patrol_id: patrolId,
+    })
+
+    if (error) {
+      console.warn('patrol_auto_checkout failed:', error)
+      return
+    }
+
+    if (data?.success) {
+      toast.info(data?.message || 'Patrol auto sign-off completed')
+    }
+  } catch (error) {
+    console.warn('patrol_auto_checkout exception:', error)
   }
 }
 
@@ -197,7 +321,8 @@ export async function monitorGeofenceAndPatrol(
   userId: string,
   organizationId: string,
   currentZoneId: string | null,
-  onZoneChange: (zoneId: string | null, zoneName: string | null) => void
+  onZoneChange: (zoneId: string | null, zoneName: string | null) => void,
+  options?: MonitorOptions
 ): Promise<void> {
   try {
     // Get current GPS location
@@ -210,6 +335,49 @@ export async function monitorGeofenceAndPatrol(
     
     const userLat = position.coords.latitude
     const userLng = position.coords.longitude
+    const userAccuracy = position.coords.accuracy || 0
+
+    options?.onLocationUpdate?.({
+      latitude: userLat,
+      longitude: userLng,
+      accuracy: userAccuracy,
+    })
+
+    await logOfficerGpsUpdate(
+      userId,
+      userLat,
+      userLng,
+      userAccuracy,
+      options?.activityType || 'gps_update'
+    )
+
+    const activePatrols = await getOfficerActivePatrols(userId)
+    const inProgressPatrol = activePatrols.find(
+      (patrol) => patrol.status === 'in_progress' && !patrol.completed_at
+    ) || null
+    const patrolInGeofence = findPatrolInGeofence(activePatrols, userLat, userLng)
+
+    if (patrolInGeofence) {
+      if (inProgressPatrol && inProgressPatrol.patrol_id !== patrolInGeofence.patrol_id) {
+        await rpcPatrolAutoCheckout(inProgressPatrol.patrol_id)
+      }
+
+      const canAutoCheckin = patrolInGeofence.auto_checkin_enabled !== false
+      const needsCheckin = !patrolInGeofence.checked_in_at || patrolInGeofence.status === 'scheduled'
+
+      if (canAutoCheckin && needsCheckin) {
+        await rpcPatrolAutoCheckin(patrolInGeofence.patrol_id, userLat, userLng)
+      }
+
+      if (patrolInGeofence.zone_id !== currentZoneId) {
+        onZoneChange(patrolInGeofence.zone_id, patrolInGeofence.zone_name)
+      }
+      return
+    }
+
+    if (inProgressPatrol) {
+      await rpcPatrolAutoCheckout(inProgressPatrol.patrol_id)
+    }
     
     // Detect current zones
     const zones = await detectCurrentZones(userLat, userLng, organizationId)
@@ -219,22 +387,24 @@ export async function monitorGeofenceAndPatrol(
       const primaryZone = zones[0] // Use first detected zone
       
       if (primaryZone.id !== currentZoneId) {
-        // Zone changed - stop old patrol, start new patrol
-        if (currentZoneId) {
-          await autoStopPatrol(userId, currentZoneId)
+        if (activePatrols.length === 0) {
+          // Legacy fallback: for tenants not using scheduled patrol assignments
+          if (currentZoneId) {
+            await autoStopPatrol(userId, currentZoneId)
+          }
+          await autoStartPatrol(userId, primaryZone.id, organizationId, userLat, userLng)
         }
-        
-        await autoStartPatrol(userId, primaryZone.id, organizationId, userLat, userLng)
+
         onZoneChange(primaryZone.id, primaryZone.name)
       }
     } else {
       // Outside all geofences
       if (currentZoneId) {
-        // Left the zone - stop patrol
-        await autoStopPatrol(userId, currentZoneId)
+        if (activePatrols.length === 0) {
+          await autoStopPatrol(userId, currentZoneId)
+        }
         onZoneChange(null, 'Other Location')
-      } else {
-        // Still outside - set to "Other Location"
+      } else if (options?.currentZoneName !== 'Other Location') {
         onZoneChange(null, 'Other Location')
       }
     }
