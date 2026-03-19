@@ -271,13 +271,25 @@ Deno.serve(async (req) => {
       if (!inviteLink) {
         throw new Error('Failed to generate invite link');
       }
-      const inviteEmailResult = await sendInvitationEmail({
-        toEmail: normalizedEmail,
-        recipientName,
-        inviterName,
-        organizationName: invitingOrganizationName,
-        inviteLink,
-      });
+      // Wrap the entire SMTP call in a top-level timeout so a hanging TCP
+      // connection doesn't wait forever. We do NOT wrap individual denomailer
+      // calls (that causes internal state corruption); this outer race is safe.
+      const SMTP_TIMEOUT_MS = parseInt(Deno.env.get('SMTP_TOTAL_TIMEOUT_MS') ?? '25000', 10);
+      const inviteEmailResult = await Promise.race([
+        sendInvitationEmail({
+          toEmail: normalizedEmail,
+          recipientName,
+          inviterName,
+          organizationName: invitingOrganizationName,
+          inviteLink,
+        }),
+        new Promise<{ ok: false; error: string }>((resolve) =>
+          setTimeout(
+            () => resolve({ ok: false, error: `Invitation email timed out after ${SMTP_TIMEOUT_MS / 1000}s. Check SMTP_HOST/PORT/firewall settings.` }),
+            SMTP_TIMEOUT_MS,
+          )
+        ),
+      ]);
       if (!inviteEmailResult.ok) {
         // Cleanup auth user so we do not leave an account with no invitation email
         await supabaseAdmin.auth.admin.deleteUser(authData.user.id);
