@@ -236,7 +236,7 @@ export default function SystemDiagnostics() {
               </>
             )}
             <div className="text-xs text-gray-600 mt-2">
-              NZSCV / MotorWeb Gateway
+              NZSCV / Vehicle Data Gateway
             </div>
           </CardContent>
         </Card>

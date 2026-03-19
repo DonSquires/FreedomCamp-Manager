@@ -16,13 +16,13 @@ export function useNZSCVStatus(plateNumber: string | null) {
 }
 
 /**
- * Hook for enriching vehicle data from MotorWeb
+ * Hook for enriching vehicle details
  */
 export function useMotorWebEnrichment() {
   return useMutation({
     mutationFn: (plateNumber: string) => enrichFromMotorWeb(plateNumber),
     onSuccess: () => {
-      toast.success('Vehicle data enriched from MotorWeb')
+      toast.success('Vehicle details enrichment complete')
     },
     onError: (error: any) => {
       toast.error(error.message || 'Failed to enrich vehicle data')

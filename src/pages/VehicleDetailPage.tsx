@@ -267,10 +267,10 @@ export default function VehicleDetailPage() {
     setEnriching(true)
     try {
       await enrichVehicleFromMotorWeb(vehicle.plate_number)
-      toast.success('Vehicle enriched from MotorWeb')
+      toast.success('Vehicle details enrichment complete')
       queryClient.invalidateQueries({ queryKey: ['vehicle-detail', id] })
     } catch (err: any) {
-      toast.error(err.message || 'MotorWeb enrichment failed')
+      toast.error(err.message || 'Vehicle details enrichment failed')
     } finally {
       setEnriching(false)
     }
@@ -376,7 +376,7 @@ export default function VehicleDetailPage() {
             disabled={enriching}
           >
             <ExternalLink className="h-3.5 w-3.5 mr-1" />
-            {enriching ? 'Enriching…' : 'MotorWeb Enrich'}
+            {enriching ? 'Enriching…' : 'Enrich Vehicle Details'}
           </Button>
         </div>
       </div>

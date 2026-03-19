@@ -766,7 +766,7 @@ export default function VehicleManagement() {
     }
   }
 
-  // ─── MotorWeb enrichment ──────────────────────────────────────────────────
+  // ─── Vehicle details enrichment ───────────────────────────────────────────
   const handleEnrichMotorWeb = async (plateNumber: string) => {
     setEnrichingMotorWeb(true)
     try {
@@ -779,17 +779,14 @@ export default function VehicleManagement() {
             vehicle_model: data.model,
             vehicle_year: data.year ?? null,
             vehicle_color: data.colour,
-            owner_first_name: data.owner_name?.split(' ')[0],
-            owner_last_name: data.owner_name?.split(' ').slice(1).join(' '),
-            owner_address: data.owner_address,
           })
           .eq('plate_number', plateNumber)
         if (updateError) { toast.error('Failed to update vehicle data'); return }
-        toast.success('Vehicle data enriched from MotorWeb')
+        toast.success('Vehicle details enrichment complete')
         queryClient.invalidateQueries({ queryKey: ['vehicles'] })
       }
     } catch (err: any) {
-      toast.error(err.message || 'Failed to enrich from MotorWeb')
+      toast.error(err.message || 'Failed to enrich vehicle details')
     } finally {
       setEnrichingMotorWeb(false)
     }
@@ -1282,10 +1279,10 @@ export default function VehicleManagement() {
                   )}
                 </div>
 
-                {/* MotorWeb */}
+                {/* Vehicle details enrichment */}
                 <div className="p-4 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
                   <div className="flex items-center justify-between">
-                    <div className="text-sm font-semibold">MotorWeb Data Enrichment</div>
+                    <div className="text-sm font-semibold">Vehicle Details Enrichment</div>
                     <Button
                       size="sm"
                       variant="outline"
@@ -1300,7 +1297,7 @@ export default function VehicleManagement() {
                     </Button>
                   </div>
                   <div className="text-xs text-gray-600 mt-2">
-                    Pull vehicle details, owner info, and more from MotorWeb database.
+                    Pull make, model, colour, and year from registry enrichment.
                   </div>
                 </div>
 

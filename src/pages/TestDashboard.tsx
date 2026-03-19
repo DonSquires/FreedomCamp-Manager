@@ -122,12 +122,12 @@ export default function TestDashboard() {
     },
     {
       id: 'motorweb',
-      name: 'MotorWeb Integration',
+      name: 'Vehicle Details Integration',
       description: 'Enrichment → Update → Refresh',
       priority: 3,
       tests: [
         { id: 'motorweb-1', name: 'Enrich vehicle data', status: 'pending' },
-        { id: 'motorweb-2', name: 'Owner details for notices', status: 'pending' },
+        { id: 'motorweb-2', name: 'Update canonical vehicle attributes', status: 'pending' },
       ],
     },
     {

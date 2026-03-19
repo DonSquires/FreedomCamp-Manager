@@ -182,7 +182,7 @@ export function PlateScanner({ onScanComplete, onCancel }: PlateScannerProps) {
         })
       }
 
-      // Step 5: Enrich from MotorWeb (don't block on failure)
+      // Step 5: Enrich vehicle details (don't block on failure)
       if (plateNumber) {
         railwayServices.enrichVehicleFromMotorWeb(plateNumber).then(({ data: motorwebData, error: motorwebError }) => {
           if (!motorwebError && motorwebData) {

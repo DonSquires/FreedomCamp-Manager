@@ -655,7 +655,7 @@ export default function BreachAlerts() {
     onError: () => toast.error('Failed to acknowledge welfare alert'),
   })
 
-  // MotorWeb enrichment
+  // Vehicle details enrichment
   const handleEnrichVehicle = async (plateNumber: string) => {
     if (!plateNumber) return
     setEnrichingVehicle(plateNumber)
@@ -672,9 +672,6 @@ export default function BreachAlerts() {
             vehicle_model: data.model,
             vehicle_year: data.year ?? null,
             vehicle_color: data.colour,
-            owner_first_name: data.owner_name?.split(' ')[0] || null,
-            owner_last_name: data.owner_name?.split(' ').slice(1).join(' ') || null,
-            owner_address: data.owner_address,
           })
           .eq('plate_number', plateNumber)
 
@@ -683,10 +680,10 @@ export default function BreachAlerts() {
           return
         }
         queryClient.invalidateQueries({ queryKey: ['breach-vehicle', plateNumber] })
-        toast.success('Vehicle data enriched from MotorWeb')
+        toast.success('Vehicle details enrichment complete')
       }
     } catch (err: any) {
-      toast.error(err.message || 'Failed to enrich from MotorWeb')
+      toast.error(err.message || 'Failed to enrich vehicle details')
     } finally {
       setEnrichingVehicle(null)
     }
@@ -1446,7 +1443,7 @@ export default function BreachAlerts() {
                         >
                           {enrichingVehicle === activeBreach.plate_number
                             ? <><RefreshCw className="h-3 w-3 mr-1 animate-spin" />Enriching...</>
-                            : <><Database className="h-3 w-3 mr-1" />Re-fetch from MotorWeb</>
+                            : <><Database className="h-3 w-3 mr-1" />Re-fetch Vehicle Details</>
                           }
                         </Button>
                       </div>
@@ -1468,8 +1465,8 @@ export default function BreachAlerts() {
                             disabled={enrichingVehicle === activeBreach.plate_number}
                           >
                             {enrichingVehicle === activeBreach.plate_number
-                              ? <><RefreshCw className="h-4 w-4 mr-2 animate-spin" />Enriching from MotorWeb...</>
-                              : <><Database className="h-4 w-4 mr-2" />Fetch Vehicle Data (MotorWeb)</>
+                              ? <><RefreshCw className="h-4 w-4 mr-2 animate-spin" />Enriching vehicle details...</>
+                              : <><Database className="h-4 w-4 mr-2" />Fetch Vehicle Details</>
                             }
                           </Button>
                         )}
