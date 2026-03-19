@@ -1,4 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
+import { SMTPClient } from 'https://deno.land/x/denomailer@1.0.0/mod.ts';
 import { corsHeaders } from '../_shared/cors.ts';
 
 /**
@@ -168,7 +169,25 @@ Deno.serve(async (req) => {
       console.log('✅ Enforcement action created');
     }
 
-    // 10. Return notice details
+    // 10. Send email if delivery method is email and recipient email provided
+    if (deliveryMethod === 'email' && deliverToEmail?.trim()) {
+      try {
+        await sendNoticeToVacateEmailAsync({
+          toEmail: deliverToEmail.trim(),
+          plateNumber,
+          vacateDeadline,
+          orgName: legalConfig?.org_office_name || 'Enforcement Authority',
+          orgEmail: legalConfig?.org_email || '',
+          html: noticeHtml,
+        }).catch(err => {
+          console.warn(`⚠️ Failed to send notice email to ${deliverToEmail}:`, err.message)
+        })
+      } catch (emailErr) {
+        console.warn(`⚠️ Email dispatch error (notice still created):`, emailErr)
+      }
+    }
+
+    // 11. Return notice details
     return new Response(
       JSON.stringify({
         success: true,
@@ -197,6 +216,75 @@ Deno.serve(async (req) => {
     );
   }
 });
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Email Sending Helper
+// ──────────────────────────────────────────────────────────────────────────────
+async function sendNoticeToVacateEmailAsync(params: {
+  toEmail: string
+  plateNumber: string
+  vacateDeadline: Date
+  orgName: string
+  orgEmail: string
+  html: string
+}): Promise<void> {
+  const SMTP_TIMEOUT_MS = 15000;
+  const smtpHost = Deno.env.get('SMTP_HOST');
+  const smtpPort = parseInt(Deno.env.get('SMTP_PORT') ?? '587', 10);
+  const smtpUser = Deno.env.get('SMTP_USERNAME');
+  const smtpPass = Deno.env.get('SMTP_PASSWORD');
+  const smtpFrom = Deno.env.get('SMTP_FROM_EMAIL');
+  const smtpFromName = Deno.env.get('SMTP_FROM_NAME') ?? 'FreedomCamp Manager - Enforcement Notices';
+
+  if (!smtpHost || !smtpUser || !smtpPass || !smtpFrom) {
+    throw new Error('SMTP not configured');
+  }
+
+  const vacateDateStr = params.vacateDeadline.toLocaleString('en-NZ', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+
+  const subject = `Notice to Vacate – Vehicle ${params.plateNumber}`;
+  const text = [
+    `Notice to Vacate issued for vehicle: ${params.plateNumber}`,
+    '',
+    `You must vacate the land by: ${vacateDateStr}`,
+    `Issued by: ${params.orgName}`,
+    `Contact: ${params.orgEmail}`,
+    '',
+    'See attached notice for full details and instructions.',
+    'This is an automated message. Please do not reply to this email.',
+  ].join('\n');
+
+  const client = new SMTPClient();
+  const useTls = smtpPort === 465;
+
+  await Promise.race([
+    (async () => {
+      if (useTls) {
+        await client.connectTLS({ hostname: smtpHost, port: smtpPort, username: smtpUser, password: smtpPass });
+      } else {
+        await client.connect({ hostname: smtpHost, port: smtpPort, username: smtpUser, password: smtpPass });
+      }
+      try {
+        await client.send({
+          from: `${smtpFromName} <${smtpFrom}>`,
+          to: params.toEmail,
+          subject,
+          html: params.html,
+          content: text,
+        });
+      } finally {
+        await client.close();
+      }
+    })()
+    , new Promise<void>((_, reject) => setTimeout(() => reject(new Error('SMTP timeout')), SMTP_TIMEOUT_MS)),
+  ]);
+}
 
 function generateBreachReason(config: any, nightsStayed: number, breachDetails: any): string {
   const maxNights = config.max_stay_nights || 3;

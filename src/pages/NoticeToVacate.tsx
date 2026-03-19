@@ -301,6 +301,10 @@ export default function NoticeToVacate() {
       toast.error('Zone and plate number are required')
       return
     }
+    if (form.deliveryMethod === 'email' && !form.deliverToEmail?.trim()) {
+      toast.error('Recipient email address is required when delivering by email')
+      return
+    }
     setIssuing(true)
     try {
       const { data, error } = await withTimeout(

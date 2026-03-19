@@ -32,6 +32,7 @@
  */
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3'
+import { SMTPClient } from 'https://deno.land/x/denomailer@1.0.0/mod.ts'
 import { corsHeaders } from '../_shared/cors.ts'
 
 const PRINT_ARTIFACT_BUCKET = 'notice-artifacts'
@@ -478,6 +479,26 @@ Deno.serve(async (req) => {
         .eq('id', breach_alert_id)
     }
 
+    // Send email if service method is email and recipient email provided
+    if (service_method === 'email' && recipient_email?.trim()) {
+      try {
+        await sendInfringementEmailAsync({
+          toEmail: recipient_email.trim(),
+          recipientName: recipient_name || 'Vehicle Owner',
+          noticeNumber,
+          plateNumber: plate_number,
+          amountDollars,
+          orgName,
+          orgEmail: legalConfig?.org_email || orgEmail,
+          html: noticeHtml,
+        }).catch(err => {
+          console.warn(`⚠️ Failed to send infringement email to ${recipient_email}:`, err.message)
+        })
+      } catch (emailErr) {
+        console.warn(`⚠️ Email dispatch error (notice still created):`, emailErr)
+      }
+    }
+
     console.log(`✅ Infringement notice ${noticeNumber} issued for ${plate_number}`)
 
     return new Response(
@@ -504,6 +525,70 @@ async function sha256Hex(input: string): Promise<string> {
   return Array.from(new Uint8Array(digest))
     .map((byte) => byte.toString(16).padStart(2, '0'))
     .join('')
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
+// Email Sending Helper
+// ──────────────────────────────────────────────────────────────────────────────
+async function sendInfringementEmailAsync(params: {
+  toEmail: string
+  recipientName: string
+  noticeNumber: string
+  plateNumber: string
+  amountDollars: string
+  orgName: string
+  orgEmail: string
+  html: string
+}): Promise<void> {
+  const SMTP_TIMEOUT_MS = 15000
+  const smtpHost = Deno.env.get('SMTP_HOST')
+  const smtpPort = parseInt(Deno.env.get('SMTP_PORT') ?? '587', 10)
+  const smtpUser = Deno.env.get('SMTP_USERNAME')
+  const smtpPass = Deno.env.get('SMTP_PASSWORD')
+  const smtpFrom = Deno.env.get('SMTP_FROM_EMAIL')
+  const smtpFromName = Deno.env.get('SMTP_FROM_NAME') ?? 'FreedomCamp Manager - Enforcement Notices'
+
+  if (!smtpHost || !smtpUser || !smtpPass || !smtpFrom) {
+    throw new Error('SMTP not configured')
+  }
+
+  const subject = `Infringement Notice ${params.noticeNumber} – Vehicle ${params.plateNumber}`
+  const text = [
+    `Dear ${params.recipientName},`,
+    '',
+    `You have received Infringement Notice ${params.noticeNumber} for vehicle ${params.plateNumber}.`,
+    `Amount due: NZD $${params.amountDollars}`,
+    `Issued by: ${params.orgName}`,
+    `Contact: ${params.orgEmail}`,
+    '',
+    'See attached notice for full details including payment options and rights.',
+    'This is an automated message. Please do not reply to this email.',
+  ].join('\n')
+
+  const client = new SMTPClient()
+  const useTls = smtpPort === 465
+
+  await Promise.race([
+    (async () => {
+      if (useTls) {
+        await client.connectTLS({ hostname: smtpHost, port: smtpPort, username: smtpUser, password: smtpPass })
+      } else {
+        await client.connect({ hostname: smtpHost, port: smtpPort, username: smtpUser, password: smtpPass })
+      }
+      try {
+        await client.send({
+          from: `${smtpFromName} <${smtpFrom}>`,
+          to: params.toEmail,
+          subject,
+          html: params.html,
+          content: text,
+        })
+      } finally {
+        await client.close()
+      }
+    })()
+    , new Promise<void>((_, reject) => setTimeout(() => reject(new Error('SMTP timeout')), SMTP_TIMEOUT_MS)),
+  ])
 }
 
 // ──────────────────────────────────────────────────────────────────────────────

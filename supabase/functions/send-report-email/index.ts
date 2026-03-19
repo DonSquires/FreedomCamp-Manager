@@ -483,6 +483,7 @@ function buildEmailHtml(data: {
         <!-- ── Header ── -->
         <tr>
           <td style="background:#0f172a;padding:28px 40px;text-align:center;">
+            <img src="https://www.ironeaglesecurity.co.nz/iron-eagle-security-logo.jpg" alt="Iron Eagle Security" style="height:48px;object-fit:contain;display:block;margin:0 auto 12px;" />
             <h1 style="margin:0;color:#ffffff;font-size:22px;font-weight:800;letter-spacing:1px;text-transform:uppercase;">
               FreedomCamp Manager
             </h1>
