@@ -1333,31 +1333,44 @@ Deno.serve(async (req: Request) => {
     const finalHasDiscrepancies = discrepancies.length > 0;
 
     // Build resolved details once and always write them to the observation row.
-    // Source priority: NZSCV (authoritative when available) → canonical snapshot
-    // → inference → ALPR.
-    const resolvedMake = nzscv?.make ?? canonicalMake ?? inference.inferMake ?? alprMake ?? null;
-    const resolvedModel = nzscv?.model ?? canonicalModel ?? inference.inferModel ?? alprModel ?? null;
-    const resolvedYear = nzscv?.year ?? canonicalYear ?? inference.inferYear ?? toIntOrNull(obs.vehicle_year) ?? null;
+    // Source priority for VISUAL ATTRIBUTES: Inference (HIGH confidence, can see photo) > Canonical (trusted local DB)
+    // > NZSCV (optional enrichment) > Inference (lower confidence) > ALPR (plate recognizer).
+    // NZSCV's primary role is SC certification, not attribute authority.
+    // Confidence thresholds: Make (0.72), Model (0.68), Year (0.72), Color (0.60)
+    const hasHighConfidenceMake = !!inference.inferMake && (inference.inferMakeConf ?? 0) >= MAKE_MISMATCH_MIN_CONF;
+    const hasHighConfidenceModel = !!inference.inferModel && (inference.inferModelConf ?? 0) >= MODEL_MISMATCH_MIN_CONF;
+    const hasHighConfidenceYear = !!inference.inferYear; // Accept any year from inference
     const hasHighConfidenceInferenceColour = !!inference.inferColour && (inference.inferColourConf ?? 0) >= COLOUR_MISMATCH_MIN_CONF;
     const hasHighConfidenceAlprColour = !!alprColour && (alprColourConf ?? 0) >= COLOUR_MISMATCH_MIN_CONF;
+    
+    // Prefer high-confidence inference for make/model/year (AI can see photo better than external registry)
+    const resolvedMake = hasHighConfidenceMake ? inference.inferMake : canonicalMake ?? nzscv?.make ?? inference.inferMake ?? alprMake ?? null;
+    const resolvedModel = hasHighConfidenceModel ? inference.inferModel : canonicalModel ?? nzscv?.model ?? inference.inferModel ?? alprModel ?? null;
+    const resolvedYear = hasHighConfidenceYear ? inference.inferYear : canonicalYear ?? nzscv?.year ?? toIntOrNull(obs.vehicle_year) ?? null;
 
-    // Color drifts frequently in canonical snapshots; prefer fresh, confident
-    // scan-time color when NZSCV does not provide a color.
+    // Color resolution priority: HIGH-confidence inference (AI sees photo) > Canonical > NZSCV
+    // > LOW-confidence inference > ALPR.
+    // Inference can detect actual vehicle color from photo better than external registry.
     let resolvedColour: string | null = null;
     let resolvedColourSource: 'nzscv' | 'canonical' | 'inference' | 'alpr' | null = null;
-    if (nzscv?.colour) {
-      resolvedColour = nzscv.colour;
-      resolvedColourSource = 'nzscv';
-    } else if (hasHighConfidenceInferenceColour) {
+    if (hasHighConfidenceInferenceColour) {
+      // Inference has high confidence — trust it over anything else
       resolvedColour = inference.inferColour;
       resolvedColourSource = 'inference';
-    } else if (hasHighConfidenceAlprColour) {
-      resolvedColour = alprColour;
-      resolvedColourSource = 'alpr';
     } else if (canonicalColour) {
+      // Fall back to canonical if inference is not confident
       resolvedColour = canonicalColour;
       resolvedColourSource = 'canonical';
+    } else if (nzscv?.colour) {
+      // NZSCV as optional enrichment (may be stale)
+      resolvedColour = nzscv.colour;
+      resolvedColourSource = 'nzscv';
+    } else if (hasHighConfidenceAlprColour) {
+      // ALPR with confidence
+      resolvedColour = alprColour;
+      resolvedColourSource = 'alpr';
     } else if (inference.inferColour) {
+      // Inference with low confidence as fallback
       resolvedColour = inference.inferColour;
       resolvedColourSource = 'inference';
     } else if (alprColour) {
@@ -1366,11 +1379,12 @@ Deno.serve(async (req: Request) => {
     }
 
     // Track attribute sources for transparency in UI
+    // Priority: HIGH-confidence inference > Canonical > NZSCV > LOW-confidence inference > ALPR
     const attributeSources = {
-      make_source: nzscv?.make ? 'nzscv' : canonicalMake ? 'canonical' : inference.inferMake ? 'inference' : alprMake ? 'alpr' : null,
-      model_source: nzscv?.model ? 'nzscv' : canonicalModel ? 'canonical' : inference.inferModel ? 'inference' : alprModel ? 'alpr' : null,
+      make_source: hasHighConfidenceMake ? 'inference' : canonicalMake ? 'canonical' : nzscv?.make ? 'nzscv' : inference.inferMake ? 'inference' : alprMake ? 'alpr' : null,
+      model_source: hasHighConfidenceModel ? 'inference' : canonicalModel ? 'canonical' : nzscv?.model ? 'nzscv' : inference.inferModel ? 'inference' : alprModel ? 'alpr' : null,
       color_source: resolvedColourSource,
-      year_source: nzscv?.year ? 'nzscv' : canonicalYear ? 'canonical' : inference.inferYear ? 'inference' : null,
+      year_source: hasHighConfidenceYear ? 'inference' : canonicalYear ? 'canonical' : nzscv?.year ? 'nzscv' : inference.inferYear ? 'inference' : null,
     };
 
     const mismatchNotices = discrepancies.map((d) => {
