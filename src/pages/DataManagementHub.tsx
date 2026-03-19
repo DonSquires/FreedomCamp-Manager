@@ -117,7 +117,7 @@ const EMPTY_SCV_RESULT: ScvSyncResult = {
   errors: [],
 }
 
-const SCV_BATCH_SIZE = 200
+const SCV_BATCH_SIZE = 50
 
 function mergeScvResults(current: ScvSyncResult, incoming: ScvSyncResult): ScvSyncResult {
   return {
@@ -238,6 +238,7 @@ export default function DataManagementHub() {
           dry_run: dryRun,
           offset,
           batch_size: SCV_BATCH_SIZE,
+          include_related_updates: false,
         })
 
         if (error) {

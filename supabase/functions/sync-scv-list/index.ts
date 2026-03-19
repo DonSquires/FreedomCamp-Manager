@@ -21,6 +21,7 @@
  *   scv_url   string   — override storage URL for the Excel file
  *   offset    number   — canonical_vehicles pagination offset (default: 0)
  *   batch_size number  — canonical_vehicles page size, max 1000 (default: 500)
+ *   include_related_updates boolean — if true, also update observations and breach_alerts (default: false)
  */
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.7';
@@ -156,6 +157,7 @@ serve(async (req) => {
 
     const body = await req.json().catch(() => ({}));
     const dryRun: boolean = body.dry_run === true;
+    const includeRelatedUpdates: boolean = body.include_related_updates === true;
     const fileDate: string = body.file_date ?? '2026-02-17T00:00:00Z';
     const offset = parseBatchNumber(body.offset, 0);
     const batchSize = Math.min(1000, Math.max(1, parseBatchNumber(body.batch_size, 500)));
@@ -195,7 +197,7 @@ serve(async (req) => {
         const plate = (row['Vehicle Registration'] ?? '').trim().toUpperCase();
         const status = (row['Certificate Status'] ?? '').trim();
         const issueDateRaw = (row['Certificate Issue Date'] ?? '').trim();
-        if (plate && status) {
+        if (plate && status === 'Current') {
           scvMap.set(plate, { status, expiry: status === 'Current' ? calculateExpiry(issueDateRaw) : null });
         }
       }
@@ -332,7 +334,7 @@ serve(async (req) => {
     // When a plate moves from false → true in canonical_vehicles, existing
     // observations that inherited self_contained=false are now incorrect.
 
-    if (toSetCurrent.length > 0) {
+    if (includeRelatedUpdates && toSetCurrent.length > 0) {
       for (let i = 0; i < toSetCurrent.length; i += BATCH_SIZE) {
         const chunk = toSetCurrent.slice(i, i + BATCH_SIZE);
         const { error } = await supabaseAdmin
@@ -353,7 +355,7 @@ serve(async (req) => {
     // Any pending/acknowledged/enforcement_started breach alert for a plate
     // that is now confirmed self-contained should be resolved.
 
-    if (toSetCurrent.length > 0) {
+    if (includeRelatedUpdates && toSetCurrent.length > 0) {
       const resolvedNote =
         `CSC verified via SCV list sync (${new Date(fileDate).toLocaleDateString('en-NZ', { timeZone: 'Pacific/Auckland' })})`;
 
@@ -382,6 +384,7 @@ serve(async (req) => {
     return json(200, {
       success: true,
       dry_run: false,
+      include_related_updates: includeRelatedUpdates,
       result,
       batch,
     });

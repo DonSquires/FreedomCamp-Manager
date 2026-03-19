@@ -1023,6 +1023,7 @@ export const edgeFunctions = {
     scv_url?: string
     offset?: number
     batch_size?: number
+    include_related_updates?: boolean
   } = {}) => {
     return callEdgeFunction('sync-scv-list', params, { showToast: false })
   },
