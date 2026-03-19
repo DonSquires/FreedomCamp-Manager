@@ -804,7 +804,7 @@ serve(async (req: Request) => {
 
       if (changed) complianceChanged++;
 
-      // When an observation becomes compliant, dismiss any pending/acknowledged breach alerts for it.
+      // When an observation becomes compliant, dismiss any active breach alerts for it.
       if (apply && isCompliant && (obs.is_compliant === false || obs.is_compliant === null)) {
         const observationId = (obs as any)[keyCol];
         const { data: openAlerts } = await supabaseAdmin
@@ -812,7 +812,7 @@ serve(async (req: Request) => {
           .select('id')
           .eq('organization_id', obs.organization_id)
           .eq('zone_id', obs.zone_id)
-          .in('status', ['pending', 'acknowledged'])
+          .in('status', ['pending', 'acknowledged', 'enforcement_started'])
           .or(`observation_id.eq.${observationId},breach_details->>observation_id.eq.${observationId}`);
 
         if (openAlerts && openAlerts.length > 0) {
@@ -832,17 +832,36 @@ serve(async (req: Request) => {
 
       if (apply && !isCompliant && breachType) {
         const observationId = (obs as any)[keyCol];
+        const validBreachType = toValidBreachType(breachType);
+
+        // Check for ANY existing breach alert for this observation (all active statuses)
         const { data: existingBreach } = await supabaseAdmin
           .from('breach_alerts')
           .select('id')
-          .eq('organization_id', obs.organization_id)
-          .eq('zone_id', obs.zone_id)
-          .in('status', ['pending', 'acknowledged'])
+          .in('status', ['pending', 'acknowledged', 'enforcement_started'])
           .or(`observation_id.eq.${observationId},breach_details->>observation_id.eq.${observationId}`)
+          .order('created_at', { ascending: false })
+          .limit(1)
           .maybeSingle();
 
-        if (!existingBreach) {
-          const validBreachType = toValidBreachType(breachType);
+        if (existingBreach) {
+          // Update existing breach instead of creating a duplicate
+          await supabaseAdmin
+            .from('breach_alerts')
+            .update({
+              organization_id: obs.organization_id,
+              zone_id: obs.zone_id,
+              plate_number: obs.plate_number,
+              observation_id: observationId,
+              breach_type: validBreachType,
+              breach_details: {
+                observation_id: observationId,
+                breach_reason: breachReason,
+                recalculated: true,
+              },
+            })
+            .eq('id', existingBreach.id);
+        } else {
           const { error: breachError } = await supabaseAdmin
             .from('breach_alerts')
             .insert({

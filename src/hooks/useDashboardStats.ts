@@ -62,7 +62,7 @@ async function calculateStatsManually(
   // Use separate HEAD count queries so pagination never under-counts
   let totalObsQuery = (supabase.from('observations') as any).select('*', { count: 'exact', head: true })
   let compliantObsQuery = (supabase.from('observations') as any).select('*', { count: 'exact', head: true }).eq('is_compliant', true)
-  let breachQuery = (supabase.from('breach_alerts') as any).select('*', { count: 'exact', head: true }).eq('status', 'pending')
+  let breachQuery = (supabase.from('breach_alerts') as any).select('observation_id').in('status', ['pending', 'acknowledged', 'enforcement_started']).not('observation_id', 'is', null)
   let vehicleQuery = (supabase.from('canonical_vehicles') as any).select('*', { count: 'exact', head: true })
   let patrolQuery = (supabase.from('patrols') as any).select('*', { count: 'exact', head: true }).eq('status', 'in_progress')
 
@@ -105,12 +105,13 @@ async function calculateStatsManually(
   const totalObs = totalObsResult.count || 0
   const compliantObs = compliantObsResult.count || 0
   const complianceRate = totalObs > 0 ? (compliantObs / totalObs) * 100 : 0
+  const activeBreaches = new Set((breachResult.data ?? []).map((r: any) => r.observation_id)).size
 
   return {
     total_observations: totalObs,
     compliant_observations: compliantObs,
     non_compliant_observations: totalObs - compliantObs,
-    active_breaches: breachResult.count || 0,
+    active_breaches: activeBreaches,
     total_vehicles: vehicleResult.count || 0,
     active_patrols: patrolResult.count || 0,
     compliance_rate: complianceRate,

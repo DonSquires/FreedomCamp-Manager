@@ -224,18 +224,26 @@ export default function AdminPortal() {
         }
       }
 
-      // ── 5. Active breaches (COUNT, filtered by date range + active status) ─
-      let breachesQuery = (supabase.from('breach_alerts') as any)
-        .select('*', { count: 'exact', head: true })
-        .in('status', ['pending', 'acknowledged', 'enforcement_started'])
+      // ── 5. Active breaches (distinct observation_id count to avoid duplicates) ─
+      let activeBreaches = 0
+      {
+        let breachesQuery = (supabase.from('breach_alerts') as any)
+          .select('observation_id')
+          .in('status', ['pending', 'acknowledged', 'enforcement_started'])
+          .not('observation_id', 'is', null)
 
-      if (effectiveOrganizationId) breachesQuery = breachesQuery.eq('organization_id', effectiveOrganizationId)
-      if (zoneId)                  breachesQuery = breachesQuery.eq('zone_id', zoneId)
-      if (startDate)               breachesQuery = breachesQuery.gte('created_at', startDate)
-      if (endDate)                 breachesQuery = breachesQuery.lte('created_at', endDate)
+        if (effectiveOrganizationId) breachesQuery = breachesQuery.eq('organization_id', effectiveOrganizationId)
+        if (zoneId)                  breachesQuery = breachesQuery.eq('zone_id', zoneId)
+        if (startDate)               breachesQuery = breachesQuery.gte('created_at', startDate)
+        if (endDate)                 breachesQuery = breachesQuery.lte('created_at', endDate)
 
-      const { count: activeBreaches, error: breachError } = await breachesQuery
-      if (breachError) diagnostics.push(`breach_alerts_active: ${breachError.message || 'unknown error'}`)
+        const { data: breachRows, error: breachError } = await breachesQuery
+        if (breachError) {
+          diagnostics.push(`breach_alerts_active: ${breachError.message || 'unknown error'}`)
+        } else {
+          activeBreaches = new Set((breachRows ?? []).map((r: any) => r.observation_id)).size
+        }
+      }
 
       // ── 5b. Active investigations count ───────────────────────────────
       let activeInvestigationsQuery = (supabase.from('investigation_jobs') as any)

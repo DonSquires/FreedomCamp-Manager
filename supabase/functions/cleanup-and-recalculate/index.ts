@@ -525,6 +525,56 @@ serve(async (req) => {
       }
     }
 
+    // PHASE 2b: BREACH ALERT DEDUPLICATION
+    // Remove duplicate breach_alerts for the same observation_id, keeping only the
+    // most recently created alert per observation. This prevents inflated breach counts.
+    let breachDuplicatesRemoved = 0;
+    if (normalizedPhase === 'all' || normalizedPhase === 'dedup') {
+      const activeObsIds = observations
+        .filter(obs => !duplicatesToDelete.includes((obs as any).observation_id ?? (obs as any).id))
+        .map((obs: any) => obs.observation_id ?? obs.id)
+        .filter(Boolean);
+
+      if (activeObsIds.length > 0) {
+        // Fetch all active breach alerts for observations in this batch
+        const { data: breachRows } = await supabaseAdmin
+          .from('breach_alerts')
+          .select('id, observation_id, created_at')
+          .in('observation_id', activeObsIds)
+          .in('status', ['pending', 'acknowledged', 'enforcement_started'])
+          .order('created_at', { ascending: false });
+
+        if (breachRows && breachRows.length > 0) {
+          // Group by observation_id, keep the newest, mark older ones for deletion
+          const seenObsIds = new Set<string>();
+          const dupBreachIds: string[] = [];
+
+          for (const row of breachRows as any[]) {
+            if (!row.observation_id) continue;
+            if (seenObsIds.has(row.observation_id)) {
+              dupBreachIds.push(row.id);
+            } else {
+              seenObsIds.add(row.observation_id);
+            }
+          }
+
+          if (dupBreachIds.length > 0) {
+            const { error: breachDelError } = await supabaseAdmin
+              .from('breach_alerts')
+              .delete()
+              .in('id', dupBreachIds);
+
+            if (!breachDelError) {
+              breachDuplicatesRemoved = dupBreachIds.length;
+              console.log(`🗑️ Removed ${dupBreachIds.length} duplicate breach alerts`);
+            } else {
+              console.warn('⚠️ Failed to remove duplicate breach alerts:', breachDelError.message);
+            }
+          }
+        }
+      }
+    }
+
     // PHASE 3: COMPLIANCE RECALCULATION
     // compliance_results and vehicle_monthly_stays are no longer part of the pipeline
     // (dropped in 20260221_rebuild_observations_clean.sql).
@@ -539,6 +589,7 @@ serve(async (req) => {
           processed: observations.length,
           zonesCorrected,
           duplicatesRemoved,
+          breachDuplicatesRemoved,
           complianceChanged,
           breachesCreated,
           skippedNoMatrix,
@@ -919,13 +970,14 @@ serve(async (req) => {
       }
     }
 
-    console.log(`✅ Batch complete: ${observations.length} processed, ${zonesCorrected} zones corrected, ${duplicatesRemoved} duplicates removed, ${complianceChanged} compliance changed, ${breachesCreated} breaches`);
+    console.log(`✅ Batch complete: ${observations.length} processed, ${zonesCorrected} zones corrected, ${duplicatesRemoved} duplicates removed, ${breachDuplicatesRemoved} breach duplicates removed, ${complianceChanged} compliance changed, ${breachesCreated} breaches`);
 
     return new Response(
       JSON.stringify({
         processed: observations.length,
         zonesCorrected,
         duplicatesRemoved,
+        breachDuplicatesRemoved,
         complianceChanged,
         breachesCreated,
         skippedNoMatrix,

@@ -1,6 +1,6 @@
-import { useEffect } from 'react'
+import { Component, useEffect, type ErrorInfo, type ReactNode } from 'react'
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query'
 import { Toaster } from 'sonner'
 import { useAuthStore } from '@/stores/authStore'
 import { useSessionInactivityLock } from '@/hooks/useSessionInactivityLock'
@@ -66,6 +66,78 @@ import Profile from '@/pages/Profile'
 import VehicleRegistry from '@/pages/VehicleRegistry'
 import PublicDisputePortal from '@/pages/PublicDisputePortal'
 import Disputes from '@/pages/Disputes'
+
+// ---------------------------------------------------------------------------
+// ErrorBoundary – catches render-time errors so a crash on one page does not
+// bring down the whole SPA.  On error it shows a minimal recovery UI that lets
+// the user navigate away (or retry) instead of staring at a white screen.
+// ---------------------------------------------------------------------------
+interface ErrorBoundaryProps { children: ReactNode }
+interface ErrorBoundaryState { hasError: boolean; error: Error | null }
+
+class RouteErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  constructor(props: ErrorBoundaryProps) {
+    super(props)
+    this.state = { hasError: false, error: null }
+  }
+
+  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
+    return { hasError: true, error }
+  }
+
+  componentDidCatch(error: Error, info: ErrorInfo) {
+    console.error('[RouteErrorBoundary] Uncaught render error:', error, info)
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="min-h-screen flex items-center justify-center bg-background p-8">
+          <div className="max-w-md text-center space-y-4">
+            <h1 className="text-2xl font-bold text-destructive">Something went wrong</h1>
+            <p className="text-muted-foreground text-sm">
+              {this.state.error?.message || 'An unexpected error occurred.'}
+            </p>
+            <div className="flex gap-3 justify-center">
+              <button
+                className="px-4 py-2 rounded-md bg-primary text-primary-foreground text-sm"
+                onClick={() => this.setState({ hasError: false, error: null })}
+              >
+                Try Again
+              </button>
+              <button
+                className="px-4 py-2 rounded-md border text-sm"
+                onClick={() => { window.location.href = '/' }}
+              >
+                Go to Dashboard
+              </button>
+            </div>
+          </div>
+        </div>
+      )
+    }
+    return this.props.children
+  }
+}
+
+// ---------------------------------------------------------------------------
+// RouteChangeCleanup – cancels in-flight queries when the user navigates to a
+// new page.  This prevents stale async work from the previous page from
+// interfering with the new page's state (the root cause of most "crash on
+// page change" reports).
+// ---------------------------------------------------------------------------
+function RouteChangeCleanup() {
+  const location = useLocation()
+  const qc = useQueryClient()
+
+  useEffect(() => {
+    // Cancel any in-flight queries when the route changes so that callbacks
+    // from the previous page don't run against unmounted component state.
+    qc.cancelQueries()
+  }, [location.pathname]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  return null
+}
 
 // Create a client
 const queryClient = new QueryClient({
@@ -250,8 +322,10 @@ export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
+        <RouteChangeCleanup />
         <NetworkStatusBar />
         <PWAInstallPrompt />
+        <RouteErrorBoundary>
         <Routes>
           {/* Public routes */}
           <Route path="/login" element={<Login />} />
@@ -848,6 +922,7 @@ export default function App() {
           {/* Catch all */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
+        </RouteErrorBoundary>
         <Toaster position="top-right" />
         <GlobalOperationsBar />
       </BrowserRouter>
