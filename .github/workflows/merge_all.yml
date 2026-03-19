@@ -775,7 +775,7 @@ jobs:
       (github.event_name == 'push' && needs.changed-paths.outputs.edge-functions == 'true') ||
       (github.event_name == 'workflow_dispatch' && github.event.inputs.job == 'deploy-edge-functions')
     env:
-  PUBLIC_FUNCTIONS: "orc-ingest vehicle-ingest alpr-process alpr-retry plate-scanner-photo-first stream-webhook get-weather send-push-notification sync-scv-list duplicate-detection"
+      PUBLIC_FUNCTIONS: "orc-ingest vehicle-ingest alpr-process alpr-retry plate-scanner-photo-first stream-webhook get-weather send-push-notification sync-scv-list duplicate-detection"
 
     steps:
       - name: Check required secrets
@@ -924,7 +924,7 @@ jobs:
       contents: read
     if: github.event_name == 'workflow_dispatch' && github.event.inputs.job == 'edge-functions-runbook'
     env:
-  PUBLIC_FUNCTIONS: "orc-ingest vehicle-ingest alpr-process alpr-retry plate-scanner-photo-first stream-webhook get-weather send-push-notification sync-scv-list duplicate-detection"
+      PUBLIC_FUNCTIONS: "orc-ingest vehicle-ingest alpr-process alpr-retry plate-scanner-photo-first stream-webhook get-weather send-push-notification sync-scv-list duplicate-detection"
 
     steps:
       - name: Check required secrets
