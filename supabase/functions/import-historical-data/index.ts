@@ -26,6 +26,10 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
 import { corsHeaders } from '../_shared/cors.ts';
 import * as XLSX from 'https://esm.sh/xlsx@0.18.5';
 
+const INFERENCE_SERVICE_URL = Deno.env.get('INFERENCE_SERVICE_URL') || '';
+const INFERENCE_API_KEY = Deno.env.get('INFERENCE_API_KEY') || '';
+const INFERENCE_TIMEOUT_MS = Number(Deno.env.get('INFERENCE_TIMEOUT_MS') ?? '4500');
+
 interface ImportProgress {
   status: 'parsing' | 'zone_matching' | 'importing' | 'completed' | 'failed';
   current_batch: number;
@@ -87,6 +91,16 @@ function parseStorageInputToBucketAndPath(input: string): { bucket: string; file
     bucket: 'evidence',
     filePath: trimmed.replace(/^\/+/, ''),
   };
+}
+
+function isSupabaseStorageUrl(input: string): boolean {
+  const trimmed = input.trim();
+  return trimmed.includes('/storage/v1/object/public/') || trimmed.includes('/storage/v1/object/sign/');
+}
+
+function isExternalHttpUrl(input: string): boolean {
+  const trimmed = input.trim().toLowerCase();
+  return (trimmed.startsWith('http://') || trimmed.startsWith('https://')) && !isSupabaseStorageUrl(input);
 }
 
 type ZoneRow = {
@@ -208,7 +222,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    if (!['admin', 'master'].includes(profile.role)) {
+    if (!['admin', 'master', 'admin_officer'].includes(profile.role)) {
       console.error('❌ [IMPORT] Permission denied - role:', profile.role);
       return new Response(
         JSON.stringify({ error: 'Forbidden - admin role required' }),
@@ -287,28 +301,65 @@ Deno.serve(async (req) => {
 
     console.log('✅ [IMPORT] Organization validated:', orgExists.name);
 
-    const parsedStorage = parseStorageInputToBucketAndPath(inputFile);
-    const bucket = input_bucket || parsedStorage.bucket;
-    const resolvedFilePath = parsedStorage.filePath;
+    let fileData: Blob | null = null;
+    let bucket: string | null = null;
+    let resolvedFilePath = '';
 
-    if (!bucket || !resolvedFilePath) {
-      return new Response(
-        JSON.stringify({ error: 'Could not resolve storage bucket and file path' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+    if (isExternalHttpUrl(inputFile)) {
+      // Allow importing directly from publicly-accessible XLSX/CSV links.
+      console.log('🌐 [IMPORT] External URL detected:', inputFile);
+      const externalResponse = await fetch(inputFile);
+
+      if (!externalResponse.ok) {
+        return new Response(
+          JSON.stringify({
+            error: 'Failed to fetch external file URL',
+            details: `HTTP ${externalResponse.status} ${externalResponse.statusText}`,
+          }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      fileData = await externalResponse.blob();
+
+      const parsedUrl = new URL(inputFile);
+      const pathSegments = parsedUrl.pathname.split('/').filter(Boolean);
+      resolvedFilePath = decodeURIComponent(pathSegments[pathSegments.length - 1] || 'external-import-file');
+      bucket = 'external-url';
+      console.log('📂 [IMPORT] External file name:', resolvedFilePath);
+    } else {
+      const parsedStorage = parseStorageInputToBucketAndPath(inputFile);
+      bucket = input_bucket || parsedStorage.bucket;
+      resolvedFilePath = parsedStorage.filePath;
+
+      if (!bucket || !resolvedFilePath) {
+        return new Response(
+          JSON.stringify({ error: 'Could not resolve storage bucket and file path' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      console.log('📂 [IMPORT] File bucket/path:', bucket, resolvedFilePath);
+
+      // Download file from storage
+      const { data: downloadedFile, error: downloadError } = await supabaseAdmin.storage
+        .from(bucket)
+        .download(resolvedFilePath);
+
+      if (downloadError || !downloadedFile) {
+        console.error('❌ [IMPORT] File download failed:', downloadError);
+        return new Response(
+          JSON.stringify({ error: 'Failed to download file', details: downloadError?.message }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      fileData = downloadedFile;
     }
 
-    console.log('📂 [IMPORT] File bucket/path:', bucket, resolvedFilePath);
-
-    // Download file from storage
-    const { data: fileData, error: downloadError } = await supabaseAdmin.storage
-      .from(bucket)
-      .download(resolvedFilePath);
-
-    if (downloadError || !fileData) {
-      console.error('❌ [IMPORT] File download failed:', downloadError);
+    if (!fileData) {
       return new Response(
-        JSON.stringify({ error: 'Failed to download file', details: downloadError?.message }),
+        JSON.stringify({ error: 'No file data available for import' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -408,95 +459,49 @@ Deno.serve(async (req) => {
       }
     }
 
-    // STEP: AI-powered document analysis for intelligent data cleaning (optional enhancement)
-    // Minimum confidence required for AI to override the heuristic date-format detection.
-    // 0.8 is chosen because heuristic detection is reliable for unambiguous cases (first
-    // segment > 12 is always DD), and we only want AI to override when it is quite certain
-    // its analysis is better (e.g. mixed-format files where heuristic guesses incorrectly).
+    // STEP: Inference-service tabular NLP analysis (optional enhancement)
+    // Minimum confidence required to override the heuristic date-format detection.
     const AI_DATE_FORMAT_CONFIDENCE_THRESHOLD = 0.8;
-    console.log('🤖 [IMPORT] Attempting AI document analysis (optional)...');
+    console.log('🤖 [IMPORT] Attempting inference-service tabular NLP analysis (optional)...');
     const sampleRows = jsonData.slice(0, Math.min(20, jsonData.length));
-    const aiAnalysisPrompt = `You are a data analyst for a Freedom Camping compliance system. Analyze this Excel data for historical vehicle observations.
-
-SAMPLE ROWS (first 20 or less):
-${JSON.stringify(sampleRows, null, 2)}
-
-EXPECTED COLUMNS:
-- Column A: ID (record number)
-- Column B: Title/Zone (location name like "Bendigo", "Lowburn", "Jacksons Inlet")
-- Column C: RecordedDate (DATE when vehicle was observed)
-- Column D: REGO (vehicle plate number)
-- Column E: Note (officer notes, may be blank/NaN)
-- Column F: Attachments (number, may be 0)
-
-TASKS:
-1. **Detect Date Format**: What format are the dates in Column C? (dd/mm/yyyy, mm/dd/yyyy, yyyy-mm-dd, Excel serial number, or mixed?)
-2. **Data Quality**: Are there blank cells? NaN values? Missing data?
-3. **Date Range**: What's the earliest and latest date in the sample?
-4. **Common Issues**: Any patterns of corrupt data, invalid dates, or formatting problems?
-
-Return ONLY a JSON object with this structure:
-{
-  "dateFormat": "dd/mm/yyyy" | "mm/dd/yyyy" | "yyyy-mm-dd" | "excel_serial" | "mixed",
-  "dateFormatConfidence": 0.0-1.0,
-  "earliestDate": "YYYY-MM-DD",
-  "latestDate": "YYYY-MM-DD",
-  "totalRowsAnalyzed": number,
-  "blankDates": number,
-  "blankZones": number,
-  "blankPlates": number,
-  "blankNotes": number,
-  "dataQualityIssues": ["issue1", "issue2"],
-  "recommendations": ["recommendation1", "recommendation2"]
-}`;
-
     let aiAnalysis: any = null;
 
     try {
-      const aiResponse = await fetch(
-        `${Deno.env.get('OPENAI_BASE_URL') || 'https://api.openai.com/v1'}/chat/completions`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${Deno.env.get('OPENAI_API_KEY')}`,
-          },
-          body: JSON.stringify({
-            model: 'gpt-4o',
-            messages: [
-              {
-                role: 'system',
-                content: 'You are a data analyst. Return ONLY valid JSON, no markdown, no explanations.'
-              },
-              {
-                role: 'user',
-                content: aiAnalysisPrompt
-              }
-            ],
-            response_format: { type: 'json_object' },
-            temperature: 0.1,
-          }),
-        }
-      );
-
-      if (aiResponse.ok) {
-        const aiData = await aiResponse.json();
-        const content = aiData.choices[0]?.message?.content;
-        if (content) {
-          aiAnalysis = JSON.parse(content);
-          // Only override heuristic detection if AI is highly confident
-          if (aiAnalysis.dateFormat && aiAnalysis.dateFormatConfidence >= AI_DATE_FORMAT_CONFIDENCE_THRESHOLD) {
-            dateFormat = aiAnalysis.dateFormat;
-            console.log(`✅ [IMPORT] AI overrides date format to: ${dateFormat} (confidence ${aiAnalysis.dateFormatConfidence})`);
-          } else {
-            console.log(`✅ [IMPORT] AI Analysis complete but low confidence; keeping heuristic format: ${dateFormat}`);
-          }
-        }
+      if (!INFERENCE_SERVICE_URL) {
+        console.warn('⚠️ [IMPORT] INFERENCE_SERVICE_URL not configured, using heuristic only');
       } else {
-        console.warn('⚠️ [IMPORT] AI analysis failed, using heuristic date format:', dateFormat);
+        const headers: Record<string, string> = {
+          'Content-Type': 'application/json',
+        };
+        if (INFERENCE_API_KEY) {
+          headers['x-inference-api-key'] = INFERENCE_API_KEY;
+        }
+
+        const inferenceRes = await fetch(`${INFERENCE_SERVICE_URL}/nlp/tabular/analyze`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            sampleRows,
+            expectedColumns: ['ID', 'Title', 'RecordedDate', 'REGO', 'Note', 'Attachments'],
+          }),
+          signal: AbortSignal.timeout(INFERENCE_TIMEOUT_MS),
+        });
+
+        if (inferenceRes.ok) {
+          const inferenceData = await inferenceRes.json();
+          aiAnalysis = inferenceData?.analysis ?? null;
+          if (aiAnalysis?.dateFormat && aiAnalysis?.dateFormatConfidence >= AI_DATE_FORMAT_CONFIDENCE_THRESHOLD) {
+            dateFormat = aiAnalysis.dateFormat;
+            console.log(`✅ [IMPORT] Inference service overrides date format to: ${dateFormat} (confidence ${aiAnalysis.dateFormatConfidence})`);
+          } else {
+            console.log(`✅ [IMPORT] Inference analysis complete but low confidence; keeping heuristic format: ${dateFormat}`);
+          }
+        } else {
+          console.warn(`⚠️ [IMPORT] Inference service analysis failed (${inferenceRes.status}), using heuristic date format: ${dateFormat}`);
+        }
       }
     } catch (aiError: any) {
-      console.warn('⚠️ [IMPORT] AI analysis error (non-critical), using heuristic:', aiError.message);
+      console.warn('⚠️ [IMPORT] Inference analysis error (non-critical), using heuristic:', aiError.message);
     }
 
     // Parse records (skip header)

@@ -76,6 +76,46 @@ Service runs on http://localhost:3000
 
 ## **API Reference**
 
+### **POST /nlp/tabular/analyze**
+
+Analyze tabular import samples (XLSX/CSV rows) for date format and data quality.
+
+This endpoint is designed for historical import workflows and can run fully local with
+`TABULAR_NLP_PROVIDER=heuristic` (no external providers required).
+
+**Request:**
+```bash
+curl -X POST http://localhost:3000/nlp/tabular/analyze \
+  -H "Content-Type: application/json" \
+  -H "x-inference-api-key: $INFERENCE_API_KEY" \
+  -d '{
+    "sampleRows": [
+      ["ID","Title","RecordedDate","REGO","Note"],
+      ["1","Bendigo","10/03/2026","ABC123",""],
+      ["2","Lowburn",46091,"XYZ987",""]
+    ]
+  }'
+```
+
+**Response (200):**
+```json
+{
+  "success": true,
+  "provider": "heuristic",
+  "analysis": {
+    "dateFormat": "dd/mm/yyyy",
+    "dateFormatConfidence": 0.9,
+    "totalRowsAnalyzed": 2,
+    "blankDates": 0,
+    "blankZones": 0,
+    "blankPlates": 0,
+    "blankNotes": 2,
+    "dataQualityIssues": [],
+    "recommendations": []
+  }
+}
+```
+
 ### **POST /infer**
 
 Generate vehicle embedding from photo.

@@ -26,6 +26,11 @@ const OPENAI_BASE_URL = process.env.OPENAI_BASE_URL || 'https://api.openai.com/v
 const OPENAI_API_KEY = process.env.OPENAI_API_KEY || '';
 const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-4o-mini';
 const ATTR_TIMEOUT_MS = Number(process.env.ATTR_TIMEOUT_MS || 2500);
+const TABULAR_NLP_PROVIDER = (process.env.TABULAR_NLP_PROVIDER || 'heuristic').toLowerCase();
+const TABULAR_NLP_TIMEOUT_MS = Number(process.env.TABULAR_NLP_TIMEOUT_MS || 2500);
+const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL || 'http://127.0.0.1:11434';
+const OLLAMA_MODEL = process.env.OLLAMA_MODEL || 'llama3.1:8b';
+const INFERENCE_API_KEY = process.env.INFERENCE_API_KEY || '';
 
 // Configure CORS (restrict to your Supabase Edge Function)
 const corsOptions = {
@@ -36,6 +41,17 @@ const corsOptions = {
 
 app.use(cors(corsOptions));
 app.use(express.json({ limit: '10mb' }));
+
+function requireInferenceApiKey(req, res, next) {
+  if (!INFERENCE_API_KEY) return next();
+
+  const header = req.get('x-inference-api-key') || req.get('authorization')?.replace(/^Bearer\s+/i, '');
+  if (!header || header !== INFERENCE_API_KEY) {
+    return res.status(401).json({ error: 'Unauthorized inference request' });
+  }
+
+  return next();
+}
 
 // Configure multer for image uploads
 const upload = multer({
@@ -133,6 +149,223 @@ function cleanText(value) {
   const text = String(value).trim();
   return text.length > 0 ? text : null;
 }
+
+function detectDateFormatHeuristic(sampleRows) {
+  let slashDdMm = 0;
+  let slashMmDd = 0;
+  let isoLike = 0;
+  let excelSerial = 0;
+
+  for (const row of sampleRows) {
+    const candidate = Array.isArray(row) ? row[2] : null;
+
+    if (typeof candidate === 'number' && Number.isFinite(candidate)) {
+      if (candidate > 20000 && candidate < 90000) {
+        excelSerial++;
+      }
+      continue;
+    }
+
+    if (typeof candidate !== 'string') continue;
+    const dateText = candidate.trim();
+    if (!dateText) continue;
+
+    if (/^\d{4}-\d{2}-\d{2}/.test(dateText)) {
+      isoLike++;
+      continue;
+    }
+
+    if (dateText.includes('/')) {
+      const parts = dateText.split('/');
+      if (parts.length !== 3) continue;
+
+      const a = Number.parseInt(parts[0], 10);
+      const b = Number.parseInt(parts[1], 10);
+      if (!Number.isFinite(a) || !Number.isFinite(b)) continue;
+
+      if (a > 12 && b <= 12) {
+        slashDdMm += 2;
+      } else if (b > 12 && a <= 12) {
+        slashMmDd += 2;
+      } else {
+        // ambiguous: NZ defaults are DD/MM/YYYY
+        slashDdMm += 1;
+      }
+    }
+  }
+
+  const totalSignals = slashDdMm + slashMmDd + isoLike + excelSerial;
+  if (totalSignals === 0) {
+    return { dateFormat: 'unknown', confidence: 0.4, evidence: { slashDdMm, slashMmDd, isoLike, excelSerial } };
+  }
+
+  const scored = [
+    { dateFormat: 'dd/mm/yyyy', score: slashDdMm },
+    { dateFormat: 'mm/dd/yyyy', score: slashMmDd },
+    { dateFormat: 'yyyy-mm-dd', score: isoLike },
+    { dateFormat: 'excel_serial', score: excelSerial },
+  ].sort((a, b) => b.score - a.score);
+
+  const top = scored[0];
+  const confidence = Math.max(0.5, Math.min(0.98, top.score / totalSignals));
+  return {
+    dateFormat: top.dateFormat,
+    confidence,
+    evidence: { slashDdMm, slashMmDd, isoLike, excelSerial },
+  };
+}
+
+function analyzeTabularDataHeuristic(sampleRows) {
+  const rows = Array.isArray(sampleRows) ? sampleRows : [];
+  const dataRows = rows.slice(1);
+  const scanRows = dataRows.slice(0, 200);
+
+  const dateDetection = detectDateFormatHeuristic(rows.slice(0, 40));
+
+  let blankDates = 0;
+  let blankZones = 0;
+  let blankPlates = 0;
+  let blankNotes = 0;
+  const dateStrings = [];
+
+  for (const row of scanRows) {
+    if (!Array.isArray(row)) continue;
+
+    const zone = row[1];
+    const date = row[2];
+    const plate = row[3];
+    const notes = row[4];
+
+    if (zone === null || zone === undefined || String(zone).trim() === '') blankZones++;
+    if (plate === null || plate === undefined || String(plate).trim() === '') blankPlates++;
+    if (notes === null || notes === undefined || String(notes).trim() === '' || String(notes).toLowerCase() === 'nan') blankNotes++;
+    if (date === null || date === undefined || String(date).trim() === '') {
+      blankDates++;
+    } else {
+      dateStrings.push(String(date).trim());
+    }
+  }
+
+  const recommendations = [];
+  if (blankDates > 0) recommendations.push('Rows with blank dates will be skipped');
+  if (blankZones > 0) recommendations.push('Rows with blank zone names will fail zone matching');
+  if (blankPlates > 0) recommendations.push('Rows with blank plate values will be skipped');
+  if (dateDetection.dateFormat === 'unknown') recommendations.push('Date format was ambiguous; DD/MM/YYYY fallback is recommended for NZ datasets');
+
+  return {
+    dateFormat: dateDetection.dateFormat,
+    dateFormatConfidence: dateDetection.confidence,
+    earliestDate: null,
+    latestDate: null,
+    totalRowsAnalyzed: scanRows.length,
+    blankDates,
+    blankZones,
+    blankPlates,
+    blankNotes,
+    dataQualityIssues: recommendations,
+    recommendations,
+    provider: 'heuristic',
+    evidence: dateDetection.evidence,
+  };
+}
+
+async function analyzeTabularDataWithOllama(sampleRows) {
+  const heuristic = analyzeTabularDataHeuristic(sampleRows);
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), TABULAR_NLP_TIMEOUT_MS);
+  try {
+    const response = await fetch(`${OLLAMA_BASE_URL}/api/chat`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      signal: controller.signal,
+      body: JSON.stringify({
+        model: OLLAMA_MODEL,
+        stream: false,
+        format: 'json',
+        messages: [
+          {
+            role: 'system',
+            content: 'Return only strict JSON. You are analyzing tabular NZ historical records.',
+          },
+          {
+            role: 'user',
+            content: JSON.stringify({
+              task: 'Analyze date format and quality in this table sample',
+              sampleRows: Array.isArray(sampleRows) ? sampleRows.slice(0, 40) : [],
+              expectedResponseShape: {
+                dateFormat: 'dd/mm/yyyy | mm/dd/yyyy | yyyy-mm-dd | excel_serial | mixed | unknown',
+                dateFormatConfidence: 0.9,
+                earliestDate: 'YYYY-MM-DD or null',
+                latestDate: 'YYYY-MM-DD or null',
+                totalRowsAnalyzed: 0,
+                blankDates: 0,
+                blankZones: 0,
+                blankPlates: 0,
+                blankNotes: 0,
+                dataQualityIssues: [],
+                recommendations: [],
+              },
+            }),
+          },
+        ],
+      }),
+    });
+
+    if (!response.ok) {
+      return heuristic;
+    }
+
+    const payload = await response.json();
+    const content = payload?.message?.content;
+    if (!content || typeof content !== 'string') {
+      return heuristic;
+    }
+
+    const parsed = JSON.parse(content);
+    return {
+      ...heuristic,
+      ...parsed,
+      provider: 'ollama',
+      dateFormat: cleanText(parsed?.dateFormat) || heuristic.dateFormat,
+      dateFormatConfidence: clamp01(parsed?.dateFormatConfidence) ?? heuristic.dateFormatConfidence,
+      dataQualityIssues: Array.isArray(parsed?.dataQualityIssues) ? parsed.dataQualityIssues : heuristic.dataQualityIssues,
+      recommendations: Array.isArray(parsed?.recommendations) ? parsed.recommendations : heuristic.recommendations,
+    };
+  } catch (error) {
+    console.warn('⚠️ Tabular NLP via Ollama failed:', error.message);
+    return heuristic;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+app.post('/nlp/tabular/analyze', requireInferenceApiKey, async (req, res) => {
+  try {
+    const sampleRows = req.body?.sampleRows;
+    if (!Array.isArray(sampleRows) || sampleRows.length === 0) {
+      return res.status(400).json({ error: 'sampleRows must be a non-empty array' });
+    }
+
+    const analysis = TABULAR_NLP_PROVIDER === 'ollama'
+      ? await analyzeTabularDataWithOllama(sampleRows)
+      : analyzeTabularDataHeuristic(sampleRows);
+
+    return res.json({
+      success: true,
+      provider: analysis.provider,
+      analysis,
+    });
+  } catch (error) {
+    console.error('Tabular NLP error:', error);
+    return res.status(500).json({
+      error: 'Tabular NLP failed',
+      message: error.message,
+    });
+  }
+});
 
 function nearestColourName(r, g, b) {
   const palette = [
@@ -568,6 +801,7 @@ app.get('/health', (req, res) => {
     capabilities: {
       plate_inference: modelsLoaded,
       ai_attributes: VEHICLE_ATTRS_PROVIDER === 'openai' && !!OPENAI_API_KEY,
+      tabular_nlp: true,
     },
     uptime: process.uptime(),
     memory: process.memoryUsage()
@@ -591,6 +825,11 @@ loadModels().then(() => {
     // Config summary — makes misconfiguration visible at a glance in Railway logs
     console.log(`⚙️  Config:`, {
       VEHICLE_ATTRS_PROVIDER,
+      TABULAR_NLP_PROVIDER,
+      TABULAR_NLP_TIMEOUT_MS,
+      OLLAMA_BASE_URL,
+      OLLAMA_MODEL,
+      INFERENCE_API_KEY_SET: !!INFERENCE_API_KEY,
       OPENAI_BASE_URL: OPENAI_BASE_URL || '(not set)',
       OPENAI_MODEL: OPENAI_MODEL || '(not set)',
       OPENAI_API_KEY: OPENAI_API_KEY ? `${OPENAI_API_KEY.slice(0, 6)}…` : '(not set)',

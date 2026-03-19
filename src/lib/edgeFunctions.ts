@@ -732,7 +732,16 @@ export const edgeFunctions = {
    * Excel import with zone fuzzy matching
    */
   importHistoricalData: async (params: {
-    file_url: string
+    file_url?: string
+    fileUrl?: string
+    file_path?: string
+    filePath?: string
+    bucket?: string
+    storage_bucket?: string
+    batch_name?: string
+    batchName?: string
+    organization_id?: string
+    organizationId?: string
   }) => {
     return callEdgeFunction('import-historical-data', params)
   },

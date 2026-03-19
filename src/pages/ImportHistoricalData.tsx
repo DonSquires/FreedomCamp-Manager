@@ -365,19 +365,19 @@ export default function ImportHistoricalData() {
 
             <Card className="border-dashed">
               <CardHeader>
-                <CardTitle className="text-base">Import From Existing Storage File</CardTitle>
+                <CardTitle className="text-base">Import From URL Or Existing Storage File</CardTitle>
                 <CardDescription>
-                  Paste a Supabase Storage URL or a file path already in storage to trigger backend import directly.
+                  Paste a public XLSX/CSV URL or a Supabase Storage URL/path to trigger backend import directly.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
                 <div className="space-y-1.5">
-                  <Label>Storage URL or Path *</Label>
+                  <Label>Public URL, Storage URL, or Storage Path *</Label>
                   <input
                     className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                     value={storageSource}
                     onChange={e => setStorageSource(e.target.value)}
-                    placeholder="https://.../storage/v1/object/public/<bucket>/<file>.xlsx or imports/user/file.xlsx"
+                    placeholder="https://example.com/file.xlsx or https://.../storage/v1/object/public/<bucket>/<file>.xlsx"
                   />
                 </div>
 
@@ -405,7 +405,7 @@ export default function ImportHistoricalData() {
                   ) : (
                     <span className="flex items-center gap-2">
                       <Database className="h-4 w-4" />
-                      Import From Storage URL
+                      Import From URL
                     </span>
                   )}
                 </Button>
