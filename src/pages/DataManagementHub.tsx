@@ -86,11 +86,11 @@ interface ScvSyncBatch {
   offset: number
   batch_size: number
   processed: number
-  total_canonical_vehicles: number
+  total_canonical_vehicles: number | null
   next_offset: number | null
   has_more: boolean
   batch_number: number
-  total_batches: number
+  total_batches: number | null
 }
 
 interface ScvSyncResponse {
@@ -100,9 +100,9 @@ interface ScvSyncResponse {
 
 interface ScvSyncProgress {
   processed: number
-  total: number
+  total: number | null
   batchNumber: number
-  totalBatches: number
+  totalBatches: number | null
 }
 
 const EMPTY_SCV_RESULT: ScvSyncResult = {
@@ -117,7 +117,7 @@ const EMPTY_SCV_RESULT: ScvSyncResult = {
   errors: [],
 }
 
-const SCV_BATCH_SIZE = 500
+const SCV_BATCH_SIZE = 200
 
 function mergeScvResults(current: ScvSyncResult, incoming: ScvSyncResult): ScvSyncResult {
   return {
@@ -541,15 +541,24 @@ export default function DataManagementHub() {
                     {scvDryRun ? 'Previewing SCV sync batches' : 'Running SCV sync batches'}
                   </span>
                   <span className="text-muted-foreground">
-                    Batch {scvProgress.batchNumber} of {scvProgress.totalBatches || 1}
+                    Batch {scvProgress.batchNumber}
+                    {scvProgress.totalBatches ? ` of ${scvProgress.totalBatches}` : ''}
                   </span>
                 </div>
                 <Progress
-                  value={scvProgress.total > 0 ? (scvProgress.processed / scvProgress.total) * 100 : 0}
+                  value={
+                    scvProgress.total && scvProgress.total > 0
+                      ? (scvProgress.processed / scvProgress.total) * 100
+                      : undefined
+                  }
                 />
                 <div className="flex items-center justify-between text-xs text-muted-foreground">
                   <span>{scvProgress.processed.toLocaleString()} vehicles processed</span>
-                  <span>{scvProgress.total.toLocaleString()} total</span>
+                  <span>
+                    {scvProgress.total
+                      ? `${scvProgress.total.toLocaleString()} total`
+                      : 'total pending'}
+                  </span>
                 </div>
               </div>
             )}

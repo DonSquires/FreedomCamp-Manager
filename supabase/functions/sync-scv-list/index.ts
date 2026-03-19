@@ -44,11 +44,11 @@ interface BatchMeta {
   offset: number;
   batch_size: number;
   processed: number;
-  total_canonical_vehicles: number;
+  total_canonical_vehicles: number | null;
   next_offset: number | null;
   has_more: boolean;
   batch_number: number;
-  total_batches: number;
+  total_batches: number | null;
 }
 
 function parseJwtPayload(token: string): Record<string, unknown> | null {
@@ -207,30 +207,30 @@ serve(async (req) => {
 
     // ── Step 2: Load a canonical_vehicles batch ─────────────────────────────
 
-    const { data: canonicalVehicles, error: cvError, count: totalCanonicalVehicles } = await supabaseAdmin
+    const { data: canonicalVehicleRows, error: cvError } = await supabaseAdmin
       .from('canonical_vehicles')
-      .select('plate_number, self_contained, self_contained_expiry, nzscv_source', { count: 'exact' })
+      .select('plate_number, self_contained, self_contained_expiry, nzscv_source')
       .order('plate_number', { ascending: true })
-      .range(offset, offset + batchSize - 1);
+      .range(offset, offset + batchSize);
 
     if (cvError) {
       return json(500, { error: `Failed to fetch canonical vehicles: ${cvError.message}` });
     }
 
-    result.canonical_vehicles_checked = canonicalVehicles?.length ?? 0;
+    const canonicalVehicles = (canonicalVehicleRows ?? []).slice(0, batchSize);
+    result.canonical_vehicles_checked = canonicalVehicles.length;
 
     const processed = offset + result.canonical_vehicles_checked;
-    const totalVehicles = totalCanonicalVehicles ?? result.canonical_vehicles_checked;
-    const hasMore = processed < totalVehicles;
+    const hasMore = (canonicalVehicleRows?.length ?? 0) > batchSize;
     const batch: BatchMeta = {
       offset,
       batch_size: batchSize,
       processed,
-      total_canonical_vehicles: totalVehicles,
+      total_canonical_vehicles: null,
       next_offset: hasMore ? processed : null,
       has_more: hasMore,
-      batch_number: totalVehicles === 0 ? 0 : Math.floor(offset / batchSize) + 1,
-      total_batches: totalVehicles === 0 ? 0 : Math.ceil(totalVehicles / batchSize),
+      batch_number: result.canonical_vehicles_checked === 0 && offset === 0 ? 0 : Math.floor(offset / batchSize) + 1,
+      total_batches: null,
     };
 
     // ── Step 3: Classify changes ─────────────────────────────────────────────
@@ -316,7 +316,7 @@ serve(async (req) => {
 
     // ── Step 4: Apply canonical_vehicles updates (batched) ───────────────────
 
-    const BATCH_SIZE = 100;
+    const BATCH_SIZE = 50;
 
     for (let i = 0; i < updateBatch.length; i += BATCH_SIZE) {
       const chunk = updateBatch.slice(i, i + BATCH_SIZE);
@@ -335,18 +335,18 @@ serve(async (req) => {
     if (toSetCurrent.length > 0) {
       for (let i = 0; i < toSetCurrent.length; i += BATCH_SIZE) {
         const chunk = toSetCurrent.slice(i, i + BATCH_SIZE);
-        const { error, count } = await supabaseAdmin
+        const { error } = await supabaseAdmin
           .from('observations')
           .update({ self_contained: true })
           .in('plate_number', chunk)
-          .eq('self_contained', false)
-          .select('plate_number', { count: 'exact', head: true });
+          .eq('self_contained', false);
         if (error) {
           result.errors.push(`obs update batch ${Math.floor(i / BATCH_SIZE)}: ${error.message}`);
-        } else {
-          result.observations_updated += count ?? 0;
         }
       }
+
+      // Use an upper-bound estimate without expensive count queries.
+      result.observations_updated = toSetCurrent.length;
     }
 
     // ── Step 6: Resolve incorrect CSC breach_alerts ──────────────────────────
@@ -359,7 +359,7 @@ serve(async (req) => {
 
       for (let i = 0; i < toSetCurrent.length; i += BATCH_SIZE) {
         const chunk = toSetCurrent.slice(i, i + BATCH_SIZE);
-        const { error, count } = await supabaseAdmin
+        const { error } = await supabaseAdmin
           .from('breach_alerts')
           .update({
             status: 'resolved',
@@ -368,15 +368,15 @@ serve(async (req) => {
           })
           .in('plate_number', chunk)
           .in('status', ['pending', 'acknowledged', 'enforcement_started'])
-          .eq('breach_type', 'self_contained')
-          .select('id', { count: 'exact', head: true });
+          .eq('breach_type', 'self_contained');
 
         if (error) {
           result.errors.push(`breach_alert resolve batch ${Math.floor(i / BATCH_SIZE)}: ${error.message}`);
-        } else {
-          result.breach_alerts_resolved += count ?? 0;
         }
       }
+
+      // Use an upper-bound estimate without expensive count queries.
+      result.breach_alerts_resolved = toSetCurrent.length;
     }
 
     return json(200, {
