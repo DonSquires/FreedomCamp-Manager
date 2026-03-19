@@ -269,6 +269,8 @@ interface InferenceResult {
   embedding: number[] | null;
   embeddingQuality: number | null;
   path: string;
+  attrsProvider: string | null;
+  aiAttrsEnabled: boolean | null;
   // Optional vehicle detail fields from inference service
   inferMake:   string | null;
   inferModel:  string | null;
@@ -287,6 +289,7 @@ async function callInference(imageBytes: Uint8Array): Promise<InferenceResult> {
   const empty: InferenceResult = {
     plate: null, confidence: null, embedding: null, embeddingQuality: null,
     path: 'no_inference_url',
+    attrsProvider: null, aiAttrsEnabled: null,
     inferMake: null, inferModel: null, inferYear: null, inferColour: null,
     inferMakeConf: null, inferModelConf: null, inferColourConf: null,
     stickerPresence: null, stickerColor: null, stickerConf: null,
@@ -318,6 +321,8 @@ async function callInference(imageBytes: Uint8Array): Promise<InferenceResult> {
       embedding:       Array.isArray(d?.embedding) ? d.embedding : null,
       embeddingQuality: d?.embedding_quality ?? null,
       path:            'railway_inference',
+      attrsProvider:   d?.attribute_provider ? String(d.attribute_provider) : null,
+      aiAttrsEnabled:  typeof d?.ai_attributes_enabled === 'boolean' ? d.ai_attributes_enabled : null,
       inferMake:       d?.vehicle_make   ? String(d.vehicle_make)   : (d?.make ? String(d.make) : null),
       inferModel:      d?.vehicle_model  ? String(d.vehicle_model)  : (d?.model ? String(d.model) : null),
       inferYear:       toIntOrNull(d?.vehicle_year ?? d?.year ?? null),
@@ -897,6 +902,7 @@ Deno.serve(async (req: Request) => {
     let finalPlate = inference.plate;
     let finalConfidence = inference.confidence;
     let alprOrientation: string | null = null;
+    let alprFallbackUsed = false;
 
     if (!finalPlate) {
       console.log('🔄 No plate from inference — running ALPR backup...');
@@ -910,6 +916,7 @@ Deno.serve(async (req: Request) => {
         if (alprResult.plate) {
           finalPlate = normalizePlate(alprResult.plate);
           finalConfidence = alprResult.confidence;
+          alprFallbackUsed = true;
           console.log('✅ ALPR backup found plate:', finalPlate, {
             duration_ms: Date.now() - alprStartedAt,
             orientation: alprOrientation,
@@ -1575,7 +1582,9 @@ Deno.serve(async (req: Request) => {
       pipeline: {
         inference_path: inference.path,
         inference_url_configured: !!INFERENCE_SERVICE_URL,
-        alpr_fallback_used: inference.path !== 'railway_inference',
+        alpr_fallback_used: alprFallbackUsed,
+        ai_attribute_provider: inference.attrsProvider ?? 'unknown',
+        ai_attributes_enabled: inference.aiAttrsEnabled,
       },
       vehicle: {
         // SC certification — primary purpose of NZSCV lookup
@@ -1626,6 +1635,9 @@ Deno.serve(async (req: Request) => {
       plate,
       inferencePath: inference.path,
       inferenceUrlConfigured: !!INFERENCE_SERVICE_URL,
+      aiAttributeProvider: inference.attrsProvider ?? 'unknown',
+      aiAttributesEnabled: inference.aiAttrsEnabled,
+      alprFallbackUsed,
       isCompliant:       compliance.isCompliant,
       breachType:        compliance.breachType,
       discrepancies:     discrepancies.length,
