@@ -2,10 +2,10 @@
  * DUPLICATE DETECTION - BATCH PROCESSOR
  * 
  * Processes up to 300 observations at a time
- * Finds duplicates in same zone during NZ patrol windows:
- * - 16:00 to 23:59 NZT
- * - 00:00 to 09:59 NZT
- * and within 50 meters GPS proximity.
+ * Finds duplicates by date/time + location (zone):
+ * - same zone
+ * - same NZ calendar date
+ * - recorded within a configurable time window (default 5 minutes)
  * Keeps newest observation, deletes older duplicates
  * Frontend handles pagination and progress tracking
  */
@@ -14,20 +14,7 @@ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
 import { corsHeaders } from '../_shared/cors.ts';
 
-const DUPLICATE_DISTANCE_METERS = 50;
-
-function calculateDistanceMeters(lat1: number, lng1: number, lat2: number, lng2: number): number {
-  const R = 6371000;
-  const dLat = (lat2 - lat1) * (Math.PI / 180);
-  const dLng = (lng2 - lng1) * (Math.PI / 180);
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2)
-    + Math.cos(lat1 * (Math.PI / 180))
-    * Math.cos(lat2 * (Math.PI / 180))
-    * Math.sin(dLng / 2)
-    * Math.sin(dLng / 2);
-  return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
-}
+const DEFAULT_DUPLICATE_TIME_WINDOW_MINUTES = 5;
 
 function nzDateKey(value: string): string {
   return new Intl.DateTimeFormat('en-CA', {
@@ -53,7 +40,15 @@ function nzDuplicateWindow(value: string): 'evening' | 'morning' | null {
   return null;
 }
 
-function isDuplicateByRule(current: any, previous: any): boolean {
+function isWithinTimeWindowMinutes(current: string, previous: string, minutes: number): boolean {
+  const currentMs = new Date(current).getTime();
+  const previousMs = new Date(previous).getTime();
+  if (!Number.isFinite(currentMs) || !Number.isFinite(previousMs)) return false;
+
+  return Math.abs(currentMs - previousMs) <= minutes * 60 * 1000;
+}
+
+function isDuplicateByRule(current: any, previous: any, timeWindowMinutes: number): boolean {
   if (current.zone_id !== previous.zone_id) return false;
 
   const currentWindow = nzDuplicateWindow(current.recorded_at);
@@ -61,13 +56,7 @@ function isDuplicateByRule(current: any, previous: any): boolean {
   if (!currentWindow || currentWindow !== previousWindow) return false;
   if (nzDateKey(current.recorded_at) !== nzDateKey(previous.recorded_at)) return false;
 
-  const lat1 = Number(current.gps_latitude);
-  const lng1 = Number(current.gps_longitude);
-  const lat2 = Number(previous.gps_latitude);
-  const lng2 = Number(previous.gps_longitude);
-  if (![lat1, lng1, lat2, lng2].every(Number.isFinite)) return false;
-
-  return calculateDistanceMeters(lat1, lng1, lat2, lng2) <= DUPLICATE_DISTANCE_METERS;
+  return isWithinTimeWindowMinutes(current.recorded_at, previous.recorded_at, timeWindowMinutes);
 }
 
 serve(async (req) => {
@@ -76,20 +65,126 @@ serve(async (req) => {
     return new Response('ok', { headers: corsHeaders });
   }
 
-  const supabaseAdmin = createClient(
-    Deno.env.get('SUPABASE_URL') ?? '',
-    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-  );
+  const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
+  const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+  const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY') ?? '';
+
+  if (!supabaseUrl || !supabaseServiceKey || !supabaseAnonKey) {
+    return new Response(
+      JSON.stringify({
+        error: 'Missing Supabase environment configuration',
+      }),
+      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+
+  const authHeader = req.headers.get('Authorization');
+  if (!authHeader) {
+    return new Response(
+      JSON.stringify({
+        error: 'Missing login token. Please sign in again.',
+        auth_error: 'MISSING_AUTHORIZATION_HEADER',
+      }),
+      { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+
+  const bearerMatch = authHeader.match(/^Bearer\s+(.+)$/i);
+  if (!bearerMatch?.[1]) {
+    return new Response(
+      JSON.stringify({
+        error: 'Invalid login token format. Please sign in again.',
+        auth_error: 'MALFORMED_AUTHORIZATION_HEADER',
+      }),
+      { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+
+  const jwt = bearerMatch[1].trim();
+
+  const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
+  const supabaseUserScoped = createClient(supabaseUrl, supabaseAnonKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+    global: {
+      headers: {
+        Authorization: `Bearer ${jwt}`,
+      },
+    },
+  });
+  const authClient = createClient(supabaseUrl, supabaseAnonKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+
+  const { data: authData, error: authError } = await authClient.auth.getUser(jwt);
+  if (authError || !authData?.user) {
+    return new Response(
+      JSON.stringify({
+        error: 'Session expired or invalid. Please sign in again.',
+        auth_error: 'INVALID_AUTH_SESSION',
+      }),
+      { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+
+  const { data: profile, error: profileError } = await supabaseAdmin
+    .from('user_profiles')
+    .select('id, role')
+    .eq('id', authData.user.id)
+    .maybeSingle();
+
+  if (profileError || !profile) {
+    return new Response(
+      JSON.stringify({
+        error: 'User profile not found. Please contact support.',
+        auth_error: 'PROFILE_NOT_FOUND',
+      }),
+      { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+
+  if (profile.role !== 'master') {
+    return new Response(
+      JSON.stringify({
+        error: 'Only master users can run duplicate cleanup.',
+        auth_error: 'INSUFFICIENT_ROLE',
+        required_role: 'master',
+      }),
+      { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+    );
+  }
+
+  console.log('✅ Authenticated duplicate detection user:', authData.user.id);
 
   try {
-    const { zoneIds, dateRangeStart, dateRangeEnd, offset = 0, batch_size = 50, get_total = false } = await req.json();
+    const {
+      zoneIds,
+      dateRangeStart,
+      dateRangeEnd,
+      offset = 0,
+      batch_size = 50,
+      get_total = false,
+      time_window_minutes = DEFAULT_DUPLICATE_TIME_WINDOW_MINUTES,
+    } = await req.json();
 
-    console.log('🔍 Duplicate Detection Request:', { zoneIds, dateRangeStart, dateRangeEnd, offset, batch_size, get_total });
+    const parsedTimeWindowMinutes = Number(time_window_minutes);
+    const timeWindowMinutes = Number.isFinite(parsedTimeWindowMinutes) && parsedTimeWindowMinutes > 0
+      ? parsedTimeWindowMinutes
+      : DEFAULT_DUPLICATE_TIME_WINDOW_MINUTES;
+
+    console.log('🔍 Duplicate Detection Request:', {
+      zoneIds,
+      dateRangeStart,
+      dateRangeEnd,
+      offset,
+      batch_size,
+      get_total,
+      time_window_minutes: timeWindowMinutes,
+    });
 
     // Build base query
     let query = supabaseAdmin
       .from('observations')
-      .select('observation_id,id,plate_number,zone_id,recorded_at,gps_latitude,gps_longitude', { count: 'exact' });
+      .select('observation_id,id,plate_number,zone_id,recorded_at', { count: 'exact' });
 
     // Apply filters
     if (zoneIds && zoneIds.length > 0) {
@@ -161,11 +256,11 @@ serve(async (req) => {
         for (let j = 0; j < i; j++) {
           const previous = plateObs[j];
           
-          if (isDuplicateByRule(current, previous)) {
+          if (isDuplicateByRule(current, previous, timeWindowMinutes)) {
             const currentId = (current as any).observation_id ?? (current as any).id;
             if (!duplicatesToDelete.includes(currentId)) {
               duplicatesToDelete.push(currentId);
-              console.log(`🗑️ Duplicate: ${plateNumber} (same zone window + <=${DUPLICATE_DISTANCE_METERS}m)`);
+              console.log(`🗑️ Duplicate: ${plateNumber} (same zone/date/window + <=${timeWindowMinutes}m)`);
             }
             break;
           }
@@ -177,7 +272,9 @@ serve(async (req) => {
     if (duplicatesToDelete.length > 0) {
       console.log(`🗑️ Deleting ${duplicatesToDelete.length} duplicates...`);
       
-      const { error: deleteError } = await supabaseAdmin
+      // Delete as the authenticated master user so auth.uid() is available to
+      // deletion-audit trigger logic that requires deleted_by.
+      const { error: deleteError } = await supabaseUserScoped
         .from('observations')
         .delete()
         .in(deleteKeyColumn, duplicatesToDelete);

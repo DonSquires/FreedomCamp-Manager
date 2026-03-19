@@ -527,6 +527,7 @@ export const edgeFunctions = {
     dateRangeEnd?: string
     offset?: number
     batch_size?: number
+    time_window_minutes?: number
     get_total?: boolean
   }) => {
     return callEdgeFunction('duplicate-detection', params)

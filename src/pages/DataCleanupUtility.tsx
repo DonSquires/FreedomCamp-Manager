@@ -27,6 +27,7 @@ interface CleanupTask {
   description: string
   icon: any
   severity: 'low' | 'medium' | 'high'
+  requiresMaster?: boolean
   action: () => Promise<{ deleted: number; message: string }>
 }
 
@@ -39,6 +40,7 @@ interface TaskProgress {
 
 export default function DataCleanupUtility() {
   const { user } = useAuthStore()
+  const isMasterUser = user?.role === 'master'
   const { organizationId } = useGlobalFiltersStore()
   const queryClient = useQueryClient()
   const [runningTask, setRunningTask] = useState<string | null>(null)
@@ -107,9 +109,10 @@ export default function DataCleanupUtility() {
     {
       id: 'duplicate-observations',
       title: 'Remove Duplicate Observations',
-      description: 'Delete duplicate observations in same zone, same NZ patrol window, within 50m GPS',
+      description: 'Delete duplicate observations in same zone on the same NZ date/time window',
       icon: FileX,
       severity: 'high',
+      requiresMaster: true,
       action: async () => {
         setTaskProgress(prev => ({
           ...prev,
@@ -131,6 +134,7 @@ export default function DataCleanupUtility() {
 
         const { data: totalData, error: totalError } = await edgeFunctions.detectDuplicates({
           zoneIds,
+          time_window_minutes: 5,
           get_total: true,
         })
 
@@ -172,6 +176,7 @@ export default function DataCleanupUtility() {
             zoneIds,
             offset,
             batch_size: batchSize,
+            time_window_minutes: 5,
           })
 
           if (batchError) throw new Error(batchError)
@@ -307,6 +312,8 @@ export default function DataCleanupUtility() {
     },
   ]
 
+  const visibleCleanupTasks = cleanupTasks.filter((task) => !task.requiresMaster || isMasterUser)
+
   const runCleanupTask = async (task: CleanupTask) => {
     setRunningTask(task.id)
     try {
@@ -436,7 +443,7 @@ export default function DataCleanupUtility() {
 
         {/* Cleanup Tasks */}
         <div className="space-y-4">
-          {cleanupTasks.map((task) => {
+          {visibleCleanupTasks.map((task) => {
             const Icon = task.icon
             const isRunning = runningTask === task.id
             const result = taskResults[task.id]
@@ -530,7 +537,7 @@ export default function DataCleanupUtility() {
             <CardContent>
               <div className="space-y-2">
                 {Object.entries(taskResults).map(([taskId, result]) => {
-                  const task = cleanupTasks.find(t => t.id === taskId)
+                  const task = visibleCleanupTasks.find(t => t.id === taskId)
                   return (
                     <div key={taskId} className="flex items-center justify-between border-b pb-2 last:border-0">
                       <div className="flex items-center gap-2">

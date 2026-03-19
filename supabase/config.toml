@@ -116,6 +116,11 @@ verify_jwt = false
 [functions.cleanup-and-recalculate]
 verify_jwt = false
 
+# duplicate-detection: browser calls can be rejected at the gateway with 401
+# before execution starts; auth + role are validated in function.
+[functions.duplicate-detection]
+verify_jwt = false
+
 # sync-scv-list: follows the same browser ES256 pattern where gateway can
 # return 401 before function execution starts. Auth + admin role are validated
 # inside the function body.
