@@ -762,10 +762,6 @@ Deno.serve(async (req: Request) => {
     const isProcessingPlaceholder = !!existingPlate && (
       existingPlate === 'PROCESSING...' || existingPlate.startsWith('PROCESSING_LOCKED:')
     );
-    const existingResolvedPlate =
-      existingPlate && !isProcessingPlaceholder && existingPlate !== 'MANUAL_REQUIRED'
-        ? normalizePlate(existingPlate)
-        : null;
 
     // Idempotent fast-exit: if the observation already has a resolved plate,
     // background enrichment has already completed (or manual correction was
@@ -922,13 +918,7 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    const plate = finalPlate ?? existingResolvedPlate ?? null;
-    if (!finalPlate && existingResolvedPlate) {
-      console.log('ℹ️ Falling back to existing resolved observation plate', {
-        observationId,
-        existingResolvedPlate,
-      });
-    }
+    const plate = finalPlate ?? null;
     const requiresManualEntry = !plate;
 
     // ── Step 5: NZSCV lookup ──────────────────────────────────────────────
@@ -1316,17 +1306,6 @@ Deno.serve(async (req: Request) => {
     const resolvedYear = inference.inferYear ?? null;
     const resolvedColour = hasAcceptedInferenceColour ? inference.inferColour : null;
 
-    // Display/response fallback: preserve existing observation details when
-    // current inference did not produce accepted visual attributes.
-    const existingVehicleMake = typeof obs.vehicle_make === 'string' ? obs.vehicle_make : null;
-    const existingVehicleModel = typeof obs.vehicle_model === 'string' ? obs.vehicle_model : null;
-    const existingVehicleYear = toIntOrNull(obs.vehicle_year);
-    const existingVehicleColour = typeof obs.vehicle_color === 'string' ? obs.vehicle_color : null;
-    const displayMake = resolvedMake ?? existingVehicleMake;
-    const displayModel = resolvedModel ?? existingVehicleModel;
-    const displayYear = resolvedYear ?? existingVehicleYear;
-    const displayColour = resolvedColour ?? existingVehicleColour;
-
     // Track attribute sources for transparency in UI
     const attributeSources = {
       make_source: resolvedMake ? 'inference' : null,
@@ -1581,14 +1560,13 @@ Deno.serve(async (req: Request) => {
         // SC certification — primary purpose of NZSCV lookup
         self_contained:        nzscv?.isSelfContained ?? false,
         self_contained_expiry: nzscv?.selfContainedExpiry ?? null,
-        // Optional vehicle detail fields — inference write source, with
-        // existing observation fallback for response readability.
-        make:   displayMake,
-        model:  displayModel,
-        year:   displayYear,
+        // Optional vehicle detail fields — resolved with source priority
+        make:   resolvedMake,
+        model:  resolvedModel,
+        year:   resolvedYear,
         vin:    nzscv?.vin ?? null,
-        colour: displayColour,
-        color:  displayColour,
+        colour: resolvedColour,
+        color:  resolvedColour,
         orientation: alprOrientation,
         // Attribute source tracking for UI transparency
         attribute_sources: attributeSources,
