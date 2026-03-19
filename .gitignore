@@ -61,3 +61,9 @@ grep_requested_output.txt
 playwright-report/
 test-results/
 node_modules/
+
+# Temporary data exports and analysis output files
+tmp/
+*.xlsx
+scv_*.txt
+scv_*.json
