@@ -258,7 +258,7 @@ export function AppLayout({ children, title, description, showBackButton }: AppL
   } = useSessionLockStore()
   const { autoLogoffEnabled } = useSessionPreferencesStore()
   const { themeMode } = useThemePreferencesStore()
-  const [resolvedTheme, setResolvedTheme] = useState<'light' | 'dark' | 'high-contrast'>('light')
+  const [resolvedTheme, setResolvedTheme] = useState<'light' | 'dark' | 'high-contrast' | 'night-patrol'>('light')
   const queryClient = useQueryClient()
   const navigate = useNavigate()
 
@@ -269,7 +269,7 @@ export function AppLayout({ children, title, description, showBackButton }: AppL
     }
 
     const applyResolvedTheme = () => {
-      if (themeMode === 'light' || themeMode === 'dark' || themeMode === 'high-contrast') {
+      if (themeMode === 'light' || themeMode === 'dark' || themeMode === 'high-contrast' || themeMode === 'night-patrol') {
         setResolvedTheme(themeMode)
         return
       }
@@ -300,14 +300,16 @@ export function AppLayout({ children, title, description, showBackButton }: AppL
       ? `System -> ${resolvedTheme === 'dark' ? 'Dark' : 'Light'}`
       : themeMode === 'high-contrast'
         ? 'High Contrast'
-        : themeMode === 'dark'
-          ? 'Dark'
-          : 'Light'
+        : themeMode === 'night-patrol'
+          ? '🌙 Night Patrol'
+          : themeMode === 'dark'
+            ? 'Dark'
+            : 'Light'
 
   const ThemeBadgeIcon =
     themeMode === 'system'
       ? Monitor
-      : resolvedTheme === 'dark'
+      : resolvedTheme === 'dark' || resolvedTheme === 'night-patrol'
         ? Moon
         : Sun
 

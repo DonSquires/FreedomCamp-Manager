@@ -287,15 +287,15 @@ export function OfficerFollowUpQueue({ onCountChange, onActivity, orgWorkflow, o
 
                 {/* Action buttons */}
                 {!isCompleting && (
-                  <div className="flex flex-wrap gap-1.5">
+                  <div className="flex flex-wrap gap-2">
                     {/* Open in Breach Alerts */}
                     <Button
                       variant="outline"
                       size="sm"
-                      className="h-8 px-2.5 text-xs border-gray-300 text-gray-700 hover:bg-gray-50"
+                      className="h-11 px-3 text-sm border-gray-300 text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300"
                       onClick={() => { onActivity?.(); navigate('/breaches') }}
                     >
-                      <ExternalLink className="h-3 w-3 mr-1" />
+                      <ExternalLink className="h-4 w-4 mr-1.5" />
                       View Alert
                     </Button>
 
@@ -304,7 +304,7 @@ export function OfficerFollowUpQueue({ onCountChange, onActivity, orgWorkflow, o
                       <Button
                         size="sm"
                         variant="outline"
-                        className="h-8 px-2.5 text-xs border-yellow-400 text-yellow-700 hover:bg-yellow-50"
+                        className="h-11 px-3 text-sm border-yellow-400 text-yellow-700 hover:bg-yellow-50 dark:border-yellow-500 dark:text-yellow-400"
                         disabled={isIssuingAction}
                         onClick={() => {
                           onActivity?.()
@@ -316,7 +316,7 @@ export function OfficerFollowUpQueue({ onCountChange, onActivity, orgWorkflow, o
                           })
                         }}
                       >
-                        <FileWarning className="h-3 w-3 mr-1" />
+                        <FileWarning className="h-4 w-4 mr-1.5" />
                         Warning
                       </Button>
                     )}
@@ -326,13 +326,13 @@ export function OfficerFollowUpQueue({ onCountChange, onActivity, orgWorkflow, o
                       <Button
                         size="sm"
                         variant="outline"
-                        className="h-8 px-2.5 text-xs border-blue-400 text-blue-700 hover:bg-blue-50"
+                        className="h-11 px-3 text-sm border-blue-400 text-blue-700 hover:bg-blue-50 dark:border-blue-500 dark:text-blue-400"
                         onClick={() => {
                           onActivity?.()
                           navigate(`/infringements?observation_id=${encodeURIComponent(fu.observation_id!)}&breach_alert_id=${encodeURIComponent(fu.id)}`)
                         }}
                       >
-                        <Printer className="h-3 w-3 mr-1" />
+                        <Printer className="h-4 w-4 mr-1.5" />
                         Issue Ticket
                       </Button>
                     )}
@@ -342,11 +342,11 @@ export function OfficerFollowUpQueue({ onCountChange, onActivity, orgWorkflow, o
                       <Button
                         size="sm"
                         variant="outline"
-                        className="h-8 px-2.5 text-xs border-purple-400 text-purple-700 hover:bg-purple-50"
+                        className="h-11 px-3 text-sm border-purple-400 text-purple-700 hover:bg-purple-50 dark:border-purple-500 dark:text-purple-400"
                         disabled={investigateMutation.isPending}
                         onClick={() => investigateMutation.mutate(fu)}
                       >
-                        <Search className="h-3 w-3 mr-1" />
+                        <Search className="h-4 w-4 mr-1.5" />
                         Investigate
                       </Button>
                     )}
@@ -355,10 +355,10 @@ export function OfficerFollowUpQueue({ onCountChange, onActivity, orgWorkflow, o
                     <Button
                       variant="outline"
                       size="sm"
-                      className="h-8 px-2.5 text-xs border-green-400 text-green-700 hover:bg-green-50"
+                      className="h-11 px-3 text-sm border-green-400 text-green-700 hover:bg-green-50 dark:border-green-500 dark:text-green-400"
                       onClick={() => { setCompletingId(fu.id); setCompletionNotes(''); onActivity?.() }}
                     >
-                      <CheckCircle className="h-3 w-3 mr-1" />
+                      <CheckCircle className="h-4 w-4 mr-1.5" />
                       Complete
                     </Button>
                   </div>
@@ -377,18 +377,18 @@ export function OfficerFollowUpQueue({ onCountChange, onActivity, orgWorkflow, o
                     <div className="flex gap-2">
                       <Button
                         size="sm"
-                        className="flex-1 h-8 text-xs"
+                        className="flex-1 h-11 text-sm"
                         onClick={() => completeMutation.mutate({ id: fu.id, notes: completionNotes })}
                         disabled={completeMutation.isPending}
                       >
                         {completeMutation.isPending
-                          ? <Loader2 className="h-3 w-3 animate-spin" />
-                          : <><CheckCircle className="h-3 w-3 mr-1" />Confirm Complete</>}
+                          ? <Loader2 className="h-4 w-4 animate-spin" />
+                          : <><CheckCircle className="h-4 w-4 mr-1.5" />Confirm Complete</>}
                       </Button>
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="h-8 text-xs"
+                        className="h-11 text-sm"
                         onClick={() => { setCompletingId(null); setCompletionNotes('') }}
                       >
                         Cancel

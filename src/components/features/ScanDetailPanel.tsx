@@ -507,7 +507,7 @@ export function ScanDetailPanel({
   const handleSubmitHomelessClaim = useCallback(async () => {
     const plate = obs?.plateNumber
     if (!plate || plate === 'MANUAL_REQUIRED') {
-      toast.warning('Cannot record homeless claim before plate is confirmed')
+      toast.warning('Please enter a valid plate number before recording homeless status')
       return
     }
     if (!user) return
@@ -1172,7 +1172,7 @@ export function ScanDetailPanel({
                 {/* Warning — shown for officer_direct, hybrid, and admin_first */}
                 <Button
                   variant="outline"
-                  className="w-full justify-start h-11 border-yellow-400 text-yellow-800 hover:bg-yellow-50"
+                  className="w-full justify-start h-14 border-yellow-400 text-yellow-800 hover:bg-yellow-50 dark:border-yellow-500 dark:text-yellow-300 dark:hover:bg-yellow-950/40"
                   disabled={isIssuingAction || !plate || plate === 'MANUAL_REQUIRED' || !obs.observationId}
                   onClick={() => {
                     onIssueAction({
@@ -1184,10 +1184,10 @@ export function ScanDetailPanel({
                     onActivity?.()
                   }}
                 >
-                  <FileWarning className="h-4 w-4 mr-2 text-yellow-600 shrink-0" />
+                  <FileWarning className="h-5 w-5 mr-3 text-yellow-600 dark:text-yellow-400 shrink-0" />
                   <div className="text-left">
-                    <div className="text-sm font-semibold">Issue Warning</div>
-                    <div className="text-[11px] font-normal opacity-70">Verbal + logged notice of breach</div>
+                    <div className="text-base font-bold">Issue Warning</div>
+                    <div className="text-xs font-normal opacity-70">Verbal + logged notice of breach</div>
                   </div>
                 </Button>
 
@@ -1195,7 +1195,7 @@ export function ScanDetailPanel({
                 {(orgWorkflow === 'officer_direct' || orgWorkflow === 'hybrid') && (
                   <Button
                     variant="outline"
-                    className="w-full justify-start h-11 border-red-400 text-red-800 hover:bg-red-50"
+                    className="w-full justify-start h-14 border-red-400 text-red-800 hover:bg-red-50 dark:border-red-500 dark:text-red-300 dark:hover:bg-red-950/40"
                     disabled={isIssuingAction || !plate || plate === 'MANUAL_REQUIRED' || !obs.observationId}
                     onClick={() => {
                       onIssueAction({
@@ -1207,10 +1207,10 @@ export function ScanDetailPanel({
                       onActivity?.()
                     }}
                   >
-                    <Megaphone className="h-4 w-4 mr-2 text-red-600 shrink-0" />
+                    <Megaphone className="h-5 w-5 mr-3 text-red-600 dark:text-red-400 shrink-0" />
                     <div className="text-left">
-                      <div className="text-sm font-semibold">Notice to Vacate</div>
-                      <div className="text-[11px] font-normal opacity-70">Formal order to leave the area</div>
+                      <div className="text-base font-bold">Notice to Vacate</div>
+                      <div className="text-xs font-normal opacity-70">Formal order to leave the area</div>
                     </div>
                   </Button>
                 )}
@@ -1219,17 +1219,17 @@ export function ScanDetailPanel({
                 {obs.observationId && (
                   <Button
                     variant="outline"
-                    className="w-full justify-start h-11 border-purple-400 text-purple-800 hover:bg-purple-50"
+                    className="w-full justify-start h-14 border-purple-400 text-purple-800 hover:bg-purple-50 dark:border-purple-500 dark:text-purple-300 dark:hover:bg-purple-950/40"
                     disabled={!plate || plate === 'MANUAL_REQUIRED' || !obs.observationId}
                     onClick={() => {
                       navigate(`/infringements?observation_id=${encodeURIComponent(obs.observationId)}`)
                       onActivity?.()
                     }}
                   >
-                    <Printer className="h-4 w-4 mr-2 text-purple-600 shrink-0" />
+                    <Printer className="h-5 w-5 mr-3 text-purple-600 dark:text-purple-400 shrink-0" />
                     <div className="text-left">
-                      <div className="text-sm font-semibold">Issue Infringement Notice</div>
-                      <div className="text-[11px] font-normal opacity-70">Generate formal infringement / fine</div>
+                      <div className="text-base font-bold">Issue Infringement Notice</div>
+                      <div className="text-xs font-normal opacity-70">Generate formal infringement / fine</div>
                     </div>
                   </Button>
                 )}
@@ -1252,16 +1252,16 @@ export function ScanDetailPanel({
                 {!adminHasResponded && (
                   <Button
                     variant="outline"
-                    className="w-full justify-start h-11 border-indigo-400 text-indigo-800 hover:bg-indigo-50"
+                    className="w-full justify-start h-14 border-indigo-400 text-indigo-800 hover:bg-indigo-50 dark:border-indigo-500 dark:text-indigo-300 dark:hover:bg-indigo-950/40"
                     disabled={escalateMutation.isPending || !plate || plate === 'MANUAL_REQUIRED'}
                     onClick={() => { escalateMutation.mutate(); onActivity?.() }}
                   >
-                    <Bell className="h-4 w-4 mr-2 text-indigo-600 shrink-0" />
+                    <Bell className="h-5 w-5 mr-3 text-indigo-600 dark:text-indigo-400 shrink-0" />
                     <div className="text-left">
-                      <div className="text-sm font-semibold">
+                      <div className="text-base font-bold">
                         {escalateMutation.isPending ? 'Flagging…' : 'Escalate — Request Urgent Admin Review'}
                       </div>
-                      <div className="text-[11px] font-normal opacity-70">
+                      <div className="text-xs font-normal opacity-70">
                         Flags this scan for immediate admin attention
                       </div>
                     </div>
@@ -1283,16 +1283,16 @@ export function ScanDetailPanel({
                 {obs.observationId && (
                   <Button
                     variant="outline"
-                    className="w-full justify-start h-11 border-gray-300 text-gray-600 hover:bg-gray-50"
+                    className="w-full justify-start h-14 border-gray-300 text-gray-600 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-800"
                     onClick={() => {
                       navigate(`/infringements?observation_id=${encodeURIComponent(obs.observationId)}`)
                       onActivity?.()
                     }}
                   >
-                    <Printer className="h-4 w-4 mr-2 text-gray-500 shrink-0" />
+                    <Printer className="h-5 w-5 mr-3 text-gray-500 dark:text-gray-400 shrink-0" />
                     <div className="text-left">
-                      <div className="text-sm font-semibold">Issue Infringement Notice</div>
-                      <div className="text-[11px] font-normal opacity-70">Generate formal infringement if needed</div>
+                      <div className="text-base font-bold">Issue Infringement Notice</div>
+                      <div className="text-xs font-normal opacity-70">Generate formal infringement if needed</div>
                     </div>
                   </Button>
                 )}

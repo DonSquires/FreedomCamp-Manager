@@ -36,7 +36,7 @@ interface NotificationPreferences {
 }
 
 interface AppPreferences {
-  theme_mode: 'light' | 'dark' | 'high-contrast' | 'system'
+  theme_mode: 'light' | 'dark' | 'high-contrast' | 'night-patrol' | 'system'
   driving_mode: boolean
   auto_logoff_enabled: boolean
   offline_sync_enabled: boolean
@@ -244,21 +244,30 @@ export default function Settings() {
                 <div className="py-3 border-b">
                   <Label className="font-medium text-sm">Theme Mode</Label>
                   <p className="text-xs text-muted-foreground mt-1">
-                    Choose light, dark, high contrast, or follow your system theme.
+                    Choose light, dark, high contrast, system, or Night Patrol for field officers working at night.
                   </p>
-                  <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-2">
-                    {(['light', 'dark', 'high-contrast', 'system'] as const).map((mode) => (
+                  <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    {(['light', 'dark', 'high-contrast', 'night-patrol', 'system'] as const).map((mode) => (
                       <Button
                         key={mode}
                         type="button"
                         variant={appPrefs.theme_mode === mode ? 'default' : 'outline'}
                         onClick={() => setAppPrefs((p) => ({ ...p, theme_mode: mode }))}
-                        className="capitalize"
+                        className={mode === 'night-patrol' ? 'col-span-2 sm:col-span-1' : ''}
                       >
-                        {mode === 'high-contrast' ? 'High Contrast' : mode}
+                        {mode === 'high-contrast' ? 'High Contrast'
+                          : mode === 'night-patrol' ? '🌙 Night Patrol'
+                          : mode.charAt(0).toUpperCase() + mode.slice(1)}
                       </Button>
                     ))}
                   </div>
+                  {appPrefs.theme_mode === 'night-patrol' && (
+                    <p className="text-xs text-cyan-600 dark:text-cyan-400 mt-2 flex items-start gap-1.5">
+                      <span className="shrink-0">🌙</span>
+                      Night Patrol mode: pitch-black background, large touch targets (56 px min), high-contrast
+                      text — optimised for gloved hands in low-light environments.
+                    </p>
+                  )}
                 </div>
                 <AppToggle
                   label="Driving Mode"

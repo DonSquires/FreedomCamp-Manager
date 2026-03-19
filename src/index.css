@@ -69,6 +69,37 @@
     --input: 0 0% 0%;
     --ring: 187 100% 28%;
   }
+
+  /* ── Night Patrol Mode ─────────────────────────────────────────────────────
+   * Deep-dark, high-contrast, enlarged-touch-target theme designed for officers
+   * working at night, wearing gloves, in low-light environments.
+   * Applied as class="night-patrol" on <html> (alongside "dark").
+   * ────────────────────────────────────────────────────────────────────────── */
+  .night-patrol {
+    /* Pure black background for maximum screen-dimness (preserves night vision) */
+    --background: 0 0% 3%;
+    --foreground: 0 0% 98%;
+    --card: 0 0% 7%;
+    --card-foreground: 0 0% 98%;
+    --popover: 0 0% 7%;
+    --popover-foreground: 0 0% 98%;
+    /* Bright cyan primary for maximum legibility */
+    --primary: 187 100% 55%;
+    --primary-foreground: 0 0% 0%;
+    --secondary: 0 0% 12%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 0 0% 12%;
+    --muted-foreground: 0 0% 65%;
+    --accent: 48 100% 55%;
+    --accent-foreground: 0 0% 0%;
+    --destructive: 0 100% 55%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 0 0% 20%;
+    --input: 0 0% 20%;
+    --ring: 187 100% 55%;
+    /* Slightly larger base font for legibility without a torch */
+    font-size: 17px;
+  }
 }
 
 @layer base {
@@ -77,6 +108,34 @@
   }
   body {
     @apply bg-background text-foreground;
+  }
+}
+
+@layer utilities {
+  /* ── Night patrol / glove-friendly touch targets ──────────────────────────
+   * Use .np-btn on any <button> inside a night-patrol context.
+   * All interactive elements in officer-facing views should meet 56 px height.
+   * ────────────────────────────────────────────────────────────────────────── */
+  .night-patrol button:not([class*="h-"]),
+  .night-patrol [role="button"]:not([class*="h-"]) {
+    min-height: 56px;
+  }
+  .night-patrol input:not([type="checkbox"]):not([type="radio"]),
+  .night-patrol textarea,
+  .night-patrol select {
+    min-height: 52px;
+    font-size: 16px;
+  }
+  /* Increase gap between stacked interactive elements */
+  .night-patrol .space-y-2 > :not([hidden]) ~ :not([hidden]) {
+    --tw-space-y-reverse: 0;
+    margin-top: calc(0.75rem * calc(1 - var(--tw-space-y-reverse)));
+    margin-bottom: calc(0.75rem * var(--tw-space-y-reverse));
+  }
+  .night-patrol .space-y-3 > :not([hidden]) ~ :not([hidden]) {
+    --tw-space-y-reverse: 0;
+    margin-top: calc(1rem * calc(1 - var(--tw-space-y-reverse)));
+    margin-bottom: calc(1rem * var(--tw-space-y-reverse));
   }
 }
 

@@ -21,10 +21,12 @@ import { OfficerFollowUpQueue } from '@/components/features/OfficerFollowUpQueue
 import { captureAndSave, SCAN_PROGRESS_LABELS, type ScanProgressStage } from '@/lib/scanPipeline'
 import { useManDownDetection } from '@/hooks/useManDownDetection'
 import { reverseGeocode } from '@/lib/geocoding'
+import { useThemePreferencesStore } from '@/stores/themePreferencesStore'
 import {
   Camera, Map, FileText, History, AlertTriangle, MapPin, QrCode,
   ShieldAlert, CheckCircle, Shield, Megaphone, FileWarning, XCircle,
   Clock, Home, X, Car, Zap, Search, Printer, PlusCircle, Wrench, Heart, Users,
+  Moon, Sun,
 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
@@ -54,6 +56,8 @@ export default function FieldOfficerPortal() {
   const { zoneId, zoneName, setZone } = useGlobalFiltersStore()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  const { themeMode, setThemeMode } = useThemePreferencesStore()
+  const isNightPatrol = themeMode === 'night-patrol'
 
   // ── Scan mode: null = portal home, 'detail' = single-vehicle scan,
   //              'bulk' = quick area sweep, 'checkpoint' = QR check-in
@@ -428,6 +432,40 @@ export default function FieldOfficerPortal() {
           </div>
         </div>
       )}
+
+      {/* ── Night Patrol mode toggle strip ───────────────────────────── */}
+      <div className={`flex items-center justify-between rounded-xl px-4 py-2.5 mb-4 transition-colors ${
+        isNightPatrol
+          ? 'bg-cyan-950 border border-cyan-700'
+          : 'bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700'
+      }`}>
+        <div className="flex items-center gap-2">
+          {isNightPatrol
+            ? <Moon className="h-4 w-4 text-cyan-400" />
+            : <Sun className="h-4 w-4 text-amber-500" />}
+          <div>
+            <p className={`text-sm font-semibold ${isNightPatrol ? 'text-cyan-300' : 'text-gray-800 dark:text-gray-200'}`}>
+              {isNightPatrol ? 'Night Patrol Mode' : 'Standard Mode'}
+            </p>
+            <p className={`text-[11px] ${isNightPatrol ? 'text-cyan-500' : 'text-gray-500'}`}>
+              {isNightPatrol ? 'Dark display · Large buttons · High contrast' : 'Tap 🌙 for night field work'}
+            </p>
+          </div>
+        </div>
+        <Button
+          size="sm"
+          variant={isNightPatrol ? 'default' : 'outline'}
+          className={`h-10 px-4 text-sm font-semibold ${
+            isNightPatrol
+              ? 'bg-cyan-600 hover:bg-cyan-500 text-white border-cyan-600'
+              : 'border-gray-300 dark:border-gray-600'
+          }`}
+          onClick={() => setThemeMode(isNightPatrol ? 'dark' : 'night-patrol')}
+        >
+          {isNightPatrol ? <Sun className="h-4 w-4 mr-1.5" /> : <Moon className="h-4 w-4 mr-1.5" />}
+          {isNightPatrol ? 'Day Mode' : '🌙 Night Mode'}
+        </Button>
+      </div>
 
       {/* ── BULK SCAN MODE — full screen ────────────────────────────── */}
       {scanMode === 'bulk' ? (

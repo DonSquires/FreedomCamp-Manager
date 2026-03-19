@@ -35,7 +35,7 @@ async function reverseGeocodeGoogle(
   try {
     const url =
       `https://maps.googleapis.com/maps/api/geocode/json` +
-      `?latlng=${latitude},${longitude}&key=${apiKey}&result_type=street_address|premise|route`
+      `?latlng=${latitude},${longitude}&key=${encodeURIComponent(apiKey)}&result_type=street_address|premise|route`
 
     const response = await fetch(url)
     if (!response.ok) throw new Error(`Google geocode HTTP ${response.status}`)

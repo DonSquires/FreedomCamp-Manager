@@ -7,15 +7,16 @@
  * classes directly (e.g. recharts, inline styles).
  */
 
-export type Theme = 'light' | 'dark' | 'high-contrast' | 'system'
+export type Theme = 'light' | 'dark' | 'high-contrast' | 'night-patrol' | 'system'
 
 export const THEME_STORAGE_KEY = 'fcm-theme'
 
 /** Resolve the effective theme based on the stored preference and system setting */
-export function resolveTheme(stored: Theme | null): 'light' | 'dark' | 'high-contrast' {
+export function resolveTheme(stored: Theme | null): 'light' | 'dark' | 'high-contrast' | 'night-patrol' {
   if (stored === 'light') return 'light'
   if (stored === 'dark') return 'dark'
   if (stored === 'high-contrast') return 'high-contrast'
+  if (stored === 'night-patrol') return 'night-patrol'
   // 'system' or null — follow OS preference
   if (typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches) {
     return 'dark'
@@ -24,13 +25,16 @@ export function resolveTheme(stored: Theme | null): 'light' | 'dark' | 'high-con
 }
 
 /** Apply a resolved theme to the DOM */
-export function applyTheme(resolved: 'light' | 'dark' | 'high-contrast'): void {
+export function applyTheme(resolved: 'light' | 'dark' | 'high-contrast' | 'night-patrol'): void {
   if (typeof document === 'undefined') return
-  document.documentElement.classList.remove('dark', 'high-contrast')
+  document.documentElement.classList.remove('dark', 'high-contrast', 'night-patrol')
   if (resolved === 'dark') {
     document.documentElement.classList.add('dark')
   } else if (resolved === 'high-contrast') {
     document.documentElement.classList.add('high-contrast')
+  } else if (resolved === 'night-patrol') {
+    // Night patrol: also applies dark mode as a base
+    document.documentElement.classList.add('dark', 'night-patrol')
   }
 }
 
