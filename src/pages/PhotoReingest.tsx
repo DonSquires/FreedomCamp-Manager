@@ -146,34 +146,58 @@ export default function PhotoReingest() {
     let topFailureReason: string | null = null
     let batchNumber = 0
 
-    const invokeVehicleIngest = async (observation: ReingestObservation) => {
+    const invokeEnrichObservation = async (observation: ReingestObservation) => {
+      // Primary path: process-officer-scan runs the full enrichment pipeline —
+      // ALPR plate detection, NZSCV self-contained lookup, movement check,
+      // compliance evaluation, and saves vehicle make/model/year/color + all
+      // compliance fields back into the observation row.
+      if (observation.photo_url) {
+        const { data, error } = await withTimeout(
+          edgeFunctions.processOfficerScan({
+            observation_id: observation.observation_id,
+            photo_url: observation.photo_url,
+            photo_hash: observation.photo_hash ?? undefined,
+          }),
+          45_000,
+          `process-officer-scan for ${observation.observation_id}`,
+        )
+
+        if (error) {
+          throw new Error(String(error))
+        }
+
+        return data
+      }
+
+      // Fallback for observations that have no photo URL but need a re-save:
+      // use vehicle-ingest to at least stamp them as reprocessed.
       const { data, error } = await withTimeout(
         edgeFunctions.ingestVehicleObservation({
           existing_observation_id: observation.observation_id,
           observation_id: observation.observation_id,
-          photo_url: observation.photo_url,
-          photo_hash: observation.photo_hash,
-          recorded_at: observation.recorded_at,
-          recordedAt: observation.recorded_at,
-          zone_id: observation.zone_id,
-          zoneId: observation.zone_id,
-          organization_id: observation.organization_id,
-          organizationId: observation.organization_id,
-          gps_latitude: observation.gps_latitude,
-          gps_longitude: observation.gps_longitude,
-          gps_accuracy: observation.gps_accuracy,
-          plate_number: observation.plate_number,
-          plate: observation.plate_number,
-          officer_notes: observation.officer_notes,
-          notes: observation.officer_notes,
+          photo_url: observation.photo_url ?? undefined,
+          photo_hash: observation.photo_hash ?? undefined,
+          recorded_at: observation.recorded_at ?? undefined,
+          recordedAt: observation.recorded_at ?? undefined,
+          zone_id: observation.zone_id ?? undefined,
+          zoneId: observation.zone_id ?? undefined,
+          organization_id: observation.organization_id ?? undefined,
+          organizationId: observation.organization_id ?? undefined,
+          gps_latitude: observation.gps_latitude ?? undefined,
+          gps_longitude: observation.gps_longitude ?? undefined,
+          gps_accuracy: observation.gps_accuracy ?? undefined,
+          plate_number: observation.plate_number ?? undefined,
+          plate: observation.plate_number ?? undefined,
+          officer_notes: observation.officer_notes ?? undefined,
+          notes: observation.officer_notes ?? undefined,
           idempotencyKey: `reingest-update-${observation.observation_id}-${Date.now()}`,
         }),
         30_000,
-        `vehicle-ingest for ${observation.observation_id}`,
+        `vehicle-ingest fallback for ${observation.observation_id}`,
       )
 
       if (error) {
-        throw new Error(error)
+        throw new Error(String(error))
       }
 
       return data
@@ -214,7 +238,7 @@ export default function PhotoReingest() {
       let batchFirstFailureReason: string | null = null
 
       for (const observation of observations) {
-        if (!observation.photo_url) {
+        if (!observation.photo_url && !observation.observation_id) {
           failedTotal += 1
           if (!batchFirstFailureReason) {
             batchFirstFailureReason = `${observation.observation_id}: no_photo_url`
@@ -226,15 +250,15 @@ export default function PhotoReingest() {
         }
 
         try {
-          await invokeVehicleIngest(observation)
+          await invokeEnrichObservation(observation)
           updatedTotal += 1
         } catch (error: any) {
           failedTotal += 1
           if (!batchFirstFailureReason) {
-            batchFirstFailureReason = `${observation.observation_id}: ${error?.message || 'vehicle-ingest_failed'}`
+            batchFirstFailureReason = `${observation.observation_id}: ${error?.message || 'enrichment_failed'}`
           }
           if (!topFailureReason) {
-            topFailureReason = `${observation.observation_id}: ${error?.message || 'vehicle-ingest_failed'}`
+            topFailureReason = `${observation.observation_id}: ${error?.message || 'enrichment_failed'}`
           }
         }
 
@@ -337,7 +361,7 @@ export default function PhotoReingest() {
   return (
     <AppLayout
       title="Photo Reingest"
-      description="Reprocess existing observation photos through the vehicle ingest pipeline and update the original records"
+      description="Re-run ALPR, NZSCV and compliance enrichment on existing observation photos to populate missing vehicle attributes and breach status"
       showBackButton
     >
       <div className="max-w-4xl mx-auto space-y-6">
@@ -352,15 +376,17 @@ export default function PhotoReingest() {
                   Important: This updates existing observation records
                 </h3>
                 <p className="text-sm text-orange-700 dark:text-orange-200 mt-1">
-                    This operation queries all existing observations that have photos and
-                    runs the ingest pipeline again against the <strong>same</strong> observation record, treating the photo as
-                  if it were freshly submitted by an officer. This will:
+                  This operation queries all existing observations that have photos and
+                  runs the full enrichment pipeline against the <strong>same</strong> observation record.
+                  This will:
                 </p>
                 <ul className="text-sm text-orange-700 dark:text-orange-200 mt-2 space-y-1 list-disc list-inside">
-                  <li>Reprocess existing observation records linked to stored photos</li>
-                  <li>Trigger compliance evaluation and enrichment again for each observation</li>
-                  <li>Preserve the original date/time, zone, GPS, and officer metadata</li>
-                  <li>Avoid creating duplicate observation rows</li>
+                  <li>Re-run ALPR plate detection from the stored photo</li>
+                  <li>Re-check NZSCV self-contained certification status</li>
+                  <li>Re-populate vehicle attributes (make, model, year, colour)</li>
+                  <li>Re-evaluate compliance and update breach status</li>
+                  <li>Preserve original date/time, zone, GPS, and officer metadata</li>
+                  <li>Update the existing observation row — no duplicates created</li>
                 </ul>
               </div>
             </div>

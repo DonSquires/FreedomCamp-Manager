@@ -92,6 +92,10 @@ export interface ScanSaveResult {
   recordedAt: string
   /** Weather string captured at scan time, stored in officer_notes */
   weather: string
+  /** GPS latitude captured at scan time (null if unavailable) */
+  gpsLatitude: number | null
+  /** GPS longitude captured at scan time (null if unavailable) */
+  gpsLongitude: number | null
 }
 
 type ScanProgressHandler = (stage: ScanProgressStage, label: string) => void
@@ -116,22 +120,44 @@ export async function captureAndSave(
   onStageChange?: ScanProgressHandler,
 ): Promise<ScanSaveResult> {
   // ── Step 1: GPS ───────────────────────────────────────────────────────────
+  // Try high-accuracy first, fall back to low-accuracy, then proceed with null coords.
+  // GPS failure must never abort the scan entirely — the record can be created
+  // without coordinates and the officer can annotate location in notes.
   emitScanProgress(onStageChange, 'gps')
-  const position = await new Promise<GeolocationPosition>((resolve, reject) =>
-    navigator.geolocation.getCurrentPosition(resolve, reject, {
-      enableHighAccuracy: true,
-      timeout: 10_000,
-    })
-  )
-  const { latitude, longitude, accuracy } = position.coords
-  onGPSFix?.(latitude, longitude)
+  let latitude: number | null = null
+  let longitude: number | null = null
+  let accuracy: number | null = null
+
+  const gpsOpts = [
+    { enableHighAccuracy: true,  timeout: 10_000 },
+    { enableHighAccuracy: false, timeout: 8_000  },
+  ]
+  for (const opts of gpsOpts) {
+    try {
+      const position = await new Promise<GeolocationPosition>((resolve, reject) =>
+        navigator.geolocation.getCurrentPosition(resolve, reject, opts)
+      )
+      latitude  = position.coords.latitude
+      longitude = position.coords.longitude
+      accuracy  = position.coords.accuracy
+      break
+    } catch {
+      // try next option
+    }
+  }
+
+  if (latitude !== null && longitude !== null) {
+    onGPSFix?.(latitude, longitude)
+  }
 
   // ── Step 2: Weather (non-blocking) ────────────────────────────────────────
   let weather = 'Unknown'
   try {
     emitScanProgress(onStageChange, 'weather')
-    const w = await withTimeout(fetchWeatherOnDevice(latitude, longitude), WEATHER_TIMEOUT_MS, 'weather lookup')
-    if (w) weather = w
+    if (latitude !== null && longitude !== null) {
+      const w = await withTimeout(fetchWeatherOnDevice(latitude, longitude), WEATHER_TIMEOUT_MS, 'weather lookup')
+      if (w) weather = w
+    }
   } catch { /* non-critical */ }
 
   // ── Step 2.5: Apply evidence watermark ────────────────────────────────────
@@ -147,7 +173,9 @@ export async function captureAndSave(
   uploadFile = await withTimeout(
     applyEvidenceWatermark(file, {
       timestamp: captureTimeNZ,
-      gpsCoordinates: `${latitude.toFixed(6)}°, ${longitude.toFixed(6)}°`,
+      gpsCoordinates: latitude !== null && longitude !== null
+        ? `${latitude.toFixed(6)}°, ${longitude.toFixed(6)}°`
+        : 'GPS unavailable',
       userName: user.full_name || undefined,
     }),
     WATERMARK_TIMEOUT_MS,
@@ -190,6 +218,8 @@ export async function captureAndSave(
     resolveObservationZoneForOrg(
       user.organization_id,
       preferredZoneId,
+      latitude,
+      longitude,
     ),
     ZONE_RESOLUTION_TIMEOUT_MS,
     'zone resolution',
@@ -256,5 +286,14 @@ export async function captureAndSave(
 
   emitScanProgress(onStageChange, 'complete')
 
-  return { observationId, photoUrl, photoHash, zoneId: finalZoneId, recordedAt: nowIso, weather }
+  return {
+    observationId,
+    photoUrl,
+    photoHash,
+    zoneId: finalZoneId,
+    recordedAt: nowIso,
+    weather,
+    gpsLatitude: latitude,
+    gpsLongitude: longitude,
+  }
 }

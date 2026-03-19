@@ -30,10 +30,11 @@ import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
+import { reverseGeocode } from '@/lib/geocoding'
 import {
   Camera, Car, CheckCircle, XCircle, Clock, Save, AlertTriangle,
   ShieldAlert, MapPin, FileWarning, Megaphone, Shield, ExternalLink,
-  Loader2, Edit3, Bell, ClipboardList,
+  Loader2, Edit3, Bell, ClipboardList, Home, Printer,
 } from 'lucide-react'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -67,6 +68,9 @@ export interface DetailScanData {
   vehicleMoved: boolean | null
   isNewVehicle: boolean
   officerNotes: string | null
+  /** GPS coordinates captured at scan time */
+  gpsLatitude: number | null
+  gpsLongitude: number | null
   /** true when process-officer-scan detected at least one cross-source data discrepancy */
   hasDiscrepancies: boolean
   /** Summary of detected discrepancies — null/empty when none */
@@ -146,14 +150,18 @@ export function ScanDetailPanel({
   const [obs, setObs] = useState<DetailScanData | null>(initialData)
 
   // Edit form state (officer corrections + notes)
-  const [editPlate,  setEditPlate]  = useState('')
-  const [editMake,   setEditMake]   = useState('')
-  const [editModel,  setEditModel]  = useState('')
-  const [editYear,   setEditYear]   = useState('')
-  const [editColour, setEditColour] = useState('')
-  const [editNotes,  setEditNotes]  = useState('')
-  const [isSaving,   setIsSaving]   = useState(false)
-  const [editMode,   setEditMode]   = useState(false)
+  const [editPlate,   setEditPlate]   = useState('')
+  const [editMake,    setEditMake]    = useState('')
+  const [editModel,   setEditModel]   = useState('')
+  const [editYear,    setEditYear]    = useState('')
+  const [editColour,  setEditColour]  = useState('')
+  const [editNotes,   setEditNotes]   = useState('')
+  const [editAddress, setEditAddress] = useState('')
+  const [isSaving,    setIsSaving]    = useState(false)
+  const [editMode,    setEditMode]    = useState(false)
+
+  // Reverse-geocoded address derived from GPS coordinates
+  const [locationAddress, setLocationAddress] = useState<string | null>(null)
 
   // Keep local state in sync when initialData changes (new scan opened)
   useEffect(() => {
@@ -164,8 +172,28 @@ export function ScanDetailPanel({
     setEditYear(initialData?.vehicleYear   ?? '')
     setEditColour(initialData?.vehicleColor ?? '')
     setEditNotes(initialData?.officerNotes  ?? '')
+    setEditAddress('')
     setEditMode(false)
+    setLocationAddress(null)
   }, [initialData?.observationId]) // eslint-disable-line react-hooks/exhaustive-deps -- intentional: reset only when a new observation is opened
+
+  // Auto-resolve reverse geocoded address when GPS coords become available
+  useEffect(() => {
+    if (!obs?.gpsLatitude || !obs?.gpsLongitude) return
+    let cancelled = false
+    reverseGeocode(obs.gpsLatitude, obs.gpsLongitude).then(result => {
+      if (cancelled || !result) return
+      const parts = [
+        result.street_number && result.street_name
+          ? `${result.street_number} ${result.street_name}`
+          : result.street_name,
+        result.suburb,
+        result.city,
+      ].filter(Boolean)
+      if (parts.length > 0) setLocationAddress(parts.join(', '))
+    }).catch(() => { /* non-critical */ })
+    return () => { cancelled = true }
+  }, [obs?.gpsLatitude, obs?.gpsLongitude])
 
   // ── Fetch breach_alert for this observation (admin response) ─────────────
   const { data: breachAlert } = useQuery({
@@ -237,6 +265,7 @@ export function ScanDetailPanel({
           'observation_id, plate_number, is_compliant, breach_type, officer_notes,' +
           'vehicle_make, vehicle_model, vehicle_year, vehicle_color, vehicle_attribute_sources,' +
           'self_contained, self_contained_expiry, zone_id,' +
+          'gps_latitude, gps_longitude,' +
           'has_discrepancies, discrepancy_flags,' +
           'zone:zones!zone_id(name)'
         )
@@ -248,10 +277,35 @@ export function ScanDetailPanel({
         return
       }
 
+      const isManualRequired = data.plate_number === 'MANUAL_REQUIRED'
       const resolved =
         data.plate_number &&
         data.plate_number !== 'PROCESSING...' &&
-        data.plate_number !== 'MANUAL_REQUIRED'
+        !isManualRequired
+
+      // When plate requires manual entry, stop polling immediately and open edit mode
+      if (isManualRequired) {
+        setObs(prev => prev ? {
+          ...prev,
+          plateNumber:       data.plate_number,
+          processingPending: false,
+          zoneName:          data.zone?.name           ?? prev.zoneName,
+          observationZoneId: data.zone_id              ?? prev.observationZoneId,
+          gpsLatitude:       data.gps_latitude         ?? prev.gpsLatitude,
+          gpsLongitude:      data.gps_longitude        ?? prev.gpsLongitude,
+        } : prev)
+        if (!editMode) {
+          setEditPlate('')
+          setEditMake(data.vehicle_make ?? '')
+          setEditModel(data.vehicle_model ?? '')
+          setEditYear(data.vehicle_year != null ? String(data.vehicle_year) : '')
+          setEditColour(data.vehicle_color ?? '')
+          setEditNotes(data.officer_notes ?? '')
+          setEditMode(true)
+        }
+        toast.info('📝 Enter plate number manually — tap Edit / Correct below')
+        return
+      }
 
       let homelessStatus: string | null = null
       if (resolved && data.plate_number) {
@@ -282,6 +336,8 @@ export function ScanDetailPanel({
         isSelfContained:   !!data.self_contained,
         selfContainedExpiry: data.self_contained_expiry ?? prev.selfContainedExpiry,
         officerNotes:      data.officer_notes        ?? prev.officerNotes,
+        gpsLatitude:       data.gps_latitude         ?? prev.gpsLatitude,
+        gpsLongitude:      data.gps_longitude        ?? prev.gpsLongitude,
         hasDiscrepancies:  !!(data.has_discrepancies),
         discrepancyFlags:  Array.isArray(data.discrepancy_flags) ? data.discrepancy_flags : prev.discrepancyFlags,
       } : prev)
@@ -321,16 +377,29 @@ export function ScanDetailPanel({
 
       // Only send changed fields
       const plateNorm = editPlate.trim().toUpperCase().replace(/\s/g, '')
-      if (plateNorm && plateNorm !== (obs.plateNumber ?? ''))     updates.plate_number  = plateNorm
-      if (editMake.trim()   !== (obs.vehicleMake   ?? ''))        updates.vehicle_make  = editMake.trim() || null
-      if (editModel.trim()  !== (obs.vehicleModel  ?? ''))        updates.vehicle_model = editModel.trim() || null
-      if (editYear.trim()   !== (obs.vehicleYear   ?? ''))        updates.vehicle_year  = editYear.trim() ? Number(editYear) : null
-      if (editColour.trim() !== (obs.vehicleColor  ?? ''))        updates.vehicle_color = editColour.trim() || null
-      if (editNotes         !== (obs.officerNotes  ?? ''))        updates.officer_notes = editNotes || null
+      // Allow setting plate even when current value is MANUAL_REQUIRED / null
+      const currentPlate = obs.plateNumber === 'MANUAL_REQUIRED' ? '' : (obs.plateNumber ?? '')
+      if (plateNorm && plateNorm !== currentPlate)         updates.plate_number  = plateNorm
+      if (editMake.trim()   !== (obs.vehicleMake   ?? '')) updates.vehicle_make  = editMake.trim() || null
+      if (editModel.trim()  !== (obs.vehicleModel  ?? '')) updates.vehicle_model = editModel.trim() || null
+      if (editYear.trim()   !== (obs.vehicleYear   ?? '')) updates.vehicle_year  = editYear.trim() ? Number(editYear) : null
+      if (editColour.trim() !== (obs.vehicleColor  ?? '')) updates.vehicle_color = editColour.trim() || null
+
+      // Build combined officer notes (address prefix + free-form notes)
+      const addressPrefix = editAddress.trim() ? `Address: ${editAddress.trim()}\n` : ''
+      const newNotes = addressPrefix + editNotes
+      if (newNotes !== (obs.officerNotes ?? '')) updates.officer_notes = newNotes || null
 
       if (Object.keys(updates).length === 0) {
         toast.info('No changes to save')
         setEditMode(false)
+        return
+      }
+
+      // For manual-required plates where officer just entered the real plate,
+      // require a non-empty plate number before saving
+      if (obs.plateNumber === 'MANUAL_REQUIRED' && !plateNorm) {
+        toast.warning('Please enter a plate number before saving')
         return
       }
 
@@ -348,9 +417,28 @@ export function ScanDetailPanel({
         vehicleYear:  updates.vehicle_year != null ? String(updates.vehicle_year) : prev.vehicleYear,
         vehicleColor: (updates.vehicle_color as string)  ?? prev.vehicleColor,
         officerNotes: (updates.officer_notes as string)  ?? prev.officerNotes,
+        processingPending: updates.plate_number ? true : prev.processingPending,
       } : null)
 
-      toast.success('Observation updated')
+      // If plate was updated from MANUAL_REQUIRED, re-trigger enrichment
+      if (updates.plate_number) {
+        toast.success('Plate saved — re-running compliance check…')
+        // Trigger background enrichment to re-evaluate compliance with real plate
+        try {
+          const { edgeFunctions } = await import('@/lib/edgeFunctions')
+          const photoUrl = obs.photoUrl ?? ''
+          if (photoUrl) {
+            void edgeFunctions.processOfficerScan({
+              observation_id: obs.observationId,
+              photo_url: photoUrl,
+            }).then(({ error: enrichErr }) => {
+              if (enrichErr) console.warn('Re-enrichment failed:', enrichErr)
+            })
+          }
+        } catch { /* best-effort */ }
+      } else {
+        toast.success('Observation updated')
+      }
       setEditMode(false)
       onActivity?.()
     } catch (err: any) {
@@ -358,7 +446,7 @@ export function ScanDetailPanel({
     } finally {
       setIsSaving(false)
     }
-  }, [obs, editPlate, editMake, editModel, editYear, editColour, editNotes, onActivity])
+  }, [obs, editPlate, editMake, editModel, editYear, editColour, editNotes, editAddress, onActivity])
 
   // ── H&S incident ─────────────────────────────────────────────────────────
   const handleHSIncident = () => {
@@ -402,6 +490,8 @@ export function ScanDetailPanel({
                     <Loader2 className="h-4 w-4 animate-spin" />
                     <span aria-label="Detecting plate">Detecting…</span>
                   </span>
+                ) : plate === 'MANUAL_REQUIRED' ? (
+                  <span className="font-mono font-bold text-orange-600">Enter Plate ↓</span>
                 ) : (
                   <span className="font-mono font-bold">{plate || '—'}</span>
                 )}
@@ -418,7 +508,12 @@ export function ScanDetailPanel({
                     <XCircle className="h-3 w-3 mr-1" />{fmtBreach(obs.breachType)}
                   </Badge>
                 )}
-                {pending && (
+                {plate === 'MANUAL_REQUIRED' && (
+                  <Badge className="bg-orange-500 text-white text-[10px]">
+                    <Edit3 className="h-2.5 w-2.5 mr-1" />Manual Entry Required
+                  </Badge>
+                )}
+                {pending && plate !== 'MANUAL_REQUIRED' && (
                   <Badge variant="secondary" className="text-[10px] animate-pulse">
                     <Clock className="h-2.5 w-2.5 mr-1" />Processing
                   </Badge>
@@ -434,11 +529,16 @@ export function ScanDetailPanel({
                 </p>
               )}
 
-              {/* Zone */}
+              {/* Zone + location */}
               {obs.zoneName && (
                 <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
                   <MapPin className="h-3 w-3 shrink-0" />{obs.zoneName}
                   <span className="text-gray-400">· {fmtDate(obs.recordedAt)}</span>
+                </p>
+              )}
+              {locationAddress && (
+                <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
+                  <Home className="h-3 w-3 shrink-0" />{locationAddress}
                 </p>
               )}
             </div>
@@ -456,8 +556,27 @@ export function ScanDetailPanel({
           {/* ── DETAILS TAB ────────────────────────────────────────── */}
           <TabsContent value="details" className="flex-1 overflow-y-auto px-4 py-3 space-y-4">
 
-            {/* CSC status */}
-            {!pending && (
+            {/* Manual plate entry prompt */}
+            {plate === 'MANUAL_REQUIRED' && !editMode && (
+              <div className="rounded-xl border-2 border-orange-400 bg-orange-50 dark:bg-orange-950/30 p-3 space-y-2">
+                <p className="text-sm font-semibold text-orange-800 dark:text-orange-300 flex items-center gap-1.5">
+                  <Edit3 className="h-4 w-4 shrink-0" />
+                  Plate number could not be detected
+                </p>
+                <p className="text-xs text-orange-700 dark:text-orange-400">
+                  Please enter the plate number manually to complete this observation.
+                </p>
+                <Button
+                  className="w-full h-8 text-xs bg-orange-600 hover:bg-orange-700 text-white"
+                  onClick={() => setEditMode(true)}
+                >
+                  <Edit3 className="h-3 w-3 mr-1.5" />Enter Plate Number
+                </Button>
+              </div>
+            )}
+
+            {/* CSC status + Homeless status */}
+            {!pending && plate !== 'MANUAL_REQUIRED' && (
               <div className="flex flex-wrap gap-2">
                 {obs.isSelfContained ? (
                   <Badge className="bg-emerald-600 text-white text-xs">
@@ -470,6 +589,18 @@ export function ScanDetailPanel({
                     <ShieldAlert className="h-3 w-3 mr-1" />No CSC on record
                   </Badge>
                 ) : null}
+
+                {/* Homeless status badge */}
+                {obs.homelessStatus === 'confirmed' && (
+                  <Badge className="bg-purple-600 text-white text-xs">
+                    <Home className="h-3 w-3 mr-1" />Confirmed Homeless — Exempt
+                  </Badge>
+                )}
+                {obs.homelessStatus === 'claimed' && (
+                  <Badge variant="outline" className="text-xs border-purple-400 text-purple-700">
+                    <Home className="h-3 w-3 mr-1" />Homeless Claimed — Unverified
+                  </Badge>
+                )}
 
                 {obs.isNewVehicle && (
                   <Badge variant="secondary" className="text-xs">🆕 New vehicle in zone</Badge>
@@ -548,11 +679,16 @@ export function ScanDetailPanel({
               <div className="space-y-3 rounded-xl border p-3 bg-slate-50 dark:bg-slate-900">
                 <div className="grid grid-cols-2 gap-3">
                   <div className="col-span-2 space-y-1">
-                    <Label htmlFor="dp-plate" className="text-xs">Plate number</Label>
+                    <Label htmlFor="dp-plate" className="text-xs font-semibold">
+                      Plate number{obs.plateNumber === 'MANUAL_REQUIRED' && (
+                        <span className="ml-1 text-orange-500">* Required</span>
+                      )}
+                    </Label>
                     <Input id="dp-plate" value={editPlate}
                       onChange={e => setEditPlate(e.target.value.toUpperCase())}
                       className="font-mono uppercase h-8 text-sm"
-                      placeholder="ABC123" />
+                      placeholder="ABC123"
+                      autoFocus={obs.plateNumber === 'MANUAL_REQUIRED'} />
                   </div>
                   <div className="space-y-1">
                     <Label htmlFor="dp-make" className="text-xs">Make</Label>
@@ -578,6 +714,13 @@ export function ScanDetailPanel({
                       onChange={e => setEditColour(e.target.value)}
                       className="h-8 text-sm" placeholder="White" />
                   </div>
+                  <div className="col-span-2 space-y-1">
+                    <Label htmlFor="dp-address" className="text-xs">Location / Street Address</Label>
+                    <Input id="dp-address" value={editAddress}
+                      onChange={e => setEditAddress(e.target.value)}
+                      className="h-8 text-sm"
+                      placeholder={locationAddress || 'e.g. 12 Wakatu Ln, Nelson'} />
+                  </div>
                 </div>
 
                 <div className="flex gap-2 pt-1">
@@ -596,7 +739,7 @@ export function ScanDetailPanel({
               /* Read-only details grid */
               <div className="space-y-2 text-sm">
                 {[
-                  { label: 'Plate',  value: plate || (pending ? 'Detecting…' : '—'), sourceKey: null },
+                  { label: 'Plate',  value: plate === 'MANUAL_REQUIRED' ? '— (enter manually)' : (plate || (pending ? 'Detecting…' : '—')), sourceKey: null },
                   { label: 'Make',   value: obs.vehicleMake   || '—', sourceKey: 'make_source' as const },
                   { label: 'Model',  value: obs.vehicleModel  || '—', sourceKey: 'model_source' as const },
                   { label: 'Year',   value: obs.vehicleYear   || '—', sourceKey: 'year_source' as const },
@@ -617,6 +760,24 @@ export function ScanDetailPanel({
                     </div>
                   )
                 })}
+
+                {/* Location address */}
+                {locationAddress && (
+                  <div className="flex justify-between items-start border-b pb-1.5">
+                    <span className="text-muted-foreground">Location</span>
+                    <span className="font-medium text-right max-w-[60%] text-xs">{locationAddress}</span>
+                  </div>
+                )}
+
+                {/* GPS coordinates */}
+                {obs.gpsLatitude != null && obs.gpsLongitude != null && (
+                  <div className="flex justify-between items-center border-b pb-1.5">
+                    <span className="text-muted-foreground">GPS</span>
+                    <span className="font-mono text-xs text-muted-foreground">
+                      {Number(obs.gpsLatitude).toFixed(5)}, {Number(obs.gpsLongitude).toFixed(5)}
+                    </span>
+                  </div>
+                )}
               </div>
             )}
           </TabsContent>
@@ -732,36 +893,34 @@ export function ScanDetailPanel({
                   All actions are logged and visible to administration.
                 </p>
 
-                {/* Warning */}
+                {/* Warning — shown for officer_direct, hybrid, and admin_first */}
+                <Button
+                  variant="outline"
+                  className="w-full justify-start h-11 border-yellow-400 text-yellow-800 hover:bg-yellow-50"
+                  disabled={isIssuingAction || !plate || plate === 'MANUAL_REQUIRED' || !obs.observationId}
+                  onClick={() => {
+                    onIssueAction({
+                      observationId: obs.observationId,
+                      zoneId:        obs.observationZoneId,
+                      plateNumber:   plate!,
+                      actionType:    'warning',
+                    })
+                    onActivity?.()
+                  }}
+                >
+                  <FileWarning className="h-4 w-4 mr-2 text-yellow-600 shrink-0" />
+                  <div className="text-left">
+                    <div className="text-sm font-semibold">Issue Warning</div>
+                    <div className="text-[11px] font-normal opacity-70">Verbal + logged notice of breach</div>
+                  </div>
+                </Button>
+
+                {/* Notice to Vacate — officer_direct and hybrid workflows */}
                 {(orgWorkflow === 'officer_direct' || orgWorkflow === 'hybrid') && (
                   <Button
                     variant="outline"
-                    className="w-full justify-start h-11 border-yellow-400 text-yellow-800 hover:bg-yellow-50"
-                    disabled={isIssuingAction || !plate || !obs.observationId}
-                    onClick={() => {
-                      onIssueAction({
-                        observationId: obs.observationId,
-                        zoneId:        obs.observationZoneId,
-                        plateNumber:   plate!,
-                        actionType:    'warning',
-                      })
-                      onActivity?.()
-                    }}
-                  >
-                    <FileWarning className="h-4 w-4 mr-2 text-yellow-600 shrink-0" />
-                    <div className="text-left">
-                      <div className="text-sm font-semibold">Issue Warning</div>
-                      <div className="text-[11px] font-normal opacity-70">Verbal + logged notice of breach</div>
-                    </div>
-                  </Button>
-                )}
-
-                {/* Notice to Vacate */}
-                {orgWorkflow === 'officer_direct' && (
-                  <Button
-                    variant="outline"
                     className="w-full justify-start h-11 border-red-400 text-red-800 hover:bg-red-50"
-                    disabled={isIssuingAction || !plate || !obs.observationId}
+                    disabled={isIssuingAction || !plate || plate === 'MANUAL_REQUIRED' || !obs.observationId}
                     onClick={() => {
                       onIssueAction({
                         observationId: obs.observationId,
@@ -780,8 +939,27 @@ export function ScanDetailPanel({
                   </Button>
                 )}
 
+                {/* Issue Infringement Notice — navigates to full notice form */}
+                {obs.observationId && (
+                  <Button
+                    variant="outline"
+                    className="w-full justify-start h-11 border-purple-400 text-purple-800 hover:bg-purple-50"
+                    disabled={!plate || plate === 'MANUAL_REQUIRED' || !obs.observationId}
+                    onClick={() => {
+                      navigate(`/infringements?observation_id=${encodeURIComponent(obs.observationId)}`)
+                      onActivity?.()
+                    }}
+                  >
+                    <Printer className="h-4 w-4 mr-2 text-purple-600 shrink-0" />
+                    <div className="text-left">
+                      <div className="text-sm font-semibold">Issue Infringement Notice</div>
+                      <div className="text-[11px] font-normal opacity-70">Generate formal infringement / fine</div>
+                    </div>
+                  </Button>
+                )}
+
                 {/* Admin First — auto-reported + escalate option */}
-                {(!orgWorkflow || orgWorkflow === 'admin_first' || orgWorkflow === 'hybrid') && (
+                {(!orgWorkflow || orgWorkflow === 'admin_first') && (
                   <div className="flex items-start gap-3 rounded-xl border border-blue-200 bg-blue-50 dark:bg-blue-950/30 p-3">
                     <Shield className="h-4 w-4 text-blue-600 mt-0.5 shrink-0" />
                     <div className="text-sm flex-1">
@@ -799,7 +977,7 @@ export function ScanDetailPanel({
                   <Button
                     variant="outline"
                     className="w-full justify-start h-11 border-indigo-400 text-indigo-800 hover:bg-indigo-50"
-                    disabled={escalateMutation.isPending || !plate}
+                    disabled={escalateMutation.isPending || !plate || plate === 'MANUAL_REQUIRED'}
                     onClick={() => { escalateMutation.mutate(); onActivity?.() }}
                   >
                     <Bell className="h-4 w-4 mr-2 text-indigo-600 shrink-0" />
@@ -815,15 +993,34 @@ export function ScanDetailPanel({
                 )}
               </>
             ) : compliant === true ? (
-              <div className="flex items-start gap-3 rounded-xl border border-green-200 bg-green-50 dark:bg-green-950/30 p-4">
-                <CheckCircle className="h-5 w-5 text-green-600 mt-0.5 shrink-0" />
-                <div className="text-sm">
-                  <p className="font-semibold text-green-800 dark:text-green-300">Vehicle is Compliant</p>
-                  <p className="text-xs text-green-700 dark:text-green-400 mt-0.5">
-                    No enforcement action required. Observation has been recorded.
-                  </p>
+              <>
+                <div className="flex items-start gap-3 rounded-xl border border-green-200 bg-green-50 dark:bg-green-950/30 p-4">
+                  <CheckCircle className="h-5 w-5 text-green-600 mt-0.5 shrink-0" />
+                  <div className="text-sm">
+                    <p className="font-semibold text-green-800 dark:text-green-300">Vehicle is Compliant</p>
+                    <p className="text-xs text-green-700 dark:text-green-400 mt-0.5">
+                      No enforcement action required. Observation has been recorded.
+                    </p>
+                  </div>
                 </div>
-              </div>
+                {/* Still allow infringement for compliant vehicles if officer decides */}
+                {obs.observationId && (
+                  <Button
+                    variant="outline"
+                    className="w-full justify-start h-11 border-gray-300 text-gray-600 hover:bg-gray-50"
+                    onClick={() => {
+                      navigate(`/infringements?observation_id=${encodeURIComponent(obs.observationId)}`)
+                      onActivity?.()
+                    }}
+                  >
+                    <Printer className="h-4 w-4 mr-2 text-gray-500 shrink-0" />
+                    <div className="text-left">
+                      <div className="text-sm font-semibold">Issue Infringement Notice</div>
+                      <div className="text-[11px] font-normal opacity-70">Generate formal infringement if needed</div>
+                    </div>
+                  </Button>
+                )}
+              </>
             ) : (
               <p className="text-sm text-muted-foreground text-center py-6">
                 Compliance status not yet available.

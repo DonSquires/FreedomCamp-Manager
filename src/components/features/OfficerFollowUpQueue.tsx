@@ -53,7 +53,7 @@ interface OfficerFollowUpQueueProps {
   /** Enforcement workflow for the org (admin_first | hybrid | officer_direct) */
   orgWorkflow?: string
   /** Trigger a warning or notice_to_vacate action */
-  onIssueAction?: (p: { observationId: string; zoneId: string; plateNumber: string; actionType: string }) => void
+  onIssueAction?: (p: { observationId: string; zoneId: string; plateNumber: string; actionType: 'warning' | 'notice_to_vacate' }) => void
   /** Whether an issue action is currently in-flight */
   isIssuingAction?: boolean
 }

@@ -286,6 +286,8 @@ export default function FieldOfficerPortal() {
         vehicleMoved:        null,
         isNewVehicle:        false,
         officerNotes:        result.weather !== 'Unknown' ? `Weather: ${result.weather}` : null,
+        gpsLatitude:         result.gpsLatitude,
+        gpsLongitude:        result.gpsLongitude,
         hasDiscrepancies:    false,
         discrepancyFlags:    null,
       })
@@ -690,13 +692,21 @@ export default function FieldOfficerPortal() {
               }
               return true
             }).map((scan: any) => {
-              const isProcessingAI = scan.plate_number === 'PROCESSING...' || scan.plate_number === 'MANUAL_REQUIRED'
+              const isManualRequired = scan.plate_number === 'MANUAL_REQUIRED'
+              const isProcessingAI = scan.plate_number === 'PROCESSING...' || isManualRequired
               const inBreach = scan.is_compliant === false && !isProcessingAI
+              const vehicle = scan.vehicle as any
+              const homelessStatus = vehicle?.homeless_status
+              const isHomelessExempt = homelessStatus === 'confirmed' || homelessStatus === 'claimed'
               return (
                 <div
                   key={scan.id}
                   className={`flex items-center gap-3 rounded-lg border p-2.5 ${
-                    inBreach ? 'border-red-200 bg-red-50 dark:bg-red-950/30' : 'border-gray-100 bg-white dark:bg-slate-900'
+                    isManualRequired
+                      ? 'border-orange-300 bg-orange-50 dark:bg-orange-950/20'
+                      : inBreach
+                      ? 'border-red-200 bg-red-50 dark:bg-red-950/30'
+                      : 'border-gray-100 bg-white dark:bg-slate-900'
                   }`}
                 >
                   {/* Thumbnail */}
@@ -716,7 +726,11 @@ export default function FieldOfficerPortal() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5 flex-wrap">
                       <span className="font-mono font-bold text-sm">
-                        {isProcessingAI ? '⏳ Scanning...' : (scan.plate_number || '—')}
+                        {isManualRequired
+                          ? <span className="text-orange-600">⚠ Enter Plate</span>
+                          : scan.plate_number === 'PROCESSING...'
+                          ? '⏳ Scanning...'
+                          : (scan.plate_number || '—')}
                       </span>
                       {!isProcessingAI && scan.is_compliant !== null && (
                         <Badge
@@ -731,38 +745,57 @@ export default function FieldOfficerPortal() {
                           Pending
                         </Badge>
                       )}
+                      {isHomelessExempt && (
+                        <Badge className="bg-purple-600 text-white text-[10px] px-1.5 py-0">
+                          <Home className="h-2.5 w-2.5 mr-1" />
+                          {homelessStatus === 'confirmed' ? 'Confirmed Homeless' : 'Homeless Claimed'}
+                        </Badge>
+                      )}
                     </div>
                     <div className="text-[11px] text-muted-foreground truncate">
                       {scan.zone?.name} · {formatDateTime(scan.recorded_at)}
                     </div>
                   </div>
 
+                  {/* Manual entry — show edit button */}
+                  {isManualRequired && (
+                    <div className="flex gap-1 shrink-0">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 px-2 text-[11px] border-orange-400 text-orange-700 hover:bg-orange-50"
+                        onClick={() => navigate(`/observation-records?observation_id=${encodeURIComponent(scan.id)}`)}
+                      >
+                        <X className="h-3 w-3 mr-1" />
+                        Edit Plate
+                      </Button>
+                    </div>
+                  )}
+
                   {/* Enforcement action buttons — only shown for breach + AI complete */}
                   {inBreach && (
                     <div className="flex gap-1 shrink-0">
-                      {/* Warning: shown for officer_direct AND hybrid */}
-                      {(orgWorkflow === 'officer_direct' || orgWorkflow === 'hybrid') && (
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="h-7 px-2 text-[11px] border-yellow-400 text-yellow-700 hover:bg-yellow-50"
-                          disabled={issueAction.isPending}
-                          onClick={() =>
-                            issueAction.mutate({
-                              observationId: scan.id,
-                              zoneId: scan.zone_id || '',
-                              plateNumber: scan.plate_number,
-                              actionType: 'warning',
-                            })
-                          }
-                        >
-                          <FileWarning className="h-3 w-3 mr-1" />
-                          Warning
-                        </Button>
-                      )}
+                      {/* Warning: shown for all workflows */}
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 px-2 text-[11px] border-yellow-400 text-yellow-700 hover:bg-yellow-50"
+                        disabled={issueAction.isPending}
+                        onClick={() =>
+                          issueAction.mutate({
+                            observationId: scan.id,
+                            zoneId: scan.zone_id || '',
+                            plateNumber: scan.plate_number,
+                            actionType: 'warning',
+                          })
+                        }
+                      >
+                        <FileWarning className="h-3 w-3 mr-1" />
+                        Warn
+                      </Button>
 
-                      {/* Notice to Vacate: officer_direct only */}
-                      {orgWorkflow === 'officer_direct' && (
+                      {/* Notice to Vacate: officer_direct and hybrid */}
+                      {(orgWorkflow === 'officer_direct' || orgWorkflow === 'hybrid') && (
                         <Button
                           size="sm"
                           variant="outline"
@@ -778,11 +811,11 @@ export default function FieldOfficerPortal() {
                           }
                         >
                           <Megaphone className="h-3 w-3 mr-1" />
-                          Notice
+                          Vacate
                         </Button>
                       )}
 
-                      {/* Admin First: read-only badge */}
+                      {/* Admin First: reported badge */}
                       {(!orgWorkflow || orgWorkflow === 'admin_first') && (
                         <Badge variant="secondary" className="text-[10px]">
                           <Shield className="h-2.5 w-2.5 mr-1" />
