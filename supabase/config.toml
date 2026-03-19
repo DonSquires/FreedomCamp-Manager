@@ -134,3 +134,9 @@ verify_jwt = false
 # creating any auth users.
 [functions.create-user]
 verify_jwt = false
+
+# recalculate-compliance-v3: admin/master trigger compliance recalculation from
+# the browser; ES256-signed JWTs are rejected at the gateway (401, execution_id:
+# null). Auth + admin role are validated inside the function body.
+[functions.recalculate-compliance-v3]
+verify_jwt = false
