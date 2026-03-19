@@ -781,11 +781,38 @@ app.post('/infer', upload.single('photo'), async (req, res) => {
     // Step 1: Detect vehicle
     const yoloInput = await preprocessForYOLO(req.file.buffer);
     const detection = await detectVehicles(yoloInput);
-    
+
+    // If YOLO misses the vehicle, still attempt attribute inference on the
+    // full image so make/model/year/colour can enrich the scan result.
     if (!detection) {
-      return res.status(404).json({ 
-        error: 'No vehicle detected',
-        suggestion: 'Ensure photo contains a clear vehicle'
+      console.warn('⚠️ No vehicle detected by YOLO — falling back to full-image attribute inference');
+      const vehicleAttrs = await inferVehicleAttributes(req.file.buffer, req.file.buffer);
+      const duration = Date.now() - startTime;
+      return res.json({
+        success: true,
+        degraded: true,
+        data: {
+          embedding: null,
+          embedding_quality: null,
+          embedding_model_version: 'yolov8n_mobilenetv3_v1.0',
+          detection: null,
+          metadata: {
+            norm: null,
+            dimension: null,
+            processing_time_ms: duration,
+            fallback_reason: 'no_vehicle_detected',
+          },
+          vehicle_make: vehicleAttrs.vehicle_make,
+          vehicle_model: vehicleAttrs.vehicle_model,
+          vehicle_year: vehicleAttrs.vehicle_year,
+          vehicle_colour: vehicleAttrs.vehicle_colour,
+          vehicle_color: vehicleAttrs.vehicle_colour,
+          vehicle_make_confidence: vehicleAttrs.vehicle_make_confidence,
+          vehicle_model_confidence: vehicleAttrs.vehicle_model_confidence,
+          vehicle_year_confidence: vehicleAttrs.vehicle_year_confidence,
+          vehicle_colour_confidence: vehicleAttrs.vehicle_colour_confidence,
+          sticker: vehicleAttrs.sticker,
+        }
       });
     }
 
