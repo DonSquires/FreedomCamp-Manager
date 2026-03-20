@@ -14,7 +14,9 @@
 //   3.  Railway inference  → plate candidate + vehicle embedding + sticker detection
 //       + make/model/colour/sticker presence (all optional)
 //   4.  ALPR backup (Plate Recognizer) if inference returns no plate
-//   5.  NZSCV lookup  → self-contained certificate status + expiry date (guaranteed)
+//   5.  Canonical vehicle + SCV lookup → check canonical_vehicles first
+//       (trusted local source) before NZSCV API (may be on test endpoint).
+//       Returns self-contained certificate status + expiry date (guaranteed)
 //       + make/model/year/vin/colour/maxOccupants when provided (optional/nullable)
 //   5b. Cross-source discrepancy detection:
 //       - SC sticker presence (inference) vs NZSCV register

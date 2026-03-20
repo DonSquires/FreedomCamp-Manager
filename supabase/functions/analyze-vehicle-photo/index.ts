@@ -172,8 +172,11 @@ Respond ONLY with valid JSON (no markdown, no explanations):
       // Continue with null values - NZSCV check is more important
     }
 
-    // STEP 2: Check NZSCV Register (SOURCE OF TRUTH)
-    console.log('🌐 [AI ANALYSIS] Checking NZSCV register (source of truth)...');
+    // STEP 2: Check canonical_vehicles first, then NZSCV Register
+    // canonical_vehicles is maintained by sync-scv-list and prior verified
+    // lookups. The NZSCV API may be pointing to a test endpoint, so canonical
+    // is the more reliable source.
+    console.log('🔍 [AI ANALYSIS] Checking canonical_vehicles for SCV status...');
     
     let nzscvResult: NZSCVResult = {
       is_self_contained: false,
@@ -181,34 +184,67 @@ Respond ONLY with valid JSON (no markdown, no explanations):
       source: 'nzscv_register',
       last_checked: new Date().toISOString(),
     };
+    let canonicalHasSCVData = false;
 
     try {
-      const { data: nzscvData, error: nzscvError } = await supabaseAdmin.functions.invoke(
-        'check-nzscv-status',
-        {
-          body: {
-            plateNumber: plateNumber.toUpperCase().trim(),
-          },
+      const { data: cv } = await supabaseAdmin
+        .from('canonical_vehicles')
+        .select('self_contained, self_contained_expiry')
+        .eq('plate_number', plateNumber.toUpperCase().trim())
+        .maybeSingle();
+
+      if (cv && cv.self_contained === true) {
+        const expiry = cv.self_contained_expiry ?? null;
+        const isExpired = expiry != null && new Date(expiry) < new Date();
+        if (!isExpired) {
+          nzscvResult = {
+            is_self_contained: true,
+            expiry_date: expiry,
+            source: 'canonical_vehicles',
+            last_checked: new Date().toISOString(),
+          };
+          canonicalHasSCVData = true;
+          console.log('✅ [AI ANALYSIS] SCV status from canonical_vehicles (trusted):', {
+            certified: true,
+            expiry,
+          });
         }
-      );
-
-      if (!nzscvError && nzscvData?.result) {
-        nzscvResult = {
-          is_self_contained: nzscvData.result.is_self_contained || false,
-          expiry_date: nzscvData.result.expiry_date || null,
-          source: 'nzscv_register',
-          last_checked: new Date().toISOString(),
-        };
-
-        console.log(`✅ [AI ANALYSIS] NZSCV register checked:`, {
-          certified: nzscvResult.is_self_contained,
-          expiry: nzscvResult.expiry_date,
-        });
-      } else {
-        console.warn(`⚠️ [AI ANALYSIS] NZSCV check failed (non-critical):`, nzscvError?.message);
       }
-    } catch (nzscvError: any) {
-      console.warn(`⚠️ [AI ANALYSIS] NZSCV check error (non-critical):`, nzscvError.message);
+    } catch (canonicalErr: any) {
+      console.warn('⚠️ [AI ANALYSIS] canonical_vehicles check failed:', canonicalErr.message);
+    }
+
+    // Only call NZSCV API if canonical doesn't confirm self-contained
+    if (!canonicalHasSCVData) {
+      console.log('🌐 [AI ANALYSIS] Falling back to NZSCV register...');
+      try {
+        const { data: nzscvData, error: nzscvError } = await supabaseAdmin.functions.invoke(
+          'check-nzscv-status',
+          {
+            body: {
+              plateNumber: plateNumber.toUpperCase().trim(),
+            },
+          }
+        );
+
+        if (!nzscvError && nzscvData?.result) {
+          nzscvResult = {
+            is_self_contained: nzscvData.result.is_self_contained || false,
+            expiry_date: nzscvData.result.expiry_date || null,
+            source: nzscvData.source === 'canonical_vehicles' ? 'canonical_vehicles' : 'nzscv_register',
+            last_checked: new Date().toISOString(),
+          };
+
+          console.log(`✅ [AI ANALYSIS] NZSCV register checked:`, {
+            certified: nzscvResult.is_self_contained,
+            expiry: nzscvResult.expiry_date,
+          });
+        } else {
+          console.warn(`⚠️ [AI ANALYSIS] NZSCV check failed (non-critical):`, nzscvError?.message);
+        }
+      } catch (nzscvError: any) {
+        console.warn(`⚠️ [AI ANALYSIS] NZSCV check error (non-critical):`, nzscvError.message);
+      }
     }
 
     // STEP 3: Validation - Compare AI vs NZSCV
@@ -238,8 +274,11 @@ Respond ONLY with valid JSON (no markdown, no explanations):
       }
     }
 
-    // STEP 4: Update canonical_vehicles with NZSCV data (source of truth)
-    console.log('💾 [AI ANALYSIS] Updating canonical vehicle with NZSCV data...');
+    // STEP 4: Update canonical_vehicles with enriched data
+    // Only update SCV fields if they came from a source OTHER than a
+    // potentially-inaccurate NZSCV test endpoint, or if canonical doesn't
+    // already have confirmed SCV data.
+    console.log('💾 [AI ANALYSIS] Updating canonical vehicle...');
     
     const updateData: any = {
       // Vehicle details from AI
@@ -249,15 +288,19 @@ Respond ONLY with valid JSON (no markdown, no explanations):
       vehicle_year: aiAnalysis.year ? (parseInt(aiAnalysis.year, 10) || null) : null,
       vehicle_color: aiAnalysis.color,
       
-      // Self-contained status from NZSCV (SOURCE OF TRUTH)
-      self_contained: nzscvResult.is_self_contained,
-      self_contained_expiry: nzscvResult.expiry_date,
-      nzscv_source: nzscvResult.source,
-      nzscv_last_checked: nzscvResult.last_checked,
-      
       // Timestamp
       updated_at: new Date().toISOString(),
     };
+
+    // Only update SCV fields if canonical didn't already have trusted SCV data.
+    // This prevents overwriting good canonical SCV data with potentially
+    // inaccurate NZSCV API test page results.
+    if (!canonicalHasSCVData) {
+      updateData.self_contained = nzscvResult.is_self_contained;
+      updateData.self_contained_expiry = nzscvResult.expiry_date;
+      updateData.nzscv_source = nzscvResult.source;
+      updateData.nzscv_last_checked = nzscvResult.last_checked;
+    }
 
     const { error: updateError } = await supabaseAdmin
       .from('canonical_vehicles')

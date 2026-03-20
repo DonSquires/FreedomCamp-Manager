@@ -19,6 +19,7 @@
  * Flow: Edge Function → Proxy Server (Static IP) → NZSCV API
  */
 
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { corsHeaders } from '../_shared/cors.ts';
 
@@ -73,6 +74,65 @@ serve(async (req) => {
     }
 
     console.log('🔍 Checking NZSCV status for:', plate_number);
+
+    // ── Step 1: Check canonical_vehicles first (local source of truth) ──────
+    // The NZSCV API may be pointing to a test endpoint and returning inaccurate
+    // data. canonical_vehicles is maintained by sync-scv-list and prior verified
+    // lookups, so it is the most reliable source available.
+    const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
+    const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+    if (SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY) {
+      try {
+        const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+        const { data: cv } = await supabaseAdmin
+          .from('canonical_vehicles')
+          .select('plate_number, self_contained, self_contained_expiry, vehicle_make, vehicle_model, vehicle_year, vehicle_color')
+          .eq('plate_number', plate_number.toUpperCase().trim())
+          .maybeSingle();
+
+        if (cv && cv.self_contained != null) {
+          const isSelfContained = Boolean(cv.self_contained);
+          const expiry = cv.self_contained_expiry ?? null;
+          // If canonical says self-contained with valid (or no) expiry → trust it
+          const isExpired = expiry != null && new Date(expiry) < new Date();
+          if (isSelfContained && !isExpired) {
+            console.log('✅ SCV status from canonical_vehicles (trusted):', {
+              plate: plate_number,
+              self_contained: true,
+              expiry,
+            });
+            return new Response(
+              JSON.stringify({
+                found: true,
+                source: 'canonical_vehicles',
+                plate_number: plate_number.toUpperCase().trim(),
+                result: {
+                  is_self_contained: true,
+                  expiry_date: expiry,
+                  issue_date: null,
+                  status: 'Current',
+                  make: cv.vehicle_make ?? null,
+                  model: cv.vehicle_model ?? null,
+                  year: cv.vehicle_year != null ? Number(cv.vehicle_year) : null,
+                  vin: null,
+                  colour: cv.vehicle_color ?? null,
+                  max_occupants: null,
+                },
+                checked_at: new Date().toISOString(),
+              }),
+              { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+            );
+          }
+        }
+      } catch (canonicalErr: any) {
+        console.warn('⚠️ canonical_vehicles lookup failed (will fall back to NZSCV API):', canonicalErr.message);
+      }
+    }
+
+    // ── Step 2: Fall back to NZSCV API ──────────────────────────────────────
+    // Only reached if canonical_vehicles has no record or says not self-contained.
+    // NOTE: The NZSCV API may be pointing to a test endpoint — results may be
+    // inaccurate. canonical_vehicles (updated by sync-scv-list) is preferred.
 
     // Get proxy server URL and secret from environment
     const PROXY_URL = Deno.env.get('NZSCV_PROXY_URL');
