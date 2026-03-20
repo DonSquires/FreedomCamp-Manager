@@ -331,6 +331,27 @@ async function buildHomelessStatusMaps(
     }
   }
 
+  // ── Override homeless from canonical_homeless (authoritative reference) ─
+  // canonical_homeless is the cross-org canonical reference; prefer it over
+  // the denormalised homeless_status on canonical_vehicles.
+  if (plateKeys.length > 0) {
+    try {
+      const { data: homelessCanonRows } = await (supabaseAdmin.from('canonical_homeless') as any)
+        .select('plate_number, status')
+        .in('plate_number', plateKeys);
+
+      for (const row of homelessCanonRows ?? []) {
+        const plateKey = normalizePlateKey(row.plate_number);
+        if (row.status && row.status !== 'none') {
+          byPlate.set(plateKey, row.status);
+        }
+      }
+    } catch (homelessErr: any) {
+      // canonical_homeless table may not exist yet; canonical_vehicles fallback still applies
+      console.warn('⚠️ canonical_homeless query failed (table may not exist yet):', homelessErr?.message);
+    }
+  }
+
   return {
     byOrgPlate: new Map<string, string>(
       [...byOrgPlate.entries()].map(([key, value]) => [key, value.status]),

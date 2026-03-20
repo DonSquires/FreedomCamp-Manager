@@ -935,8 +935,9 @@ Deno.serve(async (req: Request) => {
     const requiresManualEntry = !plate;
 
     // ── Step 5: Canonical vehicle + SCV lookup ────────────────────────────
-    // Use canonical_vehicles as the active SCV source because there is no live
-    // NZSCV API in production for this flow.
+    // SCV lookup priority:
+    //   1. canonical_scv   — authoritative SCV reference (populated by sync-scv-list)
+    //   2. canonical_vehicles.self_contained — fallback (denormalised column)
     let canonicalVehicle: CanonicalVehicleSnapshot | null = null;
     let canonicalMake:   string | null = null;
     let canonicalModel:  string | null = null;
@@ -957,9 +958,34 @@ Deno.serve(async (req: Request) => {
         canonicalColour = canonicalVehicle?.vehicle_color ?? null;
         canonicalYear   = toIntOrNull(canonicalVehicle?.vehicle_year);
 
+        // Baseline SCV from canonical_vehicles (may be null → treated as false)
+        let resolvedSelfContained: boolean = !!canonicalVehicle?.self_contained;
+        let resolvedSelfContainedExpiry: string | null = canonicalVehicle?.self_contained_expiry ?? null;
+
+        // Override with canonical_scv (authoritative SCV registry)
+        try {
+          const { data: scvRow } = await (supabase.from('canonical_scv') as any)
+            .select('is_self_contained, certificate_expiry')
+            .eq('plate_number', plate)
+            .maybeSingle();
+
+          if (scvRow) {
+            resolvedSelfContained = scvRow.is_self_contained ?? resolvedSelfContained;
+            resolvedSelfContainedExpiry = scvRow.certificate_expiry ?? resolvedSelfContainedExpiry;
+            console.log('✅ SCV status from canonical_scv (authoritative):', {
+              plate,
+              isSelfContained: resolvedSelfContained,
+              expiry: resolvedSelfContainedExpiry,
+            });
+          }
+        } catch (scvErr: any) {
+          // canonical_scv table may not exist yet; canonical_vehicles fallback still applies
+          console.warn('⚠️ canonical_scv lookup failed (using canonical_vehicles fallback):', scvErr?.message);
+        }
+
         nzscv = {
-          isSelfContained: !!canonicalVehicle?.self_contained,
-          selfContainedExpiry: canonicalVehicle?.self_contained_expiry ?? null,
+          isSelfContained: resolvedSelfContained,
+          selfContainedExpiry: resolvedSelfContainedExpiry,
           make: null,
           model: null,
           year: null,
@@ -968,7 +994,7 @@ Deno.serve(async (req: Request) => {
           maxOccupants: null,
         };
 
-        console.log('✅ SCV result from canonical vehicle:', {
+        console.log('✅ SCV result resolved:', {
           plate,
           isSelfContained: nzscv.isSelfContained,
           expiry: nzscv.selfContainedExpiry,
@@ -1475,8 +1501,9 @@ Deno.serve(async (req: Request) => {
     }
 
     // ── Step 9: Compliance evaluation ─────────────────────────────────────
-    // Check canonical vehicle for homeless status (affects CSC exemption)
-    // (canonical data was already loaded in Step 5b above)
+    // Homeless status lookup priority:
+    //   1. canonical_homeless — authoritative cross-org reference
+    //   2. canonical_vehicles.homeless_status — denormalised fallback
     let isHomeless = false;
     if (plate) {
       try {
@@ -1488,6 +1515,28 @@ Deno.serve(async (req: Request) => {
         isHomeless = cv?.homeless_status === 'confirmed' ||
           cv?.homeless_status === 'claimed';
       } catch { /* ignore */ }
+
+      // Override with canonical_homeless (authoritative cross-org reference)
+      try {
+        const { data: homelessRow } = await (supabase.from('canonical_homeless') as any)
+          .select('status')
+          .eq('plate_number', plate)
+          .maybeSingle();
+        if (homelessRow && homelessRow.status && homelessRow.status !== 'none') {
+          const canonicalIsHomeless = homelessRow.status === 'confirmed' || homelessRow.status === 'claimed';
+          if (canonicalIsHomeless !== isHomeless) {
+            console.log('✅ Homeless status overridden by canonical_homeless:', {
+              plate,
+              status: homelessRow.status,
+              wasHomeless: isHomeless,
+            });
+          }
+          isHomeless = canonicalIsHomeless;
+        }
+      } catch (homelessErr: any) {
+        // canonical_homeless table may not exist yet; canonical_vehicles fallback still applies
+        console.warn('⚠️ canonical_homeless lookup failed:', homelessErr?.message);
+      }
     }
 
     // Determine self-contained status for compliance evaluation.

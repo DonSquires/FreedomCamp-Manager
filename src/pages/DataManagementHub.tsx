@@ -80,6 +80,7 @@ interface ScvSyncResult {
   unchanged: number
   observations_updated: number
   breach_alerts_resolved: number
+  canonical_scv_enriched: number
   errors: string[]
 }
 
@@ -115,6 +116,7 @@ const EMPTY_SCV_RESULT: ScvSyncResult = {
   unchanged: 0,
   observations_updated: 0,
   breach_alerts_resolved: 0,
+  canonical_scv_enriched: 0,
   errors: [],
 }
 
@@ -131,6 +133,7 @@ function mergeScvResults(current: ScvSyncResult, incoming: ScvSyncResult): ScvSy
     unchanged: current.unchanged + incoming.unchanged,
     observations_updated: current.observations_updated + incoming.observations_updated,
     breach_alerts_resolved: current.breach_alerts_resolved + incoming.breach_alerts_resolved,
+    canonical_scv_enriched: current.canonical_scv_enriched + incoming.canonical_scv_enriched,
     errors: [...current.errors, ...incoming.errors],
   }
 }
