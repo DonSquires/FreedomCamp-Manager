@@ -63,6 +63,32 @@ enable_signup = true
 enable_anonymous_sign_ins = false
 enable_manual_linking = false
 
+# ── Branded email templates (Iron Eagle Security) ────────────────────────────
+# These override the default Supabase auth emails with the professionally
+# branded templates that include the IES logo, gradient headers, and
+# NZ Privacy Act disclaimer.  The HTML files use Go template variables
+# ({{ .ConfirmationURL }}, {{ .Email }}, {{ .SiteURL }}).
+#
+# For hosted Supabase: copy each template's content into the Dashboard under
+# Authentication → Email Templates.  config.toml templates are applied
+# automatically for local development via `supabase start`.
+
+[auth.email.template.invite]
+subject = "You're invited to FreedomCamp Manager"
+content_path = "supabase/templates/invite.html"
+
+[auth.email.template.recovery]
+subject = "Reset Your Password - FreedomCamp Manager"
+content_path = "supabase/templates/recovery.html"
+
+[auth.email.template.confirmation]
+subject = "Confirm Your Email - FreedomCamp Manager"
+content_path = "supabase/templates/confirmation.html"
+
+[auth.email.template.magic_link]
+subject = "Your Login Link - FreedomCamp Manager"
+content_path = "supabase/templates/magic_link.html"
+
 # ── Edge Function JWT verification settings ──────────────────────────────────
 #
 # get-weather: fetches weather via external AI API — no user data is exposed,

@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Confirm Your Email - FreedomCamp Manager</title>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      background-color: #f3f4f6;
+      -webkit-font-smoothing: antialiased;
+    }
+    .email-container {
+      max-width: 600px;
+      margin: 0 auto;
+      background-color: #ffffff;
+    }
+    .header {
+      background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%);
+      padding: 40px 30px;
+      text-align: center;
+    }
+    .logo-container {
+      background-color: rgba(255, 255, 255, 0.95);
+      padding: 20px;
+      border-radius: 12px;
+      display: inline-block;
+      margin-bottom: 20px;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+    .logo {
+      max-width: 120px;
+      height: auto;
+      display: block;
+    }
+    .header-text {
+      color: #ffffff;
+      font-size: 28px;
+      font-weight: 700;
+      margin: 0;
+      text-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    }
+    .header-subtitle {
+      color: rgba(255, 255, 255, 0.9);
+      font-size: 16px;
+      margin: 8px 0 0 0;
+      font-weight: 500;
+    }
+    .content {
+      padding: 40px 30px;
+      color: #1f2937;
+    }
+    .greeting {
+      font-size: 20px;
+      font-weight: 600;
+      margin-bottom: 20px;
+      color: #111827;
+    }
+    .message {
+      font-size: 16px;
+      line-height: 1.6;
+      margin-bottom: 20px;
+      color: #374151;
+    }
+    .message strong {
+      color: #1f2937;
+      font-weight: 600;
+    }
+    .cta-button {
+      display: inline-block;
+      background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%);
+      color: #ffffff !important;
+      text-decoration: none;
+      padding: 16px 40px;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 16px;
+      margin: 30px 0;
+      box-shadow: 0 4px 6px rgba(59, 130, 246, 0.3);
+    }
+    .footer {
+      background-color: #f9fafb;
+      padding: 30px;
+      text-align: center;
+      border-top: 1px solid #e5e7eb;
+    }
+    .company-badge {
+      display: inline-block;
+      background-color: #1e40af;
+      color: #ffffff;
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-size: 12px;
+      font-weight: 600;
+      margin-bottom: 12px;
+      letter-spacing: 0.5px;
+    }
+    .footer-text {
+      font-size: 13px;
+      color: #6b7280;
+      line-height: 1.6;
+      margin: 8px 0;
+    }
+    .footer-text strong {
+      color: #374151;
+      font-weight: 600;
+    }
+    .link-fallback {
+      margin-top: 20px;
+      padding-top: 20px;
+      border-top: 1px solid #e5e7eb;
+      font-size: 13px;
+      color: #6b7280;
+    }
+    .link-url {
+      color: #3b82f6;
+      word-break: break-all;
+      text-decoration: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="email-container">
+    <!-- Header with Logo -->
+    <div class="header">
+      <div class="logo-container">
+        <img src="https://fcmanager.co.nz/iron-eagle-security-logo.jpg" alt="Iron Eagle Security" class="logo">
+      </div>
+      <h1 class="header-text">FreedomCamp Manager</h1>
+      <p class="header-subtitle">Confirm Your Email Address</p>
+    </div>
+
+    <!-- Main Content -->
+    <div class="content">
+      <p class="greeting">Welcome!</p>
+
+      <p class="message">
+        Thank you for signing up for <strong>FreedomCamp Manager</strong>. Please confirm your email address <strong>{{ .Email }}</strong> by clicking the button below.
+      </p>
+
+      <!-- CTA Button -->
+      <div style="text-align: center;">
+        <a href="{{ .ConfirmationURL }}" class="cta-button">Confirm Email Address</a>
+      </div>
+
+      <p class="message">
+        Once confirmed, you'll have full access to the FreedomCamp Manager platform.
+      </p>
+
+      <!-- Link Fallback -->
+      <div class="link-fallback">
+        <p><strong>Button not working?</strong> Copy and paste this link into your browser:</p>
+        <p><a href="{{ .ConfirmationURL }}" class="link-url">{{ .ConfirmationURL }}</a></p>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <div class="footer">
+      <div class="company-badge">IRON EAGLE SECURITY (IES)</div>
+      <p class="footer-text">
+        <strong>Professional Security Solutions for New Zealand</strong>
+      </p>
+      <p class="footer-text">
+        This email was sent by FreedomCamp Manager, a product of Iron Eagle Security.<br>
+        For support, contact your organization administrator or visit <a href="https://fcmanager.co.nz" style="color: #3b82f6; text-decoration: none;">fcmanager.co.nz</a>
+      </p>
+      <p class="footer-text" style="margin-top: 16px; font-size: 12px; color: #9ca3af;">
+        Iron Eagle Security Ltd | Professional Security Services & Technology Solutions<br>
+        New Zealand | Proudly serving councils and organizations nationwide
+      </p>
+    </div>
+  </div>
+</body>
+</html>

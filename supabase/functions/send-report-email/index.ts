@@ -327,26 +327,20 @@ serve(async (req) => {
     const fromAddr = `${smtpFromName} <${smtpFrom}>`;
 
     // ── Send via SMTP ────────────────────────────────────────────────────────
-    const client = new SMTPClient();
-
     // Use TLS (port 465) or STARTTLS (port 587 / 25).
     const useTls = smtpPort === 465;
 
-    if (useTls) {
-      await client.connectTLS({
+    const client = new SMTPClient({
+      connection: {
         hostname: smtpHost,
         port:     smtpPort,
-        username: smtpUser,
-        password: smtpPass,
-      });
-    } else {
-      await client.connect({
-        hostname: smtpHost,
-        port:     smtpPort,
-        username: smtpUser,
-        password: smtpPass,
-      });
-    }
+        tls:      useTls,
+        auth: {
+          username: smtpUser,
+          password: smtpPass,
+        },
+      },
+    });
 
     try {
       await client.send({

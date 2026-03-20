@@ -8,9 +8,26 @@ Professional HTML email templates for FreedomCamp Manager with Iron Eagle Securi
 2. **password-reset.html** - Password reset email
 3. **welcome-email.html** - Welcome email sent after first login
 
-## How to Apply Templates to Supabase
+## How Templates Are Applied
 
-### Step 1: Access Supabase Email Templates
+### Automatic (via config.toml)
+
+The branded templates are configured in `supabase/config.toml` under the
+`[auth.email.template.*]` sections and stored in `supabase/templates/`.
+When running locally with `supabase start`, these templates are used
+automatically for all auth emails (invitations, password resets, etc.).
+
+| Template type | config.toml section | File |
+|---|---|---|
+| Invite user | `[auth.email.template.invite]` | `supabase/templates/invite.html` |
+| Password reset | `[auth.email.template.recovery]` | `supabase/templates/recovery.html` |
+| Confirm signup | `[auth.email.template.confirmation]` | `supabase/templates/confirmation.html` |
+| Magic link | `[auth.email.template.magic_link]` | `supabase/templates/magic_link.html` |
+
+### Hosted Supabase (Dashboard)
+
+For the hosted Supabase project, templates must be applied via the
+Dashboard since `config.toml` email templates only take effect locally:
 
 1. Go to your Supabase project dashboard
 2. Navigate to **Authentication** → **Email Templates** (left sidebar)
