@@ -299,7 +299,7 @@ export default function DataManagementHub() {
           dry_run: dryRun,
           offset,
           batch_size: SCV_BATCH_SIZE,
-          include_related_updates: false,
+          include_related_updates: true,
           scv_total_in_list: scvCurrentEntries.length,
           scv_current_entries: scvCurrentEntries,
         })
