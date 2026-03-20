@@ -38,6 +38,7 @@ interface SyncResult {
   unchanged: number;
   observations_updated: number;
   breach_alerts_resolved: number;
+  canonical_scv_enriched: number;
   errors: string[];
 }
 
