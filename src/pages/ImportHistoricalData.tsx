@@ -40,6 +40,17 @@ interface ImportBatch {
   error_summary: string | null
 }
 
+function extractProjectRefFromSupabaseUrl(url: string | undefined): string | null {
+  if (!url) return null
+  try {
+    const host = new URL(url).hostname
+    const projectRef = host.split('.')[0]
+    return projectRef || null
+  } catch {
+    return null
+  }
+}
+
 function buildHistoricalImportStoragePath(organizationId: string | null | undefined, fileName: string): string {
   const safeOrg = (organizationId || 'unknown-org').replace(/[^a-zA-Z0-9_-]/g, '_')
   const safeName = fileName.replace(/[^a-zA-Z0-9._-]/g, '_')
@@ -69,6 +80,11 @@ export default function ImportHistoricalData() {
   const [uploading, setUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
   const [activeBatchId, setActiveBatchId] = useState<string | null>(null)
+  const runtimeSupabaseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined
+  const runtimeProjectRef = extractProjectRefFromSupabaseUrl(runtimeSupabaseUrl)
+  const runtimeFunctionEndpoint = runtimeSupabaseUrl
+    ? `${runtimeSupabaseUrl}/functions/v1/import-historical-data`
+    : 'VITE_SUPABASE_URL is not configured'
 
   // Use getEffectiveOrgId so that:
   //  - master users use their globally-selected org (from global filters store)
@@ -162,6 +178,7 @@ export default function ImportHistoricalData() {
 
       if (!uploadError) {
         setUploadProgress(45)
+        console.info('Invoking import-historical-data via', runtimeFunctionEndpoint)
         ;({ data, error } = await supabase.functions.invoke('import-historical-data', {
           body: {
             filePath: storagePath,
@@ -186,6 +203,7 @@ export default function ImportHistoricalData() {
         }
         const fileContent = btoa(chunks.join(''))
         setUploadProgress(35)
+        console.info('Invoking import-historical-data via inline fallback at', runtimeFunctionEndpoint)
 
         ;({ data, error } = await supabase.functions.invoke('import-historical-data', {
           body: {
@@ -301,6 +319,18 @@ export default function ImportHistoricalData() {
         {/* Upload tab */}
         <TabsContent value="upload" className="mt-6">
           <div className="max-w-xl space-y-5">
+            <Card className="border-dashed">
+              <CardContent className="p-4 space-y-1">
+                <p className="text-xs font-semibold text-muted-foreground uppercase">Runtime Function Wiring</p>
+                <p className="text-xs text-muted-foreground break-all">
+                  Project Ref: {runtimeProjectRef || 'unknown'}
+                </p>
+                <p className="text-xs text-muted-foreground break-all">
+                  Endpoint: {runtimeFunctionEndpoint}
+                </p>
+              </CardContent>
+            </Card>
+
             {activeBatch && ['pending', 'parsing', 'zone_matching', 'importing'].includes(activeBatch.status) && (
               <Card className="border-blue-400 bg-blue-50/40">
                 <CardContent className="p-4">
