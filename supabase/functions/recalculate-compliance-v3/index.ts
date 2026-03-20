@@ -180,31 +180,28 @@ async function recheckNzscvSelfContained(
 
   const normalizedPlate = String(plateNumber ?? '').trim().toUpperCase();
 
-  // ── Step 1: Check canonical_vehicles first (trusted local source) ─────
-  // The NZSCV API may be pointing to a test endpoint. canonical_vehicles is
-  // maintained by sync-scv-list and verified lookups, so prefer it.
+  // ── Check canonical_scv (authoritative SCV registry) ─────────────────
   if (supabaseAdmin) {
     try {
-      const { data: cv } = await supabaseAdmin
-        .from('canonical_vehicles')
-        .select('self_contained, self_contained_expiry')
+      const { data: scvRow } = await (supabaseAdmin.from('canonical_scv') as any)
+        .select('is_self_contained, certificate_expiry')
         .eq('plate_number', normalizedPlate)
         .maybeSingle();
 
-      if (cv && cv.self_contained === true) {
-        const expiry = cv.self_contained_expiry ?? null;
+      if (scvRow && scvRow.is_self_contained === true) {
+        const expiry = scvRow.certificate_expiry ?? null;
         const isExpired = expiry != null && isExpiredAt(expiry, new Date().toISOString());
         if (!isExpired) {
-          console.log('✅ SCV recheck: canonical_vehicles says self_contained=true (trusted)', { plate: normalizedPlate, expiry });
+          console.log('✅ SCV recheck: canonical_scv says is_self_contained=true', { plate: normalizedPlate, expiry });
           return { isSelfContained: true, expiryDate: expiry };
         }
       }
-    } catch (err: any) {
-      console.warn('⚠️ canonical_vehicles recheck failed:', err.message);
+    } catch (scvErr: any) {
+      console.warn('⚠️ canonical_scv recheck failed:', scvErr?.message);
     }
   }
 
-  // ── Step 2: Fall back to NZSCV API ────────────────────────────────────
+  // ── Fall back to NZSCV API ────────────────────────────────────────────
   // NOTE: NZSCV API may be on a test endpoint — results may be inaccurate.
   if (!NZSCV_PROXY_URL) return null;
 
@@ -298,36 +295,38 @@ async function buildHomelessStatusMaps(
   const selfContainedByPlate = new Map<string, boolean | null>();
   const selfContainedExpiryByPlate = new Map<string, string | null>();
 
-  // Prefer canonical_scv as authoritative SCV source.
-  // Fallback to canonical_vehicles only when canonical_scv has no record.
+  // SCV status exclusively from canonical_scv
   if (plateKeys.length > 0) {
-    const { data: scvRows } = await supabaseAdmin
-      .from('canonical_scv')
-      .select('plate_number, is_self_contained, certificate_expiry')
-      .in('plate_number', plateKeys);
+    try {
+      const { data: scvRows } = await (supabaseAdmin.from('canonical_scv') as any)
+        .select('plate_number, is_self_contained, certificate_expiry')
+        .in('plate_number', plateKeys);
 
-    for (const row of scvRows ?? []) {
-      const plateKey = normalizePlateKey((row as any).plate_number);
-      selfContainedByPlate.set(plateKey, (row as any).is_self_contained ?? null);
-      selfContainedExpiryByPlate.set(plateKey, (row as any).certificate_expiry ?? null);
+      for (const row of scvRows ?? []) {
+        const plateKey = normalizePlateKey(row.plate_number);
+        selfContainedByPlate.set(plateKey, row.is_self_contained ?? null);
+        selfContainedExpiryByPlate.set(plateKey, row.certificate_expiry ?? null);
+      }
+    } catch (scvErr: any) {
+      console.warn('⚠️ canonical_scv query failed:', scvErr?.message);
     }
   }
 
+  // Homeless status exclusively from canonical_homeless
   if (plateKeys.length > 0) {
-    const { data: canonicalRows } = await supabaseAdmin
-      .from('canonical_vehicles')
-      .select('plate_number, homeless_status, self_contained, self_contained_expiry')
-      .in('plate_number', plateKeys);
+    try {
+      const { data: homelessCanonRows } = await (supabaseAdmin.from('canonical_homeless') as any)
+        .select('plate_number, status')
+        .in('plate_number', plateKeys);
 
-    for (const row of canonicalRows ?? []) {
-      const plateKey = normalizePlateKey((row as any).plate_number);
-      byPlate.set(plateKey, String((row as any).homeless_status ?? ''));
-      if (!selfContainedByPlate.has(plateKey)) {
-        selfContainedByPlate.set(plateKey, (row as any).self_contained ?? null);
+      for (const row of homelessCanonRows ?? []) {
+        const plateKey = normalizePlateKey(row.plate_number);
+        if (row.status && row.status !== 'none') {
+          byPlate.set(plateKey, row.status);
+        }
       }
-      if (!selfContainedExpiryByPlate.has(plateKey)) {
-        selfContainedExpiryByPlate.set(plateKey, (row as any).self_contained_expiry ?? null);
-      }
+    } catch (homelessErr: any) {
+      console.warn('⚠️ canonical_homeless query failed:', homelessErr?.message);
     }
   }
 

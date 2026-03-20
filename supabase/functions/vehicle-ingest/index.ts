@@ -905,7 +905,11 @@ Deno.serve(async (req) => {
     const requiresManualEntry = !plateNumber;
     const plateConfidence = plateNumber ? (inferenceResult.confidence ?? null) : null;
 
-    // Step 3: Get or create canonical vehicle
+    // Step 3: Get or create canonical vehicle. SCV status comes exclusively
+    // from canonical_scv — canonical_vehicles is only used for existence check.
+    let scvSelfContained: boolean | null = null;
+    let scvExpiry: string | null = null;
+
     if (plateNumber && plateNumber !== "MANUAL_REQUIRED") {
       const { data: vehicle } = await supabase
         .from("canonical_vehicles")
@@ -930,6 +934,26 @@ Deno.serve(async (req) => {
           console.log("✅ Created canonical vehicle:", plateNumber);
         }
       }
+
+      // SCV status exclusively from canonical_scv
+      try {
+        const { data: scvRow } = await (supabase.from("canonical_scv") as any)
+          .select("is_self_contained, certificate_expiry")
+          .eq("plate_number", plateNumber)
+          .maybeSingle();
+
+        if (scvRow) {
+          scvSelfContained = scvRow.is_self_contained ?? null;
+          scvExpiry = scvRow.certificate_expiry ?? null;
+          console.log("✅ SCV status from canonical_scv:", {
+            plate: plateNumber,
+            isSelfContained: scvSelfContained,
+            expiry: scvExpiry,
+          });
+        }
+      } catch (scvErr: any) {
+        console.warn("⚠️ canonical_scv lookup failed:", scvErr?.message);
+      }
     }
 
     // Step 4: Create a new observation OR update an existing observation.
@@ -951,6 +975,9 @@ Deno.serve(async (req) => {
       recorded_by: officerId,
       officer_notes: officerNotes ?? null,
       idempotency_key: idempotencyKey,
+      // SCV status resolved from canonical tables at ingest time
+      self_contained: scvSelfContained,
+      self_contained_expiry: scvExpiry,
     };
 
     let newObservationId: string;

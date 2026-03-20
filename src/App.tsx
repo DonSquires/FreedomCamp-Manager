@@ -64,6 +64,7 @@ import PortalSelection from '@/pages/PortalSelection'
 import Settings from '@/pages/Settings'
 import Profile from '@/pages/Profile'
 import VehicleRegistry from '@/pages/VehicleRegistry'
+import CanonicalRecordsManager from '@/pages/CanonicalRecordsManager'
 import PublicDisputePortal from '@/pages/PublicDisputePortal'
 import Disputes from '@/pages/Disputes'
 
@@ -915,6 +916,17 @@ export default function App() {
               <ProtectedRoute>
                 <RoleRoute allowedRoles={['admin', 'admin_officer', 'master', 'nzscv_monitor']}>
                   <VehicleRegistry />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/admin/canonical-records"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <CanonicalRecordsManager />
                 </RoleRoute>
               </ProtectedRoute>
             }

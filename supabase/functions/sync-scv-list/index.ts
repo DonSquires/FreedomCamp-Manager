@@ -38,6 +38,7 @@ interface SyncResult {
   unchanged: number;
   observations_updated: number;
   breach_alerts_resolved: number;
+  canonical_scv_enriched: number;
   errors: string[];
 }
 
@@ -186,6 +187,7 @@ serve(async (req) => {
       unchanged: 0,
       observations_updated: 0,
       breach_alerts_resolved: 0,
+      canonical_scv_enriched: 0,
       errors: [],
     };
 
@@ -326,6 +328,12 @@ serve(async (req) => {
       }
     }
 
+    // Count how many SCV-list entries will be directly upserted to canonical_scv.
+    // Only on the first batch call so the dry-run response also reports this number.
+    if (offset === 0) {
+      result.canonical_scv_enriched = scvCurrentEntries.length;
+    }
+
     // ── Dry-run early return ─────────────────────────────────────────────────
 
     if (dryRun) {
@@ -360,6 +368,39 @@ serve(async (req) => {
         .upsert(chunk, { onConflict: 'plate_number' });
       if (error) {
         result.errors.push(`canonical_scv update batch ${Math.floor(i / BATCH_SIZE)}: ${error.message}`);
+      }
+    }
+
+    // ── Step 4b: Direct canonical_scv enrichment from the full SCV list ──────
+    // Upsert ALL SCV-certified plates from scvCurrentEntries into canonical_scv
+    // so the table reflects the complete NZSCV registry, not just plates that
+    // already exist in canonical_vehicles.
+    // Only runs on the first batch (offset === 0) to avoid redundant writes.
+    if (offset === 0 && scvCurrentEntries.length > 0) {
+      const DIRECT_BATCH_SIZE = 200;
+      for (let i = 0; i < scvCurrentEntries.length; i += DIRECT_BATCH_SIZE) {
+        const chunk = scvCurrentEntries.slice(i, i + DIRECT_BATCH_SIZE);
+        const scvRows: CanonicalScvUpdate[] = [];
+        for (const entry of chunk) {
+          const plate = String(entry?.plate_number ?? '').trim().toUpperCase();
+          if (!plate) continue;
+          scvRows.push({
+            plate_number: plate,
+            is_self_contained: true,
+            certificate_expiry: entry.expiry ?? null,
+            source: 'scv_list',
+            verified_at: fileDate,
+            updated_at: nowIso,
+          });
+        }
+        if (scvRows.length > 0) {
+          const { error } = await supabaseAdmin
+            .from('canonical_scv')
+            .upsert(scvRows, { onConflict: 'plate_number' });
+          if (error) {
+            result.errors.push(`canonical_scv list enrichment batch ${Math.floor(i / DIRECT_BATCH_SIZE)}: ${error.message}`);
+          }
+        }
       }
     }
 

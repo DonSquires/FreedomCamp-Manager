@@ -935,8 +935,8 @@ Deno.serve(async (req: Request) => {
     const requiresManualEntry = !plate;
 
     // ── Step 5: Canonical vehicle + SCV lookup ────────────────────────────
-    // Use canonical_vehicles as the active SCV source because there is no live
-    // NZSCV API in production for this flow.
+    // Vehicle attributes (make/model/year/colour) come from canonical_vehicles.
+    // SCV status comes exclusively from canonical_scv (authoritative registry).
     let canonicalVehicle: CanonicalVehicleSnapshot | null = null;
     let canonicalMake:   string | null = null;
     let canonicalModel:  string | null = null;
@@ -947,7 +947,7 @@ Deno.serve(async (req: Request) => {
       try {
         const { data: cv } = await supabase
           .from('canonical_vehicles')
-          .select('plate_number, vehicle_make, vehicle_model, vehicle_year, vehicle_color, self_contained, self_contained_expiry')
+          .select('plate_number, vehicle_make, vehicle_model, vehicle_year, vehicle_color')
           .eq('plate_number', plate)
           .maybeSingle();
 
@@ -956,10 +956,20 @@ Deno.serve(async (req: Request) => {
         canonicalModel  = canonicalVehicle?.vehicle_model ?? null;
         canonicalColour = canonicalVehicle?.vehicle_color ?? null;
         canonicalYear   = toIntOrNull(canonicalVehicle?.vehicle_year);
+      } catch (canonicalErr: any) {
+        console.warn('⚠️ canonical_vehicles lookup failed:', canonicalErr.message);
+      }
+
+      // SCV status exclusively from canonical_scv
+      try {
+        const { data: scvRow } = await (supabase.from('canonical_scv') as any)
+          .select('is_self_contained, certificate_expiry')
+          .eq('plate_number', plate)
+          .maybeSingle();
 
         nzscv = {
-          isSelfContained: !!canonicalVehicle?.self_contained,
-          selfContainedExpiry: canonicalVehicle?.self_contained_expiry ?? null,
+          isSelfContained: scvRow?.is_self_contained ?? false,
+          selfContainedExpiry: scvRow?.certificate_expiry ?? null,
           make: null,
           model: null,
           year: null,
@@ -968,7 +978,7 @@ Deno.serve(async (req: Request) => {
           maxOccupants: null,
         };
 
-        console.log('✅ SCV result from canonical vehicle:', {
+        console.log('✅ SCV status from canonical_scv:', {
           plate,
           isSelfContained: nzscv.isSelfContained,
           expiry: nzscv.selfContainedExpiry,
@@ -977,8 +987,8 @@ Deno.serve(async (req: Request) => {
           canonicalYear,
           canonicalColour,
         });
-      } catch (canonicalErr: any) {
-        console.warn('⚠️ canonical_vehicles lookup failed:', canonicalErr.message);
+      } catch (scvErr: any) {
+        console.warn('⚠️ canonical_scv lookup failed:', scvErr?.message);
       }
     }
 
@@ -1475,52 +1485,45 @@ Deno.serve(async (req: Request) => {
     }
 
     // ── Step 9: Compliance evaluation ─────────────────────────────────────
-    // Check canonical vehicle for homeless status (affects CSC exemption)
-    // (canonical data was already loaded in Step 5b above)
+    // Homeless status exclusively from canonical_homeless (authoritative).
     let isHomeless = false;
     if (plate) {
       try {
-        const { data: cv } = await supabase
-          .from('canonical_vehicles')
-          .select('homeless_status')
+        const { data: homelessRow } = await (supabase.from('canonical_homeless') as any)
+          .select('status')
           .eq('plate_number', plate)
           .maybeSingle();
-        isHomeless = cv?.homeless_status === 'confirmed' ||
-          cv?.homeless_status === 'claimed';
-      } catch { /* ignore */ }
+        if (homelessRow) {
+          isHomeless = homelessRow.status === 'confirmed' || homelessRow.status === 'claimed';
+          if (isHomeless) {
+            console.log('✅ Homeless status from canonical_homeless:', { plate, status: homelessRow.status });
+          }
+        }
+      } catch (homelessErr: any) {
+        console.warn('⚠️ canonical_homeless lookup failed:', homelessErr?.message);
+      }
     }
 
     // Determine self-contained status for compliance evaluation.
-    //
-    // Priority order:
-    //   1. NZSCV returned a real result (including 404 → not registered) → use it.
-    //   2. NZSCV returned null (proxy unavailable / network error) → fall back to
-    //      canonical_vehicles.self_contained (last known good value from a prior lookup).
-    //   3. Both unavailable → benefit-of-the-doubt = true so we don't flood admins
-    //      with false "SCV not found" breaches whenever the proxy is down.
+    // nzscv is always set from canonical_scv when Step 5 succeeds.
+    // If Step 5 failed entirely (nzscv is null), re-query canonical_scv directly
+    // as a last resort — benefit of the doubt (true) if that also fails.
     let isSelfContainedForCompliance: boolean;
     if (nzscv !== null) {
-      // nzscv is a real result — could be confirmed self-contained or a 404 not-in-register
       isSelfContainedForCompliance = nzscv.isSelfContained;
     } else if (plate) {
-      // NZSCV unavailable — check canonical_vehicles for last known status
+      // Step 5 threw — try canonical_scv directly
       try {
-        const { data: cvFallback } = await supabase
-          .from('canonical_vehicles')
-          .select('self_contained')
+        const { data: scvFallback } = await (supabase.from('canonical_scv') as any)
+          .select('is_self_contained')
           .eq('plate_number', plate)
           .maybeSingle();
-        if (cvFallback?.self_contained != null) {
-          isSelfContainedForCompliance = cvFallback.self_contained as boolean;
-          console.log('ℹ️ NZSCV unavailable — using canonical_vehicles.self_contained fallback:', isSelfContainedForCompliance);
-        } else {
-          // No prior data either — benefit of the doubt, avoid false breach
-          isSelfContainedForCompliance = true;
-          console.warn('⚠️ NZSCV unavailable and no canonical fallback — defaulting to self_contained=true (benefit of doubt)');
-        }
+        isSelfContainedForCompliance = scvFallback?.is_self_contained ?? true;
+        console.log('ℹ️ Step 5 failed — using canonical_scv direct fallback:', isSelfContainedForCompliance);
       } catch {
+        // Benefit of the doubt — avoid false breaches if canonical_scv is unreachable
         isSelfContainedForCompliance = true;
-        console.warn('⚠️ canonical_vehicles fallback query failed — defaulting to self_contained=true');
+        console.warn('⚠️ canonical_scv fallback query failed — defaulting to self_contained=true (benefit of doubt)');
       }
     } else {
       // No plate yet (MANUAL_REQUIRED) — benefit of the doubt
