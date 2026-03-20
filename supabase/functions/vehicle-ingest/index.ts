@@ -905,16 +905,15 @@ Deno.serve(async (req) => {
     const requiresManualEntry = !plateNumber;
     const plateConfidence = plateNumber ? (inferenceResult.confidence ?? null) : null;
 
-    // Step 3: Get or create canonical vehicle, and resolve SCV status from
-    // canonical tables before inserting the observation.
-    // Priority: canonical_scv (authoritative) → canonical_vehicles.self_contained
+    // Step 3: Get or create canonical vehicle. SCV status comes exclusively
+    // from canonical_scv — canonical_vehicles is only used for existence check.
     let scvSelfContained: boolean | null = null;
     let scvExpiry: string | null = null;
 
     if (plateNumber && plateNumber !== "MANUAL_REQUIRED") {
       const { data: vehicle } = await supabase
         .from("canonical_vehicles")
-        .select("plate_number, self_contained, self_contained_expiry")
+        .select("plate_number")
         .eq("plate_number", plateNumber)
         .maybeSingle();
 
@@ -934,14 +933,9 @@ Deno.serve(async (req) => {
         } else {
           console.log("✅ Created canonical vehicle:", plateNumber);
         }
-      } else {
-        // Capture SCV data from canonical_vehicles as a fallback; will be
-        // superseded below if canonical_scv has a record for this plate.
-        scvSelfContained = vehicle.self_contained ?? null;
-        scvExpiry = vehicle.self_contained_expiry ?? null;
       }
 
-      // ── Check canonical_scv (authoritative SCV reference) ────────────────
+      // SCV status exclusively from canonical_scv
       try {
         const { data: scvRow } = await (supabase.from("canonical_scv") as any)
           .select("is_self_contained, certificate_expiry")
@@ -958,16 +952,7 @@ Deno.serve(async (req) => {
           });
         }
       } catch (scvErr: any) {
-        // canonical_scv table might not exist yet; canonical_vehicles fallback still applies
-        console.warn("⚠️ canonical_scv lookup failed (using canonical_vehicles fallback):", scvErr?.message);
-      }
-
-      if (scvSelfContained !== null) {
-        console.log("🔐 Resolved SCV for ingest observation:", {
-          plate: plateNumber,
-          self_contained: scvSelfContained,
-          expiry: scvExpiry,
-        });
+        console.warn("⚠️ canonical_scv lookup failed:", scvErr?.message);
       }
     }
 

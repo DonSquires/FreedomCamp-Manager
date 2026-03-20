@@ -328,13 +328,10 @@ serve(async (req) => {
       }
     }
 
-    // Count how many SCV-list entries will be directly upserted to canonical_scv
-    // (all valid plates from the NZSCV list).  Only on the first batch call so
-    // the dry-run response also reports this number.
+    // Count how many SCV-list entries will be directly upserted to canonical_scv.
+    // Only on the first batch call so the dry-run response also reports this number.
     if (offset === 0) {
-      result.canonical_scv_enriched = scvCurrentEntries.filter(
-        e => String(e?.plate_number ?? '').trim().toUpperCase().length > 0,
-      ).length;
+      result.canonical_scv_enriched = scvCurrentEntries.length;
     }
 
     // ── Dry-run early return ─────────────────────────────────────────────────

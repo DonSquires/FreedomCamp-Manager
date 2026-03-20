@@ -7,19 +7,18 @@
 --   canonical_vehicles.homeless_status.  This means:
 --
 --   1. When an observation is inserted with self_contained = NULL (e.g. for a
---      plate not yet in canonical_vehicles), the trigger evaluates the vehicle
---      as non-self-contained and immediately marks it as a breach — even when
---      canonical_scv holds confirmed SCV certification for that plate.
+--      plate not yet enriched from the SCV list), the trigger evaluates the
+--      vehicle as non-self-contained and immediately marks it as a breach —
+--      even when canonical_scv holds confirmed SCV certification for that plate.
 --
 --   2. Homeless exemptions stored in canonical_homeless (the cross-org
 --      authoritative table) are ignored, causing incorrect breaches for
 --      homeless vehicles whose status was not backfilled to canonical_vehicles.
 --
 -- Fix:
---   • When NEW.self_contained is NULL or FALSE, query canonical_scv (then
---     canonical_vehicles as fallback) for the plate.  Use the canonical result
---     as the authoritative SCV status for this compliance evaluation.
---   • Query canonical_homeless (then canonical_vehicles) for homeless status.
+--   • SCV status exclusively from canonical_scv.  When NEW.self_contained is
+--     NULL or FALSE, query canonical_scv for confirmed, non-expired certification.
+--   • Homeless status exclusively from canonical_homeless.
 -- ============================================================================
 
 CREATE OR REPLACE FUNCTION public.auto_evaluate_compliance()
@@ -95,13 +94,12 @@ BEGIN
     v_self_contained := false;
   END;
 
-  -- When the observation row has no positive SCV evidence, consult canonical
-  -- tables so that a valid SCV certificate is never missed at insert time.
+  -- ── SCV: if observation has no positive SCV evidence, consult canonical_scv ──
+  -- canonical_scv is the authoritative SCV registry (populated by sync-scv-list).
   IF NOT v_self_contained
      AND NEW.plate_number IS NOT NULL
      AND NEW.plate_number <> 'MANUAL_REQUIRED'
   THEN
-    -- 1. canonical_scv (authoritative SCV registry)
     BEGIN
       SELECT is_self_contained
         INTO v_self_contained
@@ -117,25 +115,6 @@ BEGIN
     EXCEPTION WHEN OTHERS THEN
       v_self_contained := false;
     END;
-
-    -- 2. canonical_vehicles fallback (if canonical_scv had no record)
-    IF NOT v_self_contained THEN
-      BEGIN
-        SELECT COALESCE(self_contained, false)
-          INTO v_self_contained
-          FROM canonical_vehicles
-         WHERE plate_number = NEW.plate_number
-           AND self_contained = true
-           AND (self_contained_expiry IS NULL OR self_contained_expiry >= CURRENT_DATE)
-         LIMIT 1;
-
-        IF NOT FOUND THEN
-          v_self_contained := false;
-        END IF;
-      EXCEPTION WHEN OTHERS THEN
-        v_self_contained := false;
-      END;
-    END IF;
   END IF;
 
   -- ============================================================================
@@ -174,25 +153,9 @@ BEGIN
   END IF;
 
   -- ============================================================================
-  -- CHECK HOMELESS STATUS
-  -- Priority: canonical_homeless (authoritative) → canonical_vehicles
+  -- HOMELESS STATUS exclusively from canonical_homeless
   -- ============================================================================
 
-  -- Baseline: canonical_vehicles.homeless_status
-  BEGIN
-    SELECT homeless_status
-      INTO v_homeless_status
-      FROM canonical_vehicles
-     WHERE plate_number = NEW.plate_number;
-
-    IF NOT FOUND THEN
-      v_homeless_status := NULL;
-    END IF;
-  EXCEPTION WHEN OTHERS THEN
-    v_homeless_status := NULL;
-  END;
-
-  -- Override with canonical_homeless (authoritative cross-org reference)
   IF NEW.plate_number IS NOT NULL AND NEW.plate_number <> 'MANUAL_REQUIRED' THEN
     BEGIN
       SELECT status
@@ -201,7 +164,7 @@ BEGIN
        WHERE plate_number = NEW.plate_number
        LIMIT 1;
     EXCEPTION WHEN OTHERS THEN
-      -- keep v_homeless_status from canonical_vehicles
+      v_homeless_status := NULL;
     END;
   END IF;
 
@@ -281,9 +244,8 @@ $fn$;
 
 COMMENT ON FUNCTION public.auto_evaluate_compliance() IS
   'BEFORE INSERT trigger: Evaluates compliance rules and sets is_compliant, '
-  'breach_type, breach_reason. Checks canonical_scv (authoritative) then '
-  'canonical_vehicles for SCV status; checks canonical_homeless then '
-  'canonical_vehicles for homeless status. Uses exception-wrapped type '
+  'breach_type, breach_reason. SCV status from canonical_scv only. '
+  'Homeless status from canonical_homeless only. Uses exception-wrapped type '
   'conversion to prevent COALESCE type mismatch errors from column type drift.';
 
 -- Force PostgREST schema cache reload
