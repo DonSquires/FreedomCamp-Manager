@@ -765,11 +765,18 @@ serve(async (req: Request) => {
         const canonicalSelfContained = selfContainedByPlate.get(plateKey);
         const canonicalExpiry = selfContainedExpiryByPlate.get(plateKey) ?? null;
 
-        let isSelfContained = hasCanonicalSelfContained && canonicalSelfContained !== null
-          ? Boolean(canonicalSelfContained)
-          : hasSelfContainedColumn
-            ? Boolean(obs.self_contained)
-            : false;
+        // Only breach SC if we have POSITIVE evidence the vehicle is NOT self-contained.
+        // Historical imports have no SCV data (self_contained = NULL) — treat as unknown = pass.
+        // Live ALPR scans will have self_contained populated by the scan pipeline from NZSCV.
+        let isSelfContained: boolean;
+        if (hasCanonicalSelfContained && canonicalSelfContained !== null) {
+          isSelfContained = Boolean(canonicalSelfContained);
+        } else if (hasSelfContainedColumn && obs.self_contained !== null) {
+          isSelfContained = Boolean(obs.self_contained);
+        } else {
+          // No data = unknown status → cannot breach without evidence
+          isSelfContained = true;
+        }
 
         const canonicalLooksStale = hasCanonicalSelfContained
           && (canonicalSelfContained === false || isExpiredAt(canonicalExpiry, obs.recorded_at));
