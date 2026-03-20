@@ -58,6 +58,7 @@ interface Organization {
 const isMissingZoneLegalColumnError = (error: unknown) => {
   const message = (error as { message?: string })?.message?.toLowerCase() || ''
   return (
+    message.includes("could not find the 'enforcement_authority' column") ||
     message.includes("could not find the 'bylaw_clause' column") ||
     message.includes("could not find the 'bylaw_source_url' column")
   )
@@ -223,7 +224,12 @@ export default function ZoneManagement() {
         if (!isMissingZoneLegalColumnError(error)) throw error
         // Backward compatibility: allow updates to succeed on databases
         // where legal columns are not yet migrated.
-        const { bylaw_clause, bylaw_source_url, ...legacySafeUpdates } = updates
+        const {
+          enforcement_authority,
+          bylaw_clause,
+          bylaw_source_url,
+          ...legacySafeUpdates
+        } = updates
         const { error: fallbackError } = await (supabase.from('zones') as any)
           .update(legacySafeUpdates)
           .eq('id', selectedZone.id)
