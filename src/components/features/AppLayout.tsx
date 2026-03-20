@@ -243,7 +243,10 @@ function NavigationLinks({ onClick }: { onClick?: () => void }) {
 export function AppLayout({ children, title, description, showBackButton }: AppLayoutProps) {
   const brandLogoUrl = '/iron-eagle-security-logo.jpg'
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const [desktopNavOpen, setDesktopNavOpen] = useState(false)
+  const [desktopNavOpen, setDesktopNavOpen] = useState(() => {
+    // Default to open (true). Only closes if the user has explicitly set it to 'false'.
+    try { return localStorage.getItem('fc_sidebar_open') !== 'false' } catch { return true }
+  })
   const [reLoginPassword, setReLoginPassword] = useState('')
   const [unlocking, setUnlocking] = useState(false)
   const { user, logout, unlockSession } = useAuthStore()
@@ -321,6 +324,15 @@ export function AppLayout({ children, title, description, showBackButton }: AppL
 
   const handleBack = () => {
     navigate('/')
+  }
+
+  // Persist sidebar open/closed preference
+  const toggleDesktopNav = () => {
+    setDesktopNavOpen((v) => {
+      const next = !v
+      try { localStorage.setItem('fc_sidebar_open', String(next)) } catch { /* ignore */ }
+      return next
+    })
   }
 
   const handleUnlockSession = async () => {
@@ -425,16 +437,27 @@ export function AppLayout({ children, title, description, showBackButton }: AppL
       >
         <div className="flex flex-col h-full">
           <div className="p-5 border-b dark:border-gray-700 bg-gradient-to-br from-cyan-700 to-cyan-800 dark:from-cyan-900 dark:to-cyan-950">
-            <h2 className="font-bold text-xl text-white">FreedomCamp</h2>
-            <p className="text-sm text-cyan-100 mt-0.5">
-              {user?.full_name}
-            </p>
-            <p className="text-xs text-cyan-200 mt-0.5">
-              {user?.role === 'master' ? 'System Administrator' : 
-               user?.role === 'admin' ? 'Administrator' :
-              user?.role === 'admin_officer' ? 'Admin Officer' :
-              user?.role === 'nzscv_monitor' ? 'NZSCV Monitor' : 'Field Officer'}
-            </p>
+            <div className="flex items-start justify-between">
+              <div className="min-w-0">
+                <h2 className="font-bold text-xl text-white">FreedomCamp</h2>
+                <p className="text-sm text-cyan-100 mt-0.5 truncate">
+                  {user?.full_name}
+                </p>
+                <p className="text-xs text-cyan-200 mt-0.5">
+                  {user?.role === 'master' ? 'System Administrator' : 
+                   user?.role === 'admin' ? 'Administrator' :
+                  user?.role === 'admin_officer' ? 'Admin Officer' :
+                  user?.role === 'nzscv_monitor' ? 'NZSCV Monitor' : 'Field Officer'}
+                </p>
+              </div>
+              <button
+                onClick={toggleDesktopNav}
+                title="Collapse sidebar"
+                className="mt-0.5 shrink-0 rounded p-1 text-cyan-200 hover:bg-cyan-600/50 hover:text-white transition-colors"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </button>
+            </div>
           </div>
           
           <div className="flex-1 overflow-y-auto p-4">
@@ -464,7 +487,7 @@ export function AppLayout({ children, title, description, showBackButton }: AppL
                 <Button
                   variant="ghost"
                   size="icon"
-                  onClick={() => setDesktopNavOpen((v) => !v)}
+                  onClick={toggleDesktopNav}
                   title={desktopNavOpen ? 'Collapse menu' : 'Open menu'}
                   className="mt-0.5"
                 >

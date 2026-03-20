@@ -916,6 +916,7 @@ export default function VehicleManagement() {
                   { key: 'breaches', label: 'Breaches', icon: <AlertTriangle className="h-4 w-4 mr-1" /> },
                   { key: 'homeless', label: 'Homeless' },
                   { key: 'exempt', label: 'Exempt' },
+                  { key: 'flagged', label: 'Flagged', icon: <Flag className="h-4 w-4 mr-1" /> },
                 ] as Array<{ key: StatusFilter; label: string; icon?: ReactNode }>
               ).map(({ key, label, icon }) => (
                 <Button
