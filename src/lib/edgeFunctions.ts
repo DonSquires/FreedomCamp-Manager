@@ -82,6 +82,39 @@ async function getValidAccessToken(): Promise<string | null> {
 }
 
 /**
+ * Try to extract a human-readable message from the raw response text.
+ * Edge functions return `{ "error": "..." }` or `{ "message": "..." }`.
+ * Falls back to the raw text when it isn't JSON.
+ */
+function extractUsableMessage(raw: string): string {
+  if (!raw || !raw.trim()) return ''
+
+  // If the text looks like HTML (gateway / proxy error page), discard it.
+  if (/^\s*<[!a-z]/i.test(raw.trim())) {
+    return 'The server returned an HTML error page instead of JSON. This is usually a transient gateway or proxy error — please retry.'
+  }
+
+  try {
+    const parsed = JSON.parse(raw)
+    const candidate: string = parsed?.error ?? parsed?.message ?? ''
+    // Guard against whitespace-only messages that occasionally leak from upstream HTML error pages.
+    if (candidate && candidate.trim()) return candidate.trim()
+    // JSON parsed successfully but the error/message field was empty or whitespace-only.
+    // This typically happens when a gateway returns an empty HTML error page whose content
+    // was forwarded as the error string. Return a helpful fallback.
+    if (parsed && (typeof parsed.error === 'string' || typeof parsed.message === 'string')) {
+      return 'The server returned an empty error message. This is usually a transient gateway or proxy error — please retry.'
+    }
+  } catch {
+    // Not JSON — use the raw text as-is, but cap its length for readability.
+  }
+
+  const trimmed = raw.trim()
+  if (!trimmed) return ''
+  return trimmed.length > 300 ? trimmed.slice(0, 300) + '…' : trimmed
+}
+
+/**
  * Helper to extract error message from FunctionsHttpError
  */
 async function getErrorMessage(error: any): Promise<string> {
@@ -103,7 +136,8 @@ async function getErrorMessage(error: any): Promise<string> {
         }
       }
 
-      return `[Code: ${statusCode}] ${textContent || error.message || 'Unknown error'}`
+      const usable = extractUsableMessage(textContent)
+      return `[Code: ${statusCode}] ${usable || error.message || 'Unknown error'}`
     } catch {
       return error.message || 'Failed to read response'
     }
