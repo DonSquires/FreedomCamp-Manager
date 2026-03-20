@@ -177,7 +177,28 @@ async function recheckNzscvSelfContained(
 
   const normalizedPlate = String(plateNumber ?? '').trim().toUpperCase();
 
-  // ── Step 1: Check canonical_vehicles first (trusted local source) ─────
+  // ── Step 1: Check canonical_scv first (authoritative SCV reference) ───
+  if (supabaseAdmin) {
+    try {
+      const { data: scvRow } = await (supabaseAdmin.from('canonical_scv') as any)
+        .select('is_self_contained, certificate_expiry')
+        .eq('plate_number', normalizedPlate)
+        .maybeSingle();
+
+      if (scvRow && scvRow.is_self_contained === true) {
+        const expiry = scvRow.certificate_expiry ?? null;
+        const isExpired = expiry != null && isExpiredAt(expiry, new Date().toISOString());
+        if (!isExpired) {
+          console.log('✅ SCV recheck: canonical_scv says is_self_contained=true (trusted)', { plate: normalizedPlate, expiry });
+          return { isSelfContained: true, expiryDate: expiry };
+        }
+      }
+    } catch {
+      // canonical_scv table may not exist yet; fall through to canonical_vehicles
+    }
+  }
+
+  // ── Step 2: Check canonical_vehicles (fallback local source) ──────────
   // The NZSCV API may be pointing to a test endpoint. canonical_vehicles is
   // maintained by sync-scv-list and verified lookups, so prefer it.
   if (supabaseAdmin) {
@@ -201,7 +222,7 @@ async function recheckNzscvSelfContained(
     }
   }
 
-  // ── Step 2: Fall back to NZSCV API ────────────────────────────────────
+  // ── Step 3: Fall back to NZSCV API ────────────────────────────────────
   // NOTE: NZSCV API may be on a test endpoint — results may be inaccurate.
   if (!NZSCV_PROXY_URL) return null;
 
@@ -266,6 +287,7 @@ async function buildHomelessStatusMaps(
   )];
   const orgIds = [...new Set(observations.map((o: any) => o.organization_id).filter(Boolean))];
 
+  // ── Org-scoped homeless records (for per-org exemption checks) ──────────
   const byOrgPlate = new Map<string, { status: string; ts: number }>();
 
   if (plateKeys.length > 0 && orgIds.length > 0) {
@@ -287,6 +309,7 @@ async function buildHomelessStatusMaps(
     }
   }
 
+  // ── Plate-level canonical data ──────────────────────────────────────────
   const byPlate = new Map<string, string>();
   const selfContainedByPlate = new Map<string, boolean | null>();
   const selfContainedExpiryByPlate = new Map<string, string | null>();
@@ -294,7 +317,9 @@ async function buildHomelessStatusMaps(
   const vehicleModelByPlate = new Map<string, string | null>();
   const vehicleYearByPlate = new Map<string, number | null>();
   const vehicleColorByPlate = new Map<string, string | null>();
+
   if (plateKeys.length > 0) {
+    // Load vehicle details (make/model/year/colour) from canonical_vehicles
     const { data: canonicalRows } = await supabaseAdmin
       .from('canonical_vehicles')
       .select('plate_number, homeless_status, self_contained, self_contained_expiry, vehicle_make, vehicle_model, vehicle_year, vehicle_color')
@@ -302,14 +327,56 @@ async function buildHomelessStatusMaps(
 
     for (const row of canonicalRows ?? []) {
       const plateKey = normalizePlateKey((row as any).plate_number);
+      // Seed homeless status from canonical_vehicles as baseline
       byPlate.set(plateKey, String((row as any).homeless_status ?? ''));
+      // Seed SCV from canonical_vehicles as baseline
       selfContainedByPlate.set(plateKey, (row as any).self_contained ?? null);
       selfContainedExpiryByPlate.set(plateKey, (row as any).self_contained_expiry ?? null);
+      // Vehicle detail fields
       vehicleMakeByPlate.set(plateKey, (row as any).vehicle_make ?? null);
       vehicleModelByPlate.set(plateKey, (row as any).vehicle_model ?? null);
       const rawYear = (row as any).vehicle_year;
       vehicleYearByPlate.set(plateKey, rawYear != null ? Number(rawYear) : null);
       vehicleColorByPlate.set(plateKey, (row as any).vehicle_color ?? null);
+    }
+
+    // ── Override SCV from canonical_scv (authoritative reference) ──────
+    // canonical_scv is the dedicated SCV reference table; prefer its data
+    // over the denormalised columns on canonical_vehicles.
+    try {
+      const { data: scvRows } = await (supabaseAdmin.from('canonical_scv') as any)
+        .select('plate_number, is_self_contained, certificate_expiry')
+        .in('plate_number', plateKeys);
+
+      for (const row of scvRows ?? []) {
+        const plateKey = normalizePlateKey(row.plate_number);
+        selfContainedByPlate.set(plateKey, row.is_self_contained ?? null);
+        if (row.certificate_expiry != null) {
+          selfContainedExpiryByPlate.set(plateKey, row.certificate_expiry);
+        }
+      }
+    } catch (scvErr: any) {
+      // Table may not exist yet (migration not applied); fall back silently
+      console.warn('⚠️ canonical_scv query failed (table may not exist yet):', scvErr.message);
+    }
+
+    // ── Override homeless from canonical_homeless (authoritative reference)
+    // canonical_homeless is the cross-org canonical reference; prefer it
+    // over the denormalised homeless_status on canonical_vehicles.
+    try {
+      const { data: homelessCanonRows } = await (supabaseAdmin.from('canonical_homeless') as any)
+        .select('plate_number, status')
+        .in('plate_number', plateKeys);
+
+      for (const row of homelessCanonRows ?? []) {
+        const plateKey = normalizePlateKey(row.plate_number);
+        if (row.status && row.status !== 'none') {
+          byPlate.set(plateKey, row.status);
+        }
+      }
+    } catch (homelessErr: any) {
+      // Table may not exist yet (migration not applied); fall back silently
+      console.warn('⚠️ canonical_homeless query failed (table may not exist yet):', homelessErr.message);
     }
   }
 

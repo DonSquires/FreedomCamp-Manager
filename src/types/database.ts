@@ -694,6 +694,80 @@ export type Database = {
           },
         ]
       }
+      canonical_homeless: {
+        Row: {
+          plate_number: string
+          status: string
+          confirmed_by: string | null
+          confirmed_at: string | null
+          source: string | null
+          notes: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          plate_number: string
+          status?: string
+          confirmed_by?: string | null
+          confirmed_at?: string | null
+          source?: string | null
+          notes?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          plate_number?: string
+          status?: string
+          confirmed_by?: string | null
+          confirmed_at?: string | null
+          source?: string | null
+          notes?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fk_canonical_homeless_confirmed_by"
+            columns: ["confirmed_by"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      canonical_scv: {
+        Row: {
+          plate_number: string
+          is_self_contained: boolean
+          certificate_expiry: string | null
+          source: string | null
+          verified_at: string | null
+          notes: string | null
+          created_at: string
+          updated_at: string
+        }
+        Insert: {
+          plate_number: string
+          is_self_contained?: boolean
+          certificate_expiry?: string | null
+          source?: string | null
+          verified_at?: string | null
+          notes?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Update: {
+          plate_number?: string
+          is_self_contained?: boolean
+          certificate_expiry?: string | null
+          source?: string | null
+          verified_at?: string | null
+          notes?: string | null
+          created_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       canonical_vehicles: {
         Row: {
           created_at: string | null
