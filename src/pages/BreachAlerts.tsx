@@ -116,45 +116,90 @@ function getBreachDisplayTimestamp(breach: BreachAlert | null): string | null {
   )
 }
 
+/** Zone names that represent generic parent zones rather than specific locations. */
+const GENERIC_ZONE_NAMES = ['jurisdiction', 'general', 'other']
+
 /**
- * Deduplicate breach alerts that share the same plate + breach_type within a
- * short time window (same minute).  When duplicates exist across zones we keep
- * the entry whose zone name is the most specific (i.e. *not* the generic
- * "Jurisdiction" parent zone) so the admin sees the real location.
+ * Extract the observation id from a breach alert, checking both the FK column
+ * and the breach_details JSON blob.
+ */
+function extractObservationId(alert: any): string | null {
+  const details = alert.breach_details || {}
+  return (
+    alert.observation_id ||
+    details.observation_id ||
+    details.triggering_observation_id ||
+    details.source_observation_id ||
+    null
+  )
+}
+
+/**
+ * From a bucket of duplicate alerts, pick the best representative.
+ * Prefers the alert whose zone name is the most specific (i.e. *not* a
+ * generic "Jurisdiction" parent zone) so the admin sees the real location.
+ */
+function pickBestRepresentative(bucket: any[]): any {
+  if (bucket.length === 1) return bucket[0]
+  const specific = bucket.find((a) => {
+    const zn = ((a.zones as any)?.name ?? '').toLowerCase()
+    return zn && !GENERIC_ZONE_NAMES.includes(zn)
+  })
+  return specific ?? bucket[0]
+}
+
+/**
+ * Deduplicate breach alerts using a two-phase strategy:
+ *
+ * Phase 1 – Observation-based: alerts that share the same observation_id
+ *   (from the FK column or breach_details JSON) are grouped together and
+ *   collapsed to a single representative.
+ *
+ * Phase 2 – Time-bucket fallback: remaining alerts (no observation_id) are
+ *   grouped by plate + breach_type + minute-bucket of created_at.
+ *
+ * In both phases the representative with the most specific zone name wins.
  *
  * Returns a new array; input is not mutated.
  */
 function deduplicateBreachAlerts(alerts: any[]): any[] {
   if (!alerts || alerts.length === 0) return alerts
 
-  // Build a key per alert: plate + breach_type + minute-bucket of created_at
-  const buckets = new Map<string, any[]>()
+  // Phase 1: Group by observation_id when available
+  const obsBuckets = new Map<string, any[]>()
+  const noObsAlerts: any[] = []
+
   for (const alert of alerts) {
+    const obsId = extractObservationId(alert)
+    if (obsId) {
+      const bucket = obsBuckets.get(obsId) ?? []
+      bucket.push(alert)
+      obsBuckets.set(obsId, bucket)
+    } else {
+      noObsAlerts.push(alert)
+    }
+  }
+
+  const result: any[] = []
+  for (const [, bucket] of obsBuckets) {
+    result.push(pickBestRepresentative(bucket))
+  }
+
+  // Phase 2: Time-bucket fallback for alerts without observation_id
+  const timeBuckets = new Map<string, any[]>()
+  for (const alert of noObsAlerts) {
     const plate = (alert.plate_number ?? '').toLowerCase()
     const type = alert.breach_type ?? ''
-    // Bucket by minute so that timestamps a few seconds apart still group
     const ts = alert.created_at ? new Date(alert.created_at) : null
     const minuteBucket = ts ? ts.toISOString().slice(0, 16) : 'unknown'
     const key = `${plate}|${type}|${minuteBucket}`
-    const bucket = buckets.get(key) ?? []
+    const bucket = timeBuckets.get(key) ?? []
     bucket.push(alert)
-    buckets.set(key, bucket)
+    timeBuckets.set(key, bucket)
   }
 
-  // From each bucket pick the best representative
-  const result: any[] = []
-  for (const [, bucket] of buckets) {
-    if (bucket.length === 1) {
-      result.push(bucket[0])
-      continue
-    }
-    // Prefer the alert whose zone name is NOT a generic jurisdiction-level name
-    const GENERIC_ZONE_NAMES = ['jurisdiction', 'general', 'other']
-    const specific = bucket.find((a) => {
-      const zn = ((a.zones as any)?.name ?? '').toLowerCase()
-      return zn && !GENERIC_ZONE_NAMES.includes(zn)
-    })
-    result.push(specific ?? bucket[0])
+  for (const [, bucket] of timeBuckets) {
+    result.push(pickBestRepresentative(bucket))
   }
 
   // Preserve the original sort order (most-recent first)
@@ -604,18 +649,21 @@ export default function BreachAlerts() {
   })
 
   // Fetch vehicle breach history (rap sheet) – all previous breaches for this plate
+  // Includes observation_id + breach_details so deduplicateBreachAlerts can
+  // collapse duplicate alerts that were created for the same observation by
+  // different processing pipelines.
   const { data: vehicleHistory } = useQuery({
     queryKey: ['breach-history', activeBreach?.plate_number],
     queryFn: async () => {
       if (!activeBreach?.plate_number) return []
       const { data } = await (supabase.from('breach_alerts') as any)
-        .select('id, breach_type, status, created_at, resolved_at, zones!zone_id(name)')
+        .select('id, breach_type, status, created_at, resolved_at, observation_id, breach_details, zones!zone_id(name)')
         .eq('organization_id', activeBreach.organization_id)
         .eq('plate_number', activeBreach.plate_number)
         .neq('id', activeBreach.id)
         .order('created_at', { ascending: false })
-        .limit(20)
-      return data || []
+        .limit(50)
+      return deduplicateBreachAlerts(data || [])
     },
     enabled: !!activeBreach?.plate_number,
   })
@@ -1625,7 +1673,7 @@ export default function BreachAlerts() {
                             </span>
                             <span className="flex items-center gap-1">
                               <Calendar className="h-3 w-3" />
-                              {formatDateTime(b.created_at)}
+                              {formatDateTime(getBreachDisplayTimestamp(b) || b.created_at)}
                             </span>
                           </div>
                           {b.resolved_at && (
