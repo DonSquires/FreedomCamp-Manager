@@ -490,7 +490,29 @@ serve(async (req) => {
     }
     
     const { data: observations, error: obsError } = await query;
-    if (obsError) throw obsError;
+    if (obsError) {
+      // PGRST103 = "Requested range not satisfiable" (HTTP 416).
+      // This occurs in the dedup phase when deleted records shrink the total
+      // below the current pagination offset. Treat it as end-of-data so the
+      // frontend loop receives processed=0 and terminates cleanly.
+      const obsErrorCode = 'code' in obsError ? String((obsError as { code: unknown }).code) : '';
+      if (obsErrorCode === 'PGRST103' || String(obsError.message).toLowerCase().includes('range not satisfiable')) {
+        console.log(`ℹ️ Range not satisfiable at offset ${offset} – records removed in prior batches reduced the total. Returning empty batch.`);
+        return new Response(
+          JSON.stringify({
+            processed: 0,
+            zonesCorrected: 0,
+            duplicatesRemoved: 0,
+            vehicleDetailsRefreshed: 0,
+            complianceChanged: 0,
+            breachesCreated: 0,
+            skippedNoMatrix: 0,
+          }),
+          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      throw obsError;
+    }
 
     if (!observations || observations.length === 0) {
       console.log('⚠️ No observations in this batch');
