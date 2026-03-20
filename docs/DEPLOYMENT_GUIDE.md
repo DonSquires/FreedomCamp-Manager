@@ -278,6 +278,15 @@ OPENAI_BASE_URL=
 #   Set this to override the default for all functions at once,
 #   or to use an alternative provider's model (e.g. llama-3.3-70b-versatile for Groq).
 OPENAI_MODEL=
+
+# SMTP email (report emails, user invitations, infringement notices, notices to vacate)
+# See docs/EMAIL_SETUP.md for provider-specific examples.
+SMTP_HOST=smtp.example.com
+SMTP_PORT=587
+SMTP_USERNAME=apikey
+SMTP_PASSWORD=your-smtp-password
+SMTP_FROM_EMAIL=noreply@yourdomain.co.nz
+SMTP_FROM_NAME=FreedomCamp Manager
 ```
 
 ### 2. Custom Domain (Optional)
