@@ -42,9 +42,10 @@ const moreGroups = [
   {
     label: 'Vehicles & Zones',
     links: [
-      { to: '/vehicle-registry', label: 'Vehicle Registry', icon: BookOpen },
-      { to: '/zones',            label: 'Zones',            icon: MapPin },
-      { to: '/hotspots',         label: 'Hotspots Map',     icon: Map },
+      { to: '/vehicle-registry',           label: 'Vehicle Registry',   icon: BookOpen },
+      { to: '/admin/canonical-records',    label: 'Canonical Records',  icon: Database },
+      { to: '/zones',                       label: 'Zones',              icon: MapPin },
+      { to: '/hotspots',                    label: 'Hotspots Map',       icon: Map },
     ],
   },
   {
