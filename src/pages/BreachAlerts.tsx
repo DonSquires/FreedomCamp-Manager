@@ -90,32 +90,6 @@ async function resolveViaDownload(bucket: string, path: string): Promise<string 
   }
 }
 
-function getBreachObservationId(breach: BreachAlert | null): string | null {
-  if (!breach) return null
-
-  const details = breach.breach_details || {}
-  return (
-    breach.observation_id ||
-    details.observation_id ||
-    details.triggering_observation_id ||
-    details.source_observation_id ||
-    null
-  )
-}
-
-function getBreachDisplayTimestamp(breach: BreachAlert | null): string | null {
-  if (!breach) return null
-
-  const details = breach.breach_details || {}
-  return (
-    details.observation_recorded_at ||
-    details.triggering_recorded_at ||
-    details.source_recorded_at ||
-    breach.created_at ||
-    null
-  )
-}
-
 /** Zone names that represent generic parent zones rather than specific locations. */
 const GENERIC_ZONE_NAMES = ['jurisdiction', 'general', 'other']
 
@@ -130,6 +104,24 @@ function extractObservationId(alert: any): string | null {
     details.observation_id ||
     details.triggering_observation_id ||
     details.source_observation_id ||
+    null
+  )
+}
+
+function getBreachObservationId(breach: BreachAlert | null): string | null {
+  if (!breach) return null
+  return extractObservationId(breach)
+}
+
+function getBreachDisplayTimestamp(breach: BreachAlert | null): string | null {
+  if (!breach) return null
+
+  const details = breach.breach_details || {}
+  return (
+    details.observation_recorded_at ||
+    details.triggering_recorded_at ||
+    details.source_recorded_at ||
+    breach.created_at ||
     null
   )
 }
