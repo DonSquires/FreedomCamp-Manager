@@ -245,15 +245,17 @@ Deno.serve(async (req) => {
     const body = await req.json();
     const file_path = body.file_path || body.filePath || null;
     const file_url = body.file_url || body.fileUrl || body.storage_url || body.storageUrl || null;
+    const file_content = body.file_content || body.fileContent || null;
+    const file_name = body.file_name || body.fileName || null;
     const input_bucket = body.bucket || body.storage_bucket || null;
     const batch_name = body.batch_name || body.batchName || null;
     const organization_id = body.organization_id || body.organizationId;
 
     const inputFile = (file_url || file_path || '').trim();
 
-    if (!inputFile) {
+    if (!inputFile && !file_content) {
       return new Response(
-        JSON.stringify({ error: 'Missing filePath/file_path or fileUrl/file_url' }),
+        JSON.stringify({ error: 'Missing filePath/file_path, fileUrl/file_url, or fileContent/file_content' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -306,7 +308,25 @@ Deno.serve(async (req) => {
     let bucket: string | null = null;
     let resolvedFilePath = '';
 
-    if (isExternalHttpUrl(inputFile)) {
+    if (file_content) {
+      // Inline base64-encoded file content (sent directly from the frontend,
+      // bypasses storage upload and avoids storage RLS issues)
+      console.log('📦 [IMPORT] Inline file content received (base64), decoding...');
+      try {
+        const binaryStr = atob(file_content);
+        const bytes = Uint8Array.from(binaryStr, (c: string) => c.charCodeAt(0));
+        fileData = new Blob([bytes]);
+        resolvedFilePath = file_name || 'inline-import-file';
+        bucket = 'inline';
+        console.log('✅ [IMPORT] Decoded inline file:', resolvedFilePath, 'size:', fileData.size, 'bytes');
+      } catch (decodeErr: any) {
+        console.error('❌ [IMPORT] Base64 decode failed:', decodeErr);
+        return new Response(
+          JSON.stringify({ error: 'Invalid file content encoding', details: decodeErr.message }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    } else if (isExternalHttpUrl(inputFile)) {
       // Allow importing directly from publicly-accessible XLSX/CSV links.
       console.log('🌐 [IMPORT] External URL detected:', inputFile);
       const externalResponse = await fetch(inputFile);
