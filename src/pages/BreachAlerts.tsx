@@ -116,6 +116,55 @@ function getBreachDisplayTimestamp(breach: BreachAlert | null): string | null {
   )
 }
 
+/**
+ * Deduplicate breach alerts that share the same plate + breach_type within a
+ * short time window (same minute).  When duplicates exist across zones we keep
+ * the entry whose zone name is the most specific (i.e. *not* the generic
+ * "Jurisdiction" parent zone) so the admin sees the real location.
+ *
+ * Returns a new array; input is not mutated.
+ */
+function deduplicateBreachAlerts(alerts: any[]): any[] {
+  if (!alerts || alerts.length === 0) return alerts
+
+  // Build a key per alert: plate + breach_type + minute-bucket of created_at
+  const buckets = new Map<string, any[]>()
+  for (const alert of alerts) {
+    const plate = (alert.plate_number ?? '').toLowerCase()
+    const type = alert.breach_type ?? ''
+    // Bucket by minute so that timestamps a few seconds apart still group
+    const ts = alert.created_at ? new Date(alert.created_at) : null
+    const minuteBucket = ts ? ts.toISOString().slice(0, 16) : 'unknown'
+    const key = `${plate}|${type}|${minuteBucket}`
+    const bucket = buckets.get(key) ?? []
+    bucket.push(alert)
+    buckets.set(key, bucket)
+  }
+
+  // From each bucket pick the best representative
+  const result: any[] = []
+  for (const [, bucket] of buckets) {
+    if (bucket.length === 1) {
+      result.push(bucket[0])
+      continue
+    }
+    // Prefer the alert whose zone name is NOT a generic jurisdiction-level name
+    const GENERIC_ZONE_NAMES = ['jurisdiction', 'general', 'other']
+    const specific = bucket.find((a) => {
+      const zn = ((a.zones as any)?.name ?? '').toLowerCase()
+      return zn && !GENERIC_ZONE_NAMES.includes(zn)
+    })
+    result.push(specific ?? bucket[0])
+  }
+
+  // Preserve the original sort order (most-recent first)
+  result.sort(
+    (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+  )
+
+  return result
+}
+
 async function resolveEvidencePhotoUrl(rawUrl: string | null | undefined): Promise<string | null> {
   if (!rawUrl) return null
   const url = rawUrl.trim()
@@ -315,11 +364,12 @@ export default function BreachAlerts() {
   const { data: intelligenceAlerts } = useQuery({
     queryKey: ['intelligence-alerts', effectiveOrganizationId, zoneId, dateFrom, dateTo],
     queryFn: async () => {
+      // Fetch extra rows so we still have up to 10 after deduplication
       let q = (supabase.from('breach_alerts') as any)
         .select('id, plate_number, breach_type, created_at, status, zones!zone_id(name)')
         .eq('status', 'pending')
         .order('created_at', { ascending: false })
-        .limit(10)
+        .limit(50)
 
       if (effectiveOrganizationId) {
         q = q.eq('organization_id', effectiveOrganizationId)
@@ -329,7 +379,7 @@ export default function BreachAlerts() {
       if (endDate) q = q.lte('created_at', endDate)
 
       const { data } = await q
-      return data || []
+      return deduplicateBreachAlerts(data || []).slice(0, 10)
     },
   })
 
@@ -378,8 +428,8 @@ export default function BreachAlerts() {
         .order('created_at', { ascending: false })
 
       primaryQuery = applyFilters(primaryQuery)
-      const primary = await primaryQuery.limit(100)
-      if (!primary.error) return primary.data || []
+      const primary = await primaryQuery.limit(500)
+      if (!primary.error) return deduplicateBreachAlerts(primary.data || [])
 
       // Fallback path if relationship join is unavailable or policy blocks join targets.
       let fallbackQuery = (supabase.from('breach_alerts') as any)
@@ -387,14 +437,16 @@ export default function BreachAlerts() {
         .order('created_at', { ascending: false })
 
       fallbackQuery = applyFilters(fallbackQuery)
-      const fallback = await fallbackQuery.limit(100)
+      const fallback = await fallbackQuery.limit(500)
       if (fallback.error) throw fallback.error
 
-      return (fallback.data || []).map((row: any) => ({
-        ...row,
-        zones: null,
-        organizations: null,
-      }))
+      return deduplicateBreachAlerts(
+        (fallback.data || []).map((row: any) => ({
+          ...row,
+          zones: null,
+          organizations: null,
+        }))
+      )
     },
     retry: 1,
   })

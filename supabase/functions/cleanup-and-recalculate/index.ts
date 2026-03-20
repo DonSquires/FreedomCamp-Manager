@@ -168,8 +168,41 @@ function isExpiredAt(expiry: string | null | undefined, referenceIso: string): b
   return expiryTs < refTs;
 }
 
-async function recheckNzscvSelfContained(plateNumber: string): Promise<{ isSelfContained: boolean; expiryDate: string | null } | null> {
-  if (!RECHECK_NZSCV_ON_FALSE_OR_EXPIRED || !NZSCV_PROXY_URL) return null;
+async function recheckNzscvSelfContained(
+  plateNumber: string,
+  supabaseAdmin?: ReturnType<typeof createClient>,
+): Promise<{ isSelfContained: boolean; expiryDate: string | null } | null> {
+  if (!RECHECK_NZSCV_ON_FALSE_OR_EXPIRED) return null;
+
+  const normalizedPlate = String(plateNumber ?? '').trim().toUpperCase();
+
+  // ── Step 1: Check canonical_vehicles first (trusted local source) ─────
+  // The NZSCV API may be pointing to a test endpoint. canonical_vehicles is
+  // maintained by sync-scv-list and verified lookups, so prefer it.
+  if (supabaseAdmin) {
+    try {
+      const { data: cv } = await supabaseAdmin
+        .from('canonical_vehicles')
+        .select('self_contained, self_contained_expiry')
+        .eq('plate_number', normalizedPlate)
+        .maybeSingle();
+
+      if (cv && cv.self_contained === true) {
+        const expiry = cv.self_contained_expiry ?? null;
+        const isExpired = expiry != null && isExpiredAt(expiry, new Date().toISOString());
+        if (!isExpired) {
+          console.log('✅ SCV recheck: canonical_vehicles says self_contained=true (trusted)', { plate: normalizedPlate, expiry });
+          return { isSelfContained: true, expiryDate: expiry };
+        }
+      }
+    } catch (err: any) {
+      console.warn('⚠️ canonical_vehicles recheck failed:', err.message);
+    }
+  }
+
+  // ── Step 2: Fall back to NZSCV API ────────────────────────────────────
+  // NOTE: NZSCV API may be on a test endpoint — results may be inaccurate.
+  if (!NZSCV_PROXY_URL) return null;
 
   try {
     const response = await fetch(`${NZSCV_PROXY_URL}/api/nzscv/vehicle-info`, {
@@ -179,7 +212,7 @@ async function recheckNzscvSelfContained(plateNumber: string): Promise<{ isSelfC
         'X-Proxy-Secret': NZSCV_PROXY_SECRET,
       },
       body: JSON.stringify({
-        RegistrationNumber: String(plateNumber ?? '').trim().toUpperCase(),
+        RegistrationNumber: normalizedPlate,
       }),
       signal: AbortSignal.timeout(NZSCV_RECHECK_TIMEOUT_MS),
     });
@@ -829,7 +862,7 @@ serve(async (req) => {
 
           if (!isHomelessExempt && canonicalLooksStale && plateKey) {
             if (!nzscvRecheckCache.has(plateKey)) {
-              nzscvRecheckCache.set(plateKey, await recheckNzscvSelfContained(obs.plate_number));
+              nzscvRecheckCache.set(plateKey, await recheckNzscvSelfContained(obs.plate_number, supabaseAdmin));
             }
 
             const refreshed = nzscvRecheckCache.get(plateKey);

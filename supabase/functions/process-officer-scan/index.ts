@@ -14,7 +14,9 @@
 //   3.  Railway inference  → plate candidate + vehicle embedding + sticker detection
 //       + make/model/colour/sticker presence (all optional)
 //   4.  ALPR backup (Plate Recognizer) if inference returns no plate
-//   5.  NZSCV lookup  → self-contained certificate status + expiry date (guaranteed)
+//   5.  Canonical vehicle + SCV lookup → check canonical_vehicles first
+//       (trusted local source) before NZSCV API (may be on test endpoint).
+//       Returns self-contained certificate status + expiry date (guaranteed)
 //       + make/model/year/vin/colour/maxOccupants when provided (optional/nullable)
 //   5b. Cross-source discrepancy detection:
 //       - SC sticker presence (inference) vs NZSCV register
@@ -1570,47 +1572,67 @@ Deno.serve(async (req: Request) => {
               ? 'plate_mismatch'
               : 'data_integrity_issue');
 
-      try {
-        await supabase
-          .from('breach_alerts')
-          .insert({
-            observation_id:  observationId,
-            plate_number:    plate,
-            zone_id:         zoneId,
-            organization_id: organizationId,
-            breach_type:     breachType,
-            breach_details:  {
-              breach_reason:            compliance.breachReason,
-              violation_reasons:        compliance.violationReasons,
-              nights_stayed_this_month: compliance.nightsStayed,
-              consecutive_nights:       compliance.consecutiveNights,
-              observation_recorded_at:  recordedAt,
-              is_self_contained:        nzscv?.isSelfContained ?? false,
-              sc_expiry:                nzscv?.selfContainedExpiry ?? null,
-              source:                   'process_officer_scan',
-              // Discrepancy summary for admin review panel
-              discrepancies: discrepancies.length > 0
-                ? discrepancies.map(d => ({
-                    type:     d.discrepancy_type,
-                    severity: d.severity,
-                    source_a: d.source_a,
-                    source_b: d.source_b,
-                    value_a:  d.value_a,
-                    value_b:  d.value_b,
-                    note:     (d.details as any)?.note ?? null,
-                  }))
-                : undefined,
-              sc_law_active: scLawActive,
-            },
-            status:          'pending',
-            created_at:      recordedAt ?? new Date().toISOString(),
-          })
-          .select()
-          .single();
-        console.log('🚨 breach_alert created');
-      } catch (baErr: any) {
-        // ON CONFLICT on (org_id, zone_id, observation_id) is expected
-        console.warn('⚠️ breach_alert insert skipped (may already exist):', baErr.message);
+      // ── De-duplicate: skip if an active breach alert already exists for this
+      //    plate + zone + breach_type combination.  This prevents multiple
+      //    processing pipelines (process-officer-scan, scan-breaches,
+      //    recalculate-compliance) from creating duplicate rows.
+      const { data: existingAlert } = await supabase
+        .from('breach_alerts')
+        .select('id')
+        .eq('plate_number', plate)
+        .eq('zone_id', zoneId)
+        .eq('breach_type', breachType)
+        .in('status', ['pending', 'acknowledged', 'enforcement_started'])
+        .limit(1)
+        .maybeSingle();
+
+      if (existingAlert) {
+        console.log('ℹ️ breach_alert already exists for plate/zone/type — skipping', {
+          plate, zoneId, breachType, existingAlertId: existingAlert.id,
+        });
+      } else {
+        try {
+          await supabase
+            .from('breach_alerts')
+            .insert({
+              observation_id:  observationId,
+              plate_number:    plate,
+              zone_id:         zoneId,
+              organization_id: organizationId,
+              breach_type:     breachType,
+              breach_details:  {
+                breach_reason:            compliance.breachReason,
+                violation_reasons:        compliance.violationReasons,
+                nights_stayed_this_month: compliance.nightsStayed,
+                consecutive_nights:       compliance.consecutiveNights,
+                observation_recorded_at:  recordedAt,
+                is_self_contained:        nzscv?.isSelfContained ?? false,
+                sc_expiry:                nzscv?.selfContainedExpiry ?? null,
+                source:                   'process_officer_scan',
+                // Discrepancy summary for admin review panel
+                discrepancies: discrepancies.length > 0
+                  ? discrepancies.map(d => ({
+                      type:     d.discrepancy_type,
+                      severity: d.severity,
+                      source_a: d.source_a,
+                      source_b: d.source_b,
+                      value_a:  d.value_a,
+                      value_b:  d.value_b,
+                      note:     (d.details as any)?.note ?? null,
+                    }))
+                  : undefined,
+                sc_law_active: scLawActive,
+              },
+              status:          'pending',
+              created_at:      recordedAt ?? new Date().toISOString(),
+            })
+            .select()
+            .single();
+          console.log('🚨 breach_alert created');
+        } catch (baErr: any) {
+          // ON CONFLICT on (org_id, zone_id, observation_id) is expected
+          console.warn('⚠️ breach_alert insert skipped (may already exist):', baErr.message);
+        }
       }
     }
 
