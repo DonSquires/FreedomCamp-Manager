@@ -67,3 +67,4 @@ tmp/
 *.xlsx
 scv_*.txt
 scv_*.json
+node_modules/

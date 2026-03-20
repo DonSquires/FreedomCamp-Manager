@@ -465,9 +465,10 @@ serve(async (req) => {
     let zones: any[] = [];
     if (normalizedPhase === 'all' || normalizedPhase === 'zone') {
       // Load all zones for GPS matching
+      // Load all zones for GPS matching (include parent_zone_id & zone_type for child-zone prioritisation)
       const { data: zonesData, error: zoneError } = await supabaseAdmin
         .from('zones')
-        .select('id, name, organization_id, geometry, location_lat, location_lng')
+        .select('id, name, organization_id, geometry, location_lat, location_lng, parent_zone_id, zone_type, radius_meters')
         .eq('is_active', true);
 
       if (zoneError) throw zoneError;
@@ -1030,27 +1031,60 @@ serve(async (req) => {
 
 /**
  * Find zone by GPS coordinates
+ * When multiple zones match, the most specific zone wins:
+ *   - Child zones (have parent_zone_id) before parent/jurisdiction zones
+ *   - Non-general zone_type before general
+ *   - Smaller radius before larger
  */
 function findZoneByGPS(lat: number, lng: number, zones: any[], organizationId: string): any | null {
   const orgZones = zones.filter(z => z.organization_id === organizationId);
+
+  // Collect ALL matching zones so we can pick the most specific one
+  const matches: Array<{ zone: any; distance: number }> = [];
 
   for (const zone of orgZones) {
     if (zone.geometry && zone.geometry.type === 'Polygon') {
       const coordinates = zone.geometry.coordinates[0];
       if (isPointInPolygon(lat, lng, coordinates)) {
-        return zone;
+        const dist = (zone.location_lat && zone.location_lng)
+          ? calculateDistance(lat, lng, zone.location_lat, zone.location_lng)
+          : 0;
+        matches.push({ zone, distance: dist });
       }
     }
     
     if (zone.location_lat && zone.location_lng) {
       const distance = calculateDistance(lat, lng, zone.location_lat, zone.location_lng);
-      if (distance <= 100) {
-        return zone;
+      if (distance <= 100 && !matches.some(m => m.zone.id === zone.id)) {
+        matches.push({ zone, distance });
       }
     }
   }
 
-  return null;
+  if (matches.length === 0) return null;
+
+  // Sort so the most *specific* zone appears first:
+  //  1. Child zones (have parent_zone_id) before parent/jurisdiction zones
+  //  2. Non-general zone_type before general
+  //  3. Smaller radius before larger
+  //  4. Closer distance to centre as tie-breaker
+  matches.sort((a, b) => {
+    const aIsChild = a.zone.parent_zone_id ? 0 : 1;
+    const bIsChild = b.zone.parent_zone_id ? 0 : 1;
+    if (aIsChild !== bIsChild) return aIsChild - bIsChild;
+
+    const aIsGeneral = a.zone.zone_type === 'general' ? 1 : 0;
+    const bIsGeneral = b.zone.zone_type === 'general' ? 1 : 0;
+    if (aIsGeneral !== bIsGeneral) return aIsGeneral - bIsGeneral;
+
+    const aRadius = a.zone.radius_meters || 500;
+    const bRadius = b.zone.radius_meters || 500;
+    if (aRadius !== bRadius) return aRadius - bRadius;
+
+    return a.distance - b.distance;
+  });
+
+  return matches[0].zone;
 }
 
 function isPointInPolygon(lat: number, lng: number, polygon: number[][]): boolean {
