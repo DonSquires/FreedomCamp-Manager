@@ -134,9 +134,7 @@ function deduplicateBreachAlerts(alerts: any[]): any[] {
     const type = alert.breach_type ?? ''
     // Bucket by minute so that timestamps a few seconds apart still group
     const ts = alert.created_at ? new Date(alert.created_at) : null
-    const minuteBucket = ts
-      ? `${ts.getUTCFullYear()}-${ts.getUTCMonth()}-${ts.getUTCDate()}-${ts.getUTCHours()}-${ts.getUTCMinutes()}`
-      : 'unknown'
+    const minuteBucket = ts ? ts.toISOString().slice(0, 16) : 'unknown'
     const key = `${plate}|${type}|${minuteBucket}`
     const bucket = buckets.get(key) ?? []
     bucket.push(alert)
