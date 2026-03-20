@@ -129,19 +129,23 @@ export default function ImportHistoricalData() {
     setUploadProgress(10)
 
     try {
-      // Upload file to storage first
-      const filePath = `imports/${user!.id}/${Date.now()}_${file.name}`
-      const { error: uploadError } = await supabase.storage
-        .from('evidence')
-        .upload(filePath, file, { contentType: file.type })
+      // Read file as base64 and send directly to edge function
+      // (avoids storage bucket RLS issues for authenticated users)
+      const buffer = await file.arrayBuffer()
+      const bytes = new Uint8Array(buffer)
+      const chunkSize = 8192
+      const chunks: string[] = []
+      for (let i = 0; i < bytes.length; i += chunkSize) {
+        chunks.push(String.fromCharCode(...bytes.subarray(i, i + chunkSize)))
+      }
+      const fileContent = btoa(chunks.join(''))
+      setUploadProgress(30)
 
-      if (uploadError) throw new Error(`Upload failed: ${uploadError.message}`)
-      setUploadProgress(40)
-
-      // Call edge function with file path
+      // Call edge function with inline file content
       const { data, error } = await supabase.functions.invoke('import-historical-data', {
         body: {
-          filePath,
+          fileContent,
+          fileName: file.name,
           batchName: batchName.trim(),
           organizationId: orgId,
         },
