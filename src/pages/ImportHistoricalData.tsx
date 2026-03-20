@@ -89,12 +89,19 @@ export default function ImportHistoricalData() {
     enabled: !!user,
     refetchInterval: (query) => {
       const data = query.state.data as ImportBatch[] | undefined
+      if (uploading || activeBatchId) return 2000
       if (!data) return 3000
-      return data.some(b => ['pending', 'parsing', 'zone_matching', 'importing'].includes(b.status)) ? 3000 : false
+      return data.some(b => ['pending', 'parsing', 'zone_matching', 'importing'].includes(b.status)) ? 2000 : false
     },
   })
 
-  const activeBatch = activeBatchId ? batches.find(b => b.id === activeBatchId) : null
+  const inProgress = batches.filter(b =>
+    ['pending', 'parsing', 'zone_matching', 'importing'].includes(b.status)
+  )
+
+  const activeBatch = activeBatchId
+    ? (batches.find(b => b.id === activeBatchId) || inProgress[0] || null)
+    : (inProgress[0] || null)
 
   // Clear activeBatchId once the tracked batch reaches a terminal state
   useEffect(() => {
@@ -127,6 +134,8 @@ export default function ImportHistoricalData() {
     }
     setUploading(true)
     setUploadProgress(10)
+    setTab('history')
+    queryClient.invalidateQueries({ queryKey: ['historical-batches'] })
 
     try {
       // Read file as base64 and send directly to edge function
@@ -192,6 +201,8 @@ export default function ImportHistoricalData() {
 
     setUploading(true)
     setUploadProgress(20)
+    setTab('history')
+    queryClient.invalidateQueries({ queryKey: ['historical-batches'] })
 
     try {
       const { data, error } = await supabase.functions.invoke('import-historical-data', {
@@ -228,10 +239,6 @@ export default function ImportHistoricalData() {
       setUploadProgress(0)
     }
   }
-
-  const inProgress = batches.filter(b =>
-    ['pending', 'parsing', 'zone_matching', 'importing'].includes(b.status)
-  )
 
   return (
     <AppLayout
