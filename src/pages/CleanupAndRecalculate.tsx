@@ -21,12 +21,14 @@ import {
   BarChart3,
   Database,
   Play,
+  Car,
 } from 'lucide-react'
 
 interface CleanupResult {
   processed: number
   zonesCorrected: number
   duplicatesRemoved: number
+  vehicleDetailsRefreshed: number
   complianceChanged: number
   breachesCreated: number
   skippedNoMatrix: number
@@ -40,6 +42,7 @@ interface CleanupBatchResponse {
   processed?: number
   zonesCorrected?: number
   duplicatesRemoved?: number
+  vehicleDetailsRefreshed?: number
   complianceChanged?: number
   breachesCreated?: number
   skippedNoMatrix?: number
@@ -51,6 +54,7 @@ interface LiveState {
   processed: number
   zonesCorrected: number
   duplicatesRemoved: number
+  vehicleDetailsRefreshed: number
   complianceChanged: number
   breachesCreated: number
   skippedNoMatrix: number
@@ -86,6 +90,7 @@ export default function CleanupAndRecalculate() {
         processed: Number(globalOp.liveProgress.processed ?? 0),
         zonesCorrected: Number((globalOp.liveProgress as any).zonesCorrected ?? 0),
         duplicatesRemoved: Number((globalOp.liveProgress as any).duplicatesRemoved ?? 0),
+        vehicleDetailsRefreshed: Number((globalOp.liveProgress as any).vehicleDetailsRefreshed ?? 0),
         complianceChanged: Number(globalOp.liveProgress.changed ?? 0),
         breachesCreated: Number(globalOp.liveProgress.breachesCreated ?? 0),
         skippedNoMatrix: Number(globalOp.liveProgress.skippedNoRules ?? 0),
@@ -96,6 +101,7 @@ export default function CleanupAndRecalculate() {
         processed: Number(globalOp.result.observations_processed ?? 0),
         zonesCorrected: Number((globalOp.result as any).zones_corrected ?? 0),
         duplicatesRemoved: Number((globalOp.result as any).duplicates_removed ?? 0),
+        vehicleDetailsRefreshed: Number((globalOp.result as any).vehicle_details_refreshed ?? 0),
         complianceChanged: Number(globalOp.result.compliance_changed ?? 0),
         breachesCreated: Number(globalOp.result.breaches_created ?? 0),
         skippedNoMatrix: Number(globalOp.result.skipped_no_rules ?? 0),
@@ -165,6 +171,7 @@ export default function CleanupAndRecalculate() {
       processed: 0,
       zonesCorrected: 0,
       duplicatesRemoved: 0,
+      vehicleDetailsRefreshed: 0,
       complianceChanged: 0,
       breachesCreated: 0,
       skippedNoMatrix: 0,
@@ -221,6 +228,7 @@ export default function CleanupAndRecalculate() {
         const processed = Number(batch?.processed ?? 0)
         const zonesCorrected = Number(batch?.zonesCorrected ?? 0)
         const duplicatesRemoved = Number(batch?.duplicatesRemoved ?? 0)
+        const vehicleDetailsRefreshed = Number(batch?.vehicleDetailsRefreshed ?? 0)
         const complianceChanged = Number(batch?.complianceChanged ?? 0)
         const breachesCreated = Number(batch?.breachesCreated ?? 0)
         const skippedNoMatrix = Number(batch?.skippedNoMatrix ?? 0)
@@ -228,6 +236,7 @@ export default function CleanupAndRecalculate() {
         phaseProcessed += processed
         aggregate.zonesCorrected += zonesCorrected
         aggregate.duplicatesRemoved += duplicatesRemoved
+        aggregate.vehicleDetailsRefreshed += vehicleDetailsRefreshed
         aggregate.complianceChanged += complianceChanged
         aggregate.breachesCreated += breachesCreated
         aggregate.skippedNoMatrix += skippedNoMatrix
@@ -241,6 +250,7 @@ export default function CleanupAndRecalculate() {
           processed: phaseProcessed,
           zonesCorrected: aggregate.zonesCorrected,
           duplicatesRemoved: aggregate.duplicatesRemoved,
+          vehicleDetailsRefreshed: aggregate.vehicleDetailsRefreshed,
           complianceChanged: aggregate.complianceChanged,
           breachesCreated: aggregate.breachesCreated,
           skippedNoMatrix: aggregate.skippedNoMatrix,
@@ -264,6 +274,7 @@ export default function CleanupAndRecalculate() {
       processed: aggregate.processed,
       zonesCorrected: aggregate.zonesCorrected,
       duplicatesRemoved: aggregate.duplicatesRemoved,
+      vehicleDetailsRefreshed: aggregate.vehicleDetailsRefreshed,
       complianceChanged: aggregate.complianceChanged,
       breachesCreated: aggregate.breachesCreated,
       skippedNoMatrix: aggregate.skippedNoMatrix,
@@ -309,8 +320,8 @@ export default function CleanupAndRecalculate() {
     setResult(null)
     setLiveRun(null)
     setCurrentStage(null)
-    startOperation(OPERATION_ID, 'Zone Correction + Dedup + Compliance Recalculation')
-    toast.info('Starting staged cleanup: complete zone correction → complete duplicate removal → complete compliance recalculation')
+    startOperation(OPERATION_ID, 'Zone Correction + Dedup + Vehicle Details Refresh + Compliance Recalculation')
+    toast.info('Starting staged cleanup: zone correction → duplicate removal → vehicle details refresh → compliance recalculation')
 
     try {
       setProgress(1)
@@ -326,6 +337,7 @@ export default function CleanupAndRecalculate() {
         observations_processed: res.processed,
         zones_corrected: res.zonesCorrected,
         duplicates_removed: res.duplicatesRemoved,
+        vehicle_details_refreshed: res.vehicleDetailsRefreshed,
         compliance_changed: res.complianceChanged,
         breaches_created: res.breachesCreated,
         breaches_dismissed: 0,
@@ -334,7 +346,7 @@ export default function CleanupAndRecalculate() {
         status: 'completed',
       })
       toast.success(
-        `✅ Cleanup complete: ${res.processed} processed, ${res.zonesCorrected} zones corrected, ${res.duplicatesRemoved} duplicates removed, ${res.complianceChanged} compliance changes`
+        `✅ Cleanup complete: ${res.processed} processed, ${res.zonesCorrected} zones corrected, ${res.duplicatesRemoved} duplicates removed, ${res.vehicleDetailsRefreshed} vehicle details refreshed, ${res.complianceChanged} compliance changes`
       )
     } catch (error: any) {
       let msg: string = error?.message || 'Cleanup failed'
@@ -373,12 +385,13 @@ export default function CleanupAndRecalculate() {
               <Database className="h-5 w-5 text-blue-600 mt-0.5" />
               <div className="flex-1">
                 <h3 className="font-semibold text-blue-900 dark:text-blue-100">
-                  3-Phase Comprehensive Cleanup
+                  4-Phase Comprehensive Cleanup
                 </h3>
                 <ul className="text-sm text-blue-700 dark:text-blue-200 mt-2 space-y-1 list-disc list-inside">
                   <li><strong>Phase 1 – Zone Correction:</strong> Re-assigns observations to the correct zone using GPS coordinates</li>
                   <li><strong>Phase 2 – Duplicate Removal:</strong> Removes duplicate observations in the same patrol window and zone (≤50 m apart)</li>
-                  <li><strong>Phase 3 – Compliance Recalculation:</strong> Re-evaluates is_compliant, breach_type and breach_reason for each observation</li>
+                  <li><strong>Phase 3 – Vehicle Details Refresh:</strong> Syncs make, model, year, colour and SCV status from canonical_vehicles, canonical_scv and canonical_homeless onto each observation</li>
+                  <li><strong>Phase 4 – Compliance Recalculation:</strong> Re-evaluates is_compliant, breach_type and breach_reason using refreshed vehicle data; updates breach alerts accordingly</li>
                 </ul>
                 <p className="text-xs text-blue-700 dark:text-blue-200 mt-2">
                   Runtime logs for this workflow appear under the <strong>cleanup-and-recalculate</strong> edge function.
@@ -557,7 +570,7 @@ export default function CleanupAndRecalculate() {
               <p className="text-sm text-muted-foreground text-center">{progress}% complete</p>
               {isRunning && currentStage && (
                 <p className="text-xs text-muted-foreground text-center">
-                  Stage: {currentStage === 'zone' ? 'Zone correction' : currentStage === 'dedup' ? 'Duplicate removal' : 'Compliance recalculation'}
+                  Stage: {{ zone: 'Zone correction', dedup: 'Duplicate removal', compliance: 'Vehicle details refresh + Compliance recalculation' }[currentStage]}
                 </p>
               )}
               {liveRun && (
@@ -565,6 +578,7 @@ export default function CleanupAndRecalculate() {
                   <StatCard label="Processed" value={liveRun.processed} total={liveRun.total} />
                   <StatCard label="Zones Corrected" value={liveRun.zonesCorrected} icon={<MapPin className="h-4 w-4 text-blue-500" />} />
                   <StatCard label="Duplicates Removed" value={liveRun.duplicatesRemoved} icon={<Trash2 className="h-4 w-4 text-red-500" />} />
+                  <StatCard label="Vehicle Details Refreshed" value={liveRun.vehicleDetailsRefreshed} icon={<Car className="h-4 w-4 text-purple-500" />} />
                   <StatCard label="Compliance Changed" value={liveRun.complianceChanged} icon={<BarChart3 className="h-4 w-4 text-yellow-500" />} />
                   <StatCard label="Breaches Created" value={liveRun.breachesCreated} icon={<AlertTriangle className="h-4 w-4 text-orange-500" />} />
                   <StatCard label="Skipped (no matrix)" value={liveRun.skippedNoMatrix} />
@@ -598,6 +612,7 @@ export default function CleanupAndRecalculate() {
                 <StatCard label="Observations Processed" value={result.processed} />
                 <StatCard label="Zones Corrected" value={result.zonesCorrected} icon={<MapPin className="h-4 w-4 text-blue-500" />} />
                 <StatCard label="Duplicates Removed" value={result.duplicatesRemoved} icon={<Trash2 className="h-4 w-4 text-red-500" />} />
+                <StatCard label="Vehicle Details Refreshed" value={result.vehicleDetailsRefreshed} icon={<Car className="h-4 w-4 text-purple-500" />} />
                 <StatCard label="Compliance Changed" value={result.complianceChanged} icon={<BarChart3 className="h-4 w-4 text-yellow-500" />} />
                 <StatCard label="Breaches Created" value={result.breachesCreated} icon={<AlertTriangle className="h-4 w-4 text-orange-500" />} />
                 <StatCard label="Skipped (no matrix)" value={result.skippedNoMatrix} />

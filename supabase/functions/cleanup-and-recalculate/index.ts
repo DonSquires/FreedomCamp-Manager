@@ -1,10 +1,11 @@
 /**
  * COMPREHENSIVE CLEANUP AND RECALCULATION - BATCH PROCESSOR
  * 
- * Performs three operations in sequence on batches of 300 observations:
+ * Performs four operations in sequence on batches of observations:
  * 1. Zone Correction (GPS-based)
  * 2. Duplicate Detection (same zone, NZ patrol windows, <=50m GPS)
- * 3. Compliance Recalculation (current rules)
+ * 3. Vehicle Details Refresh (sync make/model/year/colour/SCV from canonical_vehicles)
+ * 4. Compliance Recalculation (current rules, uses refreshed vehicle data)
  * 
  * Frontend handles pagination and progress tracking
  */
@@ -176,7 +177,28 @@ async function recheckNzscvSelfContained(
 
   const normalizedPlate = String(plateNumber ?? '').trim().toUpperCase();
 
-  // ── Step 1: Check canonical_vehicles first (trusted local source) ─────
+  // ── Step 1: Check canonical_scv first (authoritative SCV reference) ───
+  if (supabaseAdmin) {
+    try {
+      const { data: scvRow } = await (supabaseAdmin.from('canonical_scv') as any)
+        .select('is_self_contained, certificate_expiry')
+        .eq('plate_number', normalizedPlate)
+        .maybeSingle();
+
+      if (scvRow && scvRow.is_self_contained === true) {
+        const expiry = scvRow.certificate_expiry ?? null;
+        const isExpired = expiry != null && isExpiredAt(expiry, new Date().toISOString());
+        if (!isExpired) {
+          console.log('✅ SCV recheck: canonical_scv says is_self_contained=true (trusted)', { plate: normalizedPlate, expiry });
+          return { isSelfContained: true, expiryDate: expiry };
+        }
+      }
+    } catch {
+      // canonical_scv table may not exist yet; fall through to canonical_vehicles
+    }
+  }
+
+  // ── Step 2: Check canonical_vehicles (fallback local source) ──────────
   // The NZSCV API may be pointing to a test endpoint. canonical_vehicles is
   // maintained by sync-scv-list and verified lookups, so prefer it.
   if (supabaseAdmin) {
@@ -200,7 +222,7 @@ async function recheckNzscvSelfContained(
     }
   }
 
-  // ── Step 2: Fall back to NZSCV API ────────────────────────────────────
+  // ── Step 3: Fall back to NZSCV API ────────────────────────────────────
   // NOTE: NZSCV API may be on a test endpoint — results may be inaccurate.
   if (!NZSCV_PROXY_URL) return null;
 
@@ -253,6 +275,10 @@ async function buildHomelessStatusMaps(
   byPlate: Map<string, string>;
   selfContainedByPlate: Map<string, boolean | null>;
   selfContainedExpiryByPlate: Map<string, string | null>;
+  vehicleMakeByPlate: Map<string, string | null>;
+  vehicleModelByPlate: Map<string, string | null>;
+  vehicleYearByPlate: Map<string, number | null>;
+  vehicleColorByPlate: Map<string, string | null>;
 }> {
   const plateKeys = [...new Set(
     observations
@@ -261,6 +287,7 @@ async function buildHomelessStatusMaps(
   )];
   const orgIds = [...new Set(observations.map((o: any) => o.organization_id).filter(Boolean))];
 
+  // ── Org-scoped homeless records (for per-org exemption checks) ──────────
   const byOrgPlate = new Map<string, { status: string; ts: number }>();
 
   if (plateKeys.length > 0 && orgIds.length > 0) {
@@ -282,20 +309,74 @@ async function buildHomelessStatusMaps(
     }
   }
 
+  // ── Plate-level canonical data ──────────────────────────────────────────
   const byPlate = new Map<string, string>();
   const selfContainedByPlate = new Map<string, boolean | null>();
   const selfContainedExpiryByPlate = new Map<string, string | null>();
+  const vehicleMakeByPlate = new Map<string, string | null>();
+  const vehicleModelByPlate = new Map<string, string | null>();
+  const vehicleYearByPlate = new Map<string, number | null>();
+  const vehicleColorByPlate = new Map<string, string | null>();
+
   if (plateKeys.length > 0) {
+    // Load vehicle details (make/model/year/colour) from canonical_vehicles
     const { data: canonicalRows } = await supabaseAdmin
       .from('canonical_vehicles')
-      .select('plate_number, homeless_status, self_contained, self_contained_expiry')
+      .select('plate_number, homeless_status, self_contained, self_contained_expiry, vehicle_make, vehicle_model, vehicle_year, vehicle_color')
       .in('plate_number', plateKeys);
 
     for (const row of canonicalRows ?? []) {
       const plateKey = normalizePlateKey((row as any).plate_number);
+      // Seed homeless status from canonical_vehicles as baseline
       byPlate.set(plateKey, String((row as any).homeless_status ?? ''));
+      // Seed SCV from canonical_vehicles as baseline
       selfContainedByPlate.set(plateKey, (row as any).self_contained ?? null);
       selfContainedExpiryByPlate.set(plateKey, (row as any).self_contained_expiry ?? null);
+      // Vehicle detail fields
+      vehicleMakeByPlate.set(plateKey, (row as any).vehicle_make ?? null);
+      vehicleModelByPlate.set(plateKey, (row as any).vehicle_model ?? null);
+      const rawYear = (row as any).vehicle_year;
+      vehicleYearByPlate.set(plateKey, rawYear != null ? Number(rawYear) : null);
+      vehicleColorByPlate.set(plateKey, (row as any).vehicle_color ?? null);
+    }
+
+    // ── Override SCV from canonical_scv (authoritative reference) ──────
+    // canonical_scv is the dedicated SCV reference table; prefer its data
+    // over the denormalised columns on canonical_vehicles.
+    try {
+      const { data: scvRows } = await (supabaseAdmin.from('canonical_scv') as any)
+        .select('plate_number, is_self_contained, certificate_expiry')
+        .in('plate_number', plateKeys);
+
+      for (const row of scvRows ?? []) {
+        const plateKey = normalizePlateKey(row.plate_number);
+        selfContainedByPlate.set(plateKey, row.is_self_contained ?? null);
+        if (row.certificate_expiry != null) {
+          selfContainedExpiryByPlate.set(plateKey, row.certificate_expiry);
+        }
+      }
+    } catch (scvErr: any) {
+      // Table may not exist yet (migration not applied); fall back silently
+      console.warn('⚠️ canonical_scv query failed (table may not exist yet):', scvErr.message);
+    }
+
+    // ── Override homeless from canonical_homeless (authoritative reference)
+    // canonical_homeless is the cross-org canonical reference; prefer it
+    // over the denormalised homeless_status on canonical_vehicles.
+    try {
+      const { data: homelessCanonRows } = await (supabaseAdmin.from('canonical_homeless') as any)
+        .select('plate_number, status')
+        .in('plate_number', plateKeys);
+
+      for (const row of homelessCanonRows ?? []) {
+        const plateKey = normalizePlateKey(row.plate_number);
+        if (row.status && row.status !== 'none') {
+          byPlate.set(plateKey, row.status);
+        }
+      }
+    } catch (homelessErr: any) {
+      // Table may not exist yet (migration not applied); fall back silently
+      console.warn('⚠️ canonical_homeless query failed (table may not exist yet):', homelessErr.message);
     }
   }
 
@@ -306,6 +387,10 @@ async function buildHomelessStatusMaps(
     byPlate,
     selfContainedByPlate,
     selfContainedExpiryByPlate,
+    vehicleMakeByPlate,
+    vehicleModelByPlate,
+    vehicleYearByPlate,
+    vehicleColorByPlate,
   };
 }
 
@@ -449,6 +534,7 @@ serve(async (req) => {
           processed: 0, 
           zonesCorrected: 0, 
           duplicatesRemoved: 0,
+          vehicleDetailsRefreshed: 0,
           complianceChanged: 0,
           breachesCreated: 0,
           skippedNoMatrix: 0
@@ -623,6 +709,7 @@ serve(async (req) => {
           zonesCorrected,
           duplicatesRemoved,
           breachDuplicatesRemoved,
+          vehicleDetailsRefreshed: 0,
           complianceChanged,
           breachesCreated,
           skippedNoMatrix,
@@ -704,8 +791,70 @@ serve(async (req) => {
       byPlate: homelessStatusByPlate,
       selfContainedByPlate,
       selfContainedExpiryByPlate,
+      vehicleMakeByPlate,
+      vehicleModelByPlate,
+      vehicleYearByPlate,
+      vehicleColorByPlate,
     } =
       await buildHomelessStatusMaps(supabaseAdmin, activeObservations as any[]);
+
+    // PHASE 3a: VEHICLE DETAILS REFRESH
+    // Sync vehicle_make, vehicle_model, vehicle_year, vehicle_color, and self_contained
+    // from canonical_vehicles onto each observation before compliance recalculation.
+    // This ensures observation records reflect the latest canonical vehicle data.
+    let vehicleDetailsRefreshed = 0;
+    for (const obs of activeObservations) {
+      try {
+        const obsId = (obs as any).observation_id ?? (obs as any).id;
+        const plateKey = normalizePlateKey(obs.plate_number);
+        if (!plateKey) continue;
+
+        const canonicalMake = vehicleMakeByPlate.get(plateKey);
+        const canonicalModel = vehicleModelByPlate.get(plateKey);
+        const canonicalYear = vehicleYearByPlate.get(plateKey);
+        const canonicalColor = vehicleColorByPlate.get(plateKey);
+        const canonicalSC = selfContainedByPlate.get(plateKey);
+
+        // Only include fields where canonical has a value and it differs from the observation
+        const patch: Record<string, unknown> = {};
+        if (canonicalMake != null && canonicalMake !== (obs.vehicle_make ?? null)) {
+          patch.vehicle_make = canonicalMake;
+        }
+        if (canonicalModel != null && canonicalModel !== (obs.vehicle_model ?? null)) {
+          patch.vehicle_model = canonicalModel;
+        }
+        if (canonicalYear != null && canonicalYear !== (obs.vehicle_year ?? null)) {
+          patch.vehicle_year = canonicalYear;
+        }
+        if (canonicalColor != null && canonicalColor !== (obs.vehicle_color ?? null)) {
+          patch.vehicle_color = canonicalColor;
+        }
+        if (canonicalSC != null && Boolean(canonicalSC) !== Boolean(obs.self_contained)) {
+          patch.self_contained = canonicalSC;
+        }
+
+        if (Object.keys(patch).length > 0) {
+          const { error: patchError } = await supabaseAdmin
+            .from('observations')
+            .update(patch)
+            .eq(observationKeyColumn, obsId);
+
+          if (!patchError) {
+            // Keep in-memory record aligned for subsequent compliance evaluation
+            Object.assign(obs, patch);
+            vehicleDetailsRefreshed++;
+          } else {
+            console.warn(`⚠️ Failed to refresh vehicle details for ${obsId}:`, patchError.message);
+          }
+        }
+      } catch (err: any) {
+        console.error(`❌ Vehicle details refresh error for ${(obs as any).observation_id ?? (obs as any).id}:`, err.message);
+      }
+    }
+
+    if (vehicleDetailsRefreshed > 0) {
+      console.log(`🚗 Refreshed vehicle details on ${vehicleDetailsRefreshed} observations from canonical_vehicles`);
+    }
 
     const nzscvRecheckCache = new Map<string, { isSelfContained: boolean; expiryDate: string | null } | null>();
 
@@ -1003,7 +1152,7 @@ serve(async (req) => {
       }
     }
 
-    console.log(`✅ Batch complete: ${observations.length} processed, ${zonesCorrected} zones corrected, ${duplicatesRemoved} duplicates removed, ${breachDuplicatesRemoved} breach duplicates removed, ${complianceChanged} compliance changed, ${breachesCreated} breaches`);
+    console.log(`✅ Batch complete: ${observations.length} processed, ${zonesCorrected} zones corrected, ${duplicatesRemoved} duplicates removed, ${breachDuplicatesRemoved} breach duplicates removed, ${vehicleDetailsRefreshed} vehicle details refreshed, ${complianceChanged} compliance changed, ${breachesCreated} breaches`);
 
     return new Response(
       JSON.stringify({
@@ -1011,6 +1160,7 @@ serve(async (req) => {
         zonesCorrected,
         duplicatesRemoved,
         breachDuplicatesRemoved,
+        vehicleDetailsRefreshed,
         complianceChanged,
         breachesCreated,
         skippedNoMatrix,
