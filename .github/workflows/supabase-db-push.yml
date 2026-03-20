@@ -89,8 +89,9 @@ jobs:
           # Known legacy migration versions that exist on remote as short-form entries
           # (date-only, no timestamp) but map to full timestamped local files.
           # Repair is safe and idempotent; each call is a no-op if the version is absent.
-          # 20260315 added: short-form file coexists with 20260315000001 long-form file.
-          for version in 20250127 20260309 20260312 20260313 20260315 20260316 20260320; do
+          # Keep this list aligned with scripts/migration-utils.sh and
+          # docs/MIGRATION_TROUBLESHOOTING.md.
+          for version in 20250127 20260309 20260312 20260313 20260315 20260316 20260317 20260318 20260319 20260320; do
             supabase migration repair --status reverted "$version" || true
           done
 

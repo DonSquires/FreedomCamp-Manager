@@ -83,15 +83,18 @@ entries with no corresponding single local file:
 | `20260309` | `20260309000001_…` through `20260309000004_…` |
 | `20260312` | `20260312000001_…` through `20260312000012_…` |
 | `20260313` | `20260313000001_…`, `20260313000002_…`, `20260313000010_…`, `20260313_fix_admin_officer_rls.sql` |
-| `20260315` | `20260315000001_revert_officer_shifts_and_site_visits.sql` |
+| `20260315` | `20260315000001_revert_officer_shifts_and_site_visits.sql`, `20260315_missing_tables_and_columns.sql` |
 | `20260316` | `20260316000001_…`, `20260316000002_…` |
+| `20260317` | `20260317000001_…`, `20260317000002_…`, `20260317000003_…`, `20260317000020_…`, `20260317000021_…`, `20260317_admin_recalculation_actions.sql` |
+| `20260318` | `20260318000002_fix_breach_alert_created_at_from_observation.sql`, `20260318_fix_schema_functions.sql` |
+| `20260319` | `20260319000020_fix_observation_deletion_audit_deleted_by.sql`, `20260319_allow_cross_org_observation_import.sql` |
 | `20260320` | `20260320000001_…` through `20260320000003_…` |
 
 Revert all of them in one command:
 
 ```bash
 supabase migration repair --status reverted \
-  20250127 20260309 20260312 20260313 20260315 20260316 20260320
+   20250127 20260309 20260312 20260313 20260315 20260316 20260317 20260318 20260319 20260320
 ```
 
 ---
@@ -181,7 +184,7 @@ supabase migration list
 
 ```bash
 supabase migration repair --status reverted \
-  20250127 20260309 20260312 20260313 20260316 20260320
+   20250127 20260309 20260312 20260313 20260315 20260316 20260317 20260318 20260319 20260320
 ```
 
 ### Step 3 — Try a standard push
