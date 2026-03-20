@@ -55,16 +55,6 @@ interface Organization {
   name: string
 }
 
-const isMissingZoneLegalColumnError = (error: unknown) => {
-  const message = (error as { message?: string })?.message?.toLowerCase() || ''
-  return (
-    message.includes("could not find the 'land_manager' column") ||
-    message.includes("could not find the 'enforcement_authority' column") ||
-    message.includes("could not find the 'bylaw_clause' column") ||
-    message.includes("could not find the 'bylaw_source_url' column")
-  )
-}
-
 export default function ZoneManagement() {
   const { user } = useAuthStore()
   const { organizationId } = useGlobalFiltersStore()
@@ -217,35 +207,42 @@ export default function ZoneManagement() {
     mutationFn: async (updates: Partial<Zone>) => {
       if (!selectedZone) throw new Error('No zone selected')
 
+      const {
+        land_manager,
+        enforcement_authority,
+        bylaw_clause,
+        bylaw_source_url,
+        ...zoneUpdates
+      } = updates
+
       const { error } = await (supabase.from('zones') as any)
-        .update(updates)
+        .update(zoneUpdates)
         .eq('id', selectedZone.id)
 
-      if (error) {
-        if (!isMissingZoneLegalColumnError(error)) throw error
-        // Backward compatibility: allow updates to succeed on databases
-        // where legal columns are not yet migrated.
-        const {
-          land_manager,
-          enforcement_authority,
-          bylaw_clause,
-          bylaw_source_url,
-          ...legacySafeUpdates
-        } = updates
-        const { error: fallbackError } = await (supabase.from('zones') as any)
-          .update(legacySafeUpdates)
-          .eq('id', selectedZone.id)
-        if (fallbackError) throw fallbackError
-      }
+      if (error) throw error
 
-      // Upsert payment & objection fields into zone_legal_config if any provided
-      if (editPaymentOnlineUrl || editPaymentBankAccount || editPaymentInstructions ||
-          editObjectionsEmail || editObjectionsPostalAddress || editDisputePortalUrl) {
+      // Persist legal + payment fields to zone_legal_config (authoritative legal profile)
+      if (
+        land_manager !== undefined ||
+        enforcement_authority !== undefined ||
+        bylaw_clause !== undefined ||
+        bylaw_source_url !== undefined ||
+        editPaymentOnlineUrl ||
+        editPaymentBankAccount ||
+        editPaymentInstructions ||
+        editObjectionsEmail ||
+        editObjectionsPostalAddress ||
+        editDisputePortalUrl
+      ) {
         const orgId = selectedZone.organization_id
-        await (supabase.from('zone_legal_config') as any)
+        const { error: legalError } = await (supabase.from('zone_legal_config') as any)
           .upsert({
             zone_id: selectedZone.id,
             organization_id: orgId,
+            managing_authority: editLandManager || null,
+            enforcement_authority: editEnforcementAuthority || null,
+            legal_description: editBylawClause || null,
+            org_website: editBylawUrl || null,
             payment_online_url: editPaymentOnlineUrl || null,
             payment_bank_account: editPaymentBankAccount || null,
             payment_instructions: editPaymentInstructions || null,
@@ -253,6 +250,8 @@ export default function ZoneManagement() {
             objections_postal_address: editObjectionsPostalAddress || null,
             dispute_portal_url: editDisputePortalUrl || null,
           }, { onConflict: 'zone_id' })
+
+        if (legalError) throw legalError
       }
     },
     onSuccess: () => {
@@ -365,18 +364,22 @@ export default function ZoneManagement() {
     setEditSelfContained(zone.self_contained_required)
     setEditParentZoneId(zone.parent_zone_id)
     setEditZoneType(zone.zone_type || 'specific')
-    setEditLandManager(zone.land_manager || '')
-    setEditEnforcementAuthority(zone.enforcement_authority || '')
-    setEditBylawClause(zone.bylaw_clause || '')
-    setEditBylawUrl(zone.bylaw_source_url || '')
+    setEditLandManager('')
+    setEditEnforcementAuthority('')
+    setEditBylawClause('')
+    setEditBylawUrl('')
     setShowGeofenceEditor(false)
 
-    // Load zone_legal_config payment & objection fields
+    // Load legal + payment fields from zone_legal_config
     ;(supabase.from('zone_legal_config') as any)
-      .select('payment_online_url, payment_bank_account, payment_instructions, objections_email, objections_postal_address, dispute_portal_url')
+      .select('managing_authority, land_owner, enforcement_authority, legal_description, org_website, payment_online_url, payment_bank_account, payment_instructions, objections_email, objections_postal_address, dispute_portal_url')
       .eq('zone_id', zone.id)
       .maybeSingle()
       .then(({ data }: { data: any }) => {
+        setEditLandManager(data?.managing_authority || data?.land_owner || zone.land_manager || '')
+        setEditEnforcementAuthority(data?.enforcement_authority || zone.enforcement_authority || '')
+        setEditBylawClause(data?.legal_description || zone.bylaw_clause || '')
+        setEditBylawUrl(data?.org_website || zone.bylaw_source_url || '')
         setEditPaymentOnlineUrl(data?.payment_online_url || '')
         setEditPaymentBankAccount(data?.payment_bank_account || '')
         setEditPaymentInstructions(data?.payment_instructions || '')
@@ -923,10 +926,6 @@ export default function ZoneManagement() {
                   max_consecutive_nights: editMaxConsecutive,
                   day_visit_only: editDayVisitOnly,
                   self_contained_required: editSelfContained,
-                  land_manager: editLandManager || null,
-                  enforcement_authority: editEnforcementAuthority || null,
-                  bylaw_clause: editBylawClause || null,
-                  bylaw_source_url: editBylawUrl || null,
                 }
                 
                 // Masters can change organization, zone type, and parent

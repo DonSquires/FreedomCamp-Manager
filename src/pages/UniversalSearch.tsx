@@ -60,11 +60,11 @@ export default function UniversalSearch() {
             .or(`plate_number.ilike.%${q}%,vehicle_make.ilike.%${q}%,vehicle_model.ilike.%${q}%`)
             .limit(20),
 
-          // Observations – officer notes, plate
+          // Observations – officer notes and zone context
           (() => {
             let obsQuery = supabase
               .from('observations')
-              .select('observation_id, officer_notes, recorded_at, is_compliant, plate_number')
+              .select('observation_id, officer_notes, recorded_at, is_compliant, plate_number, zones(name)')
               
               .or(`officer_notes.ilike.%${q}%,plate_number.ilike.%${q}%`)
               .order('recorded_at', { ascending: false })
@@ -85,13 +85,13 @@ export default function UniversalSearch() {
             return incQuery
           })(),
 
-          // Patrols – officer name via join
+          // Patrols – include assigned officer and zone, then filter client-side by query text
           (() => {
             let patrolQuery = supabase
               .from('patrols')
-              .select('id, created_at, status, zone_id, zones(name)')
+              .select('id, created_at, started_at, status, zones(name), officer:user_profiles!patrols_assigned_to_fkey(first_name,last_name)')
               .order('created_at', { ascending: false })
-              .limit(20)
+              .limit(100)
             if (orgFilter) patrolQuery = patrolQuery.eq('organization_id', orgFilter)
             return patrolQuery
           })(),
@@ -109,11 +109,19 @@ export default function UniversalSearch() {
           })(),
         ])
 
+      const patrols = (patrolsRes.data || []).filter((p: any) => {
+        const officerName = `${p.officer?.first_name || ''} ${p.officer?.last_name || ''}`.trim().toLowerCase()
+        const zoneName = (p.zones?.name || '').toLowerCase()
+        const status = (p.status || '').toLowerCase()
+        const qLower = q.toLowerCase()
+        return officerName.includes(qLower) || zoneName.includes(qLower) || status.includes(qLower)
+      }).slice(0, 20)
+
       return {
         vehicles: vehiclesRes.data || [],
         observations: observationsRes.data || [],
         incidents: incidentsRes.data || [],
-        patrols: patrolsRes.data || [],
+        patrols,
         breaches: breachesRes.data || [],
       }
     },
@@ -224,14 +232,14 @@ export default function UniversalSearch() {
                           {o.plate_number && (
                             <span className="font-bold mr-2">{o.plate_number}</span>
                           )}
-                          {o.location_name && (
+                          {o.zones?.name && (
                             <span className="text-gray-600 flex items-center gap-1 text-sm mt-0.5">
                               <MapPin className="h-3 w-3" />
-                              {o.location_name}
+                              {o.zones.name}
                             </span>
                           )}
-                          {o.notes && (
-                            <p className="text-sm text-gray-700 mt-1 truncate">{o.notes}</p>
+                          {o.officer_notes && (
+                            <p className="text-sm text-gray-700 mt-1 truncate">{o.officer_notes}</p>
                           )}
                         </div>
                         <div className="ml-4 text-right shrink-0">
@@ -349,6 +357,12 @@ export default function UniversalSearch() {
                     <CardContent className="py-3 flex items-center justify-between">
                       <div>
                         <span className="font-medium capitalize">{p.status}</span>
+                        {(p.officer?.first_name || p.officer?.last_name) && (
+                          <span className="ml-2 text-sm text-gray-600 inline-flex items-center gap-1">
+                            <User className="h-3 w-3" />
+                            {[p.officer?.first_name, p.officer?.last_name].filter(Boolean).join(' ')}
+                          </span>
+                        )}
                         {p.zones?.name && (
                           <span className="ml-2 text-sm text-gray-600 flex items-center gap-1 inline-flex">
                             <MapPin className="h-3 w-3" />
@@ -358,7 +372,7 @@ export default function UniversalSearch() {
                       </div>
                       <p className="text-xs text-gray-400 flex items-center gap-1">
                         <Clock className="h-3 w-3" />
-                        {formatDateTime(p.created_at)}
+                        {formatDateTime(p.started_at || p.created_at)}
                       </p>
                     </CardContent>
                   </Card>
@@ -388,7 +402,7 @@ export default function UniversalSearch() {
               </div>
               <div className="flex items-start gap-2">
                 <FileText className="h-4 w-4 mt-0.5 text-green-600 shrink-0" />
-                <span>Observations – notes, location, plate</span>
+                <span>Observations – officer notes, zone, plate</span>
               </div>
               <div className="flex items-start gap-2">
                 <Shield className="h-4 w-4 mt-0.5 text-orange-600 shrink-0" />
@@ -400,7 +414,7 @@ export default function UniversalSearch() {
               </div>
               <div className="flex items-start gap-2">
                 <Activity className="h-4 w-4 mt-0.5 text-purple-600 shrink-0" />
-                <span>Patrols – zone, status</span>
+                <span>Patrols – officer name, zone, status</span>
               </div>
               <div className="flex items-start gap-2">
                 <User className="h-4 w-4 mt-0.5 text-gray-600 shrink-0" />
