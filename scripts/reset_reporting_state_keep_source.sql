@@ -114,6 +114,11 @@ WHERE o.plate_number = cv.plate_number;
 -- 4) Truncate every public base table except the preservation whitelist.
 --    Truncating them together avoids FK-order issues between derived tables.
 -- --------------------------------------------------------------------------
+-- Tables still referenced by preserved observations cannot be truncated, even
+-- after we null the FK values above. PostgreSQL requires DELETE for those.
+DELETE FROM public.health_safety_reports;
+DELETE FROM public.incidents;
+
 DO $$
 DECLARE
   preserved_tables constant text[] := ARRAY[
@@ -131,7 +136,9 @@ DECLARE
     'zone_legal_config',
     'officer_welfare_settings',
     'investigation_job_templates',
-    'investigation_job_types'
+    'investigation_job_types',
+    'health_safety_reports',
+    'incidents'
   ];
   excluded_extension_tables constant text[] := ARRAY[
     'geography_columns',
