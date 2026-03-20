@@ -30,7 +30,6 @@ import {
   ChevronLeft,
   ChevronRight,
   Eye,
-  Calendar,
   TrendingDown,
   TrendingUp,
   Image as ImageIcon,
@@ -40,7 +39,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { Navigate, useSearchParams } from 'react-router-dom';
 import { GlobalFilterRibbon } from '@/components/features/GlobalFilterRibbon';
 import { useGlobalFiltersStore as useGlobalFilters } from '@/stores/globalFiltersStore';
-import { AdminNavigationMenu } from '@/components/features/AdminNavigationMenu';
+import { AppLayout } from '@/components/features/AppLayout';
 import { HOMELESS_UI_STATUSES, homelessStatusLabel, normalizeHomelessStatus } from '@/lib/homelessStatus';
 import { nzDateToUTCStart, nzDateToUTCEnd } from '@/lib/timezone';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -1134,35 +1133,18 @@ export default function CompliancePage() {
   const isOfficer = user.role === 'officer';
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
-      <AdminNavigationMenu />
+    <AppLayout title="Compliance Dashboard" description="Real-time compliance data and analysis">
 
-      <div className="max-w-7xl mx-auto px-4 py-6 space-y-6">
-        {/* Page heading */}
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-2xl font-black text-gray-900 dark:text-white flex items-center gap-2">
-              <Shield className="w-6 h-6 text-blue-600" />
-              Compliance Dashboard
-            </h1>
-            <p className="text-sm text-gray-500 mt-0.5">
-              Real-time compliance data from the{' '}
-              <code className="text-xs bg-gray-100 dark:bg-gray-800 px-1 rounded">observations</code> table
-            </p>
-            {drillContextLabel && (
-              <div className="mt-2 inline-flex items-center gap-2 rounded-md border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-300">
-                <span>Drilldown</span>
-                <span className="opacity-70">:</span>
-                <span className="capitalize">{drillContextLabel}</span>
-                {drillSource && <span className="opacity-70">via {drillSource.replace(/_/g, ' ')}</span>}
-              </div>
-            )}
+      <div className="space-y-6">
+        {/* Page heading with drilldown context */}
+        {drillContextLabel && (
+          <div className="inline-flex items-center gap-2 rounded-md border border-blue-200 bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700 dark:border-blue-800 dark:bg-blue-950/40 dark:text-blue-300">
+            <span>Drilldown</span>
+            <span className="opacity-70">:</span>
+            <span className="capitalize">{drillContextLabel}</span>
+            {drillSource && <span className="opacity-70">via {drillSource.replace(/_/g, ' ')}</span>}
           </div>
-          <div className="text-xs text-gray-400 flex items-center gap-1">
-            <Calendar className="w-3 h-3" />
-            {format(new Date(), 'PPP')}
-          </div>
-        </div>
+        )}
 
         {/* Global filters */}
         <GlobalFilterRibbon />
@@ -1224,6 +1206,6 @@ export default function CompliancePage() {
           </div>
         </div>
       </div>
-    </div>
+    </AppLayout>
   );
 }

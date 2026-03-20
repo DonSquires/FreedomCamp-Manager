@@ -18,6 +18,7 @@ import { toast } from 'sonner'
 import { 
   AlertTriangle,
   ArrowRight,
+  CalendarDays,
   Car,
   ClipboardCheck,
   Eye,
@@ -25,10 +26,12 @@ import {
   Gavel,
   Home,
   Map,
+  Navigation,
   Printer,
   Radio,
   Search,
   Shield,
+  TrendingUp,
   UserCheck,
   Users,
 } from 'lucide-react'
@@ -617,6 +620,46 @@ export default function AdminPortal() {
       metric: 'Workflow view',
       config: { to: '/enforcement-command-center', metric: 'enforcement_pipeline', period: periodLabel, label: 'Enforcement Pipeline' },
     },
+    {
+      title: 'Live Officer Tracking',
+      description: 'See where every officer is in real time — H&S welfare overview.',
+      to: '/live-tracking',
+      icon: Navigation,
+      metric: 'Officer H&S',
+      config: { to: '/live-tracking', metric: 'officer_locations', period: periodLabel, label: 'Live Officer Tracking' },
+    },
+    {
+      title: 'Patrol Schedule',
+      description: 'Load, review and manage pre-scheduled and ad-hoc patrol routes.',
+      to: '/patrol-schedule',
+      icon: CalendarDays,
+      metric: 'Scheduling',
+      config: { to: '/patrol-schedule', metric: 'patrol_schedule', period: periodLabel, label: 'Patrol Schedule' },
+    },
+    {
+      title: 'Patrol KPIs',
+      description: 'Review patrol completion rates and KPIs for scheduled jobs.',
+      to: '/patrol-kpis',
+      icon: TrendingUp,
+      metric: 'KPIs & completions',
+      config: { to: '/patrol-kpis', metric: 'patrol_kpis', period: periodLabel, label: 'Patrol KPIs' },
+    },
+    {
+      title: 'Observations',
+      description: 'Review all officer observations — update details, check accuracy.',
+      to: '/observation-records',
+      icon: Eye,
+      metric: `${metrics.totalObservations.toLocaleString()} in period`,
+      config: { to: '/observation-records', metric: 'observations', period: periodLabel, label: 'Observations' },
+    },
+    {
+      title: 'Homeless Register',
+      description: 'Review and amend the homeless claims register for your organisation.',
+      to: '/person-records',
+      icon: Home,
+      metric: `${metrics.homelessVehicleCount} recorded`,
+      config: { to: '/person-records', metric: 'homeless_register', period: periodLabel, label: 'Homeless Register' },
+    },
   ]
 
   // ── Primary KPIs: the "Big Three" for at-a-glance operational status ──
@@ -703,7 +746,10 @@ export default function AdminPortal() {
 
       <div className="space-y-4">
         <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-          <Card className="bg-white dark:bg-gray-900 shadow-sm">
+          <Card
+            className="bg-white dark:bg-gray-900 shadow-sm cursor-pointer hover:shadow-md transition-shadow"
+            onClick={() => navigate('/live-tracking')}
+          >
             <CardContent className="pt-5 pb-4">
               <div className="flex items-center justify-between">
                 <div>
@@ -727,7 +773,10 @@ export default function AdminPortal() {
             </CardContent>
           </Card>
 
-          <Card className="bg-white dark:bg-gray-900 shadow-sm">
+          <Card
+            className="bg-white dark:bg-gray-900 shadow-sm cursor-pointer hover:shadow-md transition-shadow"
+            onClick={() => navigate('/infringements')}
+          >
             <CardContent className="pt-5 pb-4">
               <div className="flex items-center justify-between">
                 <div>
