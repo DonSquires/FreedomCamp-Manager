@@ -185,17 +185,18 @@ Deno.serve(async (req) => {
     return new Response(null, { headers: corsHeaders });
   }
 
+  const supabaseAdmin = createClient(
+    Deno.env.get('SUPABASE_URL') ?? '',
+    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+  );
+  let importBatchId: string | null = null;
+
   try {
     console.log('📥 [IMPORT] Request received');
 
     // Get authenticated user
     const authHeader = req.headers.get('Authorization');
     const token = authHeader?.replace('Bearer ', '');
-
-    const supabaseAdmin = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-    );
 
     const { data: { user }, error: userError } = await supabaseAdmin.auth.getUser(token);
     if (userError || !user) {
@@ -427,7 +428,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    const importBatchId = importRecord.id;
+    importBatchId = importRecord.id;
     console.log('✅ [IMPORT] Import batch created:', importBatchId);
 
     // Parse Excel file
@@ -1159,6 +1160,25 @@ Deno.serve(async (req) => {
 
   } catch (error: any) {
     console.error('❌ [IMPORT] Fatal error:', error);
+
+    // If a batch was already created, mark it failed so the UI does not stay
+    // stuck in parsing/starting state with 0% forever.
+    if (importBatchId) {
+      try {
+        const failureMessage = String(error?.message || 'Import failed unexpectedly').slice(0, 800);
+        await supabaseAdmin
+          .from('import_batches')
+          .update({
+            status: 'failed',
+            completed_at: new Date().toISOString(),
+            error_summary: failureMessage,
+          })
+          .eq('id', importBatchId);
+      } catch (batchUpdateError) {
+        console.error('❌ [IMPORT] Failed to update import batch to failed:', batchUpdateError);
+      }
+    }
+
     return new Response(
       JSON.stringify({
         error: 'Import failed',
