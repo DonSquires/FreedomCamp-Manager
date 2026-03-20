@@ -263,6 +263,38 @@ export default function ImportHistoricalData() {
         {/* Upload tab */}
         <TabsContent value="upload" className="mt-6">
           <div className="max-w-xl space-y-5">
+            {activeBatch && ['pending', 'parsing', 'zone_matching', 'importing'].includes(activeBatch.status) && (
+              <Card className="border-blue-400 bg-blue-50/40">
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between mb-2 gap-2">
+                    <span className="font-semibold flex items-center gap-2">
+                      <span className="h-3 w-3 border-2 border-blue-500 border-t-transparent rounded-full animate-spin" />
+                      Live Import In Progress
+                    </span>
+                    <Badge variant="default" className="text-xs">
+                      {STATUS_META[activeBatch.status]?.label || activeBatch.status}
+                    </Badge>
+                  </div>
+                  {activeBatch.total_records > 0 ? (
+                    <>
+                      <Progress
+                        value={Math.round((activeBatch.processed_records / activeBatch.total_records) * 100)}
+                        className="h-2 mb-1"
+                      />
+                      <div className="text-xs text-muted-foreground">
+                        {activeBatch.processed_records} / {activeBatch.total_records} records
+                        {activeBatch.successful_records > 0 && ` · ${activeBatch.successful_records} imported`}
+                      </div>
+                    </>
+                  ) : (
+                    <div className="text-xs text-muted-foreground">
+                      Initialising import batch…
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
