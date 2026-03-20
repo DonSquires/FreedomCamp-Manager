@@ -83,26 +83,20 @@ async function sendInvitationEmail(params: {
     'If you were not expecting this invite, you can ignore this email.',
   ].join('\n');
 
-  const client = new SMTPClient();
   const useTls = smtpPort === 465;
+  const client = new SMTPClient({
+    connection: {
+      hostname: smtpHost,
+      port: smtpPort,
+      tls: useTls,
+      auth: {
+        username: smtpUser,
+        password: smtpPass,
+      },
+    },
+  });
 
   try {
-    if (useTls) {
-      await client.connectTLS({
-        hostname: smtpHost,
-        port: smtpPort,
-        username: smtpUser,
-        password: smtpPass,
-      });
-    } else {
-      await client.connect({
-        hostname: smtpHost,
-        port: smtpPort,
-        username: smtpUser,
-        password: smtpPass,
-      });
-    }
-
     try {
       await client.send({
         from: `${smtpFromName} <${smtpFrom}>`,

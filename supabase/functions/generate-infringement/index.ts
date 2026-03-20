@@ -565,16 +565,22 @@ async function sendInfringementEmailAsync(params: {
     'This is an automated message. Please do not reply to this email.',
   ].join('\n')
 
-  const client = new SMTPClient()
   const useTls = smtpPort === 465
+
+  const client = new SMTPClient({
+    connection: {
+      hostname: smtpHost,
+      port: smtpPort,
+      tls: useTls,
+      auth: {
+        username: smtpUser,
+        password: smtpPass,
+      },
+    },
+  })
 
   await Promise.race([
     (async () => {
-      if (useTls) {
-        await client.connectTLS({ hostname: smtpHost, port: smtpPort, username: smtpUser, password: smtpPass })
-      } else {
-        await client.connect({ hostname: smtpHost, port: smtpPort, username: smtpUser, password: smtpPass })
-      }
       try {
         await client.send({
           from: `${smtpFromName} <${smtpFrom}>`,
