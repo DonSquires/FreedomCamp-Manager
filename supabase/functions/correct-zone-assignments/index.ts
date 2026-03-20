@@ -16,6 +16,9 @@ interface Zone {
   organization_id: string;
   location_lat?: number | null;
   location_lng?: number | null;
+  parent_zone_id?: string | null;
+  zone_type?: string | null;
+  radius_meters?: number | null;
 }
 
 interface ObservationRow {
@@ -223,10 +226,10 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Load all active zones (needed for zone matching)
+    // Load all active zones (needed for zone matching – include parent_zone_id & zone_type for child-zone prioritisation)
     const { data: allZones, error: zonesError } = await supabaseAdmin
       .from('zones')
-      .select('id, name, geometry, organization_id, location_lat, location_lng')
+      .select('id, name, geometry, organization_id, location_lat, location_lng, parent_zone_id, zone_type, radius_meters')
       .eq('is_active', true);
 
     if (zonesError) throw zonesError;
@@ -280,21 +283,46 @@ Deno.serve(async (req) => {
         // Get zones for this organization (excluding "Other")
         const orgZones = allZones?.filter(z => z.organization_id === orgId && z.name.toLowerCase() !== 'other') || [];
 
-        // Check if in current zone
-        const isInCurrentZone = currentZone ? isPointInZone(lat, lng, currentZone) : false;
-        let correctZone: Zone | null = isInCurrentZone ? currentZone : null;
+        // Collect ALL matching zones so we can pick the most specific one
+        const zoneMatches: Array<{ zone: Zone; distance: number }> = [];
 
-        if (!correctZone) {
-          // Check if point is inside any zone
-          for (const zone of orgZones) {
-            if (isPointInZone(lat, lng, zone)) {
-              correctZone = zone;
-              break;
-            }
+        for (const zone of orgZones) {
+          if (isPointInZone(lat, lng, zone)) {
+            const dist = (zone.location_lat != null && zone.location_lng != null)
+              ? calculateDistance(lat, lng, zone.location_lat, zone.location_lng)
+              : 0;
+            zoneMatches.push({ zone, distance: dist });
           }
         }
 
-        // If not inside, find closest zone (within 500m)
+        let correctZone: Zone | null = null;
+
+        if (zoneMatches.length > 0) {
+          // Sort so the most *specific* zone appears first:
+          //  1. Child zones (have parent_zone_id) before parent/jurisdiction zones
+          //  2. Non-general zone_type before general
+          //  3. Smaller radius before larger
+          //  4. Closer distance to centre as tie-breaker
+          zoneMatches.sort((a, b) => {
+            const aIsChild = a.zone.parent_zone_id ? 0 : 1;
+            const bIsChild = b.zone.parent_zone_id ? 0 : 1;
+            if (aIsChild !== bIsChild) return aIsChild - bIsChild;
+
+            const aIsGeneral = a.zone.zone_type === 'general' ? 1 : 0;
+            const bIsGeneral = b.zone.zone_type === 'general' ? 1 : 0;
+            if (aIsGeneral !== bIsGeneral) return aIsGeneral - bIsGeneral;
+
+            const aRadius = a.zone.radius_meters || 500;
+            const bRadius = b.zone.radius_meters || 500;
+            if (aRadius !== bRadius) return aRadius - bRadius;
+
+            return a.distance - b.distance;
+          });
+
+          correctZone = zoneMatches[0].zone;
+        }
+
+        // If not inside any zone, find closest zone (within 500m)
         if (!correctZone) {
           correctZone = findClosestZone(lat, lng, orgZones);
         }
