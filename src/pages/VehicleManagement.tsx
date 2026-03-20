@@ -15,7 +15,7 @@ import { GlobalFilterRibbon } from '@/components/features/GlobalFilterRibbon'
 import { PaperworkSearchAnimation } from '@/components/features/PaperworkSearchAnimation'
 import {
   Search, Car, AlertTriangle, CheckCircle, Calendar, RefreshCw, Database, Globe,
-  MapPin, Clock, BarChart3, ZoomIn, Shield,
+  MapPin, Clock, BarChart3, ZoomIn, Shield, Flag,
 } from 'lucide-react'
 import { formatDate, formatDateTime } from '@/lib/utils'
 import { nzDateToUTCStart, nzDateToUTCEnd } from '@/lib/timezone'
@@ -37,6 +37,8 @@ interface Vehicle {
   self_contained_expiry: string | null
   homeless_status: string | null
   is_exempt: boolean
+  is_flagged: boolean
+  flagged_reason: string | null
   enforcement_count: number
   last_enforcement_at: string | null
   profile_photo: string | null
@@ -44,7 +46,7 @@ interface Vehicle {
   total_breaches: number
 }
 
-type StatusFilter = 'all' | 'compliant' | 'breaches' | 'homeless' | 'exempt'
+type StatusFilter = 'all' | 'compliant' | 'breaches' | 'homeless' | 'exempt' | 'flagged'
 
 interface VehicleQueryDebug {
   rawOrgId: string | null
@@ -212,6 +214,8 @@ export default function VehicleManagement() {
           self_contained_expiry: row?.self_contained_expiry ?? null,
           homeless_status: row?.homeless_status ?? null,
           is_exempt: !!(row?.is_exempt ?? false),
+          is_flagged: !!(row?.is_flagged ?? false),
+          flagged_reason: row?.flagged_reason ?? null,
           enforcement_count: Number(row?.enforcement_count ?? 0),
           last_enforcement_at: row?.last_enforcement_at ?? null,
           profile_photo: row?.profile_photo ?? null,
@@ -266,6 +270,9 @@ export default function VehicleManagement() {
         }
         if (statusFilter === 'exempt') {
           return rows.filter((v) => v.is_exempt)
+        }
+        if (statusFilter === 'flagged') {
+          return rows.filter((v) => v.is_flagged)
         }
         return rows
       }
@@ -382,6 +389,8 @@ export default function VehicleManagement() {
               self_contained_expiry: null,
               homeless_status: null,
               is_exempt: false,
+              is_flagged: false,
+              flagged_reason: null,
               enforcement_count: 0,
               last_enforcement_at: null,
               profile_photo: getObservationPhotoUrl(obs),
@@ -825,6 +834,22 @@ export default function VehicleManagement() {
     }
   }
 
+  // ─── Flag / Unflag vehicle ─────────────────────────────────────────────────
+  const handleToggleFlag = async (vehicle: Vehicle, e: React.MouseEvent) => {
+    e.stopPropagation()
+    const newFlagged = !vehicle.is_flagged
+    try {
+      const { error } = await (supabase.from('canonical_vehicles') as any)
+        .update({ is_flagged: newFlagged, flagged_at: newFlagged ? new Date().toISOString() : null })
+        .eq('plate_number', vehicle.plate_number)
+      if (error) { toast.error('Failed to update flag'); return }
+      toast.success(newFlagged ? `${vehicle.plate_number} flagged` : `${vehicle.plate_number} unflagged`)
+      queryClient.invalidateQueries({ queryKey: ['vehicles'] })
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to update flag')
+    }
+  }
+
   // ─── Summary stats ────────────────────────────────────────────────────────
   const stats = vehicles
     ? {
@@ -1055,6 +1080,12 @@ export default function VehicleManagement() {
                           Active Breach
                         </Badge>
                       )}
+                      {vehicle.is_flagged && (
+                        <Badge variant="outline" className="text-xs bg-red-50 text-red-700 border-red-300">
+                          <Flag className="h-3 w-3 mr-1 fill-red-500" />
+                          Flagged
+                        </Badge>
+                      )}
                     </div>
 
                     <div className="pt-3 mt-3 border-t flex gap-2">
@@ -1068,6 +1099,15 @@ export default function VehicleManagement() {
                         }}
                       >
                         Quick Tools
+                      </Button>
+                      <Button
+                        variant={vehicle.is_flagged ? 'destructive' : 'outline'}
+                        size="sm"
+                        className={vehicle.is_flagged ? '' : 'text-red-600 border-red-300 hover:bg-red-50'}
+                        onClick={(e) => handleToggleFlag(vehicle, e)}
+                        title={vehicle.is_flagged ? 'Remove flag from vehicle' : 'Flag vehicle as of interest'}
+                      >
+                        <Flag className={`h-3.5 w-3.5 ${vehicle.is_flagged ? 'fill-white' : ''}`} />
                       </Button>
                       <Button
                         variant="default"

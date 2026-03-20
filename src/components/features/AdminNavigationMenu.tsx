@@ -8,6 +8,7 @@ import {
   LogOut, Settings, ChevronLeft, AlertTriangle, ChevronDown,
   Activity, Database, Search, Heart, ScrollText, Lock, Gavel,
   Navigation, BookOpen, LayoutGrid, Map, Bell, Upload, Shield, Camera, Link2,
+  CalendarDays, TrendingUp,
 } from 'lucide-react'
 
 const primaryLinks = [
@@ -49,10 +50,12 @@ const moreGroups = [
   {
     label: 'Officers & Patrols',
     links: [
-      { to: '/live-patrol',      label: 'Live Patrol',        icon: Activity },
-      { to: '/live-tracking',    label: 'Officer Tracking',   icon: Navigation },
-      { to: '/officer-welfare',  label: 'Officer Welfare',    icon: Heart },
-      { to: '/patrol-checkpoints', label: 'Checkpoints',      icon: MapPin },
+      { to: '/live-patrol',        label: 'Live Patrol',          icon: Activity },
+      { to: '/live-tracking',      label: 'Officer Tracking',     icon: Navigation },
+      { to: '/officer-welfare',    label: 'Officer Welfare',      icon: Heart },
+      { to: '/patrol-schedule',    label: 'Patrol Schedule',      icon: CalendarDays },
+      { to: '/patrol-kpis',        label: 'Patrol KPIs',          icon: TrendingUp },
+      { to: '/patrol-checkpoints', label: 'Checkpoints',          icon: MapPin },
     ],
   },
   {
