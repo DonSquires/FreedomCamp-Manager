@@ -905,11 +905,16 @@ Deno.serve(async (req) => {
     const requiresManualEntry = !plateNumber;
     const plateConfidence = plateNumber ? (inferenceResult.confidence ?? null) : null;
 
-    // Step 3: Get or create canonical vehicle
+    // Step 3: Get or create canonical vehicle, and resolve SCV status from
+    // canonical tables before inserting the observation.
+    // Priority: canonical_scv (authoritative) → canonical_vehicles.self_contained
+    let scvSelfContained: boolean | null = null;
+    let scvExpiry: string | null = null;
+
     if (plateNumber && plateNumber !== "MANUAL_REQUIRED") {
       const { data: vehicle } = await supabase
         .from("canonical_vehicles")
-        .select("plate_number")
+        .select("plate_number, self_contained, self_contained_expiry")
         .eq("plate_number", plateNumber)
         .maybeSingle();
 
@@ -929,6 +934,40 @@ Deno.serve(async (req) => {
         } else {
           console.log("✅ Created canonical vehicle:", plateNumber);
         }
+      } else {
+        // Capture SCV data from canonical_vehicles as a fallback; will be
+        // superseded below if canonical_scv has a record for this plate.
+        scvSelfContained = vehicle.self_contained ?? null;
+        scvExpiry = vehicle.self_contained_expiry ?? null;
+      }
+
+      // ── Check canonical_scv (authoritative SCV reference) ────────────────
+      try {
+        const { data: scvRow } = await (supabase.from("canonical_scv") as any)
+          .select("is_self_contained, certificate_expiry")
+          .eq("plate_number", plateNumber)
+          .maybeSingle();
+
+        if (scvRow) {
+          scvSelfContained = scvRow.is_self_contained ?? null;
+          scvExpiry = scvRow.certificate_expiry ?? null;
+          console.log("✅ SCV status from canonical_scv:", {
+            plate: plateNumber,
+            isSelfContained: scvSelfContained,
+            expiry: scvExpiry,
+          });
+        }
+      } catch (scvErr: any) {
+        // canonical_scv table might not exist yet; canonical_vehicles fallback still applies
+        console.warn("⚠️ canonical_scv lookup failed (using canonical_vehicles fallback):", scvErr?.message);
+      }
+
+      if (scvSelfContained !== null) {
+        console.log("🔐 Resolved SCV for ingest observation:", {
+          plate: plateNumber,
+          self_contained: scvSelfContained,
+          expiry: scvExpiry,
+        });
       }
     }
 
@@ -951,6 +990,9 @@ Deno.serve(async (req) => {
       recorded_by: officerId,
       officer_notes: officerNotes ?? null,
       idempotency_key: idempotencyKey,
+      // SCV status resolved from canonical tables at ingest time
+      self_contained: scvSelfContained,
+      self_contained_expiry: scvExpiry,
     };
 
     let newObservationId: string;
