@@ -201,6 +201,45 @@ jobs:
         retention-days: 30
 ```
 
+### Privacy Regression Checklist (CI Gate)
+
+When a PR changes any of the following, run this checklist before merge:
+
+- SQL migrations under `supabase/migrations/`
+- Any page/hook reading tenant-sensitive tables (`audit_log`, `observations`, `breach_alerts`, `patrols`, `user_profiles`)
+- Any route or role-guard logic
+
+Required checks:
+
+1. Verify DB-level tenant controls exist for new/changed tables:
+- `ALTER TABLE ... ENABLE ROW LEVEL SECURITY`
+- At least one `FOR SELECT` policy scoped by organization or role
+- Confirm service-role-only paths are explicit and justified
+
+2. Verify frontend queries enforce org-safe filtering:
+- Non-master users must use their own `organization_id`
+- Master users may use GlobalFilter org scope
+- No broad query should return cross-org rows by default
+
+3. Add/refresh Playwright multi-org isolation coverage:
+- Admin from Org A cannot view Org B records
+- Master can switch org scope and see filtered results
+- Audit views must not leak cross-org data for non-master roles
+
+4. Evidence and auditability sanity checks:
+- Sensitive actions remain visible in audit UI for authorized users
+- No silent fallback that widens data scope when a column is missing
+
+Recommended CI commands:
+
+```bash
+bun run build
+bun run lint
+npx playwright test tests/e2e/multi-org-rls.spec.ts
+```
+
+If any checklist item fails, block merge until fixed.
+
 ---
 
 ## Troubleshooting

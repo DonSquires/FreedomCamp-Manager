@@ -25,6 +25,7 @@ import { formatDateTime } from '@/lib/utils'
 
 interface AuditLogEntry {
   id: string
+  organization_id?: string | null
   action: string
   entity_type: string | null
   entity_id: string | null
@@ -36,6 +37,7 @@ interface AuditLogEntry {
     first_name: string
     last_name: string
     role: string
+    organization_id?: string | null
   } | null
 }
 
@@ -49,8 +51,9 @@ export default function AuditLog() {
   const [entityFilter, setEntityFilter] = useState<string>('all')
   const [selectedEntry, setSelectedEntry] = useState<AuditLogEntry | null>(null)
 
-  // Only allow admins and masters to access audit log
-  const isAuthorized = user?.role === 'admin' || user?.role === 'master'
+  // Only allow admin/admin_officer/master to access audit log
+  const isAuthorized = user?.role === 'admin' || user?.role === 'admin_officer' || user?.role === 'master'
+  const effectiveOrgId = user?.role === 'master' ? organizationId || null : user?.organization_id || null
 
   // Fetch audit log entries
   const { data: entries, isLoading } = useQuery({
@@ -58,10 +61,11 @@ export default function AuditLog() {
     queryFn: async () => {
       if (!isAuthorized) return []
 
-      let query = supabase
+      let query = (supabase
         .from('audit_log')
         .select(`
           id,
+          organization_id,
           action,
           entity_type,
           entity_id,
@@ -69,10 +73,14 @@ export default function AuditLog() {
           new_values,
           performed_by,
           created_at,
-          user_profile:user_profiles!audit_log_performed_by_fkey(first_name, last_name, role)
+          user_profile:user_profiles!audit_log_performed_by_fkey(first_name, last_name, role, organization_id)
         `)
         .order('created_at', { ascending: false })
-        .limit(100)
+        .limit(100)) as any
+
+      if (effectiveOrgId) {
+        query = query.eq('organization_id', effectiveOrgId)
+      }
 
       // Date filters
       if (startDate) {
@@ -92,7 +100,39 @@ export default function AuditLog() {
         query = query.eq('entity_type', entityFilter)
       }
 
-      const { data, error } = await query
+      let { data, error } = await query
+
+      // Backward compatibility for environments where organization_id is not yet present.
+      if (error && (error.message || '').toLowerCase().includes('organization_id')) {
+        let fallbackQuery = (supabase
+          .from('audit_log')
+          .select(`
+            id,
+            action,
+            entity_type,
+            entity_id,
+            old_values,
+            new_values,
+            performed_by,
+            created_at,
+            user_profile:user_profiles!audit_log_performed_by_fkey(first_name, last_name, role, organization_id)
+          `)
+          .order('created_at', { ascending: false })
+          .limit(100)) as any
+
+        if (startDate) fallbackQuery = fallbackQuery.gte('created_at', startDate)
+        if (endDate) fallbackQuery = fallbackQuery.lte('created_at', endDate)
+        if (actionFilter !== 'all') fallbackQuery = fallbackQuery.eq('action', actionFilter)
+        if (entityFilter !== 'all') fallbackQuery = fallbackQuery.eq('entity_type', entityFilter)
+
+        const fallback = await fallbackQuery
+        data = fallback.data
+        error = fallback.error
+
+        if (!error && effectiveOrgId) {
+          data = (data || []).filter((entry: any) => entry.user_profile?.organization_id === effectiveOrgId)
+        }
+      }
 
       if (error) throw error
 

@@ -10,6 +10,7 @@ import { toast } from 'sonner'
 
 interface AuditLog {
   id: string
+  organization_id?: string | null
   action: string
   entity_type: string | null
   entity_id: string | null
@@ -21,6 +22,8 @@ interface AuditLog {
     first_name: string
     last_name: string
     email: string
+    organization_id?: string | null
+    role?: string | null
   } | null
 }
 
@@ -34,18 +37,33 @@ export function useAuditLogs(options?: {
   limit?: number
 }) {
   const { user } = useAuthStore()
+  const effectiveOrgId = user?.role === 'master'
+    ? options?.organizationId || null
+    : user?.organization_id || null
 
   const query = useQuery({
     queryKey: ['audit-logs', options],
     queryFn: async () => {
-      let query = supabase
+      let query = (supabase
         .from('audit_log')
         .select(`
-          *,
-          user_profile:user_profiles!audit_log_performed_by_fkey(first_name, last_name, email)
+          id,
+          organization_id,
+          action,
+          entity_type,
+          entity_id,
+          old_values,
+          new_values,
+          performed_by,
+          created_at,
+          user_profile:user_profiles!audit_log_performed_by_fkey(first_name, last_name, email, organization_id, role)
         `)
         .order('created_at', { ascending: false })
-        .limit(options?.limit || 100)
+        .limit(options?.limit || 100)) as any
+
+      if (effectiveOrgId) {
+        query = query.eq('organization_id', effectiveOrgId)
+      }
 
       // Filters
       if (options?.userId) {
@@ -64,7 +82,40 @@ export function useAuditLogs(options?: {
         query = query.lte('created_at', options.dateTo)
       }
 
-      const { data, error } = await query
+      let { data, error } = await query
+
+      // Backward compatibility for environments where organization_id is not yet present.
+      if (error && (error.message || '').toLowerCase().includes('organization_id')) {
+        let fallbackQuery = (supabase
+          .from('audit_log')
+          .select(`
+            id,
+            action,
+            entity_type,
+            entity_id,
+            old_values,
+            new_values,
+            performed_by,
+            created_at,
+            user_profile:user_profiles!audit_log_performed_by_fkey(first_name, last_name, email, organization_id, role)
+          `)
+          .order('created_at', { ascending: false })
+          .limit(options?.limit || 100)) as any
+
+        if (options?.userId) fallbackQuery = fallbackQuery.eq('performed_by', options.userId)
+        if (options?.action) fallbackQuery = fallbackQuery.eq('action', options.action)
+        if (options?.entityType) fallbackQuery = fallbackQuery.eq('entity_type', options.entityType)
+        if (options?.dateFrom) fallbackQuery = fallbackQuery.gte('created_at', options.dateFrom)
+        if (options?.dateTo) fallbackQuery = fallbackQuery.lte('created_at', options.dateTo)
+
+        const fallback = await fallbackQuery
+        data = fallback.data
+        error = fallback.error
+
+        if (!error && effectiveOrgId) {
+          data = (data || []).filter((entry: any) => entry.user_profile?.organization_id === effectiveOrgId)
+        }
+      }
 
       if (error) {
         toast.error('Failed to load audit logs')
@@ -131,6 +182,7 @@ export function useEntityHistory(entityType: string, entityId: string | null) {
 
 // Hook for action summary stats
 export function useAuditStats(options?: {
+  organizationId?: string
   dateFrom?: string
   dateTo?: string
 }) {
@@ -139,9 +191,17 @@ export function useAuditStats(options?: {
   return useQuery({
     queryKey: ['audit-stats', options],
     queryFn: async () => {
-      let query = supabase
+      const effectiveStatsOrgId = user?.role === 'master'
+        ? options?.organizationId || null
+        : user?.organization_id || null
+
+      let query = (supabase
         .from('audit_log')
-        .select('action, entity_type')
+        .select('action, entity_type, organization_id, user_profile:user_profiles!audit_log_performed_by_fkey(organization_id)')) as any
+
+      if (effectiveStatsOrgId) {
+        query = query.eq('organization_id', effectiveStatsOrgId)
+      }
 
       // Date filters
       if (options?.dateFrom) {
@@ -151,7 +211,28 @@ export function useAuditStats(options?: {
         query = query.lte('created_at', options.dateTo)
       }
 
-      const { data, error } = await query
+      let { data, error } = await query
+
+      if (error && (error.message || '').toLowerCase().includes('organization_id')) {
+        let fallbackQuery = (supabase
+          .from('audit_log')
+          .select('action, entity_type, user_profile:user_profiles!audit_log_performed_by_fkey(organization_id)') as any)
+
+        if (options?.dateFrom) {
+          fallbackQuery = fallbackQuery.gte('created_at', options.dateFrom)
+        }
+        if (options?.dateTo) {
+          fallbackQuery = fallbackQuery.lte('created_at', options.dateTo)
+        }
+
+        const fallback = await fallbackQuery
+        data = fallback.data
+        error = fallback.error
+
+        if (!error && effectiveStatsOrgId) {
+          data = (data || []).filter((entry: any) => entry.user_profile?.organization_id === effectiveStatsOrgId)
+        }
+      }
 
       if (error) throw error
 
