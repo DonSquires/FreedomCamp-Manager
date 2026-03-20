@@ -40,6 +40,12 @@ interface ImportBatch {
   error_summary: string | null
 }
 
+function buildHistoricalImportStoragePath(organizationId: string | null | undefined, fileName: string): string {
+  const safeOrg = (organizationId || 'unknown-org').replace(/[^a-zA-Z0-9_-]/g, '_')
+  const safeName = fileName.replace(/[^a-zA-Z0-9._-]/g, '_')
+  return `historical-imports/${safeOrg}/${Date.now()}-${safeName}`
+}
+
 const STATUS_META: Record<string, { label: string; variant: 'default' | 'secondary' | 'destructive' | 'outline'; color: string }> = {
   pending:     { label: 'Pending',     variant: 'secondary',   color: '#6b7280' },
   parsing:     { label: 'Parsing',     variant: 'default',     color: '#1d4ed8' },
@@ -138,27 +144,59 @@ export default function ImportHistoricalData() {
     queryClient.invalidateQueries({ queryKey: ['historical-batches'] })
 
     try {
-      // Read file as base64 and send directly to edge function
-      // (avoids storage bucket RLS issues for authenticated users)
-      const buffer = await file.arrayBuffer()
-      const bytes = new Uint8Array(buffer)
-      const chunkSize = 8192
-      const chunks: string[] = []
-      for (let i = 0; i < bytes.length; i += chunkSize) {
-        chunks.push(String.fromCharCode(...bytes.subarray(i, i + chunkSize)))
-      }
-      const fileContent = btoa(chunks.join(''))
-      setUploadProgress(30)
+      setUploadProgress(20)
 
-      // Call edge function with inline file content
-      const { data, error } = await supabase.functions.invoke('import-historical-data', {
-        body: {
-          fileContent,
-          fileName: file.name,
-          batchName: batchName.trim(),
-          organizationId: orgId,
-        },
-      })
+      // Storage-first import path: upload the file and invoke edge function using
+      // filePath/bucket, which avoids large browser base64 payloads.
+      const storagePath = buildHistoricalImportStoragePath(orgId, file.name)
+      const { error: uploadError } = await supabase.storage
+        .from('evidence')
+        .upload(storagePath, file, {
+          cacheControl: '3600',
+          upsert: false,
+          contentType: file.type || undefined,
+        })
+
+      let data: any = null
+      let error: any = null
+
+      if (!uploadError) {
+        setUploadProgress(45)
+        ;({ data, error } = await supabase.functions.invoke('import-historical-data', {
+          body: {
+            filePath: storagePath,
+            bucket: 'evidence',
+            fileName: file.name,
+            batchName: batchName.trim(),
+            organizationId: orgId,
+          },
+        }))
+      } else {
+        // Compatibility fallback for environments where storage upload policies
+        // are still restrictive for this route.
+        console.warn('Storage upload failed; using inline fallback for historical import:', uploadError)
+        toast.warning('Storage upload unavailable, using direct upload fallback.')
+
+        const buffer = await file.arrayBuffer()
+        const bytes = new Uint8Array(buffer)
+        const chunkSize = 8192
+        const chunks: string[] = []
+        for (let i = 0; i < bytes.length; i += chunkSize) {
+          chunks.push(String.fromCharCode(...bytes.subarray(i, i + chunkSize)))
+        }
+        const fileContent = btoa(chunks.join(''))
+        setUploadProgress(35)
+
+        ;({ data, error } = await supabase.functions.invoke('import-historical-data', {
+          body: {
+            fileContent,
+            fileName: file.name,
+            batchName: batchName.trim(),
+            organizationId: orgId,
+          },
+        }))
+      }
+
       setUploadProgress(100)
 
       if (error) throw new Error(error.message)
