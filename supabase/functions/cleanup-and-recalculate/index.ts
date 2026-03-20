@@ -464,7 +464,6 @@ serve(async (req) => {
 
     let zones: any[] = [];
     if (normalizedPhase === 'all' || normalizedPhase === 'zone') {
-      // Load all zones for GPS matching
       // Load all zones for GPS matching (include parent_zone_id & zone_type for child-zone prioritisation)
       const { data: zonesData, error: zoneError } = await supabaseAdmin
         .from('zones')
@@ -1041,6 +1040,7 @@ function findZoneByGPS(lat: number, lng: number, zones: any[], organizationId: s
 
   // Collect ALL matching zones so we can pick the most specific one
   const matches: Array<{ zone: any; distance: number }> = [];
+  const matchedIds = new Set<string>();
 
   for (const zone of orgZones) {
     if (zone.geometry && zone.geometry.type === 'Polygon') {
@@ -1050,13 +1050,15 @@ function findZoneByGPS(lat: number, lng: number, zones: any[], organizationId: s
           ? calculateDistance(lat, lng, zone.location_lat, zone.location_lng)
           : 0;
         matches.push({ zone, distance: dist });
+        matchedIds.add(zone.id);
       }
     }
     
     if (zone.location_lat && zone.location_lng) {
       const distance = calculateDistance(lat, lng, zone.location_lat, zone.location_lng);
-      if (distance <= 100 && !matches.some(m => m.zone.id === zone.id)) {
+      if (distance <= 100 && !matchedIds.has(zone.id)) {
         matches.push({ zone, distance });
+        matchedIds.add(zone.id);
       }
     }
   }
