@@ -138,7 +138,12 @@ export function PlateScanner({ onScanComplete, onCancel }: PlateScannerProps) {
         throw new Error('No organisation is assigned to the current user')
       }
 
-      const { zoneId } = await resolveObservationZoneForOrg(user.organization_id)
+      const { zoneId } = await resolveObservationZoneForOrg(
+        user.organization_id,
+        null, // no preferred zone override
+        position.coords.latitude,
+        position.coords.longitude,
+      )
 
       // Step 3: Create full observation via vehicle-ingest
       toast.info('Creating observation...')

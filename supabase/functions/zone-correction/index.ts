@@ -264,7 +264,8 @@ function findZoneByGPS(lat: number, lng: number, zones: any[], organizationId: s
 
   // First pass: Check polygon geofences (most accurate)
   for (const zone of orgZones) {
-    if (zone.geometry && zone.geometry.type === 'Polygon') {
+    if (zone.geometry && zone.geometry.type === 'Polygon' &&
+        Array.isArray(zone.geometry.coordinates?.[0]) && zone.geometry.coordinates[0].length > 0) {
       const coordinates = zone.geometry.coordinates[0];
       console.log(`  🔍 Checking polygon geofence: ${zone.name} (${coordinates.length} points)`);
       

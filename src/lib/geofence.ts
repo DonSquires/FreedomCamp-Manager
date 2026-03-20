@@ -80,6 +80,28 @@ export function isInsideGeofence(
 }
 
 /**
+ * Ray-casting point-in-polygon test for GeoJSON polygon rings.
+ * Polygon coordinates are in GeoJSON order: [[lng, lat], ...]
+ */
+function isPointInPolygon(
+  lat: number,
+  lng: number,
+  polygon: [number, number][]  // GeoJSON ring: [[lng, lat], ...]
+): boolean {
+  let inside = false
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    const xi = polygon[i][0]  // lng
+    const yi = polygon[i][1]  // lat
+    const xj = polygon[j][0]  // lng
+    const yj = polygon[j][1]  // lat
+    const intersect = ((yi > lat) !== (yj > lat)) &&
+      (lng < (xj - xi) * (lat - yi) / (yj - yi) + xi)
+    if (intersect) inside = !inside
+  }
+  return inside
+}
+
+/**
  * Find all zones the user is currently inside
  */
 export async function detectCurrentZones(
@@ -102,13 +124,36 @@ export async function detectCurrentZones(
     if (error) throw error
     if (!zones) return []
     
-    // Filter zones the user is inside, and compute distance to centre for sorting
+    // Filter zones the user is inside, and compute distance to centre for sorting.
+    // Check polygon geometry first (precise boundary), then fall back to centre+radius.
     const matches: Array<{ zone: any; distance: number }> = []
+    const matchedIds = new Set<string>()
     for (const zone of zones) {
-      if (!zone.location_lat || !zone.location_lng) continue
-      if (!isInsideGeofence(userLat, userLng, zone as GeofenceZone)) continue
-      const dist = calculateDistance(userLat, userLng, zone.location_lat, zone.location_lng)
-      matches.push({ zone, distance: dist })
+      let matched = false
+      let dist = 0
+
+      // 1. Polygon geometry check (GeoJSON Polygon) — handles child zones with drawn boundaries
+      if (zone.geometry?.type === 'Polygon' && Array.isArray(zone.geometry.coordinates?.[0]) && zone.geometry.coordinates[0].length > 0) {
+        if (isPointInPolygon(userLat, userLng, zone.geometry.coordinates[0])) {
+          matched = true
+          if (zone.location_lat && zone.location_lng) {
+            dist = calculateDistance(userLat, userLng, zone.location_lat, zone.location_lng)
+          }
+        }
+      }
+
+      // 2. Centre-point + radius fallback (for zones without polygon geometry)
+      if (!matched && zone.location_lat && zone.location_lng) {
+        if (isInsideGeofence(userLat, userLng, zone as GeofenceZone)) {
+          matched = true
+          dist = calculateDistance(userLat, userLng, zone.location_lat, zone.location_lng)
+        }
+      }
+
+      if (matched && !matchedIds.has(zone.id)) {
+        matchedIds.add(zone.id)
+        matches.push({ zone, distance: dist })
+      }
     }
     
     // Sort so the most *specific* zone appears first:
