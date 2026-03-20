@@ -725,37 +725,30 @@ Deno.serve(async (req) => {
       })
       .eq('id', importBatchId);
 
-    // Load zones across ALL organisations.
-    // The import function was previously scoped to targetOrganizationId only,
-    // which caused it to miss zones that exist under a different council org
-    // and instead create duplicate zones under the wrong (importer's) org.
+    // Load zones only for the selected organisation.
     //
-    // Strategy:
-    //   • Load ALL active zones across every org.
-    //   • When fuzzy-matching, prefer (in order):
-    //       1. An existing zone in targetOrganizationId (user's org) – exact/fuzzy.
-    //       2. An existing zone in ANY other org              – exact/fuzzy.
-    //       3. Create a new zone under targetOrganizationId   – last resort.
-    //   • Store zone.organization_id on the observation so ownership is correct.
-    console.log('📥 [IMPORT] Loading active zones across all organisations…');
+    // Historical imports must be organisation-scoped first. Borrowing a same-
+    // named zone from another organisation creates cross-council contamination
+    // for generic names such as "Jurisdiction". If a zone name doesn't exist in
+    // the selected org, create it there and mark it for admin review.
+    console.log('📥 [IMPORT] Loading active zones for target organisation only…');
     const { data: existingZones, error: zonesError } = await supabaseAdmin
       .from('zones')
       .select('id, name, organization_id, location_lat, location_lng, geometry')
+      .eq('organization_id', targetOrganizationId)
       .eq('is_active', true);
 
     if (zonesError) {
       throw zonesError;
     }
 
-    // Partition zones: target-org first, then others
     const allZones: ZoneRow[] = (existingZones || []) as ZoneRow[];
     const targetOrgZones = allZones.filter(z => z.organization_id === targetOrganizationId);
-    const otherOrgZones  = allZones.filter(z => z.organization_id !== targetOrganizationId);
     const zoneById = new Map<string, ZoneRow>(allZones.map((z) => [z.id, z]));
 
     console.log(
       `✅ [IMPORT] Loaded ${existingZones?.length || 0} zones ` +
-      `(${targetOrgZones.length} in target org, ${otherOrgZones.length} in other orgs)`
+      `for target org ${targetOrganizationId}`
     );
 
     // ─── Zone-matching helpers ──────────────────────────────────────────────
@@ -797,20 +790,12 @@ Deno.serve(async (req) => {
       return null;
     };
 
-    // Find the best zone for a name: check target org first, then other orgs.
+    // Find the best zone for a name within the selected organisation only.
     const findMatchingZone = (zoneName: string): { zone: any; fromTargetOrg: boolean } | null => {
-      // Priority 1 – target organisation (most specific, user-chosen)
       const inTarget = fuzzyMatch(zoneName, targetOrgZones);
       if (inTarget) {
         console.log(`  ✅ Matched in target org: "${zoneName}" → "${inTarget.name}"`);
         return { zone: inTarget, fromTargetOrg: true };
-      }
-
-      // Priority 2 – any other organisation (canonical council zone)
-      const inOther = fuzzyMatch(zoneName, otherOrgZones);
-      if (inOther) {
-        console.log(`  🔀 Matched in other org (${inOther.organization_id}): "${zoneName}" → "${inOther.name}"`);
-        return { zone: inOther, fromTargetOrg: false };
       }
 
       console.log(`  ⚠️ No match found for: "${zoneName}" – will create in target org`);
@@ -824,11 +809,8 @@ Deno.serve(async (req) => {
       const matched = result?.zone ?? null;
       return {
         ...record,
-        // Use matched zone's org when it belongs to a different org so that
-        // the observation.organization_id always equals zone.organization_id.
         zoneId:   matched?.id   || null,
         zoneName: matched?.name || null,
-        // Store the matched zone's org so we can set observation.organization_id correctly
         matchedOrgId: matched?.organization_id ?? null,
         isNewZone: !matched,
         errors: [],
@@ -977,7 +959,7 @@ Deno.serve(async (req) => {
           // of the same source rows remain idempotent:
           //   import:historical:<org_id>:<zone_id>:<plate>:<date>
           // ============================================================
-          const observationOrgId = record.matchedOrgId ?? targetOrganizationId;
+          const observationOrgId = targetOrganizationId;
           const recordedAtNz = `${record.date}T08:00:00+13:00`;
           const dayStartNz = `${record.date}T00:00:00+13:00`;
           const dayEndNz = `${record.date}T23:59:59+13:00`;
@@ -1041,8 +1023,6 @@ Deno.serve(async (req) => {
 
               // ── Core fields ───────────────────────────────────────────
               plate_number: record.plate,
-              // Use the zone's owning org (may differ from the importer's target org
-              // when the zone was found in a different council's org).
               organization_id: observationOrgId,
               zone_id: record.zoneId,
               recorded_by: user.id,
