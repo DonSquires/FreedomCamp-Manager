@@ -9,6 +9,9 @@
 
 -- Drop overly-restrictive policy if it exists
 DROP POLICY IF EXISTS "authenticated_insert_own_observations" ON observations;
+DROP POLICY IF EXISTS "service_role_insert_observations" ON observations;
+DROP POLICY IF EXISTS "admins_insert_any_org_observations" ON observations;
+DROP POLICY IF EXISTS "users_insert_own_observations" ON observations;
 
 -- Allow service role (edge functions using SERVICE_ROLE_KEY) to insert
 CREATE POLICY "service_role_insert_observations"
