@@ -27,6 +27,7 @@ interface CleanupResult {
   processed: number
   zonesCorrected: number
   duplicatesRemoved: number
+  vehicleDetailsRefreshed: number
   complianceChanged: number
   breachesCreated: number
   skippedNoMatrix: number
@@ -40,6 +41,7 @@ interface CleanupBatchResponse {
   processed?: number
   zonesCorrected?: number
   duplicatesRemoved?: number
+  vehicleDetailsRefreshed?: number
   complianceChanged?: number
   breachesCreated?: number
   skippedNoMatrix?: number
@@ -51,6 +53,7 @@ interface LiveState {
   processed: number
   zonesCorrected: number
   duplicatesRemoved: number
+  vehicleDetailsRefreshed: number
   complianceChanged: number
   breachesCreated: number
   skippedNoMatrix: number

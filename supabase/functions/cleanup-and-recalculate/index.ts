@@ -1,10 +1,11 @@
 /**
  * COMPREHENSIVE CLEANUP AND RECALCULATION - BATCH PROCESSOR
  * 
- * Performs three operations in sequence on batches of 300 observations:
+ * Performs four operations in sequence on batches of observations:
  * 1. Zone Correction (GPS-based)
  * 2. Duplicate Detection (same zone, NZ patrol windows, <=50m GPS)
- * 3. Compliance Recalculation (current rules)
+ * 3. Vehicle Details Refresh (sync make/model/year/colour/SCV from canonical_vehicles)
+ * 4. Compliance Recalculation (current rules, uses refreshed vehicle data)
  * 
  * Frontend handles pagination and progress tracking
  */
@@ -253,6 +254,10 @@ async function buildHomelessStatusMaps(
   byPlate: Map<string, string>;
   selfContainedByPlate: Map<string, boolean | null>;
   selfContainedExpiryByPlate: Map<string, string | null>;
+  vehicleMakeByPlate: Map<string, string | null>;
+  vehicleModelByPlate: Map<string, string | null>;
+  vehicleYearByPlate: Map<string, number | null>;
+  vehicleColorByPlate: Map<string, string | null>;
 }> {
   const plateKeys = [...new Set(
     observations
@@ -285,10 +290,14 @@ async function buildHomelessStatusMaps(
   const byPlate = new Map<string, string>();
   const selfContainedByPlate = new Map<string, boolean | null>();
   const selfContainedExpiryByPlate = new Map<string, string | null>();
+  const vehicleMakeByPlate = new Map<string, string | null>();
+  const vehicleModelByPlate = new Map<string, string | null>();
+  const vehicleYearByPlate = new Map<string, number | null>();
+  const vehicleColorByPlate = new Map<string, string | null>();
   if (plateKeys.length > 0) {
     const { data: canonicalRows } = await supabaseAdmin
       .from('canonical_vehicles')
-      .select('plate_number, homeless_status, self_contained, self_contained_expiry')
+      .select('plate_number, homeless_status, self_contained, self_contained_expiry, vehicle_make, vehicle_model, vehicle_year, vehicle_color')
       .in('plate_number', plateKeys);
 
     for (const row of canonicalRows ?? []) {
@@ -296,6 +305,11 @@ async function buildHomelessStatusMaps(
       byPlate.set(plateKey, String((row as any).homeless_status ?? ''));
       selfContainedByPlate.set(plateKey, (row as any).self_contained ?? null);
       selfContainedExpiryByPlate.set(plateKey, (row as any).self_contained_expiry ?? null);
+      vehicleMakeByPlate.set(plateKey, (row as any).vehicle_make ?? null);
+      vehicleModelByPlate.set(plateKey, (row as any).vehicle_model ?? null);
+      const rawYear = (row as any).vehicle_year;
+      vehicleYearByPlate.set(plateKey, rawYear != null ? Number(rawYear) : null);
+      vehicleColorByPlate.set(plateKey, (row as any).vehicle_color ?? null);
     }
   }
 
@@ -306,6 +320,10 @@ async function buildHomelessStatusMaps(
     byPlate,
     selfContainedByPlate,
     selfContainedExpiryByPlate,
+    vehicleMakeByPlate,
+    vehicleModelByPlate,
+    vehicleYearByPlate,
+    vehicleColorByPlate,
   };
 }
 
@@ -449,6 +467,7 @@ serve(async (req) => {
           processed: 0, 
           zonesCorrected: 0, 
           duplicatesRemoved: 0,
+          vehicleDetailsRefreshed: 0,
           complianceChanged: 0,
           breachesCreated: 0,
           skippedNoMatrix: 0
@@ -623,6 +642,7 @@ serve(async (req) => {
           zonesCorrected,
           duplicatesRemoved,
           breachDuplicatesRemoved,
+          vehicleDetailsRefreshed: 0,
           complianceChanged,
           breachesCreated,
           skippedNoMatrix,
@@ -704,8 +724,70 @@ serve(async (req) => {
       byPlate: homelessStatusByPlate,
       selfContainedByPlate,
       selfContainedExpiryByPlate,
+      vehicleMakeByPlate,
+      vehicleModelByPlate,
+      vehicleYearByPlate,
+      vehicleColorByPlate,
     } =
       await buildHomelessStatusMaps(supabaseAdmin, activeObservations as any[]);
+
+    // PHASE 3a: VEHICLE DETAILS REFRESH
+    // Sync vehicle_make, vehicle_model, vehicle_year, vehicle_color, and self_contained
+    // from canonical_vehicles onto each observation before compliance recalculation.
+    // This ensures observation records reflect the latest canonical vehicle data.
+    let vehicleDetailsRefreshed = 0;
+    for (const obs of activeObservations) {
+      try {
+        const obsId = (obs as any).observation_id ?? (obs as any).id;
+        const plateKey = normalizePlateKey(obs.plate_number);
+        if (!plateKey) continue;
+
+        const canonicalMake = vehicleMakeByPlate.get(plateKey);
+        const canonicalModel = vehicleModelByPlate.get(plateKey);
+        const canonicalYear = vehicleYearByPlate.get(plateKey);
+        const canonicalColor = vehicleColorByPlate.get(plateKey);
+        const canonicalSC = selfContainedByPlate.get(plateKey);
+
+        // Only include fields where canonical has a value and it differs from the observation
+        const patch: Record<string, unknown> = {};
+        if (canonicalMake != null && canonicalMake !== (obs.vehicle_make ?? null)) {
+          patch.vehicle_make = canonicalMake;
+        }
+        if (canonicalModel != null && canonicalModel !== (obs.vehicle_model ?? null)) {
+          patch.vehicle_model = canonicalModel;
+        }
+        if (canonicalYear != null && canonicalYear !== (obs.vehicle_year ?? null)) {
+          patch.vehicle_year = canonicalYear;
+        }
+        if (canonicalColor != null && canonicalColor !== (obs.vehicle_color ?? null)) {
+          patch.vehicle_color = canonicalColor;
+        }
+        if (canonicalSC != null && Boolean(canonicalSC) !== Boolean(obs.self_contained)) {
+          patch.self_contained = Boolean(canonicalSC);
+        }
+
+        if (Object.keys(patch).length > 0) {
+          const { error: patchError } = await supabaseAdmin
+            .from('observations')
+            .update(patch)
+            .eq(observationKeyColumn, obsId);
+
+          if (!patchError) {
+            // Keep in-memory record aligned for subsequent compliance evaluation
+            Object.assign(obs, patch);
+            vehicleDetailsRefreshed++;
+          } else {
+            console.warn(`⚠️ Failed to refresh vehicle details for ${obsId}:`, patchError.message);
+          }
+        }
+      } catch (err: any) {
+        console.error(`❌ Vehicle details refresh error for ${(obs as any).observation_id ?? (obs as any).id}:`, err.message);
+      }
+    }
+
+    if (vehicleDetailsRefreshed > 0) {
+      console.log(`🚗 Refreshed vehicle details on ${vehicleDetailsRefreshed} observations from canonical_vehicles`);
+    }
 
     const nzscvRecheckCache = new Map<string, { isSelfContained: boolean; expiryDate: string | null } | null>();
 
@@ -1003,7 +1085,7 @@ serve(async (req) => {
       }
     }
 
-    console.log(`✅ Batch complete: ${observations.length} processed, ${zonesCorrected} zones corrected, ${duplicatesRemoved} duplicates removed, ${breachDuplicatesRemoved} breach duplicates removed, ${complianceChanged} compliance changed, ${breachesCreated} breaches`);
+    console.log(`✅ Batch complete: ${observations.length} processed, ${zonesCorrected} zones corrected, ${duplicatesRemoved} duplicates removed, ${breachDuplicatesRemoved} breach duplicates removed, ${vehicleDetailsRefreshed} vehicle details refreshed, ${complianceChanged} compliance changed, ${breachesCreated} breaches`);
 
     return new Response(
       JSON.stringify({
@@ -1011,6 +1093,7 @@ serve(async (req) => {
         zonesCorrected,
         duplicatesRemoved,
         breachDuplicatesRemoved,
+        vehicleDetailsRefreshed,
         complianceChanged,
         breachesCreated,
         skippedNoMatrix,
