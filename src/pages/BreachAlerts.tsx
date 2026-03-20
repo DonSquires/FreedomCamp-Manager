@@ -400,13 +400,14 @@ export default function BreachAlerts() {
   // ── Intelligence Alerts: breach alerts requiring attention ─────────────────
   const { data: intelligenceAlerts } = useQuery({
     queryKey: ['intelligence-alerts', effectiveOrganizationId, zoneId, dateFrom, dateTo],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       // Fetch extra rows so we still have up to 10 after deduplication
       let q = (supabase.from('breach_alerts') as any)
         .select('id, plate_number, breach_type, created_at, status, zones!zone_id(name)')
         .eq('status', 'pending')
         .order('created_at', { ascending: false })
         .limit(50)
+        .abortSignal(signal)
 
       if (effectiveOrganizationId) {
         q = q.eq('organization_id', effectiveOrganizationId)
@@ -423,12 +424,13 @@ export default function BreachAlerts() {
   // ── Safety Alerts: officer unexpected departures (welfare inactivity) ──────
   const { data: safetyAlerts } = useQuery({
     queryKey: ['safety-alerts', effectiveOrganizationId, dateFrom, dateTo],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       let q = (supabase.from('officer_welfare_alerts') as any)
         .select('id, officer_name, alert_type, status, created_at, gps_latitude, gps_longitude')
         .eq('status', 'pending')
         .order('created_at', { ascending: false })
         .limit(10)
+        .abortSignal(signal)
 
       if (effectiveOrganizationId) {
         q = q.eq('organization_id', effectiveOrganizationId)
@@ -444,7 +446,7 @@ export default function BreachAlerts() {
   // Fetch breach alerts (use created_at, not detected_at)
   const { data: breaches, isLoading, isError: breachesIsError, error: breachesError } = useQuery({
     queryKey: ['breach-alerts', effectiveOrganizationId, zoneId, statusFilter, searchQuery, dateFrom, dateTo],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const applyFilters = (query: any) => {
         if (effectiveOrganizationId) query = query.eq('organization_id', effectiveOrganizationId)
         if (zoneId) query = query.eq('zone_id', zoneId)
@@ -463,6 +465,7 @@ export default function BreachAlerts() {
           organizations!organization_id(name)
         `)
         .order('created_at', { ascending: false })
+        .abortSignal(signal)
 
       primaryQuery = applyFilters(primaryQuery)
       const primary = await primaryQuery.limit(500)
@@ -472,6 +475,7 @@ export default function BreachAlerts() {
       let fallbackQuery = (supabase.from('breach_alerts') as any)
         .select('*')
         .order('created_at', { ascending: false })
+        .abortSignal(signal)
 
       fallbackQuery = applyFilters(fallbackQuery)
       const fallback = await fallbackQuery.limit(500)
@@ -502,11 +506,12 @@ export default function BreachAlerts() {
   // Fetch enriched vehicle data for the active breach
   const { data: detailVehicle } = useQuery({
     queryKey: ['breach-vehicle', activeBreach?.plate_number],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       if (!activeBreach?.plate_number) return null
       const { data } = await (supabase.from('canonical_vehicles') as any)
         .select('*')
         .eq('plate_number', activeBreach.plate_number)
+        .abortSignal(signal)
         .single()
       return data
     },
@@ -516,7 +521,7 @@ export default function BreachAlerts() {
   // Fetch the specific observation that triggered this breach
   const { data: triggeringObservation } = useQuery({
     queryKey: ['breach-triggering-obs', activeBreach?.id],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       if (!activeBreach) return null
       // Try to fetch via the breach's observation_id FK first, then breach_details
       const observationId = getBreachObservationId(activeBreach)
@@ -524,6 +529,7 @@ export default function BreachAlerts() {
         const { data } = await (supabase.from('observations') as any)
           .select(OBSERVATION_SELECT_FIELDS)
           .eq('observation_id', observationId)
+          .abortSignal(signal)
           .single()
         return data || null
       }
@@ -535,6 +541,7 @@ export default function BreachAlerts() {
         .lte('recorded_at', activeBreach.created_at)
         .order('recorded_at', { ascending: false })
         .limit(1)
+        .abortSignal(signal)
         .single()
       return data || null
     },
@@ -544,10 +551,12 @@ export default function BreachAlerts() {
   // Fetch evidence photos from observations for the active breach
   const { data: evidencePhotos } = useQuery({
     queryKey: ['breach-evidence-photos', activeBreach?.id, activeBreach?.plate_number, activeBreach?.created_at],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       if (!activeBreach?.plate_number) return []
 
       const normalizePhotos = async (rows: any[]) => {
+        if (signal.aborted) return []
+
         const normalizedRows = (rows || []).map((row: any) => ({
           ...row,
           id: row.observation_id ?? row.id,
@@ -563,6 +572,7 @@ export default function BreachAlerts() {
             .select('observation_id, bucket_name, storage_path, file_name, created_at')
             .in('observation_id', missingPhotoObservationIds)
             .order('created_at', { ascending: false })
+            .abortSignal(signal)
 
           for (const meta of metadataRows || []) {
             const observationId = meta.observation_id
@@ -580,23 +590,32 @@ export default function BreachAlerts() {
           }
         }
 
-        const resolved = await Promise.all(
-          normalizedRows.map(async (row: any) => {
-            const primary = await resolveEvidencePhotoUrl(row.photo ?? row.photo_url)
-            const fallback = primary
-              ? null
-              : await resolveEvidencePhotoUrl(fallbackPhotoByObservationId[row.id] ?? null)
+        // Process photos in small batches to avoid saturating the HTTP connection pool.
+        const BATCH_SIZE = 3
+        const resolved: any[] = []
+        for (let i = 0; i < normalizedRows.length; i += BATCH_SIZE) {
+          if (signal.aborted) break
+          const batch = normalizedRows.slice(i, i + BATCH_SIZE)
+          const batchResults = await Promise.all(
+            batch.map(async (row: any) => {
+              if (signal.aborted) return null
+              const primary = await resolveEvidencePhotoUrl(row.photo ?? row.photo_url)
+              const fallback = primary
+                ? null
+                : await resolveEvidencePhotoUrl(fallbackPhotoByObservationId[row.id] ?? null)
 
-            return {
-              ...row,
-              display_url: primary ?? fallback,
-              fallback_urls: [row.photo_url, row.photo, fallbackPhotoByObservationId[row.id] ?? null]
-                .map((v: any) => (typeof v === 'string' ? v.trim() : null))
-                .filter((v: string | null): v is string => !!v)
-                .filter((v: string) => v !== (primary ?? fallback)),
-            }
-          })
-        )
+              return {
+                ...row,
+                display_url: primary ?? fallback,
+                fallback_urls: [row.photo_url, row.photo, fallbackPhotoByObservationId[row.id] ?? null]
+                  .map((v: any) => (typeof v === 'string' ? v.trim() : null))
+                  .filter((v: string | null): v is string => !!v)
+                  .filter((v: string) => v !== (primary ?? fallback)),
+              }
+            })
+          )
+          resolved.push(...batchResults.filter((r: any) => r !== null))
+        }
 
         return resolved.filter((row: any) => !!row.display_url)
       }
@@ -607,12 +626,15 @@ export default function BreachAlerts() {
           .select('observation_id, photo, photo_url, recorded_at, gps_latitude, gps_longitude, zones!vehicle_observations_v2_zone_id_fkey(name)')
           .eq('observation_id', observationId)
           .limit(1)
+          .abortSignal(signal)
 
         const normalized = await normalizePhotos(byId.data || [])
         if (normalized.length > 0) {
           return normalized
         }
       }
+
+      if (signal.aborted) return []
 
       const strictQuery = (supabase.from('observations') as any)
         .select('observation_id, photo, photo_url, recorded_at, gps_latitude, gps_longitude, zones!vehicle_observations_v2_zone_id_fkey(name)')
@@ -621,6 +643,7 @@ export default function BreachAlerts() {
         .lte('recorded_at', activeBreach.created_at)
         .order('recorded_at', { ascending: false })
         .limit(12)
+        .abortSignal(signal)
 
       const strict = await strictQuery
       const strictNormalized = await normalizePhotos(strict.data || [])
@@ -628,12 +651,15 @@ export default function BreachAlerts() {
         return strictNormalized
       }
 
+      if (signal.aborted) return []
+
       // Fallback: ignore org/date constraints when data quality is inconsistent.
       const fallback = await (supabase.from('observations') as any)
         .select('observation_id, photo, photo_url, recorded_at, gps_latitude, gps_longitude, zones!vehicle_observations_v2_zone_id_fkey(name)')
         .eq('plate_number', activeBreach.plate_number)
         .order('recorded_at', { ascending: false })
         .limit(12)
+        .abortSignal(signal)
 
       return await normalizePhotos(fallback.data || [])
     },
@@ -646,7 +672,7 @@ export default function BreachAlerts() {
   // different processing pipelines.
   const { data: vehicleHistory } = useQuery({
     queryKey: ['breach-history', activeBreach?.plate_number],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       if (!activeBreach?.plate_number) return []
       const { data } = await (supabase.from('breach_alerts') as any)
         .select('id, breach_type, status, created_at, resolved_at, observation_id, breach_details, zones!zone_id(name)')
@@ -655,6 +681,7 @@ export default function BreachAlerts() {
         .neq('id', activeBreach.id)
         .order('created_at', { ascending: false })
         .limit(50)
+        .abortSignal(signal)
       return deduplicateBreachAlerts(data || [])
     },
     enabled: !!activeBreach?.plate_number,

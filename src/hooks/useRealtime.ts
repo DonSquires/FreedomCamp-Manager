@@ -86,6 +86,7 @@ export function useRealtimeBreachAlerts(options: UseRealtimeOptions = {}) {
     return () => {
       if (channelRef.current) {
         supabase.removeChannel(channelRef.current)
+        channelRef.current = null
       }
     }
   }, [enabled, queryClient, onInsert, onUpdate, onDelete])
@@ -129,6 +130,7 @@ export function useRealtimePatrols(options: UseRealtimeOptions = {}) {
     return () => {
       if (channelRef.current) {
         supabase.removeChannel(channelRef.current)
+        channelRef.current = null
       }
     }
   }, [enabled, queryClient, onInsert, onUpdate, onDelete])
@@ -171,6 +173,7 @@ export function useRealtimeObservations(options: UseRealtimeOptions = {}) {
     return () => {
       if (channelRef.current) {
         supabase.removeChannel(channelRef.current)
+        channelRef.current = null
       }
     }
   }, [enabled, queryClient, onInsert, onUpdate, onDelete])
@@ -221,6 +224,7 @@ export function useRealtimeWelfareAlerts(options: UseRealtimeOptions = {}) {
     return () => {
       if (channelRef.current) {
         supabase.removeChannel(channelRef.current)
+        channelRef.current = null
       }
     }
   }, [enabled, queryClient, onInsert, onUpdate])
