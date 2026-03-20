@@ -297,6 +297,22 @@ async function buildHomelessStatusMaps(
   const byPlate = new Map<string, string>();
   const selfContainedByPlate = new Map<string, boolean | null>();
   const selfContainedExpiryByPlate = new Map<string, string | null>();
+
+  // Prefer canonical_scv as authoritative SCV source.
+  // Fallback to canonical_vehicles only when canonical_scv has no record.
+  if (plateKeys.length > 0) {
+    const { data: scvRows } = await supabaseAdmin
+      .from('canonical_scv')
+      .select('plate_number, is_self_contained, certificate_expiry')
+      .in('plate_number', plateKeys);
+
+    for (const row of scvRows ?? []) {
+      const plateKey = normalizePlateKey((row as any).plate_number);
+      selfContainedByPlate.set(plateKey, (row as any).is_self_contained ?? null);
+      selfContainedExpiryByPlate.set(plateKey, (row as any).certificate_expiry ?? null);
+    }
+  }
+
   if (plateKeys.length > 0) {
     const { data: canonicalRows } = await supabaseAdmin
       .from('canonical_vehicles')
@@ -306,8 +322,12 @@ async function buildHomelessStatusMaps(
     for (const row of canonicalRows ?? []) {
       const plateKey = normalizePlateKey((row as any).plate_number);
       byPlate.set(plateKey, String((row as any).homeless_status ?? ''));
-      selfContainedByPlate.set(plateKey, (row as any).self_contained ?? null);
-      selfContainedExpiryByPlate.set(plateKey, (row as any).self_contained_expiry ?? null);
+      if (!selfContainedByPlate.has(plateKey)) {
+        selfContainedByPlate.set(plateKey, (row as any).self_contained ?? null);
+      }
+      if (!selfContainedExpiryByPlate.has(plateKey)) {
+        selfContainedExpiryByPlate.set(plateKey, (row as any).self_contained_expiry ?? null);
+      }
     }
   }
 

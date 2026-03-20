@@ -245,7 +245,17 @@ serve(async (req) => {
       updated_at: string;
     };
 
+    type CanonicalScvUpdate = {
+      plate_number: string;
+      is_self_contained: boolean;
+      certificate_expiry: string | null;
+      source: string;
+      verified_at: string;
+      updated_at: string;
+    };
+
     const updateBatch: CanonicalUpdate[] = [];
+    const canonicalScvUpdateBatch: CanonicalScvUpdate[] = [];
     const nowIso = new Date().toISOString();
 
     for (const cv of canonicalVehicles ?? []) {
@@ -279,6 +289,15 @@ serve(async (req) => {
             result.expiry_corrected++;
           }
         }
+
+        canonicalScvUpdateBatch.push({
+          plate_number: plate,
+          is_self_contained: true,
+          certificate_expiry: expectedExpiry,
+          source: 'scv_list',
+          verified_at: fileDate,
+          updated_at: nowIso,
+        });
       } else {
         // Vehicle is not in the SCV list (or status is not Current)
         if (cv.self_contained === true) {
@@ -295,6 +314,15 @@ serve(async (req) => {
         } else {
           result.unchanged++;
         }
+
+        canonicalScvUpdateBatch.push({
+          plate_number: plate,
+          is_self_contained: false,
+          certificate_expiry: null,
+          source: 'scv_list',
+          verified_at: fileDate,
+          updated_at: nowIso,
+        });
       }
     }
 
@@ -321,6 +349,17 @@ serve(async (req) => {
         .upsert(chunk, { onConflict: 'plate_number' });
       if (error) {
         result.errors.push(`canonical update batch ${Math.floor(i / BATCH_SIZE)}: ${error.message}`);
+      }
+    }
+
+    // Keep canonical_scv in sync as explicit SCV source of truth.
+    for (let i = 0; i < canonicalScvUpdateBatch.length; i += BATCH_SIZE) {
+      const chunk = canonicalScvUpdateBatch.slice(i, i + BATCH_SIZE);
+      const { error } = await supabaseAdmin
+        .from('canonical_scv')
+        .upsert(chunk, { onConflict: 'plate_number' });
+      if (error) {
+        result.errors.push(`canonical_scv update batch ${Math.floor(i / BATCH_SIZE)}: ${error.message}`);
       }
     }
 
