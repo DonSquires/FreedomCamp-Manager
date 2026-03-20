@@ -1171,8 +1171,13 @@ serve(async (req) => {
 
   } catch (error: any) {
     console.error('❌ Cleanup failed:', error);
+    let msg: string = error?.message ?? '';
+    // Detect HTML error pages or whitespace-only messages from gateway/proxy errors
+    if (!msg || !msg.trim() || /^\s*<[!a-z]/i.test(msg.trim())) {
+      msg = `Cleanup batch processing failed (${error?.name ?? 'Error'}). This may be a transient database or gateway error — please retry.`;
+    }
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ error: msg }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
