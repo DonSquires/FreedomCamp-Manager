@@ -1157,6 +1157,28 @@ serve(async (req) => {
     );
 
   } catch (error: any) {
+    // PGRST103 / HTTP 416 "Requested range not satisfiable": the dedup phase removes
+    // observations, shrinking the table below the current pagination offset.  This is
+    // end-of-data, not a failure — return an empty-batch response so the frontend loop
+    // terminates cleanly instead of treating this as a fatal error.
+    const catchMsg = String(error?.message ?? '');
+    const catchCode = String(error?.code ?? '');
+    if (catchCode === 'PGRST103' || catchMsg.toLowerCase().includes('range not satisfiable')) {
+      console.log(`ℹ️ Range not satisfiable caught in outer handler (offset ${offset}) – treating as end-of-data.`);
+      return new Response(
+        JSON.stringify({
+          processed: 0,
+          zonesCorrected: 0,
+          duplicatesRemoved: 0,
+          vehicleDetailsRefreshed: 0,
+          complianceChanged: 0,
+          breachesCreated: 0,
+          skippedNoMatrix: 0,
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     console.error('❌ Cleanup failed:', error);
     let msg: string = error?.message ?? '';
     // Detect HTML error pages or whitespace-only messages from gateway/proxy errors

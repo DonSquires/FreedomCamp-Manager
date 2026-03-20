@@ -222,7 +222,13 @@ export default function CleanupAndRecalculate() {
           `cleanup-and-recalculate ${phase} batch offset ${offset}`
         )
 
-        if (batchError) throw new Error(batchError)
+        if (batchError) {
+          // PGRST103 / "Requested range not satisfiable" (HTTP 416) surfaces here when
+          // the dedup phase deletes observations and shrinks the table below the current
+          // pagination offset.  This is a clean end-of-data signal, not a fatal error.
+          if (batchError.toLowerCase().includes('range not satisfiable')) break
+          throw new Error(batchError)
+        }
 
         const batch = batchData as CleanupBatchResponse
         const processed = Number(batch?.processed ?? 0)
