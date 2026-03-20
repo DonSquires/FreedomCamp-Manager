@@ -570,7 +570,7 @@ export default function CleanupAndRecalculate() {
               <p className="text-sm text-muted-foreground text-center">{progress}% complete</p>
               {isRunning && currentStage && (
                 <p className="text-xs text-muted-foreground text-center">
-                  Stage: {currentStage === 'zone' ? 'Zone correction' : currentStage === 'dedup' ? 'Duplicate removal' : 'Vehicle details refresh + Compliance recalculation'}
+                  Stage: {{ zone: 'Zone correction', dedup: 'Duplicate removal', compliance: 'Vehicle details refresh + Compliance recalculation' }[currentStage]}
                 </p>
               )}
               {liveRun && (

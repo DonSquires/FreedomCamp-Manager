@@ -830,7 +830,7 @@ serve(async (req) => {
           patch.vehicle_color = canonicalColor;
         }
         if (canonicalSC != null && Boolean(canonicalSC) !== Boolean(obs.self_contained)) {
-          patch.self_contained = Boolean(canonicalSC);
+          patch.self_contained = canonicalSC;
         }
 
         if (Object.keys(patch).length > 0) {
