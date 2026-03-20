@@ -88,9 +88,9 @@ export async function detectCurrentZones(
   organizationId?: string
 ): Promise<GeofenceZone[]> {
   try {
-    // Fetch all active zones
+    // Fetch all active zones – include zone_type so we can sort by specificity
     let query = (supabase.from('zones') as any)
-      .select('id, name, location_lat, location_lng, geometry')
+      .select('id, name, location_lat, location_lng, geometry, zone_type, radius_meters, parent_zone_id')
       .eq('is_active', true)
     
     if (organizationId) {
@@ -102,13 +102,37 @@ export async function detectCurrentZones(
     if (error) throw error
     if (!zones) return []
     
-    // Filter zones by distance
-    const nearbyZones = zones.filter((zone) => {
-      if (!zone.location_lat || !zone.location_lng) return false
-      return isInsideGeofence(userLat, userLng, zone as GeofenceZone)
+    // Filter zones the user is inside, and compute distance to centre for sorting
+    const matches: Array<{ zone: any; distance: number }> = []
+    for (const zone of zones) {
+      if (!zone.location_lat || !zone.location_lng) continue
+      if (!isInsideGeofence(userLat, userLng, zone as GeofenceZone)) continue
+      const dist = calculateDistance(userLat, userLng, zone.location_lat, zone.location_lng)
+      matches.push({ zone, distance: dist })
+    }
+    
+    // Sort so the most *specific* zone appears first:
+    //  1. Child zones (have parent_zone_id) before parent/jurisdiction zones
+    //  2. Non-general zone_type before general
+    //  3. Smaller radius before larger
+    //  4. Closer distance to centre as tie-breaker
+    matches.sort((a, b) => {
+      const aIsChild = a.zone.parent_zone_id ? 0 : 1
+      const bIsChild = b.zone.parent_zone_id ? 0 : 1
+      if (aIsChild !== bIsChild) return aIsChild - bIsChild
+
+      const aIsGeneral = a.zone.zone_type === 'general' ? 1 : 0
+      const bIsGeneral = b.zone.zone_type === 'general' ? 1 : 0
+      if (aIsGeneral !== bIsGeneral) return aIsGeneral - bIsGeneral
+
+      const aRadius = a.zone.radius_meters || 500
+      const bRadius = b.zone.radius_meters || 500
+      if (aRadius !== bRadius) return aRadius - bRadius
+
+      return a.distance - b.distance
     })
     
-    return nearbyZones as GeofenceZone[]
+    return matches.map((m) => m.zone) as GeofenceZone[]
   } catch (error: any) {
     console.error('Geofence detection error:', error)
     return []
