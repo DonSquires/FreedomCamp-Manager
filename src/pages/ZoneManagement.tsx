@@ -58,6 +58,7 @@ interface Organization {
 const isMissingZoneLegalColumnError = (error: unknown) => {
   const message = (error as { message?: string })?.message?.toLowerCase() || ''
   return (
+    message.includes("could not find the 'land_manager' column") ||
     message.includes("could not find the 'enforcement_authority' column") ||
     message.includes("could not find the 'bylaw_clause' column") ||
     message.includes("could not find the 'bylaw_source_url' column")
@@ -225,6 +226,7 @@ export default function ZoneManagement() {
         // Backward compatibility: allow updates to succeed on databases
         // where legal columns are not yet migrated.
         const {
+          land_manager,
           enforcement_authority,
           bylaw_clause,
           bylaw_source_url,
