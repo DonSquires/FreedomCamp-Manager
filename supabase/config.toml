@@ -166,3 +166,10 @@ verify_jwt = false
 # null). Auth + admin role are validated inside the function body.
 [functions.recalculate-compliance-v3]
 verify_jwt = false
+
+# import-historical-data: browser calls can be rejected at the Supabase
+# gateway before execution starts (401 with execution_id: null), which also
+# means no function invocations/logs appear in the dashboard. The function
+# already validates Authorization and role internally via service-role auth.
+[functions.import-historical-data]
+verify_jwt = false
