@@ -601,19 +601,20 @@ function MismatchesTab({
   })
 
   // Fetch canonical SCV records for plates that appear in observations
-  const plateNumbers = useMemo(
-    () => [...new Set(observations.map((o: any) => o.plate_number).filter(Boolean) as string[])],
-    [observations],
-  )
+  const plateNumbers = useMemo(() => {
+    const plates = [...new Set(observations.map((o: any) => o.plate_number).filter(Boolean) as string[])]
+    plates.sort()
+    return plates
+  }, [observations.length, zoneId, dateFrom, dateTo])
 
   const { data: scvRecords = [], isLoading: loadingScv } = useQuery({
     queryKey: ['registry-mismatch-scv', plateNumbers],
     queryFn: async () => {
       if (plateNumbers.length === 0) return []
-      // Supabase IN filter has a limit; chunk if needed
+      const SUPABASE_IN_CHUNK_SIZE = 100
       const chunks: string[][] = []
-      for (let i = 0; i < plateNumbers.length; i += 100) {
-        chunks.push(plateNumbers.slice(i, i + 100))
+      for (let i = 0; i < plateNumbers.length; i += SUPABASE_IN_CHUNK_SIZE) {
+        chunks.push(plateNumbers.slice(i, i + SUPABASE_IN_CHUNK_SIZE))
       }
       const allRows: CanonicalScvRow[] = []
       for (const chunk of chunks) {
@@ -670,12 +671,6 @@ function MismatchesTab({
           obs_zone: obs.zone?.name ?? null,
           mismatch_type: obsSticker === false ? 'in_register_no_sticker' : 'in_register_obs_not_sc',
         })
-      }
-
-      // Case 3: Vehicle has no canonical SCV record at all but was observed
-      // (helpful to identify unregistered vehicles in SC-required zones)
-      if (!canonical && obsSc === null && obsSticker === null) {
-        // Not a mismatch per se — skip to avoid noise
       }
     }
 
