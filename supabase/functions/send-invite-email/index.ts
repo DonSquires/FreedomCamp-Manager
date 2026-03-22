@@ -9,13 +9,13 @@ serve(async (req) => {
   }
 
   try {
-    const proxyBaseUrl = Deno.env.get('PROXY_BASE_URL');
-    const proxySecret = Deno.env.get('PROXY_SECRET');
+    const proxyBaseUrl = Deno.env.get('PROXY_BASE_URL') || Deno.env.get('RAILWAY_PROXY_URL');
+    const proxySecret = Deno.env.get('PROXY_SECRET') || Deno.env.get('NZSCV_PROXY_SECRET');
 
     if (!proxyBaseUrl || !proxySecret) {
       return new Response(
         JSON.stringify({
-          error: 'Invite relay is not configured. Missing PROXY_BASE_URL or PROXY_SECRET.',
+          error: 'Invite relay is not configured. Missing PROXY_BASE_URL/RAILWAY_PROXY_URL or PROXY_SECRET/NZSCV_PROXY_SECRET.',
           code: 'PROXY_NOT_CONFIGURED',
         }),
         { status: 503, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
