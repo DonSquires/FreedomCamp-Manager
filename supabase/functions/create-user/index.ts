@@ -40,8 +40,8 @@ Deno.serve(async (req) => {
       );
     }
 
-    const { data: authData, error: authError } = await supabaseAdmin.auth.getUser(accessToken);
-    if (authError || !authData?.user?.id) {
+    const { data: callerAuthData, error: callerAuthError } = await supabaseAdmin.auth.getUser(accessToken);
+    if (callerAuthError || !callerAuthData?.user?.id) {
       return new Response(
         JSON.stringify({ error: 'Invalid or expired access token' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -51,7 +51,7 @@ Deno.serve(async (req) => {
     const { data: callerProfile, error: callerProfileError } = await supabaseAdmin
       .from('user_profiles')
       .select('role')
-      .eq('id', authData.user.id)
+      .eq('id', callerAuthData.user.id)
       .single();
 
     if (callerProfileError || !callerProfile || (callerProfile.role !== 'admin' && callerProfile.role !== 'master')) {
