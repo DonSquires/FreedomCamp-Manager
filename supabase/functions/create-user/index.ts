@@ -99,27 +99,14 @@ Deno.serve(async (req) => {
     const userFirstName = isFieldStyleRole ? (first_name || email.split('@')[0]) : first_name;
     const userLastName = isFieldStyleRole ? (last_name || 'Officer') : last_name;
 
-    const configuredSiteUrl = (Deno.env.get('SITE_URL') || '').trim();
-    const requestOrigin = (req.headers.get('origin') || '').trim();
-    const redirectBase = configuredSiteUrl || requestOrigin || 'https://fcmanager.co.nz';
-    const redirectTo = new URL('/login', redirectBase).toString();
-
-    console.log('Invite redirect configuration:', {
-      configuredSiteUrl: configuredSiteUrl || null,
-      requestOrigin: requestOrigin || null,
-      redirectTo,
-    });
-
     // Step 1: Create auth user via Supabase invite flow.
     let authData: any = null;
     let authError: any = null;
 
-    // Use Supabase's built-in invite email (Dashboard-configured SMTP/template).
-    // Keep invite payload minimal to avoid auth provider edge-case failures.
-    const invited = await supabaseAdmin.auth.admin.inviteUserByEmail(
-      normalizedEmail,
-      { redirectTo },
-    );
+    // Use Supabase Auth invite flow with dashboard-managed defaults.
+    // Do not force redirectTo from request origin: mismatches against
+    // Auth URL allow-list can cause invite failures.
+    const invited = await supabaseAdmin.auth.admin.inviteUserByEmail(normalizedEmail);
     authData = { user: invited.data?.user };
     authError = invited.error;
 
@@ -127,9 +114,6 @@ Deno.serve(async (req) => {
       console.error('Auth user creation error:', {
         error: safeErrorDetails(authError),
         normalizedEmail,
-        redirectTo,
-        configuredSiteUrl: configuredSiteUrl || null,
-        requestOrigin: requestOrigin || null,
       });
       if (authError.message?.toLowerCase().includes('already')) {
         return new Response(
@@ -137,7 +121,7 @@ Deno.serve(async (req) => {
           { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
-      throw new Error(authError?.message || `Invite failed for redirect ${redirectTo}`);
+      throw new Error(authError?.message || 'Invite failed');
     }
 
     if (!authData.user) {
