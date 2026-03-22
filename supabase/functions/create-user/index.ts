@@ -1,5 +1,15 @@
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3';
 import { corsHeaders } from '../_shared/cors.ts';
+
+function safeErrorDetails(error: any) {
+  if (!error) return null;
+  return {
+    name: error?.name,
+    message: error?.message,
+    status: error?.status,
+    code: error?.code,
+  };
+}
 
 Deno.serve(async (req) => {
   // Handle CORS preflight request
@@ -13,9 +23,46 @@ Deno.serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
+    // Verify caller is an authenticated admin/master.
+    const authHeader = req.headers.get('Authorization') || req.headers.get('authorization');
+    if (!authHeader || !authHeader.toLowerCase().startsWith('bearer ')) {
+      return new Response(
+        JSON.stringify({ error: 'Missing or invalid Authorization header' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const accessToken = authHeader.slice(7).trim();
+    if (!accessToken) {
+      return new Response(
+        JSON.stringify({ error: 'Missing access token' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const { data: authData, error: authError } = await supabaseAdmin.auth.getUser(accessToken);
+    if (authError || !authData?.user?.id) {
+      return new Response(
+        JSON.stringify({ error: 'Invalid or expired access token' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const { data: callerProfile, error: callerProfileError } = await supabaseAdmin
+      .from('user_profiles')
+      .select('role')
+      .eq('id', authData.user.id)
+      .single();
+
+    if (callerProfileError || !callerProfile || (callerProfile.role !== 'admin' && callerProfile.role !== 'master')) {
+      return new Response(
+        JSON.stringify({ error: 'Forbidden: insufficient permissions' }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     const { 
       email, 
-      password, 
       first_name, 
       last_name, 
       role, 
@@ -34,13 +81,6 @@ Deno.serve(async (req) => {
       );
     }
 
-    if (password && password.length < 6) {
-      return new Response(
-        JSON.stringify({ error: 'Password must be at least 6 characters' }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
     // Admin/Master needs full details
     if ((role === 'admin' || role === 'master') && (!first_name || !last_name)) {
       return new Response(
@@ -50,7 +90,7 @@ Deno.serve(async (req) => {
     }
 
     const normalizedEmail = String(email).trim().toLowerCase();
-    const isInvitationFlow = !password;
+    const isInvitationFlow = true;
 
     console.log('Creating auth user:', normalizedEmail, '| Role:', role, '| Invitation:', isInvitationFlow);
 
@@ -59,51 +99,45 @@ Deno.serve(async (req) => {
     const userFirstName = isFieldStyleRole ? (first_name || email.split('@')[0]) : first_name;
     const userLastName = isFieldStyleRole ? (last_name || 'Officer') : last_name;
 
-    const redirectOrigin = req.headers.get('origin') || Deno.env.get('SITE_URL') || 'https://www.ironeaglesecurity.co.nz';
-    const redirectTo = `${redirectOrigin}/login`;
+    const configuredSiteUrl = (Deno.env.get('SITE_URL') || '').trim();
+    const requestOrigin = (req.headers.get('origin') || '').trim();
+    const redirectBase = configuredSiteUrl || requestOrigin || 'https://fcmanager.co.nz';
+    const redirectTo = new URL('/login', redirectBase).toString();
 
-    // Step 1: Create auth user (invite flow by default, password flow optional)
+    console.log('Invite redirect configuration:', {
+      configuredSiteUrl: configuredSiteUrl || null,
+      requestOrigin: requestOrigin || null,
+      redirectTo,
+    });
+
+    // Step 1: Create auth user via Supabase invite flow.
     let authData: any = null;
     let authError: any = null;
 
-    if (isInvitationFlow) {
-      // Use Supabase's built-in invite email (sends via Dashboard-configured
-      // SMTP and the "Invite user" email template).
-      const invited = await supabaseAdmin.auth.admin.inviteUserByEmail(
-        normalizedEmail,
-        {
-          redirectTo,
-          data: {
-            first_name: userFirstName,
-            last_name: userLastName,
-          },
-        },
-      );
-      authData = { user: invited.data?.user };
-      authError = invited.error;
-    } else {
-      const created = await supabaseAdmin.auth.admin.createUser({
-        email: normalizedEmail,
-        password,
-        email_confirm: false,
-        user_metadata: {
-          first_name: userFirstName,
-          last_name: userLastName,
-        },
-      });
-      authData = created.data;
-      authError = created.error;
-    }
+    // Use Supabase's built-in invite email (Dashboard-configured SMTP/template).
+    // Keep invite payload minimal to avoid auth provider edge-case failures.
+    const invited = await supabaseAdmin.auth.admin.inviteUserByEmail(
+      normalizedEmail,
+      { redirectTo },
+    );
+    authData = { user: invited.data?.user };
+    authError = invited.error;
 
     if (authError) {
-      console.error('Auth user creation error:', authError);
+      console.error('Auth user creation error:', {
+        error: safeErrorDetails(authError),
+        normalizedEmail,
+        redirectTo,
+        configuredSiteUrl: configuredSiteUrl || null,
+        requestOrigin: requestOrigin || null,
+      });
       if (authError.message?.toLowerCase().includes('already')) {
         return new Response(
           JSON.stringify({ error: 'A user with this email already exists' }),
           { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
-      throw authError;
+      throw new Error(authError?.message || `Invite failed for redirect ${redirectTo}`);
     }
 
     if (!authData.user) {
@@ -166,7 +200,10 @@ Deno.serve(async (req) => {
   } catch (error: any) {
     console.error('User creation error:', error);
     return new Response(
-      JSON.stringify({ error: error.message || 'Failed to create user' }),
+      JSON.stringify({
+        error: error.message || 'Failed to create user',
+        details: safeErrorDetails(error),
+      }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }

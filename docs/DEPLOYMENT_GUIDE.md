@@ -279,7 +279,9 @@ OPENAI_BASE_URL=
 #   or to use an alternative provider's model (e.g. llama-3.3-70b-versatile for Groq).
 OPENAI_MODEL=
 
-# SMTP email (report emails, user invitations, infringement notices, notices to vacate)
+# Edge Function SMTP email (report emails, infringement notices, notices to vacate)
+# User invitation emails are sent by Supabase Auth invite flow, configured under
+# Authentication → SMTP Settings / Email Templates / URL Configuration.
 # See docs/EMAIL_SETUP.md for provider-specific examples.
 SMTP_HOST=smtp.example.com
 SMTP_PORT=587

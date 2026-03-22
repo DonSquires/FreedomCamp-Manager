@@ -2,18 +2,30 @@
 
 ## Overview
 
-Four Supabase Edge Functions send email via SMTP:
+Three Supabase Edge Functions send email via SMTP:
 
 | Edge Function | Purpose |
 |---|---|
 | `send-report-email` | Dashboard / compliance report delivery |
-| `create-user` | User invitation emails |
 | `generate-infringement` | Infringement notice emails |
 | `generate-notice-to-vacate` | Notice-to-vacate emails |
 
-All four functions read the same set of Supabase Edge Function secrets
+These functions read the same set of Supabase Edge Function secrets
 (set via **Supabase Dashboard → Project Settings → Edge Functions → Manage Secrets**
 or via `supabase secrets set`).
+
+## Supabase Auth Invites
+
+`create-user` no longer sends invitation emails through Edge Function SMTP.
+It uses `supabase.auth.admin.inviteUserByEmail(...)`, which means invite delivery
+is controlled by **Supabase Auth** configuration instead:
+
+1. **Authentication → SMTP Settings**
+2. **Authentication → Email Templates**
+3. **Authentication → URL Configuration**
+
+If user invites fail, check Supabase Auth SMTP/template setup and allowed redirect
+URLs before checking the Edge Function SMTP secrets below.
 
 ---
 
@@ -35,7 +47,6 @@ If `SMTP_FROM_NAME` is not set, each function falls back to its own default:
 | Function | Default `SMTP_FROM_NAME` |
 |---|---|
 | `send-report-email` | `FreedomCamp Manager – Do Not Reply` |
-| `create-user` | `FreedomCamp Manager - Iron Eagle Security` |
 | `generate-infringement` | `FreedomCamp Manager - Enforcement Notices` |
 | `generate-notice-to-vacate` | `FreedomCamp Manager - Enforcement Notices` |
 
