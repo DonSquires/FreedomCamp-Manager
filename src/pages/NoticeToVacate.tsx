@@ -105,6 +105,7 @@ export default function NoticeToVacate() {
     breachAlertId: '',
   })
   const [issuing, setIssuing] = useState(false)
+  const [issueFeedback, setIssueFeedback] = useState<null | { type: 'loading' | 'success' | 'error'; message: string }>(null)
 
   const withTimeout = async <T,>(promise: Promise<T>, ms: number, timeoutMessage: string): Promise<T> => {
     return await new Promise<T>((resolve, reject) => {
@@ -305,13 +306,22 @@ export default function NoticeToVacate() {
   // Issue notice mutation
   const issueNotice = async () => {
     if (!form.zoneId || !form.plateNumber.trim()) {
+      setIssueFeedback({ type: 'error', message: 'Zone and plate number are required.' })
       toast.error('Zone and plate number are required')
       return
     }
     if (form.deliveryMethod === 'email' && !form.deliverToEmail?.trim()) {
+      setIssueFeedback({ type: 'error', message: 'Recipient email address is required for email delivery.' })
       toast.error('Recipient email address is required when delivering by email')
       return
     }
+    if (!user?.id) {
+      setIssueFeedback({ type: 'error', message: 'Your session is missing user details. Please sign in again.' })
+      toast.error('Session issue detected. Please sign in again.')
+      return
+    }
+
+    setIssueFeedback({ type: 'loading', message: 'Generating notice, please wait…' })
     setIssuing(true)
     try {
       const { data, error } = await withTimeout(
@@ -322,7 +332,7 @@ export default function NoticeToVacate() {
             plateNumber: form.plateNumber.toUpperCase().trim(),
             nightsStayed: form.nightsStayed ? parseInt(form.nightsStayed) : undefined,
             breachDetails: form.breachDetails ? { notes: form.breachDetails } : undefined,
-            issuedBy: user!.id,
+            issuedBy: user.id,
             deliveryMethod: form.deliveryMethod,
             deliverToEmail: form.deliverToEmail || undefined,
             breachAlertId: form.breachAlertId || undefined,
@@ -336,12 +346,18 @@ export default function NoticeToVacate() {
       if (error) throw new Error(await getFunctionErrorMessage(error, 'Failed to issue notice'))
       if (!data?.success) throw new Error(data?.error || 'Failed to issue notice')
 
-      toast.success(`✅ Notice ${data.notice.reference_number} issued`)
-      setPreviewHtml(data.notice.html)
+      const referenceNumber = data.notice?.reference_number || 'generated'
+      setIssueFeedback({ type: 'success', message: `Notice ${referenceNumber} issued successfully.` })
+      toast.success(`✅ Notice ${referenceNumber} issued`)
+      if (data.notice?.html) {
+        setPreviewHtml(data.notice.html)
+      }
       setIsIssueOpen(false)
+      setIssueFeedback(null)
       setForm({ zoneId: '', plateNumber: '', nightsStayed: '', breachDetails: '', deliveryMethod: 'printed_onsite', deliverToEmail: '', breachAlertId: '' })
       queryClient.invalidateQueries({ queryKey: ['notices-to-vacate'] })
     } catch (err: any) {
+      setIssueFeedback({ type: 'error', message: err.message || 'Failed to issue notice' })
       toast.error(err.message || 'Failed to issue notice')
     } finally {
       setIssuing(false)
@@ -543,7 +559,13 @@ export default function NoticeToVacate() {
       )}
 
       {/* Issue Notice Dialog */}
-      <Dialog open={isIssueOpen} onOpenChange={setIsIssueOpen}>
+      <Dialog
+        open={isIssueOpen}
+        onOpenChange={(open) => {
+          setIsIssueOpen(open)
+          if (!open) setIssueFeedback(null)
+        }}
+      >
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -674,6 +696,20 @@ export default function NoticeToVacate() {
                   onChange={e => setForm(f => ({ ...f, deliverToEmail: e.target.value }))}
                   placeholder="recipient@example.com"
                 />
+              </div>
+            )}
+
+            {issueFeedback && (
+              <div
+                className={`rounded-md border px-3 py-2 text-sm ${
+                  issueFeedback.type === 'error'
+                    ? 'border-red-200 bg-red-50 text-red-700'
+                    : issueFeedback.type === 'success'
+                      ? 'border-green-200 bg-green-50 text-green-700'
+                      : 'border-blue-200 bg-blue-50 text-blue-700'
+                }`}
+              >
+                {issueFeedback.message}
               </div>
             )}
           </div>
