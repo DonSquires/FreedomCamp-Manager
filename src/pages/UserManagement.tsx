@@ -290,9 +290,30 @@ export default function UserManagement() {
       queryClient.invalidateQueries({ queryKey: ['users'] })
       setShowCreateDialog(false)
       resetForm()
+
       if (data?.inviteUrl) {
-        setInviteUrl(data.inviteUrl)
-        toast.success('User created — copy the invite link below and share it with them')
+        // Fire invite email in background — separate function call so it has
+        // its own CPU budget (SMTP TLS is too heavy to run inside create-user).
+        invokeFunctionWithAuthRetry(
+          'send-invite-email',
+          { email: data?.data?.email ?? email, first_name: data?.data?.first_name ?? firstName, invite_url: data.inviteUrl },
+          'Failed to send invite email',
+        ).then(({ error: emailError }) => {
+          if (emailError) {
+            // Email failed — show the copy-link fallback dialog
+            console.error('Invite email failed, showing copy-link fallback', emailError)
+            setInviteUrl(data.inviteUrl)
+            toast.warning('User created but invite email failed — copy the link below and share it manually')
+          } else {
+            toast.success('User created — invite email sent')
+          }
+        }).catch(() => {
+          setInviteUrl(data.inviteUrl)
+          toast.warning('User created but invite email failed — copy the link below and share it manually')
+        })
+
+        // Show optimistic success immediately (email sends in background)
+        toast.success('User created — sending invite email…')
       } else {
         toast.success('User created successfully')
       }
@@ -1317,13 +1338,13 @@ export default function UserManagement() {
         </DialogContent>
       </Dialog>
 
-      {/* Invite Link Dialog — shown after successful user creation */}
+      {/* Invite Link Dialog — fallback shown only when the invite email fails to send */}
       <Dialog open={!!inviteUrl} onOpenChange={() => setInviteUrl(null)}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>User Created — Share Invite Link</DialogTitle>
+            <DialogTitle>Invite Email Failed — Share Link Manually</DialogTitle>
             <DialogDescription>
-              The user account has been created. Copy the link below and share it with the user so they can set their password and sign in.
+              The user account was created but the invite email could not be sent. Copy this link and send it to the user directly so they can set their password and sign in.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3 py-2">
