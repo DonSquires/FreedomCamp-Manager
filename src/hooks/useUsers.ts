@@ -21,6 +21,12 @@ interface UseUsersOptions {
 }
 
 async function getFunctionErrorMessage(error: any, fallbackMessage: string) {
+  const rawMessage = String(error?.message || '')
+  if (/failed to send.*edge function|failed to fetch|networkerror|network request failed/i.test(rawMessage)) {
+    const configuredUrl = (import.meta.env.VITE_SUPABASE_URL as string | undefined) || 'unknown'
+    return `Unable to reach Supabase Edge Functions. Check network/CORS and confirm VITE_SUPABASE_URL points to the correct project (${configuredUrl}).`
+  }
+
   const baseMessage = error?.message || fallbackMessage
   const context = error?.context
   if (!context || typeof context.clone !== 'function') return baseMessage
