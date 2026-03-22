@@ -294,26 +294,35 @@ export default function UserManagement() {
       if (data?.inviteUrl) {
         // Fire invite email in background — separate function call so it has
         // its own CPU budget (SMTP TLS is too heavy to run inside create-user).
-        invokeFunctionWithAuthRetry(
-          'send-invite-email',
-          { email: data?.data?.email ?? email, first_name: data?.data?.first_name ?? firstName, invite_url: data.inviteUrl },
-          'Failed to send invite email',
-        ).then(({ error: emailError }) => {
-          if (emailError) {
-            // Email failed — show the copy-link fallback dialog
-            console.error('Invite email failed, showing copy-link fallback', emailError)
-            setInviteUrl(data.inviteUrl)
-            toast.warning('User created but invite email failed — copy the link below and share it manually')
-          } else {
+        ;(async () => {
+          try {
+            const result = await invokeFunctionWithAuthRetry(
+              'send-invite-email',
+              { email: data?.data?.email ?? email, first_name: data?.data?.first_name ?? firstName, invite_url: data.inviteUrl },
+              'Failed to send invite email',
+            )
+
+            if (result.error) {
+              const safeMessage = await getFunctionErrorMessage(
+                result.error,
+                'User created but invite email failed. Copy the link below and share it manually.',
+              )
+              console.error('Invite email failed, showing copy-link fallback', result.error)
+              setInviteUrl(data.inviteUrl)
+              toast.warning(`User created but invite email failed: ${safeMessage}`)
+              return
+            }
+
             toast.success('User created — invite email sent')
+          } catch (emailError: any) {
+            const safeMessage = emailError?.message || 'User created but invite email failed. Copy the link below and share it manually.'
+            setInviteUrl(data.inviteUrl)
+            toast.warning(`User created but invite email failed: ${safeMessage}`)
           }
-        }).catch(() => {
-          setInviteUrl(data.inviteUrl)
-          toast.warning('User created but invite email failed — copy the link below and share it manually')
-        })
+        })()
 
         // Show optimistic success immediately (email sends in background)
-        toast.success('User created — sending invite email…')
+        toast.success('User created — sending invite email...')
       } else {
         toast.success('User created successfully')
       }

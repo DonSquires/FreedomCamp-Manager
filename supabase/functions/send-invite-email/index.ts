@@ -2,6 +2,39 @@ import { serve } from 'https://deno.land/std@0.177.0/http/server.ts';
 import { SMTPClient } from 'https://deno.land/x/denomailer@1.0.0/mod.ts';
 import { corsHeaders } from '../_shared/cors.ts';
 
+const safeErrorText = (value: unknown) => String(value ?? '').replace(/[\r\n]+/g, ' ').slice(0, 500);
+
+const classifySmtpError = (error: unknown) => {
+  const raw = safeErrorText((error as any)?.message || error);
+  const lowered = raw.toLowerCase();
+
+  if (/(authentication failed|invalid login|535|auth failed|bad credentials)/i.test(raw)) {
+    return {
+      code: 'SMTP_AUTH_FAILED',
+      message: 'SMTP authentication failed. Verify SMTP_USERNAME and SMTP_PASSWORD (use a Zoho app password if 2FA is enabled).',
+    };
+  }
+
+  if (/(relay|relaying disallowed|sender address rejected|mail from|not allowed to send)/i.test(raw)) {
+    return {
+      code: 'SMTP_RELAY_DENIED',
+      message: 'SMTP relay denied. Ensure SMTP_FROM_EMAIL matches the authenticated SMTP account.',
+    };
+  }
+
+  if (/(timed out|timeout|econnrefused|connection refused|network is unreachable|could not connect)/i.test(raw)) {
+    return {
+      code: 'SMTP_CONNECT_FAILED',
+      message: 'Could not connect to SMTP server. Check SMTP_HOST, SMTP_PORT, firewall rules, and TLS/SSL settings.',
+    };
+  }
+
+  return {
+    code: 'SMTP_SEND_FAILED',
+    message: 'Failed to send invite email due to an SMTP provider error.',
+  };
+};
+
 /**
  * send-invite-email
  *
@@ -36,6 +69,16 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({ error: 'SMTP not configured. Set SMTP_HOST, SMTP_USERNAME, SMTP_PASSWORD, SMTP_FROM_EMAIL secrets.' }),
         { status: 503, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    if (smtpFrom.toLowerCase() !== smtpUser.toLowerCase()) {
+      return new Response(
+        JSON.stringify({
+          error: 'SMTP_FROM_EMAIL must match SMTP_USERNAME for reliable delivery (prevents relay rejection).',
+          code: 'SMTP_FROM_MISMATCH',
+        }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
@@ -121,9 +164,15 @@ serve(async (req) => {
     );
 
   } catch (error: any) {
-    console.error('send-invite-email error:', error);
+    const classified = classifySmtpError(error);
+    console.error('send-invite-email error:', {
+      code: classified.code,
+      message: classified.message,
+      raw: safeErrorText(error?.message || error),
+      stack: safeErrorText(error?.stack),
+    });
     return new Response(
-      JSON.stringify({ error: error.message || 'Failed to send invite email' }),
+      JSON.stringify({ error: classified.message, code: classified.code }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
