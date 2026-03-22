@@ -1,5 +1,4 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3';
-import { SMTPClient } from 'https://deno.land/x/denomailer@1.0.0/mod.ts';
 import { corsHeaders } from '../_shared/cors.ts';
 
 function safeErrorDetails(error: any) {
@@ -130,58 +129,8 @@ Deno.serve(async (req) => {
 
     console.log('Auth user created:', authData.user.id);
 
-    // Step 1b: Send invite email via SMTP (bypasses broken Supabase Auth email).
-    const smtpHost     = Deno.env.get('SMTP_HOST');
-    const smtpPort     = parseInt(Deno.env.get('SMTP_PORT') ?? '587', 10);
-    const smtpUser     = Deno.env.get('SMTP_USERNAME');
-    const smtpPass     = Deno.env.get('SMTP_PASSWORD');
-    const smtpFrom     = Deno.env.get('SMTP_FROM_EMAIL') ?? smtpUser ?? 'no-reply@fcmanager.co.nz';
-    const smtpFromName = Deno.env.get('SMTP_FROM_NAME') ?? 'FreedomCamp Manager';
-    const inviteUrl    = linkData?.properties?.action_link ?? `${siteUrl}/auth/confirm`;
-
-    if (smtpHost && smtpUser && smtpPass) {
-      const useTls = smtpPort === 465;
-      const displayName = [userFirstName, userLastName].filter(Boolean).join(' ') || normalizedEmail;
-      const client = new SMTPClient({
-        connection: {
-          hostname: smtpHost,
-          port: smtpPort,
-          tls: useTls,
-          auth: { username: smtpUser, password: smtpPass },
-        },
-      });
-      try {
-        await client.send({
-          from: `"${smtpFromName}" <${smtpFrom}>`,
-          to: normalizedEmail,
-          subject: `You're invited to FreedomCamp Manager`,
-          html: `
-            <p>Hi ${displayName},</p>
-            <p>You have been invited to join <strong>FreedomCamp Manager</strong> as a <strong>${role}</strong>.</p>
-            <p>Click the button below to set your password and activate your account:</p>
-            <p style="margin:24px 0;">
-              <a href="${inviteUrl}" style="background:#1a56db;color:#fff;padding:12px 24px;border-radius:6px;text-decoration:none;font-weight:bold;">
-                Accept Invitation
-              </a>
-            </p>
-            <p>Or copy this link into your browser:<br/><a href="${inviteUrl}">${inviteUrl}</a></p>
-            <p>Sent by ${smtpFromName}</p>
-          `,
-        });
-        console.log('Invite email sent via SMTP to', normalizedEmail);
-      } catch (smtpErr: any) {
-        // Non-fatal: auth user is already created. Log but continue.
-        console.error('SMTP send failed (non-fatal):', smtpErr?.message);
-      } finally {
-        await client.close();
-      }
-    } else {
-      console.warn('SMTP secrets not configured — invite email not sent for', normalizedEmail);
-    }
-
-    // Step 2: Create user profile directly (bypassing disabled trigger)
-    // The on_auth_user_created trigger is disabled on auth.users (Supabase-managed)
-    // So we must manually insert the user profile
+    // Step 2: Create user profile immediately (before any network I/O that could
+    // time out). Profile must exist before we return success.
     console.log('Creating user profile directly (trigger is disabled)...');
 
     const { data: profile, error: profileError } = await supabaseAdmin
@@ -209,23 +158,20 @@ Deno.serve(async (req) => {
 
     if (profileError) {
       console.error('Profile creation error:', profileError);
-      console.error('Error details:', {
-        code: profileError.code,
-        message: profileError.message,
-        details: profileError.details,
-        hint: profileError.hint,
-      });
-      // Cleanup: delete the auth user if profile creation fails
       await supabaseAdmin.auth.admin.deleteUser(authData.user.id);
       throw new Error(`Failed to create user profile: ${profileError.message}`);
     }
 
-    console.log('User profile updated successfully');
+    console.log('User profile created for:', authData.user.id);
 
+    // Return the invite link so the caller can display it to the admin.
+    // Email delivery is the admin's responsibility (copy/share the link).
+    // SMTP in edge functions exceeds CPU time limits - do not attempt it here.
     return new Response(
-      JSON.stringify({ 
+      JSON.stringify({
         data: profile,
-        message: isInvitationFlow ? 'User invitation sent successfully' : 'User created successfully',
+        inviteUrl,
+        message: 'User created. Share the invite link with the user.',
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );

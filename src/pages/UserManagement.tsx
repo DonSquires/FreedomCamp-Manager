@@ -92,6 +92,8 @@ export default function UserManagement() {
   const [organizationId, setOrganizationId] = useState<string>('')
   const [employerOrgId, setEmployerOrgId] = useState<string>('')
   
+  const [inviteUrl, setInviteUrl] = useState<string | null>(null)
+
   // Credentials form state
   const [coaNumber, setCoaNumber] = useState('')
   const [coaExpiry, setCoaExpiry] = useState('')
@@ -284,11 +286,16 @@ export default function UserManagement() {
       }
       return data
     },
-    onSuccess: () => {
-      toast.success('User invitation sent')
+    onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ['users'] })
       setShowCreateDialog(false)
       resetForm()
+      if (data?.inviteUrl) {
+        setInviteUrl(data.inviteUrl)
+        toast.success('User created — copy the invite link below and share it with them')
+      } else {
+        toast.success('User created successfully')
+      }
     },
     onError: (error: any) => {
       toast.error(error.message || 'Failed to create user')
@@ -1306,6 +1313,44 @@ export default function UserManagement() {
             >
               {updateUserMutation.isPending ? 'Saving...' : 'Save Changes'}
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Invite Link Dialog — shown after successful user creation */}
+      <Dialog open={!!inviteUrl} onOpenChange={() => setInviteUrl(null)}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>User Created — Share Invite Link</DialogTitle>
+            <DialogDescription>
+              The user account has been created. Copy the link below and share it with the user so they can set their password and sign in.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <div className="flex items-center gap-2">
+              <input
+                readOnly
+                value={inviteUrl || ''}
+                className="flex-1 rounded-md border bg-muted px-3 py-2 text-xs font-mono text-muted-foreground select-all"
+                onClick={(e) => (e.target as HTMLInputElement).select()}
+              />
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  navigator.clipboard.writeText(inviteUrl || '').then(
+                    () => toast.success('Invite link copied'),
+                    () => toast.error('Could not copy — select and copy manually')
+                  )
+                }}
+              >
+                Copy
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">This link expires in 24 hours. If it expires, create the user again to generate a new link.</p>
+          </div>
+          <DialogFooter>
+            <Button onClick={() => setInviteUrl(null)}>Done</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
