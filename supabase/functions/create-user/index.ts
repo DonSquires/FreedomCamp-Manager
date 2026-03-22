@@ -127,6 +127,8 @@ Deno.serve(async (req) => {
       throw new Error('Failed to create auth user');
     }
 
+    const inviteUrl: string | undefined = (linkData as any)?.properties?.action_link;
+
     console.log('Auth user created:', authData.user.id);
 
     // Step 2: Create user profile immediately (before any network I/O that could
