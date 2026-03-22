@@ -122,8 +122,12 @@ export default function NoticeToVacate() {
   }
 
   const getFunctionErrorMessage = async (error: unknown, fallbackMessage: string): Promise<string> => {
+    const rawMessage = String((error as any)?.message || '')
+    if (/failed to send.*edge function|failed to fetch|networkerror/i.test(rawMessage)) {
+      return `Unable to reach Edge Function. Check your session or network and try again.`
+    }
     if (!(error instanceof FunctionsHttpError)) {
-      return fallbackMessage
+      return rawMessage || fallbackMessage
     }
 
     const context = error.context
@@ -149,8 +153,11 @@ export default function NoticeToVacate() {
 
     if (!result.error) return result
 
+    const isFetchError = /failed to send.*edge function|failed to fetch|networkerror/i.test(
+      String((result.error as any)?.message || '')
+    )
     const message = await getFunctionErrorMessage(result.error, fallbackMessage)
-    if (!/invalid jwt|http\s*401|401\b/i.test(message)) {
+    if (!isFetchError && !/invalid jwt|http\s*401|401\b/i.test(message)) {
       return result
     }
 

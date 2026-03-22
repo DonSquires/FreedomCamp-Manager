@@ -135,17 +135,26 @@ export default function UserManagement() {
     let result = await supabase.functions.invoke(name, { body })
     if (!result.error) return result
 
+    // A FunctionsFetchError means the gateway rejected without CORS headers
+    // (e.g. expired JWT at gateway level). Treat it like a 401 and refresh first.
+    const isFetchError = /failed to send.*edge function|failed to fetch|networkerror/i.test(
+      String(result.error?.message || '')
+    )
     const message = await getFunctionErrorMessage(result.error, fallbackMessage)
-    if (!/invalid jwt|http\s*401|401\b/i.test(message)) {
+    if (!isFetchError && !/invalid jwt|http\s*401|401\b/i.test(message)) {
       return result
     }
 
     const { data, error } = await supabase.auth.refreshSession()
     if (error || !data.session?.access_token) {
+      console.error('[invokeFunctionWithAuthRetry] session refresh failed', { name, error })
       throw new Error('Session expired. Please sign in again.')
     }
 
-    result = await supabase.functions.invoke(name, { body })
+    result = await supabase.functions.invoke(name, {
+      body,
+      headers: { Authorization: `Bearer ${data.session.access_token}` },
+    })
     return result
   }
 

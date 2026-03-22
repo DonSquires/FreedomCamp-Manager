@@ -113,7 +113,11 @@ export default function InfringementNotices() {
   })
 
   const getFunctionErrorMessage = async (err: any, fallback: string) => {
-    const baseMessage = err?.message || fallback
+    const rawMessage = String(err?.message || '')
+    if (/failed to send.*edge function|failed to fetch|networkerror/i.test(rawMessage)) {
+      return `Unable to reach Edge Function. Check your session or network and try again.`
+    }
+    const baseMessage = rawMessage || fallback
     const context = err?.context
     if (!context || typeof context.clone !== 'function') return baseMessage
     const statusPrefix = typeof context?.status === 'number' ? `HTTP ${context.status}: ` : ''
@@ -131,18 +135,22 @@ export default function InfringementNotices() {
   }
 
   // Invoke an edge function; the Supabase client supplies the session token
-  // automatically. Only refresh + retry once if the server returns 401.
+  // automatically. Refresh + retry once on 401 OR FunctionsFetchError (which
+  // can happen when the gateway rejects an expired JWT without CORS headers).
   const invokeFunctionWithAuthRetry = async (name: string, body: any, fallbackMessage: string) => {
     let result = await supabase.functions.invoke(name, { body })
 
     if (!result.error) return result
 
+    const isFetchError = /failed to send.*edge function|failed to fetch|networkerror/i.test(
+      String(result.error?.message || '')
+    )
     const message = await getFunctionErrorMessage(result.error, fallbackMessage)
-    if (!/invalid jwt|http\s*401|401\b/i.test(message)) {
+    if (!isFetchError && !/invalid jwt|http\s*401|401\b/i.test(message)) {
       return result
     }
 
-    // Auth error — force a token refresh and try once more.
+    // Auth error or network-level rejection — force a token refresh and try once more.
     const { data, error } = await supabase.auth.refreshSession()
     if (error || !data.session?.access_token) {
       throw new Error('Session expired. Please sign in again.')
