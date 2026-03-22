@@ -9,13 +9,16 @@ serve(async (req) => {
   }
 
   try {
-    const proxyBaseUrl = Deno.env.get('PROXY_BASE_URL') || Deno.env.get('RAILWAY_PROXY_URL');
+    const proxyBaseUrl =
+      Deno.env.get('PROXY_BASE_URL') ||
+      Deno.env.get('RAILWAY_PROXY_URL') ||
+      Deno.env.get('NZSCV_PROXY_URL');
     const proxySecret = Deno.env.get('PROXY_SECRET') || Deno.env.get('NZSCV_PROXY_SECRET');
 
     if (!proxyBaseUrl || !proxySecret) {
       return new Response(
         JSON.stringify({
-          error: 'Invite relay is not configured. Missing PROXY_BASE_URL/RAILWAY_PROXY_URL or PROXY_SECRET/NZSCV_PROXY_SECRET.',
+          error: 'Invite relay is not configured. Missing PROXY_BASE_URL/RAILWAY_PROXY_URL/NZSCV_PROXY_URL or PROXY_SECRET/NZSCV_PROXY_SECRET.',
           code: 'PROXY_NOT_CONFIGURED',
         }),
         { status: 503, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -62,7 +65,12 @@ serve(async (req) => {
       });
 
       return new Response(
-        JSON.stringify({ error: relayMessage, code: relayCode }),
+        JSON.stringify({
+          error: relayMessage,
+          code: relayCode,
+          relayStatus: relayResponse.status,
+          relayHost: proxyBaseUrl,
+        }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -77,7 +85,7 @@ serve(async (req) => {
     const isNetwork = /(failed to fetch|network|timed out|timeout|connection refused)/i.test(rawMessage);
     const code = isNetwork ? 'INVITE_RELAY_UNREACHABLE' : 'INVITE_RELAY_ERROR';
     const message = isNetwork
-      ? 'Could not reach invite relay service. Check PROXY_BASE_URL and Railway availability.'
+      ? 'Could not reach invite relay service. Check PROXY_BASE_URL/RAILWAY_PROXY_URL/NZSCV_PROXY_URL and Railway availability.'
       : 'Failed to send invite email via relay service.';
 
     console.error('send-invite-email unexpected error:', {
@@ -88,7 +96,7 @@ serve(async (req) => {
     });
 
     return new Response(
-      JSON.stringify({ error: message, code }),
+      JSON.stringify({ error: message, code, relayHost: proxyBaseUrl ?? 'missing' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
