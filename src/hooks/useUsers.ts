@@ -45,7 +45,18 @@ async function getFunctionErrorMessage(error: any, fallbackMessage: string) {
 }
 
 async function invokeFunctionWithAuthRetry(name: string, body: any, fallbackMessage: string) {
+  const isTransientEdgeFailure = (err: any) => {
+    const raw = String(err?.message || '')
+    return /failed to send.*edge function|failed to fetch|networkerror|network request failed|service unavailable|\b503\b/i.test(raw)
+  }
+
   let result = await supabase.functions.invoke(name, { body })
+  if (result.error && isTransientEdgeFailure(result.error)) {
+    // Edge runtime can intermittently return gateway-level 503 before function execution.
+    // Retry once quickly before attempting auth refresh flow.
+    await new Promise((resolve) => setTimeout(resolve, 400))
+    result = await supabase.functions.invoke(name, { body })
+  }
   if (!result.error) return result
 
   // A FunctionsFetchError ("Failed to send request to the Edge Function") can mean
@@ -70,6 +81,14 @@ async function invokeFunctionWithAuthRetry(name: string, body: any, fallbackMess
     body,
     headers: { Authorization: `Bearer ${data.session.access_token}` },
   })
+
+  if (result.error && isTransientEdgeFailure(result.error)) {
+    await new Promise((resolve) => setTimeout(resolve, 500))
+    result = await supabase.functions.invoke(name, {
+      body,
+      headers: { Authorization: `Bearer ${data.session.access_token}` },
+    })
+  }
   return result
 }
 

@@ -132,7 +132,17 @@ export default function UserManagement() {
   }
 
   const invokeFunctionWithAuthRetry = async (name: string, body: any, fallbackMessage: string) => {
+    const isTransientEdgeFailure = (err: any) => {
+      const raw = String(err?.message || '')
+      return /failed to send.*edge function|failed to fetch|networkerror|network request failed|service unavailable|\b503\b/i.test(raw)
+    }
+
     let result = await supabase.functions.invoke(name, { body })
+    if (result.error && isTransientEdgeFailure(result.error)) {
+      // Retry once for transient edge gateway failures before token refresh.
+      await new Promise((resolve) => setTimeout(resolve, 400))
+      result = await supabase.functions.invoke(name, { body })
+    }
     if (!result.error) return result
 
     // A FunctionsFetchError means the gateway rejected without CORS headers
@@ -155,6 +165,14 @@ export default function UserManagement() {
       body,
       headers: { Authorization: `Bearer ${data.session.access_token}` },
     })
+
+    if (result.error && isTransientEdgeFailure(result.error)) {
+      await new Promise((resolve) => setTimeout(resolve, 500))
+      result = await supabase.functions.invoke(name, {
+        body,
+        headers: { Authorization: `Bearer ${data.session.access_token}` },
+      })
+    }
     return result
   }
 
