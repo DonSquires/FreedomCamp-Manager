@@ -28,7 +28,7 @@ if (!supabaseConfigured) {
           textAlign: 'left', fontFamily: 'monospace', fontSize: '0.875rem',
           color: '#7dd3fc', lineHeight: 2, marginBottom: '1.5rem',
         }}>
-          <div>{'VITE_SUPABASE_URL=https://<your-ref>.supabase.co'}</div>
+          <div>{'VITE_SUPABASE_URL=https://kxwjcupuxnnbnzcgmkoi.supabase.co'}</div>
           <div>VITE_SUPABASE_ANON_KEY=eyJhbGci...</div>
         </div>
         <p style={{ color: '#64748b', fontSize: '0.875rem' }}>

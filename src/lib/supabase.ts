@@ -1,7 +1,8 @@
 import { createClient } from '@supabase/supabase-js'
 import type { Database } from '@/types/database'
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+const DEFAULT_SUPABASE_URL = 'https://kxwjcupuxnnbnzcgmkoi.supabase.co'
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || DEFAULT_SUPABASE_URL
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 
 const memoryStorage = new Map<string, string>()
@@ -69,7 +70,7 @@ if (!supabaseConfigured) {
 }
 
 export const supabase = createClient<Database>(
-  supabaseUrl || 'https://unconfigured.supabase.co',
+  supabaseUrl,
   supabaseAnonKey || 'placeholder-anon-key',
   {
     auth: {
