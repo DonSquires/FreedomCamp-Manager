@@ -9,6 +9,7 @@
 const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
+const nodemailer = require('nodemailer');
 require('dotenv').config();
 
 const app = express();
@@ -30,6 +31,13 @@ const MOTORWEB_API_KEY = process.env.MOTORWEB_API_KEY;
 const MOTORWEB_ID_KEY = process.env.MOTORWEB_ID_KEY;
 const MOTORWEB_BASE_URL = process.env.MOTORWEB_BASE_URL || 'https://robot.motorweb.co.nz';
 const PROXY_SECRET = process.env.PROXY_SECRET; // Secret to authenticate your Edge Functions
+const SMTP_HOST = process.env.SMTP_HOST;
+const SMTP_PORT = parseInt(process.env.SMTP_PORT || '465', 10);
+const SMTP_USERNAME = process.env.SMTP_USERNAME;
+const SMTP_PASSWORD = process.env.SMTP_PASSWORD;
+const SMTP_FROM_EMAIL = process.env.SMTP_FROM_EMAIL;
+const SMTP_FROM_NAME = process.env.SMTP_FROM_NAME || 'FreedomCamp Manager';
+const SITE_URL = process.env.SITE_URL || 'https://fcmanager.co.nz';
 
 if (!MOTORWEB_API_KEY || !MOTORWEB_ID_KEY) {
   console.warn('⚠️  WARNING: MotorWeb API credentials not configured (enrichment will fail)');
@@ -110,6 +118,114 @@ app.post('/api/nzscv/vehicle-info', async (req, res) => {
         message: 'Failed to connect to NZSCV API'
       });
     }
+  }
+});
+
+// Invite email endpoint
+app.post('/api/email/send-invite', async (req, res) => {
+  try {
+    const authHeader = req.headers['x-proxy-secret'];
+    if (PROXY_SECRET && authHeader !== PROXY_SECRET) {
+      console.warn('🚫 Unauthorized invite email request');
+      return res.status(401).json({
+        error: 'Unauthorized',
+        message: 'Invalid proxy authentication',
+      });
+    }
+
+    if (!SMTP_HOST || !SMTP_USERNAME || !SMTP_PASSWORD || !SMTP_FROM_EMAIL) {
+      return res.status(503).json({
+        error: 'Email service not configured',
+        code: 'SMTP_NOT_CONFIGURED',
+        message: 'Set SMTP_HOST, SMTP_USERNAME, SMTP_PASSWORD, SMTP_FROM_EMAIL on proxy server.',
+      });
+    }
+
+    if (SMTP_FROM_EMAIL.toLowerCase() !== SMTP_USERNAME.toLowerCase()) {
+      return res.status(400).json({
+        error: 'SMTP_FROM_EMAIL must match SMTP_USERNAME for reliable delivery.',
+        code: 'SMTP_FROM_MISMATCH',
+      });
+    }
+
+    const { email, first_name, invite_url } = req.body || {};
+    if (!email || !invite_url) {
+      return res.status(400).json({
+        error: 'email and invite_url are required',
+        code: 'INVALID_PAYLOAD',
+      });
+    }
+
+    const greeting = first_name ? `Hi ${first_name},` : 'Hi,';
+    const html = `<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<body style="margin:0;padding:0;background:#f4f4f5;font-family:Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f5;padding:40px 0;">
+    <tr><td align="center">
+      <table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,0.08);">
+        <tr>
+          <td style="background:#1e3a5f;padding:32px 40px;">
+            <h1 style="color:#ffffff;margin:0;font-size:22px;font-weight:700;">FreedomCamp Manager</h1>
+            <p style="color:#93c5fd;margin:4px 0 0;font-size:13px;">Iron Eagle Security / OnSpace AI</p>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:40px;">
+            <p style="font-size:16px;color:#374151;margin:0 0 16px;">${greeting}</p>
+            <p style="font-size:15px;color:#374151;margin:0 0 16px;">
+              You have been invited to join <strong>FreedomCamp Manager</strong>. Click below to set your password and access the platform.
+            </p>
+            <p style="text-align:center;margin:32px 0;">
+              <a href="${invite_url}" style="background:#1e3a5f;color:#ffffff;text-decoration:none;padding:14px 32px;border-radius:6px;font-size:15px;font-weight:600;display:inline-block;">
+                Accept Invitation &amp; Set Password
+              </a>
+            </p>
+            <p style="font-size:13px;color:#6b7280;margin:0 0 8px;">If the button does not work, copy and paste this link:</p>
+            <p style="font-size:12px;color:#374151;word-break:break-all;background:#f9fafb;padding:12px;border-radius:4px;margin:0 0 24px;">${invite_url}</p>
+            <p style="font-size:13px;color:#ef4444;margin:0 0 24px;">This link expires in <strong>24 hours</strong>.</p>
+            <hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0;">
+            <p style="font-size:12px;color:#9ca3af;margin:0;">If you were not expecting this invitation, you can ignore this email.<br>
+            Need help? Visit <a href="${SITE_URL}" style="color:#1e3a5f;">${SITE_URL}</a></p>
+          </td>
+        </tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+
+    const transporter = nodemailer.createTransport({
+      host: SMTP_HOST,
+      port: SMTP_PORT,
+      secure: SMTP_PORT === 465,
+      auth: {
+        user: SMTP_USERNAME,
+        pass: SMTP_PASSWORD,
+      },
+      connectionTimeout: 15000,
+      greetingTimeout: 15000,
+      socketTimeout: 20000,
+    });
+
+    await transporter.sendMail({
+      from: `${SMTP_FROM_NAME} <${SMTP_FROM_EMAIL}>`,
+      to: email,
+      subject: "You've been invited to FreedomCamp Manager",
+      html,
+      text: `${greeting}\n\nYou have been invited to FreedomCamp Manager.\n\nAccept your invitation and set your password:\n${invite_url}\n\nThis link expires in 24 hours.`
+    });
+
+    console.log('✅ Invite email sent:', email);
+    return res.status(200).json({ message: 'Invite email sent' });
+  } catch (error) {
+    const message = String(error?.message || error || 'Unknown SMTP error').slice(0, 400);
+    console.error('❌ Invite email error:', message);
+    return res.status(500).json({
+      error: 'Failed to send invite email',
+      code: 'SMTP_SEND_FAILED',
+      details: message,
+    });
   }
 });
 
@@ -198,6 +314,7 @@ app.get('/api/info', (req, res) => {
       health: 'GET /health',
       nzscvVehicleInfo: 'POST /api/nzscv/vehicle-info',
       motorwebOwnerCheck: 'GET /motorweb/currentOwnerCheck?plateOrVin=ABC123&specificReason=...',
+      sendInviteEmail: 'POST /api/email/send-invite',
     },
     rateLimit: {
       maxHitsPerSecond: 1,
