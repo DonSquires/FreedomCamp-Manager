@@ -73,6 +73,8 @@ import ParkingEnforcementPortal from '@/pages/ParkingEnforcementPortal'
 import ParkingOfficerPortal from '@/pages/ParkingOfficerPortal'
 import NoiseControlPortal from '@/pages/NoiseControlPortal'
 import NoiseOfficerPortal from '@/pages/NoiseOfficerPortal'
+import VehicleDiscrepancies from '@/pages/VehicleDiscrepancies'
+import NZSCVMonitor from '@/pages/NZSCVMonitor'
 
 // ---------------------------------------------------------------------------
 // ErrorBoundary – catches render-time errors so a crash on one page does not
@@ -830,6 +832,28 @@ export default function App() {
               <ProtectedRoute>
                 <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
                   <Disputes />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/admin/discrepancies"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <VehicleDiscrepancies />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/admin/nzscv"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'master', 'nzscv_monitor']}>
+                  <NZSCVMonitor />
                 </RoleRoute>
               </ProtectedRoute>
             }
