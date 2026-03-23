@@ -32,6 +32,11 @@ function deriveSeverityFromBreachType(breachType?: string): 'critical' | 'high' 
   return 'medium'
 }
 
+// PostgREST OR-filter strings that mirror the severity classification above.
+// Keep these in sync with deriveSeverityFromBreachType if rules change.
+const CRITICAL_BREACH_FILTER = 'breach_type.ilike.%tow%,breach_type.ilike.%danger%'
+const HIGH_BREACH_FILTER = 'breach_type.eq.consecutive_nights,breach_type.eq.monthly_limit,breach_type.ilike.%consecutive%'
+
 export function useBreaches(options: UseBreachesOptions = {}) {
   const { 
     organizationId, 
@@ -160,29 +165,38 @@ export function useBreachStats(organizationId?: string | null) {
   return useQuery({
     queryKey: ['breach-stats', organizationId],
     queryFn: async () => {
-      let query = (supabase.from('breach_alerts') as any)
-        .select('status, breach_type', { count: 'exact' })
-
-      if (organizationId) {
-        query = query.eq('organization_id', organizationId)
+      const buildCount = (extraFilter?: (q: any) => any) => {
+        let q = (supabase.from('breach_alerts') as any)
+          .select('*', { count: 'exact', head: true })
+        if (organizationId) q = q.eq('organization_id', organizationId)
+        if (extraFilter) q = extraFilter(q)
+        return q
       }
 
-      const { data, error, count } = await query
+      const [totalRes, pendingRes, acknowledgedRes, enforcementRes, resolvedRes, dismissedRes, criticalRes, highRes] =
+        await Promise.all([
+          buildCount(),
+          buildCount(q => q.eq('status', 'pending')),
+          buildCount(q => q.eq('status', 'acknowledged')),
+          buildCount(q => q.eq('status', 'enforcement_started')),
+          buildCount(q => q.eq('status', 'resolved')),
+          buildCount(q => q.eq('status', 'dismissed')),
+          buildCount(q => q.or(CRITICAL_BREACH_FILTER)),
+          buildCount(q => q.or(HIGH_BREACH_FILTER)),
+        ])
 
-      if (error) throw error
+      if (totalRes.error) throw totalRes.error
 
-      const stats = {
-        total: count || 0,
-        pending: data?.filter(b => b.status === 'pending').length || 0,
-        acknowledged: data?.filter(b => b.status === 'acknowledged').length || 0,
-        enforcement_started: data?.filter(b => b.status === 'enforcement_started').length || 0,
-        resolved: data?.filter(b => b.status === 'resolved').length || 0,
-        dismissed: data?.filter(b => b.status === 'dismissed').length || 0,
-        critical: data?.filter((b: any) => deriveSeverityFromBreachType(b.breach_type) === 'critical').length || 0,
-        high: data?.filter((b: any) => deriveSeverityFromBreachType(b.breach_type) === 'high').length || 0,
+      return {
+        total: totalRes.count || 0,
+        pending: pendingRes.count || 0,
+        acknowledged: acknowledgedRes.count || 0,
+        enforcement_started: enforcementRes.count || 0,
+        resolved: resolvedRes.count || 0,
+        dismissed: dismissedRes.count || 0,
+        critical: criticalRes.count || 0,
+        high: highRes.count || 0,
       }
-
-      return stats
     },
   })
 }
