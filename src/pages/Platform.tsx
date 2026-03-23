@@ -68,7 +68,7 @@ export default function Platform() {
       const { data, error } = await supabase.rpc('get_platform_stats', {
         p_from: from,
         p_to: to,
-      })
+      }).abortSignal(signal)
       if (error) throw error
       return data as PlatformStats
     },
@@ -78,11 +78,11 @@ export default function Platform() {
   // Per-org usage
   const { data: orgUsage, isLoading: orgLoading } = useQuery<OrgUsageSummary[]>({
     queryKey: ['org-usage-summary', periodDays],
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const { data, error } = await supabase.rpc('get_org_usage_summary', {
         p_from: from,
         p_to: to,
-      })
+      }).abortSignal(signal)
       if (error) throw error
       return data as OrgUsageSummary[]
     },
