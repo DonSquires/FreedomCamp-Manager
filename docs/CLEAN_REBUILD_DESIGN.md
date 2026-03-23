@@ -16,13 +16,14 @@
 2. [The Clean Rebuild Philosophy](#2-the-clean-rebuild-philosophy)
 3. [What to Keep, Cut, and Consolidate](#3-what-to-keep-cut-and-consolidate)
 4. [Clean Schema (20 tables, not 40+)](#4-clean-schema-20-tables-not-40)
-5. [Clean Edge Function Set (15, not 69)](#5-clean-edge-function-set-15-not-69)
+5. [Clean Edge Function Set (17, not 69)](#5-clean-edge-function-set-17-not-69)
 6. [Infrastructure Services: Inference Service & Proxy Server](#6-infrastructure-services-inference-service--proxy-server)
 7. [Role-by-Role UX Design](#7-role-by-role-ux-design)
 8. [Clean Frontend Structure](#8-clean-frontend-structure)
 9. [New Role: Grand Master (Platform Owner)](#9-new-role-grand-master-platform-owner)
 10. [Step-by-Step Clean Rebuild Order](#10-step-by-step-clean-rebuild-order)
 11. [Sales Strategy & Client Pitch](#11-sales-strategy--client-pitch)
+12. [Appendix: Build Plan V4 — Complete Overview & Gap Analysis](#appendix-build-plan-v4--complete-overview--gap-analysis)
 
 ---
 
@@ -95,7 +96,7 @@ councils enforce freedom camping rules**. Everything else is supporting infrastr
 
 ## 3. What to Keep, Cut, and Consolidate
 
-### 3.1 Edge Functions: Keep 15, Cut 54
+### 3.1 Edge Functions: Keep 17, Cut 52
 
 | Keep | Purpose |
 |---|---|
@@ -114,6 +115,8 @@ councils enforce freedom camping rules**. Everything else is supporting infrastr
 | `hotspot-data` | Hotspot heatmap data for admin |
 | `process-homeless-data` | Homeless data import |
 | `nightly-privacy-cleanup` | Privacy compliance cleanup |
+| `manage-user` | Consolidated user password management (`set-user-password` + `update-user-password`) |
+| `photo-maintenance` | Consolidated nightly photo job (`photo-recovery` + `daily-photo-reconciler` + `reingest-photos`) |
 
 | Cut / Consolidate | Why |
 |---|---|
@@ -143,7 +146,7 @@ councils enforce freedom camping rules**. Everything else is supporting infrastr
 | `enrich-from-motorweb` | Fold into `cleanup-and-recalculate` vehicle enrichment step |
 | `select-best-vehicle-photo` | Fold into `process-officer-scan` |
 | `link-evidence-photos` | Fold into `process-officer-scan` |
-| `photo-recovery` + `daily-photo-reconciler` + `reingest-photos` + `scrape-vehicle-photos` + `parkpow-photo-sync` + `parkpow-sync` | Consolidate into a single `photo-maintenance` scheduled job |
+| `photo-recovery` + `daily-photo-reconciler` + `reingest-photos` + `scrape-vehicle-photos` + `parkpow-photo-sync` + `parkpow-sync` | **Consolidate into `photo-maintenance`** scheduled job (see keep list) |
 | `sync-spatial-layers` | Fold into `cleanup-and-recalculate` |
 | `suggest-new-zone` | Remove — AI suggestion is not used |
 | `test-compliance-matrix` | Dev tool — remove from production |
@@ -151,11 +154,12 @@ councils enforce freedom camping rules**. Everything else is supporting infrastr
 | `update-compliance-policy` | Frontend does this directly |
 | `send-invite-email` | Use Supabase built-in invite |
 | `send-push-notification` | Simplify to be part of `monitor-officer-welfare` |
-| `set-user-password` + `update-user-password` | Consolidate into one `manage-user` function |
+| `set-user-password` + `update-user-password` | **Consolidate into `manage-user`** (see keep list) |
 | `create_auth_and_profiles` | Merge into `create-user` |
 | `upload-file` | Remove — frontend can upload direct to Supabase Storage |
-| `onspace-ai-chat` | Phase 2 feature — remove from v1 clean rebuild |
-| `process-credential-document` + `process-investigation-document` | Phase 2 — remove for now |
+| `get-weather` | Remove — weather data is not core to compliance enforcement |
+| `onspace-ai-chat` | **Phase 2** — AI admin chat assistant. Uses `OPENAI_BASE_URL` (any OpenAI-compatible provider). Keep the edge function; disable in UI until Phase 2 |
+| `process-credential-document` + `process-investigation-document` | **Phase 2** — AI document processing. Keep the edge functions; wire up in v2 |
 
 ---
 
@@ -198,6 +202,7 @@ councils enforce freedom camping rules**. Everything else is supporting infrastr
 | `patrol_checkpoints` | Keep only if using lone-worker QR scan. Otherwise cut |
 | `compliance_results` (if still exists) | Was replaced by columns on `observations` |
 | `photo_records` (if separate) | Merge into `observations.photo_url` |
+| `vehicle_monthly_stays` | **Cut** — was a pre-aggregated cache of monthly stay counts per vehicle per zone. The compliance RPC now counts directly from `observations` using a rolling window. Removing this table eliminates a maintenance burden. |
 | PHASE_*.md files in src/pages | Not DB tables but dead files — delete |
 
 ---
@@ -265,6 +270,17 @@ audit_log           (immutable)
 privacy_access_log  (PII access)
 ```
 
+### Storage Buckets (3)
+
+| Bucket | Contents | Access |
+|---|---|---|
+| `scans` | Vehicle scan photos uploaded by officers | Authenticated (org-scoped read/write) |
+| `notice-artifacts` | Generated PDFs: Notice to Vacate, Infringement Notice | Authenticated (read); admin write |
+| `incident-evidence` | Photos attached to enforcement cases | Authenticated (org-scoped) |
+
+All three buckets have RLS policies. The `scans` bucket is the primary one — every
+`process-officer-scan` call uploads the photo here before returning a result.
+
 ### One Migration File
 
 A clean rebuild starts from a **single** `001_initial_schema.sql` file that creates all
@@ -275,7 +291,7 @@ that need to be applied in sequence. The existing codebase provides the exact fi
 
 ---
 
-## 5. Clean Edge Function Set (15, not 69)
+## 5. Clean Edge Function Set (17, not 69)
 
 ### Consolidated scan pipeline
 
@@ -554,10 +570,81 @@ At $400–600/month per client, this is a ~10x margin on infrastructure.
 
 ---
 
+### 6.4 AI Services
+
+The system has **three AI touch points**. All three use the same `OPENAI_BASE_URL` env var
+pattern — you can point any of them at OpenAI, Azure OpenAI, a local Ollama server, or
+any other OpenAI-compatible API without code changes.
+
+```
+┌─────────────────────────────────────────────────────────┐
+│  AI Touch Point 1: ONNX Inference (inference-service)   │
+│  Vehicle detection (YOLOv8n) + embeddings (MobileNetV3) │
+│  Runs 100% locally — no external API call               │
+│  Required: every officer scan that includes a photo     │
+└─────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────┐
+│  AI Touch Point 2: OpenAI Vision (via inference-service │
+│  or directly from edge functions)                       │
+│                                                         │
+│  a) Vehicle attribute extraction (make/model/yr/colour) │
+│     VEHICLE_ATTRS_PROVIDER=openai in inference-service  │
+│     Fallback when ONNX attribute quality is low         │
+│                                                         │
+│  b) SCV sticker detection (analyze-vehicle-photo)       │
+│     GPT-4o vision — detects blue/green SCV stickers     │
+│     Folded into process-officer-scan in clean rebuild   │
+│                                                         │
+│  c) Tabular NLP (inference-service /nlp/tabular/analyze)│
+│     Detects date formats and data quality in CSV imports│
+│     Used by import-data / DataImport.tsx wizard         │
+│     TABULAR_NLP_PROVIDER=openai (or heuristic, default) │
+│                                                         │
+│  Optional: only needed if you want AI-enhanced vehicle  │
+│  attribute accuracy or import date-format detection     │
+└─────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────┐
+│  AI Touch Point 3: onspace-ai-chat (PHASE 2)            │
+│  Admin conversational assistant                         │
+│  "Which zones had the most breaches this week?"         │
+│  "Summarise this officer's patrol performance"          │
+│  Edge function: onspace-ai-chat (already exists)        │
+│  Frontend hook: edgeFunctions.aiChat() (already wired)  │
+│  Status: Edge function kept, UI disabled until Phase 2  │
+└─────────────────────────────────────────────────────────┘
+```
+
+**Environment variables for AI (all optional in Phase 1):**
+
+```env
+# Supabase Edge Function secrets
+OPENAI_API_KEY=<your-key>                    # Required for Touch Points 2b, 3
+OPENAI_BASE_URL=https://api.openai.com/v1    # Override for Azure / local Ollama / etc.
+OPENAI_MODEL=gpt-4o                          # Model for vision analysis
+
+# inference-service env vars (on Fly.io / Railway)
+VEHICLE_ATTRS_PROVIDER=basic                 # basic | openai (Touch Point 2a)
+TABULAR_NLP_PROVIDER=heuristic              # heuristic | openai (Touch Point 2c)
+OPENAI_API_KEY=<your-key>                    # Same key, set as Fly.io secret
+OPENAI_BASE_URL=https://api.openai.com/v1
+OPENAI_MODEL=gpt-4o-mini                     # Cheaper model for attribute extraction
+```
+
+**Phase 1 minimum (no OpenAI key needed):**
+- ONNX-only inference for vehicle detection and embeddings
+- Heuristic tabular NLP (no API call)
+- SCV sticker detection disabled (NZSCV registry is the source of truth anyway)
+
+**Phase 2 upgrade (requires OpenAI key):**
+- GPT-4o vision for vehicle attribute accuracy
+- AI-assisted tabular import for messy CSV data
+- `onspace-ai-chat` enabled in admin UI — compliance trend analysis, officer summaries
 
 ---
 
-## 7. Role-by-Role UX Design
+
 
 ### Role 1: Field Officer (`officer`)
 
@@ -721,6 +808,27 @@ SALES DEMO MODE
 - `master` manages multiple contracts but is still an operational role
 - `grand_master` manages the platform itself — they see across all orgs but their job
   is sales, onboarding, and billing, not enforcement operations
+
+---
+
+### Role 5: Admin Officer (`admin_officer`)
+
+**Who they are**: A team member who is both a field officer AND an admin — common in
+small deployments where the shift supervisor also handles desk duties.
+
+**How it works**: `admin_officer` is a dual role that grants access to both portals.
+At login, PortalSelection.tsx asks which mode they want today: Field or Admin.
+
+**What they can do**:
+- Everything a field officer can do (scan, patrol, welfare)
+- Everything an admin can do (breach management, reports, zone management)
+
+**Why keep this role in the clean rebuild**:
+This role is actively used in current deployments. Removing it would require small
+security companies to create two separate accounts for the same person.
+
+**Route guard**: `['officer', 'admin_officer']` for field routes;
+`['admin', 'admin_officer', 'master']` for admin routes.
 
 ---
 
@@ -1058,6 +1166,177 @@ The report includes:
 - Officer hours: 142 hours across 6 officers
 
 > *"This report is automatically generated — no manual data entry required."*
+
+---
+
+## Appendix: Build Plan V4 — Complete Overview & Gap Analysis
+
+This appendix answers: **"What does the clean rebuild plan actually cover?"**
+It shows every area of the current build, whether V4 covers it, and what changed.
+
+---
+
+### A. Database: 20 Tables + 3 Storage Buckets
+
+| Component | V4 Status |
+|---|---|
+| `organizations` | ✅ Keep |
+| `user_profiles` | ✅ Keep (roles: officer, admin, admin_officer, master, grand_master) |
+| `zones` + `zone_compliance_matrix` + `zone_legal_config` | ✅ Keep |
+| `observations` | ✅ Keep (core fact table) |
+| `breach_alerts` | ✅ Keep |
+| `canonical_vehicles` | ✅ Keep (attributes only — make/model/year/colour) |
+| `canonical_scv` | ✅ Keep (SCV certification — authoritative source) |
+| `canonical_homeless` | ✅ Keep (replaces flagged_vehicles + homeless_records) |
+| `infringement_notices` | ✅ Keep |
+| `notices_to_vacate` | ✅ Keep |
+| `patrols` + `patrol_schedule_zones` | ✅ Keep |
+| `officer_shifts` | ✅ Keep |
+| `audit_log` | ✅ Keep |
+| `dispute_intake` | ✅ Keep |
+| `person_records` | ✅ Keep |
+| `enforcement_cases` | ✅ Keep |
+| `privacy_access_log` | ✅ Keep |
+| `patrol_checkpoints` | ✅ Keep (optional, for lone-worker QR check-ins) |
+| `vehicle_monthly_stays` | ❌ Cut — compliance RPC counts from observations directly |
+| `flagged_vehicles` | ❌ Merge into `canonical_homeless` |
+| `homeless_records` | ❌ Merge into `canonical_homeless` |
+| `vehicle_discrepancies` | ⏳ Phase 2 |
+| `investigation_jobs` | ⏳ Phase 2 |
+| **Storage: `scans` bucket** | ✅ Keep (officer scan photos) |
+| **Storage: `notice-artifacts` bucket** | ✅ Keep (generated PDFs) |
+| **Storage: `incident-evidence` bucket** | ✅ Keep (enforcement case photos) |
+
+---
+
+### B. Edge Functions: 17 Keep + 52 Cut/Fold
+
+**Keep (17):**
+
+| # | Function | What it does |
+|---|---|---|
+| 1 | `process-officer-scan` | Full scan pipeline: photo → ONNX → plate → SCV → zone → compliance → breach |
+| 2 | `cleanup-and-recalculate` | Nightly: zone correction, dedup, vehicle refresh, compliance recalc, SCV sync |
+| 3 | `generate-notice-to-vacate` | NTV PDF generation |
+| 4 | `generate-infringement` | Infringement notice PDF |
+| 5 | `sync-scv-list` | Syncs NZSCV SCV registry → canonical_scv |
+| 6 | `create-user` | User provisioning + invite email |
+| 7 | `monitor-officer-welfare` | Welfare check-in scheduler + missed check-in alerts |
+| 8 | `send-report-email` | Email delivery (consolidates generate-dashboard/leadership/vehicle reports) |
+| 9 | `export-data` | CSV/JSON export of observations + reports |
+| 10 | `import-data` | Historical data import (uses inference service tabular NLP) |
+| 11 | `submit-dispute-intake` | Public dispute portal submission |
+| 12 | `public-case-lookup` | Public notice lookup by QR code / reference |
+| 13 | `hotspot-data` | Heatmap data for admin dashboard hotspots view |
+| 14 | `process-homeless-data` | Homeless data import |
+| 15 | `nightly-privacy-cleanup` | Privacy Act 2020 data retention cleanup |
+| 16 | `manage-user` | Consolidated: set/update user passwords |
+| 17 | `photo-maintenance` | Consolidated nightly: photo reconciliation, recovery, reingest |
+
+**Phase 2 (keep code, disable UI):**
+- `onspace-ai-chat` — AI admin assistant (GPT-4o chat interface)
+- `process-credential-document` — AI credential document processing
+- `process-investigation-document` — AI investigation document processing
+
+**Cut (52):** All remaining functions are folded into the 17 above, are dead code, or are developer tools not needed in production. See §3.1 for full disposition.
+
+---
+
+### C. Infrastructure Services: 3 Services
+
+| Service | Provider | Purpose | Phase |
+|---|---|---|---|
+| **Supabase** | Supabase Pro ($25/mo) | Database, Edge Functions, Auth, Storage | Phase A |
+| **Inference Service** (`inference-service/`) | Fly.io ($5–10/mo) | ONNX vehicle detection + embeddings; tabular NLP for imports | Phase A.5 |
+| **Proxy Server** (`proxy-server/`) | DigitalOcean ($6/mo) | Static IP for NZSCV + MotorWeb API (IP whitelist requirement) | Phase A.5 |
+
+---
+
+### D. AI Services: 3 Touch Points
+
+| # | Touch Point | Tech | Phase | Required? |
+|---|---|---|---|---|
+| 1 | ONNX vehicle detection + embeddings | YOLOv8n + MobileNetV3 (local, no API) | Phase 1 | Yes — every photo scan |
+| 2a | Vehicle attribute extraction (make/model/yr/colour) | OpenAI vision via inference-service (`VEHICLE_ATTRS_PROVIDER=openai`) | Phase 1 (optional) | No — basic ONNX works |
+| 2b | SCV sticker detection from photos | OpenAI GPT-4o vision (folded into process-officer-scan) | Phase 1 (optional) | No — NZSCV registry is source of truth |
+| 2c | Tabular NLP for historical data import | OpenAI or heuristic via inference-service (`TABULAR_NLP_PROVIDER`) | Phase 1 (optional) | No — heuristic works for most imports |
+| 3 | Admin AI chat assistant | OpenAI-compatible chat via `onspace-ai-chat` edge function | **Phase 2** | No |
+
+All AI providers use `OPENAI_BASE_URL` — you can swap in Azure OpenAI, local Ollama, or any OpenAI-compatible service without code changes.
+
+---
+
+### E. User Roles: 5
+
+| Role | Access | Who |
+|---|---|---|
+| `officer` | Field portal only | Patrol officers |
+| `admin_officer` | Field + Admin portals (dual role) | Small-team shift supervisors |
+| `admin` | Admin portal | Compliance managers |
+| `master` | Admin + multi-org + Organizations page | Contract/account managers |
+| `grand_master` | Platform page (all orgs + billing + onboarding) | Platform owner (Don / Iron Eagle) |
+
+`nzscv_monitor` role (added migration 20260419000001) → **removed in clean rebuild** — replaced by `master`-level scoped access.
+
+---
+
+### F. Frontend Pages: 18
+
+| Path | Page | Role |
+|---|---|---|
+| `/login` | Login.tsx | Public |
+| `/portal-selection` | PortalSelection.tsx | Public |
+| `/dispute` | PublicDisputePortal.tsx | Public |
+| `/field` | FieldOfficerPortal.tsx | officer, admin_officer |
+| `/dashboard` | Dashboard.tsx | admin+ |
+| `/live` | LiveMap.tsx | admin+ |
+| `/breaches` | Breaches.tsx | admin+ |
+| `/vehicles` | Vehicles.tsx | admin+ |
+| `/observations` | Observations.tsx | admin+ |
+| `/zones` | Zones.tsx | admin+ |
+| `/patrols` | Patrols.tsx | admin+ |
+| `/enforcement` | Enforcement.tsx | admin+ |
+| `/reports` | Reports.tsx | admin+ |
+| `/users` | Users.tsx | admin+ |
+| `/compliance` | Compliance.tsx | admin+ |
+| `/organizations` | Organizations.tsx | master, grand_master |
+| `/platform` | Platform.tsx | grand_master only |
+| `/profile` + `/settings` | Profile.tsx, Settings.tsx | All authenticated |
+
+**Cut (40+ pages):** TestDashboard, CleanDashboard, DataCleanupUtility, DataIntegrityDashboard, SystemDiagnostics, CleanupAndRecalculate, ComplianceRecalculation, PhotoReingest, EvidencePhotoLinker, CanonicalRecordsManager (internal tool), UniversalSearch (merge into search within pages), HotspotsMap (tab within Dashboard), SpatialComplianceAdmin (tab within Zones), AuditLog (tab within compliance/settings), PersonRecords (tab within Vehicles), plus all PHASE_*.md dev notes.
+
+---
+
+### G. Rebuild Phases
+
+| Phase | Work | Time |
+|---|---|---|
+| **A** | Supabase project, single migration SQL, auth, create-user, first grand_master login | 1–2 days |
+| **A.5** | Deploy inference service (Fly.io) + proxy server (DigitalOcean) | 1 day |
+| **B** | process-officer-scan + FieldOfficerPortal (scan → result → history) + offline queue | 2–3 days |
+| **C** | Dashboard, LiveMap, Breaches, Zones, Users, generate-notice-to-vacate, Enforcement | 2–3 days |
+| **D** | Compliance, Observations, Vehicles, Patrols, Reports, export-data | 1–2 days |
+| **E** | Organizations, Platform, grand_master features, create-user invite flow | 1–2 days |
+| **F** | PublicDisputePortal, submit-dispute-intake, public-case-lookup | 1 day |
+| **G** | nightly-privacy-cleanup, photo-maintenance, polish, demo data | 1 day |
+| **Total** | Working production app | **~10–14 days** |
+
+---
+
+### H. What the Current Build Has That V4 Deliberately Excludes
+
+| Feature | Current build | V4 decision |
+|---|---|---|
+| 9 scan pipeline edge functions | alpr-process, alpr-retry, orc-ingest, stream-webhook, plate-scanner-photo-first, select-best-vehicle-photo, link-evidence-photos, analyze-vehicle-photo, vehicle-ingest | All folded into `process-officer-scan` |
+| 3 compliance recalculation functions | recalculate-compliance, -v2, -v3 | All folded into `cleanup-and-recalculate` |
+| 12 nightly/batch functions | scan-breaches, duplicate-detection, zone-correction, correct-zone-assignments, check-zone-corrections, check-almost-breaches, sync-spatial-layers, enrich-from-motorweb, daily-photo-reconciler, reingest-photos, photo-recovery, scrape-vehicle-photos | All folded into `cleanup-and-recalculate` + `photo-maintenance` |
+| 3 report generation functions | generate-dashboard-report, generate-leadership-pack, generate-vehicle-report | Folded into `send-report-email` |
+| Developer/debug pages | TestDashboard, CleanDashboard, DataCleanupUtility, DataIntegrityDashboard, SystemDiagnostics, ComplianceRecalculation, CleanupAndRecalculate, PhotoReingest, EvidencePhotoLinker | All deleted |
+| `vehicle_monthly_stays` table | Pre-aggregated stay counts cache | Deleted — RPC counts from observations |
+| `flagged_vehicles` + `homeless_records` | Duplicate concepts | Merged into `canonical_homeless` |
+| `nzscv_monitor` role | Read-only NZSCV monitoring role | Removed — master covers this |
+| `get-weather` function | Weather data lookup | Removed — not core to enforcement |
+| ParkPow integration | parkpow-sync, parkpow-photo-sync | Removed from v1 (no active deployment) |
 
 ---
 
