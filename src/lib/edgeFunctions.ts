@@ -1064,11 +1064,16 @@ export const edgeFunctions = {
   },
 
   /**
-   * AI chat for analysis and suggestions
+   * AI chat for analysis and suggestions.
+   *
+   * Sends a conversation history as a messages array so the edge function
+   * can maintain context across turns. Each message is { role, content }.
+   * Pass model/temperature to override the server defaults.
    */
   aiChat: async (params: {
-    message: string
-    context?: any
+    messages: Array<{ role: 'user' | 'assistant' | 'system'; content: string }>
+    model?: string
+    temperature?: number
   }) => {
     return callEdgeFunction('onspace-ai-chat', params)
   },

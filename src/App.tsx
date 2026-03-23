@@ -43,6 +43,7 @@ import DataCleanupUtility from '@/pages/DataCleanupUtility'
 import DataIntegrityDashboard from '@/pages/DataIntegrityDashboard'
 import LivePatrolMonitor from '@/pages/LivePatrolMonitor'
 import ReportsHub from '@/pages/ReportsHub'
+import AiAnalysis from '@/pages/AiAnalysis'
 import HotspotsMap from '@/pages/HotspotsMap'
 import SpatialComplianceAdmin from '@/pages/SpatialComplianceAdmin'
 import ComplianceAnalytics from '@/pages/ComplianceAnalytics'
@@ -729,6 +730,17 @@ export default function App() {
               <ProtectedRoute>
                 <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
                   <ReportsHub />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/ai-analysis"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <AiAnalysis />
                 </RoleRoute>
               </ProtectedRoute>
             }

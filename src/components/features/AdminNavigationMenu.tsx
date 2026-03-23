@@ -8,7 +8,7 @@ import {
   LogOut, Settings, ChevronLeft, AlertTriangle, ChevronDown,
   Activity, Database, Search, Heart, ScrollText, Lock, Gavel,
   Navigation, BookOpen, LayoutGrid, Map, Bell, Upload, Shield, Camera, Link2,
-  CalendarDays, TrendingUp, Wrench, ParkingSquare, Volume2, Radio,
+  CalendarDays, TrendingUp, Wrench, ParkingSquare, Volume2, Radio, Sparkles,
 } from 'lucide-react'
 
 const primaryLinks = [
@@ -83,6 +83,7 @@ const moreGroups = [
       { to: '/reports-hub',         label: 'Reports Hub',   icon: BarChart3 },
       { to: '/observations-report', label: 'Observations',  icon: LayoutGrid },
       { to: '/observations',        label: 'Observation Map',icon: Map },
+      { to: '/ai-analysis',         label: 'OnSpace AI',    icon: Sparkles },
     ],
   },
   {

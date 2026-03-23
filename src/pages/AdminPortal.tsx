@@ -32,6 +32,7 @@ import {
   Radio,
   Search,
   Shield,
+  Sparkles,
   TrendingUp,
   UserCheck,
   Users,
@@ -1023,6 +1024,35 @@ export default function AdminPortal() {
                   <p className="text-xs text-yellow-700 dark:text-yellow-400 truncate">Jobs · AN / DN / END · Seizures</p>
                 </div>
                 <ArrowRight className="h-4 w-4 text-yellow-500 ml-auto shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
+              </button>
+            </CardContent>
+          </Card>
+        </section>
+
+        {/* ── OnSpace AI ─────────────────────────────────────────────────────── */}
+        <section>
+          <Card className="bg-white dark:bg-gray-900 shadow-sm overflow-hidden">
+            <div className="h-1 w-full bg-gradient-to-r from-violet-500 to-indigo-600" />
+            <CardHeader className="pb-3 pt-4">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Sparkles className="h-4 w-4 text-violet-600" />
+                OnSpace AI
+              </CardTitle>
+              <p className="text-xs text-muted-foreground">
+                AI-powered analysis, legislation guidance and operational advice — uses your own AI backend.
+              </p>
+            </CardHeader>
+            <CardContent className="pt-0">
+              <button
+                className="flex w-full items-center gap-3 rounded-lg border bg-violet-50 dark:bg-violet-900/20 border-violet-200 dark:border-violet-800 px-4 py-3 text-left hover:bg-violet-100 dark:hover:bg-violet-900/40 transition-colors group"
+                onClick={() => navigate('/ai-analysis')}
+              >
+                <Sparkles className="h-5 w-5 text-violet-600 shrink-0" />
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-violet-900 dark:text-violet-100">Open OnSpace AI</p>
+                  <p className="text-xs text-violet-600 dark:text-violet-400 truncate">Compliance · Enforcement · Legislation · Reports</p>
+                </div>
+                <ArrowRight className="h-4 w-4 text-violet-400 ml-auto shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
               </button>
             </CardContent>
           </Card>
