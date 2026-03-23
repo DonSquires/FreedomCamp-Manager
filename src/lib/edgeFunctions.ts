@@ -973,16 +973,29 @@ export const edgeFunctions = {
   },
 
   /**
-   * Create user with profile & role
+   * Create user with profile & role (admin/master only — sets password directly)
    */
   createUser: async (params: {
     email: string
+    password: string
     first_name: string
     last_name: string
     role: string
     organization_id: string
+    employer_organization_id?: string
+    phone?: string
   }) => {
     return callEdgeFunction('create-user', params)
+  },
+
+  /**
+   * Set or reset a user's password (admin/master only)
+   */
+  setUserPassword: async (params: {
+    user_id: string
+    new_password: string
+  }) => {
+    return callEdgeFunction('set-user-password', params)
   },
 
   /**

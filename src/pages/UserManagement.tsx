@@ -91,8 +91,13 @@ export default function UserManagement() {
   const [phone, setPhone] = useState('')
   const [organizationId, setOrganizationId] = useState<string>('')
   const [employerOrgId, setEmployerOrgId] = useState<string>('')
-  
-  const [inviteUrl, setInviteUrl] = useState<string | null>(null)
+  const [password, setPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [showSetPasswordDialog, setShowSetPasswordDialog] = useState(false)
+  const [setPasswordUserId, setSetPasswordUserId] = useState<string | null>(null)
+  const [setPasswordUserName, setSetPasswordUserName] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmNewPassword, setConfirmNewPassword] = useState('')
 
   // Credentials form state
   const [coaNumber, setCoaNumber] = useState('')
@@ -261,74 +266,77 @@ export default function UserManagement() {
   // Create user mutation
   const createUserMutation = useMutation({
     mutationFn: async () => {
+      if (password !== confirmPassword) {
+        throw new Error('Passwords do not match')
+      }
+      if (password.length < 8) {
+        throw new Error('Password must be at least 8 characters')
+      }
       const payload = {
-          email, 
-          role,
-          first_name: firstName,
-          last_name: lastName,
-          phone,
-          organization_id: organizationId || null,
-          employer_organization_id: employerOrgId || null,
+        email,
+        password,
+        role,
+        first_name: firstName,
+        last_name: lastName,
+        phone,
+        organization_id: organizationId || null,
+        employer_organization_id: employerOrgId || null,
       }
 
       const { data, error } = await withTimeout(
         invokeFunctionWithAuthRetry(
           'create-user',
           payload,
-          'Failed to send user invitation',
+          'Failed to create user',
         ),
         60000,
-        'Invitation request timed out after 60 seconds. Check SMTP settings/network and try again.',
+        'Request timed out after 60 seconds.',
       )
       if (error) {
-        const message = await getFunctionErrorMessage(error, 'Failed to send user invitation')
+        const message = await getFunctionErrorMessage(error, 'Failed to create user')
         throw new Error(message)
       }
       return data
     },
-    onSuccess: (data: any) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['users'] })
       setShowCreateDialog(false)
       resetForm()
-
-      if (data?.inviteUrl) {
-        // Fire invite email in background — separate function call so it has
-        // its own CPU budget (SMTP TLS is too heavy to run inside create-user).
-        ;(async () => {
-          try {
-            const result = await invokeFunctionWithAuthRetry(
-              'send-invite-email',
-              { email: data?.data?.email ?? email, first_name: data?.data?.first_name ?? firstName, invite_url: data.inviteUrl },
-              'Failed to send invite email',
-            )
-
-            if (result.error) {
-              const safeMessage = await getFunctionErrorMessage(
-                result.error,
-                'User created but invite email failed. Copy the link below and share it manually.',
-              )
-              console.error('Invite email failed, showing copy-link fallback', result.error)
-              setInviteUrl(data.inviteUrl)
-              toast.warning(`User created but invite email failed: ${safeMessage}`)
-              return
-            }
-
-            toast.success('User created — invite email sent')
-          } catch (emailError: any) {
-            const safeMessage = emailError?.message || 'User created but invite email failed. Copy the link below and share it manually.'
-            setInviteUrl(data.inviteUrl)
-            toast.warning(`User created but invite email failed: ${safeMessage}`)
-          }
-        })()
-
-        // Show optimistic success immediately (email sends in background)
-        toast.success('User created — sending invite email...')
-      } else {
-        toast.success('User created successfully')
-      }
+      toast.success('User created successfully')
     },
     onError: (error: any) => {
       toast.error(error.message || 'Failed to create user')
+    },
+  })
+
+  // Set user password mutation
+  const setPasswordMutation = useMutation({
+    mutationFn: async ({ userId, newPwd }: { userId: string; newPwd: string }) => {
+      const { data, error } = await withTimeout(
+        invokeFunctionWithAuthRetry(
+          'set-user-password',
+          { user_id: userId, new_password: newPwd },
+          'Failed to update password',
+        ),
+        30000,
+        'Request timed out after 30 seconds.',
+      )
+      if (error) {
+        const message = await getFunctionErrorMessage(error, 'Failed to update password')
+        throw new Error(message)
+      }
+      return data
+    },
+    onSuccess: () => {
+      setShowSetPasswordDialog(false)
+      setSetPasswordUserId(null)
+      setSetPasswordUserName('')
+      setNewPassword('')
+      setConfirmNewPassword('')
+      toast.success('Password updated successfully')
+    },
+    onError: (error: any) => {
+      toast.error(error.message || 'Failed to update password')
     },
   })
 
@@ -379,6 +387,8 @@ export default function UserManagement() {
     setLastName('')
     setRole('officer')
     setPhone('')
+    setPassword('')
+    setConfirmPassword('')
     setCoaNumber('')
     setCoaExpiry('')
     setWarrantNumber('')
@@ -681,7 +691,7 @@ export default function UserManagement() {
       <div className="flex justify-end mb-6">
         <Button onClick={() => setShowCreateDialog(true)}>
           <UserPlus className="h-4 w-4 mr-2" />
-          Invite User
+          Create User
         </Button>
       </div>
 
@@ -875,6 +885,21 @@ export default function UserManagement() {
                         </Button>
                       )}
                     </div>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setSetPasswordUserId(userProfile.id)
+                          setSetPasswordUserName(`${userProfile.first_name} ${userProfile.last_name}`)
+                          setNewPassword('')
+                          setConfirmNewPassword('')
+                          setShowSetPasswordDialog(true)
+                        }}
+                      >
+                        Set Password
+                      </Button>
+                    </div>
                     <Button
                       variant="outline"
                       size="sm"
@@ -903,9 +928,9 @@ export default function UserManagement() {
       <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Invite New User</DialogTitle>
+            <DialogTitle>Create New User</DialogTitle>
             <DialogDescription>
-              Send an invitation to create a new user account
+              Create a user account with a password. The user can sign in immediately.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
@@ -991,6 +1016,31 @@ export default function UserManagement() {
                 </SelectContent>
               </Select>
             </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="createPassword">Password *</Label>
+                <Input
+                  id="createPassword"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Min. 8 characters"
+                />
+              </div>
+              <div>
+                <Label htmlFor="createConfirmPassword">Confirm Password *</Label>
+                <Input
+                  id="createConfirmPassword"
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="Re-enter password"
+                />
+              </div>
+            </div>
+            {password && confirmPassword && password !== confirmPassword && (
+              <p className="text-xs text-red-500">Passwords do not match</p>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowCreateDialog(false)}>
@@ -998,9 +1048,9 @@ export default function UserManagement() {
             </Button>
             <Button 
               onClick={() => createUserMutation.mutate()}
-              disabled={!email || !firstName || !lastName || createUserMutation.isPending}
+              disabled={!email || !firstName || !lastName || !password || !confirmPassword || createUserMutation.isPending}
             >
-              {createUserMutation.isPending ? 'Sending...' : 'Send Invitation'}
+              {createUserMutation.isPending ? 'Creating...' : 'Create User'}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1347,40 +1397,56 @@ export default function UserManagement() {
         </DialogContent>
       </Dialog>
 
-      {/* Invite Link Dialog — fallback shown only when the invite email fails to send */}
-      <Dialog open={!!inviteUrl} onOpenChange={() => setInviteUrl(null)}>
-        <DialogContent className="max-w-lg">
+      {/* Set Password Dialog */}
+      <Dialog open={showSetPasswordDialog} onOpenChange={(open) => {
+        if (!open) { setShowSetPasswordDialog(false); setSetPasswordUserId(null); setNewPassword(''); setConfirmNewPassword('') }
+      }}>
+        <DialogContent>
           <DialogHeader>
-            <DialogTitle>Invite Email Failed — Share Link Manually</DialogTitle>
+            <DialogTitle>Set Password</DialogTitle>
             <DialogDescription>
-              The user account was created but the invite email could not be sent. Copy this link and send it to the user directly so they can set their password and sign in.
+              Set a new password for {setPasswordUserName}
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-3 py-2">
-            <div className="flex items-center gap-2">
-              <input
-                readOnly
-                value={inviteUrl || ''}
-                className="flex-1 rounded-md border bg-muted px-3 py-2 text-xs font-mono text-muted-foreground select-all"
-                onClick={(e) => (e.target as HTMLInputElement).select()}
+          <div className="space-y-4 py-2">
+            <div>
+              <Label htmlFor="newPwd">New Password *</Label>
+              <Input
+                id="newPwd"
+                type="password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                placeholder="Min. 8 characters"
               />
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => {
-                  navigator.clipboard.writeText(inviteUrl || '').then(
-                    () => toast.success('Invite link copied'),
-                    () => toast.error('Could not copy — select and copy manually')
-                  )
-                }}
-              >
-                Copy
-              </Button>
             </div>
-            <p className="text-xs text-muted-foreground">This link expires in 24 hours. If it expires, create the user again to generate a new link.</p>
+            <div>
+              <Label htmlFor="confirmNewPwd">Confirm Password *</Label>
+              <Input
+                id="confirmNewPwd"
+                type="password"
+                value={confirmNewPassword}
+                onChange={(e) => setConfirmNewPassword(e.target.value)}
+                placeholder="Re-enter password"
+              />
+            </div>
+            {newPassword && confirmNewPassword && newPassword !== confirmNewPassword && (
+              <p className="text-xs text-red-500">Passwords do not match</p>
+            )}
           </div>
           <DialogFooter>
-            <Button onClick={() => setInviteUrl(null)}>Done</Button>
+            <Button variant="outline" onClick={() => { setShowSetPasswordDialog(false); setNewPassword(''); setConfirmNewPassword('') }}>
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                if (newPassword !== confirmNewPassword) { toast.error('Passwords do not match'); return }
+                if (newPassword.length < 8) { toast.error('Password must be at least 8 characters'); return }
+                setPasswordMutation.mutate({ userId: setPasswordUserId!, newPwd: newPassword })
+              }}
+              disabled={!newPassword || !confirmNewPassword || setPasswordMutation.isPending}
+            >
+              {setPasswordMutation.isPending ? 'Saving...' : 'Save Password'}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

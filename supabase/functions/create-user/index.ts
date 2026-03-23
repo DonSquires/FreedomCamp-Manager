@@ -12,7 +12,6 @@ function safeErrorDetails(error: any) {
 }
 
 Deno.serve(async (req) => {
-  // Handle CORS preflight request
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
   }
@@ -23,7 +22,7 @@ Deno.serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    // Verify caller is an authenticated admin/master.
+    // Verify caller is an authenticated admin/master
     const authHeader = req.headers.get('Authorization') || req.headers.get('authorization');
     if (!authHeader || !authHeader.toLowerCase().startsWith('bearer ')) {
       return new Response(
@@ -33,13 +32,6 @@ Deno.serve(async (req) => {
     }
 
     const accessToken = authHeader.slice(7).trim();
-    if (!accessToken) {
-      return new Response(
-        JSON.stringify({ error: 'Missing access token' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
     const { data: callerAuthData, error: callerAuthError } = await supabaseAdmin.auth.getUser(accessToken);
     if (callerAuthError || !callerAuthData?.user?.id) {
       return new Response(
@@ -61,79 +53,63 @@ Deno.serve(async (req) => {
       );
     }
 
-    const { 
-      email, 
-      first_name, 
-      last_name, 
-      role, 
-      organization_id, 
+    const {
+      email,
+      password,
+      first_name,
+      last_name,
+      role,
+      organization_id,
       employer_organization_id,
       authorized_work_locations,
       phone,
-      permissions
+      permissions,
     } = await req.json();
 
-    // Validation
-    if (!email || !role) {
+    if (!email || !role || !password) {
       return new Response(
-        JSON.stringify({ error: 'Email and role are required' }),
+        JSON.stringify({ error: 'Email, password, and role are required' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // Admin/Master needs full details
-    if ((role === 'admin' || role === 'master') && (!first_name || !last_name)) {
+    if (String(password).length < 8) {
       return new Response(
-        JSON.stringify({ error: 'First name and last name required for admin/master users' }),
+        JSON.stringify({ error: 'Password must be at least 8 characters' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
     const normalizedEmail = String(email).trim().toLowerCase();
-    const isInvitationFlow = true;
-
-    console.log('Creating auth user:', normalizedEmail, '| Role:', role, '| Invitation:', isInvitationFlow);
-
-    // Generate default names for field staff
     const isFieldStyleRole = role === 'officer' || role === 'nzscv_monitor';
-    const userFirstName = isFieldStyleRole ? (first_name || email.split('@')[0]) : first_name;
-    const userLastName = isFieldStyleRole ? (last_name || 'Officer') : last_name;
+    const userFirstName = first_name || (isFieldStyleRole ? normalizedEmail.split('@')[0] : '');
+    const userLastName = last_name || (isFieldStyleRole ? 'Officer' : '');
 
-    // Step 1: Generate invite link (does NOT trigger Supabase Auth email sending).
-    // We send the invite email ourselves via SMTP to avoid Supabase Auth SMTP errors.
-    const siteUrl = Deno.env.get('SITE_URL') ?? 'https://fcmanager.co.nz';
-    const { data: linkData, error: linkError } = await (supabaseAdmin.auth.admin as any).generateLink({
-      type: 'invite',
+    console.log('Creating user:', normalizedEmail, '| Role:', role);
+
+    // Create a confirmed auth user with a set password — no email required
+    const { data: authData, error: createError } = await supabaseAdmin.auth.admin.createUser({
       email: normalizedEmail,
-      options: { redirectTo: `${siteUrl}/auth/callback` },
+      password: String(password),
+      email_confirm: true,
     });
 
-    if (linkError) {
-      console.error('Auth generateLink error:', {
-        error: safeErrorDetails(linkError),
-        normalizedEmail,
-      });
-      if (linkError.message?.toLowerCase().includes('already')) {
+    if (createError) {
+      console.error('Auth createUser error:', safeErrorDetails(createError));
+      if (createError.message?.toLowerCase().includes('already')) {
         return new Response(
           JSON.stringify({ error: 'A user with this email already exists' }),
           { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
-      throw new Error(linkError?.message || 'Failed to generate invite link');
+      throw new Error(`Failed to create auth user: ${createError.message}`);
     }
 
-    const authData = { user: linkData?.user };
-    if (!authData.user?.id) {
-      throw new Error('Failed to create auth user');
+    if (!authData?.user?.id) {
+      throw new Error('Failed to create auth user: no user ID returned');
     }
-
-    const inviteUrl: string | undefined = (linkData as any)?.properties?.action_link;
 
     console.log('Auth user created:', authData.user.id);
-
-    // Step 2: Create user profile immediately (before any network I/O that could
-    // time out). Profile must exist before we return success.
-    console.log('Creating user profile directly (trigger is disabled)...');
 
     const { data: profile, error: profileError } = await supabaseAdmin
       .from('user_profiles')
@@ -166,14 +142,10 @@ Deno.serve(async (req) => {
 
     console.log('User profile created for:', authData.user.id);
 
-    // Return the invite link so the caller can display it to the admin.
-    // Email delivery is the admin's responsibility (copy/share the link).
-    // SMTP in edge functions exceeds CPU time limits - do not attempt it here.
     return new Response(
       JSON.stringify({
         data: profile,
-        inviteUrl,
-        message: 'User created. Share the invite link with the user.',
+        message: 'User created successfully',
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
