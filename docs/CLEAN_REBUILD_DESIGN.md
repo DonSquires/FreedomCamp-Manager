@@ -24,6 +24,7 @@
 10. [Step-by-Step Clean Rebuild Order](#10-step-by-step-clean-rebuild-order)
 11. [Sales Strategy & Client Pitch](#11-sales-strategy--client-pitch)
 12. [Appendix: Build Plan V4 — Complete Overview & Gap Analysis](#appendix-build-plan-v4--complete-overview--gap-analysis)
+13. [Appendix I: Full Build Sanity Check — Past, Present & V4 Coverage](#appendix-i-full-build-sanity-check--past-present--v4-coverage)
 
 ---
 
@@ -1337,6 +1338,675 @@ All AI providers use `OPENAI_BASE_URL` — you can swap in Azure OpenAI, local O
 | `nzscv_monitor` role | Read-only NZSCV monitoring role | Removed — master covers this |
 | `get-weather` function | Weather data lookup | Removed — not core to enforcement |
 | ParkPow integration | parkpow-sync, parkpow-photo-sync | Removed from v1 (no active deployment) |
+
+---
+
+## Appendix I: Full Build Sanity Check — Past, Present & V4 Coverage
+
+This appendix is the authoritative deep-dive across every feature, function, table,
+3rd-party service, and area of law that has ever existed in this codebase — matched
+against what V4 covers and what it defers.
+
+---
+
+### I.1 Third-Party Services & External Integrations
+
+| Service | What it does | How it connects | V4 status |
+|---|---|---|---|
+| **NZSCV** (nzscv.co.nz) | Self-Contained Vehicle certification registry. Confirms whether a plate holds a current SCV certificate. Rate-limited to 1 req/sec | Via `proxy-server` → `/api/nzscv/vehicle-info`. Requires static IP (DigitalOcean droplet) for whitelist. Env: `NZSCV_BASE_URL`, `NZSCV_ENDPOINT_URL` | ✅ Keep — proxied through `proxy-server`; lookup via `sync-scv-list` cron, canonical_scv is authoritative |
+| **MotorWeb** (motorweb.co.nz) | NZ vehicle ownership lookup. Returns current registered owner name/address for enforcement notices. Privacy-restricted: requires `specificReason` in request | Via `proxy-server` → `/motorweb/currentOwnerCheck`. Env: `MOTORWEB_BASE_URL`, `MOTORWEB_API_KEY`, `MOTORWEB_ID_KEY` | ✅ Keep — folded into `cleanup-and-recalculate` vehicle enrichment step |
+| **Railway / Fly.io — Inference Service** | ONNX neural net inference: plate reading (YOLOv8n ALPR) + vehicle attribute extraction (MobileNetV3). Also: tabular NLP for CSV import date detection. Accepts photo as multipart form | `POST /infer` (photo → plate + make/model/year/colour), `POST /nlp/tabular/analyze` (CSV preview → date format). Env: `INFERENCE_SERVICE_URL`, `INFERENCE_SERVICE_AUTH_TOKEN` | ✅ Keep — core to every officer scan |
+| **ParkPow** (parkpow.com) | ALPR SaaS. Was used as a secondary plate reader via `parkpow-sync` + `parkpow-photo-sync`. Detected plates in car park photos | Outbound API to ParkPow API. Env: `PARKPOW_API_KEY`, `PARKPOW_CAMERA_ID` | ❌ Removed from V4 — no active ParkPow camera deployment. Can be re-added as phase-2 optional integration |
+| **Expo Push Notifications** | Push notifications to mobile devices via Expo's hosted notification infrastructure. Sends welfare alerts and breach notifications | `send-push-notification` edge fn → `https://exp.host/--/api/v2/push/send`. User's `expo_push_token` stored in `user_profiles` | ✅ Keep — folded into `monitor-officer-welfare`; simplified to alert notifications only |
+| **SMTP (denomailer)** | Outbound transactional email — compliance reports, infringement notices, NTV delivery, invite emails | `denomailer@1.0.0` SMTPClient in edge functions. Env: `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS` (+ optional `SMTP_TOTAL_TIMEOUT_MS`) | ✅ Keep — `send-report-email`, `generate-infringement`, `generate-notice-to-vacate` all use this |
+| **Supabase Auth email (inviteUserByEmail)** | Sends branded invite email when a new user is created | `create-user` calls `supabaseAdmin.auth.admin.inviteUserByEmail()`. Uses Supabase Dashboard SMTP config + `supabase/templates/invite.html` | ✅ Keep — unchanged |
+| **data.govt.nz + DOC ArcGIS + LINZ** | National freedom camping zone datasets. Used to auto-import zone polygons from authoritative NZ government sources | `sync-spatial-layers` calls DOC ArcGIS FeatureServers, LINZ Crown Property API, CKAN at catalogue.data.govt.nz. Falls back to static GeoJSON mirror | ✅ Keep — folded into `cleanup-and-recalculate` spatial sync step |
+| **OpenAI / OpenAI-compatible API** | (a) Vehicle attribute extraction from photos via GPT-4o vision. (b) SCV sticker detection. (c) Tabular CSV NLP. (d) Admin AI chat assistant (Phase 2) | Via `OPENAI_BASE_URL` (supports OpenAI, Azure OpenAI, Ollama, etc.). Used in `inference-service/server.js` + `analyze-vehicle-photo` + `onspace-ai-chat` edge fns | ✅ Phase 1 optional; Phase 2 AI chat |
+
+**Summary**: 8 external services currently integrated. V4 keeps all of them except
+ParkPow (no live deployment). All connection details are in proxy-server env vars,
+Supabase secrets, and Fly.io/Railway environment.
+
+---
+
+### I.2 Officer Welfare & H&S
+
+**Current build — what exists:**
+
+```
+officer_welfare_settings table (per officer per org):
+  - auto_logoff_enabled, auto_logoff_time (20 min inactivity)
+  - welfare_check_enabled, gps_inactivity_threshold (10 min no GPS)
+  - admin_escalation_time, critical_escalation_time
+  - investigation_exception_enabled (pause checks during investigations)
+
+officer_activity_log table:
+  - Tracks: vehicle_scan, gps_update, investigation_start/end, login, logout
+
+officer_welfare_alerts table:
+  - alert_type: 'missed_checkin', 'welfare_check', 'sos', 'inactivity'
+  - severity levels: low, medium, high, critical
+  - Escalation chain: 10min → admin alert → 15min → critical + push notification
+
+monitor-officer-welfare edge function:
+  - Step 1: Check for missed scheduled check-ins
+  - Step 2: Trigger check-in reminders
+  - Step 3: GPS inactivity → welfare alert
+  - Step 4: Escalate open alerts
+  - Sends Expo push notifications for critical welfare alerts
+
+OfficerWelfareSettings.tsx (admin config page):
+  - Configure per-officer thresholds
+  - View current welfare status for all officers
+  - See alert history
+
+LiveOfficerTracking.tsx / LivePatrolMonitor.tsx:
+  - Live GPS map of all officers
+  - Welfare status indicator on each officer pin
+  - Alert banner when welfare check missed
+```
+
+**V4 disposition:**
+- ✅ `officer_welfare_settings` → Keep table
+- ✅ `officer_welfare_alerts` → Keep table
+- ✅ `officer_activity_log` → Keep table
+- ✅ `monitor-officer-welfare` edge fn → Keep (simplified: `send-push-notification` folded in)
+- ✅ Welfare config UI → Keep in `Settings.tsx` admin section
+- ✅ Live welfare status → Keep in `LiveMap.tsx`
+- 🟡 **Gap in V4 doc**: `officer_welfare_settings`, `officer_welfare_alerts`, and `officer_activity_log` are not in the §3.2 keep list (they were absorbed under "patrols" implicitly). Add these 3 tables.
+
+**Health & Safety reports** (`health_safety_reports` table):
+- Exists since initial schema (2025-01-01)
+- Linked to observations via `health_safety_report_id`
+- Incident types: Breach of Rules, Threatening Behaviour, Property Damage, Noise Complaint, Vehicle Accident, Medical Emergency, Other
+- Linked to enforcement_cases (hs_report_id FK)
+- Has severity field (low, medium, high, critical)
+- Currently accessible via `IncidentManagement.tsx` and `IncidentReports.tsx`
+- 🟡 **Gap in V4 doc**: `health_safety_reports` not listed in the §3.2 keep list. Add it.
+
+---
+
+### I.3 Live Monitoring
+
+**Current build:**
+
+```
+Live GPS officer tracking:
+  - officer_activity_log stores GPS coordinates per scan/activity
+  - LiveOfficerTracking.tsx: real-time map, officer pins, welfare indicators
+  - LivePatrolMonitor.tsx: patrol progress, zone coverage, alerts panel
+
+hotspot-data edge function:
+  - Returns observation density by zone for heatmap rendering
+  - Aggregates: total_scans, breach_count, recent_activity_timestamp per zone
+
+HotspotsMap.tsx + HeatmapVisualizer.tsx component:
+  - Renders Leaflet map with colour-coded heatmap overlay
+  - Zone-level density view, clickable zones → drill into observations
+  - Time filter: today, week, month
+
+observations-in-bounds edge function:
+  - Returns GPS-bounded observations for map viewport queries
+  - Frontend queries with bounding box
+```
+
+**V4 disposition:**
+- ✅ Live map → `LiveMap.tsx` (merges `LiveOfficerTracking` + `LivePatrolMonitor`)
+- ✅ `hotspot-data` edge function → Keep (§3.1 keep list ✅)
+- ✅ Heatmap → Tab within `/dashboard` or `/live` page
+- ✅ `observations-in-bounds` → Frontend queries Supabase directly with PostGIS (no edge fn needed)
+- 🟡 **Gap in V4 doc**: `HeatmapVisualizer` component not mentioned — it should be noted as the map component used within `LiveMap.tsx`
+
+---
+
+### I.4 Patrol Management
+
+**Current build:**
+
+```
+patrols table:
+  - status: active, completed, paused
+  - zone_id, officer_id, start_time, end_time, GPS track
+
+patrol_schedule_zones table:
+  - Pre-configured zones for a patrol (which zones to cover in which order)
+  - night_limit, compliance rules per zone schedule
+
+officer_shifts table:
+  - Shift start/end, GPS coords at start, assigned zones
+  - Links to patrols
+
+patrol_checkpoints table (lone-worker QR check-ins):
+  - QR code per checkpoint location
+  - checkpoint_visits table: officer scans QR → creates visit record
+  - Used for lone-worker safety (lone officers must scan checkpoints periodically)
+
+PatrolScheduleManagement.tsx:
+  - Create/edit patrol schedules
+  - Assign zones + time windows
+  - Set expected zone completion order
+
+PatrolKPIDashboard.tsx:
+  - get_patrol_kpis() RPC → scans per shift, breach conversion, zone coverage %
+  - Officer performance charts
+  - Period filters: daily, weekly, monthly
+```
+
+**V4 disposition:**
+- ✅ `patrols`, `patrol_schedule_zones`, `officer_shifts` → Keep
+- ✅ `patrol_checkpoints` → Keep (lone-worker QR — marked optional)
+- ✅ `checkpoint_visits` → Keep with `patrol_checkpoints`
+- ✅ `get_patrol_kpis()` RPC → Keep
+- ✅ `PatrolScheduleManagement` + `PatrolKPIDashboard` → Merged into `Patrols.tsx` (§8 ✅)
+- 🟡 **Gap in V4 doc**: `checkpoint_visits` not in §3.2 keep list alongside `patrol_checkpoints`. Add it.
+
+---
+
+### I.5 Enforcement Escalation Ladder
+
+The system has a **complete 6-step enforcement ladder** from first contact to prosecution.
+All steps are implemented; V4 must preserve the full chain.
+
+```
+Step 1: SCAN → Observation recorded (observations table)
+          ↓ (if breach detected)
+Step 2: BREACH ALERT created (breach_alerts table)
+          ↓ (admin reviews, selects action)
+Step 3a: VERBAL WARNING → logged as enforcement_case event (action_type = 'verbal_warning')
+Step 3b: WRITTEN WARNING → WarningNoticeGenerator.tsx → PDF stored in notice-artifacts
+Step 3c: NOTICE TO VACATE → generate-notice-to-vacate → notices_to_vacate table + PDF
+          ↓ (repeat offender / non-compliance)
+Step 4: INFRINGEMENT NOTICE → generate-infringement → infringement_notices table + PDF
+          - Issued under Freedom Camping Act 2011 s.20
+          - All legal rights (ss.22–28 FCA 2011) included in PDF
+          - Amount, due date, payment URL, objections email
+          ↓ (non-payment / escalation)
+Step 5: TOW REQUEST → logged as enforcement_case event (action_type = 'tow_request')
+          - Shown in EnforcementTimeline.tsx
+          ↓ (court action / legal)
+Step 6: ENFORCEMENT CASE (enforcement_cases + enforcement_case_events tables)
+          - Full audit trail of all actions
+          - Links to all observations, notices, infringements
+          - Assignable to admin; status: open, active, resolved, court
+```
+
+**V4 disposition:**
+- ✅ `observations`, `breach_alerts`, `notices_to_vacate`, `infringement_notices`, `enforcement_cases` → All in keep list
+- ✅ `generate-notice-to-vacate`, `generate-infringement` → Keep list
+- ✅ Warning notices → Frontend-only (`WarningNoticeGenerator` component, no DB table needed)
+- ✅ Tow requests → Logged as enforcement_case event
+- ✅ `render-infringement-notice` edge fn → Fold into `generate-infringement` in clean rebuild
+- 🟡 **Gap in V4 doc**: `enforcement_case_events` table not listed in §3.2 keep list — add it alongside `enforcement_cases`
+- 🟡 **Gap**: `infringement_notice_counters` table (atomic infringement number generation) not listed — add it
+
+---
+
+### I.6 Incident Management
+
+**Current build:**
+
+```
+incidents table (initial schema):
+  - incident_type TEXT (free text — see types below)
+  - description, severity, status
+  - linked to organization + zone + reported_by
+
+incident_attachments table:
+  - Evidence photos attached to an incident
+
+health_safety_reports table (see §I.2):
+  - Separate from incidents — used for formal H&S reporting
+
+IncidentManagement.tsx page:
+  - Create new incidents with type, severity, description, location, plate, witnesses
+  - Incident types: Breach of Rules, Threatening Behaviour, Property Damage,
+    Noise Complaint, Vehicle Accident, Medical Emergency, Other
+  - Status tracking: open, in_progress, resolved, closed
+
+IncidentReports.tsx page:
+  - View all incidents with filter by type/severity/date
+  - Link incidents to enforcement cases
+  - Export to PDF
+
+investigation_jobs table + investigation_job_templates:
+  - Templated investigation tasks assigned to officers
+  - Templates include: noise_complaint, health_safety, vehicle_check, patrol
+  - Assignable, prioritized, with instructions and briefing notes
+  - InvestigationJobsPage.tsx
+```
+
+**V4 disposition:**
+- ✅ `incidents` → Keep (V4 §3.2 keep list mentions "Merge incident_reports into enforcement_cases" — clarify: standalone `incidents` for field logs, `enforcement_cases` for formal case management. Keep both)
+- ✅ `incident_attachments` → Keep alongside `incidents`
+- ✅ `health_safety_reports` → Keep (see §I.2)
+- ⏳ `investigation_jobs` → Phase 2 (V4 §3.2 ✅)
+- 🟡 **Gap in V4 doc**: `incidents` table not in §3.2 keep list. Add it.
+- 🟡 **Gap**: `incident_attachments` not listed.
+
+---
+
+### I.7 People Recording & Person Records
+
+**Current build:**
+
+```
+person_records table (initial schema):
+  - id, organization_id, first_name, last_name, date_of_birth
+  - is_of_interest (flag for persons of concern)
+  - notes
+
+person_observations table (links person to observation):
+  - person_id → person_records.id
+  - observation_id → observations.id
+
+person_vehicle_links table:
+  - Links known persons to plate numbers
+  - Used for repeat offender tracking (person + plate history)
+
+person_interactions table:
+  - Formal interaction records (welfare referral, warning given, etc.)
+
+canonical_persons table:
+  - Cross-org canonical person record (similar to canonical_vehicles)
+  - Plate → person link at platform level
+
+PersonRecords.tsx page:
+  - Create/search/view persons of interest
+  - Link to plates, view observation history
+  - Add notes, set is_of_interest flag
+
+usePersonRecords.ts hook:
+  - Data management for person records
+```
+
+**V4 disposition:**
+- ✅ `person_records` → Keep (§3.2 ✅)
+- ✅ `PersonRecords.tsx` → Tab within `Vehicles.tsx` or standalone (§8 V4 mentions "PersonRecords as tab within Vehicles")
+- 🟡 `person_observations`, `person_vehicle_links`, `person_interactions` → Not in V4 keep list. These are Phase 1 required for person-plate linking. **Add these 3 tables to the keep list.**
+- 🟡 `canonical_persons` → Not mentioned in V4. Useful for cross-org person matching but niche. Mark as Phase 2.
+
+---
+
+### I.8 Noise Control Management
+
+**Current status in codebase:**
+
+The system has **partial noise control support** — it recognises noise as an incident
+type and an authorized officer activity, but does not have dedicated noise enforcement
+workflow tools.
+
+**What exists today:**
+- `Noise Complaint` as an incident type in `IncidentCreationForm.tsx` and `ScanDetailPanel.tsx`
+- `noise_control` as an `authorized_activities` value in `user_profiles` (from `process-credential-document`)
+- `noise_control` as a `job_type` in `investigation_job_templates` (migration 20250212000002)
+- `Noise Control Officer` as a recognised NZ warrant type in `process-credential-document`
+- Officers can have `noise_control` in their `warrant_acts` (Resource Management Act 1991 s.38)
+
+**Relevant NZ law references in codebase:**
+- Freedom Camping Act 2011 (FCA) — primary act for most enforcement
+- Local Government Act 2002 (bylaw authority)
+- Summary Proceedings Act 1957 (court proceedings)
+- Resource Management Act 1991 s.38 — Noise Control Officers
+- Privacy Act 2020 — data handling (explicitly coded: privacy_access_log, privacy_curtain_settings)
+- Freedom Camping (Penalties for Infringement Offences) Regulations 2023
+
+**What's missing for full noise control support:**
+
+| Gap | Description | V4 recommendation |
+|---|---|---|
+| No noise control notice PDF | There is no `generate-noise-notice` function — officers can only log a noise complaint as an incident, not issue a formal noise abatement direction | **Phase 2**: Add `generate-noise-notice` edge fn under RMA s.38 |
+| No noise log workflow | No dedicated noise complaint workflow (arrive → measure → warn → abate). Officers use the generic incident form | **Phase 2**: Add `noise_complaints` table or extend `incidents` with `noise_level_db`, `time_of_night`, `abatement_direction_issued` |
+| Noise officer credential flow exists | `process-credential-document` correctly identifies Noise Control Officer warrants and sets `authorized_activities = ['noise_control', 'resource_management']` | ✅ Exists — works already for credentialing |
+| No noise zone overlay | Zones have bylaw authority but no specific noise boundary config | **Phase 2**: Add `noise_zones` geometry overlay (separate from freedom camping zones) |
+
+**V4 disposition:**
+- ✅ Noise complaint as incident type → Keep (no code change needed)
+- ✅ Noise Control Officer credential processing → Keep (process-credential-document, Phase 2)
+- ⏳ Formal noise enforcement notices + noise complaint workflow → Phase 2
+
+---
+
+### I.9 Credential & Warrant Management
+
+**Current build:**
+
+```
+user_profiles table additions (migration 20260215000003):
+  - authorized_activities JSONB (e.g. ['freedom_camping', 'noise_control', 'trespass'])
+  - warrant_acts TEXT[] (e.g. ['Freedom Camping Act 2011', 'Resource Management Act 1991 s.38'])
+  - credentials_verified BOOLEAN
+  - credentials_verified_at, credentials_verified_by
+
+organizations table addition:
+  - requires_warrant_for_enforcement BOOLEAN (default true)
+
+process-credential-document edge function:
+  - AI-powered OCR and analysis of COA cards (Certificate of Authorisation)
+    and Warrant of Authority documents
+  - Supports: Nelson City Council, Generic NZ Council formats
+  - Extracts: name, org, expiry, authorized_activities, warrant_type
+  - Sets user_profiles.credentials_verified on success
+
+ComplianceCredentialsUpload.tsx component:
+  - Upload/drag-drop COA card or warrant document
+  - Calls process-credential-document → fills in authorized activities
+  - Used in user management / profile setup
+```
+
+**V4 disposition:**
+- ✅ Credential columns on `user_profiles` → Keep
+- ✅ `ComplianceCredentialsUpload.tsx` → Visible in `Users.tsx` admin section
+- ⏳ `process-credential-document` → Phase 2 edge fn (AI document processing)
+- 🟡 **Note for V4**: This feature has no DB table of its own — credentials are stored as columns on `user_profiles`. That is correct; no new table needed.
+
+---
+
+### I.10 Privacy, Audit & Legal Compliance
+
+**Current build — Privacy Act 2020 compliance:**
+
+```
+privacy_curtain_settings table:
+  - Per-org: data_retention_days, photo_retention_days
+  - auto_blur_photos BOOLEAN, redact_personal_info BOOLEAN
+
+privacy_access_log table:
+  - Records every time a user views a person record or sensitive observation
+  - Who, when, what they viewed, justification required
+
+privacy_impact_assessments table:
+  - Formal Privacy Impact Assessments for new data collections
+  - Signoff workflow
+
+retention_policies table:
+  - Per-org: observation_retention, photo_retention, audit_log_retention
+  - Used by nightly-privacy-cleanup edge function
+
+nightly-privacy-cleanup edge function:
+  - Applies retention policies: deletes aged observations/photos/audit entries
+  - Anonymises data past retention window
+
+PrivacyCurtain.tsx page:
+  - Admin UI for configuring privacy settings
+  - View privacy access log
+  - Review/sign PIAs
+
+audit_log table:
+  - Immutable log of all admin actions
+  - AuditLog.tsx / AuditLogViewer.tsx component
+```
+
+**V4 disposition:**
+- ✅ `audit_log`, `privacy_access_log`, `privacy_curtain_settings` → Keep
+- ✅ `retention_policies` → Keep (drives `nightly-privacy-cleanup`)
+- ✅ `nightly-privacy-cleanup` → Keep (§5 keep list ✅)
+- 🟡 `privacy_impact_assessments` → Not in V4 keep list. Niche compliance feature. Mark Phase 2.
+- 🟡 `PrivacyCurtain.tsx` → Not in V4's 18-page list. Privacy settings should be a tab in `Settings.tsx`.
+
+---
+
+### I.11 Dispute & Public Portal
+
+**Current build:**
+
+```
+dispute_intake table:
+  - Plate, reference number, full name, contact email, reason, evidence URL
+  - status: pending, under_review, resolved, rejected
+  - homeless_status field (for homelessness-related disputes)
+  - Links to infringement_notices and notices_to_vacate
+
+submit-dispute-intake edge function:
+  - Public-facing: no auth required
+  - Validates input, creates dispute_intake row
+  - Sends confirmation email to submitter
+
+public-case-lookup edge function:
+  - Looks up a notice/infringement by reference number
+  - Returns status + council contact details (no PII)
+
+PublicDisputePortal.tsx:
+  - Accessible at /dispute without login
+  - Enter reference number → see case details → submit dispute
+  - QR code on Notice to Vacate links here
+
+zone_legal_config table:
+  - payment_url, objections_email, payment_deadline_days per zone
+  - bylaw_clause, bylaw_source_url per zone
+```
+
+**V4 disposition:**
+- ✅ All dispute tables + functions → V4 §8 keep list ✅
+- ✅ `zone_legal_config` → Keep ✅
+- ✅ `PublicDisputePortal.tsx` → `/dispute` route ✅
+
+---
+
+### I.12 Reporting & Analytics
+
+**Current build report types:**
+
+| Report | Edge function | Output |
+|---|---|---|
+| Compliance report | `send-report-email` (report_type='compliance') | HTML email + inline data |
+| Enforcement report | `send-report-email` (report_type='enforcement') | HTML email |
+| Vehicle activity report | `generate-vehicle-report` | HTML email / PDF |
+| Zone statistics report | `send-report-email` (report_type='zone-stats') | HTML email |
+| Leadership pack (council) | `generate-leadership-pack` | Multi-page HTML pack |
+| Dashboard snapshot | `generate-dashboard-report` | HTML email |
+| Observations CSV export | `observations-export` | CSV download |
+| Infringement notice PDF | `generate-infringement` | PDF stored in notice-artifacts bucket |
+| Notice to Vacate PDF | `generate-notice-to-vacate` | PDF stored in notice-artifacts bucket |
+| Incident report PDF | `generate-incident-pdf` | PDF (folded into notices in V4) |
+
+**V4 disposition:**
+- ✅ All report generation consolidated into `send-report-email` + `generate-notice-to-vacate` + `generate-infringement`
+- ✅ `export-data` → replaces `observations-export`
+- ✅ `Reports.tsx` → single page for all report generation and download
+
+---
+
+### I.13 Zone Geofencing & Signage
+
+**Current build:**
+
+```
+zones table with geometry (PostGIS):
+  - Polygon, MultiPolygon, or Point+radius_meters
+  - zone_type: freedom_camping | general | other
+  - bylaw_clause, bylaw_source_url (added migration 20260422)
+  - parent_zone_id (child zone hierarchy)
+  - nightly_limit, stays_per_month, max_consecutive_nights
+
+zone_signage_evidence table:
+  - Photos of physical signage at zone boundaries
+  - Required for court-ready evidence package
+  - Captured by officers in the field
+
+ZoneGeofenceEditor.tsx:
+  - Draw/edit zone polygons on a Leaflet map
+  - Set compliance rules, nightly limits
+  - Configure legal config (payment URLs, objections)
+
+SpatialComplianceAdmin.tsx:
+  - Admin view of all zones with compliance status
+  - Spatial query tools for zone assignment correction
+```
+
+**V4 disposition:**
+- ✅ `zones`, `zone_compliance_matrix`, `zone_legal_config` → Keep ✅
+- ✅ `ZoneGeofenceEditor` → Part of `Zones.tsx`
+- 🟡 `zone_signage_evidence` → Not in V4 keep list. Important for legal defensibility. **Add to keep list.**
+- 🟡 `SpatialComplianceAdmin.tsx` → Not in V4's 18-page list. Merge as a tab within `Zones.tsx`.
+
+---
+
+### I.14 Comprehensive Table Status Audit
+
+All tables that have ever been created, with V4 disposition:
+
+| Table | First created | V4 keep list | Disposition |
+|---|---|---|---|
+| `organizations` | 2025-01-01 | ✅ §3.2 | Keep |
+| `user_profiles` | 2025-01-01 | ✅ §3.2 | Keep |
+| `zones` | 2025-01-01 | ✅ §3.2 | Keep |
+| `zone_compliance_matrix` | 2025-01-01 | ✅ §3.2 | Keep |
+| `zone_legal_config` | 2026-02-18 | ✅ §3.2 | Keep |
+| `observations` | 2026-02-21 (rebuilt) | ✅ §3.2 | Keep |
+| `breach_alerts` | 2026-02-18 (rebuilt) | ✅ §3.2 | Keep |
+| `canonical_vehicles` | 2025-02-03 (rebuilt) | ✅ §3.2 | Keep |
+| `canonical_scv` | 2026-04-21 | ✅ §3.2 | Keep |
+| `canonical_homeless` | 2026-04-21 | ✅ §3.2 | Keep |
+| `infringement_notices` | 2026-02-19 | ✅ §3.2 | Keep |
+| `infringement_notice_counters` | 2026-03-17 | ❌ Missing | **Add to keep list** |
+| `notices_to_vacate` | 2026-02-02 | ✅ §3.2 | Keep |
+| `patrols` | 2025-01-01 | ✅ §3.2 | Keep |
+| `patrol_schedule_zones` | 2026-04-09 | ✅ §3.2 | Keep |
+| `officer_shifts` | 2026-04-09 | ✅ §3.2 | Keep |
+| `patrol_checkpoints` | 2026-03-02 | ✅ §3.2 optional | Keep |
+| `checkpoint_visits` | 2026-03-02 | ❌ Missing | **Add with patrol_checkpoints** |
+| `officer_welfare_settings` | 2025-02-01 | ❌ Missing | **Add to keep list** |
+| `officer_welfare_alerts` | 2025-02-01 | ❌ Missing | **Add to keep list** |
+| `officer_activity_log` | 2025-02-01 | ❌ Missing | **Add to keep list** |
+| `audit_log` | 2025-01-01 | ✅ §3.2 | Keep |
+| `dispute_intake` | 2026-04-18 | ✅ §3.2 | Keep |
+| `person_records` | 2025-01-01 | ✅ §3.2 | Keep |
+| `person_observations` | 2025-01-01 | ❌ Missing | **Add to keep list** |
+| `person_vehicle_links` | 2025-01-01 | ❌ Missing | **Add to keep list** |
+| `person_interactions` | 2026-03-02 | ❌ Missing | **Add to keep list** |
+| `enforcement_cases` | 2026-02-20 | ✅ §3.2 | Keep |
+| `enforcement_case_events` | 2026-02-20 | ❌ Missing | **Add alongside enforcement_cases** |
+| `enforcement_actions` | 2025-01-01 | ❌ Duplicate of enforcement_case_events | Cut — superseded |
+| `privacy_access_log` | 2026-03-02 | ✅ §3.2 | Keep |
+| `privacy_curtain_settings` | 2026-03-02 | ❌ Missing | **Add to keep list** |
+| `retention_policies` | 2026-03-02 | ❌ Missing | **Add to keep list** |
+| `incidents` | 2025-01-01 | ❌ Missing | **Add to keep list** |
+| `incident_attachments` | 2026-02-24 | ❌ Missing | **Add with incidents** |
+| `health_safety_reports` | 2025-01-01 | ❌ Missing | **Add to keep list** |
+| `zone_signage_evidence` | 2026-02-25 | ❌ Missing | **Add to keep list** |
+| `flagged_vehicles` | 2025-01-01 | ✅ §3.2 | Merge into canonical_homeless |
+| `homeless_records` | 2025-01-01 | ✅ §3.2 | Merge into canonical_homeless |
+| `vehicle_monthly_stays` | 2025-02-03 | ✅ §3.2 appendix | Cut |
+| `compliance_results` | 2025-01-01 | ✅ §3.2 | Cut (replaced by columns on observations) |
+| `vehicle_discrepancies` | 2026-04-06 | ✅ §3.2 | Phase 2 |
+| `investigation_jobs` | 2025-01-01 | ✅ §3.2 | Phase 2 |
+| `vehicle_records` | 2025-01-01 | ❌ | Cut — replaced by canonical_vehicles |
+| `vehicle_observations` | 2025-01-01 | ❌ | Cut — replaced by observations |
+| `plate_scans` | 2025-01-01 | ❌ | Cut — replaced by observations |
+| `photo_metadata` | 2025-01-01 | ❌ | Cut — merged into observations.photo_url |
+| `drift_events` | 2025-01-01 | ❌ | Cut — not used in current pipeline |
+| `nzscv_cache` | 2026-03-15 | ❌ | Cut — canonical_scv is the cache |
+| `scan_idempotency_keys` | 2026-03-15 | ❌ | Cut — idempotency handled in observations.idempotency_key |
+| `canonical_persons` | 2026-02-25 | ❌ | Phase 2 |
+| `privacy_impact_assessments` | 2026-03-02 | ❌ | Phase 2 |
+| `session_mode_switch_log` | 2026-03-15 | ❌ | Phase 2 |
+| `boundary_review_queue` | 2026-02-25 | ❌ | Cut — admin internal tool |
+| `notice_templates` | 2026-02-25 | ❌ | Phase 2 — template customisation |
+| `legacy_evidence_reviews` | 2026-01-27 | ❌ | Cut — legacy migration artifact |
+| `alert_acknowledgements` | 2026-02-15 | ❌ | Cut — merged into breach_alerts.status |
+| `alert_queue` | 2026-02-15 | ❌ | Cut — replaced by breach_alerts |
+| `access_requests` | 2026-02-15 | ❌ | Cut — not used |
+| `missing_photo_queue` | 2026-03-23 | ❌ | Cut — internal recovery tool |
+| `photo_recovery_audit_log` | 2026-03-23 | ❌ | Cut — internal recovery tool |
+| `observation_deletions` | 2026-02-18 | ❌ | Cut — soft-delete tracking (use audit_log) |
+
+---
+
+### I.15 Updated V4 Table Count
+
+With all gaps filled, the clean rebuild schema is:
+
+**Core tables: 32** (not 20 — the original count was conservative)
+
+| # | Table | Category |
+|---|---|---|
+| 1 | organizations | Foundation |
+| 2 | user_profiles | Foundation |
+| 3 | zones | Zones |
+| 4 | zone_compliance_matrix | Zones |
+| 5 | zone_legal_config | Zones |
+| 6 | zone_signage_evidence | Zones |
+| 7 | observations | Scan pipeline |
+| 8 | breach_alerts | Enforcement |
+| 9 | canonical_vehicles | Vehicles |
+| 10 | canonical_scv | Vehicles |
+| 11 | canonical_homeless | Vehicles |
+| 12 | infringement_notices | Enforcement |
+| 13 | infringement_notice_counters | Enforcement |
+| 14 | notices_to_vacate | Enforcement |
+| 15 | enforcement_cases | Enforcement |
+| 16 | enforcement_case_events | Enforcement |
+| 17 | patrols | Patrol |
+| 18 | patrol_schedule_zones | Patrol |
+| 19 | officer_shifts | Patrol |
+| 20 | patrol_checkpoints | Patrol (optional) |
+| 21 | checkpoint_visits | Patrol (optional) |
+| 22 | officer_welfare_settings | Welfare |
+| 23 | officer_welfare_alerts | Welfare |
+| 24 | officer_activity_log | Welfare |
+| 25 | incidents | Incidents |
+| 26 | incident_attachments | Incidents |
+| 27 | health_safety_reports | H&S |
+| 28 | person_records | People |
+| 29 | person_observations | People |
+| 30 | person_vehicle_links | People |
+| 31 | person_interactions | People |
+| 32 | dispute_intake | Disputes |
+| 33 | privacy_access_log | Privacy |
+| 34 | privacy_curtain_settings | Privacy |
+| 35 | retention_policies | Privacy |
+| 36 | audit_log | Audit |
+
+**Phase 2 tables:** canonical_persons, vehicle_discrepancies, investigation_jobs, privacy_impact_assessments, session_mode_switch_log, notice_templates
+
+The original "20 table" target was aspirational and excluded operational tables
+(welfare, incidents, H&S, people, enforcement events). The real clean-rebuild core
+is ~36 tables. This is still a dramatic reduction from the current ~60+ tables.
+
+---
+
+### I.16 Feature Coverage Summary
+
+| Feature area | In current build | V4 Phase 1 | V4 Phase 2 |
+|---|---|---|---|
+| Officer scanning (ALPR) | ✅ full | ✅ | — |
+| SCV registry lookup (NZSCV) | ✅ full | ✅ | — |
+| MotorWeb vehicle enrichment | ✅ full | ✅ | — |
+| Geofencing (GPS zone detection) | ✅ full | ✅ | — |
+| Offline queue (IndexedDB) | ✅ full | ✅ | — |
+| Breach detection + alerts | ✅ full | ✅ | — |
+| Notice to Vacate PDF | ✅ full | ✅ | — |
+| Infringement notice PDF | ✅ full | ✅ | — |
+| Warning notices (written/verbal) | ✅ full | ✅ | — |
+| Tow request logging | ✅ partial | ✅ | — |
+| Enforcement case management | ✅ full | ✅ | — |
+| Compliance escalation ladder | ✅ full | ✅ | — |
+| Officer welfare + lone worker QR | ✅ full | ✅ | — |
+| Live GPS officer map | ✅ full | ✅ | — |
+| Heatmap / hotspot analysis | ✅ full | ✅ | — |
+| Patrol schedule + KPIs | ✅ full | ✅ | — |
+| Incident management (H&S, noise, etc.) | ✅ full | ✅ | — |
+| Health & Safety reports | ✅ full | ✅ | — |
+| People recording (person of interest) | ✅ full | ✅ | — |
+| Person-vehicle linking | ✅ full | ✅ | — |
+| Dispute portal (public) | ✅ full | ✅ | — |
+| Homeless register + welfare referral | ✅ full | ✅ | — |
+| Privacy Act 2020 compliance tools | ✅ full | ✅ | — |
+| Credential / warrant management | ✅ full | ✅ (UI) | ✅ (AI doc processing) |
+| Multi-org + grand master | ✅ full | ✅ | — |
+| Council compliance reporting | ✅ full | ✅ | — |
+| Leadership pack / monthly report | ✅ full | ✅ | — |
+| Spatial layer import (DOC/LINZ/data.govt.nz) | ✅ full | ✅ | — |
+| Zone signage evidence capture | ✅ partial | ✅ | — |
+| **Noise control enforcement workflow** | ⚠️ partial (incident only) | ❌ | ✅ Phase 2 |
+| **Noise abatement direction PDF** | ❌ not built | ❌ | ✅ Phase 2 |
+| **Noise zone overlay** | ❌ not built | ❌ | ✅ Phase 2 |
+| Push notifications (Expo) | ✅ full | ✅ | — |
+| Email notifications | ✅ full | ✅ | — |
+| AI vehicle photo analysis | ✅ full | ✅ optional | — |
+| AI admin chat assistant | ⚠️ edge fn exists, no UI | ❌ | ✅ Phase 2 |
+| Investigation jobs | ✅ partial | ❌ | ✅ Phase 2 |
+| ParkPow ALPR integration | ⚠️ code exists, not deployed | ❌ | ✅ Phase 2 optional |
 
 ---
 
