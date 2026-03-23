@@ -6535,9 +6535,11 @@ export type Database = {
           nights_per_month: number
           obs_count: number
           organization_name: string
+          parent_zone_id: string | null
           self_contained_required: boolean
           zone_id: string
           zone_name: string
+          zone_type: string | null
         }[]
       }
         check_compliance: {

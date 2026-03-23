@@ -19,6 +19,7 @@ import { useQuery } from '@tanstack/react-query';
 import { format, formatDistanceToNow, startOfDay, subDays } from 'date-fns';
 import {
   AlertTriangle,
+  Building2,
   CheckCircle,
   XCircle,
   MapPin,
@@ -86,6 +87,8 @@ interface ZoneStats {
   obs_count: number;
   breach_count: number;
   compliance_pct: number;
+  zone_type: string | null;
+  parent_zone_id: string | null;
 }
 
 // ============================================================================
@@ -571,11 +574,16 @@ function ZonesTab({
   });
 
   if (zonesLoading) return <Spinner />;
-  if (!zoneStats?.length) return <Empty msg="No zones found" />;
+
+  // Filter to show only specific child zones (not jurisdiction-level parent zones).
+  // Jurisdiction zones have parent_zone_id = null; specific zones have a parent.
+  const specificZones = (zoneStats ?? []).filter((z) => z.parent_zone_id != null);
+
+  if (!specificZones.length) return <Empty msg="No specific zones found" />;
 
   return (
     <div className="space-y-3">
-      {zoneStats.map((z) => (
+      {specificZones.map((z) => (
         <div
           key={z.zone_id}
           className={cn(
@@ -588,6 +596,133 @@ function ZonesTab({
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
                 <MapPin className="w-4 h-4 text-blue-500 shrink-0" />
+                <span className="font-semibold text-gray-900 dark:text-white truncate">{z.zone_name}</span>
+                {!z.is_active && (
+                  <span className="text-xs bg-gray-100 dark:bg-gray-800 text-gray-500 px-1.5 py-0.5 rounded">
+                    Inactive
+                  </span>
+                )}
+              </div>
+              <div className="flex flex-wrap gap-1.5 mt-1">
+                <span className="text-xs text-gray-400">{z.organization_name ?? '—'}</span>
+                <span className="text-xs text-gray-300">·</span>
+                <span className="text-xs text-gray-400">{z.nights_per_month}n/mo</span>
+                <span className="text-xs text-gray-300">·</span>
+                <span className="text-xs text-gray-400">{z.max_consecutive_nights} consecutive</span>
+                {z.self_contained_required && (
+                  <span className="text-xs bg-blue-50 dark:bg-blue-900/20 text-blue-600 px-1.5 py-0.5 rounded">
+                    Self-contained req.
+                  </span>
+                )}
+                {z.day_visit_only && (
+                  <span className="text-xs bg-amber-50 dark:bg-amber-900/20 text-amber-600 px-1.5 py-0.5 rounded">
+                    Day-visit only
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Stats */}
+            <div className="flex items-center gap-6 shrink-0">
+              <div className="text-center">
+                <div className="text-xl font-black text-gray-900 dark:text-white">{z.obs_count}</div>
+                <div className="text-xs text-gray-400">obs</div>
+              </div>
+              <div className="text-center">
+                <div className="text-xl font-black text-red-600">{z.breach_count}</div>
+                <div className="text-xs text-gray-400">breaches</div>
+              </div>
+              {/* Compliance bar */}
+              <div className="w-24">
+                <div className="flex justify-between text-xs mb-1">
+                  <span className="text-gray-400">Compliance</span>
+                  <span
+                    className={cn(
+                      'font-bold',
+                      z.compliance_pct >= 80
+                        ? 'text-green-600'
+                        : z.compliance_pct >= 60
+                        ? 'text-orange-500'
+                        : 'text-red-500'
+                    )}
+                  >
+                    {z.compliance_pct}%
+                  </span>
+                </div>
+                <div className="h-2 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
+                  <div
+                    className={cn(
+                      'h-full rounded-full transition-all',
+                      z.compliance_pct >= 80
+                        ? 'bg-green-500'
+                        : z.compliance_pct >= 60
+                        ? 'bg-orange-500'
+                        : 'bg-red-500'
+                    )}
+                    style={{ width: `${z.compliance_pct}%` }}
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ============================================================================
+// Tab: Jurisdiction (parent zones – observations not in a specific zone)
+// ============================================================================
+
+function JurisdictionTab({
+  dateFrom,
+  dateTo,
+  orgId,
+}: {
+  dateFrom: string;
+  dateTo: string;
+  orgId: string | null;
+}) {
+  const startISO = nzDateToUTCStart(dateFrom);
+  const endISO = nzDateToUTCEnd(dateTo);
+
+  const { data: zoneStats, isLoading: zonesLoading } = useQuery({
+    queryKey: ['comp-zone-breakdown', dateFrom, dateTo, orgId],
+    queryFn: async () => {
+      const { data, error } = await (supabase.rpc as any)('get_zone_compliance_breakdown', {
+        p_start:            startISO,
+        p_end:              endISO,
+        p_organization_id:  orgId ?? null,
+      });
+      if (error) throw error;
+      return (Array.isArray(data) ? data : []) as ZoneStats[];
+    },
+  });
+
+  if (zonesLoading) return <Spinner />;
+
+  // Show only jurisdiction-level parent zones (parent_zone_id is null).
+  // These are observations that were not matched to a specific child zone.
+  const jurisdictionZones = (zoneStats ?? []).filter((z) => z.parent_zone_id == null);
+
+  if (!jurisdictionZones.length) return <Empty msg="No jurisdiction zones found" />;
+
+  return (
+    <div className="space-y-3">
+      {jurisdictionZones.map((z) => (
+        <div
+          key={z.zone_id}
+          className={cn(
+            'bg-white dark:bg-gray-900 rounded-xl border shadow-sm p-4',
+            z.is_active ? 'border-gray-200 dark:border-gray-700' : 'border-gray-100 dark:border-gray-800 opacity-60'
+          )}
+        >
+          <div className="flex items-center gap-4 flex-wrap">
+            {/* Zone info */}
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2">
+                <Building2 className="w-4 h-4 text-indigo-500 shrink-0" />
                 <span className="font-semibold text-gray-900 dark:text-white truncate">{z.zone_name}</span>
                 {!z.is_active && (
                   <span className="text-xs bg-gray-100 dark:bg-gray-800 text-gray-500 px-1.5 py-0.5 rounded">
@@ -1025,13 +1160,14 @@ function HomelessTab({
 // Main page
 // ============================================================================
 
-type CompTab = 'overview' | 'breaches' | 'zones' | 'homeless';
+type CompTab = 'overview' | 'breaches' | 'zones' | 'homeless' | 'jurisdiction';
 
 const TABS: { id: CompTab; label: string; icon: React.ElementType }[] = [
   { id: 'overview', label: 'Overview', icon: Shield },
   { id: 'breaches', label: 'Breaches', icon: XCircle },
   { id: 'zones', label: 'By Zone', icon: MapPin },
   { id: 'homeless', label: 'Homeless / Exempt', icon: Home },
+  { id: 'jurisdiction', label: 'Jurisdiction', icon: Building2 },
 ];
 
 export default function CompliancePage() {
@@ -1200,8 +1336,11 @@ export default function CompliancePage() {
                 zoneId={zoneId}
               />
             )}
+            {activeTab === 'jurisdiction' && (
+              <JurisdictionTab dateFrom={effectiveDateFrom} dateTo={effectiveDateTo} orgId={effectiveOrgId} />
+            )}
             {activeTab === 'overview' && (
-              <Empty msg="Select Breaches, By Zone, or Homeless / Exempt for detail." />
+              <Empty msg="Select Breaches, By Zone, Homeless / Exempt, or Jurisdiction for detail." />
             )}
           </div>
         </div>
