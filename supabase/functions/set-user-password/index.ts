@@ -22,20 +22,26 @@ Deno.serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
 
-    // Verify caller is an authenticated admin/master
-    const authHeader = req.headers.get('Authorization') || req.headers.get('authorization');
-    if (!authHeader || !authHeader.toLowerCase().startsWith('bearer ')) {
+    // Verify caller is an authenticated admin/master — standard Supabase edge function pattern
+    const authHeader = req.headers.get('Authorization') ?? req.headers.get('authorization');
+    if (!authHeader) {
       return new Response(
-        JSON.stringify({ error: 'Missing or invalid Authorization header' }),
+        JSON.stringify({ error: 'Missing Authorization header' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    const accessToken = authHeader.slice(7).trim();
-    const { data: callerAuthData, error: callerAuthError } = await supabaseAdmin.auth.getUser(accessToken);
-    if (callerAuthError || !callerAuthData?.user?.id) {
+    // Use ANON_KEY + caller's JWT — the officially supported validation pattern
+    const userClient = createClient(
+      Deno.env.get('SUPABASE_URL')!,
+      Deno.env.get('SUPABASE_ANON_KEY')!,
+      { global: { headers: { Authorization: authHeader } } }
+    );
+
+    const { data: { user: callerUser }, error: userError } = await userClient.auth.getUser();
+    if (userError || !callerUser?.id) {
       return new Response(
-        JSON.stringify({ error: 'Invalid or expired access token' }),
+        JSON.stringify({ error: 'Invalid or expired session' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -43,12 +49,12 @@ Deno.serve(async (req) => {
     const { data: callerProfile, error: callerProfileError } = await supabaseAdmin
       .from('user_profiles')
       .select('role')
-      .eq('id', callerAuthData.user.id)
+      .eq('id', callerUser.id)
       .single();
 
     if (callerProfileError || !callerProfile || (callerProfile.role !== 'admin' && callerProfile.role !== 'master')) {
       return new Response(
-        JSON.stringify({ error: 'Forbidden: insufficient permissions' }),
+        JSON.stringify({ error: 'Forbidden: admin or master role required' }),
         { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
