@@ -870,6 +870,26 @@ export const edgeFunctions = {
   },
 
   /**
+   * Generate a formal Warning Notice (first step in enforcement escalation ladder).
+   * Returns { action_id, warning_number, html }.
+   */
+  generateWarningNotice: async (params: {
+    plate_number: string
+    zone_id: string
+    breach_type: string
+    breach_reason: string
+    issued_by: string
+    observation_id?: string
+    breach_alert_id?: string
+    recipient_name?: string
+    recipient_email?: string
+    additional_notes?: string
+    delivery_method?: 'email' | 'physical'
+  }) => {
+    return callEdgeFunction('generate-warning-notice', params)
+  },
+
+  /**
    * Get real-time compliance statistics
    */
   getComplianceStatistics: async (params: {

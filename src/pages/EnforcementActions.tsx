@@ -13,6 +13,7 @@ import { Input } from '@/components/ui/input'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Label } from '@/components/ui/label'
 import { nzDateToUTCStart, nzDateToUTCEnd } from '@/lib/timezone'
+import { WarningNoticeGenerator } from '@/components/features/WarningNoticeGenerator'
 import { 
   AlertTriangle, 
   Bell, 
@@ -59,6 +60,8 @@ interface BreachAlert {
   id: string
   plate_number: string
   breach_type: string
+  breach_details: any
+  zone_id: string
   status: string
   zone: { name: string }
 }
@@ -77,6 +80,7 @@ export default function EnforcementActions() {
   const [selectedBreach, setSelectedBreach] = useState<string>('')
   const [newActionType, setNewActionType] = useState<string>('warning')
   const [actionNotes, setActionNotes] = useState('')
+  const [warningModalBreach, setWarningModalBreach] = useState<BreachAlert | null>(null)
   const queryClient = useQueryClient()
   const navigate = useNavigate()
 
@@ -155,6 +159,8 @@ export default function EnforcementActions() {
           id,
           plate_number,
           breach_type,
+          breach_details,
+          zone_id,
           status,
           zone:zones(name)
         `)
@@ -750,6 +756,15 @@ export default function EnforcementActions() {
                   toast.error('Please select a breach')
                   return
                 }
+                if (newActionType === 'warning') {
+                  // Open the full WarningNoticeGenerator dialog instead
+                  const breach = pendingBreaches?.find(b => b.id === selectedBreach)
+                  if (breach) {
+                    setWarningModalBreach(breach)
+                    setIsCreateModalOpen(false)
+                  }
+                  return
+                }
                 createActionMutation.mutate({
                   breach_alert_id: selectedBreach,
                   action_type: newActionType,
@@ -760,6 +775,11 @@ export default function EnforcementActions() {
             >
               {createActionMutation.isPending ? (
                 <>Creating...</>
+              ) : newActionType === 'warning' ? (
+                <>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Next: Issue Warning Notice
+                </>
               ) : (
                 <>
                   <Plus className="h-4 w-4 mr-2" />
@@ -768,6 +788,38 @@ export default function EnforcementActions() {
               )}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Warning Notice Generator Dialog */}
+      <Dialog open={!!warningModalBreach} onOpenChange={(open) => { if (!open) setWarningModalBreach(null) }}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              ⚠ Issue Warning Notice
+            </DialogTitle>
+            <DialogDescription>
+              Generate and print a formal Warning Notice for this breach
+            </DialogDescription>
+          </DialogHeader>
+          {warningModalBreach && (
+            <WarningNoticeGenerator
+              plateNumber={warningModalBreach.plate_number}
+              zoneId={warningModalBreach.zone_id}
+              zoneName={warningModalBreach.zone?.name ?? ''}
+              breachType={warningModalBreach.breach_type}
+              breachReason={
+                (warningModalBreach.breach_details as any)?.reason ||
+                (warningModalBreach.breach_details as any)?.notes ||
+                warningModalBreach.breach_type.replace(/_/g, ' ')
+              }
+              breachAlertId={warningModalBreach.id}
+              onGenerated={(_actionId, warningNumber) => {
+                toast.success(`Warning ${warningNumber} issued`)
+                setWarningModalBreach(null)
+              }}
+            />
+          )}
         </DialogContent>
       </Dialog>
     </AppLayout>
