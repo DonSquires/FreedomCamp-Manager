@@ -75,47 +75,65 @@ serve(async (req) => {
 
     console.log('🔍 Checking NZSCV status for:', plate_number);
 
-    // ── Step 1: Check canonical_vehicles first (local source of truth) ──────
-    // The NZSCV API may be pointing to a test endpoint and returning inaccurate
-    // data. canonical_vehicles is maintained by sync-scv-list and prior verified
-    // lookups, so it is the most reliable source available.
+    // ── Step 1: Check canonical_scv first (authoritative SCV registry) ────
+    // canonical_scv is the single source of truth for SCV certification,
+    // populated by sync-scv-list.  The NZSCV API may be pointing to a test
+    // endpoint and returning inaccurate data, so canonical_scv is preferred.
     const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
     if (SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY) {
       try {
         const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-        const { data: cv } = await supabaseAdmin
-          .from('canonical_vehicles')
-          .select('plate_number, self_contained, self_contained_expiry, vehicle_make, vehicle_model, vehicle_year, vehicle_color')
-          .eq('plate_number', plate_number.toUpperCase().trim())
+        const normalizedPlate = plate_number.toUpperCase().trim();
+
+        const { data: scvRow } = await (supabaseAdmin.from('canonical_scv') as any)
+          .select('is_self_contained, certificate_expiry')
+          .eq('plate_number', normalizedPlate)
           .maybeSingle();
 
-        if (cv && cv.self_contained != null) {
-          const isSelfContained = Boolean(cv.self_contained);
-          const expiry = cv.self_contained_expiry ?? null;
-          // If canonical says self-contained with valid (or no) expiry → trust it
+        if (scvRow && scvRow.is_self_contained === true) {
+          const expiry = scvRow.certificate_expiry ?? null;
           const isExpired = expiry != null && new Date(expiry) < new Date();
-          if (isSelfContained && !isExpired) {
-            console.log('✅ SCV status from canonical_vehicles (trusted):', {
-              plate: plate_number,
+          if (!isExpired) {
+            // Optionally grab vehicle attributes from canonical_vehicles
+            let vehicleMake: string | null = null;
+            let vehicleModel: string | null = null;
+            let vehicleYear: number | null = null;
+            let vehicleColor: string | null = null;
+            try {
+              const { data: cv } = await supabaseAdmin
+                .from('canonical_vehicles')
+                .select('vehicle_make, vehicle_model, vehicle_year, vehicle_color')
+                .eq('plate_number', normalizedPlate)
+                .maybeSingle();
+              if (cv) {
+                vehicleMake  = cv.vehicle_make ?? null;
+                vehicleModel = cv.vehicle_model ?? null;
+                vehicleYear  = cv.vehicle_year != null ? Number(cv.vehicle_year) : null;
+                vehicleColor = cv.vehicle_color ?? null;
+              }
+            } catch { /* vehicle attributes are optional */ }
+
+            console.log('✅ SCV status from canonical_scv (trusted):', {
+              plate: normalizedPlate,
               self_contained: true,
               expiry,
             });
             return new Response(
               JSON.stringify({
                 found: true,
-                source: 'canonical_vehicles',
-                plate_number: plate_number.toUpperCase().trim(),
+                source: 'canonical_scv',
+                plate_number: normalizedPlate,
                 result: {
                   is_self_contained: true,
                   expiry_date: expiry,
                   issue_date: null,
                   status: 'Current',
-                  make: cv.vehicle_make ?? null,
-                  model: cv.vehicle_model ?? null,
-                  year: cv.vehicle_year != null ? Number(cv.vehicle_year) : null,
+                  make: vehicleMake,
+                  model: vehicleModel,
+                  year: vehicleYear,
                   vin: null,
-                  colour: cv.vehicle_color ?? null,
+                  colour: vehicleColor,
                   max_occupants: null,
                 },
                 checked_at: new Date().toISOString(),
@@ -125,14 +143,14 @@ serve(async (req) => {
           }
         }
       } catch (canonicalErr: any) {
-        console.warn('⚠️ canonical_vehicles lookup failed (will fall back to NZSCV API):', canonicalErr.message);
+        console.warn('⚠️ canonical_scv lookup failed (will fall back to NZSCV API):', canonicalErr.message);
       }
     }
 
     // ── Step 2: Fall back to NZSCV API ──────────────────────────────────────
-    // Only reached if canonical_vehicles has no record or says not self-contained.
+    // Only reached if canonical_scv has no record or says not self-contained.
     // NOTE: The NZSCV API may be pointing to a test endpoint — results may be
-    // inaccurate. canonical_vehicles (updated by sync-scv-list) is preferred.
+    // inaccurate. canonical_scv (updated by sync-scv-list) is preferred.
 
     // Get proxy server URL and secret from environment
     const PROXY_URL = Deno.env.get('NZSCV_PROXY_URL');
