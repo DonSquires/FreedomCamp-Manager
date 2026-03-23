@@ -79,7 +79,7 @@ export default function ParkingEnforcementPortal() {
     queryKey: ['parking-admin-sessions', user?.organization_id],
     queryFn: async ({ signal }) => {
       const { data, error } = await (supabase as any)
-        .from('parking_sessions')
+        .from('parking_sessions' as any)
         .select('*, parking_zones(name, max_stay_minutes, zone_type)')
         .eq('organization_id', user!.organization_id)
         .is('exit_time', null)
@@ -97,7 +97,7 @@ export default function ParkingEnforcementPortal() {
     queryKey: ['parking-infringements', user?.organization_id, statusFilter, searchPlate],
     queryFn: async ({ signal }) => {
       let q = (supabase as any)
-        .from('parking_infringements')
+        .from('parking_infringements' as any)
         .select('*')
         .eq('organization_id', user!.organization_id)
         .order('issued_at', { ascending: false })
@@ -116,7 +116,7 @@ export default function ParkingEnforcementPortal() {
     queryKey: ['parking-permits', user?.organization_id],
     queryFn: async ({ signal }) => {
       const { data, error } = await (supabase as any)
-        .from('parking_permits')
+        .from('parking_permits' as any)
         .select('*, parking_zones(name)')
         .eq('organization_id', user!.organization_id)
         .eq('is_active', true)
@@ -133,7 +133,7 @@ export default function ParkingEnforcementPortal() {
     queryKey: ['parking-zones-admin', user?.organization_id],
     queryFn: async ({ signal }) => {
       const { data, error } = await (supabase as any)
-        .from('parking_zones')
+        .from('parking_zones' as any)
         .select('*')
         .eq('organization_id', user!.organization_id)
         .order('name')
@@ -178,7 +178,7 @@ export default function ParkingEnforcementPortal() {
   const handleStatusChange = async (id: string, status: string) => {
     const update: any = { status }
     if (status === 'paid') update.payment_received_at = new Date().toISOString()
-    const { error } = await (supabase as any).from('parking_infringements').update(update).eq('id', id)
+    const { error } = await (supabase as any).from('parking_infringements' as any).update(update).eq('id', id)
     if (error) {
       toast.error(error.message)
     } else {
@@ -449,7 +449,7 @@ export default function ParkingEnforcementPortal() {
                           size="sm"
                           className="h-6 text-xs text-red-600 hover:text-red-700"
                           onClick={async () => {
-                            await (supabase as any).from('parking_permits').update({ is_active: false }).eq('id', p.id)
+                            await (supabase as any).from('parking_permits' as any).update({ is_active: false }).eq('id', p.id)
                             toast.success('Permit revoked')
                             refetchPermits()
                           }}
@@ -696,7 +696,7 @@ function NewZoneDialog({ open, organizationId, onClose, onSaved }: {
   const handleSave = async () => {
     if (!form.name.trim()) { toast.error('Zone name required'); return }
     setSaving(true)
-    const { error } = await (supabase as any).from('parking_zones').insert({
+    const { error } = await (supabase as any).from('parking_zones' as any).insert({
       organization_id:     organizationId,
       name:                form.name.trim(),
       address:             form.address || null,
@@ -771,7 +771,7 @@ function NewPermitDialog({ open, organizationId, zones, onClose, onSaved }: {
   const handleSave = async () => {
     if (!form.plate_number.trim()) { toast.error('Plate number required'); return }
     setSaving(true)
-    const { error } = await (supabase as any).from('parking_permits').insert({
+    const { error } = await (supabase as any).from('parking_permits' as any).insert({
       organization_id:  organizationId,
       plate_number:     form.plate_number.toUpperCase().trim(),
       permit_type:      form.permit_type,

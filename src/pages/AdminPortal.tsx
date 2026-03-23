@@ -27,6 +27,7 @@ import {
   Home,
   Map,
   Navigation,
+  ParkingSquare,
   Printer,
   Radio,
   Search,
@@ -34,6 +35,7 @@ import {
   TrendingUp,
   UserCheck,
   Users,
+  Volume2,
 } from 'lucide-react'
 
 type DrillConfig = {
@@ -987,6 +989,45 @@ export default function AdminPortal() {
             </CardContent>
           </Card>
         </section>
+        {/* ── Specialist Portals ─────────────────────────────────────────── */}
+        <section>
+          <Card className="bg-white dark:bg-gray-900 shadow-sm">
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Shield className="h-4 w-4 text-indigo-600" />
+                Specialist Enforcement Portals
+              </CardTitle>
+              <CardDescription className="text-xs">
+                Open dedicated admin portals for parking and noise control enforcement.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="grid gap-2 sm:grid-cols-2 pt-0">
+              <button
+                className="flex items-center gap-3 rounded-lg border bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-800 px-4 py-3 text-left hover:bg-orange-100 dark:hover:bg-orange-900/40 transition-colors group"
+                onClick={() => navigate('/parking')}
+              >
+                <ParkingSquare className="h-5 w-5 text-orange-600 shrink-0" />
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-orange-900 dark:text-orange-100">Parking Enforcement</p>
+                  <p className="text-xs text-orange-600 dark:text-orange-400 truncate">Sessions · Infringements · Permits</p>
+                </div>
+                <ArrowRight className="h-4 w-4 text-orange-400 ml-auto shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
+              </button>
+              <button
+                className="flex items-center gap-3 rounded-lg border bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800 px-4 py-3 text-left hover:bg-yellow-100 dark:hover:bg-yellow-900/40 transition-colors group"
+                onClick={() => navigate('/noise-control')}
+              >
+                <Volume2 className="h-5 w-5 text-yellow-700 shrink-0" />
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-yellow-900 dark:text-yellow-100">Noise Control</p>
+                  <p className="text-xs text-yellow-700 dark:text-yellow-400 truncate">Jobs · AN / DN / END · Seizures</p>
+                </div>
+                <ArrowRight className="h-4 w-4 text-yellow-500 ml-auto shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
+              </button>
+            </CardContent>
+          </Card>
+        </section>
+
       </div>
     </AppLayout>
   )

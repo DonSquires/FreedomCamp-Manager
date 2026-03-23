@@ -26,7 +26,7 @@ import {
   Camera, Map, FileText, History, AlertTriangle, MapPin, QrCode,
   ShieldAlert, CheckCircle, Shield, Megaphone, FileWarning, XCircle,
   Clock, Home, X, Car, Zap, Search, Printer, PlusCircle, Wrench, Heart, Users,
-  Moon, Sun,
+  Moon, Sun, ParkingSquare, Volume2,
 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
@@ -726,6 +726,40 @@ export default function FieldOfficerPortal() {
             <CardContent>
               <Button className="w-full" variant="outline" onClick={() => navigate('/infringements')}>
                 Issue / View Notices
+              </Button>
+            </CardContent>
+          </Card>
+
+          <Card className="hover:shadow-lg transition-shadow border-orange-200 dark:border-orange-900">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <div className="p-2 bg-orange-100 dark:bg-orange-900 rounded-lg">
+                  <ParkingSquare className="h-5 w-5 text-orange-600 dark:text-orange-400" />
+                </div>
+                Parking Enforcement
+              </CardTitle>
+              <CardDescription>Chalk pass · Recheck · Infringement</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button className="w-full" variant="outline" onClick={() => navigate('/parking-officer')}>
+                Open Parking Portal
+              </Button>
+            </CardContent>
+          </Card>
+
+          <Card className="hover:shadow-lg transition-shadow border-yellow-200 dark:border-yellow-900">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <div className="p-2 bg-yellow-100 dark:bg-yellow-900 rounded-lg">
+                  <Volume2 className="h-5 w-5 text-yellow-700 dark:text-yellow-400" />
+                </div>
+                Noise Control
+              </CardTitle>
+              <CardDescription>Jobs · AN / DN / END · Seizures</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button className="w-full" variant="outline" onClick={() => navigate('/noise-officer')}>
+                Open Noise Portal
               </Button>
             </CardContent>
           </Card>
