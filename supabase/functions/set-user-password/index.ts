@@ -83,7 +83,7 @@ Deno.serve(async (req) => {
       throw new Error(`Failed to update password: ${updateError.message}`);
     }
 
-    console.log('Password updated for user:', user_id, '| Updated by:', callerAuthData.user.id);
+    console.log('Password updated for user:', user_id, '| Updated by:', callerUser.id);
 
     return new Response(
       JSON.stringify({ message: 'Password updated successfully' }),
