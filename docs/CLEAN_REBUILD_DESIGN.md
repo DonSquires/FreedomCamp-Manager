@@ -164,7 +164,7 @@ councils enforce freedom camping rules**. Everything else is supporting infrastr
 
 ---
 
-### 3.2 Database Tables: Keep 20, Cut 20+
+### 3.2 Database Tables: Keep 36, Cut 20+
 
 #### Keep (core, actively used)
 
@@ -175,21 +175,37 @@ councils enforce freedom camping rules**. Everything else is supporting infrastr
 | `zones` | Geofenced compliance areas |
 | `zone_compliance_matrix` | Versioned compliance rules per zone |
 | `zone_legal_config` | Payment, objections, and dispute portal per zone |
+| `zone_signage_evidence` | Photo evidence of posted signage (legal defensibility) |
 | `observations` | Core fact table — every plate scan |
 | `breach_alerts` | Unresolved compliance breaches |
 | `canonical_vehicles` | Vehicle attributes (make/model/year/colour) |
 | `canonical_scv` | SCV certification per plate |
 | `canonical_homeless` | Homeless status per plate |
 | `infringement_notices` | Issued infringement notices |
+| `infringement_notice_counters` | Atomic sequential number generation per org |
 | `notices_to_vacate` | Issued NTV documents |
+| `enforcement_cases` | Case management for repeat offenders |
+| `enforcement_case_events` | Timeline events for each case |
 | `patrols` | Patrol sessions |
 | `patrol_schedule_zones` | Zones assigned to a patrol |
+| `patrol_checkpoints` | QR lone-worker safety checkpoints |
+| `checkpoint_visits` | Officer QR scan events at checkpoints |
 | `officer_shifts` | Shift start/end records |
+| `officer_welfare_settings` | Per-org welfare check intervals |
+| `officer_welfare_alerts` | Triggered lone-worker welfare alerts |
+| `officer_activity_log` | Heartbeat / GPS location log for welfare |
+| `incidents` | Field incident and maintenance reports |
+| `incident_attachments` | Photo/document evidence for incidents |
+| `health_safety_reports` | Formal H&S incident reports |
+| `person_records` | Known individuals linked to plates |
+| `person_observations` | Person–observation links |
+| `person_vehicle_links` | Person–plate associations |
+| `person_interactions` | Officer interaction history per person |
 | `audit_log` | Immutable action log |
 | `dispute_intake` | Public dispute submissions |
-| `person_records` | Known individuals linked to plates |
-| `enforcement_cases` | Case management for repeat offenders |
 | `privacy_access_log` | Privacy Act 2020 PII access log |
+| `privacy_curtain_settings` | Per-org privacy redaction rules |
+| `retention_policies` | Data retention schedules per org |
 
 #### Cut or Merge
 
@@ -198,13 +214,13 @@ councils enforce freedom camping rules**. Everything else is supporting infrastr
 | `flagged_vehicles` | **Merge into `canonical_homeless`** — it's the same concept. Use `canonical_homeless.status = 'flagged'` |
 | `homeless_records` | **Merge into `canonical_homeless`** — duplicates the concept |
 | `vehicle_discrepancies` | Useful but niche — keep as opt-in phase-2 feature. Remove from initial clean build |
-| `investigation_jobs` | Rarely used — phase-2 only |
-| `incident_reports` (if separate) | Merge into `enforcement_cases` |
-| `patrol_checkpoints` | Keep only if using lone-worker QR scan. Otherwise cut |
+| `investigation_jobs` + `investigation_job_templates` | Rarely used — phase-2 only |
+| `incident_reports` (if separate) | Already merged into `incidents` + `enforcement_cases` |
 | `compliance_results` (if still exists) | Was replaced by columns on `observations` |
-| `photo_records` (if separate) | Merge into `observations.photo_url` |
+| `photo_records` (if separate) | Merged into `observations.photo_url` |
 | `vehicle_monthly_stays` | **Cut** — was a pre-aggregated cache of monthly stay counts per vehicle per zone. The compliance RPC now counts directly from `observations` using a rolling window. Removing this table eliminates a maintenance burden. |
-| PHASE_*.md files in src/pages | Not DB tables but dead files — delete |
+| `privacy_impact_assessments` | Niche compliance feature — Phase 2 only |
+| `canonical_persons` | Cross-org person matching — Phase 2 only |
 
 ---
 
@@ -238,10 +254,12 @@ councils enforce freedom camping rules**. Everything else is supporting infrastr
 | `ReportsHub` + `Reports` + `IncidentReports` | `Reports.tsx` |
 | `DataManagement` + `DataManagementHub` + `ImportData` + `ImportHistoricalData` | `DataImport.tsx` |
 | `PatrolScheduleManagement` + `PatrolKPIDashboard` | `Patrols.tsx` with schedule/KPI tabs |
+| `PrivacyCurtain` | Merge as a tab within `Settings.tsx` |
+| `SpatialComplianceAdmin` | Merge as a tab within `Zones.tsx` |
 
 ---
 
-## 4. Clean Schema (20 tables, not 40+)
+## 4. Clean Schema (36 tables, not 40+)
 
 ### Entity-Relationship Summary
 
@@ -1177,33 +1195,46 @@ It shows every area of the current build, whether V4 covers it, and what changed
 
 ---
 
-### A. Database: 20 Tables + 3 Storage Buckets
+### A. Database: 36 Tables + 3 Storage Buckets
 
 | Component | V4 Status |
 |---|---|
 | `organizations` | ✅ Keep |
 | `user_profiles` | ✅ Keep (roles: officer, admin, admin_officer, master, grand_master) |
 | `zones` + `zone_compliance_matrix` + `zone_legal_config` | ✅ Keep |
+| `zone_signage_evidence` | ✅ Keep (legal defensibility — photo of posted signage) |
 | `observations` | ✅ Keep (core fact table) |
 | `breach_alerts` | ✅ Keep |
 | `canonical_vehicles` | ✅ Keep (attributes only — make/model/year/colour) |
 | `canonical_scv` | ✅ Keep (SCV certification — authoritative source) |
 | `canonical_homeless` | ✅ Keep (replaces flagged_vehicles + homeless_records) |
 | `infringement_notices` | ✅ Keep |
+| `infringement_notice_counters` | ✅ Keep (atomic sequential number generation) |
 | `notices_to_vacate` | ✅ Keep |
+| `enforcement_cases` | ✅ Keep |
+| `enforcement_case_events` | ✅ Keep (case timeline events) |
 | `patrols` + `patrol_schedule_zones` | ✅ Keep |
+| `patrol_checkpoints` + `checkpoint_visits` | ✅ Keep (lone-worker QR check-ins) |
 | `officer_shifts` | ✅ Keep |
+| `officer_welfare_settings` | ✅ Keep (per-org welfare check intervals) |
+| `officer_welfare_alerts` | ✅ Keep (missed check-in alerts) |
+| `officer_activity_log` | ✅ Keep (GPS heartbeat for welfare) |
+| `incidents` + `incident_attachments` | ✅ Keep (incident + maintenance reports) |
+| `health_safety_reports` | ✅ Keep (formal H&S reporting) |
 | `audit_log` | ✅ Keep |
 | `dispute_intake` | ✅ Keep |
 | `person_records` | ✅ Keep |
-| `enforcement_cases` | ✅ Keep |
+| `person_observations` + `person_vehicle_links` + `person_interactions` | ✅ Keep (person–plate linkage) |
 | `privacy_access_log` | ✅ Keep |
-| `patrol_checkpoints` | ✅ Keep (optional, for lone-worker QR check-ins) |
+| `privacy_curtain_settings` | ✅ Keep (per-org privacy redaction rules) |
+| `retention_policies` | ✅ Keep (data retention schedules) |
 | `vehicle_monthly_stays` | ❌ Cut — compliance RPC counts from observations directly |
 | `flagged_vehicles` | ❌ Merge into `canonical_homeless` |
 | `homeless_records` | ❌ Merge into `canonical_homeless` |
 | `vehicle_discrepancies` | ⏳ Phase 2 |
-| `investigation_jobs` | ⏳ Phase 2 |
+| `investigation_jobs` + `investigation_job_templates` | ⏳ Phase 2 |
+| `privacy_impact_assessments` | ⏳ Phase 2 |
+| `canonical_persons` | ⏳ Phase 2 |
 | **Storage: `scans` bucket** | ✅ Keep (officer scan photos) |
 | **Storage: `notice-artifacts` bucket** | ✅ Keep (generated PDFs) |
 | **Storage: `incident-evidence` bucket** | ✅ Keep (enforcement case photos) |
@@ -1304,7 +1335,7 @@ All AI providers use `OPENAI_BASE_URL` — you can swap in Azure OpenAI, local O
 | `/platform` | Platform.tsx | grand_master only |
 | `/profile` + `/settings` | Profile.tsx, Settings.tsx | All authenticated |
 
-**Cut (40+ pages):** TestDashboard, CleanDashboard, DataCleanupUtility, DataIntegrityDashboard, SystemDiagnostics, CleanupAndRecalculate, ComplianceRecalculation, PhotoReingest, EvidencePhotoLinker, CanonicalRecordsManager (internal tool), UniversalSearch (merge into search within pages), HotspotsMap (tab within Dashboard), SpatialComplianceAdmin (tab within Zones), AuditLog (tab within compliance/settings), PersonRecords (tab within Vehicles), plus all PHASE_*.md dev notes.
+**Cut (40+ pages):** TestDashboard, CleanDashboard, DataCleanupUtility, DataIntegrityDashboard, SystemDiagnostics, CleanupAndRecalculate, ComplianceRecalculation, PhotoReingest, EvidencePhotoLinker, CanonicalRecordsManager (internal tool), UniversalSearch (merge into search within pages), HotspotsMap (tab within Dashboard), SpatialComplianceAdmin (tab within Zones), PrivacyCurtain (tab within Settings), AuditLog (tab within compliance/settings), PersonRecords (tab within Vehicles), plus all legacy PHASE_*.md dev notes (already deleted from src/pages).
 
 ---
 
@@ -1413,7 +1444,7 @@ LiveOfficerTracking.tsx / LivePatrolMonitor.tsx:
 - ✅ `monitor-officer-welfare` edge fn → Keep (simplified: `send-push-notification` folded in)
 - ✅ Welfare config UI → Keep in `Settings.tsx` admin section
 - ✅ Live welfare status → Keep in `LiveMap.tsx`
-- 🟡 **Gap in V4 doc**: `officer_welfare_settings`, `officer_welfare_alerts`, and `officer_activity_log` are not in the §3.2 keep list (they were absorbed under "patrols" implicitly). Add these 3 tables.
+- ✅ **Resolved**: `officer_welfare_settings`, `officer_welfare_alerts`, and `officer_activity_log` added to §3.2 keep list.
 
 **Health & Safety reports** (`health_safety_reports` table):
 - Exists since initial schema (2025-01-01)
@@ -1422,7 +1453,7 @@ LiveOfficerTracking.tsx / LivePatrolMonitor.tsx:
 - Linked to enforcement_cases (hs_report_id FK)
 - Has severity field (low, medium, high, critical)
 - Currently accessible via `IncidentManagement.tsx` and `IncidentReports.tsx`
-- 🟡 **Gap in V4 doc**: `health_safety_reports` not listed in the §3.2 keep list. Add it.
+- ✅ **Resolved**: `health_safety_reports` added to §3.2 keep list.
 
 ---
 
@@ -1455,7 +1486,7 @@ observations-in-bounds edge function:
 - ✅ `hotspot-data` edge function → Keep (§3.1 keep list ✅)
 - ✅ Heatmap → Tab within `/dashboard` or `/live` page
 - ✅ `observations-in-bounds` → Frontend queries Supabase directly with PostGIS (no edge fn needed)
-- 🟡 **Gap in V4 doc**: `HeatmapVisualizer` component not mentioned — it should be noted as the map component used within `LiveMap.tsx`
+- ✅ **Resolved**: `HeatmapVisualizer` is the map component used within `LiveMap.tsx` (noted in §I.3).
 
 ---
 
@@ -1498,7 +1529,7 @@ PatrolKPIDashboard.tsx:
 - ✅ `checkpoint_visits` → Keep with `patrol_checkpoints`
 - ✅ `get_patrol_kpis()` RPC → Keep
 - ✅ `PatrolScheduleManagement` + `PatrolKPIDashboard` → Merged into `Patrols.tsx` (§8 ✅)
-- 🟡 **Gap in V4 doc**: `checkpoint_visits` not in §3.2 keep list alongside `patrol_checkpoints`. Add it.
+- ✅ **Resolved**: `checkpoint_visits` added to §3.2 keep list alongside `patrol_checkpoints`.
 
 ---
 
@@ -1536,8 +1567,8 @@ Step 6: ENFORCEMENT CASE (enforcement_cases + enforcement_case_events tables)
 - ✅ Warning notices → Frontend-only (`WarningNoticeGenerator` component, no DB table needed)
 - ✅ Tow requests → Logged as enforcement_case event
 - ✅ `render-infringement-notice` edge fn → Fold into `generate-infringement` in clean rebuild
-- 🟡 **Gap in V4 doc**: `enforcement_case_events` table not listed in §3.2 keep list — add it alongside `enforcement_cases`
-- 🟡 **Gap**: `infringement_notice_counters` table (atomic infringement number generation) not listed — add it
+- ✅ **Resolved**: `enforcement_case_events` added to §3.2 keep list.
+- ✅ **Resolved**: `infringement_notice_counters` added to §3.2 keep list.
 
 ---
 
@@ -1582,8 +1613,7 @@ investigation_jobs table + investigation_job_templates:
 - ✅ `incident_attachments` → Keep alongside `incidents`
 - ✅ `health_safety_reports` → Keep (see §I.2)
 - ⏳ `investigation_jobs` → Phase 2 (V4 §3.2 ✅)
-- 🟡 **Gap in V4 doc**: `incidents` table not in §3.2 keep list. Add it.
-- 🟡 **Gap**: `incident_attachments` not listed.
+- ✅ **Resolved**: `incidents` + `incident_attachments` added to §3.2 keep list.
 
 ---
 
@@ -1624,8 +1654,8 @@ usePersonRecords.ts hook:
 **V4 disposition:**
 - ✅ `person_records` → Keep (§3.2 ✅)
 - ✅ `PersonRecords.tsx` → Tab within `Vehicles.tsx` or standalone (§8 V4 mentions "PersonRecords as tab within Vehicles")
-- 🟡 `person_observations`, `person_vehicle_links`, `person_interactions` → Not in V4 keep list. These are Phase 1 required for person-plate linking. **Add these 3 tables to the keep list.**
-- 🟡 `canonical_persons` → Not mentioned in V4. Useful for cross-org person matching but niche. Mark as Phase 2.
+- ✅ **Resolved**: `person_observations`, `person_vehicle_links`, `person_interactions` added to §3.2 keep list.
+- ✅ **Resolved**: `canonical_persons` → Phase 2 (added to §3.2 cut list).
 
 ---
 
@@ -1742,8 +1772,8 @@ audit_log table:
 - ✅ `audit_log`, `privacy_access_log`, `privacy_curtain_settings` → Keep
 - ✅ `retention_policies` → Keep (drives `nightly-privacy-cleanup`)
 - ✅ `nightly-privacy-cleanup` → Keep (§5 keep list ✅)
-- 🟡 `privacy_impact_assessments` → Not in V4 keep list. Niche compliance feature. Mark Phase 2.
-- 🟡 `PrivacyCurtain.tsx` → Not in V4's 18-page list. Privacy settings should be a tab in `Settings.tsx`.
+- ✅ **Resolved**: `privacy_impact_assessments` → Phase 2 (added to §3.2 cut list).
+- ✅ **Resolved**: `PrivacyCurtain.tsx` → merge as tab in `Settings.tsx` (added to §3.1 merge list).
 
 ---
 
@@ -1838,8 +1868,8 @@ SpatialComplianceAdmin.tsx:
 **V4 disposition:**
 - ✅ `zones`, `zone_compliance_matrix`, `zone_legal_config` → Keep ✅
 - ✅ `ZoneGeofenceEditor` → Part of `Zones.tsx`
-- 🟡 `zone_signage_evidence` → Not in V4 keep list. Important for legal defensibility. **Add to keep list.**
-- 🟡 `SpatialComplianceAdmin.tsx` → Not in V4's 18-page list. Merge as a tab within `Zones.tsx`.
+- ✅ **Resolved**: `zone_signage_evidence` added to §3.2 keep list.
+- ✅ **Resolved**: `SpatialComplianceAdmin.tsx` → merge as tab in `Zones.tsx` (added to §3.1 merge list).
 
 ---
 

@@ -2,6 +2,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { useNavigate } from 'react-router-dom'
 import { 
   Car, 
   MapPin, 
@@ -70,6 +71,7 @@ export function VehicleDetailsModal({
   breaches = [],
 }: VehicleDetailsModalProps) {
   const displayPhoto = getVehiclePhotoUrl(vehicle)
+  const navigate = useNavigate()
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -327,7 +329,7 @@ export function VehicleDetailsModal({
           <Button variant="outline" onClick={onClose}>
             Close
           </Button>
-          <Button disabled>
+          <Button onClick={() => { onClose(); navigate(`/vehicles/${encodeURIComponent(vehicle.plate_number)}`) }}>
             <ExternalLink className="h-4 w-4 mr-2" />
             View Full Report
           </Button>
