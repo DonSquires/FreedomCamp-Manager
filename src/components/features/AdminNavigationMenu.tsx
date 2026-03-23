@@ -8,7 +8,7 @@ import {
   LogOut, Settings, ChevronLeft, AlertTriangle, ChevronDown,
   Activity, Database, Search, Heart, ScrollText, Lock, Gavel,
   Navigation, BookOpen, LayoutGrid, Map, Bell, Upload, Shield, Camera, Link2,
-  CalendarDays, TrendingUp, Wrench, ParkingSquare, Volume2,
+  CalendarDays, TrendingUp, Wrench, ParkingSquare, Volume2, Radio,
 } from 'lucide-react'
 
 const primaryLinks = [
@@ -73,6 +73,8 @@ const moreGroups = [
     links: [
       { to: '/parking',         label: 'Parking Enforcement', icon: ParkingSquare },
       { to: '/parking-officer', label: 'Parking Officer',     icon: Car },
+      { to: '/noise-control',   label: 'Noise Control',       icon: Volume2 },
+      { to: '/noise-officer',   label: 'Noise Officer',       icon: Radio },
     ],
   },
   {

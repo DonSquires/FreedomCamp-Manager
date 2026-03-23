@@ -70,6 +70,8 @@ import Disputes from '@/pages/Disputes'
 import Platform from '@/pages/Platform'
 import ParkingEnforcementPortal from '@/pages/ParkingEnforcementPortal'
 import ParkingOfficerPortal from '@/pages/ParkingOfficerPortal'
+import NoiseControlPortal from '@/pages/NoiseControlPortal'
+import NoiseOfficerPortal from '@/pages/NoiseOfficerPortal'
 
 // ---------------------------------------------------------------------------
 // ErrorBoundary – catches render-time errors so a crash on one page does not
@@ -870,6 +872,26 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <ParkingOfficerPortal />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* ── Noise Control ────────────────────────────────────────────── */}
+          <Route
+            path="/noise-control"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <NoiseControlPortal />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/noise-officer"
+            element={
+              <ProtectedRoute>
+                <NoiseOfficerPortal />
               </ProtectedRoute>
             }
           />
