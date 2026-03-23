@@ -1,6 +1,15 @@
 // ============================================================================
-// ALPR Helper - Snapshot Cloud API Only
-// Supports multipart/form-data for optimal performance
+// ALPR Helper — supports both Plate Recognizer cloud API and self-hosted
+// local inference service.
+//
+// Provider selection (ALPR_PROVIDER env var):
+//   "local"           — always call the local inference service /infer/alpr
+//   "plate_recognizer"— always call Plate Recognizer cloud API
+//   "auto" (default)  — use local if INFERENCE_SERVICE_URL is set and
+//                       PLATERECOGNIZER_TOKEN is not; otherwise cloud API
+//
+// The local provider returns the same ALPRResult shape so all call sites
+// are unaffected.
 // ============================================================================
 
 export interface ALPRResult {
@@ -16,10 +25,85 @@ export interface ALPRResult {
   raw: any;
 }
 
+// ── Local inference service ALPR ─────────────────────────────────────────────
+async function alprLocal(
+  imageBytes: Uint8Array,
+  options?: { timeout?: number }
+): Promise<ALPRResult> {
+  const inferenceUrl = Deno.env.get("INFERENCE_SERVICE_URL");
+  const authToken    = Deno.env.get("INFERENCE_SERVICE_TOKEN") ?? Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  const timeout      = options?.timeout ?? Number(Deno.env.get("ALPR_TIMEOUT_MS") ?? 10000);
+
+  if (!inferenceUrl) {
+    console.error("❌ INFERENCE_SERVICE_URL not configured for local ALPR");
+    return emptyResult({ error: "INFERENCE_SERVICE_URL not set" });
+  }
+
+  try {
+    const formData = new FormData();
+    const blob = new Blob([imageBytes], { type: "image/jpeg" });
+    formData.append("photo", blob, "photo.jpg");
+
+    const controller = new AbortController();
+    const timeoutId  = setTimeout(() => controller.abort(), timeout);
+
+    const response = await fetch(`${inferenceUrl.replace(/\/$/, "")}/infer/alpr`, {
+      method: "POST",
+      headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},
+      body: formData,
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeoutId);
+
+    if (!response.ok) {
+      const text = await response.text();
+      console.error(`❌ Local ALPR error ${response.status}:`, text);
+      return emptyResult({ error: text, status: response.status });
+    }
+
+    const data = await response.json();
+
+    // Parse the Plate Recognizer-compatible response from /infer/alpr
+    const best = data?.results?.[0] ?? null;
+    const plate = (best?.plate ?? data?.plate ?? "")
+      .toUpperCase()
+      .replace(/[^A-Z0-9]/g, "") || null;
+
+    return {
+      plate,
+      confidence:      best?.score      ?? data?.confidence ?? null,
+      make:            null,
+      model:           null,
+      color:           null,
+      orientation:     null,
+      makeConfidence:  null,
+      modelConfidence: null,
+      colorConfidence: null,
+      raw:             data,
+    };
+  } catch (error: any) {
+    if (error.name === "AbortError") {
+      console.error("❌ Local ALPR timeout after", timeout, "ms");
+    } else {
+      console.error("❌ Local ALPR error:", error.message);
+    }
+    return emptyResult({ error: error.message });
+  }
+}
+
+function emptyResult(raw: any = null): ALPRResult {
+  return {
+    plate: null, confidence: null, make: null, model: null,
+    color: null, orientation: null,
+    makeConfidence: null, modelConfidence: null, colorConfidence: null,
+    raw,
+  };
+}
+
 /**
- * Call Plate Recognizer Snapshot Cloud API
- * @param imageBytes - Raw image bytes (JPEG/PNG)
- * @param options - Optional config overrides
+ * Call ALPR — routes to local inference service or Plate Recognizer cloud API
+ * based on ALPR_PROVIDER env var (default: "auto").
  */
 export async function alprWithBytes(
   imageBytes: Uint8Array,
@@ -30,11 +114,20 @@ export async function alprWithBytes(
     timeout?: number;
   }
 ): Promise<ALPRResult> {
-  // Accept either name: PLATERECOGNIZER_TOKEN (canonical per build plan) or
-  // PLATE_RECOGNIZER_TOKEN (legacy name used before standardisation).
-  const token =
-    Deno.env.get("PLATERECOGNIZER_TOKEN") ??
-    Deno.env.get("PLATE_RECOGNIZER_TOKEN");
+  const provider = Deno.env.get("ALPR_PROVIDER") ?? "auto";
+  const token = Deno.env.get("PLATERECOGNIZER_TOKEN") ??
+                Deno.env.get("PLATE_RECOGNIZER_TOKEN");
+  const inferenceUrl = Deno.env.get("INFERENCE_SERVICE_URL");
+
+  const useLocal =
+    provider === "local" ||
+    (provider === "auto" && !!inferenceUrl && !token);
+
+  if (useLocal) {
+    return alprLocal(imageBytes, options);
+  }
+
+  // ── Plate Recognizer cloud API (existing implementation) ─────────────────
   const url = Deno.env.get("ALPR_CLOUD_URL") ?? "https://api.platerecognizer.com/v1/plate-reader/";
   const regions = options?.regions ?? Deno.env.get("ALPR_REGIONS") ?? "nz";
   const mmc = options?.mmc ?? (Deno.env.get("ALPR_MMC") === "true");
@@ -42,19 +135,8 @@ export async function alprWithBytes(
   const timeout = options?.timeout ?? Number(Deno.env.get("ALPR_TIMEOUT_MS") ?? 15000);
 
   if (!token) {
-    console.error("❌ PLATERECOGNIZER_TOKEN (or PLATE_RECOGNIZER_TOKEN) not configured");
-    return {
-      plate: null,
-      confidence: null,
-      make: null,
-      model: null,
-      color: null,
-      orientation: null,
-      makeConfidence: null,
-      modelConfidence: null,
-      colorConfidence: null,
-      raw: null,
-    };
+    console.error("❌ PLATERECOGNIZER_TOKEN not configured (and ALPR_PROVIDER != local)");
+    return emptyResult();
   }
 
   try {
@@ -70,9 +152,7 @@ export async function alprWithBytes(
 
     const response = await fetch(url, {
       method: "POST",
-      headers: {
-        "Authorization": `Token ${token}`,
-      },
+      headers: { "Authorization": `Token ${token}` },
       body: formData,
       signal: controller.signal,
     });
@@ -82,12 +162,11 @@ export async function alprWithBytes(
     if (!response.ok) {
       const text = await response.text();
       console.error(`❌ ALPR API error ${response.status}:`, text);
-      return { plate: null, confidence: null, raw: { error: text, status: response.status } };
+      return emptyResult({ error: text, status: response.status });
     }
 
     const data = await response.json();
 
-    // Extract best result
     if (data.results && data.results.length > 0) {
       const best = data.results[0];
       const plate = best.plate?.toUpperCase() ?? null;
@@ -108,48 +187,27 @@ export async function alprWithBytes(
         model: model ? String(model) : null,
         color: color ? String(color) : null,
         orientation: orientation ? String(orientation) : null,
-        makeConfidence: typeof makeConfidence === 'number' ? makeConfidence : null,
-        modelConfidence: typeof modelConfidence === 'number' ? modelConfidence : null,
-        colorConfidence: typeof colorConfidence === 'number' ? colorConfidence : null,
+        makeConfidence: typeof makeConfidence === "number" ? makeConfidence : null,
+        modelConfidence: typeof modelConfidence === "number" ? modelConfidence : null,
+        colorConfidence: typeof colorConfidence === "number" ? colorConfidence : null,
         raw: data,
       };
     }
 
     console.warn("⚠️ ALPR: No plates detected");
-    return {
-      plate: null,
-      confidence: null,
-      make: null,
-      model: null,
-      color: null,
-      orientation: null,
-      makeConfidence: null,
-      modelConfidence: null,
-      colorConfidence: null,
-      raw: data,
-    };
+    return emptyResult(data);
   } catch (error: any) {
     if (error.name === "AbortError") {
       console.error("❌ ALPR timeout after", timeout, "ms");
     } else {
       console.error("❌ ALPR error:", error.message);
     }
-    return {
-      plate: null,
-      confidence: null,
-      make: null,
-      model: null,
-      color: null,
-      orientation: null,
-      makeConfidence: null,
-      modelConfidence: null,
-      colorConfidence: null,
-      raw: { error: error.message },
-    };
+    return emptyResult({ error: error.message });
   }
 }
 
 /**
+ /**
  * Call ALPR with base64 data URL
  * @param dataUrl - Base64-encoded image (data:image/jpeg;base64,...)
  */

@@ -115,7 +115,7 @@ export default function ParkingOfficerPortal() {
   const { data: activeSessions = [], refetch: refetchSessions } = useQuery({
     queryKey: ['parking-officer-sessions', user?.organization_id],
     queryFn: async ({ signal }) => {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('parking_sessions')
         .select('*, parking_zones(name, max_stay_minutes, zone_type, address)')
         .eq('organization_id', user!.organization_id)
@@ -134,7 +134,7 @@ export default function ParkingOfficerPortal() {
   const { data: zones = [] } = useQuery({
     queryKey: ['parking-zones', user?.organization_id],
     queryFn: async ({ signal }) => {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('parking_zones')
         .select('id, name, zone_type, max_stay_minutes, fine_amount_nzd, address')
         .eq('organization_id', user!.organization_id)
@@ -153,7 +153,7 @@ export default function ParkingOfficerPortal() {
     setSearching(true)
     try {
       // Find latest active session for this plate
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('parking_sessions')
         .select('*, parking_zones(name, max_stay_minutes, fine_amount_nzd, zone_type, address)')
         .eq('organization_id', user!.organization_id)
@@ -217,7 +217,7 @@ export default function ParkingOfficerPortal() {
     setChalking(true)
     try {
       // Check if there's already an active session for this plate+zone
-      const { data: existing } = await supabase
+      const { data: existing } = await (supabase as any)
         .from('parking_sessions')
         .select('id, entry_time')
         .eq('organization_id', user!.organization_id)
@@ -232,7 +232,7 @@ export default function ParkingOfficerPortal() {
         return
       }
 
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from('parking_sessions')
         .insert({
           organization_id:      user!.organization_id,
@@ -268,11 +268,11 @@ export default function ParkingOfficerPortal() {
     setIssuing(true)
     try {
       // Generate infringement number
-      const { data: numData, error: numErr } = await supabase
+      const { data: numData, error: numErr } = await (supabase as any)
         .rpc('next_parking_infringement_number', { p_org_id: user!.organization_id })
       if (numErr) throw numErr
 
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from('parking_infringements')
         .insert({
           organization_id:     user!.organization_id,
@@ -296,7 +296,7 @@ export default function ParkingOfficerPortal() {
 
       // Mark session as violation
       if (infForm.session_id) {
-        await supabase
+        await (supabase as any)
           .from('parking_sessions')
           .update({ is_violation: true, violation_reason: infForm.offence_description })
           .eq('id', infForm.session_id)
@@ -317,7 +317,7 @@ export default function ParkingOfficerPortal() {
 
   // ── Mark session as vehicle moved (valve position changed) ────
   const handleVehicleMoved = useCallback(async (sessionId: string) => {
-    await supabase
+    await (supabase as any)
       .from('parking_sessions')
       .update({ exit_time: new Date().toISOString(), notes: 'Vehicle moved — re-chalked' })
       .eq('id', sessionId)
@@ -353,7 +353,6 @@ export default function ParkingOfficerPortal() {
       title="Parking Enforcement"
       description={`${activeSessions.length} active session${activeSessions.length !== 1 ? 's' : ''} · TicketOr2-style workflow`}
       showBackButton
-      onBack={() => navigate('/portal-selection')}
     >
       {/* ── Home grid ─────────────────────────────────────────── */}
       {mode === null && (
@@ -883,7 +882,7 @@ function PermitCheckPanel({ zones, organizationId, onClose }: {
     setChecking(true)
     setResult(null)
     try {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('parking_permits')
         .select('*, parking_zones(name, zone_type)')
         .eq('organization_id', organizationId)

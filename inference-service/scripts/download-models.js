@@ -37,6 +37,18 @@ const MODELS = [
     filename: 'mobilenet_v3.onnx',
     size: '21 MB',
     minSize: 15 * 1024 * 1024  // 15 MB minimum (real model is ~21 MB)
+  },
+  {
+    name: 'License Plate Detector (YOLOv9-nano)',
+    // Open-source ONNX plate detection model from ankandrew/open-image-models (MIT licence).
+    // Input: 640x640, single class "license_plate", standard YOLOv9 output format.
+    // Falls back gracefully if unavailable — the /infer/alpr endpoint works without it
+    // by using the vehicle crop from the main YOLOv8n model.
+    url: 'https://github.com/ankandrew/open-image-models/releases/download/v0.0.1/plates-yolov9-nano-1d-320.onnx',
+    filename: 'plate_detect.onnx',
+    size: '5 MB',
+    minSize: 1 * 1024 * 1024,  // 1 MB minimum
+    optional: true,             // service still works if this fails to download
   }
 ];
 
@@ -146,8 +158,13 @@ async function downloadModels() {
       }
       console.log(`✅ ${model.name} validated (${(downloadedSize / 1024 / 1024).toFixed(1)} MB)`);
     } catch (error) {
-      console.error(`❌ Failed to download ${model.name}:`, error.message);
-      process.exit(1);
+      if (model.optional) {
+        console.warn(`⚠️  Optional model ${model.name} failed to download (non-fatal): ${error.message}`);
+        console.warn(`   The /infer/alpr endpoint will use the vehicle-crop fallback instead.`);
+      } else {
+        console.error(`❌ Failed to download ${model.name}:`, error.message);
+        process.exit(1);
+      }
     }
   }
   

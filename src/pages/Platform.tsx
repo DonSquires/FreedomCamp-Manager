@@ -12,7 +12,6 @@ import {
   Activity, Globe, DollarSign,
 } from 'lucide-react'
 import { toast } from 'sonner'
-import { formatDateTime } from '@/lib/utils'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -65,12 +64,12 @@ export default function Platform() {
   const { data: stats, isLoading: statsLoading } = useQuery<PlatformStats>({
     queryKey: ['platform-stats', periodDays],
     queryFn: async ({ signal }) => {
-      const { data, error } = await supabase.rpc('get_platform_stats', {
+      const { data, error } = await (supabase as any).rpc('get_platform_stats', {
         p_from: from,
         p_to: to,
       }).abortSignal(signal)
       if (error) throw error
-      return data as PlatformStats
+      return data as unknown as PlatformStats
     },
     refetchInterval: 60_000,
   })
@@ -79,12 +78,12 @@ export default function Platform() {
   const { data: orgUsage, isLoading: orgLoading } = useQuery<OrgUsageSummary[]>({
     queryKey: ['org-usage-summary', periodDays],
     queryFn: async ({ signal }) => {
-      const { data, error } = await supabase.rpc('get_org_usage_summary', {
+      const { data, error } = await (supabase as any).rpc('get_org_usage_summary', {
         p_from: from,
         p_to: to,
       }).abortSignal(signal)
       if (error) throw error
-      return data as OrgUsageSummary[]
+      return data as unknown as OrgUsageSummary[]
     },
     refetchInterval: 60_000,
   })

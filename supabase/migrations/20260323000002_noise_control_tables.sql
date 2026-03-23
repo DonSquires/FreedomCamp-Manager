@@ -257,39 +257,46 @@ CREATE POLICY "noise_assessments_gm_read"  ON noise_assessments FOR SELECT
 CREATE POLICY "noise_seizures_gm_read"     ON noise_seizures    FOR SELECT
   USING ((SELECT role FROM user_profiles WHERE id = auth.uid()) = 'grand_master');
 
--- ── Sequential number functions ───────────────────────────────
-CREATE OR REPLACE FUNCTION next_noise_job_number(p_org_id UUID)
-RETURNS TEXT LANGUAGE plpgsql SECURITY DEFINER AS $$
-DECLARE v_next INTEGER; v_year TEXT := to_char(NOW() AT TIME ZONE 'Pacific/Auckland', 'YYYY');
+-- ── Sequential number functions ─────────────────────────────────────────────
+-- Generic helper: atomically increments the counter for p_org_id in
+-- p_table and returns the next formatted reference number.
+-- All three noise reference types share the same increment logic;
+-- only the counter table name and prefix differ.
+CREATE OR REPLACE FUNCTION _next_noise_seq(
+  p_org_id   UUID,
+  p_table    TEXT,   -- e.g. 'noise_job_counters'
+  p_prefix   TEXT    -- e.g. 'NCJ'
+) RETURNS TEXT LANGUAGE plpgsql SECURITY DEFINER AS $$
+DECLARE
+  v_next INTEGER;
+  v_year TEXT := to_char(NOW() AT TIME ZONE 'Pacific/Auckland', 'YYYY');
+  v_sql  TEXT;
 BEGIN
-  INSERT INTO noise_job_counters (organization_id, last_number) VALUES (p_org_id, 1)
-  ON CONFLICT (organization_id) DO UPDATE
-    SET last_number = noise_job_counters.last_number + 1
-  RETURNING last_number INTO v_next;
-  RETURN 'NCJ-' || v_year || '-' || lpad(v_next::TEXT, 6, '0');
+  v_sql := format(
+    'INSERT INTO %I (organization_id, last_number) VALUES ($1, 1)
+     ON CONFLICT (organization_id) DO UPDATE
+       SET last_number = %I.last_number + 1
+     RETURNING last_number',
+    p_table, p_table
+  );
+  EXECUTE v_sql INTO v_next USING p_org_id;
+  RETURN p_prefix || '-' || v_year || '-' || lpad(v_next::TEXT, 6, '0');
 END; $$;
+
+CREATE OR REPLACE FUNCTION next_noise_job_number(p_org_id UUID)
+RETURNS TEXT LANGUAGE sql SECURITY DEFINER AS $$
+  SELECT _next_noise_seq(p_org_id, 'noise_job_counters', 'NCJ');
+$$;
 
 CREATE OR REPLACE FUNCTION next_noise_notice_number(p_org_id UUID)
-RETURNS TEXT LANGUAGE plpgsql SECURITY DEFINER AS $$
-DECLARE v_next INTEGER; v_year TEXT := to_char(NOW() AT TIME ZONE 'Pacific/Auckland', 'YYYY');
-BEGIN
-  INSERT INTO noise_notice_counters (organization_id, last_number) VALUES (p_org_id, 1)
-  ON CONFLICT (organization_id) DO UPDATE
-    SET last_number = noise_notice_counters.last_number + 1
-  RETURNING last_number INTO v_next;
-  RETURN 'NCN-' || v_year || '-' || lpad(v_next::TEXT, 6, '0');
-END; $$;
+RETURNS TEXT LANGUAGE sql SECURITY DEFINER AS $$
+  SELECT _next_noise_seq(p_org_id, 'noise_notice_counters', 'NCN');
+$$;
 
 CREATE OR REPLACE FUNCTION next_noise_seizure_number(p_org_id UUID)
-RETURNS TEXT LANGUAGE plpgsql SECURITY DEFINER AS $$
-DECLARE v_next INTEGER; v_year TEXT := to_char(NOW() AT TIME ZONE 'Pacific/Auckland', 'YYYY');
-BEGIN
-  INSERT INTO noise_seizure_counters (organization_id, last_number) VALUES (p_org_id, 1)
-  ON CONFLICT (organization_id) DO UPDATE
-    SET last_number = noise_seizure_counters.last_number + 1
-  RETURNING last_number INTO v_next;
-  RETURN 'NCS-' || v_year || '-' || lpad(v_next::TEXT, 6, '0');
-END; $$;
+RETURNS TEXT LANGUAGE sql SECURITY DEFINER AS $$
+  SELECT _next_noise_seq(p_org_id, 'noise_seizure_counters', 'NCS');
+$$;
 
 -- ── updated_at triggers ───────────────────────────────────────
 DO $$
