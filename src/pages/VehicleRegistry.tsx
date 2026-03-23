@@ -605,7 +605,7 @@ function MismatchesTab({
     const plates = [...new Set(observations.map((o: any) => o.plate_number).filter(Boolean) as string[])]
     plates.sort()
     return plates
-  }, [observations.length, zoneId, dateFrom, dateTo])
+  }, [observations])
 
   const { data: scvRecords = [], isLoading: loadingScv } = useQuery({
     queryKey: ['registry-mismatch-scv', plateNumbers],
