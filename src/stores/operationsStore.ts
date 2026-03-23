@@ -13,6 +13,7 @@ export interface OperationResult {
   observations_processed: number
   zones_corrected?: number
   duplicates_removed?: number
+  vehicle_details_refreshed?: number
   compliance_changed: number
   breaches_created: number
   breaches_dismissed: number

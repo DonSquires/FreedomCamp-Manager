@@ -86,35 +86,121 @@ export default function AdminPortal() {
         return q
       }
 
-      // ── 1. Total observations (accurate server-side COUNT, no row cap) ────
-      const { count: totalObservations, error: totalErr } = await applyFilters(
-        supabase.from('observations').select('*', { count: 'exact', head: true })
-      )
-      if (totalErr) diagnostics.push(`observations_total: ${totalErr.message || 'unknown error'}`)
+      const nzToday = new Date().toLocaleDateString('en-CA', { timeZone: 'Pacific/Auckland' })
+      const todayStart = nzDateToUTCStart(nzToday)
+      const rpcFrom = normalizedDateFrom ?? '1970-01-01'
+      const rpcTo   = normalizedDateTo   ?? new Date().toISOString().slice(0, 10)
+
+      // ── Build independent queries ─────────────────────────────────────────
+      // Groups 1+2: observation counts
+      const totalObsQ = applyFilters(supabase.from('observations').select('*', { count: 'exact', head: true }))
+      const compliantQ = applyFilters(supabase.from('observations').select('*', { count: 'exact', head: true }).eq('is_compliant', true))
+
+      // Group 3: active vehicles RPC
+      const summaryQ = (supabase.rpc as any)('get_observation_summary', {
+        p_start_date: rpcFrom,
+        p_end_date: rpcTo,
+        p_organization_id: effectiveOrganizationId ?? null,
+        p_zone_id: zoneId ?? null,
+      })
+
+      // Group 5: active breaches
+      let breachesQ = (supabase.from('breach_alerts') as any)
+        .select('observation_id')
+        .in('status', ['pending', 'acknowledged', 'enforcement_started'])
+        .not('observation_id', 'is', null)
+      if (effectiveOrganizationId) breachesQ = breachesQ.eq('organization_id', effectiveOrganizationId)
+      if (zoneId)                  breachesQ = breachesQ.eq('zone_id', zoneId)
+      if (startDate)               breachesQ = breachesQ.gte('created_at', startDate)
+      if (endDate)                 breachesQ = breachesQ.lte('created_at', endDate)
+
+      // Group 5b: active investigations
+      let investigationsQ = (supabase.from('investigation_jobs') as any)
+        .select('id', { count: 'exact', head: true })
+        .in('status', ['pending', 'assigned', 'in_progress', 'overdue'])
+      if (effectiveOrganizationId) investigationsQ = investigationsQ.eq('organization_id', effectiveOrganizationId)
+      if (zoneId) investigationsQ = investigationsQ.eq('associated_zone_id', zoneId)
+      if (startDate) investigationsQ = investigationsQ.gte('created_at', startDate)
+      if (endDate) investigationsQ = investigationsQ.lte('created_at', endDate)
+
+      // Group 7a: active officers
+      let activeOfficersQ = (supabase.from('user_profiles') as any)
+        .select('id', { count: 'exact', head: true })
+        .in('role', ['officer', 'admin_officer'])
+        .eq('is_active', true)
+        .gte('last_gps_update', new Date(Date.now() - 20 * 60 * 1000).toISOString())
+      if (effectiveOrganizationId) activeOfficersQ = activeOfficersQ.eq('organization_id', effectiveOrganizationId)
+
+      // Group 7b: checks today
+      let checksTodayQ = (supabase.from('observations') as any)
+        .select('observation_id', { count: 'exact', head: true })
+        .gte('recorded_at', todayStart)
+      if (effectiveOrganizationId) checksTodayQ = checksTodayQ.eq('organization_id', effectiveOrganizationId)
+      if (zoneId) checksTodayQ = checksTodayQ.eq('zone_id', zoneId)
+
+      // Group 7c: infringements issued today
+      let infringementsQ = (supabase.from('infringement_notices') as any)
+        .select('id', { count: 'exact', head: true })
+        .gte('issued_at', todayStart)
+      if (effectiveOrganizationId) infringementsQ = infringementsQ.eq('organization_id', effectiveOrganizationId)
+
+      // Group 7d: disputes pending
+      let disputesQ = (supabase.from('infringement_notices') as any)
+        .select('id', { count: 'exact', head: true })
+        .eq('status', 'disputed')
+      if (effectiveOrganizationId) disputesQ = disputesQ.eq('organization_id', effectiveOrganizationId)
+
+      // Group homeless: homeless_records + canonical_vehicles
+      let homelessRecordsQ = (supabase.from('homeless_records') as any)
+        .select('plate_number, status')
+        .eq('is_active', true)
+        .in('status', HOMELESS_UI_STATUSES)
+      if (effectiveOrganizationId) homelessRecordsQ = homelessRecordsQ.eq('organization_id', effectiveOrganizationId)
+
+      const canonicalHomelessQ = (supabase.from('canonical_vehicles') as any)
+        .select('plate_number, homeless_status')
+        .in('homeless_status', HOMELESS_UI_STATUSES)
+
+      // ── Fire all independent queries in parallel ──────────────────────────
+      const [
+        totalObsRes,
+        compliantRes,
+        summaryRes,
+        breachesRes,
+        investigationsRes,
+        activeOfficersRes,
+        checksTodayRes,
+        infringementsRes,
+        disputesRes,
+        homelessRecordsRes,
+        canonicalHomelessRes,
+      ] = await Promise.all([
+        totalObsQ,
+        compliantQ,
+        summaryQ,
+        breachesQ,
+        investigationsQ,
+        activeOfficersQ,
+        checksTodayQ,
+        infringementsQ,
+        disputesQ,
+        homelessRecordsQ,
+        canonicalHomelessQ,
+      ])
+
+      // ── 1. Total observations ─────────────────────────────────────────────
+      if (totalObsRes.error) diagnostics.push(`observations_total: ${totalObsRes.error.message || 'unknown error'}`)
+      const totalObservations = totalObsRes.count
 
       // ── 2. Compliant observations count ──────────────────────────────────
-      const { count: compliantCount, error: compliantErr } = await applyFilters(
-        supabase.from('observations').select('*', { count: 'exact', head: true }).eq('is_compliant', true)
-      )
-      if (compliantErr) diagnostics.push(`observations_compliant: ${compliantErr.message || 'unknown error'}`)
+      if (compliantRes.error) diagnostics.push(`observations_compliant: ${compliantRes.error.message || 'unknown error'}`)
+      const compliantCount = compliantRes.count
 
       // ── 3. Active vehicles — unique plates in the date range ─────────────
       // get_observation_summary returns COUNT(DISTINCT plate_number) server-side.
-      // When no date is set, use a wide sentinel range so the RPC returns all-time data.
       let activeVehicles = 0
-      const rpcFrom = normalizedDateFrom ?? '1970-01-01'
-      const rpcTo   = normalizedDateTo   ?? new Date().toISOString().slice(0, 10)
-      const { data: summaryRows, error: summaryErr } = await (supabase.rpc as any)(
-        'get_observation_summary',
-        {
-          p_start_date: rpcFrom,
-          p_end_date: rpcTo,
-          p_organization_id: effectiveOrganizationId ?? null,
-          p_zone_id: zoneId ?? null,
-        },
-      )
-      if (!summaryErr && summaryRows && summaryRows[0]) {
-        activeVehicles = Number(summaryRows[0].unique_vehicles) || 0
+      if (!summaryRes.error && summaryRes.data && summaryRes.data[0]) {
+        activeVehicles = Number(summaryRes.data[0].unique_vehicles) || 0
       } else {
         // Fallback when RPC is unavailable in schema cache: count distinct plates directly.
         // We page through results to avoid row limits while still keeping an exact count.
@@ -185,117 +271,56 @@ export default function AdminPortal() {
         diagnostics.push(`observations_trend: capped at ${trendMaxRows} rows for dashboard performance`)
       }
 
+      // ── Homeless plates ───────────────────────────────────────────────────
       const homelessPlates = new Set<string>()
       const homelessExemptPlates = new Set<string>()
-      {
-        let homelessQuery = (supabase.from('homeless_records') as any)
-          .select('plate_number, status')
-          .eq('is_active', true)
-          .in('status', HOMELESS_UI_STATUSES)
 
-        if (effectiveOrganizationId) {
-          homelessQuery = homelessQuery.eq('organization_id', effectiveOrganizationId)
-        }
-
-        const { data: homelessRows, error: homelessErr } = await homelessQuery
-        if (homelessErr) {
-          diagnostics.push(`homeless_records_trend: ${homelessErr.message || 'unknown error'}`)
-        } else {
-          ;(homelessRows ?? []).forEach((row: any) => {
-            const plate = String(row?.plate_number ?? '').trim().toUpperCase()
-            if (plate) homelessPlates.add(plate)
-            const status = String(row?.status ?? '').trim().toLowerCase()
-            if (plate && HOMELESS_EXEMPT_STATUSES.includes(status as any)) homelessExemptPlates.add(plate)
-          })
-        }
+      if (homelessRecordsRes.error) {
+        diagnostics.push(`homeless_records_trend: ${homelessRecordsRes.error.message || 'unknown error'}`)
+      } else {
+        ;(homelessRecordsRes.data ?? []).forEach((row: any) => {
+          const plate = String(row?.plate_number ?? '').trim().toUpperCase()
+          if (plate) homelessPlates.add(plate)
+          const status = String(row?.status ?? '').trim().toLowerCase()
+          if (plate && HOMELESS_EXEMPT_STATUSES.includes(status as any)) homelessExemptPlates.add(plate)
+        })
       }
 
-      {
-        const { data: canonicalHomelessRows, error: canonicalHomelessErr } = await (supabase.from('canonical_vehicles') as any)
-          .select('plate_number, homeless_status')
-          .in('homeless_status', HOMELESS_UI_STATUSES)
-
-        if (canonicalHomelessErr) {
-          diagnostics.push(`canonical_homeless_trend: ${canonicalHomelessErr.message || 'unknown error'}`)
-        } else {
-          ;(canonicalHomelessRows ?? []).forEach((row: any) => {
-            const plate = String(row?.plate_number ?? '').trim().toUpperCase()
-            if (plate) homelessPlates.add(plate)
-            const status = String((row as any)?.homeless_status ?? '').trim().toLowerCase()
-            if (plate && HOMELESS_EXEMPT_STATUSES.includes(status as any)) homelessExemptPlates.add(plate)
-          })
-        }
+      if (canonicalHomelessRes.error) {
+        diagnostics.push(`canonical_homeless_trend: ${canonicalHomelessRes.error.message || 'unknown error'}`)
+      } else {
+        ;(canonicalHomelessRes.data ?? []).forEach((row: any) => {
+          const plate = String(row?.plate_number ?? '').trim().toUpperCase()
+          if (plate) homelessPlates.add(plate)
+          const status = String((row as any)?.homeless_status ?? '').trim().toLowerCase()
+          if (plate && HOMELESS_EXEMPT_STATUSES.includes(status as any)) homelessExemptPlates.add(plate)
+        })
       }
 
       // ── 5. Active breaches (distinct observation_id count to avoid duplicates) ─
       let activeBreaches = 0
-      {
-        let breachesQuery = (supabase.from('breach_alerts') as any)
-          .select('observation_id')
-          .in('status', ['pending', 'acknowledged', 'enforcement_started'])
-          .not('observation_id', 'is', null)
-
-        if (effectiveOrganizationId) breachesQuery = breachesQuery.eq('organization_id', effectiveOrganizationId)
-        if (zoneId)                  breachesQuery = breachesQuery.eq('zone_id', zoneId)
-        if (startDate)               breachesQuery = breachesQuery.gte('created_at', startDate)
-        if (endDate)                 breachesQuery = breachesQuery.lte('created_at', endDate)
-
-        const { data: breachRows, error: breachError } = await breachesQuery
-        if (breachError) {
-          diagnostics.push(`breach_alerts_active: ${breachError.message || 'unknown error'}`)
-        } else {
-          activeBreaches = new Set((breachRows ?? []).map((r: any) => r.observation_id)).size
-        }
+      if (breachesRes.error) {
+        diagnostics.push(`breach_alerts_active: ${breachesRes.error.message || 'unknown error'}`)
+      } else {
+        activeBreaches = new Set((breachesRes.data ?? []).map((r: any) => r.observation_id)).size
       }
 
-      // ── 5b. Active investigations count ───────────────────────────────
-      let activeInvestigationsQuery = (supabase.from('investigation_jobs') as any)
-        .select('id', { count: 'exact', head: true })
-        .in('status', ['pending', 'assigned', 'in_progress', 'overdue'])
+      // ── 5b. Active investigations count ──────────────────────────────────
+      if (investigationsRes.error) diagnostics.push(`investigation_jobs_active: ${investigationsRes.error.message || 'unknown error'}`)
+      const activeInvestigations = investigationsRes.count
 
-      if (effectiveOrganizationId) activeInvestigationsQuery = activeInvestigationsQuery.eq('organization_id', effectiveOrganizationId)
-      if (zoneId) activeInvestigationsQuery = activeInvestigationsQuery.eq('associated_zone_id', zoneId)
-      if (startDate) activeInvestigationsQuery = activeInvestigationsQuery.gte('created_at', startDate)
-      if (endDate) activeInvestigationsQuery = activeInvestigationsQuery.lte('created_at', endDate)
+      // ── 7. Command snapshot metrics ──────────────────────────────────────
+      if (activeOfficersRes.error) diagnostics.push(`active_officers: ${activeOfficersRes.error.message || 'unknown error'}`)
+      const activeOfficers = activeOfficersRes.count
 
-      const { count: activeInvestigations, error: investigationsErr } = await activeInvestigationsQuery
-      if (investigationsErr) diagnostics.push(`investigation_jobs_active: ${investigationsErr.message || 'unknown error'}`)
+      if (checksTodayRes.error) diagnostics.push(`checks_today: ${checksTodayRes.error.message || 'unknown error'}`)
+      const checksToday = checksTodayRes.count
 
-      // ── 7. Command snapshot metrics ─────────────────────────────────────
-      const nzToday = new Date().toLocaleDateString('en-CA', { timeZone: 'Pacific/Auckland' })
-      const todayStart = nzDateToUTCStart(nzToday)
+      if (infringementsRes.error) diagnostics.push(`infringements_issued: ${infringementsRes.error.message || 'unknown error'}`)
+      const infringementsIssued = infringementsRes.count
 
-      let activeOfficersQuery = (supabase.from('user_profiles') as any)
-        .select('id', { count: 'exact', head: true })
-        .in('role', ['officer', 'admin_officer'])
-        .eq('is_active', true)
-        .gte('last_gps_update', new Date(Date.now() - 20 * 60 * 1000).toISOString())
-
-      if (effectiveOrganizationId) activeOfficersQuery = activeOfficersQuery.eq('organization_id', effectiveOrganizationId)
-      const { count: activeOfficers, error: activeOfficersErr } = await activeOfficersQuery
-      if (activeOfficersErr) diagnostics.push(`active_officers: ${activeOfficersErr.message || 'unknown error'}`)
-
-      let checksTodayQuery = (supabase.from('observations') as any)
-        .select('observation_id', { count: 'exact', head: true })
-        .gte('recorded_at', todayStart)
-      if (effectiveOrganizationId) checksTodayQuery = checksTodayQuery.eq('organization_id', effectiveOrganizationId)
-      if (zoneId) checksTodayQuery = checksTodayQuery.eq('zone_id', zoneId)
-      const { count: checksToday, error: checksTodayErr } = await checksTodayQuery
-      if (checksTodayErr) diagnostics.push(`checks_today: ${checksTodayErr.message || 'unknown error'}`)
-
-      let infringementsIssuedQuery = (supabase.from('infringement_notices') as any)
-        .select('id', { count: 'exact', head: true })
-        .gte('issued_at', todayStart)
-      if (effectiveOrganizationId) infringementsIssuedQuery = infringementsIssuedQuery.eq('organization_id', effectiveOrganizationId)
-      const { count: infringementsIssued, error: infringementsErr } = await infringementsIssuedQuery
-      if (infringementsErr) diagnostics.push(`infringements_issued: ${infringementsErr.message || 'unknown error'}`)
-
-      let disputesPendingQuery = (supabase.from('infringement_notices') as any)
-        .select('id', { count: 'exact', head: true })
-        .eq('status', 'disputed')
-      if (effectiveOrganizationId) disputesPendingQuery = disputesPendingQuery.eq('organization_id', effectiveOrganizationId)
-      const { count: disputesPending, error: disputesErr } = await disputesPendingQuery
-      if (disputesErr) diagnostics.push(`disputes_pending: ${disputesErr.message || 'unknown error'}`)
+      if (disputesRes.error) diagnostics.push(`disputes_pending: ${disputesRes.error.message || 'unknown error'}`)
+      const disputesPending = disputesRes.count
 
       // ── 6. Homeless-exempt breach count ──────────────────────────────────
       // Count non-compliant observations where the plate belongs to a homeless vehicle.

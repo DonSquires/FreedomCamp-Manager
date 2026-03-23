@@ -3,6 +3,7 @@
  * Offline-first observation queue with IndexedDB persistence
  */
 
+import { useEffect, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/stores/authStore'
 import { toast } from 'sonner'
@@ -147,6 +148,39 @@ const deleteFromDB = async (id: string): Promise<void> => {
   })
 }
 
+const getByKeyFromDB = async (id: string): Promise<QueuedObservation | undefined> => {
+  const db = await openDB()
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction([STORE_NAME], 'readonly')
+    const store = transaction.objectStore(STORE_NAME)
+    const request = store.get(id)
+
+    request.onerror = () => reject(request.error)
+    request.onsuccess = () => resolve(request.result)
+  })
+}
+
+const clearSyncedFromDB = async (): Promise<void> => {
+  const db = await openDB()
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction([STORE_NAME], 'readwrite')
+    const store = transaction.objectStore(STORE_NAME)
+    const index = store.index('status')
+    const request = index.openCursor(IDBKeyRange.only('synced'))
+
+    request.onerror = () => reject(request.error)
+    request.onsuccess = (event) => {
+      const cursor = (event.target as IDBRequest<IDBCursorWithValue>).result
+      if (cursor) {
+        cursor.delete()
+        cursor.continue()
+      }
+    }
+    transaction.oncomplete = () => resolve()
+    transaction.onerror = () => reject(transaction.error)
+  })
+}
+
 export function useOfflineQueue() {
   const { user } = useAuthStore()
   const queryClient = useQueryClient()
@@ -191,8 +225,7 @@ export function useOfflineQueue() {
   // Sync single observation mutation
   const syncObservation = useMutation({
     mutationFn: async (id: string) => {
-      const items = await getFromDB()
-      const observation = items.find(obs => obs.id === id)
+      const observation = await getByKeyFromDB(id)
       if (!observation) throw new Error('Observation not found')
 
       // Update status to syncing
@@ -263,20 +296,27 @@ export function useOfflineQueue() {
     },
   })
 
-  // Sync all pending observations
+  // Sync all pending observations (concurrency-limited parallel execution)
   const syncAll = useMutation({
     mutationFn: async () => {
       const items = await getFromDB()
       const pending = items.filter(obs => obs.status === 'pending' || obs.status === 'failed')
 
-      const results = []
-      for (const obs of pending) {
-        try {
-          await syncObservation.mutateAsync(obs.id)
-          results.push({ id: obs.id, success: true })
-        } catch (error) {
-          results.push({ id: obs.id, success: false, error })
-        }
+      const CONCURRENCY = 3
+      const results: Array<{ id: string; success: boolean; error?: unknown }> = []
+
+      for (let i = 0; i < pending.length; i += CONCURRENCY) {
+        const batch = pending.slice(i, i + CONCURRENCY)
+        const batchResults = await Promise.allSettled(
+          batch.map(obs => syncObservation.mutateAsync(obs.id))
+        )
+        batchResults.forEach((result, idx) => {
+          results.push({
+            id: batch[idx].id,
+            success: result.status === 'fulfilled',
+            ...(result.status === 'rejected' ? { error: result.reason } : {}),
+          })
+        })
       }
 
       return results
@@ -287,15 +327,10 @@ export function useOfflineQueue() {
     },
   })
 
-  // Clear synced items
+  // Clear synced items (single IndexedDB transaction)
   const clearSynced = useMutation({
     mutationFn: async () => {
-      const items = await getFromDB()
-      const synced = items.filter(obs => obs.status === 'synced')
-
-      for (const obs of synced) {
-        await deleteFromDB(obs.id)
-      }
+      await clearSyncedFromDB()
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['offline-queue'] })
@@ -326,41 +361,53 @@ export function useOfflineQueue() {
   }
 }
 
-// Hook for queue statistics
+// Hook for queue statistics — derived from the same cache entry as useOfflineQueue
+// so no extra IndexedDB reads or separate polling is needed.
 export function useOfflineQueueStats() {
   return useQuery({
-    queryKey: ['offline-queue-stats'],
+    queryKey: ['offline-queue'],
     queryFn: async () => {
       const items = await getFromDB()
+      return items.sort((a, b) =>
+        new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+      )
+    },
+    select: (items): OfflineStats => {
+      const pendingItems = items.filter(obs => obs.status === 'pending')
+      const oldest = pendingItems.length > 0
+        ? pendingItems.reduce((a, b) =>
+            new Date(a.created_at) < new Date(b.created_at) ? a : b
+          ).created_at
+        : null
 
-      const stats: OfflineStats = {
+      return {
         total_queued: items.length,
-        pending: items.filter(obs => obs.status === 'pending').length,
+        pending: pendingItems.length,
         syncing: items.filter(obs => obs.status === 'syncing').length,
         failed: items.filter(obs => obs.status === 'failed').length,
         synced: items.filter(obs => obs.status === 'synced').length,
-        oldest_pending: null,
+        oldest_pending: oldest,
       }
-
-      const pendingItems = items.filter(obs => obs.status === 'pending')
-      if (pendingItems.length > 0) {
-        const oldest = pendingItems.reduce((oldest, current) => 
-          new Date(current.created_at) < new Date(oldest.created_at) ? current : oldest
-        )
-        stats.oldest_pending = oldest.created_at
-      }
-
-      return stats
     },
-    refetchInterval: 5000,
   })
 }
 
-// Hook for checking if online
+// Hook for checking if online — uses native browser events instead of polling
 export function useOnlineStatus() {
-  return useQuery({
-    queryKey: ['online-status'],
-    queryFn: () => navigator.onLine,
-    refetchInterval: 3000,
-  })
+  const [isOnline, setIsOnline] = useState(() => navigator.onLine)
+
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true)
+    const handleOffline = () => setIsOnline(false)
+
+    window.addEventListener('online', handleOnline)
+    window.addEventListener('offline', handleOffline)
+
+    return () => {
+      window.removeEventListener('online', handleOnline)
+      window.removeEventListener('offline', handleOffline)
+    }
+  }, [])
+
+  return { data: isOnline, isLoading: false }
 }
