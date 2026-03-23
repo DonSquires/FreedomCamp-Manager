@@ -17,11 +17,12 @@
 3. [What to Keep, Cut, and Consolidate](#3-what-to-keep-cut-and-consolidate)
 4. [Clean Schema (20 tables, not 40+)](#4-clean-schema-20-tables-not-40)
 5. [Clean Edge Function Set (15, not 69)](#5-clean-edge-function-set-15-not-69)
-6. [Role-by-Role UX Design](#6-role-by-role-ux-design)
-7. [Clean Frontend Structure](#7-clean-frontend-structure)
-8. [New Role: Grand Master (Platform Owner)](#8-new-role-grand-master-platform-owner)
-9. [Step-by-Step Clean Rebuild Order](#9-step-by-step-clean-rebuild-order)
-10. [Sales Strategy & Client Pitch](#10-sales-strategy--client-pitch)
+6. [Infrastructure Services: Inference Service & Proxy Server](#6-infrastructure-services-inference-service--proxy-server)
+7. [Role-by-Role UX Design](#7-role-by-role-ux-design)
+8. [Clean Frontend Structure](#8-clean-frontend-structure)
+9. [New Role: Grand Master (Platform Owner)](#9-new-role-grand-master-platform-owner)
+10. [Step-by-Step Clean Rebuild Order](#10-step-by-step-clean-rebuild-order)
+11. [Sales Strategy & Client Pitch](#11-sales-strategy--client-pitch)
 
 ---
 
@@ -318,7 +319,245 @@ This replaces: `cleanup-and-recalculate` + `recalculate-compliance-v3` + `scan-b
 
 ---
 
-## 6. Role-by-Role UX Design
+## 6. Infrastructure Services: Inference Service & Proxy Server
+
+**Short answer: Yes — both services are essential and stay in the clean rebuild.**
+
+These two Node/Express microservices live outside Supabase because they do things
+Supabase edge functions fundamentally cannot do:
+
+| Service | What Supabase can't do | Solution |
+|---|---|---|
+| `inference-service/` | Load ONNX models (YOLOv8n, MobileNetV3) — native binaries, 30 MB of model files | Node.js microservice on Fly.io/Railway/Render |
+| `proxy-server/` | Use a static IP address — edge functions use dynamic IPs and NZSCV requires IP whitelist | Node.js proxy on DigitalOcean/Railway with static IP |
+
+---
+
+### 6.1 Inference Service (`inference-service/`)
+
+**What it does** (two endpoints, both essential):
+
+```
+POST /infer
+  ├── Receive: officer phone photo (multipart/form-data)
+  ├── Step 1: YOLOv8n detects vehicle bounding box
+  ├── Step 2: Crop vehicle from full image
+  ├── Step 3: MobileNetV3 generates 384-dimensional embedding
+  └── Return: { embedding, embedding_quality, detection.confidence }
+
+POST /nlp/tabular/analyze
+  ├── Receive: sample rows from CSV/XLSX import
+  └── Return: date format detection, data quality issues, field mapping hints
+              (used by the historical data import wizard)
+
+GET /health
+  └── Returns model load status + uptime (used by cleanup-and-recalculate health check)
+```
+
+**What it does NOT need to do in the clean rebuild** (can be removed):
+
+| Feature | Status | Reason |
+|---|---|---|
+| `VEHICLE_ATTRS_PROVIDER=openai` path | Optional/keep | Useful when ONNX model quality is insufficient for make/model |
+| `TABULAR_NLP_PROVIDER=openai/ollama` path | Optional/keep | Useful for complex historical imports with dirty data |
+| Vehicle attribute extraction (make/model/year/colour via ONNX) | Keep | Supplements canonical_vehicles data |
+
+**Environment variables it needs:**
+
+```env
+# Required
+PORT=3000
+INFERENCE_API_KEY=<random-secret>           # How edge functions authenticate
+SUPABASE_URL=https://xxx.supabase.co        # For JWT verification (alternative auth)
+ALLOWED_ORIGINS=https://xxx.supabase.co     # CORS restriction
+
+# Optional (vehicle attribute enrichment via AI)
+VEHICLE_ATTRS_PROVIDER=basic                # basic | openai | ollama
+OPENAI_API_KEY=<key>                        # If using openai provider
+OPENAI_MODEL=gpt-4o-mini
+
+# Optional (tabular NLP)
+TABULAR_NLP_PROVIDER=heuristic             # heuristic | openai | ollama
+```
+
+**How process-officer-scan calls it:**
+
+```
+process-officer-scan edge function
+  │
+  └── INFERENCE_SERVICE_URL env var (set in Supabase secrets)
+      ├── POST ${INFERENCE_SERVICE_URL}/infer  (with officer photo)
+      └── Returns embedding + quality score
+```
+
+**Deployment recommendation for clean rebuild:**
+
+> Deploy to **Fly.io** on a `shared-cpu-1x 512MB` instance.
+> Cost: ~$5–10/month. Auto-sleeps between scans.
+> Models are baked into the Docker image — no cold-start model download.
+
+```bash
+# inference-service/Dockerfile already exists — just deploy:
+fly launch --name fcm-inference
+fly secrets set INFERENCE_API_KEY=<secret> SUPABASE_URL=<url>
+fly deploy
+```
+
+**What to clean up in the inference service:**
+
+| Change | Why |
+|---|---|
+| Remove `VEHICLE_ATTRS_PROVIDER=ollama` support (keep basic + openai) | Ollama requires a local GPU server — too complex for hosted deployment |
+| Add request timeout (10s hard limit) to `/infer` | Prevents hung requests from blocking the scan pipeline |
+| Add `/health` response to include `INFERENCE_API_KEY` configured flag | Helps with deployment debugging |
+| Remove model download step from README (bake models into Docker image) | Simpler deployment — no manual `npm run download-models` step |
+
+---
+
+### 6.2 Proxy Server (`proxy-server/`)
+
+**What it does** (three endpoints):
+
+```
+POST /api/nzscv/vehicle-info
+  ├── Proxies NZSCV Self-Contained Vehicle Registry API
+  ├── Adds PGDB-Identifier + PGDB-Authorization headers
+  └── Needed because NZSCV requires IP whitelist, Supabase has dynamic IPs
+
+GET /motorweb/currentOwnerCheck
+  ├── Proxies MotorWeb vehicle ownership lookup (XML response)
+  └── Needed for same IP whitelist reason
+
+POST /api/email/send-invite    ← REDUNDANT — remove in clean rebuild
+  └── This duplicates what create-user edge function already does
+      via Supabase's built-in inviteUserByEmail(). Remove this endpoint.
+
+GET /health                    ← Keep
+GET /api/info                  ← Keep (diagnostic)
+```
+
+**The proxy server's ONLY irreplaceable job is the static IP.**
+
+Both NZSCV and MotorWeb require you to register a static IP address before they will
+accept API calls. Supabase edge functions run on Cloudflare Workers and use thousands
+of different IPs — impossible to whitelist. The proxy server solves this.
+
+**What to clean up in the proxy server:**
+
+| Change | Why |
+|---|---|
+| **Remove `/api/email/send-invite`** | Duplicates `create-user` edge function. Having two email code paths creates bugs (out-of-sync templates, different error handling). |
+| Remove `nodemailer` dependency | No longer needed once email endpoint removed |
+| Add rate limiting (1 req/sec) to NZSCV endpoint | NZSCV enforces 1 req/sec — the proxy should enforce this too |
+| Move `PROXY_SECRET` validation into middleware | Remove copy-pasted auth check from each endpoint |
+
+**Cleaned proxy server structure:**
+
+```javascript
+// proxy-server/server.js (clean version)
+
+const express = require('express');
+const cors = require('cors');
+const axios = require('axios');
+
+const app = express();
+app.use(cors());
+app.use(express.json());
+
+// Shared auth middleware
+function requireProxySecret(req, res, next) { ... }
+
+// NZSCV registry lookup (static IP required)
+app.post('/api/nzscv/vehicle-info', requireProxySecret, nzscvHandler);
+
+// MotorWeb vehicle enrichment (static IP required)
+app.get('/motorweb/currentOwnerCheck', requireProxySecret, motorwebHandler);
+
+// Health
+app.get('/health', (req, res) => res.json({ status: 'ok' }));
+```
+
+**Environment variables it needs:**
+
+```env
+# Required
+NZSCV_API_KEY=<from NZSCV application>
+NZSCV_ID_KEY=<from NZSCV application>
+NZSCV_ENDPOINT_URL=https://www.nzscv.co.nz/api/rest/scv/v1/vehicleregistrationinfo
+PROXY_SECRET=<random secret shared with Supabase edge functions>
+
+# MotorWeb (optional — only if using vehicle enrichment)
+MOTORWEB_API_KEY=<from MotorWeb>
+MOTORWEB_ID_KEY=<from MotorWeb>
+```
+
+**How edge functions call the proxy:**
+
+```
+sync-scv-list edge function + cleanup-and-recalculate
+  │
+  └── NZSCV_PROXY_URL env var (set in Supabase secrets)
+      └── POST ${NZSCV_PROXY_URL}/api/nzscv/vehicle-info
+          Header: x-proxy-secret: <PROXY_SECRET>
+```
+
+**Deployment recommendation for clean rebuild:**
+
+> Deploy to **DigitalOcean Droplet** ($6/month, Sydney region, guaranteed static IP).
+> Static IP is included — no extra cost unlike Railway ($5 extra/month for static IP).
+> Use PM2 for process management.
+
+The DigitalOcean static IP is the address you register with NZSCV. Keep it forever.
+Changing this IP means re-applying to NZSCV — avoid if possible.
+
+---
+
+### 6.3 Architecture Diagram (Clean Rebuild)
+
+```
+┌──────────────────────────────────────────────────────────┐
+│                   Officer's Phone                        │
+│         FreedomCamp Manager PWA (React/Vite)             │
+└────────────────────────┬─────────────────────────────────┘
+                         │ HTTPS
+                         ▼
+┌──────────────────────────────────────────────────────────┐
+│                  Supabase                                │
+│  ┌──────────────────────────────────────────────────┐   │
+│  │          process-officer-scan (Deno)             │   │
+│  │  1. Receives photo + GPS                         │   │
+│  │  2. ──► inference-service /infer ──────────────────── ► Fly.io
+│  │  3. Looks up canonical_scv, canonical_vehicles   │   │   (ONNX inference)
+│  │  4. Calls calculate_vehicle_compliance_v3() RPC  │   │
+│  │  5. Writes observation + breach_alert            │   │
+│  └──────────────────────────────────────────────────┘   │
+│                                                          │
+│  ┌──────────────────────────────────────────────────┐   │
+│  │    cleanup-and-recalculate (pg_cron, 3am NZT)    │   │
+│  │  Phase 7: ──► proxy-server /api/nzscv ─────────────── ► DigitalOcean
+│  └──────────────────────────────────────────────────┘   │   (NZSCV + MotorWeb)
+│                                                          │
+│  PostgreSQL (20 tables)  ·  Storage (photos)  ·  Auth   │
+└──────────────────────────────────────────────────────────┘
+```
+
+**Monthly infrastructure cost for one client:**
+
+| Service | Provider | Cost |
+|---|---|---|
+| Supabase | Supabase Pro | $25/month |
+| Inference service | Fly.io (shared-cpu-1x) | $5–10/month |
+| NZSCV/MotorWeb proxy | DigitalOcean Droplet | $6/month |
+| **Total platform cost** | | **~$40/month** |
+
+At $400–600/month per client, this is a ~10x margin on infrastructure.
+
+---
+
+
+---
+
+## 7. Role-by-Role UX Design
 
 ### Role 1: Field Officer (`officer`)
 
@@ -485,7 +724,7 @@ SALES DEMO MODE
 
 ---
 
-## 7. Clean Frontend Structure
+## 8. Clean Frontend Structure
 
 ### Pages (18 total)
 
@@ -536,7 +775,7 @@ Shared (all authenticated)
 
 ---
 
-## 8. New Role: Grand Master (Platform Owner)
+## 9. New Role: Grand Master (Platform Owner)
 
 ### DB change required
 
@@ -588,7 +827,7 @@ Note: `nzscv_monitor` is removed (this read-only function can be covered by givi
 
 ---
 
-## 9. Step-by-Step Clean Rebuild Order
+## 10. Step-by-Step Clean Rebuild Order
 
 This is a practical sequence that produces a working app at each step.
 
@@ -605,13 +844,37 @@ This is a practical sequence that produces a working app at each step.
 
 ---
 
+### Phase A.5 — Deploy Infrastructure Services (1 day)
+
+These must be deployed before the scan pipeline because `process-officer-scan` calls both.
+
+**Inference service (Fly.io):**
+1. `cd inference-service && fly launch --name fcm-inference`
+2. `fly secrets set INFERENCE_API_KEY=<secret> SUPABASE_URL=<url> ALLOWED_ORIGINS=<supabase-url>`
+3. `fly deploy`
+4. Test: `curl https://fcm-inference.fly.dev/health`
+5. Copy URL → set `INFERENCE_SERVICE_URL` Supabase secret
+
+**Proxy server (DigitalOcean, $6/month):**
+1. Create Ubuntu 22.04 Droplet in Sydney region
+2. SSH in → install Node 18, PM2, upload `proxy-server/` folder
+3. Set `.env` with `NZSCV_API_KEY`, `NZSCV_ID_KEY`, `NZSCV_ENDPOINT_URL`, `PROXY_SECRET`
+4. `pm2 start server.js --name fcm-proxy && pm2 save`
+5. Note the static Droplet IP → register with NZSCV (see proxy-server/README.md)
+6. Copy proxy URL → set `NZSCV_PROXY_URL` + `PROXY_SECRET` Supabase secrets
+
+**Done**: Inference and NZSCV lookup are operational. Scan pipeline can call both.
+
+---
+
 ### Phase B — Scan Pipeline (2–3 days)
 
-1. Deploy `process-officer-scan` (consolidated, ~600 lines)
-2. Implement `FieldOfficerPortal.tsx` (scan + result + history views only)
-3. Verify: officer scans a plate → gets compliance result
-4. Verify: offline queue works
-5. Implement welfare check-in notifications
+1. Set Supabase secrets: `INFERENCE_SERVICE_URL`, `NZSCV_PROXY_URL`, `PROXY_SECRET`
+2. Deploy `process-officer-scan` (consolidated, ~600 lines)
+3. Implement `FieldOfficerPortal.tsx` (scan + result + history views only)
+4. Verify: officer scans a plate → gets compliance result (including ONNX embedding + SCV check)
+5. Verify: offline queue works (scan without signal → syncs on reconnect)
+6. Implement welfare check-in notifications
 
 **Done**: A field officer can do their full job.
 
@@ -674,7 +937,7 @@ This is a practical sequence that produces a working app at each step.
 
 ---
 
-## 10. Sales Strategy & Client Pitch
+## 11. Sales Strategy & Client Pitch
 
 ### 10.1 Target Clients
 
