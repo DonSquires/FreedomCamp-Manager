@@ -34,6 +34,7 @@ const INCIDENT_TYPES = [
   'Noise Complaint',
   'Vehicle Accident',
   'Medical Emergency',
+  'Maintenance Report',
   'Other',
 ]
 

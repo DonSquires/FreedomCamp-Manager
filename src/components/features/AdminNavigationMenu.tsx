@@ -8,7 +8,7 @@ import {
   LogOut, Settings, ChevronLeft, AlertTriangle, ChevronDown,
   Activity, Database, Search, Heart, ScrollText, Lock, Gavel,
   Navigation, BookOpen, LayoutGrid, Map, Bell, Upload, Shield, Camera, Link2,
-  CalendarDays, TrendingUp,
+  CalendarDays, TrendingUp, Wrench,
 } from 'lucide-react'
 
 const primaryLinks = [
@@ -63,7 +63,7 @@ const moreGroups = [
     label: 'People & Incidents',
     links: [
       { to: '/person-records',   label: 'Person Records',  icon: Users },
-      { to: '/incidents',        label: 'Incidents',       icon: Activity },
+      { to: '/incidents',        label: 'Incidents & Maintenance', icon: Activity },
       { to: '/incident-reports', label: 'Incident Reports',icon: FileText },
       { to: '/investigations',   label: 'Investigations',  icon: Search },
     ],

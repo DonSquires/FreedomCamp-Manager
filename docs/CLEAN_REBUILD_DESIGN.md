@@ -1558,10 +1558,12 @@ health_safety_reports table (see §I.2):
   - Separate from incidents — used for formal H&S reporting
 
 IncidentManagement.tsx page:
-  - Create new incidents with type, severity, description, location, plate, witnesses
+  - Create new incidents (admin + officer) via IncidentCreationForm dialog
+  - Type filter: Incidents / Maintenance / Noise / H&S
   - Incident types: Breach of Rules, Threatening Behaviour, Property Damage,
-    Noise Complaint, Vehicle Accident, Medical Emergency, Other
-  - Status tracking: open, in_progress, resolved, closed
+    Noise Complaint, Vehicle Accident, Medical Emergency, Maintenance Report, Other
+  - Status tracking: open → investigating → resolved
+  - Status update actions wired up (Investigate / Mark Resolved buttons)
 
 IncidentReports.tsx page:
   - View all incidents with filter by type/severity/date
@@ -1986,6 +1988,7 @@ is ~36 tables. This is still a dramatic reduction from the current ~60+ tables.
 | Heatmap / hotspot analysis | ✅ full | ✅ | — |
 | Patrol schedule + KPIs | ✅ full | ✅ | — |
 | Incident management (H&S, noise, etc.) | ✅ full | ✅ | — |
+| **Maintenance reports** | ✅ full (incidents table, type filter, admin creation) | ✅ | — |
 | Health & Safety reports | ✅ full | ✅ | — |
 | People recording (person of interest) | ✅ full | ✅ | — |
 | Person-vehicle linking | ✅ full | ✅ | — |

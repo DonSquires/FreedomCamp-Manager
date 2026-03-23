@@ -394,7 +394,7 @@ export default function FieldOfficerPortal() {
             reported_by:     user.id,
             zone_id:         zoneId || null,
             plate_number:    qrVehiclePlate.trim().toUpperCase() || null,
-            incident_type:   qrReportType === 'maintenance' ? 'maintenance' : qrIncidentType,
+            incident_type:   qrReportType === 'maintenance' ? 'Maintenance Report' : qrIncidentType,
             severity:        qrSeverity,
             description:     descFull,
             location_address: qrLocationAddress.trim() || null,
