@@ -67,6 +67,7 @@ import VehicleRegistry from '@/pages/VehicleRegistry'
 import CanonicalRecordsManager from '@/pages/CanonicalRecordsManager'
 import PublicDisputePortal from '@/pages/PublicDisputePortal'
 import Disputes from '@/pages/Disputes'
+import Platform from '@/pages/Platform'
 
 // ---------------------------------------------------------------------------
 // ErrorBoundary – catches render-time errors so a crash on one page does not
@@ -208,6 +209,14 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
     !['/vehicle-registry', '/search', '/profile', '/settings'].includes(location.pathname)
   ) {
     return <Navigate to="/vehicle-registry" replace />
+  }
+
+  // Grand master users land on the platform overview page.
+  if (
+    user.role === 'grand_master' &&
+    location.pathname === '/'
+  ) {
+    return <Navigate to="/platform" replace />
   }
 
   return <>{children}</>
@@ -450,8 +459,19 @@ export default function App() {
             path="/organizations"
             element={
               <ProtectedRoute>
-                <RoleRoute allowedRoles={['master']}>
+                <RoleRoute allowedRoles={['master', 'grand_master']}>
                   <OrganizationManagement />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/platform"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['grand_master']}>
+                  <Platform />
                 </RoleRoute>
               </ProtectedRoute>
             }
