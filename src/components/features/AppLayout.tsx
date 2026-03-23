@@ -3,6 +3,8 @@ import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/stores/authStore'
 import { useSessionLockStore } from '@/stores/sessionLockStore'
+import { useFeedbackCapture } from '@/hooks/useFeedbackCapture'
+import { FeedbackModal } from '@/components/features/FeedbackModal'
 import { useSessionPreferencesStore } from '@/stores/sessionPreferencesStore'
 import { useThemePreferencesStore } from '@/stores/themePreferencesStore'
 import { Button } from '@/components/ui/button'
@@ -44,6 +46,7 @@ import {
   TrendingUp,
   Camera,
   Wrench,
+  MessageSquarePlus,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
@@ -243,6 +246,7 @@ function NavigationLinks({ onClick }: { onClick?: () => void }) {
 export function AppLayout({ children, title, description, showBackButton }: AppLayoutProps) {
   const brandLogoUrl = '/iron-eagle-security-logo.jpg'
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [feedbackOpen, setFeedbackOpen] = useState(false)
   const [desktopNavOpen, setDesktopNavOpen] = useState(() => {
     // Default to open (true). Only closes if the user has explicitly set it to 'false'.
     try { return localStorage.getItem('fc_sidebar_open') !== 'false' } catch { return true }
@@ -264,6 +268,9 @@ export function AppLayout({ children, title, description, showBackButton }: AppL
   const [resolvedTheme, setResolvedTheme] = useState<'light' | 'dark' | 'high-contrast' | 'night-patrol'>('light')
   const queryClient = useQueryClient()
   const navigate = useNavigate()
+
+  // Passive context capture for feedback reports
+  useFeedbackCapture()
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -525,6 +532,21 @@ export function AppLayout({ children, title, description, showBackButton }: AppL
         {/* Page Content */}
         <main className="p-4 lg:p-6 relative">
           {children}
+
+          {/* Global feedback button — visible to all authenticated users */}
+          {user && !isLocked && (
+            <>
+              <button
+                onClick={() => setFeedbackOpen(true)}
+                title="Send feedback or report an issue"
+                className="fixed bottom-4 right-4 z-40 flex items-center gap-2 rounded-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-lg px-3 py-2 text-xs font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-all hover:shadow-xl group"
+              >
+                <MessageSquarePlus className="h-4 w-4 text-violet-500 group-hover:scale-110 transition-transform" />
+                <span className="hidden sm:inline">Feedback</span>
+              </button>
+              <FeedbackModal open={feedbackOpen} onClose={() => setFeedbackOpen(false)} />
+            </>
+          )}
 
           {autoLogoffEnabled && isWarningVisible && !isLocked && (
             <div className="fixed inset-0 z-40 bg-slate-950/35 backdrop-blur-[3px] flex items-start justify-center pt-16 px-4 pb-4">

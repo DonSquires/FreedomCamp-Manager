@@ -131,28 +131,6 @@ const REC_STYLES: Record<string, string> = {
   danger: 'bg-red-50 border-red-300 text-red-800',
 }
 
-/**
- * Atomically increment a noise counter table and return the formatted number.
- * counterTable: 'noise_notice_counters' | 'noise_seizure_counters'
- * prefix: 'NCN' | 'NCS'
- */
-async function nextNoiseNumber(
-  counterTable: 'noise_notice_counters' | 'noise_seizure_counters',
-  prefix: string,
-  orgId: string
-): Promise<string> {
-  const { data } = await supabase
-    .from(counterTable as any)
-    .select('last_number')
-    .eq('organization_id', orgId)
-    .maybeSingle()
-  const nextNum = (((data as any)?.last_number) || 0) + 1
-  await supabase
-    .from(counterTable as any)
-    .upsert({ organization_id: orgId, last_number: nextNum }, { onConflict: 'organization_id' })
-  return `${prefix}-${new Date().getFullYear()}-${String(nextNum).padStart(6, '0')}`
-}
-
 // ─── Component ───────────────────────────────────────────────────────────────
 
 export default function NoiseOfficerPortal() {
@@ -306,7 +284,9 @@ export default function NoiseOfficerPortal() {
   const issueNoticeMutation = useMutation({
     mutationFn: async () => {
       if (!orgId || !user?.id || !selectedJob) throw new Error('No job selected')
-      const noticeNumber = await nextNoiseNumber('noise_notice_counters', 'NCN', orgId)
+      const { data: noticeNumData, error: noticeNumError } = await (supabase as any).rpc('next_noise_notice_number', { p_org_id: orgId })
+      if (noticeNumError) throw noticeNumError
+      const noticeNumber: string = noticeNumData
       const isEnd = noticeForm.notice_type === 'enforcement_notice'
       const complyBy = noticeForm.comply_by_hours
         ? new Date(Date.now() + parseInt(noticeForm.comply_by_hours) * 3600_000).toISOString()
@@ -352,7 +332,9 @@ export default function NoiseOfficerPortal() {
   const recordSeizureMutation = useMutation({
     mutationFn: async () => {
       if (!orgId || !user?.id || !selectedJob) throw new Error('No job selected')
-      const seizureNumber = await nextNoiseNumber('noise_seizure_counters', 'NCS', orgId)
+      const { data: seizureNumData, error: seizureNumError } = await (supabase as any).rpc('next_noise_seizure_number', { p_org_id: orgId })
+      if (seizureNumError) throw seizureNumError
+      const seizureNumber: string = seizureNumData
       const { error } = await supabase
         .from('noise_seizures' as any)
         .insert({

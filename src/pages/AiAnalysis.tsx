@@ -226,8 +226,8 @@ export default function AiAnalysis() {
     try {
       const result = await edgeFunctions.aiChat({ messages: conversationHistory })
 
-      if (!result.success) {
-        throw new Error(result.error || 'AI request failed')
+      if (result.error) {
+        throw new Error(result.error)
       }
 
       const assistantMsg: ChatMessage = {
