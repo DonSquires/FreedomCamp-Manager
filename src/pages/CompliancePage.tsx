@@ -577,7 +577,7 @@ function ZonesTab({
 
   // Filter to show only specific child zones (not jurisdiction-level parent zones).
   // Jurisdiction zones have parent_zone_id = null; specific zones have a parent.
-  const specificZones = (zoneStats ?? []).filter((z) => z.parent_zone_id != null);
+  const specificZones = (zoneStats ?? []).filter((z) => z.parent_zone_id !== null);
 
   if (!specificZones.length) return <Empty msg="No specific zones found" />;
 
@@ -704,7 +704,7 @@ function JurisdictionTab({
 
   // Show only jurisdiction-level parent zones (parent_zone_id is null).
   // These are observations that were not matched to a specific child zone.
-  const jurisdictionZones = (zoneStats ?? []).filter((z) => z.parent_zone_id == null);
+  const jurisdictionZones = (zoneStats ?? []).filter((z) => z.parent_zone_id === null);
 
   if (!jurisdictionZones.length) return <Empty msg="No jurisdiction zones found" />;
 
