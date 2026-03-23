@@ -68,6 +68,8 @@ import CanonicalRecordsManager from '@/pages/CanonicalRecordsManager'
 import PublicDisputePortal from '@/pages/PublicDisputePortal'
 import Disputes from '@/pages/Disputes'
 import Platform from '@/pages/Platform'
+import ParkingEnforcementPortal from '@/pages/ParkingEnforcementPortal'
+import ParkingOfficerPortal from '@/pages/ParkingOfficerPortal'
 
 // ---------------------------------------------------------------------------
 // ErrorBoundary – catches render-time errors so a crash on one page does not
@@ -848,6 +850,26 @@ export default function App() {
                 <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
                   <InvestigationJobsPage />
                 </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          {/* ── Parking Enforcement ─────────────────────────────────── */}
+          <Route
+            path="/parking"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <ParkingEnforcementPortal />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/parking-officer"
+            element={
+              <ProtectedRoute>
+                <ParkingOfficerPortal />
               </ProtectedRoute>
             }
           />

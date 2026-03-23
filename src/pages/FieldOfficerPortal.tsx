@@ -311,6 +311,8 @@ export default function FieldOfficerPortal() {
         gpsLongitude:        result.gpsLongitude,
         hasDiscrepancies:    false,
         discrepancyFlags:    null,
+        consecutiveNights:      null,
+        nightsStayedThisMonth:  null,
       })
       setDetailCameraOpen(false)
       setShowDetailPanel(true)

@@ -534,6 +534,14 @@ export const edgeFunctions = {
   },
 
   /**
+   * Run a ParkPow sync action (sync-lots | sync-watchlist | push-violations).
+   * Used by ParkingEnforcementPortal admin tab.
+   */
+  runParkPowSync: async (params: { action: 'sync-lots' | 'sync-watchlist' | 'push-violations' }) => {
+    return callEdgeFunction('parkpow-sync', params)
+  },
+
+  /**
    * Recover deleted observation photos using ParkPow as source-of-truth.
    */
   recoverObservationPhotos: async (params: {

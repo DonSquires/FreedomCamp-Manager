@@ -870,6 +870,268 @@ app.post('/infer', upload.single('photo'), async (req, res) => {
   }
 });
 
+// ============================================================================
+// POST /infer/chalk — TicketOr2-style AI-assisted chalk pass
+//
+// Accepts a vehicle/tyre photo and returns:
+//   - plate number (via Plate Recognizer if PLATERECOGNIZER_TOKEN is set)
+//   - tyre valve position (via OpenAI vision: north/east/south/west/unknown)
+//   - vehicle make/model/year/colour (via existing AI attribute pipeline)
+//   - vehicle embedding (for movement comparison at recheck)
+//   - vehicle detection confidence
+//
+// All fields gracefully degrade: valve position → 'unknown' if OpenAI not
+// configured, plate → null if ALPR not available, embedding → null if ONNX
+// models not loaded.
+// ============================================================================
+app.post('/infer/chalk', upload.single('photo'), requireInferenceAuth, async (req, res) => {
+  const startTime = Date.now();
+
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No photo uploaded', field: 'photo' });
+    }
+
+    const imageBuffer = req.file.buffer;
+
+    // ── 1. Plate Recognition via Plate Recognizer ─────────────────────
+    let plate = null;
+    let plateConfidence = null;
+    if (process.env.PLATERECOGNIZER_TOKEN) {
+      try {
+        const formData = new FormData();
+        const blob = new Blob([imageBuffer], { type: req.file.mimetype || 'image/jpeg' });
+        formData.append('upload', blob, req.file.originalname || 'photo.jpg');
+        formData.append('regions', process.env.ALPR_REGIONS || 'nz');
+
+        const alprResp = await fetch(
+          process.env.ALPR_CLOUD_URL || 'https://api.platerecognizer.com/v1/plate-reader/',
+          {
+            method: 'POST',
+            headers: { Authorization: `Token ${process.env.PLATERECOGNIZER_TOKEN}` },
+            body: formData,
+            signal: AbortSignal.timeout(5000),
+          }
+        );
+        if (alprResp.ok) {
+          const alprData = await alprResp.json();
+          const best = alprData?.results?.[0];
+          if (best?.plate) {
+            plate = best.plate.toUpperCase().replace(/[^A-Z0-9]/g, '');
+            plateConfidence = best.score ?? null;
+          }
+        }
+      } catch (alprErr) {
+        console.warn('⚠️  /infer/chalk ALPR failed (non-fatal):', alprErr.message);
+      }
+    }
+
+    // ── 2. Tyre valve position via OpenAI vision ──────────────────────
+    let valvePosition = 'unknown';
+    let valveConfidence = 0;
+    let valveDescription = 'Valve position could not be determined';
+
+    if (OPENAI_API_KEY) {
+      try {
+        const imageBase64 = imageBuffer.toString('base64');
+        const mimeType = req.file.mimetype || 'image/jpeg';
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), ATTR_TIMEOUT_MS);
+
+        const valveResp = await fetch(`${OPENAI_BASE_URL}/chat/completions`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${OPENAI_API_KEY}`,
+          },
+          signal: controller.signal,
+          body: JSON.stringify({
+            model: OPENAI_MODEL,
+            temperature: 0,
+            response_format: { type: 'json_object' },
+            messages: [
+              {
+                role: 'system',
+                content:
+                  'You are a parking enforcement assistant. Analyse the tyre in this photo and determine ' +
+                  'the clock position of the valve stem on the front-left tyre (or the most visible tyre). ' +
+                  'This is used for electronic chalking — NZ council parking enforcement. ' +
+                  'Return strict JSON only with keys: ' +
+                  'valve_position (one of: "north","east","south","west","unknown"), ' +
+                  'valve_confidence (0.0–1.0), ' +
+                  'valve_description (short natural-language description of position, e.g. "Valve stem pointing approximately to 12 o\'clock (north)"). ' +
+                  'If no tyre/wheel is clearly visible, return valve_position: "unknown" and valve_confidence: 0.',
+              },
+              {
+                role: 'user',
+                content: [
+                  { type: 'text', text: 'What is the tyre valve stem position in this image?' },
+                  {
+                    type: 'image_url',
+                    image_url: { url: `data:${mimeType};base64,${imageBase64}` },
+                  },
+                ],
+              },
+            ],
+          }),
+        });
+
+        clearTimeout(timeout);
+
+        if (valveResp.ok) {
+          const valvePayload = await valveResp.json();
+          const content = valvePayload?.choices?.[0]?.message?.content;
+          if (content) {
+            const parsed = JSON.parse(content);
+            const pos = parsed.valve_position?.toLowerCase();
+            if (['north', 'east', 'south', 'west', 'unknown'].includes(pos)) {
+              valvePosition    = pos;
+              valveConfidence  = clamp01(parsed.valve_confidence ?? 0);
+              valveDescription = parsed.valve_description ?? valveDescription;
+            }
+          }
+        }
+      } catch (valveErr) {
+        console.warn('⚠️  /infer/chalk valve detection failed (non-fatal):', valveErr.message);
+      }
+    }
+
+    // ── 3. Vehicle detection + embedding + attributes ────────────────
+    let embedding = null;
+    let embeddingQuality = null;
+    let vehicleDetection = null;
+    let vehicleAttrs = { vehicle_make: null, vehicle_model: null, vehicle_year: null, vehicle_colour: null };
+
+    const modelsLoaded = !!(yoloSession && embeddingSession);
+
+    if (modelsLoaded) {
+      try {
+        const yoloInput = await preprocessForYOLO(imageBuffer);
+        const detection = await detectVehicles(yoloInput);
+        vehicleDetection = detection ? {
+          confidence: detection.confidence,
+          bbox: detection.bbox,
+          class: detection.class,
+        } : null;
+
+        const cropBuffer = await extractVehicleCropBuffer(imageBuffer, detection?.bbox ?? null);
+        const embeddingInput = await preprocessForEmbedding(imageBuffer, detection?.bbox ?? null);
+        const [embResult, attrs] = await Promise.all([
+          generateEmbedding(embeddingInput),
+          inferVehicleAttributes(imageBuffer, cropBuffer),
+        ]);
+        embedding = embResult.embedding;
+        embeddingQuality = embResult.quality;
+        vehicleAttrs = attrs;
+      } catch (inferErr) {
+        console.warn('⚠️  /infer/chalk ONNX inference failed (non-fatal):', inferErr.message);
+      }
+    } else if (VEHICLE_ATTRS_PROVIDER === 'openai') {
+      // Degraded: no ONNX but can still get attributes
+      try {
+        vehicleAttrs = await inferVehicleAttributes(imageBuffer, imageBuffer) || vehicleAttrs;
+      } catch { /* non-fatal */ }
+    }
+
+    const duration = Date.now() - startTime;
+
+    return res.json({
+      success: true,
+      data: {
+        // ALPR
+        plate,
+        plate_confidence: plateConfidence,
+
+        // Tyre valve (TicketOr2 core feature)
+        valve_position:    valvePosition,
+        valve_confidence:  valveConfidence,
+        valve_description: valveDescription,
+
+        // Vehicle detection
+        vehicle_detected:    !!vehicleDetection,
+        vehicle_confidence:  vehicleDetection?.confidence ?? null,
+        detection:           vehicleDetection,
+
+        // Embedding (store for movement comparison at recheck)
+        embedding,
+        embedding_quality:   embeddingQuality,
+
+        // Vehicle attributes
+        vehicle_make:    vehicleAttrs?.vehicle_make   ?? null,
+        vehicle_model:   vehicleAttrs?.vehicle_model  ?? null,
+        vehicle_year:    vehicleAttrs?.vehicle_year   ?? null,
+        vehicle_colour:  vehicleAttrs?.vehicle_colour ?? null,
+
+        metadata: {
+          processing_time_ms: duration,
+          alpr_available:     !!process.env.PLATERECOGNIZER_TOKEN,
+          valve_ai_available: !!OPENAI_API_KEY,
+          onnx_available:     modelsLoaded,
+        },
+      },
+    });
+
+  } catch (error) {
+    console.error('❌ /infer/chalk error:', error);
+    return res.status(500).json({ error: 'Chalk inference failed', message: error.message });
+  }
+});
+
+// ============================================================================
+// POST /infer/compare — Cosine similarity between two 384D embeddings
+//
+// Used at recheck time to determine if the same physical vehicle is present
+// (high similarity ≈ same vehicle, same position; lower ≈ different vehicle
+// or vehicle moved and returned).
+//
+// Body (JSON): { embedding1: number[], embedding2: number[] }
+// Response:    { similarity: number, same_vehicle: boolean, confidence: string }
+// ============================================================================
+app.post('/infer/compare', requireInferenceAuth, async (req, res) => {
+  try {
+    const { embedding1, embedding2 } = req.body ?? {};
+
+    if (!Array.isArray(embedding1) || !Array.isArray(embedding2)) {
+      return res.status(400).json({ error: 'embedding1 and embedding2 must be arrays' });
+    }
+    if (embedding1.length !== embedding2.length || embedding1.length === 0) {
+      return res.status(400).json({ error: 'Embeddings must be non-empty and equal length' });
+    }
+
+    // Cosine similarity
+    let dot = 0, norm1 = 0, norm2 = 0;
+    for (let i = 0; i < embedding1.length; i++) {
+      dot   += embedding1[i] * embedding2[i];
+      norm1 += embedding1[i] * embedding1[i];
+      norm2 += embedding2[i] * embedding2[i];
+    }
+    const similarity = norm1 > 0 && norm2 > 0
+      ? dot / (Math.sqrt(norm1) * Math.sqrt(norm2))
+      : 0;
+
+    // Thresholds tuned for MobileNetV3 384D embeddings on vehicle photos
+    const same_vehicle = similarity >= 0.85;
+    const confidence   = similarity >= 0.92 ? 'high'
+                        : similarity >= 0.85 ? 'medium'
+                        : similarity >= 0.70 ? 'low'
+                        : 'different';
+
+    return res.json({
+      similarity: Math.round(similarity * 10000) / 10000,  // 4 decimal places
+      same_vehicle,
+      confidence,
+      interpretation:
+        same_vehicle
+          ? `Same vehicle detected (similarity ${(similarity * 100).toFixed(1)}%)`
+          : `Different vehicle or vehicle moved (similarity ${(similarity * 100).toFixed(1)}%)`,
+    });
+
+  } catch (error) {
+    console.error('❌ /infer/compare error:', error);
+    return res.status(500).json({ error: 'Comparison failed', message: error.message });
+  }
+});
+
 // Health check
 app.get('/health', (req, res) => {
   const modelsLoaded = !!(yoloSession && embeddingSession);

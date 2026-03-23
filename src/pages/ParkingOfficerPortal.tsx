@@ -61,10 +61,10 @@ interface InfringementForm {
 
 // ─── Tyre valve positions — the TicketOr2 standard ───────────────────────────
 const VALVE_POSITIONS = [
-  { value: 'north', label: '↑ North (12 o'clock)' },
-  { value: 'east',  label: '→ East  (3 o'clock)' },
-  { value: 'south', label: '↓ South (6 o'clock)' },
-  { value: 'west',  label: '← West  (9 o'clock)' },
+  { value: 'north', label: "\u2191 North (12 o'clock)" },
+  { value: 'east',  label: "\u2192 East  (3 o'clock)" },
+  { value: 'south', label: "\u2193 South (6 o'clock)" },
+  { value: 'west',  label: "\u2190 West  (9 o'clock)" },
   { value: 'unknown', label: 'Unknown / not visible' },
 ]
 
