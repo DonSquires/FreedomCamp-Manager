@@ -300,7 +300,35 @@ export default function AdminPortal() {
       const { count: disputesPending, error: disputesErr } = await disputesPendingQuery
       if (disputesErr) diagnostics.push(`disputes_pending: ${disputesErr.message || 'unknown error'}`)
 
-      // ── 6. Homeless-exempt breach count ──────────────────────────────────
+      // Open dispute_intake submissions (new dispute intake system)
+      let openDisputeIntakeQuery = supabase
+        .from('dispute_intake')
+        .select('id', { count: 'exact', head: true })
+        .in('status', ['received', 'under_review', 'info_requested'])
+      if (effectiveOrganizationId) openDisputeIntakeQuery = openDisputeIntakeQuery.eq('organization_id', effectiveOrganizationId)
+      const { count: openDisputeIntake, error: disputeIntakeErr } = await openDisputeIntakeQuery
+      if (disputeIntakeErr) diagnostics.push(`open_dispute_intake: ${disputeIntakeErr.message || 'unknown error'}`)
+
+      // Vehicle discrepancies requiring review
+      let discrepanciesPendingQuery = (supabase.from('vehicle_discrepancies') as any)
+        .select('id', { count: 'exact', head: true })
+        .eq('requires_review', true)
+        .is('reviewed_at', null)
+      if (effectiveOrganizationId) discrepanciesPendingQuery = discrepanciesPendingQuery.eq('organization_id', effectiveOrganizationId)
+      const { count: discrepanciesPending, error: discrepanciesErr } = await discrepanciesPendingQuery
+      if (discrepanciesErr) diagnostics.push(`discrepancies_pending: ${discrepanciesErr.message || 'unknown error'}`)
+
+      // SCV certifications expiring within 30 days
+      const thirtyDaysFromNow = new Date()
+      thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30)
+      const { count: scvExpiringSoon, error: scvErr } = await supabase
+        .from('canonical_scv')
+        .select('plate_number', { count: 'exact', head: true })
+        .eq('is_self_contained', true)
+        .not('certificate_expiry', 'is', null)
+        .lte('certificate_expiry', thirtyDaysFromNow.toISOString())
+        .gt('certificate_expiry', new Date().toISOString())
+      if (scvErr) diagnostics.push(`scv_expiring_soon: ${scvErr.message || 'unknown error'}`)
       // Count non-compliant observations where the plate belongs to a homeless vehicle.
       // This is the exact number of "breaches" that are actually FC Act exempt.
       let homelessExemptBreachCount = 0
@@ -330,6 +358,9 @@ export default function AdminPortal() {
         checksToday:               checksToday               ?? 0,
         infringementsIssued:       infringementsIssued       ?? 0,
         disputesPending:           disputesPending           ?? 0,
+        openDisputeIntake:         openDisputeIntake         ?? 0,
+        discrepanciesPending:      discrepanciesPending      ?? 0,
+        scvExpiringSoon:           scvExpiringSoon            ?? 0,
         homelessExemptBreachCount,
         diagnostics,
       }
@@ -736,6 +767,27 @@ export default function AdminPortal() {
       icon: Users,
       iconColor: 'text-orange-500',
       config: { to: '/compliance', metric: 'homeless_status', period: periodLabel, tab: 'homeless', label: 'Homeless Vehicles' },
+    },
+    {
+      title: 'Open Disputes',
+      value: isLoading ? '...' : (data?.openDisputeIntake ?? 0),
+      icon: AlertTriangle,
+      iconColor: 'text-red-500',
+      config: { to: '/disputes', metric: 'open_disputes', period: periodLabel, label: 'Open Disputes' },
+    },
+    {
+      title: 'Pending Discrepancies',
+      value: isLoading ? '...' : (data?.discrepanciesPending ?? 0),
+      icon: AlertTriangle,
+      iconColor: 'text-amber-500',
+      config: { to: '/admin/discrepancies', metric: 'discrepancies_pending', period: periodLabel, label: 'Pending Discrepancies' },
+    },
+    {
+      title: 'SCV Expiring (30d)',
+      value: isLoading ? '...' : (data?.scvExpiringSoon ?? 0),
+      icon: Shield,
+      iconColor: 'text-blue-500',
+      config: { to: '/admin/nzscv', metric: 'scv_expiring_soon', period: periodLabel, label: 'SCV Expiring Soon' },
     },
   ]
 
