@@ -7,7 +7,7 @@
 
 import { supabase } from './supabase'
 import { toast } from 'sonner'
-import { FunctionsHttpError } from '@supabase/supabase-js'
+import { FunctionsHttpError, FunctionsRelayError, FunctionsFetchError } from '@supabase/supabase-js'
 import { useSessionLockStore } from '@/stores/sessionLockStore'
 
 const ACCESS_TOKEN_REFRESH_BUFFER_MS = 60_000
@@ -115,7 +115,7 @@ function extractUsableMessage(raw: string): string {
 }
 
 /**
- * Helper to extract error message from FunctionsHttpError
+ * Helper to extract error message from FunctionsHttpError, FunctionsRelayError, or FunctionsFetchError
  */
 async function getErrorMessage(error: any): Promise<string> {
   if (error instanceof FunctionsHttpError) {
@@ -142,6 +142,15 @@ async function getErrorMessage(error: any): Promise<string> {
       return error.message || 'Failed to read response'
     }
   }
+
+  // Network-level failures: the browser could not send the request at all.
+  // This is commonly caused by the edge function not being deployed, a CORS
+  // pre-flight rejection (gateway JWT verify block), or a transient network
+  // outage.  Return a clear, actionable message instead of the raw SDK string.
+  if (error instanceof FunctionsFetchError || error instanceof FunctionsRelayError) {
+    return 'Unable to reach the Edge Function. The function may not be deployed, or there may be a network connectivity issue. Please try again or contact your administrator.'
+  }
+
   return error.message || 'Unknown error'
 }
 
