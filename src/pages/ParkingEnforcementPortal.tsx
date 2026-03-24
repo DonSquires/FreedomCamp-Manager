@@ -33,7 +33,7 @@ import {
   Car, Clock, AlertTriangle, CheckCircle, MapPin, BarChart3,
   RefreshCw, PlusCircle, Shield, DollarSign, Zap, Filter,
   FileText, Edit, Ban, CircleCheck, RotateCcw, TrendingUp,
-  Users, Timer,
+  Users, Timer, Printer,
 } from 'lucide-react'
 
 // ─── Status helpers ───────────────────────────────────────────────────────────
@@ -58,6 +58,112 @@ const ZONE_TYPE_LABELS: Record<string, string> = {
   mixed:          'Mixed',
 }
 
+// ─── Printable receipt HTML generator ────────────────────────────────────────
+
+function generateParkingNoticeHtml(inf: any): string {
+  const earlyAmt   = inf.early_payment_amount ? `NZD $${Number(inf.early_payment_amount).toFixed(2)}` : null
+  const fineAmt    = inf.fine_amount_nzd     ? `NZD $${Number(inf.fine_amount_nzd).toFixed(2)}`     : 'As Prescribed'
+  const dueDate    = inf.due_date
+    ? new Date(inf.due_date).toLocaleDateString('en-NZ', { day: '2-digit', month: 'long', year: 'numeric' })
+    : '28 days from date of issue'
+  const issuedAt   = inf.issued_at
+    ? new Date(inf.issued_at).toLocaleString('en-NZ', { timeZone: 'Pacific/Auckland', day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+    : '—'
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<title>Parking Infringement ${inf.infringement_number}</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: Arial, sans-serif; font-size: 11pt; color: #111; background: #fff; padding: 20mm; }
+  .header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 3px solid #1e3a5f; padding-bottom: 8px; margin-bottom: 16px; }
+  .title { font-size: 20pt; font-weight: bold; color: #1e3a5f; }
+  .notice-num { font-size: 13pt; font-weight: bold; color: #1e3a5f; text-align: right; }
+  .section { margin-bottom: 14px; }
+  .section-title { font-weight: bold; font-size: 10pt; text-transform: uppercase; color: #666; border-bottom: 1px solid #ddd; padding-bottom: 2px; margin-bottom: 8px; }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .field label { font-size: 9pt; color: #666; display: block; }
+  .field p { font-weight: bold; }
+  .plate { font-family: monospace; font-size: 18pt; font-weight: bold; letter-spacing: 2px; background: #f0f0f0; padding: 6px 14px; border-radius: 4px; display: inline-block; border: 2px solid #ccc; }
+  .fine-box { background: #fff3cd; border: 2px solid #ffc107; border-radius: 6px; padding: 12px; margin-top: 8px; }
+  .fine-box .amount { font-size: 22pt; font-weight: bold; color: #c00; }
+  .early { color: #2a6; font-size: 10pt; margin-top: 4px; }
+  .offence-box { background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 4px; padding: 10px; }
+  .rights { font-size: 9pt; color: #444; border-top: 1px solid #ccc; padding-top: 10px; margin-top: 14px; }
+  @media print { body { padding: 10mm; } }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div>
+    <div class="title">PARKING INFRINGEMENT NOTICE</div>
+    <div style="font-size:9pt;color:#666;margin-top:4px;">Issued under the Land Transport (Road User) Rule 2004</div>
+  </div>
+  <div class="notice-num">
+    Notice No.<br/>${inf.infringement_number}
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-title">Vehicle</div>
+  <div class="grid">
+    <div class="field">
+      <label>Plate Number</label>
+      <div class="plate">${inf.plate_number}</div>
+    </div>
+    <div class="field">
+      <label>Make / Model / Colour</label>
+      <p>${[inf.vehicle_make, inf.vehicle_model, inf.vehicle_colour].filter(Boolean).join(' ') || '—'}</p>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-title">Offence</div>
+  <div class="grid">
+    <div class="field">
+      <label>Date &amp; Time of Offence</label>
+      <p>${issuedAt}</p>
+    </div>
+    <div class="field">
+      <label>Location</label>
+      <p>${inf.location_address || '—'}</p>
+    </div>
+  </div>
+  <div class="offence-box" style="margin-top:8px;">
+    <strong>Offence Description:</strong><br/>${inf.offence_description || '—'}
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-title">Fine</div>
+  <div class="fine-box">
+    <div class="amount">${fineAmt}</div>
+    ${earlyAmt ? `<div class="early">⚡ Pay <strong>${earlyAmt}</strong> within 14 days for 50% early payment discount</div>` : ''}
+    <div style="margin-top:6px;font-size:9pt;">Payment due by: <strong>${dueDate}</strong></div>
+  </div>
+</div>
+
+<div class="section">
+  <div class="section-title">Issuing Officer</div>
+  <div class="grid">
+    <div class="field"><label>Officer</label><p>${inf.officer_name || '—'}</p></div>
+    <div class="field"><label>Notice Status</label><p>${inf.status ? inf.status.replace(/_/g, ' ').toUpperCase() : 'ISSUED'}</p></div>
+  </div>
+</div>
+
+<div class="rights">
+  <strong>Your rights:</strong> You have the right to request a review of this infringement notice. Contact the issuing authority within 28 days of the date of issue.
+  Payment does not constitute an admission of liability. If you wish to dispute this notice, contact us in writing before the due date.
+</div>
+
+</body>
+</html>`
+}
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function ParkingEnforcementPortal() {
@@ -72,6 +178,7 @@ export default function ParkingEnforcementPortal() {
   const [showNewZone, setShowNewZone]     = useState(false)
   const [showNewPermit, setShowNewPermit] = useState(false)
   const [selectedInf, setSelectedInf]     = useState<any>(null)
+  const [printHtml, setPrintHtml]         = useState<string | null>(null)
 
   // ── Queries ──────────────────────────────────────────────────
 
@@ -657,6 +764,63 @@ export default function ParkingEnforcementPortal() {
                   ))}
                 </div>
               </div>
+              <div className="flex justify-end pt-1">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => setPrintHtml(generateParkingNoticeHtml(selectedInf))}
+                >
+                  <Printer className="h-3.5 w-3.5 mr-1.5" />
+                  Print Receipt
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* ── Print Preview Dialog ──────────────────────────────── */}
+      {printHtml && (
+        <Dialog open={!!printHtml} onOpenChange={() => setPrintHtml(null)}>
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Printer className="h-5 w-5 text-gray-600" /> Parking Infringement Receipt
+              </DialogTitle>
+            </DialogHeader>
+            <div className="flex gap-2 mb-3">
+              <Button
+                size="sm"
+                onClick={() => {
+                  const w = window.open('', '_blank')
+                  if (w) { w.document.write(printHtml ?? ''); w.document.close(); w.focus(); w.print() }
+                }}
+              >
+                <Printer className="h-4 w-4 mr-1" /> Print
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  const blob = new Blob([printHtml ?? ''], { type: 'text/html' })
+                  const url = URL.createObjectURL(blob)
+                  const a = document.createElement('a')
+                  a.href = url
+                  a.download = 'parking-infringement-receipt.html'
+                  a.click()
+                  URL.revokeObjectURL(url)
+                }}
+              >
+                Download HTML
+              </Button>
+            </div>
+            <div className="flex-1 overflow-auto rounded border border-gray-200 bg-white">
+              <iframe
+                srcDoc={printHtml ?? ''}
+                className="w-full"
+                style={{ height: '60vh', border: 'none' }}
+                title="Infringement Receipt Preview"
+              />
             </div>
           </DialogContent>
         </Dialog>
