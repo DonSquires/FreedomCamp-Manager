@@ -890,6 +890,28 @@ export const edgeFunctions = {
   },
 
   /**
+   * Generate printable HTML for a Noise Control Notice (AN / DN / END)
+   * Returns { html, notice_number }
+   */
+  generateNoiseNotice: async (params: {
+    noise_notice_id: string
+    issued_by: string
+  }) => {
+    return callEdgeFunction('generate-noise-notice', params)
+  },
+
+  /**
+   * Generate printable HTML "Receipt for Goods Seized" (RMA s.328)
+   * Returns { html, seizure_number }
+   */
+  generateSeizureReceipt: async (params: {
+    noise_seizure_id: string
+    issued_by: string
+  }) => {
+    return callEdgeFunction('generate-seizure-receipt', params)
+  },
+
+  /**
    * Get real-time compliance statistics
    */
   getComplianceStatistics: async (params: {

@@ -37,11 +37,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Textarea } from '@/components/ui/textarea'
 import { toast } from 'sonner'
 import { formatDateTime } from '@/lib/utils'
+import { edgeFunctions } from '@/lib/edgeFunctions'
 import {
   Volume2, ShieldAlert, AlertTriangle, FileText, Package,
   CheckCircle, Radio, MapPin, Clock, Camera, Gavel,
   ChevronRight, Info, ArrowRight, RefreshCw, Mic2, Eye,
-  XCircle, List, Dog, Users, UserX,
+  XCircle, List, Dog, Users, UserX, Printer,
 } from 'lucide-react'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -198,6 +199,9 @@ export default function NoiseOfficerPortal() {
   const [showNoticeDialog, setShowNoticeDialog] = useState(false)
   const [showSeizureDialog, setShowSeizureDialog] = useState(false)
   const [completedAssessmentId, setCompletedAssessmentId] = useState<string | null>(null)
+  const [printHtml, setPrintHtml] = useState<string | null>(null)
+  const [printLabel, setPrintLabel] = useState('')
+  const [printingId, setPrintingId] = useState<string | null>(null)
 
   // ── Queries ────────────────────────────────────────────────────────────────
 
@@ -232,6 +236,40 @@ export default function NoiseOfficerPortal() {
         .eq('officer_id', user?.id)
         .order('assessed_at', { ascending: false })
         .limit(30)
+      if (error) throw error
+      return data || []
+    },
+    enabled: !!orgId && !!user?.id,
+  })
+
+  const { data: myNotices = [] } = useQuery({
+    queryKey: ['my_noise_notices', user?.id, orgId],
+    queryFn: async () => {
+      if (!orgId || !user?.id) return []
+      const { data, error } = await supabase
+        .from('noise_notices' as any)
+        .select('id, notice_number, notice_type, status, recipient_address, created_at')
+        .eq('organization_id', orgId)
+        .eq('issued_by', user?.id)
+        .order('created_at', { ascending: false })
+        .limit(20)
+      if (error) throw error
+      return data || []
+    },
+    enabled: !!orgId && !!user?.id,
+  })
+
+  const { data: mySeizures = [] } = useQuery({
+    queryKey: ['my_noise_seizures', user?.id, orgId],
+    queryFn: async () => {
+      if (!orgId || !user?.id) return []
+      const { data, error } = await supabase
+        .from('noise_seizures' as any)
+        .select('id, seizure_number, status, equipment_type, equipment_make, seized_at')
+        .eq('organization_id', orgId)
+        .eq('seized_by', user?.id)
+        .order('seized_at', { ascending: false })
+        .limit(20)
       if (error) throw error
       return data || []
     },
@@ -361,6 +399,7 @@ export default function NoiseOfficerPortal() {
       toast.success('Notice issued successfully')
       setShowNoticeDialog(false)
       queryClient.invalidateQueries({ queryKey: ['noise_notices'] })
+      queryClient.invalidateQueries({ queryKey: ['my_noise_notices'] })
     },
     onError: (e: Error) => toast.error(e.message),
   })
@@ -402,6 +441,7 @@ export default function NoiseOfficerPortal() {
       toast.success('Equipment seizure recorded under RMA s.328')
       setShowSeizureDialog(false)
       queryClient.invalidateQueries({ queryKey: ['noise_seizures'] })
+      queryClient.invalidateQueries({ queryKey: ['my_noise_seizures'] })
     },
     onError: (e: Error) => toast.error(e.message),
   })
@@ -434,6 +474,38 @@ export default function NoiseOfficerPortal() {
   }
 
   // ─────────────────────────────────────────────────────────────────────────
+
+  const handlePrintNotice = async (noticeId: string, noticeNumber: string) => {
+    if (!user) return
+    setPrintingId(noticeId)
+    const { data, error } = await edgeFunctions.generateNoiseNotice({
+      noise_notice_id: noticeId,
+      issued_by: user.id,
+    })
+    setPrintingId(null)
+    if (error || !data?.html) {
+      toast.error('Could not generate notice document')
+      return
+    }
+    setPrintLabel(`Notice ${noticeNumber}`)
+    setPrintHtml(data.html)
+  }
+
+  const handlePrintSeizureReceipt = async (seizureId: string, seizureNumber: string) => {
+    if (!user) return
+    setPrintingId(seizureId)
+    const { data, error } = await edgeFunctions.generateSeizureReceipt({
+      noise_seizure_id: seizureId,
+      issued_by: user.id,
+    })
+    setPrintingId(null)
+    if (error || !data?.html) {
+      toast.error('Could not generate seizure receipt')
+      return
+    }
+    setPrintLabel(`Seizure Receipt ${seizureNumber}`)
+    setPrintHtml(data.html)
+  }
 
   return (
     <AppLayout>
@@ -922,27 +994,142 @@ export default function NoiseOfficerPortal() {
           </TabsContent>
 
           {/* ── History tab ──────────────────────────────────────────────── */}
-          <TabsContent value="history" className="mt-4 space-y-3">
-            {myAssessments.length === 0 ? (
-              <div className="text-center py-12 text-gray-400">No assessments recorded yet</div>
-            ) : (
-              myAssessments.map((a: any) => (
-                <Card key={a.id}>
-                  <CardContent className="p-4">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="font-semibold text-sm text-gray-900 truncate">{a.address}</p>
-                        <p className="text-xs text-gray-500 mt-0.5">{formatDateTime(a.assessed_at)}</p>
-                        <p className="text-xs text-gray-600 mt-0.5">{a.recommended_action?.replace(/_/g,' ')}{a.noise_level_db ? ` · ${a.noise_level_db} dB` : ''}</p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))
+          <TabsContent value="history" className="mt-4 space-y-4">
+            {/* ── My Notices ─────────────────────────────────────── */}
+            {myNotices.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Notices Issued</p>
+                {myNotices.map((n: any) => {
+                  const ABBR: Record<string, string> = { abatement_notice: 'AN', direction_notice: 'DN', enforcement_notice: 'END' }
+                  const abbr = ABBR[n.notice_type] ?? 'NO'
+                  return (
+                    <Card key={n.id}>
+                      <CardContent className="p-3 flex items-center gap-3">
+                        <div className="flex-shrink-0 w-10 h-10 rounded-full bg-orange-100 flex items-center justify-center">
+                          <span className="text-xs font-bold text-orange-700">{abbr}</span>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="font-mono text-sm font-semibold text-gray-800">{n.notice_number}</p>
+                          <p className="text-xs text-gray-500 truncate">{n.recipient_address}</p>
+                          <p className="text-xs text-gray-400">{formatDateTime(n.created_at)}</p>
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="flex-shrink-0 text-xs gap-1"
+                          disabled={printingId === n.id}
+                          onClick={() => handlePrintNotice(n.id, n.notice_number)}
+                        >
+                          <Printer className="h-3.5 w-3.5" />
+                          {printingId === n.id ? 'Loading…' : 'Print'}
+                        </Button>
+                      </CardContent>
+                    </Card>
+                  )
+                })}
+              </div>
             )}
+
+            {/* ── My Seizures ────────────────────────────────────── */}
+            {mySeizures.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Seizure Receipts</p>
+                {mySeizures.map((s: any) => (
+                  <Card key={s.id}>
+                    <CardContent className="p-3 flex items-center gap-3">
+                      <div className="flex-shrink-0 w-10 h-10 rounded-full bg-red-100 flex items-center justify-center">
+                        <Package className="h-4 w-4 text-red-700" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-mono text-sm font-semibold text-gray-800">{s.seizure_number}</p>
+                        <p className="text-xs text-gray-600 truncate">{s.equipment_type}{s.equipment_make ? ` · ${s.equipment_make}` : ''}</p>
+                        <p className="text-xs text-gray-400">{formatDateTime(s.seized_at)}</p>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="flex-shrink-0 text-xs gap-1 border-red-200 text-red-700 hover:bg-red-50"
+                        disabled={printingId === s.id}
+                        onClick={() => handlePrintSeizureReceipt(s.id, s.seizure_number)}
+                      >
+                        <Printer className="h-3.5 w-3.5" />
+                        {printingId === s.id ? 'Loading…' : 'Receipt'}
+                      </Button>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+
+            {/* ── Assessments ─────────────────────────────────────── */}
+            <div className="space-y-2">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Assessments</p>
+              {myAssessments.length === 0 ? (
+                <div className="text-center py-12 text-gray-400">No assessments recorded yet</div>
+              ) : (
+                myAssessments.map((a: any) => (
+                  <Card key={a.id}>
+                    <CardContent className="p-4">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="font-semibold text-sm text-gray-900 truncate">{a.address}</p>
+                          <p className="text-xs text-gray-500 mt-0.5">{formatDateTime(a.assessed_at)}</p>
+                          <p className="text-xs text-gray-600 mt-0.5">{a.recommended_action?.replace(/_/g,' ')}{a.noise_level_db ? ` · ${a.noise_level_db} dB` : ''}</p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))
+              )}
+            </div>
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* ── Print Preview Dialog ─────────────────────────────────────────────── */}
+      <Dialog open={!!printHtml} onOpenChange={() => setPrintHtml(null)}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Printer className="h-5 w-5 text-gray-600" /> {printLabel}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex gap-2 mb-3">
+            <Button
+              size="sm"
+              onClick={() => {
+                const w = window.open('', '_blank')
+                if (w) { w.document.write(printHtml ?? ''); w.document.close(); w.focus(); w.print() }
+              }}
+            >
+              <Printer className="h-4 w-4 mr-1" /> Print
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                const blob = new Blob([printHtml ?? ''], { type: 'text/html' })
+                const url = URL.createObjectURL(blob)
+                const a = document.createElement('a')
+                a.href = url
+                a.download = `${printLabel.replace(/\s+/g, '-')}.html`
+                a.click()
+                URL.revokeObjectURL(url)
+              }}
+            >
+              Download HTML
+            </Button>
+          </div>
+          <div className="flex-1 overflow-auto rounded border border-gray-200 bg-white">
+            <iframe
+              srcDoc={printHtml ?? ''}
+              className="w-full"
+              style={{ height: '60vh', border: 'none' }}
+              title="Notice Preview"
+            />
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* ── Issue Notice Dialog ──────────────────────────────────────────────── */}
       <Dialog open={showNoticeDialog} onOpenChange={setShowNoticeDialog}>

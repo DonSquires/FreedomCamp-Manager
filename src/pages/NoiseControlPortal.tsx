@@ -30,11 +30,12 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Textarea } from '@/components/ui/textarea'
 import { toast } from 'sonner'
 import { formatDateTime } from '@/lib/utils'
+import { edgeFunctions } from '@/lib/edgeFunctions'
 import {
   Volume2, AlertTriangle, ShieldAlert, Gavel, Package,
   PlusCircle, RefreshCw, MapPin, Clock, Users, BarChart3,
   CheckCircle, XCircle, FileText, Zap, Radio, Eye,
-  TrendingUp, Filter,
+  TrendingUp, Filter, Printer,
 } from 'lucide-react'
 
 // ─── Status / type helpers ────────────────────────────────────────────────────
@@ -150,6 +151,9 @@ export default function NoiseControlPortal() {
   const [showJobDetail, setShowJobDetail] = useState<NoiseJob | null>(null)
   const [showNewNoticeDialog, setShowNewNoticeDialog] = useState(false)
   const [showNoticeDetail, setShowNoticeDetail] = useState<NoiseNotice | null>(null)
+  const [printHtml, setPrintHtml] = useState<string | null>(null)
+  const [printLabel, setPrintLabel] = useState('')
+  const [printingId, setPrintingId] = useState<string | null>(null)
 
   // New job form
   const [newJob, setNewJob] = useState({
@@ -399,6 +403,38 @@ export default function NoiseControlPortal() {
 
   // ─────────────────────────────────────────────────────────────────────────
 
+  const handlePrintNotice = async (noticeId: string, noticeNumber: string) => {
+    if (!user) return
+    setPrintingId(noticeId)
+    const { data, error } = await edgeFunctions.generateNoiseNotice({
+      noise_notice_id: noticeId,
+      issued_by: user.id,
+    })
+    setPrintingId(null)
+    if (error || !data?.html) {
+      toast.error('Could not generate notice document')
+      return
+    }
+    setPrintLabel(`Notice ${noticeNumber}`)
+    setPrintHtml(data.html)
+  }
+
+  const handlePrintSeizureReceipt = async (seizureId: string, seizureNumber: string) => {
+    if (!user) return
+    setPrintingId(seizureId)
+    const { data, error } = await edgeFunctions.generateSeizureReceipt({
+      noise_seizure_id: seizureId,
+      issued_by: user.id,
+    })
+    setPrintingId(null)
+    if (error || !data?.html) {
+      toast.error('Could not generate seizure receipt')
+      return
+    }
+    setPrintLabel(`Seizure Receipt ${seizureNumber}`)
+    setPrintHtml(data.html)
+  }
+
   return (
     <AppLayout>
       <div className="p-6 space-y-6 max-w-screen-2xl mx-auto">
@@ -581,9 +617,20 @@ export default function NoiseControlPortal() {
                             <p className="text-xs text-gray-400">{formatDateTime(notice.issued_at)}</p>
                             {notice.issuing_officer_name && <p className="text-xs text-gray-500">{notice.issuing_officer_name}</p>}
                             {notice.comply_by && <p className="text-xs text-orange-600 flex items-center gap-1"><Clock className="h-3 w-3" /> Comply by {formatDateTime(notice.comply_by)}</p>}
-                            <Button size="sm" variant="ghost" onClick={() => setShowNoticeDetail(notice)}>
-                              <Eye className="h-3 w-3 mr-1" /> Detail
-                            </Button>
+                            <div className="flex gap-1">
+                              <Button size="sm" variant="ghost" onClick={() => setShowNoticeDetail(notice)}>
+                                <Eye className="h-3 w-3 mr-1" /> Detail
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                disabled={printingId === notice.id}
+                                onClick={() => handlePrintNotice(notice.id, notice.notice_number)}
+                              >
+                                <Printer className="h-3 w-3 mr-1" />
+                                {printingId === notice.id ? '…' : 'Print'}
+                              </Button>
+                            </div>
                           </div>
                         </div>
                       </CardContent>
@@ -624,6 +671,16 @@ export default function NoiseControlPortal() {
                         <div className="flex flex-col items-end gap-1 shrink-0">
                           <p className="text-xs text-gray-400">{formatDateTime(s.seized_at)}</p>
                           {s.seizing_officer_name && <p className="text-xs text-gray-500">{s.seizing_officer_name}</p>}
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="border-red-200 text-red-700 hover:bg-red-50"
+                            disabled={printingId === s.id}
+                            onClick={() => handlePrintSeizureReceipt(s.id, s.seizure_number)}
+                          >
+                            <Printer className="h-3 w-3 mr-1" />
+                            {printingId === s.id ? '…' : 'Receipt'}
+                          </Button>
                         </div>
                       </div>
                     </CardContent>
@@ -984,6 +1041,50 @@ export default function NoiseControlPortal() {
           </DialogContent>
         </Dialog>
       )}
+      {/* ── Print Preview Dialog ─────────────────────────────────────────────── */}
+      <Dialog open={!!printHtml} onOpenChange={() => setPrintHtml(null)}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Printer className="h-5 w-5 text-gray-600" /> {printLabel}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex gap-2 mb-3">
+            <Button
+              size="sm"
+              onClick={() => {
+                const w = window.open('', '_blank')
+                if (w) { w.document.write(printHtml ?? ''); w.document.close(); w.focus(); w.print() }
+              }}
+            >
+              <Printer className="h-4 w-4 mr-1" /> Print
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                const blob = new Blob([printHtml ?? ''], { type: 'text/html' })
+                const url = URL.createObjectURL(blob)
+                const a = document.createElement('a')
+                a.href = url
+                a.download = `${printLabel.replace(/\s+/g, '-')}.html`
+                a.click()
+                URL.revokeObjectURL(url)
+              }}
+            >
+              Download HTML
+            </Button>
+          </div>
+          <div className="flex-1 overflow-auto rounded border border-gray-200 bg-white">
+            <iframe
+              srcDoc={printHtml ?? ''}
+              className="w-full"
+              style={{ height: '60vh', border: 'none' }}
+              title="Notice Preview"
+            />
+          </div>
+        </DialogContent>
+      </Dialog>
     </AppLayout>
   )
 }
