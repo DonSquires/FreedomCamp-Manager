@@ -1126,7 +1126,9 @@ export const edgeFunctions = {
     model?: string
     temperature?: number
   }) => {
-    return callEdgeFunction('onspace-ai-chat', params)
+    // AiAnalysis.tsx renders errors in the chat and shows its own toast, so
+    // suppress the automatic toast here to avoid duplicate error notifications.
+    return callEdgeFunction('onspace-ai-chat', params, { showToast: false })
   },
 
   /**

@@ -98,6 +98,8 @@ interface EnforcementAction {
 const toTitleCase = (s: string) =>
   s.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
 
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
 export default function VehicleDetailPage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
@@ -110,13 +112,19 @@ export default function VehicleDetailPage() {
   const endDate = dateTo ? nzDateToUTCEnd(dateTo) : null
 
   // Fetch vehicle
+  // The :id parameter can be either a UUID (vehicle_id) supplied by most navigation
+  // callers, or a URL-encoded plate number supplied by a small number of callers
+  // (VehicleDetailsModal, VehicleDiscrepancies).  Detect by UUID pattern and query
+  // the correct column so both forms resolve correctly.
   const { data: vehicle, isLoading: loadingVehicle, error: vehicleError, refetch: refetchVehicle } = useQuery({
     queryKey: ['vehicle-detail', id],
     queryFn: async () => {
+      const decoded = id ? decodeURIComponent(id) : ''
+      const isUUID = UUID_PATTERN.test(decoded)
       const { data, error } = await supabase
         .from('canonical_vehicles')
         .select('*')
-        .eq('vehicle_id', id!)
+        .eq(isUUID ? 'vehicle_id' : 'plate_number', decoded)
         .single()
       if (error) throw error
       return data as CanonicalVehicle

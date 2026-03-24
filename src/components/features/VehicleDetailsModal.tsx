@@ -329,7 +329,7 @@ export function VehicleDetailsModal({
           <Button variant="outline" onClick={onClose}>
             Close
           </Button>
-          <Button onClick={() => { onClose(); navigate(`/vehicles/${encodeURIComponent(vehicle.plate_number)}`) }}>
+          <Button onClick={() => { onClose(); navigate(`/vehicles/${encodeURIComponent(vehicle.vehicle_id ?? vehicle.plate_number)}`) }}>
             <ExternalLink className="h-4 w-4 mr-2" />
             View Full Report
           </Button>
