@@ -41,7 +41,7 @@ import {
   Volume2, ShieldAlert, AlertTriangle, FileText, Package,
   CheckCircle, Radio, MapPin, Clock, Camera, Gavel,
   ChevronRight, Info, ArrowRight, RefreshCw, Mic2, Eye,
-  XCircle,
+  XCircle, List, Dog, Users, UserX,
 } from 'lucide-react'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -547,6 +547,33 @@ export default function NoiseOfficerPortal() {
                   )
                 })()}
 
+                {/* ── Compliance & Safety Notes (from TDC/NCC Noise Control Officer Guidelines) ── */}
+                <Card className="bg-amber-50 border-amber-200">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm text-amber-800 flex items-center gap-2">
+                      <ShieldAlert className="h-4 w-4" /> Officer Compliance Notes
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-1.5 text-xs text-amber-900">
+                    <div className="flex items-start gap-2">
+                      <Users className="h-3.5 w-3.5 mt-0.5 shrink-0 text-amber-700" />
+                      <span><strong>No equipment is to be seized, or properties entered, without police being present.</strong></span>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <UserX className="h-3.5 w-3.5 mt-0.5 shrink-0 text-amber-700" />
+                      <span>Under no circumstances is the complainant to be identified to the offending address.</span>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <ShieldAlert className="h-3.5 w-3.5 mt-0.5 shrink-0 text-amber-700" />
+                      <span>If you believe there is a risk to your personal safety, request the police to attend with you.</span>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <Dog className="h-3.5 w-3.5 mt-0.5 shrink-0 text-amber-700" />
+                      <span>We do not attend <strong>barking dog complaints</strong> — refer back to TAS as an Animal Control Department issue.</span>
+                    </div>
+                  </CardContent>
+                </Card>
+
                 {/* Assessment form */}
                 <Card>
                   <CardHeader className="pb-2">
@@ -818,6 +845,42 @@ export default function NoiseOfficerPortal() {
                       </CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-3">
+                      {/* Incident Report checklist (from TDC matrix form) */}
+                      <div className="rounded-lg border border-green-300 bg-white p-3 space-y-1.5 text-xs">
+                        <p className="font-semibold text-green-800 flex items-center gap-1.5 mb-2">
+                          <List className="h-3.5 w-3.5" /> Incident Report must include:
+                        </p>
+                        <div className="flex items-center gap-2 text-gray-700">
+                          <CheckCircle className="h-3 w-3 text-green-500 shrink-0" />
+                          <span>Time on site</span>
+                        </div>
+                        <div className="flex items-center gap-2 text-gray-700">
+                          <CheckCircle className="h-3 w-3 text-green-500 shrink-0" />
+                          <span>Overall rating score — <strong>
+                            {(() => { const tot = (assessment.volume_score >= 0 ? assessment.volume_score : 0) + (assessment.time_score >= 1 ? assessment.time_score : 0) + (assessment.tone_score >= 0 ? assessment.tone_score : 0); return tot === 0 ? '0 — No Noise' : tot <= 4 ? `${tot} — Noise Acceptable` : `${tot} — Excessive Noise` })()}
+                          </strong></span>
+                        </div>
+                        <div className="flex items-center gap-2 text-gray-700">
+                          <CheckCircle className="h-3 w-3 text-green-500 shrink-0" />
+                          <span>Action taken — <strong>{assessment.recommended_action?.replace(/_/g,' ') || 'no action'}</strong></span>
+                        </div>
+                        <div className="flex items-center gap-2 text-gray-700">
+                          <CheckCircle className="h-3 w-3 text-green-500 shrink-0" />
+                          <span>Name of officer who attended (auto-recorded)</span>
+                        </div>
+                        {assessment.recommended_action === 'enforcement_notice' && (
+                          <div className="flex items-center gap-2 text-orange-700 font-medium">
+                            <AlertTriangle className="h-3 w-3 shrink-0" />
+                            <span>END issued — include END number and name of occupant in IR</span>
+                          </div>
+                        )}
+                        {(assessment.recommended_action === 'enforcement_notice' || selectedJob.has_permanent_end) && (
+                          <div className="flex items-center gap-2 text-red-700 font-medium">
+                            <AlertTriangle className="h-3 w-3 shrink-0" />
+                            <span>If equipment seized — attach photo to IR and complete seizure form</span>
+                          </div>
+                        )}
+                      </div>
                       <div className="grid grid-cols-1 gap-2">
                         {assessment.recommended_action !== 'no_action' && assessment.recommended_action !== 'verbal_warning' && (
                           <Button

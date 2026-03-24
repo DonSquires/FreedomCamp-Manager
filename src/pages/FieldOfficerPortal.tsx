@@ -16,6 +16,7 @@ import { SplitScanCamera } from '@/components/features/SplitScanCamera'
 import { LocationAuthorizationStatus } from '@/components/features/LocationAuthorizationStatus'
 import { QRCheckpointScanner } from '@/components/features/QRCheckpointScanner'
 import { ScanDetailPanel, type DetailScanData } from '@/components/features/ScanDetailPanel'
+import { LivePatrolCamera } from '@/components/features/LivePatrolCamera'
 import { BulkScanSession } from '@/components/features/BulkScanSession'
 import { OfficerFollowUpQueue } from '@/components/features/OfficerFollowUpQueue'
 import { captureAndSave, SCAN_PROGRESS_LABELS, type ScanProgressStage } from '@/lib/scanPipeline'
@@ -26,7 +27,7 @@ import {
   Camera, Map, FileText, History, AlertTriangle, MapPin, QrCode,
   ShieldAlert, CheckCircle, Shield, Megaphone, FileWarning, XCircle,
   Clock, Home, X, Car, Zap, Search, Printer, PlusCircle, Wrench, Heart, Users,
-  Moon, Sun, ParkingSquare, Volume2,
+  Moon, Sun, ParkingSquare, Volume2, Video,
 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
@@ -61,7 +62,7 @@ export default function FieldOfficerPortal() {
 
   // ── Scan mode: null = portal home, 'detail' = single-vehicle scan,
   //              'bulk' = quick area sweep, 'checkpoint' = QR check-in
-  const [scanMode,       setScanMode]       = useState<null | 'detail' | 'bulk'>(null)
+  const [scanMode,       setScanMode]       = useState<null | 'detail' | 'bulk' | 'live'>(null)
   const [showCheckpoint, setShowCheckpoint] = useState(false)
 
   // Detail scan state — camera + result panel
@@ -470,7 +471,17 @@ export default function FieldOfficerPortal() {
       </div>
 
       {/* ── BULK SCAN MODE — full screen ────────────────────────────── */}
-      {scanMode === 'bulk' ? (
+      {scanMode === 'live' ? (
+        /* ── LIVE PATROL CAMERA ─────────────────────────────────────── */
+        <div className="fixed inset-0 z-50 bg-black flex flex-col" style={{ height: '100dvh' }}>
+          <LivePatrolCamera
+            recordGPSUpdate={recordGPSUpdate}
+            onScanSaved={() => refetchScans()}
+            onClose={() => setScanMode(null)}
+          />
+        </div>
+
+      ) : scanMode === 'bulk' ? (
         <BulkScanSession
           recordGPSUpdate={recordGPSUpdate}
           orgWorkflow={orgWorkflow || 'admin_first'}
@@ -540,7 +551,7 @@ export default function FieldOfficerPortal() {
             )}
           />
 
-          <div className="grid gap-4 grid-cols-2 mb-6">
+          <div className="grid gap-4 grid-cols-2 sm:grid-cols-3 mb-6">
             {/* ── Detail Scan card ────────────────────────────── */}
             <Card
               className="hover:shadow-lg transition-shadow border-2 border-blue-300 dark:border-blue-800 cursor-pointer"
@@ -598,6 +609,35 @@ export default function FieldOfficerPortal() {
               <CardContent className="pt-0">
                 <p className="text-[11px] text-muted-foreground">
                   Camera stays open. Scan one after another with live breach tally.
+                </p>
+              </CardContent>
+            </Card>
+
+            {/* ── Live Patrol Scan card ─────────────────────────── */}
+            <Card
+              className="hover:shadow-lg transition-shadow border-2 border-green-300 dark:border-green-800 cursor-pointer col-span-2 sm:col-span-1"
+              onClick={() => {
+                if (!user?.id || !user?.organization_id) { toast.error('Session expired'); return }
+                if (!navigator.mediaDevices?.getUserMedia) { toast.error('Camera not available'); return }
+                setScanMode('live')
+              }}
+            >
+              <CardHeader className="pb-2">
+                <div className="flex items-center gap-2">
+                  <div className="p-2 bg-green-100 dark:bg-green-900 rounded-lg shrink-0">
+                    <Video className="h-5 w-5 text-green-600 dark:text-green-400" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-sm">Live Patrol</CardTitle>
+                    <CardDescription className="text-xs leading-snug">
+                      Auto-scan as you drive
+                    </CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="pt-0">
+                <p className="text-[11px] text-muted-foreground">
+                  Continuous camera feed auto-captures plates every few seconds. Breach alerts show instantly.
                 </p>
               </CardContent>
             </Card>
