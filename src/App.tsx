@@ -75,6 +75,7 @@ import NoiseControlPortal from '@/pages/NoiseControlPortal'
 import NoiseOfficerPortal from '@/pages/NoiseOfficerPortal'
 import VehicleDiscrepancies from '@/pages/VehicleDiscrepancies'
 import NZSCVMonitor from '@/pages/NZSCVMonitor'
+import NotificationsCenter from '@/pages/NotificationsCenter'
 
 // ---------------------------------------------------------------------------
 // ErrorBoundary – catches render-time errors so a crash on one page does not
@@ -1028,6 +1029,15 @@ export default function App() {
                 <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
                   <CanonicalRecordsManager />
                 </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/notifications"
+            element={
+              <ProtectedRoute>
+                <NotificationsCenter />
               </ProtectedRoute>
             }
           />

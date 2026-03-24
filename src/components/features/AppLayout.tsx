@@ -5,6 +5,7 @@ import { useAuthStore } from '@/stores/authStore'
 import { useSessionLockStore } from '@/stores/sessionLockStore'
 import { useFeedbackCapture } from '@/hooks/useFeedbackCapture'
 import { FeedbackModal } from '@/components/features/FeedbackModal'
+import { useNotificationCount } from '@/hooks/useNotifications'
 import { useSessionPreferencesStore } from '@/stores/sessionPreferencesStore'
 import { useThemePreferencesStore } from '@/stores/themePreferencesStore'
 import { Button } from '@/components/ui/button'
@@ -97,6 +98,8 @@ const navigationGroups: Array<{ label: string; icon: React.FC<{ className?: stri
       { path: '/admin/discrepancies', icon: AlertTriangle, label: 'Discrepancies', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/infringements', icon: Receipt, label: 'Infringements', roles: ['admin', 'admin_officer', 'master', 'officer'] },
       { path: '/enforcement-command-center', icon: MonitorPlay, label: 'Command Centre', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/live-tracking', icon: Activity, label: 'Live Tracking', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/live-patrol', icon: MonitorPlay, label: 'Live Patrol Monitor', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/hotspots', icon: FlameKindling, label: 'Hotspots Map', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/compliance-analytics', icon: PieChart, label: 'Compliance Analytics', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/patrol-checkpoints', icon: ScanLine, label: 'Checkpoints', roles: ['admin', 'admin_officer', 'master'] },
@@ -111,6 +114,7 @@ const navigationGroups: Array<{ label: string; icon: React.FC<{ className?: stri
       { path: '/vehicles', icon: Car, label: 'Vehicles', roles: ['admin', 'admin_officer', 'master', 'officer'] },
       { path: '/vehicle-registry', icon: Car, label: 'Vehicle Registry', roles: ['admin', 'admin_officer', 'master', 'nzscv_monitor'] },
       { path: '/admin/nzscv', icon: Car, label: 'NZSCV Monitor', roles: ['admin', 'master', 'nzscv_monitor'] },
+      { path: '/admin/canonical-records', icon: Database, label: 'Canonical Records', roles: ['admin', 'master'] },
       { path: '/zones', icon: MapPin, label: 'Zones', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/users', icon: Users, label: 'Users', roles: ['admin', 'master'] },
       { path: '/organization-profile', icon: Building2, label: 'Organisation', roles: ['admin', 'admin_officer', 'master'] },
@@ -126,6 +130,7 @@ const navigationGroups: Array<{ label: string; icon: React.FC<{ className?: stri
       { path: '/investigations', icon: BrainCircuit, label: 'Investigations', roles: ['admin', 'admin_officer', 'master', 'officer'] },
       { path: '/person-records', icon: PersonStanding, label: 'Person Records', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/reports', icon: FileText, label: 'Reports', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/reports-hub', icon: FileBarChart, label: 'Reports Hub', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/audit-log', icon: Activity, label: 'Audit Log', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/privacy-curtain', icon: EyeOff, label: 'Privacy Curtain', roles: ['admin', 'master'] },
     ],
@@ -148,6 +153,7 @@ const navigationGroups: Array<{ label: string; icon: React.FC<{ className?: stri
       { path: '/compliance-recalculation', icon: Shield, label: 'Recalculation', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/admin/cleanup-recalculate', icon: RefreshCw, label: 'Cleanup & Recalculate', roles: ['admin', 'master'] },
       { path: '/data', icon: Database, label: 'Data Management', roles: ['admin', 'master'] },
+      { path: '/admin/data-hub', icon: Database, label: 'Data Hub', roles: ['admin', 'master'] },
       { path: '/import-historical', icon: Upload, label: 'Import Data', roles: ['admin', 'master'] },
       { path: '/photo-reingest', icon: Camera, label: 'Photo Reingest', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/diagnostics', icon: Settings, label: 'Diagnostics', roles: ['master'] },
@@ -158,6 +164,7 @@ const navigationGroups: Array<{ label: string; icon: React.FC<{ className?: stri
     icon: Settings,
     items: [
       { path: '/profile', icon: User, label: 'My Profile', roles: ['admin', 'admin_officer', 'master', 'officer'] },
+      { path: '/notifications', icon: Bell, label: 'Notifications', roles: ['admin', 'admin_officer', 'master', 'officer'] },
       { path: '/settings', icon: Settings, label: 'Settings', roles: ['admin', 'admin_officer', 'master', 'officer', 'nzscv_monitor'] },
     ],
   },
@@ -305,6 +312,7 @@ export function AppLayout({ children, title, description, showBackButton }: AppL
 
   // Passive context capture for feedback reports
   useFeedbackCapture()
+  const { data: notifCount = 0 } = useNotificationCount()
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -465,7 +473,19 @@ export function AppLayout({ children, title, description, showBackButton }: AppL
 
           <h1 className="font-semibold text-lg truncate">{title || 'FreedomCamp'}</h1>
           
-          <div className="w-10" /> {/* Spacer for alignment */}
+          {/* Mobile: notification bell */}
+          <Link
+            to="/notifications"
+            title="Notifications"
+            className="relative flex items-center justify-center h-9 w-9 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+          >
+            <Bell className="h-5 w-5 text-gray-500 dark:text-gray-400" />
+            {notifCount > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 h-4 w-4 flex items-center justify-center rounded-full bg-red-500 text-white text-[10px] font-bold leading-none">
+                {notifCount > 9 ? '9+' : notifCount}
+              </span>
+            )}
+          </Link>
         </div>
       </header>
 
@@ -559,6 +579,19 @@ export function AppLayout({ children, title, description, showBackButton }: AppL
                 )}
                 </div>
               </div>
+              {/* Header right side: notification bell */}
+              <Link
+                to="/notifications"
+                title="Notifications"
+                className="relative flex items-center justify-center h-9 w-9 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+              >
+                <Bell className="h-5 w-5 text-gray-500 dark:text-gray-400" />
+                {notifCount > 0 && (
+                  <span className="absolute -top-0.5 -right-0.5 h-4 w-4 flex items-center justify-center rounded-full bg-red-500 text-white text-[10px] font-bold leading-none">
+                    {notifCount > 9 ? '9+' : notifCount}
+                  </span>
+                )}
+              </Link>
             </div>
           </div>
         </header>
