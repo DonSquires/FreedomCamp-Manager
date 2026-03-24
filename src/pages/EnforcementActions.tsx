@@ -272,6 +272,7 @@ export default function EnforcementActions() {
     completed: actions.filter(a => a.status === 'completed').length,
     warnings: actions.filter(a => a.action_type === 'warning').length,
     notices: actions.filter(a => a.action_type === 'notice_to_vacate').length,
+    directions: actions.filter(a => a.action_type === 'move_on_direction').length,
     tows: actions.filter(a => a.action_type === 'tow').length,
   } : null
 
@@ -280,6 +281,8 @@ export default function EnforcementActions() {
       case 'warning':
         return <AlertTriangle className="h-4 w-4" />
       case 'notice_to_vacate':
+        return <FileText className="h-4 w-4" />
+      case 'move_on_direction':
         return <FileText className="h-4 w-4" />
       case 'tow':
         return <Truck className="h-4 w-4" />
@@ -292,6 +295,7 @@ export default function EnforcementActions() {
     const labels: Record<string, string> = {
       warning: 'Warning',
       notice_to_vacate: 'Notice to Vacate',
+      move_on_direction: 'Direction to Leave (s28 FCA)',
       tow: 'Tow Request',
       referral: 'Referral',
     }
@@ -304,6 +308,8 @@ export default function EnforcementActions() {
         return 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400'
       case 'notice_to_vacate':
         return 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400'
+      case 'move_on_direction':
+        return 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400'
       case 'tow':
         return 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'
       default:
@@ -485,6 +491,13 @@ export default function EnforcementActions() {
                 size="sm"
               >
                 Notices
+              </Button>
+              <Button
+                variant={actionTypeFilter === 'move_on_direction' ? 'default' : 'outline'}
+                onClick={() => setActionTypeFilter('move_on_direction')}
+                size="sm"
+              >
+                Directions
               </Button>
               <Button
                 variant={actionTypeFilter === 'tow' ? 'default' : 'outline'}
@@ -721,9 +734,15 @@ export default function EnforcementActions() {
               >
                 <option value="warning">Warning</option>
                 <option value="notice_to_vacate">Notice to Vacate</option>
+                <option value="move_on_direction">Direction to Leave (s28 FCA)</option>
                 <option value="tow">Tow Request</option>
                 <option value="referral">Referral</option>
               </select>
+              {newActionType === 'move_on_direction' && (
+                <p className="mt-1 text-xs text-purple-700 dark:text-purple-400 bg-purple-50 dark:bg-purple-900/20 rounded p-2">
+                  ⚖️ <strong>s28 Freedom Camping Act 2011</strong> – Authorised officer may direct a person to leave a freedom camping area. Failure to comply is an infringement offence under s20(1)(c).
+                </p>
+              )}
             </div>
 
             <div>

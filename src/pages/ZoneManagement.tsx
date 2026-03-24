@@ -842,6 +842,78 @@ export default function ZoneManagement() {
                   placeholder="https://..."
                 />
               </div>
+
+              {/* New legal / operational fields */}
+              <div>
+                <Label htmlFor="editLandManagingAgency">Land Managing Agency</Label>
+                <Select
+                  value={editLandManagingAgency || ''}
+                  onValueChange={(v) => setEditLandManagingAgency(v === 'none' ? '' : v)}
+                >
+                  <SelectTrigger id="editLandManagingAgency">
+                    <SelectValue placeholder="Select agency…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">— Not specified —</SelectItem>
+                    <SelectItem value="council">Council</SelectItem>
+                    <SelectItem value="doc">DOC – Dept of Conservation</SelectItem>
+                    <SelectItem value="linz">LINZ – Land Information NZ</SelectItem>
+                    <SelectItem value="nzta">NZTA – NZ Transport Agency</SelectItem>
+                    <SelectItem value="crown">Crown (other)</SelectItem>
+                    <SelectItem value="private">Private land</SelectItem>
+                    <SelectItem value="other">Other</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Determines which legislation applies (FCA 2011 for council/DOC, Crown Pastoral Land Act for LINZ, etc.)
+                </p>
+              </div>
+              <div>
+                <Label htmlFor="editBylawReference">Bylaw / Regulation Reference</Label>
+                <Input
+                  id="editBylawReference"
+                  value={editBylawReference}
+                  onChange={(e) => setEditBylawReference(e.target.value)}
+                  placeholder="e.g. Freedom Camping Bylaw 2024 cl 7.2 or FCA 2011 s20(1)(a)"
+                />
+                <p className="text-xs text-muted-foreground mt-1">Pre-fills the legal basis on infringement notices issued in this zone.</p>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label htmlFor="editSeasonalOpenMonth">Seasonal Open (month)</Label>
+                  <Select
+                    value={editSeasonalOpenMonth != null ? String(editSeasonalOpenMonth) : 'year-round'}
+                    onValueChange={(v) => setEditSeasonalOpenMonth(v === 'year-round' ? null : Number(v))}
+                  >
+                    <SelectTrigger id="editSeasonalOpenMonth">
+                      <SelectValue placeholder="Year-round" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="year-round">Year-round</SelectItem>
+                      {['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'].map((m, i) => (
+                        <SelectItem key={i+1} value={String(i+1)}>{m}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label htmlFor="editSeasonalCloseMonth">Seasonal Close (month, inclusive)</Label>
+                  <Select
+                    value={editSeasonalCloseMonth != null ? String(editSeasonalCloseMonth) : 'year-round'}
+                    onValueChange={(v) => setEditSeasonalCloseMonth(v === 'year-round' ? null : Number(v))}
+                  >
+                    <SelectTrigger id="editSeasonalCloseMonth">
+                      <SelectValue placeholder="Year-round" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="year-round">Year-round</SelectItem>
+                      {['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'].map((m, i) => (
+                        <SelectItem key={i+1} value={String(i+1)}>{m}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
             </div>
 
             {/* Notice Payment & Objections */}
