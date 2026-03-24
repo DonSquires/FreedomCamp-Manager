@@ -61,6 +61,7 @@ import {
   FileBarChart,
   ScrollText,
   Layers,
+  Bell,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
