@@ -68,3 +68,4 @@ tmp/
 scv_*.txt
 scv_*.json
 node_modules/
+package-lock.json

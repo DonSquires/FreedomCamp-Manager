@@ -3,7 +3,7 @@
  *
  * Admin-facing Noise Control management portal.
  *
- * NZ RMA s.319-333 compliant workflow:
+ * NZ RMA s.326-328 compliant workflow:
  *   Jobs       — create / dispatch noise complaints to field officers
  *   Notices    — register Abatement (AN), Direction (DN), Enforcement (END) notices
  *   Seizures   — log & track equipment seizures under RMA s.328
@@ -411,7 +411,7 @@ export default function NoiseControlPortal() {
             </div>
             <div>
               <h1 className="text-2xl font-bold text-gray-900">Noise Control</h1>
-              <p className="text-sm text-gray-500">NZ RMA s.319–333 enforcement portal — jobs, AN / DN / END notices, seizures</p>
+              <p className="text-sm text-gray-500">NZ RMA s.326–328 enforcement portal — jobs, AN / DN / END (s.327) notices, seizures</p>
             </div>
           </div>
           <div className="flex gap-2 flex-wrap">
@@ -829,18 +829,22 @@ export default function NoiseControlPortal() {
           <div className="space-y-4 pt-2">
             <div className="space-y-1">
               <Label>Notice Type *</Label>
-              <Select value={newNotice.notice_type} onValueChange={v => setNewNotice(p => ({ ...p, notice_type: v }))}>
+              <Select value={newNotice.notice_type} onValueChange={v => setNewNotice(p => ({
+                ...p,
+                notice_type: v,
+                rma_section: v === 'enforcement_notice' ? 'Section 327 Resource Management Act 1991' : 'RMA s.326(1)(a)',
+              }))}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="abatement_notice">Abatement Notice (AN) — RMA s.326</SelectItem>
                   <SelectItem value="direction_notice">Direction Notice (DN) — immediate direction</SelectItem>
-                  <SelectItem value="enforcement_notice">Enforcement Notice (END) — RMA s.319, financial penalty</SelectItem>
+                  <SelectItem value="enforcement_notice">Excessive Noise Direction (END) — s.327 RMA 1991</SelectItem>
                 </SelectContent>
               </Select>
               {newNotice.notice_type === 'enforcement_notice' && (
                 <p className="text-xs text-red-600 mt-1 flex items-center gap-1">
                   <ShieldAlert className="h-3 w-3" />
-                  END carries financial penalties and may authorise equipment seizure (RMA s.328)
+                  END (s.327) directs immediate noise reduction. Effective 72 hours. Non-compliance may trigger seizure (s.328) or Infringement Notice ($500).
                 </p>
               )}
             </div>

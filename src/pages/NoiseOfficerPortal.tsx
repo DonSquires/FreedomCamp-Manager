@@ -143,6 +143,11 @@ export default function NoiseOfficerPortal() {
 
   // Assessment form state
   const [assessment, setAssessment] = useState({
+    // Matrix scoring (from NZ council Noise Control Assessment Matrix)
+    volume_score: -1 as number,   // -1 = not set; 0=No Noise, 1=Barely, 2=Clearly, 3=Loud, 4=Extremely Loud
+    time_score: -1 as number,     // -1 = not set; 1=7am-9pm, 2=9pm-midnight, 3=midnight-2am, 4=2am-7am
+    tone_score: -1 as number,     // -1 = not set; 0=No bass, 1=Slight bass, 2=Heavy bass
+    // Optional supplementary dB measurement
     noise_level_db: '',
     measurement_method: 'estimated',
     measurement_location: 'boundary of property',
@@ -172,14 +177,21 @@ export default function NoiseOfficerPortal() {
     notes: '',
   })
 
-  // Seizure form state
+  // Seizure form state — mirrors the "Receipt for Goods Seized" physical form
   const [seizureForm, setSeizureForm] = useState({
     equipment_description: '',
+    equipment_type: '',               // e.g. amplifier, speaker, DJ deck
+    equipment_make: '',               // brand name
+    identification_marks: '',         // serial numbers, stickers
     equipment_count: '1',
     estimated_value_nzd: '',
-    equipment_condition: 'good',
+    equipment_condition: 'good',      // excellent / good / fair / poor
+    defects_noted: '',                // pre-existing damage
+    owner_name: '',                   // owner if known
     storage_location: '',
     witness_name: '',
+    police_present: false,
+    police_officer_name: '',
     notes: '',
   })
 
@@ -231,6 +243,15 @@ export default function NoiseOfficerPortal() {
   const submitAssessmentMutation = useMutation({
     mutationFn: async () => {
       if (!orgId || !user?.id || !selectedJob) throw new Error('No job selected')
+      // Compute matrix total score
+      const vol = assessment.volume_score >= 0 ? assessment.volume_score : null
+      const tim = (vol !== null && vol > 0 && assessment.time_score >= 1) ? assessment.time_score : (vol === 0 ? 0 : null)
+      const ton = assessment.tone_score >= 0 ? assessment.tone_score : null
+      const matrixTotal = (vol !== null && tim !== null && ton !== null)
+        ? vol + tim + ton
+        : null
+      // Auto-derive exceeds_district_plan from matrix score
+      const exceedsDp = matrixTotal !== null ? matrixTotal >= 5 : assessment.exceeds_district_plan
       const { data, error } = await supabase
         .from('noise_assessments' as any)
         .insert({
@@ -238,6 +259,10 @@ export default function NoiseOfficerPortal() {
           noise_job_id: selectedJob.id,
           officer_id: user?.id,
           address: selectedJob.address,
+          volume_score: vol,
+          time_score: tim,
+          tone_score: ton,
+          matrix_total_score: matrixTotal,
           noise_level_db: assessment.noise_level_db ? parseFloat(assessment.noise_level_db) : null,
           measurement_method: assessment.measurement_method,
           measurement_location: assessment.measurement_location || null,
@@ -246,7 +271,7 @@ export default function NoiseOfficerPortal() {
           noise_type: assessment.noise_type || selectedJob.noise_type,
           time_category: assessment.time_category,
           district_plan_limit_db: assessment.district_plan_limit_db ? parseFloat(assessment.district_plan_limit_db) : null,
-          exceeds_district_plan: assessment.exceeds_district_plan,
+          exceeds_district_plan: exceedsDp,
           persons_present: assessment.persons_present ? parseInt(assessment.persons_present) : null,
           responsible_person_name: assessment.responsible_person_name || null,
           responsible_person_warned: assessment.responsible_person_warned,
@@ -271,11 +296,22 @@ export default function NoiseOfficerPortal() {
       queryClient.invalidateQueries({ queryKey: ['my_noise_jobs'] })
       queryClient.invalidateQueries({ queryKey: ['my_noise_assessments'] })
       // Pre-fill notice form from assessment
+      const vol = assessment.volume_score >= 0 ? assessment.volume_score : 0
+      const tim = assessment.time_score >= 1 ? assessment.time_score : 1
+      const ton = assessment.tone_score >= 0 ? assessment.tone_score : 0
+      const matrixTotal = vol > 0 ? vol + tim + ton : 0
+      const isExcessive = matrixTotal >= 5
+      const recommendedNoticeType = isExcessive
+        ? (assessment.recommended_action === 'verbal_warning' ? 'abatement_notice' : assessment.recommended_action)
+        : assessment.recommended_action === 'verbal_warning' ? 'abatement_notice' : assessment.recommended_action
+      const scoreDesc = matrixTotal > 0 ? ` Matrix score: ${matrixTotal} (V:${vol}+T:${tim}+B:${ton}).` : ''
       setNoticeForm(p => ({
         ...p,
-        notice_type: assessment.recommended_action === 'verbal_warning' ? 'abatement_notice' : assessment.recommended_action,
+        notice_type: recommendedNoticeType,
         recipient_name: assessment.responsible_person_name || '',
-        offence_description: `Noise exceeding district plan limits at ${selectedJob.address}. ${assessment.noise_source ? `Source: ${assessment.noise_source}.` : ''} ${assessment.noise_level_db ? `Estimated ${assessment.noise_level_db} dB(A).` : ''}`.trim(),
+        rma_section: recommendedNoticeType === 'enforcement_notice' ? 'Section 327 Resource Management Act 1991' : 'RMA s.326(1)(a)',
+        comply_by_hours: recommendedNoticeType === 'enforcement_notice' ? '72' : '24',
+        offence_description: `Noise exceeding limits at ${selectedJob.address}.${scoreDesc}${assessment.noise_source ? ` Source: ${assessment.noise_source}.` : ''}${assessment.noise_level_db ? ` Estimated ${assessment.noise_level_db} dB(A).` : ''}`.trim(),
       }))
     },
     onError: (e: Error) => toast.error(e.message),
@@ -343,13 +379,20 @@ export default function NoiseOfficerPortal() {
           noise_job_id: selectedJob.id,
           address: selectedJob.address,
           equipment_description: seizureForm.equipment_description,
+          equipment_type: seizureForm.equipment_type || null,
+          equipment_make: seizureForm.equipment_make || null,
+          identification_marks: seizureForm.identification_marks || null,
           equipment_count: parseInt(seizureForm.equipment_count) || 1,
           estimated_value_nzd: seizureForm.estimated_value_nzd ? parseFloat(seizureForm.estimated_value_nzd) : null,
           equipment_condition: seizureForm.equipment_condition || null,
+          defects_noted: seizureForm.defects_noted || null,
+          owner_name: seizureForm.owner_name || null,
           storage_location: seizureForm.storage_location || null,
           seizing_officer_id: user?.id,
           seizing_officer_name: user?.full_name || null,
           witness_name: seizureForm.witness_name || null,
+          police_present: seizureForm.police_present,
+          police_officer_name: seizureForm.police_present ? (seizureForm.police_officer_name || null) : null,
           rma_authority: 'RMA s.328',
           status: 'held',
         })
@@ -513,10 +556,136 @@ export default function NoiseOfficerPortal() {
                     <CardDescription>Complete the formal assessment before issuing any notice (NZ council process)</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4">
+
+                    {/* ── Noise Control Assessment Matrix ───────────────── */}
+                    {(() => {
+                      const vol = assessment.volume_score
+                      const tim = assessment.time_score
+                      const ton = assessment.tone_score
+                      const total = (vol > 0 && vol >= 0 && tim >= 1 && ton >= 0)
+                        ? vol + tim + ton
+                        : (vol === 0 ? 0 : null)
+                      const band = total === null ? null
+                        : total === 0 ? 'none'
+                        : total <= 4 ? 'acceptable'
+                        : 'excessive'
+                      const bandColour = band === 'excessive' ? 'bg-red-50 border-red-300 text-red-800'
+                        : band === 'acceptable' ? 'bg-yellow-50 border-yellow-200 text-yellow-800'
+                        : band === 'none' ? 'bg-green-50 border-green-200 text-green-800'
+                        : 'bg-gray-50 border-gray-200 text-gray-600'
+                      return (
+                        <div className="rounded-lg border p-3 space-y-3 bg-orange-50 border-orange-200">
+                          <p className="text-xs font-bold text-orange-800 uppercase tracking-wide">Noise Control Assessment Matrix</p>
+
+                          {/* Volume */}
+                          <div className="space-y-1.5">
+                            <p className="text-xs font-semibold text-gray-700">Volume</p>
+                            <div className="grid grid-cols-5 gap-1">
+                              {[
+                                { val: 0, label: 'No Noise' },
+                                { val: 1, label: 'Barely Audible' },
+                                { val: 2, label: 'Clearly Audible' },
+                                { val: 3, label: 'Loud' },
+                                { val: 4, label: 'Extremely Loud' },
+                              ].map(opt => (
+                                <button
+                                  key={opt.val}
+                                  type="button"
+                                  onClick={() => {
+                                    setAssessment(p => ({
+                                      ...p,
+                                      volume_score: opt.val,
+                                      // If no noise, time/tone are irrelevant — reset to 0
+                                      time_score: opt.val === 0 ? 0 : p.time_score,
+                                      tone_score: opt.val === 0 ? 0 : p.tone_score,
+                                    }))
+                                  }}
+                                  className={`rounded p-1.5 text-center text-xs border transition-colors ${assessment.volume_score === opt.val ? 'bg-orange-500 border-orange-600 text-white font-bold' : 'bg-white border-gray-300 text-gray-600 hover:bg-orange-100'}`}
+                                >
+                                  <div className="font-bold">{opt.val}</div>
+                                  <div className="leading-tight" style={{ fontSize: '9px' }}>{opt.label}</div>
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+
+                          {/* Time (only shown if volume > 0) */}
+                          {assessment.volume_score > 0 && (
+                            <div className="space-y-1.5">
+                              <p className="text-xs font-semibold text-gray-700">Time of Day</p>
+                              <div className="grid grid-cols-4 gap-1">
+                                {[
+                                  { val: 1, label: '7am–9pm' },
+                                  { val: 2, label: '9pm–midnight' },
+                                  { val: 3, label: 'Midnight–2am' },
+                                  { val: 4, label: '2am–7am' },
+                                ].map(opt => (
+                                  <button
+                                    key={opt.val}
+                                    type="button"
+                                    onClick={() => setAssessment(p => ({ ...p, time_score: opt.val }))}
+                                    className={`rounded p-1.5 text-center text-xs border transition-colors ${assessment.time_score === opt.val ? 'bg-orange-500 border-orange-600 text-white font-bold' : 'bg-white border-gray-300 text-gray-600 hover:bg-orange-100'}`}
+                                  >
+                                    <div className="font-bold">{opt.val}</div>
+                                    <div className="leading-tight" style={{ fontSize: '9px' }}>{opt.label}</div>
+                                  </button>
+                                ))}
+                              </div>
+                              <p className="text-xs text-gray-400 italic">Ignore time rating if No Noise</p>
+                            </div>
+                          )}
+
+                          {/* Tone/Bass (only shown if volume > 0) */}
+                          {assessment.volume_score > 0 && (
+                            <div className="space-y-1.5">
+                              <p className="text-xs font-semibold text-gray-700">Tone / Bass</p>
+                              <div className="grid grid-cols-3 gap-1">
+                                {[
+                                  { val: 0, label: 'No bass' },
+                                  { val: 1, label: 'Slight bass' },
+                                  { val: 2, label: 'Heavy bass' },
+                                ].map(opt => (
+                                  <button
+                                    key={opt.val}
+                                    type="button"
+                                    onClick={() => setAssessment(p => ({ ...p, tone_score: opt.val }))}
+                                    className={`rounded p-1.5 text-center text-xs border transition-colors ${assessment.tone_score === opt.val ? 'bg-orange-500 border-orange-600 text-white font-bold' : 'bg-white border-gray-300 text-gray-600 hover:bg-orange-100'}`}
+                                  >
+                                    <div className="font-bold">{opt.val}</div>
+                                    <div className="leading-tight" style={{ fontSize: '9px' }}>{opt.label}</div>
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Score result */}
+                          {total !== null && (
+                            <div className={`rounded p-2 border text-sm font-semibold ${bandColour}`}>
+                              Score: {total}
+                              {' — '}
+                              {band === 'none' && 'No Noise · No further action required'}
+                              {band === 'acceptable' && 'Noise Acceptable · No further action required'}
+                              {band === 'excessive' && 'EXCESSIVE NOISE · Enforcement action required'}
+                            </div>
+                          )}
+
+                          {/* Guidance for score 5+ */}
+                          {band === 'excessive' && (
+                            <div className="text-xs text-red-700 space-y-0.5 border border-red-200 rounded p-2 bg-white">
+                              <p><strong>Verbal Warning</strong> — if first visit of the night</p>
+                              <p><strong>Issue END (s.327)</strong> — if second visit, occupants uncooperative, or problem address</p>
+                              <p><strong>Seize equipment</strong> — if END issued within last 72hrs, or permanent Abatement Notice in place</p>
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })()}
+
                     {/* Measurement */}
                     <div className="grid grid-cols-2 gap-3">
                       <div className="space-y-1">
-                        <Label>Estimated dB(A)</Label>
+                        <Label>Estimated dB(A) <span className="text-gray-400 text-xs">(optional)</span></Label>
                         <Input type="number" placeholder="e.g. 65" value={assessment.noise_level_db} onChange={e => setAssessment(p => ({ ...p, noise_level_db: e.target.value }))} />
                       </div>
                       <div className="space-y-1">
@@ -610,7 +779,7 @@ export default function NoiseOfficerPortal() {
                           <SelectItem value="verbal_warning">Verbal Warning only</SelectItem>
                           <SelectItem value="abatement_notice">Abatement Notice (AN) — RMA s.326</SelectItem>
                           <SelectItem value="direction_notice">Direction Notice (DN) — immediate</SelectItem>
-                          <SelectItem value="enforcement_notice">Enforcement Notice (END) — RMA s.319</SelectItem>
+                          <SelectItem value="enforcement_notice">Excessive Noise Direction (END) — s.327 RMA 1991</SelectItem>
                           <SelectItem value="police_referral">Police Referral</SelectItem>
                         </SelectContent>
                       </Select>
@@ -723,18 +892,25 @@ export default function NoiseOfficerPortal() {
           <div className="space-y-4 pt-2">
             <div className="space-y-1">
               <Label>Notice Type *</Label>
-              <Select value={noticeForm.notice_type} onValueChange={v => setNoticeForm(p => ({ ...p, notice_type: v }))}>
+              <Select value={noticeForm.notice_type} onValueChange={v => setNoticeForm(p => ({
+                ...p,
+                notice_type: v,
+                rma_section: v === 'enforcement_notice' ? 'Section 327 Resource Management Act 1991' : 'RMA s.326(1)(a)',
+                comply_by_hours: v === 'enforcement_notice' ? '72' : '24',
+              }))}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="abatement_notice">Abatement Notice (AN) — RMA s.326</SelectItem>
                   <SelectItem value="direction_notice">Direction Notice (DN) — immediate direction</SelectItem>
-                  <SelectItem value="enforcement_notice">Enforcement Notice (END) — RMA s.319 + financial penalty</SelectItem>
+                  <SelectItem value="enforcement_notice">Excessive Noise Direction (END) — s.327 RMA 1991</SelectItem>
                 </SelectContent>
               </Select>
               {noticeForm.notice_type === 'enforcement_notice' && (
-                <div className="bg-red-50 border border-red-200 rounded p-2 mt-1">
-                  <p className="text-xs text-red-700 font-semibold">Enforcement Notice (END)</p>
-                  <p className="text-xs text-red-600 mt-0.5">Carries financial penalties. May authorise equipment seizure under RMA s.328. This is a serious enforcement action. Ensure assessment evidence is complete.</p>
+                <div className="bg-red-50 border border-red-200 rounded p-2 mt-1 space-y-1">
+                  <p className="text-xs text-red-700 font-semibold">Excessive Noise Direction (END) — Section 327 RMA 1991</p>
+                  <p className="text-xs text-red-600">Directs the occupier to immediately reduce excessive noise. Effective for <strong>72 hours</strong>.</p>
+                  <p className="text-xs text-red-600">Failure may result in seizure of noise-causing equipment. Minimum fee to reclaim: <strong>$150</strong>. Maximum fine: <strong>$10,000</strong> plus <strong>$1,000/day</strong> continuing.</p>
+                  <p className="text-xs text-red-600">Alternatively, an Infringement Notice ($500) may be issued for non-compliance.</p>
                 </div>
               )}
             </div>
@@ -793,18 +969,67 @@ export default function NoiseOfficerPortal() {
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-red-700">
-              <Package className="h-5 w-5" /> Record Equipment Seizure — RMA s.328
+              <Package className="h-5 w-5" /> Receipt for Goods Seized — RMA s.328
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 pt-2">
             <div className="bg-red-50 border border-red-200 rounded p-3 text-xs text-red-700">
-              <p className="font-semibold">RMA s.328 — Authorised Officer Powers</p>
-              <p className="mt-1">An authorised officer may seize any item that is causing excessive noise where an Enforcement Notice has been issued or a permanent order is in place. Photograph ALL seized equipment. Provide a seizure notice to the occupant.</p>
+              <p className="font-semibold">I hereby acknowledge receipt of the following goods seized pursuant to the provisions of the Resource Management Act 1991.</p>
+              <p className="mt-1">An authorised officer may seize any item causing excessive noise where an Excessive Noise Direction (s.327) has been issued. Photograph ALL seized equipment. Provide this receipt to the occupant.</p>
+              <p className="mt-1 font-semibold">⚠ Goods will not be returned until at least <strong>72 hours</strong> following seizure. A fee of <strong>$150.00</strong> is payable before return of goods.</p>
             </div>
+
+            {/* Address of Property */}
             <div className="space-y-1">
-              <Label>Equipment Description *</Label>
+              <Label>Address of Property *</Label>
+              <Input placeholder="Address where goods were seized" value={selectedJob?.address || ''} disabled className="bg-gray-50" />
+            </div>
+
+            {/* Type and Make */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label>Type (e.g. amplifier etc.) *</Label>
+                <Input placeholder="e.g. amplifier, speakers, DJ deck" value={seizureForm.equipment_type} onChange={e => setSeizureForm(p => ({ ...p, equipment_type: e.target.value }))} />
+              </div>
+              <div className="space-y-1">
+                <Label>Make</Label>
+                <Input placeholder="e.g. Pioneer, QSC, Sony" value={seizureForm.equipment_make} onChange={e => setSeizureForm(p => ({ ...p, equipment_make: e.target.value }))} />
+              </div>
+            </div>
+
+            {/* Identification Marks */}
+            <div className="space-y-1">
+              <Label>Identification Marks (if any)</Label>
+              <Input placeholder="Serial numbers, stickers, labels, custom markings" value={seizureForm.identification_marks} onChange={e => setSeizureForm(p => ({ ...p, identification_marks: e.target.value }))} />
+            </div>
+
+            {/* Condition */}
+            <div className="space-y-1">
+              <Label>Condition</Label>
+              <Select value={seizureForm.equipment_condition} onValueChange={v => setSeizureForm(p => ({ ...p, equipment_condition: v }))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="excellent">Excellent</SelectItem>
+                  <SelectItem value="good">Good</SelectItem>
+                  <SelectItem value="fair">Fair</SelectItem>
+                  <SelectItem value="poor">Poor</SelectItem>
+                  <SelectItem value="damaged">Damaged</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Defects */}
+            <div className="space-y-1">
+              <Label>Note any defects</Label>
+              <Input placeholder="Pre-existing damage or defects noted at time of seizure" value={seizureForm.defects_noted} onChange={e => setSeizureForm(p => ({ ...p, defects_noted: e.target.value }))} />
+            </div>
+
+            {/* Full description */}
+            <div className="space-y-1">
+              <Label>Full Equipment Description</Label>
               <Textarea placeholder="e.g. Pioneer CDJ-2000 DJ deck, 2× QSC K12 speakers, 1× subwoofer, cabling" rows={2} value={seizureForm.equipment_description} onChange={e => setSeizureForm(p => ({ ...p, equipment_description: e.target.value }))} />
             </div>
+
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
                 <Label>Number of Items</Label>
@@ -815,27 +1040,41 @@ export default function NoiseOfficerPortal() {
                 <Input type="number" placeholder="0.00" value={seizureForm.estimated_value_nzd} onChange={e => setSeizureForm(p => ({ ...p, estimated_value_nzd: e.target.value }))} />
               </div>
             </div>
+
+            {/* Owner and Storage */}
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
-                <Label>Condition</Label>
-                <Select value={seizureForm.equipment_condition} onValueChange={v => setSeizureForm(p => ({ ...p, equipment_condition: v }))}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="good">Good</SelectItem>
-                    <SelectItem value="damaged">Damaged</SelectItem>
-                    <SelectItem value="poor">Poor</SelectItem>
-                  </SelectContent>
-                </Select>
+                <Label>Owner's Name (if known)</Label>
+                <Input placeholder="Name of equipment owner" value={seizureForm.owner_name} onChange={e => setSeizureForm(p => ({ ...p, owner_name: e.target.value }))} />
               </div>
               <div className="space-y-1">
                 <Label>Storage Location</Label>
                 <Input placeholder="e.g. Council depot, Bay 3" value={seizureForm.storage_location} onChange={e => setSeizureForm(p => ({ ...p, storage_location: e.target.value }))} />
               </div>
             </div>
+
+            {/* Witness */}
             <div className="space-y-1">
               <Label>Witness Name</Label>
               <Input placeholder="Name of witness present during seizure" value={seizureForm.witness_name} onChange={e => setSeizureForm(p => ({ ...p, witness_name: e.target.value }))} />
             </div>
+
+            {/* Police present */}
+            <div className="space-y-2">
+              <label className="flex items-center gap-2 text-sm cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={seizureForm.police_present}
+                  onChange={e => setSeizureForm(p => ({ ...p, police_present: e.target.checked }))}
+                  className="h-4 w-4 rounded"
+                />
+                Police officer present during seizure
+              </label>
+              {seizureForm.police_present && (
+                <Input placeholder="Police officer name / badge number" value={seizureForm.police_officer_name} onChange={e => setSeizureForm(p => ({ ...p, police_officer_name: e.target.value }))} />
+              )}
+            </div>
+
             <div className="bg-yellow-50 border border-yellow-200 rounded p-2 text-xs text-yellow-700">
               <Camera className="h-3 w-3 inline mr-1" />
               <strong>Photos required:</strong> photograph each item before removal and after storage. Upload via the evidence photo system.
@@ -845,7 +1084,7 @@ export default function NoiseOfficerPortal() {
               <Button
                 className="bg-red-600 hover:bg-red-700 text-white"
                 onClick={() => recordSeizureMutation.mutate()}
-                disabled={recordSeizureMutation.isPending || !seizureForm.equipment_description}
+                disabled={recordSeizureMutation.isPending || !seizureForm.equipment_type}
               >
                 {recordSeizureMutation.isPending ? 'Recording…' : 'Record Seizure'}
               </Button>
