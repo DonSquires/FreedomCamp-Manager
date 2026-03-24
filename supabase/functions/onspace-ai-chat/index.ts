@@ -26,7 +26,7 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3'
 import { corsHeaders } from '../_shared/cors.ts'
 
-const SYSTEM_PROMPT = `You are OnSpace AI, an intelligent assistant for FreedomCamp Manager — a freedom camping enforcement system used by councils and security contractors in New Zealand.
+const SYSTEM_PROMPT = `You are an AI assistant for FreedomCamp Manager — a freedom camping enforcement system used by councils and security contractors in New Zealand.
 
 You help admins and enforcement managers by:
 - Analysing compliance data, breach trends, and patrol performance
@@ -135,7 +135,7 @@ Deno.serve(async (req: Request) => {
       )
     }
 
-    console.log(`[OnSpace AI] user=${user.email} model=${model} messages=${messages.length} provider=${baseUrl}`)
+    console.log(`[AI] user=${user.email} model=${model} messages=${messages.length} provider=${baseUrl}`)
 
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), 60_000)
@@ -154,7 +154,7 @@ Deno.serve(async (req: Request) => {
 
     if (!aiResponse.ok) {
       const errorText = await aiResponse.text()
-      console.error(`[OnSpace AI] Provider error ${aiResponse.status}:`, errorText.slice(0, 500))
+      console.error(`[AI] Provider error ${aiResponse.status}:`, errorText.slice(0, 500))
       return new Response(
         JSON.stringify({ error: `AI provider returned ${aiResponse.status}`, details: errorText.slice(0, 300) }),
         { status: aiResponse.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -165,14 +165,14 @@ Deno.serve(async (req: Request) => {
     const responseText: string = aiData.choices?.[0]?.message?.content ?? ''
 
     if (!responseText) {
-      console.error('[OnSpace AI] Empty response from provider:', JSON.stringify(aiData).slice(0, 300))
+      console.error('[AI] Empty response from provider:', JSON.stringify(aiData).slice(0, 300))
       return new Response(
         JSON.stringify({ error: 'AI returned an empty response' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
-    console.log(`[OnSpace AI] OK — ${responseText.length} chars`)
+    console.log(`[AI] OK — ${responseText.length} chars`)
 
     return new Response(
       JSON.stringify({
@@ -184,13 +184,13 @@ Deno.serve(async (req: Request) => {
     )
   } catch (err: any) {
     if (err?.name === 'AbortError') {
-      console.error('[OnSpace AI] Request timed out after 60s')
+      console.error('[AI] Request timed out after 60s')
       return new Response(
         JSON.stringify({ error: 'AI request timed out after 60 seconds' }),
         { status: 504, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
-    console.error('[OnSpace AI] Unhandled error:', err?.message)
+    console.error('[AI] Unhandled error:', err?.message)
     return new Response(
       JSON.stringify({ error: 'Internal server error', message: err?.message ?? 'Unknown error' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

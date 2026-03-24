@@ -48,6 +48,14 @@ type DrillConfig = {
   label?: string
 }
 
+const SCV_ENFORCEMENT_DATE = new Date('2026-06-01')
+const MS_PER_DAY = 1000 * 60 * 60 * 24
+
+function scvEnforcementCountdown(): string {
+  const days = Math.ceil((SCV_ENFORCEMENT_DATE.getTime() - Date.now()) / MS_PER_DAY)
+  return days > 0 ? `${days}d` : 'Active'
+}
+
 export default function AdminPortal() {
   const { user } = useAuthStore()
   const { organizationId, zoneId, dateFrom, dateTo } = useGlobalFiltersStore()
@@ -815,6 +823,13 @@ export default function AdminPortal() {
       iconColor: 'text-blue-500',
       config: { to: '/admin/nzscv', metric: 'scv_expiring_soon', period: periodLabel, label: 'SCV Expiring Soon' },
     },
+    {
+      title: 'SCV Enforcement',
+      value: scvEnforcementCountdown(),
+      icon: CalendarDays,
+      iconColor: 'text-green-600',
+      config: { to: '/admin/nzscv', metric: 'scv_enforcement_countdown', period: periodLabel, label: 'SCV Enforcement Countdown' },
+    },
   ]
 
   return (
@@ -1107,14 +1122,14 @@ export default function AdminPortal() {
           </Card>
         </section>
 
-        {/* ── OnSpace AI ─────────────────────────────────────────────────────── */}
+        {/* ── AI ─────────────────────────────────────────────────────────────── */}
         <section>
           <Card className="bg-white dark:bg-gray-900 shadow-sm overflow-hidden">
             <div className="h-1 w-full bg-gradient-to-r from-violet-500 to-indigo-600" />
             <CardHeader className="pb-3 pt-4">
               <CardTitle className="flex items-center gap-2 text-base">
                 <Sparkles className="h-4 w-4 text-violet-600" />
-                OnSpace AI
+                AI
               </CardTitle>
               <p className="text-xs text-muted-foreground">
                 AI-powered analysis, legislation guidance and operational advice — uses your own AI backend.
@@ -1127,7 +1142,7 @@ export default function AdminPortal() {
               >
                 <Sparkles className="h-5 w-5 text-violet-600 shrink-0" />
                 <div className="min-w-0">
-                  <p className="text-sm font-semibold text-violet-900 dark:text-violet-100">Open OnSpace AI</p>
+                  <p className="text-sm font-semibold text-violet-900 dark:text-violet-100">Open AI Assistant</p>
                   <p className="text-xs text-violet-600 dark:text-violet-400 truncate">Compliance · Enforcement · Legislation · Reports</p>
                 </div>
                 <ArrowRight className="h-4 w-4 text-violet-400 ml-auto shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />

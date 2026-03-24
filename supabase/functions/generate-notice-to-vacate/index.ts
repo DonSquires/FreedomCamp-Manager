@@ -468,7 +468,7 @@ function generateNoticeHtml(params: any): string {
     <div class="signatory-title">${signatory.title}</div>
   </div>
   <div style="margin-top:24px;padding-top:8px;border-top:1px solid #e2e8f0;display:flex;justify-content:space-between;align-items:center;">
-    <span style="font-size:8pt;color:#94a3b8;">Enforcement management by <strong style="color:#1e3a8a;">FreedomCamp Manager</strong> &mdash; Iron Eagle Security / OnSpace AI</span>
+    <span style="font-size:8pt;color:#94a3b8;">Enforcement management by <strong style="color:#1e3a8a;">FreedomCamp Manager</strong> &mdash; Iron Eagle Security</span>
     <img src="/iron-eagle-security-logo.jpg" alt="Iron Eagle Security" style="height:24px;opacity:0.55;object-fit:contain;">
   </div>
 </body>
