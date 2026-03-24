@@ -6598,6 +6598,10 @@ export type Database = {
         }
         Returns: boolean
       }
+      is_zone_seasonally_open: {
+        Args: { p_zone_id: string }
+        Returns: boolean
+      }
       log_compliance_check: {
         Args: {
           p_blocked_reason?: string
