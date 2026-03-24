@@ -1,7 +1,7 @@
 /**
  * AiAnalysis.tsx
  *
- * OnSpace AI — AI-powered analysis and chat for admins and master users.
+ * AI — AI-powered analysis and chat for admins and master users.
  *
  * Uses the onspace-ai-chat edge function which connects to any
  * OpenAI-compatible backend.  Operators can point OPENAI_BASE_URL at their
@@ -285,7 +285,7 @@ export default function AiAnalysis() {
               <Sparkles className="h-4.5 w-4.5 text-white" />
             </div>
             <div>
-              <h1 className="text-lg font-semibold leading-tight">OnSpace AI</h1>
+              <h1 className="text-lg font-semibold leading-tight">AI</h1>
               <p className="text-xs text-muted-foreground">
                 AI-powered analysis for FreedomCamp Manager
               </p>
@@ -343,7 +343,7 @@ export default function AiAnalysis() {
                         <Bot className="h-8 w-8 text-violet-600 dark:text-violet-400" />
                       </div>
                       <div>
-                        <p className="font-semibold text-base">Welcome to OnSpace AI</p>
+                        <p className="font-semibold text-base">Welcome to AI</p>
                         <p className="text-sm text-muted-foreground mt-1 max-w-sm">
                           Ask anything about compliance, enforcement, NZ legislation, breach trends, or operational strategy.
                         </p>
@@ -465,7 +465,7 @@ export default function AiAnalysis() {
                   </Button>
                 </div>
                 <p className="text-[10px] text-muted-foreground mt-2 px-0.5">
-                  OnSpace AI uses your organisation's AI backend. Responses may not always be accurate — verify important information.
+                  AI uses your organisation's AI backend. Responses may not always be accurate — verify important information.
                 </p>
               </CardContent>
             </Card>

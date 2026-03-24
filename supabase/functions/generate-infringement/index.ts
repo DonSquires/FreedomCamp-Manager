@@ -859,7 +859,7 @@ function generateNoticeHtml(params: {
       Infringement notice number <strong>${params.noticeNumber}</strong> issued by <strong>${params.orgName}</strong> on ${nzDate(new Date())}.
     </div>
     <div style="margin-top:6pt;padding-top:4pt;border-top:1px solid #e2e8f0;display:flex;justify-content:space-between;align-items:center;">
-      <span style="font-size:7pt;color:#94a3b8;">Enforcement management by <strong style="color:#1e3a8a;">FreedomCamp Manager</strong> &mdash; Iron Eagle Security / OnSpace AI</span>
+      <span style="font-size:7pt;color:#94a3b8;">Enforcement management by <strong style="color:#1e3a8a;">FreedomCamp Manager</strong> &mdash; Iron Eagle Security</span>
       <img src="/iron-eagle-security-logo.jpg" alt="Iron Eagle Security" style="height:22px;opacity:0.55;object-fit:contain;">
     </div>
   </div>

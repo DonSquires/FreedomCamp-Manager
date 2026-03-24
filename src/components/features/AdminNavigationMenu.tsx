@@ -83,7 +83,7 @@ const moreGroups = [
       { to: '/reports-hub',         label: 'Reports Hub',   icon: BarChart3 },
       { to: '/observations-report', label: 'Observations',  icon: LayoutGrid },
       { to: '/observations',        label: 'Observation Map',icon: Map },
-      { to: '/ai-analysis',         label: 'OnSpace AI',    icon: Sparkles },
+      { to: '/ai-analysis',         label: 'AI',            icon: Sparkles },
     ],
   },
   {
