@@ -30,8 +30,71 @@ import { formatDateTime } from '@/lib/utils'
 import {
   Camera, Car, Clock, MapPin, AlertTriangle, CheckCircle,
   ChevronRight, Search, FileText, History, QrCode, Shield,
-  RotateCcw, Timer, CircleX, PlusCircle, RefreshCw, Zap,
+  RotateCcw, Timer, CircleX, PlusCircle, RefreshCw, Zap, Printer,
 } from 'lucide-react'
+
+// ─── Print receipt HTML generator ────────────────────────────────────────────
+
+function buildReceiptHtml(inf: {
+  infringement_number: string
+  plate_number: string
+  fine_amount_nzd: string
+  offence_description: string
+  location_address: string
+  vehicle_make?: string
+  vehicle_model?: string
+  vehicle_colour?: string
+  zone_name?: string
+  issued_at?: string
+}): string {
+  const fine   = inf.fine_amount_nzd ? `NZD $${Number(inf.fine_amount_nzd).toFixed(2)}` : 'As Prescribed'
+  const early  = inf.fine_amount_nzd ? `NZD $${(Number(inf.fine_amount_nzd) * 0.5).toFixed(2)}` : null
+  const now    = new Date().toLocaleString('en-NZ', { timeZone: 'Pacific/Auckland', day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+  const dueDate = new Date(Date.now() + 28 * 86400000).toLocaleDateString('en-NZ', { day: '2-digit', month: 'long', year: 'numeric' })
+
+  return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"/>
+<title>Parking Infringement ${inf.infringement_number}</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:Arial,sans-serif;font-size:11pt;color:#111;background:#fff;padding:18mm}
+.hdr{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid #1e3a5f;padding-bottom:8px;margin-bottom:14px}
+.title{font-size:18pt;font-weight:bold;color:#1e3a5f}.num{font-size:12pt;font-weight:bold;color:#1e3a5f;text-align:right}
+.sec{margin-bottom:12px}.sec-title{font-weight:bold;font-size:9pt;text-transform:uppercase;color:#666;border-bottom:1px solid #ddd;padding-bottom:2px;margin-bottom:6px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:6px}.field label{font-size:8pt;color:#666;display:block}.field p{font-weight:bold}
+.plate{font-family:monospace;font-size:16pt;font-weight:bold;letter-spacing:2px;background:#f0f0f0;padding:4px 12px;border-radius:4px;display:inline-block;border:2px solid #ccc}
+.fine-box{background:#fff3cd;border:2px solid #ffc107;border-radius:6px;padding:10px;margin-top:6px}
+.amount{font-size:20pt;font-weight:bold;color:#c00}.early{color:#2a6;font-size:9pt;margin-top:4px}
+.offence-box{background:#f8f9fa;border:1px solid #dee2e6;border-radius:4px;padding:8px}
+.rights{font-size:8pt;color:#444;border-top:1px solid #ccc;padding-top:8px;margin-top:12px}
+@media print{body{padding:10mm}}
+</style></head><body>
+<div class="hdr">
+  <div><div class="title">PARKING INFRINGEMENT NOTICE</div><div style="font-size:8pt;color:#666;margin-top:3px">Land Transport (Road User) Rule 2004</div></div>
+  <div class="num">Notice No.<br/>${inf.infringement_number}</div>
+</div>
+<div class="sec"><div class="sec-title">Vehicle</div>
+  <div class="grid">
+    <div class="field"><label>Plate Number</label><div class="plate">${inf.plate_number}</div></div>
+    <div class="field"><label>Make / Model / Colour</label><p>${[inf.vehicle_make, inf.vehicle_model, inf.vehicle_colour].filter(Boolean).join(' ') || '—'}</p></div>
+  </div>
+</div>
+<div class="sec"><div class="sec-title">Offence</div>
+  <div class="grid">
+    <div class="field"><label>Date &amp; Time</label><p>${now}</p></div>
+    <div class="field"><label>Location</label><p>${inf.location_address || '—'}</p></div>
+  </div>
+  <div class="offence-box" style="margin-top:6px"><strong>Description:</strong> ${inf.offence_description}</div>
+</div>
+<div class="sec"><div class="sec-title">Fine</div>
+  <div class="fine-box">
+    <div class="amount">${fine}</div>
+    ${early ? `<div class="early">⚡ Pay <strong>${early}</strong> within 14 days for 50% early payment discount</div>` : ''}
+    <div style="margin-top:4px;font-size:9pt">Payment due: <strong>${dueDate}</strong></div>
+  </div>
+</div>
+<div class="rights"><strong>Your rights:</strong> You may request a review within 28 days. Payment does not constitute an admission of liability. Contact the issuing authority in writing before the due date to dispute this notice.</div>
+</body></html>`
+}
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -110,6 +173,8 @@ export default function ParkingOfficerPortal() {
     vehicle_model: '', vehicle_colour: '', notes: '',
   })
   const [issuing, setIssuing] = useState(false)
+  const [lastIssuedInf, setLastIssuedInf] = useState<any>(null)
+  const [printHtml, setPrintHtml] = useState<string | null>(null)
 
   // ── Fetch active sessions for my zone / org ──────────────────
   const { data: activeSessions = [], refetch: refetchSessions } = useQuery({
@@ -303,6 +368,7 @@ export default function ParkingOfficerPortal() {
       }
 
       toast.success(`Infringement ${numData} issued for ${infForm.plate_number.toUpperCase()}`)
+      setLastIssuedInf({ ...infForm, infringement_number: numData })
       setMode(null)
       setRecheckResult(null)
       setFound(null)
@@ -354,6 +420,31 @@ export default function ParkingOfficerPortal() {
       description={`${activeSessions.length} active session${activeSessions.length !== 1 ? 's' : ''} · TicketOr2-style workflow`}
       showBackButton
     >
+      {/* ── Last issued infringement print banner ─────────────── */}
+      {lastIssuedInf && mode === null && (
+        <div className="mb-4 flex items-center justify-between bg-green-50 border border-green-300 rounded-lg px-4 py-3 text-sm">
+          <div className="flex items-center gap-2 text-green-800">
+            <CheckCircle className="h-4 w-4 flex-shrink-0" />
+            <span>Infringement <strong>{lastIssuedInf.infringement_number}</strong> issued for <strong>{lastIssuedInf.plate_number}</strong></span>
+          </div>
+          <div className="flex gap-2">
+            <button
+              className="flex items-center gap-1 text-xs border border-green-400 text-green-800 rounded px-2 py-1 hover:bg-green-100 transition-colors"
+              onClick={() => setPrintHtml(buildReceiptHtml(lastIssuedInf))}
+            >
+              <Printer className="h-3.5 w-3.5" />
+              Print Receipt
+            </button>
+            <button
+              className="text-xs text-green-600 hover:text-green-900 transition-colors"
+              onClick={() => setLastIssuedInf(null)}
+            >
+              Dismiss
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* ── Home grid ─────────────────────────────────────────── */}
       {mode === null && (
         <div className="space-y-6">
@@ -861,6 +952,51 @@ export default function ParkingOfficerPortal() {
           organizationId={user!.organization_id}
           onClose={() => setMode(null)}
         />
+      )}
+
+      {/* ── Print Preview Dialog ──────────────────────────────── */}
+      {printHtml && (
+        <Dialog open={!!printHtml} onOpenChange={() => setPrintHtml(null)}>
+          <DialogContent className="max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <Printer className="h-5 w-5 text-gray-600" /> Infringement Receipt
+              </DialogTitle>
+            </DialogHeader>
+            <div className="flex gap-2 mb-3">
+              <Button
+                size="sm"
+                onClick={() => {
+                  const w = window.open('', '_blank')
+                  if (w) { w.document.write(printHtml ?? ''); w.document.close(); w.focus(); w.print() }
+                }}
+              >
+                <Printer className="h-4 w-4 mr-1" /> Print
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  const blob = new Blob([printHtml ?? ''], { type: 'text/html' })
+                  const url = URL.createObjectURL(blob)
+                  const a = document.createElement('a')
+                  a.href = url; a.download = 'parking-infringement-receipt.html'; a.click()
+                  URL.revokeObjectURL(url)
+                }}
+              >
+                Download
+              </Button>
+            </div>
+            <div className="flex-1 overflow-auto rounded border bg-white">
+              <iframe
+                srcDoc={printHtml ?? ''}
+                className="w-full"
+                style={{ height: '55vh', border: 'none' }}
+                title="Receipt Preview"
+              />
+            </div>
+          </DialogContent>
+        </Dialog>
       )}
     </AppLayout>
   )
