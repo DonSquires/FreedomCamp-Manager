@@ -77,16 +77,7 @@ export default function Platform() {
   const [analyzingId, setAnalyzingId] = useState<string | null>(null)
   const [expandedId, setExpandedId] = useState<string | null>(null)
 
-  // Redirect non-grand-master users away
-  if (user?.role !== 'grand_master') {
-    return (
-      <AppLayout>
-        <div className="flex items-center justify-center h-64 text-muted-foreground">
-          Access restricted to platform administrators.
-        </div>
-      </AppLayout>
-    )
-  }
+  const isGrandMaster = user?.role === 'grand_master'
 
   const from = new Date(Date.now() - periodDays * 24 * 60 * 60 * 1000).toISOString()
   const to = new Date().toISOString()
@@ -103,6 +94,7 @@ export default function Platform() {
       return data as unknown as PlatformStats
     },
     refetchInterval: 60_000,
+    enabled: isGrandMaster,
   })
 
   // Per-org usage
@@ -117,6 +109,7 @@ export default function Platform() {
       return data as unknown as OrgUsageSummary[]
     },
     refetchInterval: 60_000,
+    enabled: isGrandMaster,
   })
 
   const complianceRate = stats && stats.scans_in_period > 0
@@ -137,6 +130,7 @@ export default function Platform() {
       return (data ?? []) as unknown as FeedbackReport[]
     },
     refetchInterval: 30_000,
+    enabled: isGrandMaster,
   })
 
   // AI self-healing: analyse a report and store diagnosis + fix suggestion
@@ -210,6 +204,17 @@ Be specific. Name exact files and line-level changes where possible.`
     if (error) { toast.error('Failed to update status'); return }
     queryClient.invalidateQueries({ queryKey: ['platform-feedback'] })
   }, [queryClient])
+
+  // Redirect non-grand-master users away (after all hooks)
+  if (!isGrandMaster) {
+    return (
+      <AppLayout>
+        <div className="flex items-center justify-center h-64 text-muted-foreground">
+          Access restricted to platform administrators.
+        </div>
+      </AppLayout>
+    )
+  }
 
   return (
     <AppLayout>
