@@ -3,7 +3,8 @@
  *
  * Data sources (correct tables only):
  *   observations        – all scan records, compliance state
- *   canonical_vehicles  – vehicle registry (homeless, flagged)
+ *   canonical_vehicles  – vehicle registry (make/model/color/is_flagged/is_exempt)
+ *   canonical_homeless  – authoritative homeless/exempt status per plate (V3)
  *   zones               – zone rules
  *   organizations       – org names
  *
@@ -182,15 +183,15 @@ function OverviewTab({
         applyObs(supabase.from('observations').select('*', { count: 'exact', head: true })),
         applyObs(supabase.from('observations').select('*', { count: 'exact', head: true }).eq('is_compliant', false)),
         supabase.from('canonical_vehicles').select('*', { count: 'exact', head: true }).eq('is_flagged', true),
-        supabase.from('canonical_vehicles').select('*', { count: 'exact', head: true }).in('homeless_status', HOMELESS_UI_STATUSES),
+        (supabase.from('canonical_homeless') as any).select('*', { count: 'exact', head: true }).in('status', HOMELESS_UI_STATUSES),
       ]);
 
       // Count observations for homeless-confirmed/claimed vehicles that are marked
       // non-compliant. These are "breach exempt" under the FC Act and should not
       // inflate the breach KPI.
-      const { data: homelessPlateRows } = await (supabase.from('canonical_vehicles') as any)
+      const { data: homelessPlateRows } = await (supabase.from('canonical_homeless') as any)
         .select('plate_number')
-        .in('homeless_status', ['confirmed', 'claimed']);
+        .in('status', ['confirmed', 'claimed']);
       const homelessPlates = (homelessPlateRows ?? []).map((r: any) => r.plate_number).filter(Boolean) as string[];
 
       let homelessBreachCount = 0;
@@ -826,7 +827,6 @@ interface ExemptCanonicalVehicle {
   vehicle_color: string | null;
   homeless_status: string | null;
   homeless_notes: string | null;
-  self_contained: boolean | null;
   is_exempt: boolean | null;
 }
 
@@ -909,19 +909,53 @@ function HomelessTab({
   }, [obsDetails]);
 
   // Fetch canonical vehicle metadata for matched plates
-  const { data: canonicalVehicles = [] } = useQuery({
-    queryKey: ['exempt-canonical', exemptPlates.join('|')],
+  const { data: canonicalVehicleRows = [] } = useQuery({
+    queryKey: ['exempt-canonical-vehicles', exemptPlates.join('|')],
     queryFn: async () => {
-      if (exemptPlates.length === 0) return [] as ExemptCanonicalVehicle[];
+      if (exemptPlates.length === 0) return [];
       const { data, error } = await supabase
         .from('canonical_vehicles')
-        .select('plate_number, vehicle_make, vehicle_model, vehicle_color, homeless_status, homeless_notes, self_contained, is_exempt')
+        .select('plate_number, vehicle_make, vehicle_model, vehicle_color, is_exempt')
         .in('plate_number', exemptPlates);
       if (error) throw error;
-      return (data ?? []) as ExemptCanonicalVehicle[];
+      return data ?? [];
     },
     enabled: exemptPlates.length > 0,
   });
+
+  // Fetch authoritative homeless status/notes from canonical_homeless
+  const { data: canonicalHomelessRows = [] } = useQuery({
+    queryKey: ['exempt-canonical-homeless', exemptPlates.join('|')],
+    queryFn: async () => {
+      if (exemptPlates.length === 0) return [];
+      const { data, error } = await (supabase.from('canonical_homeless') as any)
+        .select('plate_number, status, notes')
+        .in('plate_number', exemptPlates);
+      if (error) throw error;
+      return (data ?? []) as Array<{ plate_number: string; status: string | null; notes: string | null }>;
+    },
+    enabled: exemptPlates.length > 0,
+  });
+
+  // Merge vehicle attributes and homeless status into ExemptCanonicalVehicle records
+  const canonicalVehicles: ExemptCanonicalVehicle[] = useMemo(() => {
+    const homelessByPlate = new Map<string, { status: string | null; notes: string | null }>();
+    for (const h of canonicalHomelessRows) {
+      homelessByPlate.set(h.plate_number, { status: h.status, notes: h.notes });
+    }
+    return canonicalVehicleRows.map((v: any) => {
+      const h = homelessByPlate.get(v.plate_number);
+      return {
+        plate_number: v.plate_number,
+        vehicle_make: v.vehicle_make ?? null,
+        vehicle_model: v.vehicle_model ?? null,
+        vehicle_color: v.vehicle_color ?? null,
+        homeless_status: h?.status ?? null,
+        homeless_notes: h?.notes ?? null,
+        is_exempt: v.is_exempt ?? null,
+      } as ExemptCanonicalVehicle;
+    });
+  }, [canonicalVehicleRows, canonicalHomelessRows]);
 
   const canonicalByPlate = useMemo(() => {
     const map = new Map<string, ExemptCanonicalVehicle>();
