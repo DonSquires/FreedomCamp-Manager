@@ -173,3 +173,180 @@ verify_jwt = false
 # already validates Authorization and role internally via service-role auth.
 [functions.import-historical-data]
 verify_jwt = false
+
+# The remaining functions below share the same ES256 gateway-rejection pattern:
+# browser/mobile callers use ES256-signed JWTs that Supabase gateway rejects
+# before the function runs (401, execution_id: null in logs).  Each function
+# validates caller identity internally using supabaseAdmin.auth.getUser(token)
+# or service-role auth before executing any privileged operation.
+
+[functions.admin-incident-ops]
+verify_jwt = false
+
+[functions.alpr-retry]
+verify_jwt = false
+
+[functions.analyze-vehicle-photo]
+verify_jwt = false
+
+[functions.check-almost-breaches]
+verify_jwt = false
+
+[functions.check-data-integrity]
+verify_jwt = false
+
+[functions.check-nzscv-status]
+verify_jwt = false
+
+[functions.check-railway-health]
+verify_jwt = false
+
+[functions.check-zone-corrections]
+verify_jwt = false
+
+[functions.correct-zone-assignments]
+verify_jwt = false
+
+[functions.create_auth_and_profiles]
+verify_jwt = false
+
+[functions.daily-photo-reconciler]
+verify_jwt = false
+
+[functions.enrich-from-motorweb]
+verify_jwt = false
+
+[functions.generate-dashboard-report]
+verify_jwt = false
+
+[functions.generate-incident-pdf]
+verify_jwt = false
+
+[functions.generate-leadership-pack]
+verify_jwt = false
+
+[functions.generate-noise-notice]
+verify_jwt = false
+
+[functions.generate-notice-to-vacate]
+verify_jwt = false
+
+[functions.generate-seizure-receipt]
+verify_jwt = false
+
+[functions.generate-vehicle-report]
+verify_jwt = false
+
+[functions.generate-warning-notice]
+verify_jwt = false
+
+[functions.get-compliance-statistics]
+verify_jwt = false
+
+[functions.hotspot-data]
+verify_jwt = false
+
+[functions.import-data]
+verify_jwt = false
+
+[functions.link-evidence-photos]
+verify_jwt = false
+
+[functions.monitor-officer-welfare]
+verify_jwt = false
+
+[functions.nightly-privacy-cleanup]
+verify_jwt = false
+
+[functions.observations-export]
+verify_jwt = false
+
+[functions.observations-in-bounds]
+verify_jwt = false
+
+[functions.observations-list]
+verify_jwt = false
+
+[functions.onspace-ai-chat]
+verify_jwt = false
+
+[functions.orc-ingest]
+verify_jwt = false
+
+[functions.parkpow-photo-sync]
+verify_jwt = false
+
+[functions.parkpow-sync]
+verify_jwt = false
+
+[functions.photo-recovery]
+verify_jwt = false
+
+[functions.plate-scanner-photo-first]
+verify_jwt = false
+
+[functions.process-credential-document]
+verify_jwt = false
+
+[functions.process-homeless-data]
+verify_jwt = false
+
+[functions.process-investigation-document]
+verify_jwt = false
+
+[functions.public-case-lookup]
+verify_jwt = false
+
+[functions.recalculate-compliance]
+verify_jwt = false
+
+[functions.recalculate-compliance-v2]
+verify_jwt = false
+
+[functions.scan-breaches]
+verify_jwt = false
+
+[functions.scrape-vehicle-photos]
+verify_jwt = false
+
+[functions.select-best-vehicle-photo]
+verify_jwt = false
+
+[functions.send-invite-email]
+verify_jwt = false
+
+[functions.send-push-notification]
+verify_jwt = false
+
+[functions.send-report-email]
+verify_jwt = false
+
+[functions.set-user-password]
+verify_jwt = false
+
+[functions.stream-webhook]
+verify_jwt = false
+
+[functions.submit-dispute-intake]
+verify_jwt = false
+
+[functions.suggest-new-zone]
+verify_jwt = false
+
+[functions.sync-spatial-layers]
+verify_jwt = false
+
+[functions.test-compliance-matrix]
+verify_jwt = false
+
+[functions.update-compliance-policy]
+verify_jwt = false
+
+[functions.update-user-password]
+verify_jwt = false
+
+[functions.upload-file]
+verify_jwt = false
+
+[functions.zone-correction]
+verify_jwt = false
