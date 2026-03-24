@@ -63,6 +63,8 @@ KNOWN_DRIFT_VERSIONS=(
   20260318
   20260319
   20260320
+  20260321
+  20260323
 )
 
 repair_known_drift_versions() {

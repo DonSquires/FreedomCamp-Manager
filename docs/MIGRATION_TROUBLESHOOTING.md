@@ -89,12 +89,14 @@ entries with no corresponding single local file:
 | `20260318` | `20260318000002_fix_breach_alert_created_at_from_observation.sql`, `20260318_fix_schema_functions.sql` |
 | `20260319` | `20260319000020_fix_observation_deletion_audit_deleted_by.sql`, `20260319_allow_cross_org_observation_import.sql` |
 | `20260320` | `20260320000001_…` through `20260320000003_…` |
+| `20260321` | `20260321_reassign_observations_to_current_zones.sql` |
+| `20260323` | `20260323000001_parking_enforcement_tables.sql`, `20260323000002_noise_control_tables.sql`, `20260323_photo_recovery_infrastructure.sql` |
 
 Revert all of them in one command:
 
 ```bash
 supabase migration repair --status reverted \
-   20250127 20260309 20260312 20260313 20260315 20260316 20260317 20260318 20260319 20260320
+   20250127 20260309 20260312 20260313 20260315 20260316 20260317 20260318 20260319 20260320 20260321 20260323
 ```
 
 ---
@@ -184,7 +186,7 @@ supabase migration list
 
 ```bash
 supabase migration repair --status reverted \
-   20250127 20260309 20260312 20260313 20260315 20260316 20260317 20260318 20260319 20260320
+   20250127 20260309 20260312 20260313 20260315 20260316 20260317 20260318 20260319 20260320 20260321 20260323
 ```
 
 ### Step 3 — Try a standard push
