@@ -48,6 +48,14 @@ type DrillConfig = {
   label?: string
 }
 
+const SCV_ENFORCEMENT_DATE = new Date('2026-06-01')
+const MS_PER_DAY = 1000 * 60 * 60 * 24
+
+function scvEnforcementCountdown(): string {
+  const days = Math.ceil((SCV_ENFORCEMENT_DATE.getTime() - Date.now()) / MS_PER_DAY)
+  return days > 0 ? `${days}d` : 'Active'
+}
+
 export default function AdminPortal() {
   const { user } = useAuthStore()
   const { organizationId, zoneId, dateFrom, dateTo } = useGlobalFiltersStore()
@@ -814,6 +822,13 @@ export default function AdminPortal() {
       icon: Shield,
       iconColor: 'text-blue-500',
       config: { to: '/admin/nzscv', metric: 'scv_expiring_soon', period: periodLabel, label: 'SCV Expiring Soon' },
+    },
+    {
+      title: 'SCV Enforcement',
+      value: scvEnforcementCountdown(),
+      icon: CalendarDays,
+      iconColor: 'text-green-600',
+      config: { to: '/admin/nzscv', metric: 'scv_enforcement_countdown', period: periodLabel, label: 'SCV Enforcement Countdown' },
     },
   ]
 
