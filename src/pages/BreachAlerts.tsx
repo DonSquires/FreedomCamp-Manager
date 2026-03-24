@@ -1607,7 +1607,29 @@ export default function BreachAlerts() {
                         )}
                         <div className="flex gap-2 pt-1 flex-wrap">
                           {detailVehicle.self_contained && (
-                            <Badge variant="outline" className="text-xs bg-green-50 dark:bg-green-950">Self-Contained</Badge>
+                            detailVehicle.nzscv_warrant_type === 'green'
+                              ? (
+                                <Badge
+                                  variant="outline"
+                                  className="text-xs bg-green-50 dark:bg-green-950 text-green-800 dark:text-green-300 border-green-400"
+                                  title="Green warrant — NZS 5465:2023 (current standard)"
+                                >
+                                  🟢 SCV – Green Warrant
+                                </Badge>
+                              ) : detailVehicle.nzscv_warrant_type === 'blue'
+                              ? (
+                                <Badge
+                                  variant="outline"
+                                  className="text-xs bg-blue-50 dark:bg-blue-950 text-blue-800 dark:text-blue-300 border-blue-400"
+                                  title="Blue warrant — legacy standard (expires June 2026)"
+                                >
+                                  🔵 SCV – Blue Warrant (legacy)
+                                </Badge>
+                              ) : (
+                                <Badge variant="outline" className="text-xs bg-green-50 dark:bg-green-950">
+                                  ✓ Self-Contained
+                                </Badge>
+                              )
                           )}
                           {detailVehicle.is_flagged && (
                             <Badge variant="outline" className="text-xs bg-red-50 dark:bg-red-950 text-red-700">Flagged</Badge>

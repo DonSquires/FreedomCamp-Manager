@@ -227,7 +227,19 @@ export function VehicleDetailsPanel({
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <div className="text-xs text-muted-foreground">Warrant Type</div>
-                  <div className="text-sm">{vehicle.nzscv_warrant_type || 'Unknown'}</div>
+                  {vehicle.nzscv_warrant_type === 'green' ? (
+                    <span className="inline-flex items-center gap-1 text-sm font-medium text-green-700 dark:text-green-400">
+                      🟢 Green Warrant
+                      <span className="text-xs font-normal text-muted-foreground">(NZS 5465:2023)</span>
+                    </span>
+                  ) : vehicle.nzscv_warrant_type === 'blue' ? (
+                    <span className="inline-flex items-center gap-1 text-sm font-medium text-blue-700 dark:text-blue-400">
+                      🔵 Blue Warrant
+                      <span className="text-xs font-normal text-muted-foreground">(legacy – expires Jun 2026)</span>
+                    </span>
+                  ) : (
+                    <div className="text-sm">{vehicle.nzscv_warrant_type || 'Unknown'}</div>
+                  )}
                 </div>
                 <div>
                   <div className="text-xs text-muted-foreground">Expires</div>
