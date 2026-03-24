@@ -39,6 +39,10 @@ interface Zone {
   enforcement_authority?: string | null
   bylaw_clause?: string | null
   bylaw_source_url?: string | null
+  land_managing_agency?: string | null
+  bylaw_reference?: string | null
+  seasonal_open_month?: number | null
+  seasonal_close_month?: number | null
   created_at: string
   organization?: {
     id: string
@@ -79,6 +83,10 @@ export default function ZoneManagement() {
   const [editEnforcementAuthority, setEditEnforcementAuthority] = useState('')
   const [editBylawClause, setEditBylawClause] = useState('')
   const [editBylawUrl, setEditBylawUrl] = useState('')
+  const [editLandManagingAgency, setEditLandManagingAgency] = useState('')
+  const [editBylawReference, setEditBylawReference] = useState('')
+  const [editSeasonalOpenMonth, setEditSeasonalOpenMonth] = useState<number | null>(null)
+  const [editSeasonalCloseMonth, setEditSeasonalCloseMonth] = useState<number | null>(null)
   const [showGeofenceEditor, setShowGeofenceEditor] = useState(false)
 
   // zone_legal_config payment & objections fields
@@ -119,7 +127,7 @@ export default function ZoneManagement() {
   })
 
   // Fetch zones with counts
-  const { data: zones, isLoading } = useQuery({
+  const { data: zoneData, isLoading } = useQuery({
     queryKey: ['zones', organizationId, showInactive, searchQuery],
     queryFn: async () => {
       let query = (supabase.from('zones') as any)
@@ -155,11 +163,12 @@ export default function ZoneManagement() {
       const { data, error } = await query
       if (error) throw error
 
-      // Deduplicate zones by (organization_id, name) — keep first occurrence
+      // Deduplicate zones by (organization_id, name) — keep first occurrence, count dupes
       const seen = new Set<string>()
+      let duplicateCount = 0
       const uniqueZones = ((data || []) as Zone[]).filter((zone) => {
         const key = `${zone.organization_id}::${zone.name.trim().toLowerCase()}`
-        if (seen.has(key)) return false
+        if (seen.has(key)) { duplicateCount++; return false }
         seen.add(key)
         return true
       })
@@ -180,7 +189,7 @@ export default function ZoneManagement() {
         })
       )
 
-      return zonesWithCounts
+      return { zones: zonesWithCounts, duplicateCount }
     },
   })
 
@@ -329,6 +338,10 @@ export default function ZoneManagement() {
     setEditParentZoneId(null)
     setEditZoneType('specific')
     setEditLandManager('')
+    setEditLandManagingAgency(zone.land_managing_agency || '')
+    setEditBylawReference(zone.bylaw_reference || '')
+    setEditSeasonalOpenMonth(null)
+    setEditSeasonalCloseMonth(null)
     setEditEnforcementAuthority('')
     setEditBylawClause('')
     setEditBylawUrl('')
@@ -368,6 +381,10 @@ export default function ZoneManagement() {
     setEditEnforcementAuthority('')
     setEditBylawClause('')
     setEditBylawUrl('')
+    setEditLandManagingAgency(zone.land_managing_agency || '')
+    setEditBylawReference(zone.bylaw_reference || '')
+    setEditSeasonalOpenMonth(zone.seasonal_open_month ?? null)
+    setEditSeasonalCloseMonth(zone.seasonal_close_month ?? null)
     setShowGeofenceEditor(false)
 
     // Load legal + payment fields from zone_legal_config
@@ -392,6 +409,8 @@ export default function ZoneManagement() {
   }
 
   // Calculate stats
+  const zones = zoneData?.zones ?? null
+  const duplicateZoneCount = zoneData?.duplicateCount ?? 0
   const stats = zones ? {
     total: zones.length,
     active: zones.filter(z => z.is_active).length,
@@ -486,6 +505,18 @@ export default function ZoneManagement() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Deduplication Warning */}
+      {duplicateZoneCount > 0 && (
+        <div className="flex items-start gap-3 rounded-lg border border-yellow-300 bg-yellow-50 p-4 mb-6 text-sm text-yellow-800 dark:border-yellow-700 dark:bg-yellow-950 dark:text-yellow-200">
+          <AlertTriangle className="h-5 w-5 shrink-0 text-yellow-600 mt-0.5" />
+          <div>
+            <strong>{duplicateZoneCount} duplicate zone name{duplicateZoneCount !== 1 ? 's' : ''} detected</strong> — only the first occurrence is shown.
+            Duplicate zone names violate the uniqueness constraint and may cause unexpected behaviour.
+            Please rename or deactivate the duplicate zones to resolve this.
+          </div>
+        </div>
+      )}
 
       {/* Zones Grid */}
       {isLoading ? (
@@ -811,6 +842,78 @@ export default function ZoneManagement() {
                   placeholder="https://..."
                 />
               </div>
+
+              {/* New legal / operational fields */}
+              <div>
+                <Label htmlFor="editLandManagingAgency">Land Managing Agency</Label>
+                <Select
+                  value={editLandManagingAgency || ''}
+                  onValueChange={(v) => setEditLandManagingAgency(v === 'none' ? '' : v)}
+                >
+                  <SelectTrigger id="editLandManagingAgency">
+                    <SelectValue placeholder="Select agency…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">— Not specified —</SelectItem>
+                    <SelectItem value="council">Council</SelectItem>
+                    <SelectItem value="doc">DOC – Dept of Conservation</SelectItem>
+                    <SelectItem value="linz">LINZ – Land Information NZ</SelectItem>
+                    <SelectItem value="nzta">NZTA – NZ Transport Agency</SelectItem>
+                    <SelectItem value="crown">Crown (other)</SelectItem>
+                    <SelectItem value="private">Private land</SelectItem>
+                    <SelectItem value="other">Other</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Determines which legislation applies (FCA 2011 for council/DOC, Crown Pastoral Land Act for LINZ, etc.)
+                </p>
+              </div>
+              <div>
+                <Label htmlFor="editBylawReference">Bylaw / Regulation Reference</Label>
+                <Input
+                  id="editBylawReference"
+                  value={editBylawReference}
+                  onChange={(e) => setEditBylawReference(e.target.value)}
+                  placeholder="e.g. Freedom Camping Bylaw 2024 cl 7.2 or FCA 2011 s20(1)(a)"
+                />
+                <p className="text-xs text-muted-foreground mt-1">Pre-fills the legal basis on infringement notices issued in this zone.</p>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label htmlFor="editSeasonalOpenMonth">Seasonal Open (month)</Label>
+                  <Select
+                    value={editSeasonalOpenMonth != null ? String(editSeasonalOpenMonth) : 'year-round'}
+                    onValueChange={(v) => setEditSeasonalOpenMonth(v === 'year-round' ? null : Number(v))}
+                  >
+                    <SelectTrigger id="editSeasonalOpenMonth">
+                      <SelectValue placeholder="Year-round" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="year-round">Year-round</SelectItem>
+                      {['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'].map((m, i) => (
+                        <SelectItem key={i+1} value={String(i+1)}>{m}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label htmlFor="editSeasonalCloseMonth">Seasonal Close (month, inclusive)</Label>
+                  <Select
+                    value={editSeasonalCloseMonth != null ? String(editSeasonalCloseMonth) : 'year-round'}
+                    onValueChange={(v) => setEditSeasonalCloseMonth(v === 'year-round' ? null : Number(v))}
+                  >
+                    <SelectTrigger id="editSeasonalCloseMonth">
+                      <SelectValue placeholder="Year-round" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="year-round">Year-round</SelectItem>
+                      {['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'].map((m, i) => (
+                        <SelectItem key={i+1} value={String(i+1)}>{m}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
             </div>
 
             {/* Notice Payment & Objections */}
@@ -926,6 +1029,10 @@ export default function ZoneManagement() {
                   max_consecutive_nights: editMaxConsecutive,
                   day_visit_only: editDayVisitOnly,
                   self_contained_required: editSelfContained,
+                  land_managing_agency: editLandManagingAgency || null,
+                  bylaw_reference: editBylawReference || null,
+                  seasonal_open_month: editSeasonalOpenMonth,
+                  seasonal_close_month: editSeasonalCloseMonth,
                 }
                 
                 // Masters can change organization, zone type, and parent

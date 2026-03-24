@@ -3,6 +3,9 @@ import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/stores/authStore'
 import { useSessionLockStore } from '@/stores/sessionLockStore'
+import { useFeedbackCapture } from '@/hooks/useFeedbackCapture'
+import { FeedbackModal } from '@/components/features/FeedbackModal'
+import { useNotificationCount } from '@/hooks/useNotifications'
 import { useSessionPreferencesStore } from '@/stores/sessionPreferencesStore'
 import { useThemePreferencesStore } from '@/stores/themePreferencesStore'
 import { Button } from '@/components/ui/button'
@@ -44,6 +47,20 @@ import {
   TrendingUp,
   Camera,
   Wrench,
+  MessageSquarePlus,
+  Volume2,
+  ParkingSquare,
+  ClipboardCheck,
+  FlameKindling,
+  PieChart,
+  ClipboardList,
+  PersonStanding,
+  BrainCircuit,
+  Map,
+  HeartPulse,
+  FileBarChart,
+  ScrollText,
+  Layers,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
@@ -72,11 +89,19 @@ const navigationGroups: Array<{ label: string; icon: React.FC<{ className?: stri
     items: [
       { path: '/compliance', icon: BarChart3, label: 'Compliance', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/observation-records', icon: ImageIcon, label: 'Observations', roles: ['admin', 'admin_officer', 'master', 'officer'] },
+      { path: '/observations-report', icon: FileBarChart, label: 'Observations Report', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/breaches', icon: AlertTriangle, label: 'Breaches & Alerts', roles: ['admin', 'admin_officer', 'master', 'officer'] },
+      { path: '/breach-notices', icon: ScrollText, label: 'Breach Notices', roles: ['admin', 'admin_officer', 'master', 'officer'] },
       { path: '/enforcement-actions', icon: Gavel, label: 'Enforcement Actions', roles: ['admin', 'admin_officer', 'master', 'officer'] },
+      { path: '/enforcement-review', icon: ClipboardCheck, label: 'Enforcement Review', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/disputes', icon: AlertTriangle, label: 'Disputes', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/admin/discrepancies', icon: AlertTriangle, label: 'Discrepancies', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/infringements', icon: Receipt, label: 'Infringements', roles: ['admin', 'admin_officer', 'master', 'officer'] },
       { path: '/enforcement-command-center', icon: MonitorPlay, label: 'Command Centre', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/live-tracking', icon: Activity, label: 'Live Tracking', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/live-patrol', icon: MonitorPlay, label: 'Live Patrol Monitor', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/hotspots', icon: FlameKindling, label: 'Hotspots Map', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/compliance-analytics', icon: PieChart, label: 'Compliance Analytics', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/patrol-checkpoints', icon: ScanLine, label: 'Checkpoints', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/patrol-schedule', icon: CalendarDays, label: 'Patrol Schedule', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/patrol-kpis', icon: TrendingUp, label: 'Patrol KPIs', roles: ['admin', 'admin_officer', 'master'] },
@@ -88,6 +113,8 @@ const navigationGroups: Array<{ label: string; icon: React.FC<{ className?: stri
     items: [
       { path: '/vehicles', icon: Car, label: 'Vehicles', roles: ['admin', 'admin_officer', 'master', 'officer'] },
       { path: '/vehicle-registry', icon: Car, label: 'Vehicle Registry', roles: ['admin', 'admin_officer', 'master', 'nzscv_monitor'] },
+      { path: '/admin/nzscv', icon: Car, label: 'NZSCV Monitor', roles: ['admin', 'master', 'nzscv_monitor'] },
+      { path: '/admin/canonical-records', icon: Database, label: 'Canonical Records', roles: ['admin', 'master'] },
       { path: '/zones', icon: MapPin, label: 'Zones', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/users', icon: Users, label: 'Users', roles: ['admin', 'master'] },
       { path: '/organization-profile', icon: Building2, label: 'Organisation', roles: ['admin', 'admin_officer', 'master'] },
@@ -99,18 +126,34 @@ const navigationGroups: Array<{ label: string; icon: React.FC<{ className?: stri
     icon: FileText,
     items: [
       { path: '/incidents', icon: Shield, label: 'Incidents & Evidence', roles: ['admin', 'admin_officer', 'master', 'officer'] },
+      { path: '/incident-reports', icon: ClipboardList, label: 'Incident Reports', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/investigations', icon: BrainCircuit, label: 'Investigations', roles: ['admin', 'admin_officer', 'master', 'officer'] },
+      { path: '/person-records', icon: PersonStanding, label: 'Person Records', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/reports', icon: FileText, label: 'Reports', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/reports-hub', icon: FileBarChart, label: 'Reports Hub', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/audit-log', icon: Activity, label: 'Audit Log', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/privacy-curtain', icon: EyeOff, label: 'Privacy Curtain', roles: ['admin', 'master'] },
+    ],
+  },
+  {
+    label: 'Specialist Portals',
+    icon: Layers,
+    items: [
+      { path: '/noise-control', icon: Volume2, label: 'Noise Control', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/parking', icon: ParkingSquare, label: 'Parking Enforcement', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/officer-welfare', icon: HeartPulse, label: 'Officer Welfare', roles: ['admin', 'admin_officer', 'master'] },
     ],
   },
   {
     label: 'Tools',
     icon: Wrench,
     items: [
+      { path: '/ai-analysis', icon: BrainCircuit, label: 'AI Analysis', roles: ['admin', 'master'] },
+      { path: '/spatial-compliance', icon: Map, label: 'Spatial Compliance', roles: ['admin', 'master'] },
       { path: '/compliance-recalculation', icon: Shield, label: 'Recalculation', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/admin/cleanup-recalculate', icon: RefreshCw, label: 'Cleanup & Recalculate', roles: ['admin', 'master'] },
       { path: '/data', icon: Database, label: 'Data Management', roles: ['admin', 'master'] },
+      { path: '/admin/data-hub', icon: Database, label: 'Data Hub', roles: ['admin', 'master'] },
       { path: '/import-historical', icon: Upload, label: 'Import Data', roles: ['admin', 'master'] },
       { path: '/photo-reingest', icon: Camera, label: 'Photo Reingest', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/diagnostics', icon: Settings, label: 'Diagnostics', roles: ['master'] },
@@ -121,6 +164,7 @@ const navigationGroups: Array<{ label: string; icon: React.FC<{ className?: stri
     icon: Settings,
     items: [
       { path: '/profile', icon: User, label: 'My Profile', roles: ['admin', 'admin_officer', 'master', 'officer'] },
+      { path: '/notifications', icon: Bell, label: 'Notifications', roles: ['admin', 'admin_officer', 'master', 'officer'] },
       { path: '/settings', icon: Settings, label: 'Settings', roles: ['admin', 'admin_officer', 'master', 'officer', 'nzscv_monitor'] },
     ],
   },
@@ -243,6 +287,7 @@ function NavigationLinks({ onClick }: { onClick?: () => void }) {
 export function AppLayout({ children, title, description, showBackButton }: AppLayoutProps) {
   const brandLogoUrl = '/iron-eagle-security-logo.jpg'
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [feedbackOpen, setFeedbackOpen] = useState(false)
   const [desktopNavOpen, setDesktopNavOpen] = useState(() => {
     // Default to open (true). Only closes if the user has explicitly set it to 'false'.
     try { return localStorage.getItem('fc_sidebar_open') !== 'false' } catch { return true }
@@ -264,6 +309,10 @@ export function AppLayout({ children, title, description, showBackButton }: AppL
   const [resolvedTheme, setResolvedTheme] = useState<'light' | 'dark' | 'high-contrast' | 'night-patrol'>('light')
   const queryClient = useQueryClient()
   const navigate = useNavigate()
+
+  // Passive context capture for feedback reports
+  useFeedbackCapture()
+  const { data: notifCount = 0 } = useNotificationCount()
 
   useEffect(() => {
     if (typeof window === 'undefined') {
@@ -424,7 +473,19 @@ export function AppLayout({ children, title, description, showBackButton }: AppL
 
           <h1 className="font-semibold text-lg truncate">{title || 'FreedomCamp'}</h1>
           
-          <div className="w-10" /> {/* Spacer for alignment */}
+          {/* Mobile: notification bell */}
+          <Link
+            to="/notifications"
+            title="Notifications"
+            className="relative flex items-center justify-center h-9 w-9 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+          >
+            <Bell className="h-5 w-5 text-gray-500 dark:text-gray-400" />
+            {notifCount > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 h-4 w-4 flex items-center justify-center rounded-full bg-red-500 text-white text-[10px] font-bold leading-none">
+                {notifCount > 9 ? '9+' : notifCount}
+              </span>
+            )}
+          </Link>
         </div>
       </header>
 
@@ -518,6 +579,19 @@ export function AppLayout({ children, title, description, showBackButton }: AppL
                 )}
                 </div>
               </div>
+              {/* Header right side: notification bell */}
+              <Link
+                to="/notifications"
+                title="Notifications"
+                className="relative flex items-center justify-center h-9 w-9 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+              >
+                <Bell className="h-5 w-5 text-gray-500 dark:text-gray-400" />
+                {notifCount > 0 && (
+                  <span className="absolute -top-0.5 -right-0.5 h-4 w-4 flex items-center justify-center rounded-full bg-red-500 text-white text-[10px] font-bold leading-none">
+                    {notifCount > 9 ? '9+' : notifCount}
+                  </span>
+                )}
+              </Link>
             </div>
           </div>
         </header>
@@ -525,6 +599,21 @@ export function AppLayout({ children, title, description, showBackButton }: AppL
         {/* Page Content */}
         <main className="p-4 lg:p-6 relative">
           {children}
+
+          {/* Global feedback button — visible to all authenticated users */}
+          {user && !isLocked && (
+            <>
+              <button
+                onClick={() => setFeedbackOpen(true)}
+                title="Send feedback or report an issue"
+                className="fixed bottom-4 right-4 z-40 flex items-center gap-2 rounded-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-lg px-3 py-2 text-xs font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-all hover:shadow-xl group"
+              >
+                <MessageSquarePlus className="h-4 w-4 text-violet-500 group-hover:scale-110 transition-transform" />
+                <span className="hidden sm:inline">Feedback</span>
+              </button>
+              <FeedbackModal open={feedbackOpen} onClose={() => setFeedbackOpen(false)} />
+            </>
+          )}
 
           {autoLogoffEnabled && isWarningVisible && !isLocked && (
             <div className="fixed inset-0 z-40 bg-slate-950/35 backdrop-blur-[3px] flex items-start justify-center pt-16 px-4 pb-4">

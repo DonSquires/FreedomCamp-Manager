@@ -54,6 +54,12 @@ interface CanonicalVehicle {
   total_breaches: number
   created_at: string
   updated_at: string
+  vehicle_attribute_sources?: {
+    make_source: string | null
+    model_source: string | null
+    color_source: string | null
+    year_source: string | null
+  } | null
 }
 
 interface Observation {
@@ -227,7 +233,32 @@ export default function VehicleDetailPage() {
     enabled: !!vehicle?.plate_number,
   })
 
-  // Toggle flagged
+  // Fetch vehicle discrepancies for this plate
+  const { data: vehicleDiscrepancies = [] } = useQuery({
+    queryKey: ['vehicle-discrepancies-plate', vehicle?.plate_number],
+    queryFn: async ({ signal }) => {
+      const { data, error } = await (supabase.from('vehicle_discrepancies') as any)
+        .select('*')
+        .eq('plate_number', vehicle!.plate_number)
+        .order('created_at', { ascending: false })
+        .limit(50)
+        .abortSignal(signal)
+      if (error) throw error
+      return data as Array<{
+        id: string
+        discrepancy_type: string
+        severity: string
+        source_a: string
+        source_b: string
+        value_a: string | null
+        value_b: string | null
+        requires_review: boolean | null
+        reviewed_at: string | null
+        created_at: string | null
+      }>
+    },
+    enabled: !!vehicle?.plate_number,
+  })
   const toggleFlagged = useMutation({
     mutationFn: async () => {
       // eslint-disable-next-line @typescript-eslint/ban-ts-comment
@@ -411,6 +442,25 @@ export default function VehicleDetailPage() {
                 <div className="mt-2 text-muted-foreground">
                   {[vehicle.vehicle_make, vehicle.vehicle_model, vehicle.vehicle_year, vehicle.vehicle_color].filter(Boolean).join(' · ')}
                 </div>
+                {vehicle.vehicle_attribute_sources && (
+                  <div className="mt-2 flex flex-wrap gap-1">
+                    {Object.entries(vehicle.vehicle_attribute_sources).map(([key, src]) => {
+                      if (!src) return null
+                      const label = key.replace('_source', '')
+                      const colour =
+                        src === 'nzscv' ? 'bg-blue-50 text-blue-700 border-blue-300' :
+                        src === 'canonical' ? 'bg-green-50 text-green-700 border-green-300' :
+                        src === 'inference' ? 'bg-purple-50 text-purple-700 border-purple-300' :
+                        src === 'alpr' ? 'bg-orange-50 text-orange-700 border-orange-300' :
+                        'bg-gray-50 text-gray-600 border-gray-300'
+                      return (
+                        <Badge key={key} variant="outline" className={`text-xs ${colour}`}>
+                          {label}: {src}
+                        </Badge>
+                      )
+                    })}
+                  </div>
+                )}
                 {vehicle.self_contained_expiry && (
                   <div className="mt-1 text-sm text-muted-foreground">
                     SC Expires: {vehicle.self_contained_expiry}
@@ -518,6 +568,9 @@ export default function VehicleDetailPage() {
           </TabsTrigger>
           <TabsTrigger value="photos">
             Photos
+          </TabsTrigger>
+          <TabsTrigger value="discrepancies">
+            Discrepancies {vehicleDiscrepancies.length > 0 && `(${vehicleDiscrepancies.length})`}
           </TabsTrigger>
         </TabsList>
 
@@ -668,6 +721,51 @@ export default function VehicleDetailPage() {
         {/* Photos */}
         <TabsContent value="photos" className="mt-4">
           <VehiclePhotoGallery plateNumber={vehicle.plate_number} />
+        </TabsContent>
+
+        {/* Discrepancies */}
+        <TabsContent value="discrepancies" className="mt-4 space-y-3">
+          {vehicleDiscrepancies.length === 0 ? (
+            <div className="text-center py-12 text-muted-foreground">
+              <CheckCircle className="h-8 w-8 mx-auto mb-2 text-green-400" />
+              No attribute discrepancies recorded for this plate
+            </div>
+          ) : (
+            vehicleDiscrepancies.map((d) => (
+              <Card key={d.id} className={`border-l-4 ${
+                d.severity === 'critical' ? 'border-l-red-500' :
+                d.severity === 'high' ? 'border-l-orange-500' :
+                d.severity === 'medium' ? 'border-l-yellow-500' : 'border-l-green-500'
+              }`}>
+                <CardContent className="p-4">
+                  <div className="flex items-start justify-between flex-wrap gap-2">
+                    <div>
+                      <div className="flex items-center gap-2 mb-1 flex-wrap">
+                        <Badge variant="outline" className="text-xs">{d.discrepancy_type.replace(/_/g, ' ')}</Badge>
+                        <Badge variant="outline" className={`text-xs ${
+                          d.severity === 'critical' ? 'bg-red-50 text-red-700 border-red-300' :
+                          d.severity === 'high' ? 'bg-orange-50 text-orange-700 border-orange-300' :
+                          d.severity === 'medium' ? 'bg-yellow-50 text-yellow-700 border-yellow-300' :
+                          'bg-green-50 text-green-700 border-green-300'
+                        }`}>{d.severity.toUpperCase()}</Badge>
+                        {d.reviewed_at ? (
+                          <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-300">Reviewed</Badge>
+                        ) : d.requires_review ? (
+                          <Badge variant="outline" className="text-xs bg-amber-50 text-amber-700 border-amber-300">Needs review</Badge>
+                        ) : null}
+                      </div>
+                      <div className="text-sm text-muted-foreground">
+                        <span className="font-medium">{d.source_a}</span>: <span className="font-mono">{d.value_a ?? 'n/a'}</span>
+                        {' vs '}
+                        <span className="font-medium">{d.source_b}</span>: <span className="font-mono">{d.value_b ?? 'n/a'}</span>
+                      </div>
+                      {d.created_at && <div className="text-xs text-gray-400 mt-1">{formatDateTime(d.created_at)}</div>}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))
+          )}
         </TabsContent>
       </Tabs>
     </AppLayout>

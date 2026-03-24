@@ -179,7 +179,12 @@ export function PlateScanner({ onScanComplete, onCancel }: PlateScannerProps) {
       if (plateNumber) {
         railwayServices.checkNZSCVCertification(plateNumber).then(({ data: nzscvData, error: nzscvError }) => {
           if (!nzscvError && nzscvData?.is_certified) {
-            toast.success(`Self-contained verified: ${nzscvData.warrant_type}`, {
+            const warrantLabel = nzscvData.warrant_type === 'green'
+              ? '🟢 Green Warrant (NZS 5465:2023)'
+              : nzscvData.warrant_type === 'blue'
+              ? '🔵 Blue Warrant (legacy – expires Jun 2026)'
+              : nzscvData.warrant_type || 'certified'
+            toast.success(`Self-contained verified: ${warrantLabel}`, {
               duration: 5000,
               icon: <CheckCircle className="h-4 w-4" />,
             })

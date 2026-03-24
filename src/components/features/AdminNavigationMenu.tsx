@@ -8,7 +8,7 @@ import {
   LogOut, Settings, ChevronLeft, AlertTriangle, ChevronDown,
   Activity, Database, Search, Heart, ScrollText, Lock, Gavel,
   Navigation, BookOpen, LayoutGrid, Map, Bell, Upload, Shield, Camera, Link2,
-  CalendarDays, TrendingUp,
+  CalendarDays, TrendingUp, Wrench, ParkingSquare, Volume2, Radio, Sparkles,
 } from 'lucide-react'
 
 const primaryLinks = [
@@ -63,9 +63,18 @@ const moreGroups = [
     label: 'People & Incidents',
     links: [
       { to: '/person-records',   label: 'Person Records',  icon: Users },
-      { to: '/incidents',        label: 'Incidents',       icon: Activity },
+      { to: '/incidents',        label: 'Incidents & Maintenance', icon: Activity },
       { to: '/incident-reports', label: 'Incident Reports',icon: FileText },
       { to: '/investigations',   label: 'Investigations',  icon: Search },
+    ],
+  },
+  {
+    label: 'Specialist Services',
+    links: [
+      { to: '/parking',         label: 'Parking Enforcement', icon: ParkingSquare },
+      { to: '/parking-officer', label: 'Parking Officer',     icon: Car },
+      { to: '/noise-control',   label: 'Noise Control',       icon: Volume2 },
+      { to: '/noise-officer',   label: 'Noise Officer',       icon: Radio },
     ],
   },
   {
@@ -74,6 +83,7 @@ const moreGroups = [
       { to: '/reports-hub',         label: 'Reports Hub',   icon: BarChart3 },
       { to: '/observations-report', label: 'Observations',  icon: LayoutGrid },
       { to: '/observations',        label: 'Observation Map',icon: Map },
+      { to: '/ai-analysis',         label: 'OnSpace AI',    icon: Sparkles },
     ],
   },
   {

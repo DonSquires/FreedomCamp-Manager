@@ -534,6 +534,14 @@ export const edgeFunctions = {
   },
 
   /**
+   * Run a ParkPow sync action (sync-lots | sync-watchlist | push-violations).
+   * Used by ParkingEnforcementPortal admin tab.
+   */
+  runParkPowSync: async (params: { action: 'sync-lots' | 'sync-watchlist' | 'push-violations' }) => {
+    return callEdgeFunction('parkpow-sync', params)
+  },
+
+  /**
    * Recover deleted observation photos using ParkPow as source-of-truth.
    */
   recoverObservationPhotos: async (params: {
@@ -862,6 +870,48 @@ export const edgeFunctions = {
   },
 
   /**
+   * Generate a formal Warning Notice (first step in enforcement escalation ladder).
+   * Returns { action_id, warning_number, html }.
+   */
+  generateWarningNotice: async (params: {
+    plate_number: string
+    zone_id: string
+    breach_type: string
+    breach_reason: string
+    issued_by: string
+    observation_id?: string
+    breach_alert_id?: string
+    recipient_name?: string
+    recipient_email?: string
+    additional_notes?: string
+    delivery_method?: 'email' | 'physical'
+  }) => {
+    return callEdgeFunction('generate-warning-notice', params)
+  },
+
+  /**
+   * Generate printable HTML for a Noise Control Notice (AN / DN / END)
+   * Returns { html, notice_number }
+   */
+  generateNoiseNotice: async (params: {
+    noise_notice_id: string
+    issued_by: string
+  }) => {
+    return callEdgeFunction('generate-noise-notice', params)
+  },
+
+  /**
+   * Generate printable HTML "Receipt for Goods Seized" (RMA s.328)
+   * Returns { html, seizure_number }
+   */
+  generateSeizureReceipt: async (params: {
+    noise_seizure_id: string
+    issued_by: string
+  }) => {
+    return callEdgeFunction('generate-seizure-receipt', params)
+  },
+
+  /**
    * Get real-time compliance statistics
    */
   getComplianceStatistics: async (params: {
@@ -1056,11 +1106,16 @@ export const edgeFunctions = {
   },
 
   /**
-   * AI chat for analysis and suggestions
+   * AI chat for analysis and suggestions.
+   *
+   * Sends a conversation history as a messages array so the edge function
+   * can maintain context across turns. Each message is { role, content }.
+   * Pass model/temperature to override the server defaults.
    */
   aiChat: async (params: {
-    message: string
-    context?: any
+    messages: Array<{ role: 'user' | 'assistant' | 'system'; content: string }>
+    model?: string
+    temperature?: number
   }) => {
     return callEdgeFunction('onspace-ai-chat', params)
   },

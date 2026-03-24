@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@/stores/authStore'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Shield, Radio, ChevronRight } from 'lucide-react'
+import { Shield, Radio, ChevronRight, ParkingSquare, Volume2 } from 'lucide-react'
 
 export default function PortalSelection() {
   const { user } = useAuthStore()
@@ -79,6 +79,54 @@ export default function PortalSelection() {
           <CardContent>
             <Button className="w-full bg-green-600 hover:bg-green-700 text-white">
               Open Field Portal
+              <ChevronRight className="h-4 w-4 ml-2" />
+            </Button>
+          </CardContent>
+        </Card>
+
+        {/* Parking officer portal */}
+        <Card
+          className="cursor-pointer hover:shadow-xl transition-all hover:scale-[1.02] border-orange-500/30 bg-white/5 backdrop-blur"
+          onClick={() => navigate('/parking-officer')}
+        >
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-3 text-white">
+              <div className="w-10 h-10 rounded-full bg-orange-600 flex items-center justify-center">
+                <ParkingSquare className="h-5 w-5 text-white" />
+              </div>
+              Parking Enforcement
+            </CardTitle>
+            <CardDescription className="text-orange-200">
+              TicketOr2-style chalk pass, recheck, permit check and infringement issuance
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button className="w-full bg-orange-600 hover:bg-orange-700 text-white">
+              Open Parking Portal
+              <ChevronRight className="h-4 w-4 ml-2" />
+            </Button>
+          </CardContent>
+        </Card>
+
+        {/* Noise control officer portal */}
+        <Card
+          className="cursor-pointer hover:shadow-xl transition-all hover:scale-[1.02] border-yellow-500/30 bg-white/5 backdrop-blur"
+          onClick={() => navigate('/noise-officer')}
+        >
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-3 text-white">
+              <div className="w-10 h-10 rounded-full bg-yellow-600 flex items-center justify-center">
+                <Volume2 className="h-5 w-5 text-white" />
+              </div>
+              Noise Control
+            </CardTitle>
+            <CardDescription className="text-yellow-200">
+              NZ RMA noise assessments, AN / DN / END notices and equipment seizures
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button className="w-full bg-yellow-600 hover:bg-yellow-700 text-white">
+              Open Noise Control Portal
               <ChevronRight className="h-4 w-4 ml-2" />
             </Button>
           </CardContent>

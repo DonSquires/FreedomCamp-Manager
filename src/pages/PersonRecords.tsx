@@ -142,6 +142,22 @@ export default function PersonRecords() {
     enabled: !!viewTarget,
   })
 
+  // Fetch canonical_homeless status for all plates linked to the selected person
+  const { data: canonicalHomelessMap = {} } = useQuery({
+    queryKey: ['person-canonical-homeless', viewTarget?.id, vehicleLinks.map(v => v.plate_number).join(',')],
+    queryFn: async () => {
+      const plates = vehicleLinks.map(v => v.plate_number).filter(Boolean)
+      if (plates.length === 0) return {}
+      const { data, error } = await supabase
+        .from('canonical_homeless')
+        .select('plate_number, status, confirmed_at')
+        .in('plate_number', plates)
+      if (error) throw error
+      return Object.fromEntries((data || []).map(r => [r.plate_number, r]))
+    },
+    enabled: !!viewTarget && vehicleLinks.length > 0,
+  })
+
   const savePerson = useMutation({
     mutationFn: async (isEdit: boolean) => {
       const payload = {
@@ -439,13 +455,29 @@ export default function PersonRecords() {
             <TabsContent value="vehicles" className="mt-3 max-h-64 overflow-y-auto space-y-2">
               {vehicleLinks.length === 0 ? (
                 <p className="text-sm text-muted-foreground text-center py-4">No linked vehicles</p>
-              ) : vehicleLinks.map(v => (
-                <div key={v.plate_number} className="border rounded p-2 text-sm flex items-center gap-2">
-                  <Car className="h-4 w-4 text-muted-foreground" />
-                  <span className="font-mono font-bold">{v.plate_number}</span>
-                  {v.relationship_type && <Badge variant="outline" className="text-xs">{v.relationship_type}</Badge>}
-                </div>
-              ))}
+              ) : vehicleLinks.map(v => {
+                const homeless = (canonicalHomelessMap as any)[v.plate_number]
+                return (
+                  <div key={v.plate_number} className="border rounded p-2 text-sm flex items-center gap-2 flex-wrap">
+                    <Car className="h-4 w-4 text-muted-foreground" />
+                    <span className="font-mono font-bold">{v.plate_number}</span>
+                    {v.relationship_type && <Badge variant="outline" className="text-xs">{v.relationship_type}</Badge>}
+                    {homeless && (
+                      <Badge
+                        variant="outline"
+                        className={`text-xs ${
+                          homeless.status === 'confirmed' ? 'bg-orange-50 text-orange-700 border-orange-300' :
+                          homeless.status === 'suspected' ? 'bg-amber-50 text-amber-700 border-amber-300' :
+                          homeless.status === 'cleared' ? 'bg-green-50 text-green-700 border-green-300' :
+                          'bg-gray-50 text-gray-600 border-gray-300'
+                        }`}
+                      >
+                        🏕️ Homeless: {homeless.status}
+                      </Badge>
+                    )}
+                  </div>
+                )
+              })}
             </TabsContent>
           </Tabs>
           <DialogFooter>

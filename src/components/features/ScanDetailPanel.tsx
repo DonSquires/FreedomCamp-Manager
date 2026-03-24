@@ -85,6 +85,29 @@ export interface DetailScanData {
     value_a: string | null
     value_b: string | null
   }> | null
+  // ── TicketOr2-style stay duration fields (from observations) ──────────────
+  /** Number of consecutive nights this vehicle has been in this zone */
+  consecutiveNights: number | null
+  /** Total nights stayed in this zone this calendar month */
+  nightsStayedThisMonth: number | null
+}
+
+// ── TicketOr2-style enforcement history for a plate ──────────────────────────
+// Fetched client-side once the plate is known; gives the officer full prior
+// enforcement context before deciding on an action.
+interface PlateHistory {
+  warningCount: number
+  lastWarningAt: string | null
+  ntVCount: number
+  lastNtVAt: string | null
+  lastNtVZone: string | null
+  infringementCount: number
+  lastInfringementAt: string | null
+  returnDetected: boolean      // plate served NtV and is back in the same/nearby zone
+  returnDaysAgo: number | null
+  /** Recommended action based on prior history */
+  recommendation: 'warning' | 'notice_to_vacate' | 'infringement' | 'none'
+  recommendationReason: string
 }
 
 interface IssueActionParams {
@@ -270,6 +293,102 @@ export function ScanDetailPanel({
     onError: (err: any) => toast.error(err.message || 'Failed to escalate'),
   })
 
+  // ── TicketOr2-style: fetch plate enforcement history ─────────────────────
+  // Fires once the plate is resolved (non-null, non-MANUAL_REQUIRED).
+  // Queries prior warnings, NtVs, infringements, and return detection.
+  const plate_known = obs?.plateNumber && obs.plateNumber !== 'MANUAL_REQUIRED' && obs.plateNumber !== 'PROCESSING...'
+  const { data: plateHistory } = useQuery<PlateHistory | null>({
+    queryKey: ['plate-enforcement-history', obs?.plateNumber, user?.organization_id],
+    queryFn: async (): Promise<PlateHistory | null> => {
+      const plate = obs!.plateNumber!
+      const orgId = user!.organization_id
+
+      // Run all three history lookups in parallel
+      const [warningRes, ntVRes, infRes] = await Promise.all([
+        // Prior warnings (enforcement_actions table)
+        (supabase.from('enforcement_actions') as any)
+          .select('id, created_at, action_type, zone_id')
+          .eq('organization_id', orgId)
+          .eq('plate_number', plate)
+          .eq('action_type', 'warning')
+          .order('created_at', { ascending: false })
+          .limit(20),
+
+        // Prior Notices to Vacate
+        (supabase.from('notices_to_vacate') as any)
+          .select('id, issued_at, zone_id, zones!zone_id(name)')
+          .eq('organization_id', orgId)
+          .eq('plate_number', plate)
+          .order('issued_at', { ascending: false })
+          .limit(20),
+
+        // Prior infringement notices
+        (supabase.from('infringement_notices') as any)
+          .select('id, issued_at')
+          .eq('organization_id', orgId)
+          .eq('plate_number', plate)
+          .order('issued_at', { ascending: false })
+          .limit(10),
+      ])
+
+      const warnings  = warningRes.data  ?? []
+      const ntVs      = ntVRes.data      ?? []
+      const infs      = infRes.data      ?? []
+
+      const lastNtV = ntVs[0] ?? null
+      const lastNtVAt: string | null = lastNtV?.issued_at ?? null
+      const lastNtVZone: string | null = (lastNtV as any)?.zones?.name ?? null
+
+      // Return detection: plate received NtV in the past 30 days
+      let returnDetected = false
+      let returnDaysAgo: number | null = null
+      if (lastNtVAt) {
+        const daysSince = Math.floor((Date.now() - new Date(lastNtVAt).getTime()) / 86_400_000)
+        if (daysSince <= 30) {
+          returnDetected = true
+          returnDaysAgo  = daysSince
+        }
+      }
+
+      // Smart recommendation (TicketOr2 escalation ladder)
+      let recommendation: PlateHistory['recommendation'] = 'none'
+      let recommendationReason = ''
+
+      if (infs.length > 0) {
+        recommendation = 'infringement'
+        recommendationReason = `Infringement previously issued — repeat offender`
+      } else if (returnDetected) {
+        recommendation = 'infringement'
+        recommendationReason = `Notice to Vacate served ${returnDaysAgo} day${returnDaysAgo === 1 ? '' : 's'} ago — vehicle returned`
+      } else if (ntVs.length > 0) {
+        recommendation = 'infringement'
+        recommendationReason = `${ntVs.length} prior Notice${ntVs.length > 1 ? 's' : ''} to Vacate on record`
+      } else if (warnings.length > 0) {
+        recommendation = 'notice_to_vacate'
+        recommendationReason = `${warnings.length} prior warning${warnings.length > 1 ? 's' : ''} issued — escalate to NtV`
+      } else {
+        recommendation = 'warning'
+        recommendationReason = 'No prior enforcement history — issue warning first'
+      }
+
+      return {
+        warningCount:      warnings.length,
+        lastWarningAt:     warnings[0]?.created_at ?? null,
+        ntVCount:          ntVs.length,
+        lastNtVAt,
+        lastNtVZone,
+        infringementCount: infs.length,
+        lastInfringementAt: infs[0]?.issued_at ?? null,
+        returnDetected,
+        returnDaysAgo,
+        recommendation,
+        recommendationReason,
+      }
+    },
+    enabled: !!plate_known && !!user?.organization_id && !obs?.processingPending,
+    staleTime: 60_000,
+  })
+
   // ── Poll until plate + compliance are resolved ───────────────────────────
   useEffect(() => {
     if (!obs?.observationId || !obs.processingPending) return
@@ -289,6 +408,7 @@ export function ScanDetailPanel({
           'self_contained, self_contained_expiry, zone_id,' +
           'gps_latitude, gps_longitude,' +
           'has_discrepancies, discrepancy_flags,' +
+          'consecutive_nights, nights_stayed_this_month,' +
           'zone:zones!zone_id(name)'
         )
         .eq('observation_id', obs.observationId)
@@ -362,6 +482,8 @@ export function ScanDetailPanel({
         gpsLongitude:      data.gps_longitude        ?? prev.gpsLongitude,
         hasDiscrepancies:  !!(data.has_discrepancies),
         discrepancyFlags:  Array.isArray(data.discrepancy_flags) ? data.discrepancy_flags : prev.discrepancyFlags,
+        consecutiveNights:     data.consecutive_nights         ?? prev.consecutiveNights,
+        nightsStayedThisMonth: data.nights_stayed_this_month   ?? prev.nightsStayedThisMonth,
       } : prev)
 
       // Update edit fields if not currently editing
@@ -792,6 +914,91 @@ export function ScanDetailPanel({
               )
             })()}
 
+            {/* ── TicketOr2-style Stay Duration + Prior History card ── */}
+            {!obs.processingPending && obs.plateNumber && obs.plateNumber !== 'MANUAL_REQUIRED' && (
+              <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 p-3 space-y-2.5">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
+                  <Clock className="h-3.5 w-3.5" />
+                  Officer Intelligence — {obs.plateNumber}
+                </p>
+
+                {/* Stay duration */}
+                {(obs.consecutiveNights !== null || obs.nightsStayedThisMonth !== null) && (
+                  <div className="flex gap-2 flex-wrap">
+                    {obs.consecutiveNights !== null && (
+                      <div className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold border ${
+                        obs.consecutiveNights >= 3
+                          ? 'bg-red-100 dark:bg-red-950/40 text-red-800 dark:text-red-300 border-red-200 dark:border-red-800'
+                          : obs.consecutiveNights >= 2
+                            ? 'bg-orange-100 dark:bg-orange-950/40 text-orange-800 dark:text-orange-300 border-orange-200 dark:border-orange-800'
+                            : 'bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800'
+                      }`}>
+                        <Car className="h-3 w-3 shrink-0" />
+                        {obs.consecutiveNights} consecutive night{obs.consecutiveNights !== 1 ? 's' : ''}
+                      </div>
+                    )}
+                    {obs.nightsStayedThisMonth !== null && (
+                      <div className="flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold bg-purple-50 dark:bg-purple-950/30 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
+                        <Clock className="h-3 w-3 shrink-0" />
+                        {obs.nightsStayedThisMonth} nights this month
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Return detection — highest priority alert */}
+                {plateHistory?.returnDetected && (
+                  <div className="flex items-start gap-2 rounded-lg p-2 bg-red-100 dark:bg-red-950/50 border border-red-300 dark:border-red-700">
+                    <AlertTriangle className="h-4 w-4 text-red-600 dark:text-red-400 shrink-0 mt-0.5" />
+                    <div className="text-xs text-red-800 dark:text-red-200">
+                      <span className="font-bold">Return Detected</span>
+                      {' — '}Notice to Vacate served {plateHistory.returnDaysAgo} day{plateHistory.returnDaysAgo === 1 ? '' : 's'} ago
+                      {plateHistory.lastNtVZone && ` at ${plateHistory.lastNtVZone}`}.
+                      {' '}Vehicle has returned.
+                    </div>
+                  </div>
+                )}
+
+                {/* Prior enforcement history pills */}
+                {plateHistory && (plateHistory.warningCount + plateHistory.ntVCount + plateHistory.infringementCount) > 0 ? (
+                  <div className="space-y-1">
+                    <p className="text-xs text-muted-foreground">Prior enforcement for this plate:</p>
+                    <div className="flex gap-1.5 flex-wrap">
+                      {plateHistory.warningCount > 0 && (
+                        <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold bg-yellow-100 dark:bg-yellow-950/40 text-yellow-800 dark:text-yellow-300 border border-yellow-200 dark:border-yellow-700">
+                          <FileWarning className="h-3 w-3" />
+                          {plateHistory.warningCount} Warning{plateHistory.warningCount > 1 ? 's' : ''}
+                        </span>
+                      )}
+                      {plateHistory.ntVCount > 0 && (
+                        <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold bg-red-100 dark:bg-red-950/40 text-red-800 dark:text-red-300 border border-red-200 dark:border-red-700">
+                          <Megaphone className="h-3 w-3" />
+                          {plateHistory.ntVCount} Notice{plateHistory.ntVCount > 1 ? 's' : ''} to Vacate
+                        </span>
+                      )}
+                      {plateHistory.infringementCount > 0 && (
+                        <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold bg-purple-100 dark:bg-purple-950/40 text-purple-800 dark:text-purple-300 border border-purple-200 dark:border-purple-700">
+                          <Printer className="h-3 w-3" />
+                          {plateHistory.infringementCount} Infringement{plateHistory.infringementCount > 1 ? 's' : ''}
+                        </span>
+                      )}
+                    </div>
+                    {plateHistory.lastNtVAt && (
+                      <p className="text-xs text-muted-foreground">
+                        Last NtV: {new Date(plateHistory.lastNtVAt).toLocaleDateString('en-NZ')}
+                        {plateHistory.lastNtVZone && ` (${plateHistory.lastNtVZone})`}
+                      </p>
+                    )}
+                  </div>
+                ) : plateHistory ? (
+                  <p className="text-xs text-green-700 dark:text-green-400 flex items-center gap-1">
+                    <CheckCircle className="h-3 w-3" />
+                    No prior enforcement history for this plate
+                  </p>
+                ) : null}
+              </div>
+            )}
+
             {/* Editable vehicle fields */}
             <div className="flex items-center justify-between">
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
@@ -1168,6 +1375,32 @@ export function ScanDetailPanel({
                   Select an enforcement action to take on-site.
                   All actions are logged and visible to administration.
                 </p>
+
+                {/* ── TicketOr2-style action recommendation ──────────────── */}
+                {plateHistory && plateHistory.recommendation !== 'none' && (
+                  <div className={`rounded-xl border-2 p-3 space-y-1 ${
+                    plateHistory.recommendation === 'infringement'
+                      ? 'bg-red-50 dark:bg-red-950/30 border-red-300 dark:border-red-700'
+                      : plateHistory.recommendation === 'notice_to_vacate'
+                        ? 'bg-orange-50 dark:bg-orange-950/30 border-orange-300 dark:border-orange-700'
+                        : 'bg-yellow-50 dark:bg-yellow-950/30 border-yellow-300 dark:border-yellow-700'
+                  }`}>
+                    <p className={`text-xs font-bold uppercase tracking-wide flex items-center gap-1.5 ${
+                      plateHistory.recommendation === 'infringement' ? 'text-red-700 dark:text-red-300'
+                      : plateHistory.recommendation === 'notice_to_vacate' ? 'text-orange-700 dark:text-orange-300'
+                      : 'text-yellow-700 dark:text-yellow-300'
+                    }`}>
+                      {plateHistory.recommendation === 'infringement' && <Printer className="h-3.5 w-3.5 shrink-0" />}
+                      {plateHistory.recommendation === 'notice_to_vacate' && <Megaphone className="h-3.5 w-3.5 shrink-0" />}
+                      {plateHistory.recommendation === 'warning' && <FileWarning className="h-3.5 w-3.5 shrink-0" />}
+                      Recommended:{' '}
+                      {plateHistory.recommendation === 'infringement' ? 'Issue Infringement Notice'
+                        : plateHistory.recommendation === 'notice_to_vacate' ? 'Issue Notice to Vacate'
+                        : 'Issue Warning'}
+                    </p>
+                    <p className="text-xs text-muted-foreground">{plateHistory.recommendationReason}</p>
+                  </div>
+                )}
 
                 {/* Warning — shown for officer_direct, hybrid, and admin_first */}
                 <Button

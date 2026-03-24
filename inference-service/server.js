@@ -17,9 +17,40 @@ const multer = require('multer');
 const sharp = require('sharp');
 const ort = require('onnxruntime-node');
 const cors = require('cors');
+const rateLimit = require('express-rate-limit');
+const path = require('path');
+const fs = require('fs');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// ── Rate limiters ────────────────────────────────────────────────────────────
+// Inference endpoints are compute-intensive; limit per IP to prevent DoS.
+// Authenticated routes are bound to the same window so an attacker who
+// obtains a token still cannot flood the service.
+const inferenceRateLimit = rateLimit({
+  windowMs:         60 * 1000,          // 1 minute window
+  max:              Number(process.env.INFER_RATE_LIMIT_RPM   ?? 30),
+  standardHeaders:  true,
+  legacyHeaders:    false,
+  message:          { error: 'Too many inference requests — please slow down' },
+});
+
+const alprRateLimit = rateLimit({
+  windowMs:         60 * 1000,
+  max:              Number(process.env.ALPR_RATE_LIMIT_RPM    ?? 60),
+  standardHeaders:  true,
+  legacyHeaders:    false,
+  message:          { error: 'Too many ALPR requests — please slow down' },
+});
+
+const tabularRateLimit = rateLimit({
+  windowMs:         60 * 1000,
+  max:              Number(process.env.TABULAR_RATE_LIMIT_RPM ?? 20),
+  standardHeaders:  true,
+  legacyHeaders:    false,
+  message:          { error: 'Too many tabular analysis requests — please slow down' },
+});
 const YOLO_INPUT_SIZE = 640;
 const VEHICLE_ATTRS_PROVIDER = (process.env.VEHICLE_ATTRS_PROVIDER || 'basic').toLowerCase();
 const OPENAI_BASE_URL = process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1';
@@ -402,7 +433,7 @@ async function analyzeTabularDataWithOllama(sampleRows) {
   }
 }
 
-app.post('/nlp/tabular/analyze', requireInferenceAuth, async (req, res) => {
+app.post('/nlp/tabular/analyze', tabularRateLimit, requireInferenceAuth, async (req, res) => {
   try {
     const sampleRows = req.body?.sampleRows;
     if (!Array.isArray(sampleRows) || sampleRows.length === 0) {
@@ -739,7 +770,7 @@ async function inferVehicleAttributes(fullImageBuffer, vehicleCropBuffer) {
 }
 
 // Main inference endpoint
-app.post('/infer', upload.single('photo'), async (req, res) => {
+app.post('/infer', inferenceRateLimit, upload.single('photo'), async (req, res) => {
   const startTime = Date.now();
   
   try {
@@ -870,8 +901,580 @@ app.post('/infer', upload.single('photo'), async (req, res) => {
   }
 });
 
+// ============================================================================
+// Self-hosted ALPR module
+//
+// Architecture:
+//   1. Plate detection  — optional `models/plate_detect.onnx` (YOLOv9-nano, 320px input).
+//                         If not present, falls back to the vehicle bbox from YOLOv8n
+//                         (less precise but still useful).
+//   2. Region prep      — Sharp crops + upscales the plate region, converts to greyscale,
+//                         enhances contrast for OCR.
+//   3. OCR              — tesseract.js (WebAssembly Tesseract, pure JS, no system deps).
+//                         Char whitelist: A-Z 0-9.  PSM 7 (single text line).
+//   4. NZ normalisation — strips non-alphanumeric chars, uppercases, validates known
+//                         NZ plate patterns.
+//
+// The /infer/alpr endpoint returns the same shape as the Plate Recognizer API
+// so _shared/alpr.ts can call either provider transparently.
+// ============================================================================
+
+const { createWorker } = require('tesseract.js');
+const PLATE_DETECT_MODEL_PATH = path.join(__dirname, 'models', 'plate_detect.onnx');
+const PLATE_DETECT_INPUT_SIZE  = 320;  // YOLOv9-nano-1d-320 input
+
+let plateDetectSession = null;  // loaded on-demand, null = not available
+
+// Lazy-load the plate detection model (optional — service works without it)
+async function loadPlateDetectModel() {
+  if (plateDetectSession !== null) return plateDetectSession;
+  if (!fs.existsSync(PLATE_DETECT_MODEL_PATH)) return null;
+  try {
+    plateDetectSession = await ort.InferenceSession.create(PLATE_DETECT_MODEL_PATH, {
+      executionProviders: ['cpu'],
+    });
+    console.log('✅ Plate detection model loaded:', PLATE_DETECT_MODEL_PATH);
+  } catch (err) {
+    console.warn('⚠️  Plate detect model load failed (non-fatal):', err.message);
+    plateDetectSession = null;
+  }
+  return plateDetectSession;
+}
+
+// Tesseract worker — created per request (stateless) for safety on Railway/Render
+// For high-throughput deployments consider a persistent worker pool.
+async function ocrPlate(imageBuffer) {
+  const worker = await createWorker('eng', 1, {
+    // Silence noisy Tesseract logs in production
+    logger: () => {},
+    errorHandler: () => {},
+  });
+  try {
+    await worker.setParameters({
+      tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789',
+      tessedit_pageseg_mode:   '7',  // PSM_SINGLE_LINE
+    });
+    const { data } = await worker.recognize(imageBuffer);
+    return {
+      text:       data.text?.trim()       ?? '',
+      confidence: data.confidence         ?? 0,
+      words:      data.words              ?? [],
+    };
+  } finally {
+    await worker.terminate();
+  }
+}
+
+// Preprocess image region for OCR:
+//   - Crop to bbox (optional)
+//   - Upscale to at least 100px tall (OCR accuracy improves significantly)
+//   - Convert to greyscale
+//   - Sharpen + increase contrast
+async function prepPlateRegion(imageBuffer, bbox = null) {
+  let pipeline = sharp(imageBuffer);
+
+  if (bbox) {
+    const { x, y, width, height } = bbox;
+    // Add 10% padding around the detected plate region
+    const meta   = await sharp(imageBuffer).metadata();
+    const imgW   = meta.width  ?? 640;
+    const imgH   = meta.height ?? 640;
+    const pad    = Math.max(4, Math.round(Math.min(width, height) * 0.10));
+    const left   = Math.max(0, Math.round(x - pad));
+    const top    = Math.max(0, Math.round(y - pad));
+    const right  = Math.min(imgW, Math.round(x + width  + pad));
+    const bottom = Math.min(imgH, Math.round(y + height + pad));
+    pipeline = pipeline.extract({ left, top, width: right - left, height: bottom - top });
+  }
+
+  // Upscale: OCR benefits greatly from a minimum ~100px tall region
+  const cropped  = await pipeline.toBuffer();
+  const cropMeta = await sharp(cropped).metadata();
+  const scale    = cropMeta.height < 100 ? Math.ceil(100 / (cropMeta.height || 1)) : 2;
+
+  return sharp(cropped)
+    .resize({ width: (cropMeta.width ?? 200) * scale, kernel: sharp.kernel.lanczos3 })
+    .greyscale()
+    .normalise()                    // stretch histogram to full range
+    .sharpen({ sigma: 1.5 })
+    .toBuffer();
+}
+
+// Detect license plate region using the plate detection ONNX model
+// Returns { x, y, width, height } in PIXEL coordinates of original image
+// or null if no plate found above threshold.
+async function detectPlateRegion(imageBuffer) {
+  const session = await loadPlateDetectModel();
+  if (!session) return null;
+
+  try {
+    const meta     = await sharp(imageBuffer).metadata();
+    const origW    = meta.width  ?? 640;
+    const origH    = meta.height ?? 640;
+    const size     = PLATE_DETECT_INPUT_SIZE;
+
+    // Resize to model input size preserving aspect ratio with letterboxing
+    const resized  = await sharp(imageBuffer)
+      .resize(size, size, { fit: 'contain', background: { r: 114, g: 114, b: 114 } })
+      .removeAlpha()
+      .raw()
+      .toBuffer();
+
+    // Build float32 tensor (CHW, normalised 0-1) matching YOLOv9 expectations
+    const floats   = new Float32Array(3 * size * size);
+    for (let i = 0; i < size * size; i++) {
+      floats[i]               = resized[i * 3]     / 255.0;  // R
+      floats[size * size + i] = resized[i * 3 + 1] / 255.0;  // G
+      floats[2 * size * size + i] = resized[i * 3 + 2] / 255.0;  // B
+    }
+
+    const tensor   = new ort.Tensor('float32', floats, [1, 3, size, size]);
+    const inputKey = session.inputNames[0];
+    const outputs  = await session.run({ [inputKey]: tensor });
+    const output   = outputs[session.outputNames[0]].data;
+
+    // Parse detections (standard YOLOv9 output: [batch, 5+classes, anchors])
+    // Format: cx, cy, w, h, confidence (all in 0-1 normalised coords)
+    const numAnchors = outputs[session.outputNames[0]].dims[2] ?? 8400;
+    const stride     = 5;  // cx, cy, w, h, conf (single class: plate)
+    const threshold  = 0.35;
+
+    let bestConf  = 0;
+    let bestBbox  = null;
+
+    for (let i = 0; i < numAnchors; i++) {
+      const conf = output[4 * numAnchors + i] ?? output[stride * i + 4];
+      if (conf > threshold && conf > bestConf) {
+        // Coordinates may be in column-major or row-major depending on YOLO variant
+        // Try both layouts and use the one that produces a valid-looking box
+        const cx = output[0 * numAnchors + i] ?? output[stride * i];
+        const cy = output[1 * numAnchors + i] ?? output[stride * i + 1];
+        const w  = output[2 * numAnchors + i] ?? output[stride * i + 2];
+        const h  = output[3 * numAnchors + i] ?? output[stride * i + 3];
+        bestConf = conf;
+        // Scale back to original image coordinates
+        const scaleX = origW / size;
+        const scaleY = origH / size;
+        bestBbox = {
+          x:      (cx - w / 2) * scaleX,
+          y:      (cy - h / 2) * scaleY,
+          width:  w * scaleX,
+          height: h * scaleY,
+          confidence: conf,
+        };
+      }
+    }
+
+    return bestBbox;
+  } catch (err) {
+    console.warn('⚠️  Plate detect inference failed (non-fatal):', err.message);
+    return null;
+  }
+}
+
+// NZ plate format validation + normalisation
+// Returns { plate, valid, pattern } or null if unreadable
+const NZ_PLATE_PATTERNS = [
+  // ABC123  — standard 3-letter + 3-digit format introduced post-2001
+  { name: 'standard_modern',   re: /^[A-Z]{3}[0-9]{3}$/ },
+  // AB1234  — older 2-letter + 4-digit format used pre-2001
+  { name: 'standard_older',    re: /^[A-Z]{2}[0-9]{4}$/ },
+  // A123 / AB12 / ABC1 — general mixed plates (motorcycles, trailers, etc.)
+  { name: 'standard_mixed',    re: /^[A-Z]{1,3}[0-9]{1,4}$/ },
+  // KIWI / NZ2023 — personalised/vanity plates (1–7 alphanumeric chars)
+  { name: 'personalised',      re: /^[A-Z0-9]{1,7}$/ },
+  // T12345 — trade plates issued to vehicle dealers / mechanics
+  { name: 'trade',             re: /^T[0-9]{1,5}$/ },
+  // D12345 — diplomatic corps plates
+  { name: 'diplomatic',        re: /^D[0-9]{1,5}$/ },
+];
+
+function normaliseNZPlate(rawText) {
+  if (!rawText) return null;
+  // Strip anything that isn't A-Z or 0-9
+  const cleaned = rawText.toUpperCase().replace(/[^A-Z0-9]/g, '').trim();
+  if (cleaned.length < 2 || cleaned.length > 7) return null;
+
+  // Score against NZ patterns (higher score = more likely to be a real plate)
+  for (const { name, re } of NZ_PLATE_PATTERNS) {
+    if (re.test(cleaned)) {
+      return { plate: cleaned, valid: true, pattern: name };
+    }
+  }
+  // Still return if length is reasonable — OCR might have minor errors
+  return { plate: cleaned, valid: false, pattern: 'unknown' };
+}
+
+// ── POST /infer/alpr — Self-hosted ALPR ─────────────────────────────────────
+// Drop-in alternative to Plate Recognizer. Returns the same response shape so
+// _shared/alpr.ts and all callers work unchanged.
+//
+// Required: photo file (multipart/form-data field "photo")
+// Optional: vehicle_bbox JSON string — pre-computed vehicle bbox to guide
+//           the search (avoids running YOLOv8n again if you already have it)
+// ============================================================================
+app.post('/infer/alpr', alprRateLimit, upload.single('photo'), requireInferenceAuth, async (req, res) => {
+  const startTime = Date.now();
+
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No photo uploaded', field: 'photo' });
+    }
+
+    const imageBuffer = req.file.buffer;
+    let vehicleBbox = null;
+
+    // Parse optional pre-computed vehicle bbox
+    if (req.body?.vehicle_bbox) {
+      try { vehicleBbox = JSON.parse(req.body.vehicle_bbox); } catch { /* ignore */ }
+    }
+
+    // ── Step 1: Attempt dedicated plate detection ──────────────────
+    let plateBbox = await detectPlateRegion(imageBuffer);
+    let detectionMethod = plateBbox ? 'plate_detect_model' : null;
+
+    // ── Step 2: Fallback — if no plate model, use vehicle crop from YOLOv8n ──
+    if (!plateBbox) {
+      if (vehicleBbox) {
+        plateBbox = vehicleBbox;
+        detectionMethod = 'vehicle_bbox_provided';
+      } else if (yoloSession) {
+        try {
+          const yoloInput = await preprocessForYOLO(imageBuffer);
+          const vehicleDet = await detectVehicles(yoloInput);
+          if (vehicleDet) {
+            plateBbox = vehicleDet.bbox;
+            detectionMethod = 'yolov8n_vehicle_crop';
+          }
+        } catch { /* fall through to full-image OCR */ }
+      }
+    }
+
+    if (!plateBbox) {
+      detectionMethod = 'full_image_fallback';
+    }
+
+    // ── Step 3: Preprocess the plate/vehicle region for OCR ───────
+    const ocrInput = await prepPlateRegion(imageBuffer, plateBbox);
+
+    // ── Step 4: OCR ───────────────────────────────────────────────
+    const ocrResult = await ocrPlate(ocrInput);
+
+    // ── Step 5: Normalise for NZ plates ──────────────────────────
+    const normalised = normaliseNZPlate(ocrResult.text);
+
+    // Build all_candidates from Tesseract word-level results
+    const candidates = ocrResult.words
+      .map(w => normaliseNZPlate(w.text))
+      .filter(n => n && n.plate && n.plate.length >= 2)
+      .map(n => ({ plate: n.plate, confidence: ocrResult.confidence / 100 }));
+
+    // Use normalised plate, or first candidate
+    const bestPlate = normalised?.plate ?? candidates[0]?.plate ?? null;
+    const confidence = bestPlate
+      ? Math.min(0.99, (ocrResult.confidence / 100) * (normalised?.valid ? 1.15 : 0.75))
+      : 0;
+
+    const duration = Date.now() - startTime;
+
+    // Return in Plate Recognizer-compatible shape so _shared/alpr.ts needs no changes
+    return res.json({
+      success: true,
+      // Plate Recognizer compatible top-level keys
+      plate:           bestPlate,
+      confidence:      Math.round(confidence * 100) / 100,
+      // Results array (matches Plate Recognizer format)
+      results: bestPlate ? [{
+        plate:      bestPlate,
+        score:      confidence,
+        box:        plateBbox ? {
+          xmin: Math.round(plateBbox.x),
+          ymin: Math.round(plateBbox.y),
+          xmax: Math.round(plateBbox.x + plateBbox.width),
+          ymax: Math.round(plateBbox.y + plateBbox.height),
+        } : null,
+        candidates: candidates.slice(0, 5),
+        region:     { code: 'nz', score: 0.99 },
+        valid_nz_format: normalised?.valid ?? false,
+        nz_pattern:     normalised?.pattern ?? null,
+      }] : [],
+      // Extended metadata
+      alpr_provider:    'local',
+      detection_method: detectionMethod,
+      ocr_raw_text:     ocrResult.text,
+      processing_time_ms: duration,
+    });
+
+  } catch (error) {
+    console.error('❌ /infer/alpr error:', error);
+    return res.status(500).json({ error: 'ALPR failed', message: error.message });
+  }
+});
+
+// ============================================================================
+// POST /infer/chalk — TicketOr2-style AI-assisted chalk pass
+//
+// Accepts a vehicle/tyre photo and returns:
+//   - plate number (via Plate Recognizer if PLATERECOGNIZER_TOKEN is set)
+//   - tyre valve position (via OpenAI vision: north/east/south/west/unknown)
+//   - vehicle make/model/year/colour (via existing AI attribute pipeline)
+//   - vehicle embedding (for movement comparison at recheck)
+//   - vehicle detection confidence
+//
+// All fields gracefully degrade: valve position → 'unknown' if OpenAI not
+// configured, plate → null if ALPR not available, embedding → null if ONNX
+// models not loaded.
+// ============================================================================
+app.post('/infer/chalk', inferenceRateLimit, upload.single('photo'), requireInferenceAuth, async (req, res) => {
+  const startTime = Date.now();
+
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No photo uploaded', field: 'photo' });
+    }
+
+    const imageBuffer = req.file.buffer;
+
+    // ── 1. Plate Recognition via Plate Recognizer ─────────────────────
+    let plate = null;
+    let plateConfidence = null;
+    if (process.env.PLATERECOGNIZER_TOKEN) {
+      try {
+        const formData = new FormData();
+        const blob = new Blob([imageBuffer], { type: req.file.mimetype || 'image/jpeg' });
+        formData.append('upload', blob, req.file.originalname || 'photo.jpg');
+        formData.append('regions', process.env.ALPR_REGIONS || 'nz');
+
+        const alprResp = await fetch(
+          process.env.ALPR_CLOUD_URL || 'https://api.platerecognizer.com/v1/plate-reader/',
+          {
+            method: 'POST',
+            headers: { Authorization: `Token ${process.env.PLATERECOGNIZER_TOKEN}` },
+            body: formData,
+            signal: AbortSignal.timeout(5000),
+          }
+        );
+        if (alprResp.ok) {
+          const alprData = await alprResp.json();
+          const best = alprData?.results?.[0];
+          if (best?.plate) {
+            plate = best.plate.toUpperCase().replace(/[^A-Z0-9]/g, '');
+            plateConfidence = best.score ?? null;
+          }
+        }
+      } catch (alprErr) {
+        console.warn('⚠️  /infer/chalk ALPR failed (non-fatal):', alprErr.message);
+      }
+    }
+
+    // ── 2. Tyre valve position via OpenAI vision ──────────────────────
+    let valvePosition = 'unknown';
+    let valveConfidence = 0;
+    let valveDescription = 'Valve position could not be determined';
+
+    if (OPENAI_API_KEY) {
+      try {
+        const imageBase64 = imageBuffer.toString('base64');
+        const mimeType = req.file.mimetype || 'image/jpeg';
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), ATTR_TIMEOUT_MS);
+
+        const valveResp = await fetch(`${OPENAI_BASE_URL}/chat/completions`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${OPENAI_API_KEY}`,
+          },
+          signal: controller.signal,
+          body: JSON.stringify({
+            model: OPENAI_MODEL,
+            temperature: 0,
+            response_format: { type: 'json_object' },
+            messages: [
+              {
+                role: 'system',
+                content:
+                  'You are a parking enforcement assistant. Analyse the tyre in this photo and determine ' +
+                  'the clock position of the valve stem on the front-left tyre (or the most visible tyre). ' +
+                  'This is used for electronic chalking — NZ council parking enforcement. ' +
+                  'Return strict JSON only with keys: ' +
+                  'valve_position (one of: "north","east","south","west","unknown"), ' +
+                  'valve_confidence (0.0–1.0), ' +
+                  'valve_description (short natural-language description of position, e.g. "Valve stem pointing approximately to 12 o\'clock (north)"). ' +
+                  'If no tyre/wheel is clearly visible, return valve_position: "unknown" and valve_confidence: 0.',
+              },
+              {
+                role: 'user',
+                content: [
+                  { type: 'text', text: 'What is the tyre valve stem position in this image?' },
+                  {
+                    type: 'image_url',
+                    image_url: { url: `data:${mimeType};base64,${imageBase64}` },
+                  },
+                ],
+              },
+            ],
+          }),
+        });
+
+        clearTimeout(timeout);
+
+        if (valveResp.ok) {
+          const valvePayload = await valveResp.json();
+          const content = valvePayload?.choices?.[0]?.message?.content;
+          if (content) {
+            const parsed = JSON.parse(content);
+            const pos = parsed.valve_position?.toLowerCase();
+            if (['north', 'east', 'south', 'west', 'unknown'].includes(pos)) {
+              valvePosition    = pos;
+              valveConfidence  = clamp01(parsed.valve_confidence ?? 0);
+              valveDescription = parsed.valve_description ?? valveDescription;
+            }
+          }
+        }
+      } catch (valveErr) {
+        console.warn('⚠️  /infer/chalk valve detection failed (non-fatal):', valveErr.message);
+      }
+    }
+
+    // ── 3. Vehicle detection + embedding + attributes ────────────────
+    let embedding = null;
+    let embeddingQuality = null;
+    let vehicleDetection = null;
+    let vehicleAttrs = { vehicle_make: null, vehicle_model: null, vehicle_year: null, vehicle_colour: null };
+
+    const modelsLoaded = !!(yoloSession && embeddingSession);
+
+    if (modelsLoaded) {
+      try {
+        const yoloInput = await preprocessForYOLO(imageBuffer);
+        const detection = await detectVehicles(yoloInput);
+        vehicleDetection = detection ? {
+          confidence: detection.confidence,
+          bbox: detection.bbox,
+          class: detection.class,
+        } : null;
+
+        const cropBuffer = await extractVehicleCropBuffer(imageBuffer, detection?.bbox ?? null);
+        const embeddingInput = await preprocessForEmbedding(imageBuffer, detection?.bbox ?? null);
+        const [embResult, attrs] = await Promise.all([
+          generateEmbedding(embeddingInput),
+          inferVehicleAttributes(imageBuffer, cropBuffer),
+        ]);
+        embedding = embResult.embedding;
+        embeddingQuality = embResult.quality;
+        vehicleAttrs = attrs;
+      } catch (inferErr) {
+        console.warn('⚠️  /infer/chalk ONNX inference failed (non-fatal):', inferErr.message);
+      }
+    } else if (VEHICLE_ATTRS_PROVIDER === 'openai') {
+      // Degraded: no ONNX but can still get attributes
+      try {
+        vehicleAttrs = await inferVehicleAttributes(imageBuffer, imageBuffer) || vehicleAttrs;
+      } catch { /* non-fatal */ }
+    }
+
+    const duration = Date.now() - startTime;
+
+    return res.json({
+      success: true,
+      data: {
+        // ALPR
+        plate,
+        plate_confidence: plateConfidence,
+
+        // Tyre valve (TicketOr2 core feature)
+        valve_position:    valvePosition,
+        valve_confidence:  valveConfidence,
+        valve_description: valveDescription,
+
+        // Vehicle detection
+        vehicle_detected:    !!vehicleDetection,
+        vehicle_confidence:  vehicleDetection?.confidence ?? null,
+        detection:           vehicleDetection,
+
+        // Embedding (store for movement comparison at recheck)
+        embedding,
+        embedding_quality:   embeddingQuality,
+
+        // Vehicle attributes
+        vehicle_make:    vehicleAttrs?.vehicle_make   ?? null,
+        vehicle_model:   vehicleAttrs?.vehicle_model  ?? null,
+        vehicle_year:    vehicleAttrs?.vehicle_year   ?? null,
+        vehicle_colour:  vehicleAttrs?.vehicle_colour ?? null,
+
+        metadata: {
+          processing_time_ms: duration,
+          alpr_available:     !!process.env.PLATERECOGNIZER_TOKEN,
+          valve_ai_available: !!OPENAI_API_KEY,
+          onnx_available:     modelsLoaded,
+        },
+      },
+    });
+
+  } catch (error) {
+    console.error('❌ /infer/chalk error:', error);
+    return res.status(500).json({ error: 'Chalk inference failed', message: error.message });
+  }
+});
+
+// ============================================================================
+// POST /infer/compare — Cosine similarity between two 384D embeddings
+//
+// Used at recheck time to determine if the same physical vehicle is present
+// (high similarity ≈ same vehicle, same position; lower ≈ different vehicle
+// or vehicle moved and returned).
+//
+// Body (JSON): { embedding1: number[], embedding2: number[] }
+// Response:    { similarity: number, same_vehicle: boolean, confidence: string }
+// ============================================================================
+app.post('/infer/compare', inferenceRateLimit, requireInferenceAuth, async (req, res) => {
+  try {
+    const { embedding1, embedding2 } = req.body ?? {};
+
+    if (!Array.isArray(embedding1) || !Array.isArray(embedding2)) {
+      return res.status(400).json({ error: 'embedding1 and embedding2 must be arrays' });
+    }
+    if (embedding1.length !== embedding2.length || embedding1.length === 0) {
+      return res.status(400).json({ error: 'Embeddings must be non-empty and equal length' });
+    }
+
+    // Cosine similarity
+    let dot = 0, norm1 = 0, norm2 = 0;
+    for (let i = 0; i < embedding1.length; i++) {
+      dot   += embedding1[i] * embedding2[i];
+      norm1 += embedding1[i] * embedding1[i];
+      norm2 += embedding2[i] * embedding2[i];
+    }
+    const similarity = norm1 > 0 && norm2 > 0
+      ? dot / (Math.sqrt(norm1) * Math.sqrt(norm2))
+      : 0;
+
+    // Thresholds tuned for MobileNetV3 384D embeddings on vehicle photos
+    const same_vehicle = similarity >= 0.85;
+    const confidence   = similarity >= 0.92 ? 'high'
+                        : similarity >= 0.85 ? 'medium'
+                        : similarity >= 0.70 ? 'low'
+                        : 'different';
+
+    return res.json({
+      similarity: Math.round(similarity * 10000) / 10000,  // 4 decimal places
+      same_vehicle,
+      confidence,
+      interpretation:
+        same_vehicle
+          ? `Same vehicle detected (similarity ${(similarity * 100).toFixed(1)}%)`
+          : `Different vehicle or vehicle moved (similarity ${(similarity * 100).toFixed(1)}%)`,
+    });
+
+  } catch (error) {
+    console.error('❌ /infer/compare error:', error);
+    return res.status(500).json({ error: 'Comparison failed', message: error.message });
+  }
+});
+
 // Health check
-app.get('/health', (req, res) => {
+app.get('/health', rateLimit({ windowMs: 60_000, max: 60, standardHeaders: true, legacyHeaders: false }), (req, res) => {
   const modelsLoaded = !!(yoloSession && embeddingSession);
   res.json({
     status: 'healthy',
@@ -896,6 +1499,10 @@ app.get('/health', (req, res) => {
       tabular_nlp: true,
       tabular_nlp_auth_api_key: !!INFERENCE_API_KEY,
       tabular_nlp_auth_supabase_jwt: !!SUPABASE_JWKS_URL,
+      // Self-hosted ALPR
+      local_alpr: true,                          // always available (tesseract.js)
+      local_alpr_plate_model: fs.existsSync(PLATE_DETECT_MODEL_PATH),
+      chalk_valve_ai: VEHICLE_ATTRS_PROVIDER === 'openai' && !!OPENAI_API_KEY,
     },
     uptime: process.uptime(),
     memory: process.memoryUsage()

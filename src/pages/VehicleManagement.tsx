@@ -764,7 +764,13 @@ export default function VehicleManagement() {
         setNzscvResult(data)
         toast.success(
           data.is_certified
-            ? `✓ Self-Contained Certification Found (${data.warrant_type})`
+            ? `✓ Self-Contained Certification Found (${
+                data.warrant_type === 'green'
+                  ? '🟢 Green – NZS 5465:2023'
+                  : data.warrant_type === 'blue'
+                  ? '🔵 Blue – legacy (expires Jun 2026)'
+                  : data.warrant_type || 'certified'
+              })`
             : 'No certification found'
         )
       }
@@ -1303,9 +1309,17 @@ export default function VehicleManagement() {
                       {nzscvResult.warrant_type && (
                         <div className="flex items-center gap-2">
                           <span className="text-gray-600">Warrant Type:</span>
-                          <Badge variant="outline">
-                            {nzscvResult.warrant_type === 'green' ? '🟢 Green' : '🔵 Blue'}
-                          </Badge>
+                          {nzscvResult.warrant_type === 'green' ? (
+                            <Badge variant="outline" className="bg-green-50 text-green-800 border-green-400">
+                              🟢 Green Warrant (NZS 5465:2023)
+                            </Badge>
+                          ) : nzscvResult.warrant_type === 'blue' ? (
+                            <Badge variant="outline" className="bg-blue-50 text-blue-800 border-blue-400">
+                              🔵 Blue Warrant (legacy – expires Jun 2026)
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline">{nzscvResult.warrant_type}</Badge>
+                          )}
                         </div>
                       )}
                       {nzscvResult.warrant_number && (

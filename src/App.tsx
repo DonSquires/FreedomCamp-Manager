@@ -43,6 +43,7 @@ import DataCleanupUtility from '@/pages/DataCleanupUtility'
 import DataIntegrityDashboard from '@/pages/DataIntegrityDashboard'
 import LivePatrolMonitor from '@/pages/LivePatrolMonitor'
 import ReportsHub from '@/pages/ReportsHub'
+import AiAnalysis from '@/pages/AiAnalysis'
 import HotspotsMap from '@/pages/HotspotsMap'
 import SpatialComplianceAdmin from '@/pages/SpatialComplianceAdmin'
 import ComplianceAnalytics from '@/pages/ComplianceAnalytics'
@@ -67,6 +68,14 @@ import VehicleRegistry from '@/pages/VehicleRegistry'
 import CanonicalRecordsManager from '@/pages/CanonicalRecordsManager'
 import PublicDisputePortal from '@/pages/PublicDisputePortal'
 import Disputes from '@/pages/Disputes'
+import Platform from '@/pages/Platform'
+import ParkingEnforcementPortal from '@/pages/ParkingEnforcementPortal'
+import ParkingOfficerPortal from '@/pages/ParkingOfficerPortal'
+import NoiseControlPortal from '@/pages/NoiseControlPortal'
+import NoiseOfficerPortal from '@/pages/NoiseOfficerPortal'
+import VehicleDiscrepancies from '@/pages/VehicleDiscrepancies'
+import NZSCVMonitor from '@/pages/NZSCVMonitor'
+import NotificationsCenter from '@/pages/NotificationsCenter'
 
 // ---------------------------------------------------------------------------
 // ErrorBoundary – catches render-time errors so a crash on one page does not
@@ -208,6 +217,14 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
     !['/vehicle-registry', '/search', '/profile', '/settings'].includes(location.pathname)
   ) {
     return <Navigate to="/vehicle-registry" replace />
+  }
+
+  // Grand master users land on the platform overview page.
+  if (
+    user.role === 'grand_master' &&
+    location.pathname === '/'
+  ) {
+    return <Navigate to="/platform" replace />
   }
 
   return <>{children}</>
@@ -450,8 +467,19 @@ export default function App() {
             path="/organizations"
             element={
               <ProtectedRoute>
-                <RoleRoute allowedRoles={['master']}>
+                <RoleRoute allowedRoles={['master', 'grand_master']}>
                   <OrganizationManagement />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/platform"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['grand_master']}>
+                  <Platform />
                 </RoleRoute>
               </ProtectedRoute>
             }
@@ -711,6 +739,17 @@ export default function App() {
           />
 
           <Route
+            path="/ai-analysis"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <AiAnalysis />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
             path="/hotspots"
             element={
               <ProtectedRoute>
@@ -800,6 +839,28 @@ export default function App() {
           />
 
           <Route
+            path="/admin/discrepancies"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <VehicleDiscrepancies />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/admin/nzscv"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'master', 'nzscv_monitor']}>
+                  <NZSCVMonitor />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
             path="/officer-welfare"
             element={
               <ProtectedRoute>
@@ -828,6 +889,46 @@ export default function App() {
                 <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
                   <InvestigationJobsPage />
                 </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          {/* ── Parking Enforcement ─────────────────────────────────── */}
+          <Route
+            path="/parking"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <ParkingEnforcementPortal />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/parking-officer"
+            element={
+              <ProtectedRoute>
+                <ParkingOfficerPortal />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* ── Noise Control ────────────────────────────────────────────── */}
+          <Route
+            path="/noise-control"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                  <NoiseControlPortal />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/noise-officer"
+            element={
+              <ProtectedRoute>
+                <NoiseOfficerPortal />
               </ProtectedRoute>
             }
           />
@@ -928,6 +1029,15 @@ export default function App() {
                 <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
                   <CanonicalRecordsManager />
                 </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/notifications"
+            element={
+              <ProtectedRoute>
+                <NotificationsCenter />
               </ProtectedRoute>
             }
           />

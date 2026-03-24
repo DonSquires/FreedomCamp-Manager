@@ -27,13 +27,16 @@ import {
   Home,
   Map,
   Navigation,
+  ParkingSquare,
   Printer,
   Radio,
   Search,
   Shield,
+  Sparkles,
   TrendingUp,
   UserCheck,
   Users,
+  Volume2,
 } from 'lucide-react'
 
 type DrillConfig = {
@@ -322,7 +325,35 @@ export default function AdminPortal() {
       if (disputesRes.error) diagnostics.push(`disputes_pending: ${disputesRes.error.message || 'unknown error'}`)
       const disputesPending = disputesRes.count
 
-      // ── 6. Homeless-exempt breach count ──────────────────────────────────
+      // Open dispute_intake submissions (new dispute intake system)
+      let openDisputeIntakeQuery = supabase
+        .from('dispute_intake')
+        .select('id', { count: 'exact', head: true })
+        .in('status', ['received', 'under_review', 'info_requested'])
+      if (effectiveOrganizationId) openDisputeIntakeQuery = openDisputeIntakeQuery.eq('organization_id', effectiveOrganizationId)
+      const { count: openDisputeIntake, error: disputeIntakeErr } = await openDisputeIntakeQuery
+      if (disputeIntakeErr) diagnostics.push(`open_dispute_intake: ${disputeIntakeErr.message || 'unknown error'}`)
+
+      // Vehicle discrepancies requiring review
+      let discrepanciesPendingQuery = (supabase.from('vehicle_discrepancies') as any)
+        .select('id', { count: 'exact', head: true })
+        .eq('requires_review', true)
+        .is('reviewed_at', null)
+      if (effectiveOrganizationId) discrepanciesPendingQuery = discrepanciesPendingQuery.eq('organization_id', effectiveOrganizationId)
+      const { count: discrepanciesPending, error: discrepanciesErr } = await discrepanciesPendingQuery
+      if (discrepanciesErr) diagnostics.push(`discrepancies_pending: ${discrepanciesErr.message || 'unknown error'}`)
+
+      // SCV certifications expiring within 30 days
+      const thirtyDaysFromNow = new Date()
+      thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30)
+      const { count: scvExpiringSoon, error: scvErr } = await supabase
+        .from('canonical_scv')
+        .select('plate_number', { count: 'exact', head: true })
+        .eq('is_self_contained', true)
+        .not('certificate_expiry', 'is', null)
+        .lte('certificate_expiry', thirtyDaysFromNow.toISOString())
+        .gt('certificate_expiry', new Date().toISOString())
+      if (scvErr) diagnostics.push(`scv_expiring_soon: ${scvErr.message || 'unknown error'}`)
       // Count non-compliant observations where the plate belongs to a homeless vehicle.
       // This is the exact number of "breaches" that are actually FC Act exempt.
       let homelessExemptBreachCount = 0
@@ -352,6 +383,9 @@ export default function AdminPortal() {
         checksToday:               checksToday               ?? 0,
         infringementsIssued:       infringementsIssued       ?? 0,
         disputesPending:           disputesPending           ?? 0,
+        openDisputeIntake:         openDisputeIntake         ?? 0,
+        discrepanciesPending:      discrepanciesPending      ?? 0,
+        scvExpiringSoon:           scvExpiringSoon            ?? 0,
         homelessExemptBreachCount,
         diagnostics,
       }
@@ -759,6 +793,27 @@ export default function AdminPortal() {
       iconColor: 'text-orange-500',
       config: { to: '/compliance', metric: 'homeless_status', period: periodLabel, tab: 'homeless', label: 'Homeless Vehicles' },
     },
+    {
+      title: 'Open Disputes',
+      value: isLoading ? '...' : (data?.openDisputeIntake ?? 0),
+      icon: AlertTriangle,
+      iconColor: 'text-red-500',
+      config: { to: '/disputes', metric: 'open_disputes', period: periodLabel, label: 'Open Disputes' },
+    },
+    {
+      title: 'Pending Discrepancies',
+      value: isLoading ? '...' : (data?.discrepanciesPending ?? 0),
+      icon: AlertTriangle,
+      iconColor: 'text-amber-500',
+      config: { to: '/admin/discrepancies', metric: 'discrepancies_pending', period: periodLabel, label: 'Pending Discrepancies' },
+    },
+    {
+      title: 'SCV Expiring (30d)',
+      value: isLoading ? '...' : (data?.scvExpiringSoon ?? 0),
+      icon: Shield,
+      iconColor: 'text-blue-500',
+      config: { to: '/admin/nzscv', metric: 'scv_expiring_soon', period: periodLabel, label: 'SCV Expiring Soon' },
+    },
   ]
 
   return (
@@ -1012,6 +1067,74 @@ export default function AdminPortal() {
             </CardContent>
           </Card>
         </section>
+        {/* ── Specialist Portals ─────────────────────────────────────────── */}
+        <section>
+          <Card className="bg-white dark:bg-gray-900 shadow-sm">
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Shield className="h-4 w-4 text-indigo-600" />
+                Specialist Enforcement Portals
+              </CardTitle>
+              <CardDescription className="text-xs">
+                Open dedicated admin portals for parking and noise control enforcement.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="grid gap-2 sm:grid-cols-2 pt-0">
+              <button
+                className="flex items-center gap-3 rounded-lg border bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-800 px-4 py-3 text-left hover:bg-orange-100 dark:hover:bg-orange-900/40 transition-colors group"
+                onClick={() => navigate('/parking')}
+              >
+                <ParkingSquare className="h-5 w-5 text-orange-600 shrink-0" />
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-orange-900 dark:text-orange-100">Parking Enforcement</p>
+                  <p className="text-xs text-orange-600 dark:text-orange-400 truncate">Sessions · Infringements · Permits</p>
+                </div>
+                <ArrowRight className="h-4 w-4 text-orange-400 ml-auto shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
+              </button>
+              <button
+                className="flex items-center gap-3 rounded-lg border bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800 px-4 py-3 text-left hover:bg-yellow-100 dark:hover:bg-yellow-900/40 transition-colors group"
+                onClick={() => navigate('/noise-control')}
+              >
+                <Volume2 className="h-5 w-5 text-yellow-700 shrink-0" />
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-yellow-900 dark:text-yellow-100">Noise Control</p>
+                  <p className="text-xs text-yellow-700 dark:text-yellow-400 truncate">Jobs · AN / DN / END · Seizures</p>
+                </div>
+                <ArrowRight className="h-4 w-4 text-yellow-500 ml-auto shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
+              </button>
+            </CardContent>
+          </Card>
+        </section>
+
+        {/* ── OnSpace AI ─────────────────────────────────────────────────────── */}
+        <section>
+          <Card className="bg-white dark:bg-gray-900 shadow-sm overflow-hidden">
+            <div className="h-1 w-full bg-gradient-to-r from-violet-500 to-indigo-600" />
+            <CardHeader className="pb-3 pt-4">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Sparkles className="h-4 w-4 text-violet-600" />
+                OnSpace AI
+              </CardTitle>
+              <p className="text-xs text-muted-foreground">
+                AI-powered analysis, legislation guidance and operational advice — uses your own AI backend.
+              </p>
+            </CardHeader>
+            <CardContent className="pt-0">
+              <button
+                className="flex w-full items-center gap-3 rounded-lg border bg-violet-50 dark:bg-violet-900/20 border-violet-200 dark:border-violet-800 px-4 py-3 text-left hover:bg-violet-100 dark:hover:bg-violet-900/40 transition-colors group"
+                onClick={() => navigate('/ai-analysis')}
+              >
+                <Sparkles className="h-5 w-5 text-violet-600 shrink-0" />
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-violet-900 dark:text-violet-100">Open OnSpace AI</p>
+                  <p className="text-xs text-violet-600 dark:text-violet-400 truncate">Compliance · Enforcement · Legislation · Reports</p>
+                </div>
+                <ArrowRight className="h-4 w-4 text-violet-400 ml-auto shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
+              </button>
+            </CardContent>
+          </Card>
+        </section>
+
       </div>
     </AppLayout>
   )
