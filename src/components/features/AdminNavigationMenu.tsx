@@ -23,6 +23,7 @@ const moreGroups = [
   {
     label: 'Compliance',
     links: [
+      { to: '/compliance-dashboard',    label: 'Compliance Dashboard',   icon: BarChart3 },
       { to: '/compliance-analytics',    label: 'Analytics',              icon: BarChart3 },
       { to: '/compliance-recalculation',label: 'Recalculation',          icon: Shield },
       { to: '/spatial-compliance',      label: 'Spatial Compliance',     icon: Map },

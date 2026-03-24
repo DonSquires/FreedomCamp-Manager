@@ -76,6 +76,8 @@ import NoiseOfficerPortal from '@/pages/NoiseOfficerPortal'
 import VehicleDiscrepancies from '@/pages/VehicleDiscrepancies'
 import NZSCVMonitor from '@/pages/NZSCVMonitor'
 import NotificationsCenter from '@/pages/NotificationsCenter'
+import ComplianceDashboard from '@/pages/ComplianceDashboard'
+import CleanDashboard from '@/pages/CleanDashboard'
 
 // ---------------------------------------------------------------------------
 // ErrorBoundary – catches render-time errors so a crash on one page does not
@@ -1038,6 +1040,26 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <NotificationsCenter />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/compliance-dashboard"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'master', 'admin_officer']}>
+                  <ComplianceDashboard />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/clean-dashboard"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'master', 'admin_officer']}>
+                  <CleanDashboard />
+                </RoleRoute>
               </ProtectedRoute>
             }
           />

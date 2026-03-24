@@ -2,7 +2,7 @@
  * CleanDashboard – rebuilt app using only current schema tables:
  *   observations, canonical_vehicles, user_profiles, organizations, zones
  *
- * Route: /new  (add role guard in App.tsx as needed)
+ * Route: /clean-dashboard  (admin / master / admin_officer)
  */
 
 import { useState } from 'react';
