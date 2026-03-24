@@ -15,6 +15,14 @@ import { AppLayout } from '@/components/features/AppLayout'
 import { useAuthStore } from '@/stores/authStore'
 import { supabase } from '@/lib/supabase'
 import { edgeFunctions } from '@/lib/edgeFunctions'
+import {
+  loadScvCurrentEntries,
+  mergeScvResults,
+  EMPTY_SCV_RESULT,
+  SCV_BATCH_SIZE,
+  type ScvSyncResult,
+  type ScvSyncResponse,
+} from '@/lib/scvUtils'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -49,8 +57,9 @@ export default function NZSCVMonitor() {
   const [scvFilter, setScvFilter] = useState<'all' | 'certified' | 'not_certified' | 'expired'>('all')
   const [sourceFilter, setSourceFilter] = useState('all')
   const [syncing, setSyncing] = useState(false)
+  const [syncStatus, setSyncStatus] = useState<string | null>(null)
   const [dryRun, setDryRun] = useState(false)
-  const [syncResult, setSyncResult] = useState<any>(null)
+  const [syncResult, setSyncResult] = useState<ScvSyncResult | null>(null)
 
   // ── Main query ─────────────────────────────────────────────────────────────
   const { data: rows, isLoading, refetch } = useQuery({
@@ -114,11 +123,54 @@ export default function NZSCVMonitor() {
     }
     setSyncing(true)
     setSyncResult(null)
+    setSyncStatus('Loading SCV list…')
+
     try {
-      const result = await edgeFunctions.syncScvList({ dry_run: dryRun })
-      if (result.error) throw new Error(result.error)
-      setSyncResult(result.data)
-      toast.success(dryRun ? 'Dry run complete — no changes written' : 'SCV list sync triggered')
+      // Step 1: fetch + parse the NZSCV Excel file client-side so the edge
+      // function receives pre-parsed entries rather than fetching the file itself.
+      const scvCurrentEntries = await loadScvCurrentEntries()
+      if (scvCurrentEntries.length === 0) {
+        toast.error('SCV list contains no current entries')
+        return
+      }
+
+      // Step 2: run batched sync — each call processes one page of canonical_vehicles
+      let offset = 0
+      let aggregate = { ...EMPTY_SCV_RESULT }
+      let hasMore = true
+      let batchNumber = 0
+
+      while (hasMore) {
+        batchNumber++
+        setSyncStatus(`Syncing batch ${batchNumber}…`)
+
+        const { data, error } = await edgeFunctions.syncScvList({
+          dry_run: dryRun,
+          offset,
+          batch_size: SCV_BATCH_SIZE,
+          include_related_updates: true,
+          scv_total_in_list: scvCurrentEntries.length,
+          scv_current_entries: scvCurrentEntries,
+        })
+
+        if (error) {
+          toast.error(`SCV sync failed: ${error}`)
+          return
+        }
+
+        const response = data as ScvSyncResponse | null
+        if (!response?.result || !response.batch) {
+          toast.error('SCV sync returned an invalid response')
+          return
+        }
+
+        aggregate = mergeScvResults(aggregate, response.result)
+        hasMore = response.batch.has_more
+        offset = response.batch.next_offset ?? 0
+      }
+
+      setSyncResult(aggregate)
+      toast.success(dryRun ? 'Dry run complete — no changes written' : 'SCV list sync complete')
       if (!dryRun) {
         refetch()
       }
@@ -126,6 +178,7 @@ export default function NZSCVMonitor() {
       toast.error(err?.message || 'Sync failed')
     } finally {
       setSyncing(false)
+      setSyncStatus(null)
     }
   }
 
@@ -198,14 +251,46 @@ export default function NZSCVMonitor() {
             </div>
             <Button onClick={handleSync} disabled={syncing}>
               {syncing
-                ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Syncing…</>
+                ? <><Loader2 className="h-4 w-4 mr-2 animate-spin" />{syncStatus ?? 'Syncing…'}</>
                 : <><RefreshCw className="h-4 w-4 mr-2" />Sync NZSCV List</>}
             </Button>
           </div>
           {syncResult && (
-            <div className="mt-3 p-3 bg-muted/40 rounded text-sm">
-              <p className="font-medium mb-1">Sync Result</p>
-              <pre className="text-xs overflow-auto whitespace-pre-wrap">{JSON.stringify(syncResult, null, 2)}</pre>
+            <div className="mt-3 p-3 bg-muted/40 rounded text-sm space-y-1">
+              <p className="font-medium mb-1">
+                {dryRun ? 'Dry-run result (no changes written)' : 'Sync result'}
+              </p>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-6 gap-y-0.5 text-xs">
+                <span className="text-muted-foreground">SCV list entries:</span>
+                <span className="font-medium">{syncResult.total_in_scv_list.toLocaleString()}</span>
+                <span />
+                <span className="text-muted-foreground">Vehicles checked:</span>
+                <span className="font-medium">{syncResult.canonical_vehicles_checked.toLocaleString()}</span>
+                <span />
+                <span className="text-muted-foreground">Set to current:</span>
+                <span className="font-medium text-green-600">{syncResult.set_to_current.toLocaleString()}</span>
+                <span />
+                <span className="text-muted-foreground">Set to not current:</span>
+                <span className="font-medium text-red-600">{syncResult.set_to_not_current.toLocaleString()}</span>
+                <span />
+                <span className="text-muted-foreground">Expiry corrected:</span>
+                <span className="font-medium">{syncResult.expiry_corrected.toLocaleString()}</span>
+                <span />
+                <span className="text-muted-foreground">Unchanged:</span>
+                <span className="font-medium">{syncResult.unchanged.toLocaleString()}</span>
+                <span />
+                <span className="text-muted-foreground">canonical_scv enriched:</span>
+                <span className="font-medium">{syncResult.canonical_scv_enriched.toLocaleString()}</span>
+                <span />
+              </div>
+              {syncResult.errors.length > 0 && (
+                <div className="mt-2 text-xs text-red-600">
+                  <p className="font-medium">Errors ({syncResult.errors.length}):</p>
+                  <ul className="list-disc ml-4 space-y-0.5">
+                    {syncResult.errors.map((e, i) => <li key={i}>{e}</li>)}
+                  </ul>
+                </div>
+              )}
             </div>
           )}
         </CardContent>

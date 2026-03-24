@@ -116,7 +116,7 @@ export function FeedbackModal({ open, onClose }: FeedbackModalProps) {
         } as any,
         console_errors: finalSnapshot.consoleErrors as any,
         app_version: finalSnapshot.appVersion,
-        status: 'open',
+        status: 'submitted',
         admin_notified: false,
       })
 
