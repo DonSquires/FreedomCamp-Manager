@@ -107,6 +107,10 @@ export default function ZoneManagement() {
   const [createSelfContained, setCreateSelfContained] = useState(true)
   const [createZoneType, setCreateZoneType] = useState('specific')
   const [createParentZoneId, setCreateParentZoneId] = useState<string | null>(null)
+  const [createLandManagingAgency, setCreateLandManagingAgency] = useState('')
+  const [createBylawReference, setCreateBylawReference] = useState('')
+  const [createSeasonalOpenMonth, setCreateSeasonalOpenMonth] = useState<number | null>(null)
+  const [createSeasonalCloseMonth, setCreateSeasonalCloseMonth] = useState<number | null>(null)
 
   // Fetch all organizations (for Masters only)
   const { data: organizations } = useQuery({
@@ -306,6 +310,10 @@ export default function ZoneManagement() {
           max_consecutive_nights: createMaxConsecutive,
           day_visit_only: createDayVisitOnly,
           self_contained_required: createSelfContained,
+          land_managing_agency: createLandManagingAgency || null,
+          bylaw_reference: createBylawReference || null,
+          seasonal_open_month: createSeasonalOpenMonth,
+          seasonal_close_month: createSeasonalCloseMonth,
           is_active: true,
         })
 
@@ -364,6 +372,10 @@ export default function ZoneManagement() {
     setCreateSelfContained(true)
     setCreateZoneType('specific')
     setCreateParentZoneId(null)
+    setCreateLandManagingAgency('')
+    setCreateBylawReference('')
+    setCreateSeasonalOpenMonth(null)
+    setCreateSeasonalCloseMonth(null)
   }
 
   const openEditDialog = (zone: any) => {
@@ -1155,6 +1167,79 @@ export default function ZoneManagement() {
               <div className="flex items-center justify-between">
                 <Label htmlFor="createSelfContained">Requires Self-Contained</Label>
                 <Switch id="createSelfContained" checked={createSelfContained} onCheckedChange={setCreateSelfContained} />
+              </div>
+            </div>
+
+            {/* Legal & Seasonal */}
+            <div className="border-t pt-4 space-y-3">
+              <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Legal &amp; Seasonal</h4>
+              <div>
+                <Label htmlFor="createLandManagingAgency">Land Managing Agency</Label>
+                <Select
+                  value={createLandManagingAgency || ''}
+                  onValueChange={(v) => setCreateLandManagingAgency(v === 'none' ? '' : v)}
+                >
+                  <SelectTrigger id="createLandManagingAgency">
+                    <SelectValue placeholder="Select agency…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">— Not specified —</SelectItem>
+                    <SelectItem value="council">Council</SelectItem>
+                    <SelectItem value="doc">DOC – Dept of Conservation</SelectItem>
+                    <SelectItem value="linz">LINZ – Land Information NZ</SelectItem>
+                    <SelectItem value="nzta">NZTA – NZ Transport Agency</SelectItem>
+                    <SelectItem value="crown">Crown (other)</SelectItem>
+                    <SelectItem value="private">Private land</SelectItem>
+                    <SelectItem value="other">Other</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground mt-1">Determines which legislation applies (FCA 2011 for council/DOC, etc.)</p>
+              </div>
+              <div>
+                <Label htmlFor="createBylawReference">Bylaw / Regulation Reference</Label>
+                <Input
+                  id="createBylawReference"
+                  value={createBylawReference}
+                  onChange={(e) => setCreateBylawReference(e.target.value)}
+                  placeholder="e.g. Freedom Camping Bylaw 2024 cl 7.2 or FCA 2011 s20(1)(a)"
+                />
+                <p className="text-xs text-muted-foreground mt-1">Pre-fills the legal basis on infringement notices issued in this zone.</p>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label htmlFor="createSeasonalOpenMonth">Seasonal Open (month)</Label>
+                  <Select
+                    value={createSeasonalOpenMonth != null ? String(createSeasonalOpenMonth) : 'year-round'}
+                    onValueChange={(v) => setCreateSeasonalOpenMonth(v === 'year-round' ? null : Number(v))}
+                  >
+                    <SelectTrigger id="createSeasonalOpenMonth">
+                      <SelectValue placeholder="Year-round" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="year-round">Year-round</SelectItem>
+                      {['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'].map((m, i) => (
+                        <SelectItem key={i+1} value={String(i+1)}>{m}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label htmlFor="createSeasonalCloseMonth">Seasonal Close (month, inclusive)</Label>
+                  <Select
+                    value={createSeasonalCloseMonth != null ? String(createSeasonalCloseMonth) : 'year-round'}
+                    onValueChange={(v) => setCreateSeasonalCloseMonth(v === 'year-round' ? null : Number(v))}
+                  >
+                    <SelectTrigger id="createSeasonalCloseMonth">
+                      <SelectValue placeholder="Year-round" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="year-round">Year-round</SelectItem>
+                      {['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'].map((m, i) => (
+                        <SelectItem key={i+1} value={String(i+1)}>{m}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
             </div>
           </div>
