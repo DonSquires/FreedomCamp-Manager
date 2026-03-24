@@ -6,6 +6,11 @@
 -- (i.e. top-level jurisdiction zones), while "By Zone" shows child zones.
 -- ============================================================================
 
+-- DROP first: PostgreSQL does not allow CREATE OR REPLACE to change a
+-- function's return type, and this migration adds zone_type + parent_zone_id
+-- to the RETURNS TABLE, which is a breaking change to the row-type signature.
+DROP FUNCTION IF EXISTS public.get_zone_compliance_breakdown(TIMESTAMPTZ, TIMESTAMPTZ, UUID);
+
 CREATE OR REPLACE FUNCTION public.get_zone_compliance_breakdown(
   p_start            TIMESTAMPTZ,
   p_end              TIMESTAMPTZ,
