@@ -33,7 +33,7 @@ import { nzDateToUTCStart, nzDateToUTCEnd } from '@/lib/timezone'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   FileText, Plus, Search, RefreshCw, Printer, CheckCircle,
-  AlertTriangle, Scale, XCircle, Clock, DollarSign, Eye, Gavel, Copy,
+  AlertTriangle, Scale, XCircle, Clock, DollarSign, Eye, Gavel, Copy, Download,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { formatDateTime } from '@/lib/utils'
@@ -432,6 +432,24 @@ export default function InfringementNotices() {
       setPreviewHtml(data.html)
       setShowIssueDialog(false)
       queryClient.invalidateQueries({ queryKey: ['infringement-notices'] })
+
+      // Store HTML artifact in the notice-artifacts bucket
+      if (data.html && data.notice_id && user?.organization_id) {
+        try {
+          const htmlBlob = new Blob([data.html], { type: 'text/html' })
+          const storagePath = `infringements/${user.organization_id}/${data.notice_id}.html`
+          const { error: uploadErr } = await supabase.storage
+            .from('notice-artifacts')
+            .upload(storagePath, htmlBlob, { contentType: 'text/html', upsert: true })
+          if (!uploadErr) {
+            await (supabase.from('infringement_notices') as any)
+              .update({ notice_html_path: storagePath })
+              .eq('id', data.notice_id)
+          }
+        } catch {
+          // Non-fatal — artifact upload failure should not block the workflow
+        }
+      }
 
       // Reset form
       setForm({
@@ -1027,6 +1045,22 @@ export default function InfringementNotices() {
             <Button variant="outline" onClick={() => setPreviewHtml(null)}>Close</Button>
             <Button variant="outline" onClick={() => openPreviewWindow('open')} className="gap-1.5">
               <Eye className="h-4 w-4" /> Open in Tab
+            </Button>
+            <Button
+              variant="outline"
+              className="gap-1.5"
+              onClick={() => {
+                if (!previewHtml) return
+                const blob = new Blob([previewHtml], { type: 'text/html' })
+                const url = URL.createObjectURL(blob)
+                const a = document.createElement('a')
+                a.href = url
+                a.download = 'infringement-notice.html'
+                a.click()
+                URL.revokeObjectURL(url)
+              }}
+            >
+              <Download className="h-4 w-4" /> Download
             </Button>
             <Button
               onClick={() => openPreviewWindow('print')}

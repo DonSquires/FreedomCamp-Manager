@@ -119,7 +119,7 @@ export default function ZoneManagement() {
   })
 
   // Fetch zones with counts
-  const { data: zones, isLoading } = useQuery({
+  const { data: zoneData, isLoading } = useQuery({
     queryKey: ['zones', organizationId, showInactive, searchQuery],
     queryFn: async () => {
       let query = (supabase.from('zones') as any)
@@ -155,11 +155,12 @@ export default function ZoneManagement() {
       const { data, error } = await query
       if (error) throw error
 
-      // Deduplicate zones by (organization_id, name) — keep first occurrence
+      // Deduplicate zones by (organization_id, name) — keep first occurrence, count dupes
       const seen = new Set<string>()
+      let duplicateCount = 0
       const uniqueZones = ((data || []) as Zone[]).filter((zone) => {
         const key = `${zone.organization_id}::${zone.name.trim().toLowerCase()}`
-        if (seen.has(key)) return false
+        if (seen.has(key)) { duplicateCount++; return false }
         seen.add(key)
         return true
       })
@@ -180,7 +181,7 @@ export default function ZoneManagement() {
         })
       )
 
-      return zonesWithCounts
+      return { zones: zonesWithCounts, duplicateCount }
     },
   })
 
@@ -392,6 +393,8 @@ export default function ZoneManagement() {
   }
 
   // Calculate stats
+  const zones = zoneData?.zones ?? null
+  const duplicateZoneCount = zoneData?.duplicateCount ?? 0
   const stats = zones ? {
     total: zones.length,
     active: zones.filter(z => z.is_active).length,
@@ -486,6 +489,18 @@ export default function ZoneManagement() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Deduplication Warning */}
+      {duplicateZoneCount > 0 && (
+        <div className="flex items-start gap-3 rounded-lg border border-yellow-300 bg-yellow-50 p-4 mb-6 text-sm text-yellow-800 dark:border-yellow-700 dark:bg-yellow-950 dark:text-yellow-200">
+          <AlertTriangle className="h-5 w-5 shrink-0 text-yellow-600 mt-0.5" />
+          <div>
+            <strong>{duplicateZoneCount} duplicate zone name{duplicateZoneCount !== 1 ? 's' : ''} detected</strong> — only the first occurrence is shown.
+            Duplicate zone names violate the uniqueness constraint and may cause unexpected behaviour.
+            Please rename or deactivate the duplicate zones to resolve this.
+          </div>
+        </div>
+      )}
 
       {/* Zones Grid */}
       {isLoading ? (
