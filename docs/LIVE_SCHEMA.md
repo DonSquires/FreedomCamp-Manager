@@ -6,8 +6,8 @@
 > from the repository owner (@DonSquires) via a reviewed and approved Pull Request.**
 > See [SCHEMA_VALIDATION_CHECKLIST.md](../SCHEMA_VALIDATION_CHECKLIST.md) for the full governance policy.
 
-**Last verified:** 2026-03-16  
-**Verified by:** Copilot schema alignment audit (Schema Extract #20 pass) against migrations through 20260316000003  
+**Last verified:** 2026-04-25  
+**Verified by:** Copilot schema alignment audit (Schema Extract #29 pass) against migrations through 20260425000001  
 **Live row counts at verification:** observations 30,789 · canonical_vehicles 61,535 · zones 3,731 · breach_alerts 1,484 · user_profiles 7 · compliance_results 1,959
 
 ---
@@ -106,6 +106,7 @@ Then update this file, update `src/types/database.ts`, and open a PR for review.
 | movement_decision | text | YES | — |
 | has_discrepancies | boolean | YES | false |
 | discrepancy_flags | jsonb | YES | — |
+| vehicle_attribute_sources | jsonb | YES | — |
 | id | uuid | YES | gen_random_uuid() |
 | created_at | timestamptz | YES | now() |
 | updated_at | timestamptz | YES | now() |
@@ -119,6 +120,8 @@ Then update this file, update `src/types/database.ts`, and open a PR for review.
 > `processing_status`, `plate_confidence`, `sticker_presence`, `movement_moved`, etc. **are present**
 > in the live DB (added by migrations 20260312000010, 20260401000001). Previously listed as absent
 > in the checklist — corrected in Schema Extract #8.
+> `has_discrepancies` + `discrepancy_flags` added by `20260406000001`.
+> `vehicle_attribute_sources` added by `20260417000001`: tracks source (nzscv/canonical/inference/alpr) per attribute.
 
 ### Triggers on observations
 
@@ -208,6 +211,10 @@ Then update this file, update `src/types/database.ts`, and open a PR for review.
 > `body_style`, `nzscv_warrant_number`, `nzscv_expires_on`, `vin`
 >
 > **vehicle_year** is **INTEGER** (normalised from TEXT by migration `20260411000003`). Use as `number | null` in TypeScript.
+>
+> **⚠️ V3 BREAKING CHANGE — SCV lookups:** `canonical_vehicles.self_contained` / `self_contained_expiry` are no longer authoritative. Use `canonical_scv.is_self_contained` / `certificate_expiry` instead (query by `plate_number`).
+>
+> **⚠️ V3 BREAKING CHANGE — Homeless lookups:** `canonical_vehicles.homeless_status` is no longer authoritative. Use `canonical_homeless.status` instead (query by `plate_number`).
 
 ---
 
@@ -342,7 +349,10 @@ Then update this file, update `src/types/database.ts`, and open a PR for review.
 | created_at | timestamptz | now() |
 | updated_at | timestamptz | now() |
 
-**Valid roles:** `admin`, `master`, `officer`, `admin_officer`
+**Valid roles:** `admin`, `master`, `officer`, `admin_officer`, `grand_master`, `nzscv_monitor`
+
+> `grand_master` added by `20260424000002`: platform owner — cross-org access, billing, org CRUD.  
+> `nzscv_monitor` added by `20260419000001`: read-only SCV monitoring (superseded by grand_master's broader access).
 
 ---
 
@@ -370,8 +380,19 @@ Then update this file, update `src/types/database.ts`, and open a PR for review.
 | boundary_source | text | — |
 | parkpow_lot_id | integer | — |
 | needs_admin_review | boolean | false |
+| land_managing_agency | text | — |
+| bylaw_reference | text | — |
+| seasonal_open_month | smallint | — |
+| seasonal_close_month | smallint | — |
 | created_at | timestamptz | — |
 | updated_at | timestamptz | — |
+
+**CHECK constraints:**
+- `land_managing_agency` ∈ `{council, doc, linz, nzta, crown, private, other}` — identifies governing legislation
+- `seasonal_open_month` / `seasonal_close_month` ∈ 1–12 — supports wrap-around (e.g. Oct–Mar)
+
+> `land_managing_agency`, `bylaw_reference`, `seasonal_open_month`, `seasonal_close_month` added by `20260425000001`.
+> **Unique partial index:** `(organization_id, lower(name))` — enforces zone name uniqueness per org (added `20260403000001`).
 
 ---
 
@@ -501,6 +522,9 @@ Columns: `id`, `batch_id`, `raw_data`, `enriched_data`, `status` (default 'pendi
 
 | Table | PK | Notes |
 |---|---|---|
+| canonical_scv | plate_number | Canonical SCV certification per plate: `is_self_contained`, `certificate_expiry`, `source`, `verified_at`, `notes` — **authoritative source for all SCV lookups** (replaces `canonical_vehicles.self_contained`) — added `20260421000001` |
+| canonical_homeless | plate_number | Canonical homeless designation per plate: `status` (confirmed/claimed/suspected/declined/none), `confirmed_by`, `confirmed_at`, `source`, `notes` — **authoritative source for all homeless lookups** (replaces `canonical_vehicles.homeless_status`) — added `20260421000001` |
+| dispute_intake | id | Public/staff-submitted disputes: `organization_id`, `zone_id`, `source_type` (notice_to_vacate/infringement/homeless_status/other), `source_reference`, `plate_number`, `claimant_name/email/phone`, `message`, `request_homeless_review`, `hardship_context`, `evidence_statement`, `submitted_via`, `status` (received/under_review/info_requested/upheld/varied/rejected/closed), `assigned_to`, `admin_notes`, `submitted_at` — added `20260418000006`, extended `20260418000007` |
 | spatial_ref_sys | srid | PostGIS reference |
 | vehicle_records_deprecated_20250131 | id | Deprecated — do not use |
 | photo_metadata | id | Evidence photo audit log |
@@ -526,7 +550,7 @@ Columns: `id`, `batch_id`, `raw_data`, `enriched_data`, `status` (default 'pendi
 | investigation_job_types | id | Job type registry |
 | investigation_job_templates | id | Job templates |
 | notices_to_vacate | id | NTV documents |
-| zone_legal_config | id (zone_id unique) | Zone legal configuration |
+| zone_legal_config | id (zone_id unique) | Zone legal configuration; V3 adds: `payment_online_url`, `payment_bank_account`, `payment_instructions`, `objections_email`, `objections_postal_address` (added `20260418000002`), `dispute_portal_url` (added `20260418000006`) |
 | health_safety_reports | id | H&S incident reports |
 | officer_welfare_settings | id | Per-officer welfare config |
 | officer_activity_log | id | Officer GPS/activity log |
@@ -576,6 +600,7 @@ public.vehicle_monthly_stays.(plate_number, organization_id, zone_id)
 |---|---|---|
 | scans | Public read / auth write | `/{user_id}/{filename}` |
 | evidence | Authenticated only | `/{org_id}/{filename}` |
+| notice-artifacts | Authenticated read / service write | `/{org_id}/{notice_id}/{filename}` — infringement notice HTML artifacts (added `20260417000003`) |
 
 ---
 
@@ -600,7 +625,8 @@ Same governance applies: any new or modified function or trigger requires a migr
 The TypeScript types that must stay in sync with this document:
 
 - `src/types/database.ts` — generated Supabase types (`Database['public']['Tables']`)
-  - Tables with full Row/Insert/Update types: `organizations`, `user_profiles`, `zones`, `canonical_vehicles`, `observations`, `breach_alerts`, `patrols`, `patrol_checkpoints`, `checkpoint_visits`, `privacy_curtain_settings`, `privacy_access_log`, `import_batches`, `enforcement_actions`, `health_safety_reports`, `officer_welfare_alerts`, `compliance_results`, `incidents`, `notifications`, `user_sessions`, `homeless_records`, `officer_activity_log`, `person_vehicle_links`, `infringement_notices`, `notices_to_vacate`, `admin_recalculation_actions`, `restrictions`, `zone_compliance_matrix`, `photo_metadata`, `vehicle_discrepancies`, `officer_shifts`, `patrol_site_visits`, `patrol_schedule_zones`, `flagged_vehicles`
+  - Tables with full Row/Insert/Update types: `organizations`, `user_profiles`, `zones`, `canonical_vehicles`, `observations`, `breach_alerts`, `patrols`, `patrol_checkpoints`, `checkpoint_visits`, `privacy_curtain_settings`, `privacy_access_log`, `import_batches`, `enforcement_actions`, `health_safety_reports`, `officer_welfare_alerts`, `compliance_results`, `incidents`, `notifications`, `user_sessions`, `homeless_records`, `officer_activity_log`, `person_vehicle_links`, `infringement_notices`, `notices_to_vacate`, `admin_recalculation_actions`, `restrictions`, `zone_compliance_matrix`, `photo_metadata`, `vehicle_discrepancies`, `officer_shifts`, `patrol_site_visits`, `patrol_schedule_zones`, `flagged_vehicles`, `canonical_scv`, `canonical_homeless`, `dispute_intake`
+  - Functions: includes `get_patrol_kpis`, `is_zone_seasonally_open` (added Schema Extract #29)
 - `src/types/index.ts` — application-level interfaces (`Vehicle`, `Observation`, `BreachAlert`, etc.)
 
 When this schema changes, **both files must be updated in the same PR** as the migration.

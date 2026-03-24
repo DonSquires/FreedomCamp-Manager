@@ -153,16 +153,17 @@ export default function AdminPortal() {
         .eq('status', 'disputed')
       if (effectiveOrganizationId) disputesQ = disputesQ.eq('organization_id', effectiveOrganizationId)
 
-      // Group homeless: homeless_records + canonical_vehicles
+      // Group homeless: homeless_records (org-scoped) + canonical_homeless (cross-org canonical)
       let homelessRecordsQ = (supabase.from('homeless_records') as any)
         .select('plate_number, status')
         .eq('is_active', true)
         .in('status', HOMELESS_UI_STATUSES)
       if (effectiveOrganizationId) homelessRecordsQ = homelessRecordsQ.eq('organization_id', effectiveOrganizationId)
 
-      const canonicalHomelessQ = (supabase.from('canonical_vehicles') as any)
-        .select('plate_number, homeless_status')
-        .in('homeless_status', HOMELESS_UI_STATUSES)
+      const canonicalHomelessQ = supabase
+        .from('canonical_homeless')
+        .select('plate_number, status')
+        .in('status', HOMELESS_UI_STATUSES)
 
       // ── Fire all independent queries in parallel ──────────────────────────
       const [
@@ -295,7 +296,7 @@ export default function AdminPortal() {
         ;(canonicalHomelessRes.data ?? []).forEach((row: any) => {
           const plate = String(row?.plate_number ?? '').trim().toUpperCase()
           if (plate) homelessPlates.add(plate)
-          const status = String((row as any)?.homeless_status ?? '').trim().toLowerCase()
+          const status = String((row as any)?.status ?? '').trim().toLowerCase()
           if (plate && HOMELESS_EXEMPT_STATUSES.includes(status as any)) homelessExemptPlates.add(plate)
         })
       }

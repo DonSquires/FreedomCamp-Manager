@@ -42,9 +42,6 @@ interface CanonicalVehicle {
   vehicle_model: string | null
   vehicle_year: number | null
   vehicle_color: string | null
-  self_contained: boolean
-  self_contained_expiry: string | null
-  homeless_status: string | null
   is_exempt: boolean
   is_flagged: boolean
   enforcement_count: number
@@ -132,6 +129,38 @@ export default function VehicleDetailPage() {
     enabled: !!id,
     retry: 1,
     staleTime: 30000,
+  })
+
+  // Fetch canonical SCV status from authoritative table
+  const { data: canonicalScv } = useQuery({
+    queryKey: ['canonical-scv', vehicle?.plate_number],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('canonical_scv')
+        .select('is_self_contained, certificate_expiry')
+        .eq('plate_number', vehicle!.plate_number)
+        .maybeSingle()
+      if (error) throw error
+      return data
+    },
+    enabled: !!vehicle?.plate_number,
+    staleTime: 60000,
+  })
+
+  // Fetch canonical homeless status from authoritative table
+  const { data: canonicalHomeless } = useQuery({
+    queryKey: ['canonical-homeless', vehicle?.plate_number],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('canonical_homeless')
+        .select('status')
+        .eq('plate_number', vehicle!.plate_number)
+        .maybeSingle()
+      if (error) throw error
+      return data
+    },
+    enabled: !!vehicle?.plate_number,
+    staleTime: 60000,
   })
 
   // Fetch observations
@@ -364,7 +393,7 @@ export default function VehicleDetailPage() {
     )
   }
 
-  const isHomeless = isHomelessForUi(vehicle.homeless_status)
+  const isHomeless = isHomelessForUi(canonicalHomeless?.status ?? null)
 
   // For homeless vehicles: all non-compliant observations are FC Act exempt,
   // so they should not be counted against compliance or shown as real breaches.
@@ -438,7 +467,7 @@ export default function VehicleDetailPage() {
                   <h1 className="text-3xl font-mono font-bold">{vehicle.plate_number}</h1>
                   {vehicle.is_flagged && <Badge variant="destructive">Flagged</Badge>}
                   {vehicle.is_exempt && <Badge variant="secondary">Exempt</Badge>}
-                  {vehicle.self_contained ? (
+                  {canonicalScv?.is_self_contained ? (
                     <Badge className="bg-green-600">Self Contained</Badge>
                   ) : (
                     <Badge variant="outline">Not Self Contained</Badge>
@@ -469,9 +498,9 @@ export default function VehicleDetailPage() {
                     })}
                   </div>
                 )}
-                {vehicle.self_contained_expiry && (
+                {canonicalScv?.certificate_expiry && (
                   <div className="mt-1 text-sm text-muted-foreground">
-                    SC Expires: {vehicle.self_contained_expiry}
+                    SC Expires: {canonicalScv.certificate_expiry}
                   </div>
                 )}
               </div>
@@ -608,16 +637,16 @@ export default function VehicleDetailPage() {
                       <div className="flex items-center gap-2 flex-wrap">
                         {obs.is_compliant === true && <Badge className="bg-green-600 text-xs">Compliant</Badge>}
                         {obs.is_compliant === false && (
-                          isHomelessForUi(vehicle.homeless_status)
+                          isHomelessForUi(canonicalHomeless?.status ?? null)
                             ? <Badge className="bg-purple-600 text-xs">Breach Exempt</Badge>
                             : <Badge variant="destructive" className="text-xs">Breach</Badge>
                         )}
                         {obs.is_compliant === null && <Badge variant="secondary" className="text-xs">Pending</Badge>}
-                        {obs.is_compliant === false && !isHomelessForUi(vehicle.homeless_status) && obs.breach_type && (
+                        {obs.is_compliant === false && !isHomelessForUi(canonicalHomeless?.status ?? null) && obs.breach_type && (
                           <span className="text-xs text-red-500">{toTitleCase(obs.breach_type)}</span>
                         )}
                       </div>
-                      {obs.is_compliant === false && !isHomelessForUi(vehicle.homeless_status) && obs.breach_reason && (
+                      {obs.is_compliant === false && !isHomelessForUi(canonicalHomeless?.status ?? null) && obs.breach_reason && (
                         <p className="text-xs text-muted-foreground">{obs.breach_reason}</p>
                       )}
                       <div className="text-sm text-muted-foreground flex flex-wrap gap-3">
