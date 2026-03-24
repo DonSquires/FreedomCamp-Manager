@@ -48,7 +48,7 @@ interface PatrolScanResult {
 interface LivePatrolCameraProps {
   onScanSaved?: () => void
   onClose: () => void
-  recordGPSUpdate?: (lat: number, lng: number) => Promise<void>
+  recordGPSUpdate?: (lat: number, lng: number) => void | Promise<void>
 }
 
 const INTERVAL_OPTIONS = [
