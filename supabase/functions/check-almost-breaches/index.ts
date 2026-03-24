@@ -8,7 +8,7 @@
  *   latest nights_stayed_this_month and consecutive_nights from the most recent
  *   observation (stored as a snapshot at scan time).
  * - Predict whether staying ONE MORE NIGHT would push either counter over the limit.
- * - Respects homeless exemptions from canonical_vehicles.
+ * - Respects homeless exemptions from canonical_homeless.
  *
  * NOTE: vehicle_monthly_stays is no longer auto-updated by the new observations
  * pipeline. Compliance snapshots are now read directly from the observations table.
@@ -143,9 +143,8 @@ Deno.serve(async (req) => {
     // ── Pre-load homeless vehicle set ────────────────────────────────────────
     const uniquePlates = [...new Set([...latestByPlateZone.values()].map(o => o.plate_number))];
     const { data: homelessVehicles } = uniquePlates.length > 0
-      ? await supabaseAdmin
-          .from('canonical_vehicles')
-          .select('plate_number, homeless_status, homeless_notes')
+      ? await (supabaseAdmin.from('canonical_homeless') as any)
+          .select('plate_number, status')
           .in('plate_number', uniquePlates)
       : { data: [] };
 
@@ -163,7 +162,7 @@ Deno.serve(async (req) => {
       const monthlyAllowed     = rules.nights_per_month ?? 28;
       const homelessExemption  = rules.homeless_exemption !== false;
       const isHomelessExempt   =
-        (vehicle?.homeless_status === 'confirmed' || vehicle?.homeless_status === 'claimed') &&
+        (vehicle?.status === 'confirmed' || vehicle?.status === 'claimed') &&
         homelessExemption;
 
       if (isHomelessExempt) continue;

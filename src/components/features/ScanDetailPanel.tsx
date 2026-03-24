@@ -9,7 +9,7 @@
  *  - Editable: plate, make, model, year, colour (for ALPR/AI corrections)
  *  - Officer notes field (saved to observations.officer_notes)
  *  - H&S incident inline quick-form (pre-filled with zone + plate + GPS address)
- *  - Homeless claim inline form (updates canonical_vehicles.homeless_status)
+ *  - Homeless claim inline form (upserts into canonical_homeless)
  *  - Enforcement actions: Warning, Notice to Vacate (workflow-gated)
  *  - Shows admin-assigned follow-up instructions if admin has responded
  *  - "Escalate to Admin" button when admin review is needed (admin_first / hybrid)
@@ -451,11 +451,11 @@ export function ScanDetailPanel({
 
       let homelessStatus: string | null = null
       if (resolved && data.plate_number) {
-        const { data: canonical } = await (supabase.from('canonical_vehicles') as any)
-          .select('homeless_status')
+        const { data: canonicalH } = await (supabase.from('canonical_homeless') as any)
+          .select('status')
           .eq('plate_number', data.plate_number)
           .maybeSingle()
-        homelessStatus = canonical?.homeless_status ?? null
+        homelessStatus = canonicalH?.status ?? null
       }
 
       const isHomelessExempt = homelessStatus === 'confirmed' || homelessStatus === 'claimed'
@@ -635,15 +635,17 @@ export function ScanDetailPanel({
     if (!user) return
     setIsSavingHomeless(true)
     try {
-      // Upsert the canonical vehicle homeless_status
-      const { error: cvErr } = await (supabase.from('canonical_vehicles') as any)
+      // Upsert into canonical_homeless (authoritative source for homeless status)
+      const { error: chErr } = await (supabase.from('canonical_homeless') as any)
         .upsert({
-          plate_number:     plate,
-          organization_id:  user.organization_id,
-          homeless_status:  homelessClaimType,
-          is_exempt:        homelessClaimType === 'confirmed',
+          plate_number:  plate,
+          status:        homelessClaimType,
+          confirmed_by:  homelessClaimType === 'confirmed' ? user.id : null,
+          confirmed_at:  homelessClaimType === 'confirmed' ? new Date().toISOString() : null,
+          source:        'manual',
+          notes:         homelessClaimNotes.trim() || null,
         }, { onConflict: 'plate_number' })
-      if (cvErr) throw cvErr
+      if (chErr) throw chErr
 
       // Add officer notes on the observation
       if (obs?.observationId) {

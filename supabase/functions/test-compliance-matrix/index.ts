@@ -153,13 +153,12 @@ Deno.serve(async (req) => {
 
     const uniquePlates = [...new Set(rows.map((r: any) => r.plate_number).filter(Boolean))];
     const { data: homelessRows } = uniquePlates.length > 0
-      ? await supabaseAdmin
-          .from('canonical_vehicles')
-          .select('plate_number, homeless_status')
+      ? await (supabaseAdmin.from('canonical_homeless') as any)
+          .select('plate_number, status')
           .in('plate_number', uniquePlates)
       : { data: [] as any[] };
 
-    const homelessMap = new Map((homelessRows || []).map((r: any) => [r.plate_number, r.homeless_status]));
+    const homelessMap = new Map((homelessRows || []).map((r: any) => [r.plate_number, r.status]));
 
     const zoneFallbackCache = new Map<string, MatrixRules | null>();
     const matrixCache = new Map<string, MatrixRules | null>();
