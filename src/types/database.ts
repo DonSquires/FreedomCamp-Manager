@@ -5349,6 +5349,10 @@ export type Database = {
           self_contained_required: boolean | null
           updated_at: string | null
           zone_type: string | null
+          land_managing_agency: string | null
+          bylaw_reference: string | null
+          seasonal_open_month: number | null
+          seasonal_close_month: number | null
         }
         Insert: {
           allowed_days?: string[] | null
@@ -5371,6 +5375,10 @@ export type Database = {
           self_contained_required?: boolean | null
           updated_at?: string | null
           zone_type?: string | null
+          land_managing_agency?: string | null
+          bylaw_reference?: string | null
+          seasonal_open_month?: number | null
+          seasonal_close_month?: number | null
         }
         Update: {
           allowed_days?: string[] | null
@@ -5393,6 +5401,10 @@ export type Database = {
           self_contained_required?: boolean | null
           updated_at?: string | null
           zone_type?: string | null
+          land_managing_agency?: string | null
+          bylaw_reference?: string | null
+          seasonal_open_month?: number | null
+          seasonal_close_month?: number | null
         }
         Relationships: [
           {

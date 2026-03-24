@@ -39,6 +39,10 @@ interface Zone {
   enforcement_authority?: string | null
   bylaw_clause?: string | null
   bylaw_source_url?: string | null
+  land_managing_agency?: string | null
+  bylaw_reference?: string | null
+  seasonal_open_month?: number | null
+  seasonal_close_month?: number | null
   created_at: string
   organization?: {
     id: string
@@ -79,6 +83,10 @@ export default function ZoneManagement() {
   const [editEnforcementAuthority, setEditEnforcementAuthority] = useState('')
   const [editBylawClause, setEditBylawClause] = useState('')
   const [editBylawUrl, setEditBylawUrl] = useState('')
+  const [editLandManagingAgency, setEditLandManagingAgency] = useState('')
+  const [editBylawReference, setEditBylawReference] = useState('')
+  const [editSeasonalOpenMonth, setEditSeasonalOpenMonth] = useState<number | null>(null)
+  const [editSeasonalCloseMonth, setEditSeasonalCloseMonth] = useState<number | null>(null)
   const [showGeofenceEditor, setShowGeofenceEditor] = useState(false)
 
   // zone_legal_config payment & objections fields
@@ -330,6 +338,10 @@ export default function ZoneManagement() {
     setEditParentZoneId(null)
     setEditZoneType('specific')
     setEditLandManager('')
+    setEditLandManagingAgency(zone.land_managing_agency || '')
+    setEditBylawReference(zone.bylaw_reference || '')
+    setEditSeasonalOpenMonth(null)
+    setEditSeasonalCloseMonth(null)
     setEditEnforcementAuthority('')
     setEditBylawClause('')
     setEditBylawUrl('')
@@ -369,6 +381,10 @@ export default function ZoneManagement() {
     setEditEnforcementAuthority('')
     setEditBylawClause('')
     setEditBylawUrl('')
+    setEditLandManagingAgency(zone.land_managing_agency || '')
+    setEditBylawReference(zone.bylaw_reference || '')
+    setEditSeasonalOpenMonth(zone.seasonal_open_month ?? null)
+    setEditSeasonalCloseMonth(zone.seasonal_close_month ?? null)
     setShowGeofenceEditor(false)
 
     // Load legal + payment fields from zone_legal_config
@@ -941,6 +957,10 @@ export default function ZoneManagement() {
                   max_consecutive_nights: editMaxConsecutive,
                   day_visit_only: editDayVisitOnly,
                   self_contained_required: editSelfContained,
+                  land_managing_agency: editLandManagingAgency || null,
+                  bylaw_reference: editBylawReference || null,
+                  seasonal_open_month: editSeasonalOpenMonth,
+                  seasonal_close_month: editSeasonalCloseMonth,
                 }
                 
                 // Masters can change organization, zone type, and parent
