@@ -8,6 +8,7 @@ import { nzDateToUTCStart, nzDateToUTCEnd } from '@/lib/timezone'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { 
   CheckCircle, 
   AlertTriangle, 
@@ -15,7 +16,8 @@ import {
   Users, 
   Activity,
   Brain,
-  RefreshCw
+  RefreshCw,
+  MapPin,
 } from 'lucide-react'
 import { formatDate, formatDateTime } from '@/lib/utils'
 import { AppLayout } from '@/components/features/AppLayout'
@@ -108,6 +110,35 @@ export default function ComplianceDashboard() {
       }))
     },
   })
+
+  // Zone compliance breakdown (Jurisdiction vs specific zones)
+  const { data: zoneBreakdown = [] } = useQuery({
+    queryKey: ['zone-breakdown', effectiveOrganizationId, dateFrom, dateTo],
+    queryFn: async ({ signal }) => {
+      const start = (dateFrom ? nzDateToUTCStart(dateFrom) : null) ?? new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString()
+      const end   = (dateTo ? nzDateToUTCEnd(dateTo) : null) ?? new Date().toISOString()
+      const { data, error } = await (supabase.rpc as any)('get_zone_compliance_breakdown', {
+        p_start:            start,
+        p_end:              end,
+        p_organization_id:  effectiveOrganizationId ?? null,
+      }).abortSignal(signal)
+      if (error) throw error
+      return (Array.isArray(data) ? data : []) as Array<{
+        zone_id: string
+        zone_name: string
+        zone_type: string | null
+        parent_zone_id: string | null
+        obs_count: number
+        breach_count: number
+        compliance_pct: number
+        is_active: boolean
+        organization_name: string
+      }>
+    },
+  })
+
+  const jurisdictionZones = zoneBreakdown.filter(z => z.parent_zone_id === null)
+  const specificZones     = zoneBreakdown.filter(z => z.parent_zone_id !== null)
 
   // Railway Integration: Analyze recent vehicle photos with AI
   const handleAnalyzeRecentPhotos = async () => {
@@ -273,6 +304,60 @@ export default function ComplianceDashboard() {
               </CardContent>
             </Card>
           </div>
+
+          {/* Zone Compliance Breakdown: Jurisdiction vs Specific Zones */}
+          {zoneBreakdown.length > 0 && (
+            <Card className="mb-8">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <MapPin className="h-5 w-5" />
+                  Zone Compliance Breakdown
+                </CardTitle>
+                <CardDescription>Compliance by jurisdiction and specific zone</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Tabs defaultValue="specific">
+                  <TabsList className="mb-4">
+                    <TabsTrigger value="jurisdiction">
+                      Jurisdictions ({jurisdictionZones.length})
+                    </TabsTrigger>
+                    <TabsTrigger value="specific">
+                      Zones ({specificZones.length})
+                    </TabsTrigger>
+                  </TabsList>
+
+                  {(['jurisdiction', 'specific'] as const).map((tab) => {
+                    const rows = tab === 'jurisdiction' ? jurisdictionZones : specificZones
+                    return (
+                      <TabsContent key={tab} value={tab} className="space-y-2">
+                        {rows.length === 0 ? (
+                          <p className="text-center text-sm text-muted-foreground py-6">No {tab} zones found</p>
+                        ) : (
+                          rows.map(z => (
+                            <div key={z.zone_id} className={`flex items-center justify-between p-3 rounded-lg border ${z.is_active ? 'bg-white dark:bg-gray-900 border-gray-200' : 'bg-gray-50 dark:bg-gray-800 border-gray-100 opacity-60'}`}>
+                              <div className="flex items-center gap-2 min-w-0">
+                                <MapPin className="h-4 w-4 text-blue-500 shrink-0" />
+                                <div className="min-w-0">
+                                  <p className="font-medium truncate">{z.zone_name}</p>
+                                  <p className="text-xs text-muted-foreground">{z.organization_name}</p>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-3 shrink-0">
+                                <span className="text-xs text-muted-foreground">{z.obs_count} obs · {z.breach_count} breaches</span>
+                                <Badge variant="outline" className={`text-xs ${z.compliance_pct >= 80 ? 'bg-green-50 text-green-700 border-green-300' : z.compliance_pct >= 50 ? 'bg-yellow-50 text-yellow-700 border-yellow-300' : 'bg-red-50 text-red-700 border-red-300'}`}>
+                                  {z.compliance_pct.toFixed(0)}%
+                                </Badge>
+                              </div>
+                            </div>
+                          ))
+                        )}
+                      </TabsContent>
+                    )
+                  })}
+                </Tabs>
+              </CardContent>
+            </Card>
+          )}
 
           {/* Railway Integration: AI Photo Analysis */}
           <Card className="mb-8">
