@@ -9,6 +9,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { 
   FileText, 
@@ -24,7 +27,9 @@ import {
   MapPin,
   Calendar,
   User,
-  Camera
+  UserPlus,
+  Camera,
+  X,
 } from 'lucide-react'
 import { formatDateTime } from '@/lib/utils'
 import { toast } from 'sonner'
@@ -47,12 +52,17 @@ interface Incident {
   notes: string | null
   metadata: any
   created_at: string
+  person_record_id: string | null
   zone: {
     name: string
   } | null
   user_profile: {
     first_name: string
     last_name: string
+  } | null
+  person_record: {
+    id: string
+    full_name: string
   } | null
 }
 
@@ -65,6 +75,12 @@ export default function IncidentReports() {
   const [statusFilter, setStatusFilter] = useState<string>('all')
   const [selectedIncident, setSelectedIncident] = useState<Incident | null>(null)
   const [showDetailsModal, setShowDetailsModal] = useState(false)
+
+  // Link person dialog state
+  const [linkPersonSearch, setLinkPersonSearch] = useState('')
+  const [showNewPersonInline, setShowNewPersonInline] = useState(false)
+  const [newPersonForm, setNewPersonForm] = useState({ full_name: '', date_of_birth: '', contact_phone: '', contact_email: '', address: '', notes: '' })
+  const [creatingPersonForLink, setCreatingPersonForLink] = useState(false)
 
   // Fetch incidents
   const { data: incidents, isLoading } = useQuery({
@@ -87,8 +103,10 @@ export default function IncidentReports() {
           notes,
           metadata,
           created_at,
+          person_record_id,
           zone:zones(name),
-          user_profile:user_profiles!incidents_user_id_fkey(first_name, last_name)
+          user_profile:user_profiles!incidents_user_id_fkey(first_name, last_name),
+          person_record:person_records(id, full_name)
         `)
         
         .order('created_at', { ascending: false })
@@ -165,6 +183,70 @@ export default function IncidentReports() {
     },
   })
 
+  // Link person to incident mutation
+  const linkPersonMutation = useMutation({
+    mutationFn: async ({ incidentId, personRecordId, personName }: { incidentId: string; personRecordId: string | null; personName?: string }) => {
+      const { error } = await (supabase.from('incidents') as any)
+        .update({ person_record_id: personRecordId })
+        .eq('id', incidentId)
+      if (error) throw error
+    },
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['incidents'] })
+      const newPersonRecord = variables.personRecordId && variables.personName
+        ? { id: variables.personRecordId, full_name: variables.personName }
+        : null
+      setSelectedIncident(prev => prev ? { ...prev, person_record_id: variables.personRecordId, person_record: newPersonRecord } : prev)
+      toast.success(variables.personRecordId ? 'Person linked to incident' : 'Person link removed')
+      setLinkPersonSearch('')
+      setShowNewPersonInline(false)
+      setNewPersonForm({ full_name: '', date_of_birth: '', contact_phone: '', contact_email: '', address: '', notes: '' })
+    },
+    onError: () => {
+      toast.error('Failed to update person link')
+    },
+  })
+
+  // Search person records for link dialog
+  const { data: linkPersonResults = [] } = useQuery({
+    queryKey: ['link-person-search', linkPersonSearch],
+    queryFn: async () => {
+      if (!linkPersonSearch.trim()) return []
+      const { data, error } = await (supabase.from('person_records') as any)
+        .select('id, full_name')
+        .ilike('full_name', `%${linkPersonSearch.trim()}%`)
+        .limit(10)
+      if (error) throw error
+      return (data || []) as { id: string; full_name: string }[]
+    },
+    enabled: linkPersonSearch.trim().length >= 2 && showDetailsModal && !showNewPersonInline,
+  })
+
+  const handleCreateAndLinkPerson = async () => {
+    if (!newPersonForm.full_name.trim() || !selectedIncident) return
+    setCreatingPersonForLink(true)
+    try {
+      const { data, error } = await (supabase.from('person_records') as any)
+        .insert({
+          full_name: newPersonForm.full_name.trim(),
+          date_of_birth: newPersonForm.date_of_birth || null,
+          contact_phone: newPersonForm.contact_phone || null,
+          contact_email: newPersonForm.contact_email || null,
+          address: newPersonForm.address || null,
+          notes: newPersonForm.notes || null,
+        })
+        .select('id, full_name')
+        .single()
+      if (error) throw error
+      await linkPersonMutation.mutateAsync({ incidentId: selectedIncident.id, personRecordId: data.id, personName: data.full_name })
+      // The mutation onSuccess already updates selectedIncident, no need to set it again
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to create person')
+    } finally {
+      setCreatingPersonForLink(false)
+    }
+  }
+
   // Calculate stats
   const stats = incidents ? {
     total: incidents.length,
@@ -202,6 +284,9 @@ export default function IncidentReports() {
   const openDetailsModal = (incident: Incident) => {
     setSelectedIncident(incident)
     setShowDetailsModal(true)
+    setLinkPersonSearch('')
+    setShowNewPersonInline(false)
+    setNewPersonForm({ full_name: '', date_of_birth: '', contact_phone: '', contact_email: '', address: '', notes: '' })
   }
 
   return (
@@ -438,7 +523,7 @@ export default function IncidentReports() {
 
                   {/* Officer */}
                   <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-3">
-                    <div className="flex items-center gap-2 text-sm">
+                    <div className="flex items-center gap-2 text-sm flex-wrap">
                       <User className="h-4 w-4 text-blue-600" />
                       <span className="text-gray-600 dark:text-gray-400">Reported by:</span>
                       <span className="font-medium">
@@ -449,6 +534,17 @@ export default function IncidentReports() {
                       </span>
                     </div>
                   </div>
+
+                  {/* Linked Person */}
+                  {incident.person_record && (
+                    <div className="bg-green-50 dark:bg-green-900/20 rounded-lg p-3">
+                      <div className="flex items-center gap-2 text-sm">
+                        <User className="h-4 w-4 text-green-600" />
+                        <span className="text-gray-600 dark:text-gray-400">Linked Person:</span>
+                        <span className="font-medium">{incident.person_record.full_name}</span>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Legal Hold Info */}
                   {incident.retention_hold && incident.retention_until && (
@@ -550,6 +646,133 @@ export default function IncidentReports() {
               <div>
                 <span className="text-sm font-medium text-gray-600">Description</span>
                 <p className="mt-1 p-3 bg-gray-50 dark:bg-gray-800 rounded">{selectedIncident.description}</p>
+              </div>
+
+              {/* ── Linked Person section ── */}
+              <div className="border rounded-lg p-4 space-y-3 bg-blue-50/40 dark:bg-blue-950/10">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium flex items-center gap-1.5">
+                    <User className="h-4 w-4 text-blue-600" />
+                    Linked Person
+                  </span>
+                  {selectedIncident.person_record ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      className="text-red-500 hover:text-red-700"
+                      onClick={() => linkPersonMutation.mutate({ incidentId: selectedIncident.id, personRecordId: null })}
+                      disabled={linkPersonMutation.isPending}
+                    >
+                      <X className="h-3.5 w-3.5 mr-1" />
+                      Remove
+                    </Button>
+                  ) : !showNewPersonInline ? (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setShowNewPersonInline(true)}
+                    >
+                      <UserPlus className="h-3.5 w-3.5 mr-1" />
+                      New Person
+                    </Button>
+                  ) : null}
+                </div>
+
+                {selectedIncident.person_record ? (
+                  <div className="flex items-center gap-2">
+                    <Badge variant="secondary" className="flex items-center gap-1.5 text-sm py-1 px-2">
+                      <User className="h-3.5 w-3.5" />
+                      {selectedIncident.person_record.full_name}
+                    </Badge>
+                  </div>
+                ) : !showNewPersonInline ? (
+                  <div className="space-y-1">
+                    <Input
+                      placeholder="Search existing person by name…"
+                      value={linkPersonSearch}
+                      onChange={(e) => setLinkPersonSearch(e.target.value)}
+                    />
+                    {linkPersonSearch.trim().length >= 2 && linkPersonResults.length === 0 && (
+                      <p className="text-xs text-muted-foreground">
+                        No matching records found.{' '}
+                        <button
+                          type="button"
+                          className="underline text-blue-600"
+                          onClick={() => setShowNewPersonInline(true)}
+                        >
+                          Create a new person record
+                        </button>
+                      </p>
+                    )}
+                    {linkPersonResults.length > 0 && (
+                      <div className="border rounded divide-y text-sm bg-white dark:bg-gray-900 shadow-sm max-h-36 overflow-y-auto">
+                        {linkPersonResults.map((p) => (
+                          <button
+                            key={p.id}
+                            type="button"
+                            className="w-full text-left px-3 py-2 hover:bg-blue-50 dark:hover:bg-blue-950/30 flex items-center gap-2"
+                            onClick={() => linkPersonMutation.mutate({ incidentId: selectedIncident.id, personRecordId: p.id, personName: p.full_name })}
+                            disabled={linkPersonMutation.isPending}
+                          >
+                            <User className="h-3.5 w-3.5 text-muted-foreground" />
+                            {p.full_name}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <p className="text-xs font-medium text-muted-foreground">Create New Person Record</p>
+                      <Button type="button" size="sm" variant="ghost" onClick={() => { setShowNewPersonInline(false); setNewPersonForm({ full_name: '', date_of_birth: '', contact_phone: '', contact_email: '', address: '', notes: '' }) }}>
+                        <X className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Full Name <span className="text-red-500">*</span></Label>
+                      <Input
+                        placeholder="Full name"
+                        value={newPersonForm.full_name}
+                        onChange={(e) => setNewPersonForm(f => ({ ...f, full_name: e.target.value }))}
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <Label className="text-xs">Date of Birth</Label>
+                        <Input type="date" value={newPersonForm.date_of_birth} onChange={(e) => setNewPersonForm(f => ({ ...f, date_of_birth: e.target.value }))} />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Phone</Label>
+                        <Input placeholder="+64 21 xxx xxxx" value={newPersonForm.contact_phone} onChange={(e) => setNewPersonForm(f => ({ ...f, contact_phone: e.target.value }))} />
+                      </div>
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Email</Label>
+                      <Input type="email" placeholder="email@example.com" value={newPersonForm.contact_email} onChange={(e) => setNewPersonForm(f => ({ ...f, contact_email: e.target.value }))} />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Address</Label>
+                      <Input placeholder="Last known address" value={newPersonForm.address} onChange={(e) => setNewPersonForm(f => ({ ...f, address: e.target.value }))} />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs">Notes</Label>
+                      <Textarea placeholder="Additional notes…" value={newPersonForm.notes} onChange={(e) => setNewPersonForm(f => ({ ...f, notes: e.target.value }))} rows={2} />
+                    </div>
+                    <Button
+                      type="button"
+                      size="sm"
+                      className="w-full"
+                      onClick={handleCreateAndLinkPerson}
+                      disabled={creatingPersonForLink || !newPersonForm.full_name.trim()}
+                    >
+                      <UserPlus className="h-3.5 w-3.5 mr-1" />
+                      {creatingPersonForLink ? 'Creating…' : 'Create Person & Link'}
+                    </Button>
+                  </div>
+                )}
               </div>
 
               {selectedIncident.primary_evidence_url && (
