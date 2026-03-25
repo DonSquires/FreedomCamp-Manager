@@ -27,6 +27,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { toast } from 'sonner'
 import { formatDateTime } from '@/lib/utils'
+import { FieldSafetyBar } from '@/components/features/FieldSafetyBar'
+import { VOILookup } from '@/components/features/VOILookup'
 import { ParkingPhotoCapture } from '@/components/features/ParkingPhotoCapture'
 import type { ParkingPhotoCaptureResult } from '@/components/features/ParkingPhotoCapture'
 import {
@@ -445,6 +447,17 @@ export default function ParkingOfficerPortal() {
       description={`${activeSessions.length} active session${activeSessions.length !== 1 ? 's' : ''} · TicketOr2-style workflow`}
       showBackButton
     >
+      {/* ── Safety bar — welfare, SOS, quick reports ──────────────── */}
+      <FieldSafetyBar compact />
+
+      {/* ── VOI quick-lookup (always available, no geofence) ─────── */}
+      <div className="mb-4">
+        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2 flex items-center gap-1.5">
+          <Car className="h-3.5 w-3.5" />Flagged Vehicle Check
+        </p>
+        <VOILookup />
+      </div>
+
       {/* ── Last issued infringement print banner ─────────────── */}
       {lastIssuedInf && mode === null && (
         <div className="mb-4 flex items-center justify-between bg-green-50 border border-green-300 rounded-lg px-4 py-3 text-sm">

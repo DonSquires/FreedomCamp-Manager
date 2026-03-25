@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { Button } from '@/components/ui/button'
@@ -32,12 +33,16 @@ import {
   AlertCircle,
   Award,
   Clock,
-  Building2
+  Building2,
+  ShieldCheck,
+  Globe,
+  Lock,
 } from 'lucide-react'
 import { formatDateTime, formatDate } from '@/lib/utils'
 import { AppLayout } from '@/components/features/AppLayout'
 import { GlobalFilterRibbon } from '@/components/features/GlobalFilterRibbon'
 import { uploadFile } from '@/lib/fileUpload'
+import { PORTAL_AREA_LABELS, type PortalAreaCode } from '@/hooks/usePermissions'
 
 interface Organization {
   id: string
@@ -56,6 +61,8 @@ interface UserProfile {
   is_active: boolean
   created_at: string
   phone: string | null
+  job_title: string | null
+  requires_driver_license: boolean
   // Compliance credentials
   coa_number: string | null
   coa_expiry: string | null
@@ -66,12 +73,17 @@ interface UserProfile {
   credentials_verified: boolean
   credentials_verified_at: string | null
   credentials_verified_by: string | null
+  // Access control
+  portal_access: string[]
+  authorized_work_locations: string[]
+  extra_organization_ids: string[]
   // Joined data
   organization?: Organization | null
 }
 
 export default function UserManagement() {
   const { user } = useAuthStore()
+  const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [searchTerm, setSearchTerm] = useState('')
   const [showCreateDialog, setShowCreateDialog] = useState(false)
@@ -89,6 +101,8 @@ export default function UserManagement() {
   const [lastName, setLastName] = useState('')
   const [role, setRole] = useState('officer')
   const [phone, setPhone] = useState('')
+  const [jobTitle, setJobTitle] = useState('')
+  const [requiresDriverLicense, setRequiresDriverLicense] = useState(false)
   const [organizationId, setOrganizationId] = useState<string>('')
   const [employerOrgId, setEmployerOrgId] = useState<string>('')
   const [password, setPassword] = useState('')
@@ -184,8 +198,8 @@ export default function UserManagement() {
   }
 
   // Check user role
-  const isAdmin = user?.role === 'admin' || user?.role === 'master'
-  const isMaster = user?.role === 'master'
+  const isAdmin = user?.role === 'admin' || user?.role === 'master' || user?.role === 'grand_master'
+  const isMaster = user?.role === 'master' || user?.role === 'grand_master'
 
   // Fetch all active organizations for dropdowns
   const { data: organizations } = useQuery({
@@ -279,6 +293,8 @@ export default function UserManagement() {
         first_name: firstName,
         last_name: lastName,
         phone,
+        job_title: jobTitle || null,
+        requires_driver_license: requiresDriverLicense,
         organization_id: organizationId || null,
         employer_organization_id: employerOrgId || null,
       }
@@ -387,6 +403,8 @@ export default function UserManagement() {
     setLastName('')
     setRole('officer')
     setPhone('')
+    setJobTitle('')
+    setRequiresDriverLicense(false)
     setPassword('')
     setConfirmPassword('')
     setCoaNumber('')
@@ -404,6 +422,8 @@ export default function UserManagement() {
     setEmail(userProfile.email)
     setRole(userProfile.role)
     setPhone(userProfile.phone || '')
+    setJobTitle(userProfile.job_title || '')
+    setRequiresDriverLicense(userProfile.requires_driver_license || false)
     setOrganizationId(userProfile.organization_id || '')
     setEmployerOrgId(userProfile.employer_organization_id || '')
     setShowEditDialog(true)
@@ -723,6 +743,8 @@ export default function UserManagement() {
                   <SelectItem value="admin_officer">Admin Officers</SelectItem>
                   <SelectItem value="admin">Admins</SelectItem>
                   <SelectItem value="master">Masters</SelectItem>
+                  <SelectItem value="grand_master">Grand Masters</SelectItem>
+                  <SelectItem value="client_viewer">Client Viewers</SelectItem>
                 </SelectContent>
               </Select>
 
@@ -798,6 +820,15 @@ export default function UserManagement() {
                       <div className="text-sm text-gray-500 mt-1">
                         <Building2 className="h-3 w-3 inline mr-1" />
                         {userProfile.organization.name}
+                      </div>
+                    )}
+                    {userProfile.job_title && (
+                      <div className="text-sm text-gray-500 mt-1">
+                        <Award className="h-3 w-3 inline mr-1" />
+                        {userProfile.job_title}
+                        {userProfile.requires_driver_license && (
+                          <span className="ml-1 text-xs text-amber-600">🚗 Licence required</span>
+                        )}
                       </div>
                     )}
                     
@@ -973,11 +1004,48 @@ export default function UserManagement() {
                   <SelectItem value="nzscv_monitor">NZSCV Monitor</SelectItem>
                   <SelectItem value="admin_officer">Admin Officer</SelectItem>
                   <SelectItem value="admin">Admin</SelectItem>
-                  {user?.role === 'master' && (
+                  <SelectItem value="client_viewer">Client Viewer</SelectItem>
+                  {(user?.role === 'master' || user?.role === 'grand_master') && (
                     <SelectItem value="master">Master</SelectItem>
+                  )}
+                  {user?.role === 'grand_master' && (
+                    <SelectItem value="grand_master">Grand Master</SelectItem>
                   )}
                 </SelectContent>
               </Select>
+            </div>
+            <div>
+              <Label htmlFor="jobTitle">Job Title</Label>
+              <Select value={jobTitle || 'none'} onValueChange={(v) => {
+                const title = v === 'none' ? '' : v
+                setJobTitle(title)
+                setRequiresDriverLicense(
+                  title === 'Field Services Officer' || title === 'Patrol Officer'
+                )
+              }}>
+                <SelectTrigger id="jobTitle">
+                  <SelectValue placeholder="Select job title (optional)" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">— None —</SelectItem>
+                  <SelectItem value="Rostering Team Admin">Rostering Team Admin</SelectItem>
+                  <SelectItem value="Branch Manager">Branch Manager</SelectItem>
+                  <SelectItem value="Operations Manager">Operations Manager</SelectItem>
+                  <SelectItem value="Sales Team">Sales Team</SelectItem>
+                  <SelectItem value="Dispatch Team">Dispatch Team</SelectItem>
+                  <SelectItem value="Welfare Team">Welfare Team</SelectItem>
+                  <SelectItem value="Supervisor">Supervisor</SelectItem>
+                  <SelectItem value="Field Services Officer">Field Services Officer 🚗</SelectItem>
+                  <SelectItem value="Patrol Officer">Patrol Officer 🚗</SelectItem>
+                  <SelectItem value="Static Guard - Permanent">Static Guard – Permanent</SelectItem>
+                  <SelectItem value="Static Guard - Part-Time">Static Guard – Part-Time</SelectItem>
+                  <SelectItem value="Static Guard - Casual">Static Guard – Casual</SelectItem>
+                  <SelectItem value="Contractor">Contractor</SelectItem>
+                </SelectContent>
+              </Select>
+              {requiresDriverLicense && (
+                <p className="text-xs text-amber-600 mt-1">⚠️ This position requires a valid full NZ driver licence.</p>
+              )}
             </div>
             <div>
               <Label htmlFor="phone">Phone</Label>
@@ -1097,11 +1165,25 @@ export default function UserManagement() {
                       <span className="text-xs text-gray-500">Full organisational management</span>
                     </div>
                   </SelectItem>
-                  {user?.role === 'master' && (
+                  <SelectItem value="client_viewer">
+                    <div className="flex flex-col items-start">
+                      <span className="font-medium">Client Viewer</span>
+                      <span className="text-xs text-gray-500">Read-only client organisation portal</span>
+                    </div>
+                  </SelectItem>
+                  {(user?.role === 'master' || user?.role === 'grand_master') && (
                     <SelectItem value="master">
                       <div className="flex flex-col items-start">
                         <span className="font-medium">Master</span>
                         <span className="text-xs text-gray-500">Cross-organisation access</span>
+                      </div>
+                    </SelectItem>
+                  )}
+                  {user?.role === 'grand_master' && (
+                    <SelectItem value="grand_master">
+                      <div className="flex flex-col items-start">
+                        <span className="font-medium">Grand Master</span>
+                        <span className="text-xs text-gray-500">Platform owner – full access across all organisations</span>
                       </div>
                     </SelectItem>
                   )}
@@ -1333,11 +1415,48 @@ export default function UserManagement() {
                   <SelectItem value="officer">Officer</SelectItem>
                   <SelectItem value="admin_officer">Admin Officer</SelectItem>
                   <SelectItem value="admin">Admin</SelectItem>
-                  {user?.role === 'master' && (
+                  <SelectItem value="client_viewer">Client Viewer</SelectItem>
+                  {(user?.role === 'master' || user?.role === 'grand_master') && (
                     <SelectItem value="master">Master</SelectItem>
+                  )}
+                  {user?.role === 'grand_master' && (
+                    <SelectItem value="grand_master">Grand Master</SelectItem>
                   )}
                 </SelectContent>
               </Select>
+            </div>
+            <div>
+              <Label htmlFor="editJobTitle">Job Title</Label>
+              <Select value={jobTitle || 'none'} onValueChange={(v) => {
+                const title = v === 'none' ? '' : v
+                setJobTitle(title)
+                setRequiresDriverLicense(
+                  title === 'Field Services Officer' || title === 'Patrol Officer'
+                )
+              }}>
+                <SelectTrigger id="editJobTitle">
+                  <SelectValue placeholder="Select job title (optional)" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">— None —</SelectItem>
+                  <SelectItem value="Rostering Team Admin">Rostering Team Admin</SelectItem>
+                  <SelectItem value="Branch Manager">Branch Manager</SelectItem>
+                  <SelectItem value="Operations Manager">Operations Manager</SelectItem>
+                  <SelectItem value="Sales Team">Sales Team</SelectItem>
+                  <SelectItem value="Dispatch Team">Dispatch Team</SelectItem>
+                  <SelectItem value="Welfare Team">Welfare Team</SelectItem>
+                  <SelectItem value="Supervisor">Supervisor</SelectItem>
+                  <SelectItem value="Field Services Officer">Field Services Officer 🚗</SelectItem>
+                  <SelectItem value="Patrol Officer">Patrol Officer 🚗</SelectItem>
+                  <SelectItem value="Static Guard - Permanent">Static Guard – Permanent</SelectItem>
+                  <SelectItem value="Static Guard - Part-Time">Static Guard – Part-Time</SelectItem>
+                  <SelectItem value="Static Guard - Casual">Static Guard – Casual</SelectItem>
+                  <SelectItem value="Contractor">Contractor</SelectItem>
+                </SelectContent>
+              </Select>
+              {requiresDriverLicense && (
+                <p className="text-xs text-amber-600 mt-1">⚠️ This position requires a valid full NZ driver licence.</p>
+              )}
             </div>
             <div>
               <Label htmlFor="editPhone">Phone</Label>
@@ -1386,6 +1505,8 @@ export default function UserManagement() {
                 last_name: lastName,
                 role,
                 phone: phone || null,
+                job_title: jobTitle || null,
+                requires_driver_license: requiresDriverLicense,
                 organization_id: organizationId || null,
                 employer_organization_id: employerOrgId || null,
               })}

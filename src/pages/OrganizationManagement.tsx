@@ -10,7 +10,7 @@ import { Label } from '@/components/ui/label'
 import { Switch } from '@/components/ui/switch'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Building2, Users, MapPin, Settings, Plus } from 'lucide-react'
+import { Building2, Users, MapPin, Settings, Plus, Search } from 'lucide-react'
 import { toast } from 'sonner'
 import { AppLayout } from '@/components/features/AppLayout'
 import { GlobalFilterRibbon } from '@/components/features/GlobalFilterRibbon'
@@ -36,6 +36,8 @@ export default function OrganizationManagement() {
   const [showSettingsDialog, setShowSettingsDialog] = useState(false)
   const [showCreateDialog, setShowCreateDialog] = useState(false)
   const [selectedOrg, setSelectedOrg] = useState<Organization | null>(null)
+  const [orgSearch, setOrgSearch] = useState('')
+  const [orgTypeFilter, setOrgTypeFilter] = useState('all')
   
   // Edit form state
   const [editName, setEditName] = useState('')
@@ -44,7 +46,7 @@ export default function OrganizationManagement() {
   const [editEmail, setEditEmail] = useState('')
   const [editPhone, setEditPhone] = useState('')
   const [editIsActive, setEditIsActive] = useState(true)
-  const [editOrgType, setEditOrgType] = useState<'owner' | 'service_provider' | 'client'>('client')
+  const [editOrgType, setEditOrgType] = useState<'owner' | 'service_provider' | 'client' | 'contractor'>('client')
   const [editParentOrgId, setEditParentOrgId] = useState<string | null>(null)
 
   // Create form state
@@ -53,7 +55,7 @@ export default function OrganizationManagement() {
   const [createOvernightVerificationMode, setCreateOvernightVerificationMode] = useState<'two_photo_verification' | 'one_photo_per_day_inference'>('two_photo_verification')
   const [createEmail, setCreateEmail] = useState('')
   const [createPhone, setCreatePhone] = useState('')
-  const [createOrgType, setCreateOrgType] = useState<'owner' | 'service_provider' | 'client'>('client')
+  const [createOrgType, setCreateOrgType] = useState<'owner' | 'service_provider' | 'client' | 'contractor'>('client')
   const [createParentOrgId, setCreateParentOrgId] = useState<string | null>(null)
 
   // Check user role
@@ -129,7 +131,7 @@ export default function OrganizationManagement() {
       if (!createName.trim()) throw new Error('Organisation name is required')
 
       // Derive level from type
-      const levelMap: Record<string, number> = { owner: 1, service_provider: 2, client: 3 }
+      const levelMap: Record<string, number> = { owner: 1, service_provider: 2, client: 3, contractor: 4 }
       const level = levelMap[createOrgType] || 3
 
       const { error } = await (supabase
@@ -212,11 +214,38 @@ export default function OrganizationManagement() {
     <AppLayout title="Organisation Management" description="Manage organisational hierarchy and settings" showBackButton>
       <GlobalFilterRibbon showDateFilter={false} />
 
-      <div className="flex justify-end mb-6">
-        <Button onClick={() => setShowCreateDialog(true)}>
-          <Plus className="h-4 w-4 mr-2" />
-          New Organisation
-        </Button>
+      <div className="flex flex-col sm:flex-row gap-3 mb-4 mt-2">
+        {/* Search */}
+        <div className="relative flex-1 max-w-sm">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+          <Input
+            placeholder="Search organisations…"
+            value={orgSearch}
+            onChange={(e) => setOrgSearch(e.target.value)}
+            className="pl-9"
+          />
+        </div>
+
+        {/* Type filter */}
+        <Select value={orgTypeFilter} onValueChange={setOrgTypeFilter}>
+          <SelectTrigger className="w-52">
+            <SelectValue placeholder="All types" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Types</SelectItem>
+            <SelectItem value="owner">Owner</SelectItem>
+            <SelectItem value="service_provider">Service Provider</SelectItem>
+            <SelectItem value="client">Client</SelectItem>
+            <SelectItem value="contractor">Contractor</SelectItem>
+          </SelectContent>
+        </Select>
+
+        <div className="sm:ml-auto">
+          <Button onClick={() => setShowCreateDialog(true)}>
+            <Plus className="h-4 w-4 mr-2" />
+            New Organisation
+          </Button>
+        </div>
       </div>
 
       {/* Organizations List */}
@@ -224,12 +253,29 @@ export default function OrganizationManagement() {
         {isLoading ? (
           <PaperworkSearchAnimation size="sm" text="Loading organisations…" />
         ) : organizations && organizations.length > 0 ? (
-          organizations.map((org) => {
+          organizations
+            .filter((org) => {
+              const matchesSearch = !orgSearch ||
+                org.name.toLowerCase().includes(orgSearch.toLowerCase())
+              const matchesType = orgTypeFilter === 'all' ||
+                org.organization_type === orgTypeFilter
+              return matchesSearch && matchesType
+            })
+            .map((org) => {
             const stats = orgStats?.[org.id] || { users: 0, zones: 0 }
             const isChild = org.organization_level > 1
 
             return (
-              <Card key={org.id} className={isChild ? 'ml-8 border-l-4 border-l-blue-200' : ''}>
+              <Card
+                key={org.id}
+                className={
+                  org.organization_type === 'contractor'
+                    ? 'ml-8 border-l-4 border-l-amber-400'
+                    : isChild
+                    ? 'ml-8 border-l-4 border-l-blue-200'
+                    : ''
+                }
+              >
                 <CardHeader>
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
@@ -239,8 +285,15 @@ export default function OrganizationManagement() {
                         <Badge variant={org.is_active ? 'default' : 'secondary'}>
                           {org.is_active ? 'Active' : 'Inactive'}
                         </Badge>
-                        <Badge variant="outline">
-                          {org.organization_type}
+                        <Badge
+                          variant="outline"
+                          className={
+                            org.organization_type === 'contractor'
+                              ? 'border-amber-400 text-amber-700 bg-amber-50'
+                              : ''
+                          }
+                        >
+                          {getOrgTypeLabel(org.organization_type)}
                         </Badge>
                       </div>
                       <CardDescription className="mt-2">
@@ -364,8 +417,9 @@ export default function OrganizationManagement() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="owner">Owner (Level 1 – Iron Eagle / Platform Owner)</SelectItem>
-                  <SelectItem value="service_provider">Service Provider (Level 2 – Security Company)</SelectItem>
-                  <SelectItem value="client">Client (Level 3 – Council / Territory)</SelectItem>
+                  <SelectItem value="service_provider">Service Provider (Level 2 – Security Company / Branch)</SelectItem>
+                  <SelectItem value="client">Client (Level 3 – Council / Territory / Business)</SelectItem>
+                  <SelectItem value="contractor">Contractor (Level 4 – Sub-contracted Security Company)</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -456,7 +510,7 @@ export default function OrganizationManagement() {
             </Button>
             <Button 
               onClick={() => {
-                const levelMap: Record<string, number> = { owner: 1, service_provider: 2, client: 3 }
+                const levelMap: Record<string, number> = { owner: 1, service_provider: 2, client: 3, contractor: 4 }
                 updateOrgMutation.mutate({
                   name: editName,
                   organization_type: editOrgType,
@@ -507,6 +561,7 @@ export default function OrganizationManagement() {
                   <SelectItem value="owner">Owner (Level 1)</SelectItem>
                   <SelectItem value="service_provider">Service Provider (Level 2)</SelectItem>
                   <SelectItem value="client">Client (Level 3)</SelectItem>
+                  <SelectItem value="contractor">Contractor (Level 4)</SelectItem>
                 </SelectContent>
               </Select>
             </div>

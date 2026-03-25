@@ -1,9 +1,9 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/stores/authStore'
 import { useGlobalFiltersStore } from '@/stores/globalFiltersStore'
-import { monitorGeofenceAndPatrol } from '@/lib/geofence'
+import { monitorGeofenceAndPatrol, calculateDistance } from '@/lib/geofence'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -20,9 +20,11 @@ import { LivePatrolCamera } from '@/components/features/LivePatrolCamera'
 import { BulkScanSession } from '@/components/features/BulkScanSession'
 import { OfficerFollowUpQueue } from '@/components/features/OfficerFollowUpQueue'
 import { PostShiftFeedback } from '@/components/features/PostShiftFeedback'
+import { VOILookup } from '@/components/features/VOILookup'
 import { captureAndSave, SCAN_PROGRESS_LABELS, type ScanProgressStage } from '@/lib/scanPipeline'
 import { useManDownDetection } from '@/hooks/useManDownDetection'
 import { useWelfareCheckin } from '@/hooks/useWelfareCheckin'
+import { useRosteredShift } from '@/hooks/useRosteredShift'
 import { reverseGeocode } from '@/lib/geocoding'
 import { useThemePreferencesStore } from '@/stores/themePreferencesStore'
 import {
@@ -30,7 +32,7 @@ import {
   ShieldAlert, CheckCircle, Shield, Megaphone, FileWarning, XCircle,
   Clock, Home, X, Car, Zap, Search, Printer, PlusCircle, Wrench, Heart, Users,
   Moon, Sun, ParkingSquare, Volume2, Video, Eye, Tent, Timer,
-  ScanFace, CalendarPlus, Siren, Bell, PhoneCall,
+  ScanFace, CalendarPlus, Siren, Bell, PhoneCall, Lock,
 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
@@ -116,12 +118,52 @@ export default function FieldOfficerPortal() {
   const { user } = useAuthStore()
   const { zoneId, zoneName, setZone } = useGlobalFiltersStore()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const queryClient = useQueryClient()
   const { themeMode, setThemeMode } = useThemePreferencesStore()
   const isNightPatrol = themeMode === 'night-patrol'
 
-  // ── Service type selection ────────────────────────────────────────────────
-  const [activeService, setActiveService] = useState<ServiceType | null>(null)
+  // ── Roster context ────────────────────────────────────────────────────────
+  const { rosteredShift } = useRosteredShift()
+
+  // ── Service type selection — pre-fill from URL param or roster ────────────
+  const [activeService, setActiveService] = useState<ServiceType | null>(() => {
+    const param = searchParams.get('service') as ServiceType | null
+    return param && ['freedom_camping','guarding','parking','noise','patrol','alarm_response'].includes(param)
+      ? param as ServiceType
+      : null
+  })
+
+  // ── Enabled (linked) extra portals — persisted per-officer in user_profiles ─
+  // Officers can tick which additional service portals are linked to their dashboard.
+  // Initialised from roster-shift service_type; officer can toggle extras.
+  const ALL_PORTAL_OPTIONS: ServiceType[] = ['freedom_camping', 'guarding', 'parking', 'noise']
+  const [enabledPortals, setEnabledPortals] = useState<ServiceType[]>(() => {
+    try {
+      const stored = localStorage.getItem(`enabled_portals_${user?.id}`)
+      if (stored) return JSON.parse(stored) as ServiceType[]
+    } catch { /* ignore */ }
+    return rosteredShift?.service_type
+      ? [rosteredShift.service_type as ServiceType]
+      : ['freedom_camping']
+  })
+
+  const togglePortal = (portal: ServiceType) => {
+    setEnabledPortals(prev => {
+      const next = prev.includes(portal)
+        ? prev.filter(p => p !== portal)
+        : [...prev, portal]
+      localStorage.setItem(`enabled_portals_${user?.id}`, JSON.stringify(next))
+      // Persist to user_profiles asynchronously
+      if (user?.id) {
+        ;(supabase as any).from('user_profiles')
+          .update({ enabled_portals: next })
+          .eq('id', user.id)
+          .then(() => {/* fire and forget */})
+      }
+      return next
+    })
+  }
 
   // ── Scan mode: null = portal home, 'detail' = single-vehicle scan,
   //              'bulk' = quick area sweep, 'checkpoint' = QR check-in
@@ -890,6 +932,36 @@ export default function FieldOfficerPortal() {
               }
             )}
           </div>
+
+          {/* ── Linked portals (multi-service tick boxes) ──────────────
+              Patrol officers can tick additional portals to link them
+              to their dashboard without changing primary service type. */}
+          <div className="mt-3 rounded-xl border border-gray-200 dark:border-gray-700 p-3">
+            <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2 flex items-center gap-1.5">
+              <Lock className="h-3.5 w-3.5" />
+              Linked Portals — show additional service tools
+            </p>
+            <div className="flex flex-wrap gap-x-4 gap-y-1">
+              {ALL_PORTAL_OPTIONS.map(portal => {
+                const cfg = SERVICE_TYPE_CONFIG[portal]
+                if (!cfg) return null
+                return (
+                  <label key={portal} className="flex items-center gap-1.5 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      className="rounded border-gray-300"
+                      checked={enabledPortals.includes(portal)}
+                      onChange={() => togglePortal(portal)}
+                    />
+                    <span className={`text-xs font-medium ${cfg.color}`}>{cfg.label}</span>
+                  </label>
+                )
+              })}
+            </div>
+            <p className="text-[11px] text-gray-400 mt-1.5">
+              Ticked portals show their tools below. Your choices are saved automatically.
+            </p>
+          </div>
         </div>
       )}
 
@@ -977,9 +1049,9 @@ export default function FieldOfficerPortal() {
           {/* ═══════════════════════════════════════════════════════════
               FREEDOM CAMPING PATROL tools
               ═══════════════════════════════════════════════════════════ */}
-          {(!activeService || activeService === 'freedom_camping') && (
+          {(!activeService || activeService === 'freedom_camping' || enabledPortals.includes('freedom_camping')) && (
             <>
-              {activeService === 'freedom_camping' && (
+              {(activeService === 'freedom_camping' || enabledPortals.includes('freedom_camping')) && (
                 <h3 className="text-xs font-bold text-green-700 dark:text-green-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
                   <Tent className="h-3.5 w-3.5" />
                   Freedom Camping Patrol
@@ -1081,9 +1153,9 @@ export default function FieldOfficerPortal() {
           {/* ═══════════════════════════════════════════════════════════
               GUARDING tools
               ═══════════════════════════════════════════════════════════ */}
-          {(!activeService || activeService === 'guarding') && (
+          {(!activeService || activeService === 'guarding' || enabledPortals.includes('guarding')) && (
             <>
-              {activeService === 'guarding' && (
+              {(activeService === 'guarding' || enabledPortals.includes('guarding')) && (
                 <h3 className="text-xs font-bold text-blue-700 dark:text-blue-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
                   <Shield className="h-3.5 w-3.5" />
                   Guarding
@@ -1184,6 +1256,60 @@ export default function FieldOfficerPortal() {
                     </Button>
                   </CardContent>
                 </Card>
+
+                {/* VOI Lookup — available everywhere, no geofence restriction */}
+                <Card className="hover:shadow-lg transition-shadow border-blue-200 dark:border-blue-900 border-2 md:col-span-2 lg:col-span-3">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="flex items-center gap-2 text-base">
+                      <div className="p-2 bg-blue-100 dark:bg-blue-900 rounded-lg">
+                        <Car className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                      </div>
+                      Vehicle of Interest Check
+                      <Badge variant="outline" className="ml-auto text-xs border-blue-200 text-blue-600">Anywhere</Badge>
+                    </CardTitle>
+                    <CardDescription>Search flagged / banned vehicles — no geofence required</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <VOILookup inline />
+                  </CardContent>
+                </Card>
+
+                {/* POI — only when rostered and on shift */}
+                {rosteredShift && (
+                  <Card className="hover:shadow-lg transition-shadow border-orange-200 dark:border-orange-800 border-2">
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <div className="p-2 bg-orange-100 dark:bg-orange-900 rounded-lg">
+                          <Lock className="h-5 w-5 text-orange-600 dark:text-orange-400" />
+                        </div>
+                        Persons of Interest
+                        <Badge variant="outline" className="ml-auto text-xs border-green-300 text-green-700">Rostered</Badge>
+                      </CardTitle>
+                      <CardDescription>
+                        {rosteredShift.client_site_id
+                          ? `Site POI — geofence gated`
+                          : 'Org-wide POI — geofence gated'}
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      {rosteredShift.client_site_id ? (
+                        <Button
+                          className="w-full"
+                          variant="outline"
+                          onClick={() => navigate(`/site-guard?site=${rosteredShift.client_site_id}&roster=${rosteredShift.id}`)}
+                        >
+                          <Users className="h-4 w-4 mr-2" />
+                          View Site POI
+                        </Button>
+                      ) : (
+                        <Button className="w-full" variant="outline" onClick={() => navigate('/points-of-interest')}>
+                          <Users className="h-4 w-4 mr-2" />
+                          View POI
+                        </Button>
+                      )}
+                    </CardContent>
+                  </Card>
+                )}
               </div>
             </>
           )}
@@ -1191,9 +1317,9 @@ export default function FieldOfficerPortal() {
           {/* ═══════════════════════════════════════════════════════════
               PARKING ENFORCEMENT tools
               ═══════════════════════════════════════════════════════════ */}
-          {(!activeService || activeService === 'parking') && (
+          {(!activeService || activeService === 'parking' || enabledPortals.includes('parking')) && (
             <>
-              {activeService === 'parking' && (
+              {(activeService === 'parking' || enabledPortals.includes('parking')) && (
                 <h3 className="text-xs font-bold text-orange-700 dark:text-orange-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
                   <ParkingSquare className="h-3.5 w-3.5" />
                   Parking Enforcement
@@ -1240,9 +1366,9 @@ export default function FieldOfficerPortal() {
           {/* ═══════════════════════════════════════════════════════════
               NOISE CONTROL tools
               ═══════════════════════════════════════════════════════════ */}
-          {(!activeService || activeService === 'noise') && (
+          {(!activeService || activeService === 'noise' || enabledPortals.includes('noise')) && (
             <>
-              {activeService === 'noise' && (
+              {(activeService === 'noise' || enabledPortals.includes('noise')) && (
                 <h3 className="text-xs font-bold text-yellow-700 dark:text-yellow-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
                   <Volume2 className="h-3.5 w-3.5" />
                   Noise Control

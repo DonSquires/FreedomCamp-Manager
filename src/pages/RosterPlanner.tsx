@@ -100,6 +100,11 @@ interface RosterShift {
   conflict_reason: string | null
   notes: string | null
   internal_notes: string | null
+  // Rate / costing fields (populated by DB trigger for contractor guards)
+  guard_cost_rate: number | null
+  client_charge_rate: number | null
+  rate_type: string | null
+  contractor_org_id: string | null
   created_by: string | null
   created_at: string
   updated_at: string
@@ -112,6 +117,8 @@ interface Officer {
   email: string
   role: string
   is_active: boolean
+  employer_organization_id: string | null
+  contractor_org: { id: string; name: string; organization_type: string } | null
 }
 
 interface ClientSite {
@@ -148,6 +155,12 @@ interface ShiftFormData {
   required_skills: string[]
   notes: string
   internal_notes: string
+  // Service type — drives portal routing when officer logs in
+  service_type: string
+  // Rate overrides (auto-filled for contractor guards, editable)
+  guard_cost_rate: string    // string for input binding
+  client_charge_rate: string
+  rate_type: string
 }
 
 const emptyForm = (officerId = '', date = ''): ShiftFormData => ({
@@ -163,6 +176,10 @@ const emptyForm = (officerId = '', date = ''): ShiftFormData => ({
   required_skills: [],
   notes: '',
   internal_notes: '',
+  service_type: '',
+  guard_cost_rate: '',
+  client_charge_rate: '',
+  rate_type: 'standard',
 })
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -417,6 +434,10 @@ function ShiftDialog({
           required_skills: editShift.required_skills || [],
           notes: editShift.notes || '',
           internal_notes: editShift.internal_notes || '',
+          service_type: (editShift as any).service_type || '',
+          guard_cost_rate: editShift.guard_cost_rate != null ? String(editShift.guard_cost_rate) : '',
+          client_charge_rate: editShift.client_charge_rate != null ? String(editShift.client_charge_rate) : '',
+          rate_type: editShift.rate_type || 'standard',
         }
       : emptyForm(prefillOfficerId, prefillDate)
   )
@@ -563,6 +584,36 @@ function ShiftDialog({
               />
             </div>
 
+            {/* Service Type */}
+            <div>
+              <Label>Service Type</Label>
+              <Select
+                value={form.service_type || '__none__'}
+                onValueChange={(v) => set('service_type', v === '__none__' ? '' : v)}
+              >
+                <SelectTrigger className="mt-1">
+                  <SelectValue placeholder="Select service type…" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">— Not specified —</SelectItem>
+                  {([
+                    ['freedom_camping', 'Freedom Camping Patrol'],
+                    ['guarding',        'Site Guarding'],
+                    ['parking',         'Parking Enforcement'],
+                    ['noise',           'Noise Control'],
+                    ['patrol',          'General Patrol'],
+                    ['alarm_response',  'Alarm Response'],
+                    ['ems',             'EMS (Electronic Monitoring)'],
+                  ] as const).map(([v, l]) => (
+                    <SelectItem key={v} value={v}>{l}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-gray-400 mt-0.5">
+                Controls which portal the officer is routed to on login.
+              </p>
+            </div>
+
             {/* Position Title */}
             <div>
               <Label>Position Title</Label>
@@ -680,6 +731,70 @@ function ShiftDialog({
                 onChange={(e) => set('notes', e.target.value)}
               />
             </div>
+
+            {/* ── Contractor Rate / Margin panel ──────────────────────── */}
+            {(() => {
+              const officer = officers.find((o) => o.id === form.officer_id)
+              const isContractor = officer?.contractor_org?.organization_type === 'contractor'
+              const cost   = parseFloat(form.guard_cost_rate)   || null
+              const charge = parseFloat(form.client_charge_rate) || null
+              const margin = cost != null && charge != null ? charge - cost : null
+              if (!isContractor && !cost && !charge) return null
+              return (
+                <div className="col-span-2 rounded-lg border border-amber-200 bg-amber-50 p-3 space-y-2">
+                  <p className="text-xs font-semibold text-amber-800 flex items-center gap-1">
+                    💰 {isContractor ? `Contractor: ${officer!.contractor_org!.name}` : 'Rate Override'}
+                  </p>
+                  <div className="grid grid-cols-3 gap-3">
+                    <div>
+                      <label className="text-xs text-gray-500">Guard Cost $/hr</label>
+                      <Input
+                        type="number" step="0.01" min="0"
+                        className="h-8 mt-0.5 text-sm"
+                        placeholder="Auto"
+                        value={form.guard_cost_rate}
+                        onChange={(e) => set('guard_cost_rate', e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-500">Client Charge $/hr</label>
+                      <Input
+                        type="number" step="0.01" min="0"
+                        className="h-8 mt-0.5 text-sm"
+                        placeholder="Auto from site"
+                        value={form.client_charge_rate}
+                        onChange={(e) => set('client_charge_rate', e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs text-gray-500">Margin $/hr</label>
+                      <div className={`h-8 mt-0.5 flex items-center px-3 rounded-md border text-sm font-semibold ${
+                        margin == null  ? 'bg-white text-gray-400 border-gray-200' :
+                        margin >= 0     ? 'bg-green-50 text-green-700 border-green-200' :
+                                          'bg-red-50 text-red-700 border-red-200'
+                      }`}>
+                        {margin != null ? `$${margin.toFixed(2)}` : '—'}
+                      </div>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-500">Rate Type</label>
+                    <Select value={form.rate_type} onValueChange={(v) => set('rate_type', v)}>
+                      <SelectTrigger className="h-8 mt-0.5 text-sm">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {(['standard','standby','short_notice','long_term','overtime'] as const).map((t) => (
+                          <SelectItem key={t} value={t} className="capitalize text-sm">
+                            {t.replace(/_/g, ' ')}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              )
+            })()}
 
             {/* Internal Notes (admin-only) */}
             {isAdmin && (
@@ -805,15 +920,22 @@ export default function RosterPlanner() {
   const { data: officers = [], isLoading: officersLoading } = useQuery<Officer[]>({
     queryKey: ['roster_officers', user?.organization_id],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('user_profiles')
-        .select('id, first_name, last_name, email, role, is_active')
+        .select(`
+          id, first_name, last_name, email, role, is_active,
+          employer_organization_id,
+          contractor_org:organizations!employer_organization_id(id, name, organization_type)
+        `)
         .eq('organization_id', user!.organization_id!)
         .eq('is_active', true)
         .in('role', ['officer', 'admin_officer'])
         .order('first_name')
       if (error) throw error
-      return (data || []) as Officer[]
+      return (data || []).map((o: any) => ({
+        ...o,
+        contractor_org: Array.isArray(o.contractor_org) ? o.contractor_org[0] ?? null : o.contractor_org,
+      })) as Officer[]
     },
     enabled: !!user?.organization_id,
   })
@@ -879,10 +1001,15 @@ export default function RosterPlanner() {
         required_skills: data.required_skills,
         notes: data.notes || null,
         internal_notes: data.internal_notes || null,
+        service_type: data.service_type || null,
         status: 'draft',
         officer_response: 'pending',
         has_conflict: false,
         created_by: user!.id,
+        // Rate fields — DB trigger auto-populates for contractors; manual override kept if set
+        guard_cost_rate:    data.guard_cost_rate    ? parseFloat(data.guard_cost_rate)    : null,
+        client_charge_rate: data.client_charge_rate ? parseFloat(data.client_charge_rate) : null,
+        rate_type:          data.rate_type || 'standard',
       }
       const { error } = await ((supabase as any).from('roster_shifts') as any).insert(payload)
       if (error) throw error
@@ -910,7 +1037,11 @@ export default function RosterPlanner() {
         required_skills: data.required_skills,
         notes: data.notes || null,
         internal_notes: data.internal_notes || null,
+        service_type: data.service_type || null,
         updated_at: new Date().toISOString(),
+        guard_cost_rate:    data.guard_cost_rate    ? parseFloat(data.guard_cost_rate)    : null,
+        client_charge_rate: data.client_charge_rate ? parseFloat(data.client_charge_rate) : null,
+        rate_type:          data.rate_type || 'standard',
       }
       const { error } = await ((supabase as any).from('roster_shifts') as any).update(payload).eq('id', id)
       if (error) throw error

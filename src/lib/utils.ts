@@ -79,6 +79,9 @@ export function getOrgTypeLabel(type: string): string {
     case 'owner': return 'Owner'
     case 'service_provider': return 'Service Provider'
     case 'client': return 'Client'
+    case 'contractor': return 'Contractor'
+    case 'operator': return 'Operator'
+    case 'security_company': return 'Security Company'
     default: return type
   }
 }

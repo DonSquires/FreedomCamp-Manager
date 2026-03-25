@@ -38,6 +38,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { toast } from 'sonner'
 import { formatDateTime } from '@/lib/utils'
 import { edgeFunctions } from '@/lib/edgeFunctions'
+import { FieldSafetyBar } from '@/components/features/FieldSafetyBar'
 import {
   Volume2, ShieldAlert, AlertTriangle, FileText, Package,
   CheckCircle, Radio, MapPin, Clock, Camera, Gavel,
@@ -510,6 +511,9 @@ export default function NoiseOfficerPortal() {
   return (
     <AppLayout>
       <div className="p-4 space-y-5 max-w-2xl mx-auto">
+
+        {/* Safety bar — welfare, SOS, quick reports */}
+        <FieldSafetyBar compact />
 
         {/* Header */}
         <div className="flex items-center gap-3">
