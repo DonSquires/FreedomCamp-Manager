@@ -102,12 +102,18 @@ Deno.serve(async (req) => {
       }
 
       const cmpData = await cmpResp.json();
+      const similarity = typeof cmpData.similarity === 'number' ? cmpData.similarity : 0;
       return new Response(
         JSON.stringify({
-          similarity:     cmpData.similarity,
-          same_person:    cmpData.same_vehicle ?? cmpData.similarity >= 0.80,
-          confidence:     cmpData.confidence,
-          interpretation: (cmpData.interpretation ?? '').replace(/vehicle/gi, 'person'),
+          similarity,
+          same_person:    similarity >= 0.80,
+          confidence:     similarity >= 0.90 ? 'high'
+                        : similarity >= 0.80 ? 'medium'
+                        : similarity >= 0.65 ? 'low'
+                        : 'different',
+          interpretation: similarity >= 0.80
+            ? `Likely same person (${(similarity * 100).toFixed(1)}% match)`
+            : `Different person (${(similarity * 100).toFixed(1)}% match)`,
         }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );

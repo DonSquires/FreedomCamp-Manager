@@ -551,12 +551,18 @@ export async function compareFaceEmbeddings(
     }
 
     const json = await response.json()
+    const similarity = typeof json.similarity === 'number' ? json.similarity : 0
     return {
       data: {
-        similarity:     json.similarity,
-        same_person:    json.same_vehicle ?? json.similarity >= 0.80,
-        confidence:     json.confidence,
-        interpretation: json.interpretation?.replace(/vehicle/gi, 'person') ?? '',
+        similarity,
+        same_person:    similarity >= 0.80,
+        confidence:     similarity >= 0.90 ? 'high'
+                      : similarity >= 0.80 ? 'medium'
+                      : similarity >= 0.65 ? 'low'
+                      : 'different',
+        interpretation: similarity >= 0.80
+          ? `Likely same person (${(similarity * 100).toFixed(1)}% match)`
+          : `Different person (${(similarity * 100).toFixed(1)}% match)`,
       },
       error: null,
     }
