@@ -341,14 +341,15 @@ export default function FieldOfficerPortal() {
       return data as { id: string; started_at: string; parent_zone_id: string | null; gps_start_lat: number | null; gps_start_lng: number | null } | null
     },
     enabled: !!user?.id,
-    refetchInterval: 60000, // refresh every minute to keep duration display updated
+    refetchInterval: 300000, // refresh every 5 minutes — duration display updates locally via setShiftTick
   })
 
   // Auto-start shift when officer opens the portal (if no active shift)
   useEffect(() => {
     if (!user?.id || !user?.organization_id) return
     if (shiftStartedRef.current) return
-    if (activeShift !== null && activeShift !== undefined) return // already have a shift or still loading
+    // activeShift is undefined while loading, null if no shift found, or a shift object
+    if (activeShift === undefined || activeShift !== null) return
 
     shiftStartedRef.current = true
 
