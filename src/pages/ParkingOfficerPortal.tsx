@@ -27,6 +27,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { toast } from 'sonner'
 import { formatDateTime } from '@/lib/utils'
+import { ParkingPhotoCapture } from '@/components/features/ParkingPhotoCapture'
+import type { ParkingPhotoCaptureResult } from '@/components/features/ParkingPhotoCapture'
 import {
   Camera, Car, Clock, MapPin, AlertTriangle, CheckCircle,
   ChevronRight, Search, FileText, History, QrCode, Shield,
@@ -104,8 +106,14 @@ interface ChalkPassForm {
   plate_number: string
   parking_zone_id: string
   tyre_valve_pos: 'north' | 'south' | 'east' | 'west' | 'unknown'
-  address_photo_url: string
+  vehicle_photo_url: string    // front-left vehicle photo (ALPR capture) → entry_photo_url
   tyre_valve_photo_url: string
+  sign_photo_url: string       // parking restriction sign photo
+  gps_lat: number | null
+  gps_lng: number | null
+  vehicle_make: string
+  vehicle_model: string
+  vehicle_colour: string
   notes: string
 }
 
@@ -153,7 +161,10 @@ export default function ParkingOfficerPortal() {
   // Chalk pass form
   const [chalkForm, setChalk] = useState<ChalkPassForm>({
     plate_number: '', parking_zone_id: '', tyre_valve_pos: 'north',
-    address_photo_url: '', tyre_valve_photo_url: '', notes: '',
+    vehicle_photo_url: '', tyre_valve_photo_url: '', sign_photo_url: '',
+    gps_lat: null, gps_lng: null,
+    vehicle_make: '', vehicle_model: '', vehicle_colour: '',
+    notes: '',
   })
   const [chalking, setChalking] = useState(false)
 
@@ -164,6 +175,7 @@ export default function ParkingOfficerPortal() {
     max_stay_minutes: number | null
     is_over_limit: boolean
     valve_moved: boolean
+    recheck_photo_url: string | null
   } | null>(null)
 
   // Infringement form
@@ -213,8 +225,9 @@ export default function ParkingOfficerPortal() {
   })
 
   // ── Search a plate (recheck flow) ─────────────────────────────
-  const handleSearchPlate = useCallback(async () => {
-    if (!searchPlate.trim()) return
+  const handleSearchPlate = useCallback(async (plateOverride?: string) => {
+    const plate = plateOverride ?? searchPlate
+    if (!plate.trim()) return
     setSearching(true)
     try {
       // Find latest active session for this plate
@@ -222,14 +235,14 @@ export default function ParkingOfficerPortal() {
         .from('parking_sessions' as any)
         .select('*, parking_zones(name, max_stay_minutes, fine_amount_nzd, zone_type, address)')
         .eq('organization_id', user!.organization_id)
-        .eq('plate_number', searchPlate.toUpperCase().trim())
+        .eq('plate_number', plate.toUpperCase().trim())
         .is('exit_time', null)
         .order('entry_time', { ascending: false })
         .limit(1)
         .single()
 
       if (error || !data) {
-        toast.info(`No active chalk session found for ${searchPlate.toUpperCase()}. Start a new chalk pass.`)
+        toast.info(`No active chalk session found for ${plate.toUpperCase()}. Start a new chalk pass.`)
         setFound(null)
         return
       }
@@ -247,11 +260,12 @@ export default function ParkingOfficerPortal() {
         max_stay_minutes: max,
         is_over_limit:    over,
         valve_moved:      false, // officer manually flags this
+        recheck_photo_url: null,
       })
       setFound(data)
       setMode('recheck')
 
-      // Pre-fill infringement form
+      // Pre-fill infringement form (include vehicle details from chalk session if available)
       setInfForm({
         session_id:          data.id,
         plate_number:        data.plate_number,
@@ -261,9 +275,9 @@ export default function ParkingOfficerPortal() {
           ? `Vehicle exceeded ${max}-minute time limit (present for ${dwell} minutes)`
           : 'Parking violation',
         fine_amount_nzd: zone?.fine_amount_nzd?.toString() ?? '40',
-        vehicle_make:    '',
-        vehicle_model:   '',
-        vehicle_colour:  '',
+        vehicle_make:    data.vehicle_make  ?? '',
+        vehicle_model:   data.vehicle_model ?? '',
+        vehicle_colour:  data.vehicle_colour ?? '',
         notes:           '',
       })
     } catch (err: any) {
@@ -305,7 +319,13 @@ export default function ParkingOfficerPortal() {
           plate_number:         chalkForm.plate_number.toUpperCase().trim(),
           entry_tyre_valve_pos: chalkForm.tyre_valve_pos,
           tyre_valve_photo_url: chalkForm.tyre_valve_photo_url || null,
-          entry_photo_url:      chalkForm.address_photo_url || null,
+          entry_photo_url:      chalkForm.vehicle_photo_url || null,
+          sign_photo_url:       chalkForm.sign_photo_url || null,
+          gps_lat:              chalkForm.gps_lat,
+          gps_lng:              chalkForm.gps_lng,
+          vehicle_make:         chalkForm.vehicle_make || null,
+          vehicle_model:        chalkForm.vehicle_model || null,
+          vehicle_colour:       chalkForm.vehicle_colour || null,
           pass_number:          1,
           officer_id:           user!.id,
           notes:                chalkForm.notes || null,
@@ -313,8 +333,13 @@ export default function ParkingOfficerPortal() {
       if (error) throw error
 
       toast.success(`Chalk pass recorded for ${chalkForm.plate_number.toUpperCase()}`)
-      setChalk({ plate_number: '', parking_zone_id: '', tyre_valve_pos: 'north',
-                 address_photo_url: '', tyre_valve_photo_url: '', notes: '' })
+      setChalk({
+        plate_number: '', parking_zone_id: '', tyre_valve_pos: 'north',
+        vehicle_photo_url: '', tyre_valve_photo_url: '', sign_photo_url: '',
+        gps_lat: null, gps_lng: null,
+        vehicle_make: '', vehicle_model: '', vehicle_colour: '',
+        notes: '',
+      })
       setMode(null)
       qc.invalidateQueries({ queryKey: ['parking-officer-sessions'] })
     } catch (err: any) {
@@ -615,14 +640,43 @@ export default function ParkingOfficerPortal() {
               New Chalk Pass — First Observation
             </CardTitle>
             <CardDescription>
-              Record vehicle presence. Take a photo of the address sign and tyre valve position.
+              Take a front-left vehicle photo to auto-detect the plate number,
+              GPS location, and vehicle details. Add a tyre valve photo and
+              optional signage photo for evidence.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
+
+            {/* ── Vehicle photo + ALPR (primary capture) ── */}
+            <div className="space-y-2">
+              <Label className="flex items-center gap-1">
+                <Camera className="h-4 w-4 text-blue-600" />
+                Vehicle Photo (Front-Left) — Auto-detects Plate & GPS
+              </Label>
+              <ParkingPhotoCapture
+                label="Scan Vehicle — Front Left"
+                hint="Captures plate, tyre, scenery & GPS automatically"
+                existingPhotoUrl={chalkForm.vehicle_photo_url || undefined}
+                runInference
+                onCapture={(r: ParkingPhotoCaptureResult) => setChalk(f => ({
+                  ...f,
+                  vehicle_photo_url: r.photoUrl,
+                  plate_number:      r.plateNumber ?? f.plate_number,
+                  gps_lat:           r.latitude,
+                  gps_lng:           r.longitude,
+                  vehicle_make:      r.vehicleMake  ?? f.vehicle_make,
+                  vehicle_model:     r.vehicleModel ?? f.vehicle_model,
+                  vehicle_colour:    r.vehicleColour ?? f.vehicle_colour,
+                }))}
+                onClear={() => setChalk(f => ({ ...f, vehicle_photo_url: '' }))}
+              />
+            </div>
+
+            {/* ── Plate number (editable after auto-fill) ── */}
             <div className="space-y-2">
               <Label>Plate Number *</Label>
               <Input
-                placeholder="e.g. ABC123"
+                placeholder="e.g. ABC123 — auto-filled from photo above"
                 value={chalkForm.plate_number}
                 onChange={e => setChalk(f => ({ ...f, plate_number: e.target.value.toUpperCase() }))}
                 className="font-mono uppercase"
@@ -630,6 +684,48 @@ export default function ParkingOfficerPortal() {
               />
             </div>
 
+            {/* ── GPS location indicator ── */}
+            {(chalkForm.gps_lat || chalkForm.gps_lng) && (
+              <div className="flex items-center gap-1.5 text-xs text-green-700 bg-green-50 border border-green-200 rounded px-2 py-1.5">
+                <MapPin className="h-3.5 w-3.5 flex-shrink-0" />
+                GPS recorded: {chalkForm.gps_lat?.toFixed(5)}, {chalkForm.gps_lng?.toFixed(5)}
+              </div>
+            )}
+
+            {/* ── Vehicle details (auto-filled, editable) ── */}
+            {(chalkForm.vehicle_make || chalkForm.vehicle_model || chalkForm.vehicle_colour) && (
+              <div className="grid grid-cols-3 gap-2">
+                <div className="space-y-1">
+                  <Label className="text-xs">Make</Label>
+                  <Input
+                    placeholder="Toyota"
+                    value={chalkForm.vehicle_make}
+                    onChange={e => setChalk(f => ({ ...f, vehicle_make: e.target.value }))}
+                    className="text-sm"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Model</Label>
+                  <Input
+                    placeholder="Corolla"
+                    value={chalkForm.vehicle_model}
+                    onChange={e => setChalk(f => ({ ...f, vehicle_model: e.target.value }))}
+                    className="text-sm"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs">Colour</Label>
+                  <Input
+                    placeholder="Silver"
+                    value={chalkForm.vehicle_colour}
+                    onChange={e => setChalk(f => ({ ...f, vehicle_colour: e.target.value }))}
+                    className="text-sm"
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* ── Parking Zone ── */}
             <div className="space-y-2">
               <Label>Parking Zone *</Label>
               <Select
@@ -654,8 +750,8 @@ export default function ParkingOfficerPortal() {
             <div className="space-y-2">
               <Label>Tyre Valve Position *</Label>
               <p className="text-xs text-muted-foreground">
-                Photo the front-left tyre valve. Record its clock position.
-                If same plate is present on recheck with same valve position = vehicle hasn't moved.
+                Record the front-left tyre valve clock position from the vehicle photo.
+                Same position on recheck = vehicle hasn't moved.
               </p>
               <div className="grid grid-cols-2 gap-2">
                 {VALVE_POSITIONS.map(p => (
@@ -672,24 +768,27 @@ export default function ParkingOfficerPortal() {
               </div>
             </div>
 
+            {/* ── Tyre valve close-up photo ── */}
             <div className="space-y-2">
-              <Label>Address / Sign Photo URL</Label>
-              <Input
-                placeholder="Photo URL or leave blank (upload later)"
-                value={chalkForm.address_photo_url}
-                onChange={e => setChalk(f => ({ ...f, address_photo_url: e.target.value }))}
+              <Label>Tyre Valve Close-Up Photo</Label>
+              <ParkingPhotoCapture
+                label="Photo: Tyre Valve"
+                hint="Close-up of the front-left tyre valve"
+                existingPhotoUrl={chalkForm.tyre_valve_photo_url || undefined}
+                onCapture={(r: ParkingPhotoCaptureResult) => setChalk(f => ({ ...f, tyre_valve_photo_url: r.photoUrl }))}
+                onClear={() => setChalk(f => ({ ...f, tyre_valve_photo_url: '' }))}
               />
-              <p className="text-xs text-muted-foreground">
-                Take a clear photo of the street sign / parking restriction sign.
-              </p>
             </div>
 
+            {/* ── Parking sign / signage photo ── */}
             <div className="space-y-2">
-              <Label>Tyre Valve Photo URL</Label>
-              <Input
-                placeholder="Photo URL of tyre valve"
-                value={chalkForm.tyre_valve_photo_url}
-                onChange={e => setChalk(f => ({ ...f, tyre_valve_photo_url: e.target.value }))}
+              <Label>Parking Restriction Sign (Optional)</Label>
+              <ParkingPhotoCapture
+                label="Photo: Parking Sign"
+                hint="Photograph the restriction sign for breach evidence"
+                existingPhotoUrl={chalkForm.sign_photo_url || undefined}
+                onCapture={(r: ParkingPhotoCaptureResult) => setChalk(f => ({ ...f, sign_photo_url: r.photoUrl }))}
+                onClear={() => setChalk(f => ({ ...f, sign_photo_url: '' }))}
               />
             </div>
 
@@ -725,13 +824,36 @@ export default function ParkingOfficerPortal() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <RotateCcw className="h-5 w-5 text-orange-600" />
-              Recheck Pass
+              Recheck Pass — Second Observation
             </CardTitle>
             <CardDescription>
-              Enter the plate number to check dwell time against the original chalk pass.
+              Scan the vehicle plate or enter it manually to check dwell time
+              against the original chalk pass.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
+            {/* ── Photo scan (auto-fills plate) ── */}
+            <ParkingPhotoCapture
+              label="Scan Vehicle Plate"
+              hint="Auto-detects plate number via ALPR"
+              runInference
+              onCapture={(r: ParkingPhotoCaptureResult) => {
+                if (r.plateNumber) {
+                  setSearch(r.plateNumber)
+                  // Pass plate directly to avoid stale closure on searchPlate state
+                  handleSearchPlate(r.plateNumber)
+                } else {
+                  toast.info('Plate not detected — enter manually below')
+                }
+              }}
+            />
+
+            <div className="relative flex items-center gap-2">
+              <div className="flex-1 border-t" />
+              <span className="text-xs text-muted-foreground">or enter manually</span>
+              <div className="flex-1 border-t" />
+            </div>
+
             <div className="flex gap-2">
               <Input
                 placeholder="Plate number e.g. ABC123"
@@ -794,7 +916,26 @@ export default function ParkingOfficerPortal() {
                 <p><strong>Zone:</strong> {(recheckResult.session as any).parking_zones?.name ?? 'Unknown'}</p>
                 <p><strong>Chalked at:</strong> {formatDateTime(recheckResult.session.entry_time)}</p>
                 <p><strong>Valve (chalked):</strong> {recheckResult.session.entry_tyre_valve_pos ?? 'Not recorded'}</p>
+                {recheckResult.session.vehicle_make && (
+                  <p>
+                    <strong>Vehicle:</strong>{' '}
+                    {[recheckResult.session.vehicle_make, recheckResult.session.vehicle_model, recheckResult.session.vehicle_colour]
+                      .filter(Boolean).join(' ')}
+                  </p>
+                )}
               </div>
+
+              {/* Chalk pass photo comparison */}
+              {recheckResult.session.entry_photo_url && (
+                <div className="space-y-1">
+                  <p className="text-xs font-medium text-muted-foreground">Chalk Pass Photo (verify vehicle hasn't moved):</p>
+                  <img
+                    src={recheckResult.session.entry_photo_url}
+                    alt="Chalk pass photo"
+                    className="w-full max-h-40 object-cover rounded border"
+                  />
+                </div>
+              )}
 
               {recheckResult.is_over_limit && (
                 <div className="bg-yellow-100 border border-yellow-300 rounded p-2 text-xs text-yellow-900">
@@ -802,6 +943,25 @@ export default function ParkingOfficerPortal() {
                   If the valve has moved, the vehicle was moved and returned — close session and re-chalk.
                 </div>
               )}
+
+              {/* Second-pass photo capture for evidence */}
+              <div className="space-y-1">
+                <p className="text-xs font-medium">Second Pass Photo (evidence):</p>
+                <ParkingPhotoCapture
+                  label="Take Second-Pass Photo"
+                  hint="Documents current vehicle position for evidence"
+                  existingPhotoUrl={recheckResult.recheck_photo_url ?? undefined}
+                  onCapture={(r: ParkingPhotoCaptureResult) => {
+                    setRecheckResult(prev => prev ? { ...prev, recheck_photo_url: r.photoUrl } : prev)
+                    // Persist second-pass photo on the session record
+                    ;(supabase as any)
+                      .from('parking_sessions' as any)
+                      .update({ exit_photo_url: r.photoUrl })
+                      .eq('id', recheckResult.session.id)
+                  }}
+                  onClear={() => setRecheckResult(prev => prev ? { ...prev, recheck_photo_url: null } : prev)}
+                />
+              </div>
             </CardContent>
           </Card>
 
