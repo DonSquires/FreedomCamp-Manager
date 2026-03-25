@@ -4507,6 +4507,8 @@ export type Database = {
           permissions: Json | null
           phone: string | null
           profile_photo_url: string | null
+          job_title: string | null
+          requires_driver_license: boolean | null
           role: string | null
           updated_at: string | null
           warrant_acts: string[] | null
@@ -4551,6 +4553,8 @@ export type Database = {
           permissions?: Json | null
           phone?: string | null
           profile_photo_url?: string | null
+          job_title?: string | null
+          requires_driver_license?: boolean | null
           role?: string | null
           updated_at?: string | null
           warrant_acts?: string[] | null
@@ -4595,6 +4599,8 @@ export type Database = {
           permissions?: Json | null
           phone?: string | null
           profile_photo_url?: string | null
+          job_title?: string | null
+          requires_driver_license?: boolean | null
           role?: string | null
           updated_at?: string | null
           warrant_acts?: string[] | null

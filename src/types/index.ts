@@ -4,11 +4,13 @@ export interface User {
   email: string
   first_name: string
   last_name: string
-  role: 'master' | 'admin' | 'officer' | 'admin_officer' | 'nzscv_monitor'
+  role: 'master' | 'admin' | 'officer' | 'admin_officer' | 'nzscv_monitor' | 'grand_master' | 'client_viewer'
   organization_id: string | null
   employer_organization_id: string | null
   authorized_work_locations: string[]
   phone: string | null
+  job_title: string | null
+  requires_driver_license: boolean
   is_active: boolean
   created_at: string
   updated_at: string

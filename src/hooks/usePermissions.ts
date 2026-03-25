@@ -15,15 +15,18 @@ interface Permission {
 }
 
 const ROLE_HIERARCHY = {
+  grand_master: 6,
   master: 5,
   admin: 4,
   admin_officer: 3,
   officer: 2,
   nzscv_monitor: 1,
+  client_viewer: 1,
   viewer: 1,
 }
 
 const PERMISSION_MATRIX = {
+  grand_master: ['*'],
   master: ['*'],
   admin: [
     'manage_users',
@@ -53,6 +56,10 @@ const PERMISSION_MATRIX = {
     'edit_own_incidents',
   ],
   nzscv_monitor: [
+    'view_own_data',
+    'view_reports',
+  ],
+  client_viewer: [
     'view_own_data',
     'view_reports',
   ],
@@ -107,8 +114,8 @@ export function usePermissions() {
   const canAccessOrganization = (organizationId: string): boolean => {
     if (!user) return false
 
-    // Master can access all organizations
-    if (user.role === 'master') return true
+    // Grand master and master can access all organizations
+    if (user.role === 'grand_master' || user.role === 'master') return true
 
     // Check if organization matches user's organization
     if (user.organization_id === organizationId) return true
@@ -121,8 +128,8 @@ export function usePermissions() {
   const canEditOthersResource = (resourceOwnerId: string): boolean => {
     if (!user) return false
 
-    // Masters and admins can edit anyone's resources
-    if (user.role === 'master' || user.role === 'admin') return true
+    // Grand masters, masters and admins can edit anyone's resources
+    if (user.role === 'grand_master' || user.role === 'master' || user.role === 'admin') return true
 
     // admin_officer can edit resources except their own
     if (user.role === 'admin_officer' && resourceOwnerId !== user.id) {
@@ -139,9 +146,11 @@ export function usePermissions() {
     hasRoleLevel,
     canAccessOrganization,
     canEditOthersResource,
-    isMaster: user?.role === 'master',
+    isGrandMaster: user?.role === 'grand_master',
+    isMaster: user?.role === 'master' || user?.role === 'grand_master',
     isAdmin: user?.role === 'admin' || user?.role === 'admin_officer',
     isOfficer: user?.role === 'officer' || user?.role === 'admin_officer',
+    isClientViewer: user?.role === 'client_viewer',
     currentRole: user?.role,
   }
 }

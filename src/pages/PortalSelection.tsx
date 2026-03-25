@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@/stores/authStore'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Shield, Radio, ChevronRight, ParkingSquare, Volume2 } from 'lucide-react'
+import { Shield, Radio, ChevronRight, ParkingSquare, Volume2, Building2 } from 'lucide-react'
 
 export default function PortalSelection() {
   const { user } = useAuthStore()
@@ -11,10 +11,14 @@ export default function PortalSelection() {
 
   useEffect(() => {
     if (!user) return
-    if (user.role === 'admin' || user.role === 'master') {
+    if (user.role === 'grand_master') {
+      navigate('/platform', { replace: true })
+    } else if (user.role === 'admin' || user.role === 'master') {
       navigate('/admin', { replace: true })
     } else if (user.role === 'officer') {
       navigate('/field-officer', { replace: true })
+    } else if (user.role === 'client_viewer') {
+      navigate('/client-portal', { replace: true })
     }
   }, [user, navigate])
 
@@ -127,6 +131,30 @@ export default function PortalSelection() {
           <CardContent>
             <Button className="w-full bg-yellow-600 hover:bg-yellow-700 text-white">
               Open Noise Control Portal
+              <ChevronRight className="h-4 w-4 ml-2" />
+            </Button>
+          </CardContent>
+        </Card>
+
+        {/* Client organisation portal */}
+        <Card
+          className="cursor-pointer hover:shadow-xl transition-all hover:scale-[1.02] border-purple-500/30 bg-white/5 backdrop-blur"
+          onClick={() => navigate('/client-portal')}
+        >
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-3 text-white">
+              <div className="w-10 h-10 rounded-full bg-purple-600 flex items-center justify-center">
+                <Building2 className="h-5 w-5 text-white" />
+              </div>
+              Client Organisation Portal
+            </CardTitle>
+            <CardDescription className="text-purple-200">
+              View guard activity, KPIs, risk assessments and infringements for your organisation
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button className="w-full bg-purple-600 hover:bg-purple-700 text-white">
+              Open Client Portal
               <ChevronRight className="h-4 w-4 ml-2" />
             </Button>
           </CardContent>

@@ -93,6 +93,7 @@ const ClientSites = lazy(() => import('@/pages/ClientSites'))
 const RosterPlanner = lazy(() => import('@/pages/RosterPlanner'))
 const OfficerSkills = lazy(() => import('@/pages/OfficerSkills'))
 const OfficerAvailability = lazy(() => import('@/pages/OfficerAvailability'))
+const ClientOrganisationPortal = lazy(() => import('@/pages/ClientOrganisationPortal'))
 
 // ---------------------------------------------------------------------------
 // PageLoader – minimal spinner shown while a lazy page chunk is downloading.
@@ -272,6 +273,14 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
     location.pathname === '/'
   ) {
     return <Navigate to="/platform" replace />
+  }
+
+  // Client viewer users are limited to their organisation's client portal.
+  if (
+    user.role === 'client_viewer' &&
+    location.pathname === '/'
+  ) {
+    return <Navigate to="/client-portal" replace />
   }
 
   return <>{children}</>
@@ -528,6 +537,17 @@ export default function App() {
               <ProtectedRoute>
                 <RoleRoute allowedRoles={['grand_master']}>
                   <Platform />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/client-portal"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['client_viewer', 'admin', 'master', 'grand_master']}>
+                  <ClientOrganisationPortal />
                 </RoleRoute>
               </ProtectedRoute>
             }
