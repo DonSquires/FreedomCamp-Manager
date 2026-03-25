@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
-import AppLayout from '@/components/features/AppLayout'
+import { AppLayout } from '@/components/features/AppLayout'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -235,13 +235,13 @@ function SkillDialog({ open, onClose, editing, officers, organizationId, userId 
         updated_at: new Date().toISOString(),
       }
       if (editing) {
-        const { error } = await supabase
+        const { error } = await (supabase as any)
           .from('officer_skills')
           .update(payload)
           .eq('id', editing.id)
         if (error) throw error
       } else {
-        const { error } = await supabase
+        const { error } = await (supabase as any)
           .from('officer_skills')
           .insert({ ...payload, created_at: new Date().toISOString() })
         if (error) throw error
@@ -382,11 +382,11 @@ function SkillDialog({ open, onClose, editing, officers, organizationId, userId 
 // ─── Main Page ───────────────────────────────────────────────────────────────
 
 export default function OfficerSkills() {
-  const { user, profile } = useAuthStore()
+  const { user } = useAuthStore()
   const queryClient = useQueryClient()
 
-  const organizationId: string = profile?.organization_id ?? ''
-  const isAdmin = profile?.role === 'admin' || profile?.role === 'master'
+  const organizationId: string = user?.organization_id ?? ''
+  const isAdmin = user?.role === 'admin' || user?.role === 'master'
 
   const [tab, setTab] = useState<'skills' | 'licences'>('skills')
   const [search, setSearch] = useState('')
@@ -401,7 +401,7 @@ export default function OfficerSkills() {
   const { data: skills = [], isLoading: skillsLoading } = useQuery({
     queryKey: ['officer_skills', organizationId],
     queryFn: async (): Promise<OfficerSkill[]> => {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('officer_skills')
         .select(`
           *,
@@ -434,7 +434,7 @@ export default function OfficerSkills() {
 
   const verifyMutation = useMutation({
     mutationFn: async (skillId: string) => {
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from('officer_skills')
         .update({
           is_verified: true,
@@ -1074,12 +1074,4 @@ function LicencesTab({ officers }: { officers: OfficerProfile[] }) {
       )}
     </div>
   )
-
-  function LicenceBadge({ expiry }: { expiry: string | null }) {
-    const status = licenceStatus(expiry)
-    if (status === 'none') return <Badge variant="secondary">Not Set</Badge>
-    if (status === 'valid') return <Badge className="bg-green-100 text-green-800 border-green-200">Valid</Badge>
-    if (status === 'expiring') return <Badge className="bg-orange-100 text-orange-800 border-orange-200">Expiring</Badge>
-    return <Badge className="bg-red-100 text-red-800 border-red-200">Expired</Badge>
-  }
 }

@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
-import AppLayout from '@/components/features/AppLayout'
+import { AppLayout } from '@/components/features/AppLayout'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -118,7 +118,7 @@ function OfficerView() {
   const { data: weeklyRows } = useQuery({
     queryKey: ['officer_availability_weekly', user?.id],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('officer_availability')
         .select('*')
         .eq('officer_id', user!.id)
@@ -151,7 +151,7 @@ function OfficerView() {
   const { data: dateBlocks } = useQuery({
     queryKey: ['officer_availability_blocks', user?.id],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('officer_availability')
         .select('*')
         .eq('officer_id', user!.id)
@@ -169,7 +169,7 @@ function OfficerView() {
   const { data: shifts } = useQuery({
     queryKey: ['my_shifts', user?.id],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('roster_shifts')
         .select('*, sites(name)')
         .eq('officer_id', user!.id)
@@ -197,7 +197,7 @@ function OfficerView() {
         unavailability_reason: null,
         notes: null,
       }))
-      const { error } = await supabase.from('officer_availability').upsert(ops, { onConflict: 'id' })
+      const { error } = await (supabase as any).from('officer_availability').upsert(ops, { onConflict: 'id' })
       if (error) throw error
     },
     onSuccess: () => {
@@ -209,7 +209,7 @@ function OfficerView() {
 
   const addBlockMutation = useMutation({
     mutationFn: async () => {
-      const { error } = await supabase.from('officer_availability').insert({
+      const { error } = await (supabase as any).from('officer_availability').insert({
         officer_id: user!.id,
         organization_id: user!.organization_id,
         day_of_week: null,
@@ -233,7 +233,7 @@ function OfficerView() {
 
   const deleteBlockMutation = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from('officer_availability').delete().eq('id', id)
+      const { error } = await (supabase as any).from('officer_availability').delete().eq('id', id)
       if (error) throw error
     },
     onSuccess: () => {
@@ -245,7 +245,7 @@ function OfficerView() {
 
   const respondShiftMutation = useMutation({
     mutationFn: async ({ id, response, notes }: { id: string; response: string; notes?: string }) => {
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from('roster_shifts')
         .update({ officer_response: response, officer_response_at: new Date().toISOString(), officer_notes: notes ?? null })
         .eq('id', id)
@@ -476,13 +476,13 @@ function AdminView() {
     queryKey: ['officers_list', user?.organization_id],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from('profiles')
-        .select('id, full_name, organization_id')
+        .from('user_profiles')
+        .select('id, first_name, last_name, organization_id')
         .eq('organization_id', user!.organization_id)
         .eq('role', 'officer')
-        .order('full_name')
+        .order('first_name')
       if (error) throw error
-      return data as OfficerProfile[]
+      return (data ?? []).map((p: any) => ({ ...p, full_name: `${p.first_name ?? ''} ${p.last_name ?? ''}`.trim() })) as OfficerProfile[]
     },
     enabled: !!user?.organization_id,
   })
@@ -491,7 +491,7 @@ function AdminView() {
   const { data: allWeekly } = useQuery({
     queryKey: ['all_weekly_availability', user?.organization_id],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('officer_availability')
         .select('*')
         .eq('organization_id', user!.organization_id)
@@ -508,7 +508,7 @@ function AdminView() {
   const { data: allBlocks } = useQuery({
     queryKey: ['all_blocks', user?.organization_id],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('officer_availability')
         .select('*')
         .eq('organization_id', user!.organization_id)
@@ -528,7 +528,7 @@ function AdminView() {
   const { data: upcomingShifts } = useQuery({
     queryKey: ['upcoming_shifts_admin', user?.organization_id],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('roster_shifts')
         .select('id, shift_date, start_time, end_time, officer_id, status, sites(name)')
         .gte('shift_date', today)
@@ -724,7 +724,7 @@ function OfficerDetailDrilldown({ officer, onBack, organizationId }: { officer: 
   const { data: weekly } = useQuery({
     queryKey: ['officer_detail_weekly', officer.id],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('officer_availability')
         .select('*')
         .eq('officer_id', officer.id)
@@ -737,7 +737,7 @@ function OfficerDetailDrilldown({ officer, onBack, organizationId }: { officer: 
   const { data: blocks } = useQuery({
     queryKey: ['officer_detail_blocks', officer.id],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('officer_availability')
         .select('*')
         .eq('officer_id', officer.id)

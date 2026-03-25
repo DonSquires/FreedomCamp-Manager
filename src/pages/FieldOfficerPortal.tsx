@@ -30,7 +30,7 @@ import {
   ShieldAlert, CheckCircle, Shield, Megaphone, FileWarning, XCircle,
   Clock, Home, X, Car, Zap, Search, Printer, PlusCircle, Wrench, Heart, Users,
   Moon, Sun, ParkingSquare, Volume2, Video, Eye, Tent, Timer,
-  ScanFace, CalendarPlus, Siren, Bell,
+  ScanFace, CalendarPlus, Siren, Bell, PhoneCall,
 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
@@ -194,7 +194,7 @@ export default function FieldOfficerPortal() {
         officer_id:       user.id,
         organization_id:  user.organization_id,
         alert_type:       'sos',
-        officer_name:     `${user.first_name ?? ''} ${user.last_name ?? ''}`.trim(),
+        officer_name:     `${user?.first_name ?? ''} ${user?.last_name ?? ''}`.trim(),
         gps_latitude:     currentLocation?.latitude  ?? null,
         gps_longitude:    currentLocation?.longitude ?? null,
         last_activity_at: new Date().toISOString(),
@@ -242,7 +242,7 @@ export default function FieldOfficerPortal() {
     queryKey: ['my-dispatch-jobs', user?.id],
     queryFn: async () => {
       if (!user?.id) return []
-      const { data } = await supabase
+      const { data } = await (supabase as any)
         .from('dispatch_jobs')
         .select('id, job_number, job_type, priority, status, title, address, description, caller_phone, response_sla_minutes, dispatched_at, created_at')
         .eq('assigned_to', user.id)
@@ -262,7 +262,7 @@ export default function FieldOfficerPortal() {
       if (newStatus === 'en_route')     update.en_route_at     = new Date().toISOString()
       if (newStatus === 'on_scene')     update.on_scene_at     = new Date().toISOString()
       if (newStatus === 'completed')    update.completed_at    = new Date().toISOString()
-      const { error } = await supabase.from('dispatch_jobs').update(update).eq('id', jobId)
+      const { error } = await (supabase as any).from('dispatch_jobs').update(update).eq('id', jobId)
       if (error) throw error
     },
     onSuccess: () => { qcHook.invalidateQueries({ queryKey: ['my-dispatch-jobs'] }) },
@@ -1441,6 +1441,7 @@ export default function FieldOfficerPortal() {
                 </CardContent>
               </Card>
             </div>
+          )}
 
             {/* ── Dispatched Job Queue (GDS CATS-style) ──────────────── */}
             {myDispatchJobs.length > 0 && (

@@ -117,6 +117,8 @@ interface Officer {
 interface ClientSite {
   id: string
   name: string
+  default_pay_rate: number | null
+  default_charge_rate: number | null
 }
 
 interface Zone {
@@ -234,7 +236,7 @@ interface ShiftCardProps {
   shift: RosterShift
   siteName: string
   zoneName: string
-  onClick: () => void
+  onClick: (e?: React.MouseEvent) => void
 }
 
 function ShiftCard({ shift, siteName, zoneName, onClick }: ShiftCardProps) {
@@ -577,7 +579,10 @@ function ShiftDialog({
               <Label>Site</Label>
               <Select
                 value={form.client_site_id || '__none__'}
-                onValueChange={(v) => set('client_site_id', v === '__none__' ? '' : v)}
+                onValueChange={(v) => {
+                  const siteId = v === '__none__' ? '' : v
+                  set('client_site_id', siteId)
+                }}
               >
                 <SelectTrigger className="mt-1">
                   <SelectValue placeholder="Select site…" />
@@ -587,10 +592,27 @@ function ShiftDialog({
                   {sites.map((s) => (
                     <SelectItem key={s.id} value={s.id}>
                       {s.name}
+                      {(s.default_pay_rate || s.default_charge_rate) && (
+                        <span className="ml-2 text-xs text-muted-foreground">
+                          {s.default_pay_rate ? `Pay $${s.default_pay_rate}/hr` : ''}
+                          {s.default_pay_rate && s.default_charge_rate ? ' · ' : ''}
+                          {s.default_charge_rate ? `Charge $${s.default_charge_rate}/hr` : ''}
+                        </span>
+                      )}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+              {/* Show inherited rates when a site with rates is selected */}
+              {(() => {
+                const sel = sites.find(s => s.id === form.client_site_id)
+                if (!sel || (!sel.default_pay_rate && !sel.default_charge_rate)) return null
+                return (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Inherited from site —{sel.default_pay_rate ? ` Pay: $${sel.default_pay_rate}/hr` : ''}{sel.default_charge_rate ? ` · Charge: $${sel.default_charge_rate}/hr` : ''}
+                  </p>
+                )
+              })()}
             </div>
 
             {/* Zone */}
@@ -767,7 +789,7 @@ export default function RosterPlanner() {
   const { data: shifts = [], isLoading: shiftsLoading } = useQuery<RosterShift[]>({
     queryKey: ['roster_shifts', user?.organization_id, dateFrom, dateTo],
     queryFn: async () => {
-      const { data, error } = await (supabase.from('roster_shifts') as any)
+      const { data, error } = await ((supabase as any).from('roster_shifts') as any)
         .select('*')
         .eq('organization_id', user!.organization_id!)
         .gte('shift_date', dateFrom)
@@ -799,8 +821,8 @@ export default function RosterPlanner() {
   const { data: sites = [] } = useQuery<ClientSite[]>({
     queryKey: ['roster_sites', user?.organization_id],
     queryFn: async () => {
-      const { data, error } = await (supabase.from('client_sites') as any)
-        .select('id, name')
+      const { data, error } = await ((supabase as any).from('client_sites') as any)
+        .select('id, name, default_pay_rate, default_charge_rate')
         .eq('organization_id', user!.organization_id!)
         .order('name')
       if (error) throw error
@@ -826,7 +848,7 @@ export default function RosterPlanner() {
   const { data: availability = [] } = useQuery<OfficerAvailability[]>({
     queryKey: ['officer_availability', user?.organization_id],
     queryFn: async () => {
-      const { data, error } = await (supabase.from('officer_availability') as any)
+      const { data, error } = await ((supabase as any).from('officer_availability') as any)
         .select('id, officer_id, day_of_week, specific_date, is_available, unavailability_reason')
         .eq('organization_id', user!.organization_id!)
       if (error) throw error
@@ -862,7 +884,7 @@ export default function RosterPlanner() {
         has_conflict: false,
         created_by: user!.id,
       }
-      const { error } = await (supabase.from('roster_shifts') as any).insert(payload)
+      const { error } = await ((supabase as any).from('roster_shifts') as any).insert(payload)
       if (error) throw error
     },
     onSuccess: () => {
@@ -890,7 +912,7 @@ export default function RosterPlanner() {
         internal_notes: data.internal_notes || null,
         updated_at: new Date().toISOString(),
       }
-      const { error } = await (supabase.from('roster_shifts') as any).update(payload).eq('id', id)
+      const { error } = await ((supabase as any).from('roster_shifts') as any).update(payload).eq('id', id)
       if (error) throw error
     },
     onSuccess: () => {
@@ -903,7 +925,7 @@ export default function RosterPlanner() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await (supabase.from('roster_shifts') as any).delete().eq('id', id)
+      const { error } = await ((supabase as any).from('roster_shifts') as any).delete().eq('id', id)
       if (error) throw error
     },
     onSuccess: () => {
@@ -920,7 +942,7 @@ export default function RosterPlanner() {
         .filter((s) => s.status === 'draft' && s.shift_date >= dateFrom && s.shift_date <= dateTo)
         .map((s) => s.id)
       if (draftIds.length === 0) throw new Error('No draft shifts to publish in this period')
-      const { error } = await (supabase.from('roster_shifts') as any)
+      const { error } = await ((supabase as any).from('roster_shifts') as any)
         .update({ status: 'published', published_at: new Date().toISOString() })
         .in('id', draftIds)
       if (error) throw error

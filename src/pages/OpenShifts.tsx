@@ -139,7 +139,7 @@ export default function OpenShifts() {
   const { data: shifts = [], isLoading } = useQuery<OpenShift[]>({
     queryKey: ['open-shifts', user?.organization_id, statusFilter],
     queryFn: async () => {
-      let q = supabase
+      let q = (supabase as any)
         .from('open_shifts')
         .select(`
           id, organization_id, zone_id, shift_date, shift_type,
@@ -182,7 +182,7 @@ export default function OpenShifts() {
         start_time:      f.start_time ? new Date(`${f.shift_date}T${f.start_time}`).toISOString() : null,
         end_time:        f.end_time   ? new Date(`${f.shift_date}T${f.end_time}`).toISOString()   : null,
       }
-      const { error } = await supabase.from('open_shifts').insert(payload)
+      const { error } = await (supabase as any).from('open_shifts').insert(payload)
       if (error) throw error
     },
     onSuccess: () => {
@@ -197,7 +197,7 @@ export default function OpenShifts() {
   // ── Cancel mutation ────────────────────────────────────────────────────────
   const cancelShift = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from('open_shifts').update({ status: 'cancelled' }).eq('id', id)
       if (error) throw error
     },

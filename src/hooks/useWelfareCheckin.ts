@@ -119,7 +119,7 @@ export function useWelfareCheckin(opts: CheckinOptions) {
         ? Math.max(0, minutesSinceCheckin - intervalMinutes)
         : 0
 
-      const { error } = await supabase.from('welfare_checkins').insert({
+      const { error } = await (supabase as any).from('welfare_checkins').insert({
         officer_id:       officerId,
         organization_id:  organizationId,
         officer_shift_id: shiftId,

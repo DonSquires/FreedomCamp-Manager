@@ -56,6 +56,16 @@ interface ClientSite {
   emergency_contact_phone: string | null
   default_response_minutes: number
   priority_override: string | null
+  default_pay_rate: number | null
+  default_charge_rate: number | null
+  overtime_pay_multiplier: number | null
+  m365_customer_id: string | null
+  m365_contract_ref: string | null
+  m365_cost_centre: string | null
+  contract_start_date: string | null
+  contract_end_date: string | null
+  invoice_frequency: string | null
+  purchase_order_number: string | null
   is_active: boolean
   created_at: string
   zone: { name: string } | null
@@ -69,6 +79,10 @@ interface SiteForm {
   contact_name: string; contact_phone: string; contact_email: string
   emergency_contact_name: string; emergency_contact_phone: string
   default_response_minutes: number; priority_override: string
+  default_pay_rate: string; default_charge_rate: string; overtime_pay_multiplier: string
+  m365_customer_id: string; m365_contract_ref: string; m365_cost_centre: string
+  contract_start_date: string; contract_end_date: string
+  invoice_frequency: string; purchase_order_number: string
 }
 
 const SITE_TYPE_LABELS: Record<string, string> = {
@@ -84,6 +98,10 @@ function emptyForm(): SiteForm {
     contact_name: '', contact_phone: '', contact_email: '',
     emergency_contact_name: '', emergency_contact_phone: '',
     default_response_minutes: 60, priority_override: '',
+    default_pay_rate: '', default_charge_rate: '', overtime_pay_multiplier: '1.5',
+    m365_customer_id: '', m365_contract_ref: '', m365_cost_centre: '',
+    contract_start_date: '', contract_end_date: '',
+    invoice_frequency: 'monthly', purchase_order_number: '',
   }
 }
 
@@ -101,6 +119,16 @@ function siteFormFromRecord(s: ClientSite): SiteForm {
     emergency_contact_phone: s.emergency_contact_phone ?? '',
     default_response_minutes: s.default_response_minutes,
     priority_override: s.priority_override ?? '',
+    default_pay_rate: s.default_pay_rate?.toString() ?? '',
+    default_charge_rate: s.default_charge_rate?.toString() ?? '',
+    overtime_pay_multiplier: s.overtime_pay_multiplier?.toString() ?? '1.5',
+    m365_customer_id: s.m365_customer_id ?? '',
+    m365_contract_ref: s.m365_contract_ref ?? '',
+    m365_cost_centre: s.m365_cost_centre ?? '',
+    contract_start_date: s.contract_start_date ?? '',
+    contract_end_date: s.contract_end_date ?? '',
+    invoice_frequency: s.invoice_frequency ?? 'monthly',
+    purchase_order_number: s.purchase_order_number ?? '',
   }
 }
 
@@ -125,7 +153,7 @@ export default function ClientSites() {
   const { data: sites = [], isLoading } = useQuery<ClientSite[]>({
     queryKey: ['client-sites', orgId, showInactive, typeFilter],
     queryFn: async () => {
-      let q = supabase
+      let q = (supabase as any)
         .from('client_sites')
         .select('*, zone:zones!zone_id(name)')
         .eq('organization_id', orgId ?? '')
@@ -175,12 +203,22 @@ export default function ClientSites() {
         emergency_contact_phone:f.emergency_contact_phone || null,
         default_response_minutes: f.default_response_minutes,
         priority_override:      f.priority_override || null,
+        default_pay_rate:       f.default_pay_rate ? parseFloat(f.default_pay_rate) : null,
+        default_charge_rate:    f.default_charge_rate ? parseFloat(f.default_charge_rate) : null,
+        overtime_pay_multiplier: f.overtime_pay_multiplier ? parseFloat(f.overtime_pay_multiplier) : 1.5,
+        m365_customer_id:       f.m365_customer_id || null,
+        m365_contract_ref:      f.m365_contract_ref || null,
+        m365_cost_centre:       f.m365_cost_centre || null,
+        contract_start_date:    f.contract_start_date || null,
+        contract_end_date:      f.contract_end_date || null,
+        invoice_frequency:      f.invoice_frequency || 'monthly',
+        purchase_order_number:  f.purchase_order_number || null,
       }
       if (id) {
-        const { error } = await supabase.from('client_sites').update(payload).eq('id', id)
+        const { error } = await (supabase as any).from('client_sites').update(payload).eq('id', id)
         if (error) throw error
       } else {
-        const { error } = await supabase.from('client_sites').insert(payload)
+        const { error } = await (supabase as any).from('client_sites').insert(payload)
         if (error) throw error
       }
     },
@@ -195,7 +233,7 @@ export default function ClientSites() {
 
   const toggleActive = useMutation({
     mutationFn: async ({ id, active }: { id: string; active: boolean }) => {
-      const { error } = await supabase.from('client_sites').update({ is_active: active }).eq('id', id)
+      const { error } = await (supabase as any).from('client_sites').update({ is_active: active }).eq('id', id)
       if (error) throw error
     },
     onSuccess: () => { toast.success('Site updated'); qc.invalidateQueries({ queryKey: ['client-sites'] }) },
@@ -274,6 +312,8 @@ export default function ClientSites() {
                   <TableHead><MapPin className="inline h-3.5 w-3.5 mr-1" />Address</TableHead>
                   <TableHead><Phone className="inline h-3.5 w-3.5 mr-1" />Contact</TableHead>
                   <TableHead><Clock className="inline h-3.5 w-3.5 mr-1" />SLA</TableHead>
+                  <TableHead>Pay / Charge</TableHead>
+                  <TableHead>M365</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
@@ -283,7 +323,7 @@ export default function ClientSites() {
                   <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">Loading…</TableCell></TableRow>
                 )}
                 {!isLoading && filtered.length === 0 && (
-                  <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">No sites found. Add one with "Add Site".</TableCell></TableRow>
+                  <TableRow><TableCell colSpan={9} className="text-center py-8 text-muted-foreground">No sites found. Add one with "Add Site".</TableCell></TableRow>
                 )}
                 {filtered.map(s => (
                   <TableRow key={s.id} className="cursor-pointer hover:bg-muted/30" onClick={() => setViewSite(s)}>
@@ -302,6 +342,19 @@ export default function ClientSites() {
                       ) : <span className="text-muted-foreground">—</span>}
                     </TableCell>
                     <TableCell className="text-sm">{s.default_response_minutes}m</TableCell>
+                    <TableCell className="text-xs">
+                      {s.default_pay_rate != null || s.default_charge_rate != null ? (
+                        <div className="space-y-0.5">
+                          {s.default_pay_rate != null && <div className="text-muted-foreground">Pay: <span className="text-foreground font-medium">${s.default_pay_rate}/hr</span></div>}
+                          {s.default_charge_rate != null && <div className="text-muted-foreground">Charge: <span className="text-foreground font-medium">${s.default_charge_rate}/hr</span></div>}
+                        </div>
+                      ) : <span className="text-muted-foreground">—</span>}
+                    </TableCell>
+                    <TableCell className="text-xs">
+                      {s.m365_customer_id ? (
+                        <div className="font-mono text-muted-foreground">{s.m365_customer_id}</div>
+                      ) : <span className="text-muted-foreground">—</span>}
+                    </TableCell>
                     <TableCell>
                       <Badge variant="outline" className={s.is_active ? 'border-green-300 text-green-700' : 'border-gray-300 text-gray-400'}>
                         {s.is_active ? 'Active' : 'Inactive'}
@@ -425,6 +478,72 @@ export default function ClientSites() {
               </div>
             </div>
 
+            {/* Pay rates / charge rates */}
+            <div className="border-t pt-4">
+              <p className="text-xs font-semibold text-muted-foreground mb-3 uppercase tracking-wide">Pay &amp; Charge Rates (NZD/hr)</p>
+              <div className="grid grid-cols-3 gap-3">
+                <div className="space-y-1.5">
+                  <Label>Officer Pay Rate</Label>
+                  <Input type="number" min="0" step="0.01" placeholder="e.g. 28.50" value={form.default_pay_rate} onChange={e => setForm(f => ({ ...f, default_pay_rate: e.target.value }))} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Client Charge Rate</Label>
+                  <Input type="number" min="0" step="0.01" placeholder="e.g. 45.00" value={form.default_charge_rate} onChange={e => setForm(f => ({ ...f, default_charge_rate: e.target.value }))} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>OT Multiplier</Label>
+                  <Input type="number" min="1" step="0.25" placeholder="1.5" value={form.overtime_pay_multiplier} onChange={e => setForm(f => ({ ...f, overtime_pay_multiplier: e.target.value }))} />
+                </div>
+              </div>
+            </div>
+
+            {/* Contract details */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label>Contract Start</Label>
+                <Input type="date" value={form.contract_start_date} onChange={e => setForm(f => ({ ...f, contract_start_date: e.target.value }))} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Contract End</Label>
+                <Input type="date" value={form.contract_end_date} onChange={e => setForm(f => ({ ...f, contract_end_date: e.target.value }))} />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Invoice Frequency</Label>
+                <Select value={form.invoice_frequency} onValueChange={v => setForm(f => ({ ...f, invoice_frequency: v }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="weekly">Weekly</SelectItem>
+                    <SelectItem value="fortnightly">Fortnightly</SelectItem>
+                    <SelectItem value="monthly">Monthly</SelectItem>
+                    <SelectItem value="on_completion">On Completion</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Purchase Order No.</Label>
+                <Input placeholder="Client PO number" value={form.purchase_order_number} onChange={e => setForm(f => ({ ...f, purchase_order_number: e.target.value }))} />
+              </div>
+            </div>
+
+            {/* Microsoft 365 / Business Central accounting link */}
+            <div className="border-t pt-4">
+              <p className="text-xs font-semibold text-muted-foreground mb-3 uppercase tracking-wide">Microsoft 365 Accounting Link</p>
+              <div className="grid grid-cols-3 gap-3">
+                <div className="space-y-1.5">
+                  <Label>M365 Customer ID</Label>
+                  <Input placeholder="e.g. C00042" value={form.m365_customer_id} onChange={e => setForm(f => ({ ...f, m365_customer_id: e.target.value }))} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Contract / Project Ref</Label>
+                  <Input placeholder="M365 project code" value={form.m365_contract_ref} onChange={e => setForm(f => ({ ...f, m365_contract_ref: e.target.value }))} />
+                </div>
+                <div className="space-y-1.5">
+                  <Label>Cost Centre</Label>
+                  <Input placeholder="Cost centre code" value={form.m365_cost_centre} onChange={e => setForm(f => ({ ...f, m365_cost_centre: e.target.value }))} />
+                </div>
+              </div>
+            </div>
+
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setDialogMode(null)}>Cancel</Button>
               <Button type="submit" disabled={saveMutation.isPending}>
@@ -468,6 +587,25 @@ export default function ClientSites() {
               {viewSite.access_instructions && <div><p className="text-xs text-muted-foreground mb-0.5">Access</p><p>{viewSite.access_instructions}</p></div>}
               {viewSite.hazards && <div className="bg-yellow-50 dark:bg-yellow-950/20 border border-yellow-200 rounded p-2"><p className="text-xs font-medium text-yellow-800 dark:text-yellow-300 mb-0.5">⚠ Hazards</p><p className="text-yellow-900 dark:text-yellow-200">{viewSite.hazards}</p></div>}
               {viewSite.special_instructions && <div><p className="text-xs text-muted-foreground mb-0.5">Special Instructions</p><p>{viewSite.special_instructions}</p></div>}
+              {/* Rates */}
+              {(viewSite.default_pay_rate != null || viewSite.default_charge_rate != null) && (
+                <div className="bg-muted/40 rounded-lg p-3 space-y-1 text-xs">
+                  <p className="font-medium text-muted-foreground uppercase tracking-wide mb-1">Rates (NZD/hr)</p>
+                  {viewSite.default_pay_rate != null && <div className="flex justify-between"><span className="text-muted-foreground">Officer pay</span><span className="font-semibold">${viewSite.default_pay_rate}/hr</span></div>}
+                  {viewSite.default_charge_rate != null && <div className="flex justify-between"><span className="text-muted-foreground">Client charge</span><span className="font-semibold">${viewSite.default_charge_rate}/hr</span></div>}
+                  {viewSite.invoice_frequency && <div className="flex justify-between"><span className="text-muted-foreground">Invoice</span><span className="capitalize">{viewSite.invoice_frequency.replace('_',' ')}</span></div>}
+                  {viewSite.purchase_order_number && <div className="flex justify-between"><span className="text-muted-foreground">PO#</span><span>{viewSite.purchase_order_number}</span></div>}
+                </div>
+              )}
+              {/* M365 */}
+              {(viewSite.m365_customer_id || viewSite.m365_contract_ref) && (
+                <div className="bg-blue-50 dark:bg-blue-950/20 border border-blue-200 rounded p-3 space-y-1 text-xs">
+                  <p className="font-medium text-blue-800 dark:text-blue-300 uppercase tracking-wide mb-1">Microsoft 365</p>
+                  {viewSite.m365_customer_id && <div className="flex justify-between"><span className="text-muted-foreground">Customer ID</span><span className="font-mono">{viewSite.m365_customer_id}</span></div>}
+                  {viewSite.m365_contract_ref && <div className="flex justify-between"><span className="text-muted-foreground">Contract Ref</span><span className="font-mono">{viewSite.m365_contract_ref}</span></div>}
+                  {viewSite.m365_cost_centre && <div className="flex justify-between"><span className="text-muted-foreground">Cost Centre</span><span className="font-mono">{viewSite.m365_cost_centre}</span></div>}
+                </div>
+              )}
               <div className="flex justify-between text-xs text-muted-foreground border-t pt-2">
                 <span>SLA: {viewSite.default_response_minutes}m response</span>
                 {viewSite.zone && <span>Zone: {viewSite.zone.name}</span>}

@@ -42,8 +42,8 @@ export function PostShiftFeedback({ shiftId, open, onClose }: Props) {
   const submit = useMutation({
     mutationFn: async () => {
       if (!shiftId) return
-      const { error } = await supabase
-        .from('officer_shifts')
+      const { error } = await (supabase
+        .from('officer_shifts') as any)
         .update({
           shift_rating:   rating,
           shift_feedback: feedback.trim() || null,

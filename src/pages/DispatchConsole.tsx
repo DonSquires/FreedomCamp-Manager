@@ -163,7 +163,7 @@ export default function DispatchConsole() {
   const { data: jobs = [], isLoading: jobsLoading } = useQuery<DispatchJob[]>({
     queryKey: ['dispatch-jobs', orgId, statusFilter, tick],
     queryFn: async () => {
-      let q = supabase
+      let q = (supabase as any)
         .from('dispatch_jobs')
         .select(`
           id, job_number, job_type, priority, status, title, description,
@@ -211,7 +211,7 @@ export default function DispatchConsole() {
       if (error) throw error
 
       // Count active jobs per officer
-      const { data: jobCounts } = await supabase
+      const { data: jobCounts } = await (supabase as any)
         .from('dispatch_jobs')
         .select('assigned_to')
         .eq('organization_id', orgId ?? '')
@@ -236,7 +236,7 @@ export default function DispatchConsole() {
   const { data: clientSites = [] } = useQuery({
     queryKey: ['client-sites-lookup', orgId],
     queryFn: async () => {
-      const { data } = await supabase
+      const { data } = await (supabase as any)
         .from('client_sites').select('id, name, address').eq('organization_id', orgId ?? '').eq('is_active', true)
       return data ?? []
     },
@@ -252,7 +252,7 @@ export default function DispatchConsole() {
   // ── Assign + dispatch mutation ───────────────────────────────────────────────
   const dispatchMutation = useMutation({
     mutationFn: async ({ jobId, officerId }: { jobId: string; officerId: string }) => {
-      const { error } = await supabase.from('dispatch_jobs').update({
+      const { error } = await (supabase as any).from('dispatch_jobs').update({
         assigned_to:   officerId,
         dispatched_by: user?.id,
         status:        'dispatched',
@@ -283,7 +283,7 @@ export default function DispatchConsole() {
   // ── Status update mutation (cancel) ────────────────────────────────────────
   const cancelMutation = useMutation({
     mutationFn: async (jobId: string) => {
-      const { error } = await supabase.from('dispatch_jobs')
+      const { error } = await (supabase as any).from('dispatch_jobs')
         .update({ status: 'cancelled', cancelled_at: new Date().toISOString() })
         .eq('id', jobId)
       if (error) throw error
@@ -299,7 +299,7 @@ export default function DispatchConsole() {
   // ── Create job mutation ─────────────────────────────────────────────────────
   const createMutation = useMutation({
     mutationFn: async (f: JobForm) => {
-      const { error } = await supabase.from('dispatch_jobs').insert({
+      const { error } = await (supabase as any).from('dispatch_jobs').insert({
         organization_id:      orgId,
         created_by:           user?.id,
         job_type:             f.job_type,

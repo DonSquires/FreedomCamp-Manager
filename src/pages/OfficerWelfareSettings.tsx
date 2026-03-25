@@ -517,6 +517,7 @@ export default function OfficerWelfareSettings() {
                     Officer must tap "I'm OK" within this interval. 0 disables scheduled check-ins.
                   </p>
                 </div>
+              </div>
             </div>
           )}
 

@@ -186,8 +186,8 @@ export default function TimesheetReview() {
   // ── Approve / Reject mutation ─────────────────────────────────────────────
   const updateApproval = useMutation({
     mutationFn: async ({ id, status, notes }: { id: string; status: 'approved' | 'rejected'; notes: string }) => {
-      const { error } = await supabase
-        .from('officer_shifts')
+      const { error } = await (supabase
+        .from('officer_shifts') as any)
         .update({
           approval_status: status,
           approved_by:     user?.id,
