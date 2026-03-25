@@ -28,7 +28,7 @@ import {
   ShieldAlert, CheckCircle, Shield, Megaphone, FileWarning, XCircle,
   Clock, Home, X, Car, Zap, Search, Printer, PlusCircle, Wrench, Heart, Users,
   Moon, Sun, ParkingSquare, Volume2, Video, Eye, Tent, Timer,
-  ScanFace,
+  ScanFace, CalendarPlus,
 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
