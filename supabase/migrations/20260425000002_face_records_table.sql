@@ -64,7 +64,7 @@ CREATE POLICY face_records_select ON public.face_records
   USING (
     organization_id = (
       SELECT organization_id FROM public.user_profiles
-      WHERE user_id = auth.uid()
+      WHERE id = auth.uid()
       LIMIT 1
     )
   );
@@ -75,7 +75,7 @@ CREATE POLICY face_records_insert ON public.face_records
   WITH CHECK (
     EXISTS (
       SELECT 1 FROM public.user_profiles
-      WHERE user_id = auth.uid()
+      WHERE id = auth.uid()
         AND role IN ('admin', 'master', 'admin_officer', 'officer')
         AND organization_id = face_records.organization_id
     )
@@ -87,7 +87,7 @@ CREATE POLICY face_records_update ON public.face_records
   USING (
     EXISTS (
       SELECT 1 FROM public.user_profiles
-      WHERE user_id = auth.uid()
+      WHERE id = auth.uid()
         AND role IN ('admin', 'master', 'admin_officer')
         AND organization_id = face_records.organization_id
     )
@@ -99,7 +99,7 @@ CREATE POLICY face_records_delete ON public.face_records
   USING (
     EXISTS (
       SELECT 1 FROM public.user_profiles
-      WHERE user_id = auth.uid()
+      WHERE id = auth.uid()
         AND role IN ('admin', 'master')
         AND organization_id = face_records.organization_id
     )
