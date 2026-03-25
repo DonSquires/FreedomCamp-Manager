@@ -90,10 +90,11 @@ AS $$
     fr.notes,
     fr.created_at                              AS face_created_at,
     -- Person fields
-    pr.full_name                               AS person_full_name,
+    TRIM(COALESCE(pr.first_name, '') || ' ' || COALESCE(pr.last_name, ''))
+                                               AS person_full_name,
     pr.date_of_birth                           AS person_date_of_birth,
     pr.notes                                   AS person_notes,
-    pr.homeless_status                         AS person_homeless_status,
+    NULL::text                                 AS person_homeless_status,
     pr.is_of_interest                          AS person_is_of_interest,
     pr.trespass_notice_issued                  AS person_trespass_issued,
     pr.trespass_notice_date                    AS person_trespass_date,
