@@ -155,6 +155,8 @@ interface ShiftFormData {
   required_skills: string[]
   notes: string
   internal_notes: string
+  // Service type — drives portal routing when officer logs in
+  service_type: string
   // Rate overrides (auto-filled for contractor guards, editable)
   guard_cost_rate: string    // string for input binding
   client_charge_rate: string
@@ -174,6 +176,7 @@ const emptyForm = (officerId = '', date = ''): ShiftFormData => ({
   required_skills: [],
   notes: '',
   internal_notes: '',
+  service_type: '',
   guard_cost_rate: '',
   client_charge_rate: '',
   rate_type: 'standard',
@@ -431,6 +434,7 @@ function ShiftDialog({
           required_skills: editShift.required_skills || [],
           notes: editShift.notes || '',
           internal_notes: editShift.internal_notes || '',
+          service_type: (editShift as any).service_type || '',
           guard_cost_rate: editShift.guard_cost_rate != null ? String(editShift.guard_cost_rate) : '',
           client_charge_rate: editShift.client_charge_rate != null ? String(editShift.client_charge_rate) : '',
           rate_type: editShift.rate_type || 'standard',
@@ -578,6 +582,36 @@ function ShiftDialog({
                 value={form.break_minutes}
                 onChange={(e) => set('break_minutes', parseInt(e.target.value) || 0)}
               />
+            </div>
+
+            {/* Service Type */}
+            <div>
+              <Label>Service Type</Label>
+              <Select
+                value={form.service_type || '__none__'}
+                onValueChange={(v) => set('service_type', v === '__none__' ? '' : v)}
+              >
+                <SelectTrigger className="mt-1">
+                  <SelectValue placeholder="Select service type…" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">— Not specified —</SelectItem>
+                  {([
+                    ['freedom_camping', 'Freedom Camping Patrol'],
+                    ['guarding',        'Site Guarding'],
+                    ['parking',         'Parking Enforcement'],
+                    ['noise',           'Noise Control'],
+                    ['patrol',          'General Patrol'],
+                    ['alarm_response',  'Alarm Response'],
+                    ['ems',             'EMS (Electronic Monitoring)'],
+                  ] as const).map(([v, l]) => (
+                    <SelectItem key={v} value={v}>{l}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-gray-400 mt-0.5">
+                Controls which portal the officer is routed to on login.
+              </p>
             </div>
 
             {/* Position Title */}
@@ -967,6 +1001,7 @@ export default function RosterPlanner() {
         required_skills: data.required_skills,
         notes: data.notes || null,
         internal_notes: data.internal_notes || null,
+        service_type: data.service_type || null,
         status: 'draft',
         officer_response: 'pending',
         has_conflict: false,
@@ -1002,6 +1037,7 @@ export default function RosterPlanner() {
         required_skills: data.required_skills,
         notes: data.notes || null,
         internal_notes: data.internal_notes || null,
+        service_type: data.service_type || null,
         updated_at: new Date().toISOString(),
         guard_cost_rate:    data.guard_cost_rate    ? parseFloat(data.guard_cost_rate)    : null,
         client_charge_rate: data.client_charge_rate ? parseFloat(data.client_charge_rate) : null,

@@ -97,6 +97,7 @@ const ClientOrganisationPortal = lazy(() => import('@/pages/ClientOrganisationPo
 const CRMModule = lazy(() => import('@/pages/CRMModule'))
 const ContractorAccountPage = lazy(() => import('@/pages/ContractorAccountPage'))
 const EMSPortal = lazy(() => import('@/pages/EMSPortal'))
+const SiteGuardPortal = lazy(() => import('@/pages/SiteGuardPortal'))
 
 // ---------------------------------------------------------------------------
 // PageLoader – minimal spinner shown while a lazy page chunk is downloading.
@@ -1268,6 +1269,18 @@ export default function App() {
               <ProtectedRoute>
                 <RoleRoute allowedRoles={['officer', 'admin_officer', 'admin', 'master', 'grand_master']}>
                   <EMSPortal />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Site Guard Portal – static guard at a specific client site */}
+          <Route
+            path="/site-guard"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['officer', 'admin_officer', 'admin', 'master', 'grand_master']}>
+                  <SiteGuardPortal />
                 </RoleRoute>
               </ProtectedRoute>
             }

@@ -4,14 +4,21 @@ import { useAuthStore } from '@/stores/authStore'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Shield, Radio, ChevronRight, ParkingSquare, Volume2, Building2, Zap, MapPin, Clock } from 'lucide-react'
+import { Shield, Radio, ChevronRight, ParkingSquare, Volume2, Building2, Zap, MapPin, Clock, Lock } from 'lucide-react'
 import { useRosteredShift, type RosterServiceType } from '@/hooks/useRosteredShift'
 import { format, parseISO } from 'date-fns'
 
 // Map service_type → portal path and label
-const SERVICE_TYPE_PORTAL: Record<RosterServiceType, { path: string; label: string }> = {
+const SERVICE_TYPE_PORTAL: Record<RosterServiceType, { path: string; label: string; buildPath?: (shift: import('@/hooks/useRosteredShift').RosteredShift) => string }> = {
   freedom_camping: { path: '/field-officer?service=freedom_camping', label: 'Freedom Camping Patrol' },
-  guarding:        { path: '/field-officer?service=guarding',        label: 'Guarding' },
+  guarding:        {
+    path: '/site-guard',
+    label: 'Site Guarding',
+    buildPath: (shift) =>
+      shift.client_site_id
+        ? `/site-guard?site=${shift.client_site_id}${shift.id ? `&roster=${shift.id}` : ''}`
+        : '/field-officer?service=guarding',
+  },
   parking:         { path: '/parking-officer',                       label: 'Parking Enforcement' },
   noise:           { path: '/noise-officer',                         label: 'Noise Control' },
   patrol:          { path: '/field-officer?service=patrol',          label: 'General Patrol' },
@@ -47,7 +54,8 @@ export default function PortalSelection() {
       return
     }
     const portal = SERVICE_TYPE_PORTAL[rosteredShift.service_type]
-    navigate(portal.path, { replace: true })
+    const path = portal.buildPath ? portal.buildPath(rosteredShift) : portal.path
+    navigate(path, { replace: true })
   }, [user, rosterLoading, rosteredShift, navigate])
 
   const selectPortal = (path: string) => {
@@ -84,7 +92,11 @@ export default function PortalSelection() {
         <Button
           size="sm"
           className="bg-green-600 hover:bg-green-700 text-white flex-shrink-0"
-          onClick={() => navigate(SERVICE_TYPE_PORTAL[rosteredShift.service_type!].path)}
+          onClick={() => {
+            const portal = SERVICE_TYPE_PORTAL[rosteredShift.service_type!]
+            const path = portal.buildPath ? portal.buildPath(rosteredShift) : portal.path
+            navigate(path)
+          }}
         >
           Go to Shift
           <ChevronRight className="h-3 w-3 ml-1" />
@@ -152,6 +164,39 @@ export default function PortalSelection() {
           <CardContent>
             <Button className="w-full bg-green-600 hover:bg-green-700 text-white">
               Open Field Portal
+              <ChevronRight className="h-4 w-4 ml-2" />
+            </Button>
+          </CardContent>
+        </Card>
+
+        {/* Site Guard portal */}
+        <Card
+          className="cursor-pointer hover:shadow-xl transition-all hover:scale-[1.02] border-teal-500/30 bg-white/5 backdrop-blur"
+          onClick={() => {
+            if (rosteredShift?.service_type === 'guarding' && rosteredShift.client_site_id) {
+              navigate(`/site-guard?site=${rosteredShift.client_site_id}&roster=${rosteredShift.id}`)
+            } else {
+              navigate('/site-guard')
+            }
+          }}
+        >
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-3 text-white">
+              <div className="w-10 h-10 rounded-full bg-teal-600 flex items-center justify-center">
+                <Lock className="h-5 w-5 text-white" />
+              </div>
+              Site Guard Portal
+              {rosteredShift?.service_type === 'guarding' && (
+                <Badge className="ml-auto bg-green-600 text-white text-xs">Rostered</Badge>
+              )}
+            </CardTitle>
+            <CardDescription className="text-teal-200">
+              Static guard dashboard — site POI, incident reports, police and camera review
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button className="w-full bg-teal-600 hover:bg-teal-700 text-white">
+              Open Site Guard Portal
               <ChevronRight className="h-4 w-4 ml-2" />
             </Button>
           </CardContent>
