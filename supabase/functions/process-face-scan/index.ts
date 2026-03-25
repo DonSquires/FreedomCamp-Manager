@@ -6,9 +6,21 @@
 //     Input:  { photo_url: string }
 //     Output: { face_count, faces[], embedding, embedding_quality, metadata }
 //
+//   "detect_and_match" — Detect faces AND search for POI matches in one call.
+//     Input:  { action: "detect_and_match", photo_url: string }
+//     Output: { face_count, faces[], embedding, ..., poi_matches[] }
+//
+//   "match" — Search for matching POI by embedding.
+//     Input:  { action: "match", embedding: number[] }
+//     Output: { matches: [...] }
+//
 //   "compare" — Compare two face embeddings (cosine similarity).
 //     Input:  { action: "compare", embedding1: number[], embedding2: number[] }
 //     Output: { similarity, same_person, confidence, interpretation }
+//
+//   "link_poi" — Link a face_record to a person_record (POI).
+//     Input:  { action: "link_poi", face_record_id: string, person_record_id: string }
+//     Output: { success: true }
 //
 // Auth: Bearer JWT (any authenticated user)
 // ============================================================================
@@ -119,7 +131,111 @@ Deno.serve(async (req) => {
       );
     }
 
-    // ── Detect action ───────────────────────────────────────────────────────
+    // ── Match action — search POI by embedding ────────────────────────────────
+    if (action === 'match') {
+      const { embedding } = body;
+
+      if (!Array.isArray(embedding) || embedding.length === 0) {
+        return new Response(
+          JSON.stringify({ error: 'embedding must be a non-empty array' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      const { data: profile } = await supabase
+        .from('user_profiles')
+        .select('organization_id')
+        .eq('user_id', authData.user.id)
+        .single();
+
+      if (!profile?.organization_id) {
+        return new Response(
+          JSON.stringify({ error: 'User has no organisation', matches: [] }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      const { data: matches, error: matchError } = await supabase.rpc('match_face', {
+        p_embedding:   embedding,
+        p_org_id:      profile.organization_id,
+        p_k:           body.max_results ?? 5,
+        p_min_quality: body.min_quality ?? 0.3,
+      });
+
+      if (matchError) {
+        console.error('match_face RPC error:', matchError);
+        return new Response(
+          JSON.stringify({ error: 'Face match failed', matches: [] }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      // Filter to only meaningful matches (similarity >= 0.65)
+      const MIN_MATCH_SIMILARITY = 0.65;
+      const filteredMatches = (matches ?? [])
+        .filter((m: any) => m.similarity >= MIN_MATCH_SIMILARITY)
+        .map((m: any) => ({
+          face_record_id:   m.face_record_id,
+          person_record_id: m.person_record_id,
+          similarity:       Math.round(m.similarity * 10000) / 10000,
+          confidence:       m.similarity >= 0.90 ? 'high'
+                          : m.similarity >= 0.80 ? 'medium'
+                          : 'low',
+          same_person:      m.similarity >= 0.80,
+          photo_url:        m.photo_url,
+          face_count:       m.face_count,
+          label:            m.label,
+          face_created_at:  m.face_created_at,
+          person: {
+            id:                m.person_record_id,
+            full_name:         m.person_full_name,
+            date_of_birth:     m.person_date_of_birth,
+            notes:             m.person_notes,
+            homeless_status:   m.person_homeless_status,
+            is_of_interest:    m.person_is_of_interest,
+            trespass_issued:   m.person_trespass_issued,
+            trespass_date:     m.person_trespass_date,
+            risk_level:        m.person_risk_level,
+          },
+        }));
+
+      return new Response(
+        JSON.stringify({ matches: filteredMatches }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // ── Link POI action — link a face_record to a person_record ───────────────
+    if (action === 'link_poi') {
+      const { face_record_id, person_record_id } = body;
+
+      if (!face_record_id || !person_record_id) {
+        return new Response(
+          JSON.stringify({ error: 'face_record_id and person_record_id are required' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      const { error: linkError } = await supabase
+        .from('face_records')
+        .update({ person_record_id, label: body.label ?? 'POI' })
+        .eq('id', face_record_id);
+
+      if (linkError) {
+        return new Response(
+          JSON.stringify({ error: 'Link failed: ' + linkError.message }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+
+      return new Response(
+        JSON.stringify({ success: true }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // ── Detect action (also handles detect_and_match) ────────────────────────
+    const isDetectAndMatch = action === 'detect_and_match';
     const { photo_url } = body;
     if (!photo_url) {
       return new Response(
@@ -177,6 +293,9 @@ Deno.serve(async (req) => {
     const result = await inferResp.json();
 
     // Optionally save to face_records table
+    let savedFaceRecordId: string | null = null;
+    let orgId: string | null = null;
+
     if (result.face_count > 0 && body.save !== false) {
       const { data: profile } = await supabase
         .from('user_profiles')
@@ -184,9 +303,11 @@ Deno.serve(async (req) => {
         .eq('user_id', authData.user.id)
         .single();
 
-      if (profile?.organization_id) {
-        await supabase.from('face_records').insert({
-          organization_id: profile.organization_id,
+      orgId = profile?.organization_id ?? null;
+
+      if (orgId) {
+        const { data: insertedRecord } = await supabase.from('face_records').insert({
+          organization_id: orgId,
           photo_url,
           face_count:       result.face_count,
           faces:            result.faces,
@@ -200,7 +321,54 @@ Deno.serve(async (req) => {
           zone_id:          body.zone_id ?? null,
           notes:            body.notes ?? null,
           label:            body.label ?? null,
+        }).select('id').single();
+
+        savedFaceRecordId = insertedRecord?.id ?? null;
+      }
+    }
+
+    // ── POI matching (detect_and_match mode) ──────────────────────────────
+    let poiMatches: any[] = [];
+
+    if (isDetectAndMatch && result.embedding && orgId) {
+      try {
+        const { data: matches, error: matchError } = await supabase.rpc('match_face', {
+          p_embedding:   result.embedding,
+          p_org_id:      orgId,
+          p_k:           5,
+          p_min_quality: 0.3,
         });
+
+        if (!matchError && matches) {
+          const MIN_MATCH_SIMILARITY = 0.65;
+          poiMatches = matches
+            .filter((m: any) => m.similarity >= MIN_MATCH_SIMILARITY)
+            .map((m: any) => ({
+              face_record_id:   m.face_record_id,
+              person_record_id: m.person_record_id,
+              similarity:       Math.round(m.similarity * 10000) / 10000,
+              confidence:       m.similarity >= 0.90 ? 'high'
+                              : m.similarity >= 0.80 ? 'medium'
+                              : 'low',
+              same_person:      m.similarity >= 0.80,
+              photo_url:        m.photo_url,
+              label:            m.label,
+              face_created_at:  m.face_created_at,
+              person: {
+                id:                m.person_record_id,
+                full_name:         m.person_full_name,
+                date_of_birth:     m.person_date_of_birth,
+                notes:             m.person_notes,
+                homeless_status:   m.person_homeless_status,
+                is_of_interest:    m.person_is_of_interest,
+                trespass_issued:   m.person_trespass_issued,
+                trespass_date:     m.person_trespass_date,
+                risk_level:        m.person_risk_level,
+              },
+            }));
+        }
+      } catch (matchErr) {
+        console.warn('POI match failed (non-fatal):', matchErr);
       }
     }
 
@@ -211,6 +379,8 @@ Deno.serve(async (req) => {
         embedding:         result.embedding ?? null,
         embedding_quality: result.embedding_quality ?? null,
         metadata:          result.metadata ?? {},
+        face_record_id:    savedFaceRecordId,
+        poi_matches:       poiMatches,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );

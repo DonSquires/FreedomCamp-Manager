@@ -21,6 +21,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Camera, X, FlipHorizontal, ZoomIn, ZoomOut,
   User, UserCheck, UserX, Clock, Loader2, ScanFace,
+  AlertTriangle, Shield,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
@@ -28,8 +29,31 @@ import { useAuthStore } from '@/stores/authStore'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
+export interface POIMatch {
+  face_record_id: string
+  person_record_id: string
+  similarity: number
+  confidence: string
+  same_person: boolean
+  photo_url: string
+  label: string | null
+  face_created_at: string
+  person: {
+    id: string
+    full_name: string | null
+    date_of_birth: string | null
+    notes: string | null
+    homeless_status: string | null
+    is_of_interest: boolean | null
+    trespass_issued: boolean | null
+    trespass_date: string | null
+    risk_level: string | null
+  }
+}
+
 interface FaceResult {
   id: string
+  faceRecordId: string | null
   photoUrl: string
   faceCount: number
   faces: Array<{
@@ -42,6 +66,7 @@ interface FaceResult {
   embedding: number[] | null
   detectionMethod: string
   capturedAt: string
+  poiMatches: POIMatch[]
 }
 
 interface FaceRecognitionProps {
@@ -169,28 +194,42 @@ export function FaceRecognition({
       const { data: urlData } = supabase.storage.from('scans').getPublicUrl(filePath)
       const photoUrl = urlData.publicUrl
 
-      // Call inference service via edge function
+      // Call inference service via edge function — detect_and_match searches POI
       const { data: faceData, error: faceError } = await supabase.functions.invoke(
         'process-face-scan',
-        { body: { photo_url: photoUrl } }
+        { body: { action: 'detect_and_match', photo_url: photoUrl } }
       )
 
       if (faceError) throw new Error(faceError.message || 'Face detection failed')
 
+      const poiMatches: POIMatch[] = faceData?.poi_matches ?? []
+
       const result: FaceResult = {
         id:              `face-${timestamp}`,
+        faceRecordId:    faceData?.face_record_id ?? null,
         photoUrl,
         faceCount:       faceData?.face_count ?? 0,
         faces:           faceData?.faces ?? [],
         embedding:       faceData?.embedding ?? null,
         detectionMethod: faceData?.metadata?.detection_method ?? 'unknown',
         capturedAt:      new Date().toISOString(),
+        poiMatches,
       }
 
       setResults(prev => [result, ...prev])
 
       if (result.faceCount > 0) {
-        toast.success(`${result.faceCount} face${result.faceCount > 1 ? 's' : ''} detected`)
+        if (poiMatches.length > 0) {
+          const bestMatch = poiMatches[0]
+          const matchName = bestMatch.person.full_name || 'Unknown'
+          toast.warning(
+            `⚠️ POI Match: ${matchName} (${(bestMatch.similarity * 100).toFixed(0)}%)` +
+            (bestMatch.person.trespass_issued ? ' — TRESPASS ACTIVE' : ''),
+            { duration: 8000 }
+          )
+        } else {
+          toast.success(`${result.faceCount} face${result.faceCount > 1 ? 's' : ''} detected — no POI matches`)
+        }
       } else {
         toast.info('No faces detected in this capture')
       }
@@ -384,7 +423,16 @@ export function FaceRecognition({
         ) : (
           <div className="p-3 space-y-2">
             {results.map(r => (
-              <Card key={r.id} className="overflow-hidden">
+              <Card key={r.id} className={`overflow-hidden ${
+                r.poiMatches.some(m => m.same_person) ? 'ring-2 ring-red-500' : ''
+              }`}>
+                {/* POI match banner */}
+                {r.poiMatches.length > 0 && r.poiMatches.some(m => m.same_person) && (
+                  <div className="bg-red-600 text-white px-3 py-2 text-sm font-medium flex items-center gap-2">
+                    <AlertTriangle className="h-4 w-4 flex-shrink-0" />
+                    <span>POI Match Found</span>
+                  </div>
+                )}
                 <CardContent className="p-3">
                   <div className="flex gap-3">
                     {/* Thumbnail */}
@@ -427,13 +475,101 @@ export function FaceRecognition({
                       ))}
 
                       {/* Embedding indicator */}
-                      {r.embedding && (
+                      {r.embedding && r.poiMatches.length === 0 && (
                         <Badge variant="outline" className="text-xs mt-1 text-blue-600">
-                          Embedding saved
+                          Embedding saved — no POI matches
                         </Badge>
                       )}
                     </div>
                   </div>
+
+                  {/* ── POI match details ──────────────────────────────── */}
+                  {r.poiMatches.length > 0 && (
+                    <div className="mt-3 space-y-2">
+                      {r.poiMatches.map((match) => (
+                        <div
+                          key={match.face_record_id}
+                          className={`border rounded-lg p-3 text-sm ${
+                            match.same_person
+                              ? 'border-red-300 bg-red-50 dark:bg-red-950/30'
+                              : 'border-amber-300 bg-amber-50 dark:bg-amber-950/30'
+                          }`}
+                        >
+                          <div className="flex items-start gap-3">
+                            {/* Match photo thumbnail */}
+                            {match.photo_url && (
+                              <div className="flex-shrink-0 w-12 h-12 rounded overflow-hidden bg-gray-200">
+                                <img
+                                  src={match.photo_url}
+                                  alt="POI match"
+                                  className="w-full h-full object-cover"
+                                />
+                              </div>
+                            )}
+                            <div className="flex-1 min-w-0">
+                              {/* Name + similarity */}
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="font-bold text-sm">
+                                  {match.person.full_name || 'Unknown Person'}
+                                </span>
+                                <Badge
+                                  variant="outline"
+                                  className={`text-xs ${
+                                    match.confidence === 'high' ? 'border-red-400 text-red-700' :
+                                    match.confidence === 'medium' ? 'border-amber-400 text-amber-700' :
+                                    'border-gray-300 text-gray-600'
+                                  }`}
+                                >
+                                  {(match.similarity * 100).toFixed(0)}% match
+                                </Badge>
+                              </div>
+
+                              {/* POI / Trespass badges */}
+                              <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                                {match.person.is_of_interest && (
+                                  <Badge className="bg-orange-600 text-white text-[10px] gap-1">
+                                    <AlertTriangle className="h-3 w-3" />
+                                    Person of Interest
+                                  </Badge>
+                                )}
+                                {match.person.trespass_issued && (
+                                  <Badge className="bg-red-700 text-white text-[10px] gap-1">
+                                    <Shield className="h-3 w-3" />
+                                    Trespass Active
+                                    {match.person.trespass_date && (
+                                      <span className="ml-1 opacity-80">
+                                        (since {new Date(match.person.trespass_date).toLocaleDateString('en-NZ')})
+                                      </span>
+                                    )}
+                                  </Badge>
+                                )}
+                                {match.person.risk_level && (
+                                  <Badge
+                                    variant="outline"
+                                    className={`text-[10px] ${
+                                      match.person.risk_level === 'critical' ? 'border-red-500 text-red-700' :
+                                      match.person.risk_level === 'high' ? 'border-orange-500 text-orange-700' :
+                                      match.person.risk_level === 'medium' ? 'border-amber-500 text-amber-700' :
+                                      'border-gray-300'
+                                    }`}
+                                  >
+                                    Risk: {match.person.risk_level}
+                                  </Badge>
+                                )}
+                              </div>
+
+                              {/* Notes */}
+                              {match.person.notes && (
+                                <p className="text-xs text-gray-600 dark:text-gray-400 mt-1 line-clamp-2">
+                                  {match.person.notes}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             ))}

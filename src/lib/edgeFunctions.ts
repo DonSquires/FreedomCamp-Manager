@@ -1167,13 +1167,15 @@ export const edgeFunctions = {
    * Compare mode: Accepts two face embeddings and returns cosine similarity.
    */
   processFaceScan: async (params: {
-    /** 'detect' (default) or 'compare' */
-    action?: 'detect' | 'compare'
-    /** Photo URL for face detection (detect mode) */
+    /** 'detect' (default), 'detect_and_match', 'compare', 'match', or 'link_poi' */
+    action?: 'detect' | 'detect_and_match' | 'compare' | 'match' | 'link_poi'
+    /** Photo URL for face detection (detect / detect_and_match mode) */
     photo_url?: string
     /** Embeddings for comparison (compare mode) */
     embedding1?: number[]
     embedding2?: number[]
+    /** Face embedding to search POI (match mode) */
+    embedding?: number[]
     /** Whether to save detected faces to face_records table (default true) */
     save?: boolean
     /** Optional linked observation ID */
@@ -1184,6 +1186,12 @@ export const edgeFunctions = {
     zone_id?: string
     notes?: string
     label?: string
+    /** Max POI match results (match mode, default 5) */
+    max_results?: number
+    /** Link POI: face_record_id to link */
+    face_record_id?: string
+    /** Link POI: person_record_id to link to */
+    person_record_id?: string
   }) => {
     return callEdgeFunction('process-face-scan', params, { showToast: false })
   },
