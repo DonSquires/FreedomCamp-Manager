@@ -19,7 +19,7 @@ export interface User {
 export interface Organization {
   id: string
   name: string
-  organization_type: 'owner' | 'service_provider' | 'client'
+  organization_type: 'owner' | 'service_provider' | 'client' | 'contractor' | 'operator' | 'security_company'
   organization_level: number
   parent_organization_id: string | null
   contact_email: string | null
