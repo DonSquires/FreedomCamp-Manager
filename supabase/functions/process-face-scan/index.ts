@@ -145,7 +145,7 @@ Deno.serve(async (req) => {
       const { data: profile } = await supabase
         .from('user_profiles')
         .select('organization_id')
-        .eq('user_id', authData.user.id)
+        .eq('id', authData.user.id)
         .single();
 
       if (!profile?.organization_id) {
@@ -300,7 +300,7 @@ Deno.serve(async (req) => {
       const { data: profile } = await supabase
         .from('user_profiles')
         .select('organization_id')
-        .eq('user_id', authData.user.id)
+        .eq('id', authData.user.id)
         .single();
 
       orgId = profile?.organization_id ?? null;
