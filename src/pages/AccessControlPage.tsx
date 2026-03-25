@@ -137,7 +137,7 @@ export default function AccessControlPage() {
   const { data: users = [], isLoading: usersLoading, refetch: refetchUsers } = useQuery<UserRow[]>({
     queryKey: ['access-control-users'],
     queryFn: async () => {
-      const { data, error } = await (supabase.from('user_area_access') as any)
+      const { data, error } = await ((supabase as any).from('user_area_access') as any)
         .select('*')
         .order('full_name')
       if (error) throw error
@@ -153,7 +153,7 @@ export default function AccessControlPage() {
   const { data: orgs = [] } = useQuery<OrgOption[]>({
     queryKey: ['access-control-orgs'],
     queryFn: async () => {
-      const { data, error } = await (supabase.from('organizations') as any)
+      const { data, error } = await ((supabase as any).from('organizations') as any)
         .select('id, name, organization_type, organization_level, parent_organization_id')
         .eq('is_active', true)
         .order('organization_level', { ascending: true })
@@ -190,7 +190,7 @@ export default function AccessControlPage() {
       authorizedWorkLocations: string[]
       extraOrgIds: string[]
     }) => {
-      const { error } = await (supabase.from('user_profiles') as any)
+      const { error } = await ((supabase as any).from('user_profiles') as any)
         .update({
           portal_access:             payload.portalAccess,
           authorized_work_locations: payload.authorizedWorkLocations,

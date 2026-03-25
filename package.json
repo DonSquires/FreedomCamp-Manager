@@ -4,9 +4,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "tsc -b && vite build",
     "typecheck": "tsc -b",
-    "build:strict": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
     "start": "sh -c 'vite preview --host 0.0.0.0 --port ${PORT:-4173}'",

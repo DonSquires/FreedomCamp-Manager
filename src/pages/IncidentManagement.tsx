@@ -80,7 +80,7 @@ export default function IncidentManagement() {
   const { data: incidents, isLoading } = useQuery({
     queryKey: ['incidents', dateFrom, dateTo, organizationId, zoneId, statusFilter, typeFilter, searchTerm],
     queryFn: async ({ signal }) => {
-      let query = supabase
+      let query = (supabase as any)
         .from('incidents')
         .select('*')
         .is('deleted_at', null)
@@ -116,7 +116,7 @@ export default function IncidentManagement() {
   // Create incident mutation
   const createMutation = useMutation({
     mutationFn: async (formData: IncidentFormData) => {
-      const { data: incident, error } = await (supabase.from('incidents') as any).insert({
+      const { data: incident, error } = await ((supabase as any).from('incidents') as any).insert({
         organization_id:  user?.organization_id,
         user_id:          user?.id,
         zone_id:          formData.zone_id || null,
@@ -140,7 +140,7 @@ export default function IncidentManagement() {
         if (formData.person_record_id) {
           updates.person_record_id = formData.person_record_id
         }
-        await supabase
+        await (supabase as any)
           .from('face_records')
           .update(updates)
           .eq('id', formData.face_record_id)
@@ -169,7 +169,7 @@ export default function IncidentManagement() {
   // Update status mutation
   const updateStatusMutation = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: string }) => {
-      const { error } = await (supabase.from('incidents') as any)
+      const { error } = await ((supabase as any).from('incidents') as any)
         .update({ status })
         .eq('id', id)
       if (error) throw error

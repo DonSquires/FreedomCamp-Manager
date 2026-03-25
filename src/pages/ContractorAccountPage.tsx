@@ -227,7 +227,7 @@ export default function ContractorAccountPage() {
   const { data: org } = useQuery({
     queryKey: ['crm_contractor_org', orgId],
     queryFn: async () => {
-      const { data, error } = await (supabase.from('organizations') as any)
+      const { data, error } = await ((supabase as any).from('organizations') as any)
         .select('id, name, organization_type, is_active, contact_email, contact_phone, parent:organizations!parent_organization_id(name)')
         .eq('id', orgId)
         .single()
@@ -242,7 +242,7 @@ export default function ContractorAccountPage() {
   const { data: profile, isLoading: profileLoading } = useQuery<ContractorProfile | null>({
     queryKey: ['crm_contractor_profile', orgId],
     queryFn: async () => {
-      const { data, error } = await (supabase.from('contractor_profiles') as any)
+      const { data, error } = await ((supabase as any).from('contractor_profiles') as any)
         .select('*')
         .eq('organization_id', orgId)
         .maybeSingle()
@@ -257,7 +257,7 @@ export default function ContractorAccountPage() {
   const { data: documents = [] } = useQuery<ContractorDocument[]>({
     queryKey: ['crm_contractor_docs', orgId],
     queryFn: async () => {
-      const { data, error } = await (supabase.from('contractor_documents') as any)
+      const { data, error } = await ((supabase as any).from('contractor_documents') as any)
         .select(`
           id, organization_id, document_type, document_name, document_url,
           expiry_date, is_current, notes, uploaded_by, created_at,
@@ -279,7 +279,7 @@ export default function ContractorAccountPage() {
   const { data: recentShifts = [] } = useQuery<RecentShift[]>({
     queryKey: ['crm_contractor_shifts', orgId],
     queryFn: async () => {
-      const { data, error } = await (supabase.from('roster_shifts') as any)
+      const { data, error } = await ((supabase as any).from('roster_shifts') as any)
         .select(`
           id, shift_date, shift_type, start_time, end_time, status,
           guard_cost_rate, client_charge_rate,
@@ -303,7 +303,7 @@ export default function ContractorAccountPage() {
 
   const saveProfileMutation = useMutation({
     mutationFn: async (updates: Partial<ContractorProfile>) => {
-      const { error } = await (supabase.from('contractor_profiles') as any)
+      const { error } = await ((supabase as any).from('contractor_profiles') as any)
         .update(updates)
         .eq('organization_id', orgId)
       if (error) throw error
@@ -338,7 +338,7 @@ export default function ContractorAccountPage() {
       })
       if (uploadError) throw new Error(uploadError)
 
-      const { error: dbError } = await (supabase.from('contractor_documents') as any).insert({
+      const { error: dbError } = await ((supabase as any).from('contractor_documents') as any).insert({
         organization_id: orgId,
         document_type:   uploadType,
         document_name:   uploadName.trim(),
@@ -368,7 +368,7 @@ export default function ContractorAccountPage() {
 
   const archiveDocMutation = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await (supabase.from('contractor_documents') as any)
+      const { error } = await ((supabase as any).from('contractor_documents') as any)
         .update({ is_current: false })
         .eq('id', id)
       if (error) throw error
@@ -473,7 +473,7 @@ export default function ContractorAccountPage() {
           title="Account Information"
           icon={Users}
           action={
-            isServiceProvider || true ? (
+            isServiceProvider ? (
               editingContact ? (
                 <div className="flex gap-1">
                   <Button size="sm" variant="ghost" onClick={() => setEditingContact(false)}>

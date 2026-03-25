@@ -1,0 +1,100 @@
+name: Ops — Import NZ Maps / Boundaries
+
+# Imports New Zealand territorial boundaries, meshblocks, or freedom camping
+# site locations into the Supabase database.
+#
+# Import modes:
+#   territorial  — import NZ territorial authority boundaries
+#   meshblock    — import Statistics NZ meshblock polygons for a specific org
+#   campsites    — import freedom camping site locations from data sources
+#
+# Required secrets:
+#   SUPABASE_URL              — https://YOUR_REF.supabase.co
+#   SUPABASE_SERVICE_ROLE_KEY — Supabase service role key
+#
+# Optional secrets:
+#   STATSNZ_API_KEY           — Stats NZ API key (some import sources require this)
+
+on:
+  workflow_dispatch:
+    inputs:
+      import_mode:
+        description: 'Import mode'
+        required: false
+        default: 'territorial'
+        type: choice
+        options: [territorial, meshblock, campsites]
+      import_sources:
+        description: '[campsites] Comma-separated sources (blank = all)'
+        required: false
+        default: 'all'
+        type: string
+      organization_id:
+        description: '[meshblock] Organization UUID (required)'
+        required: false
+        type: string
+      import_bbox:
+        description: 'Bounding box filter: minLng,minLat,maxLng,maxLat'
+        required: false
+        type: string
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  import-maps:
+    name: Import NZ Maps (${{ github.event.inputs.import_mode }})
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Check required secrets
+        id: check-secrets
+        run: |
+          missing=""
+          [ -z "$SUPABASE_URL" ]              && missing="$missing SUPABASE_URL"
+          [ -z "$SUPABASE_SERVICE_ROLE_KEY" ] && missing="$missing SUPABASE_SERVICE_ROLE_KEY"
+          if [ -n "$missing" ]; then
+            echo "::warning::Missing secrets:$missing — maps import skipped."
+            echo "secrets_present=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "secrets_present=true" >> "$GITHUB_OUTPUT"
+          if [ -z "$STATSNZ_API_KEY" ]; then
+            echo "::notice::STATSNZ_API_KEY is not set (optional). Some import sources may be unavailable."
+          fi
+        env:
+          SUPABASE_URL:              ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          STATSNZ_API_KEY:           ${{ secrets.STATSNZ_API_KEY }}
+
+      - uses: actions/checkout@v5
+        if: steps.check-secrets.outputs.secrets_present == 'true'
+
+      - name: Setup Node.js
+        if: steps.check-secrets.outputs.secrets_present == 'true'
+        uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+
+      - name: Install Dependencies
+        if: steps.check-secrets.outputs.secrets_present == 'true'
+        run: npm install @supabase/supabase-js@2 dotenv@16 typescript@5 ts-node@10 @types/node@22
+
+      - name: Run Import Script
+        if: steps.check-secrets.outputs.secrets_present == 'true'
+        env:
+          SUPABASE_URL:              ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          STATSNZ_API_KEY:           ${{ secrets.STATSNZ_API_KEY }}
+          IMPORT_MODE:               ${{ github.event.inputs.import_mode }}
+          IMPORT_SOURCES:            ${{ github.event.inputs.import_sources }}
+          ORGANIZATION_ID:           ${{ github.event.inputs.organization_id }}
+          IMPORT_BBOX:               ${{ github.event.inputs.import_bbox }}
+        run: |
+          if [ "${{ github.event.inputs.import_mode }}" = "campsites" ]; then
+            npx ts-node scripts/import_campsites.ts
+          else
+            npx ts-node scripts/import_boundaries.ts
+          fi

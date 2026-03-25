@@ -123,7 +123,7 @@ export function useSiteRiskAssessments(options?: {
   const query = useQuery({
     queryKey: ['site-risk-assessments', orgId, options?.zoneId, options?.status, options?.riskLevel],
     queryFn: async () => {
-      let q = supabase
+      let q = (supabase as any)
         .from('site_risk_assessments')
         .select('*, assessor:assessed_by(first_name, last_name), zone:zone_id(name), reviewer:reviewed_by(first_name, last_name)')
         .order('assessment_date', { ascending: false })
@@ -142,7 +142,7 @@ export function useSiteRiskAssessments(options?: {
 
   const createAssessment = useMutation({
     mutationFn: async (input: Partial<SiteRiskAssessment>) => {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('site_risk_assessments')
         .insert({
           ...input,
@@ -163,7 +163,7 @@ export function useSiteRiskAssessments(options?: {
 
   const updateAssessment = useMutation({
     mutationFn: async ({ id, ...updates }: Partial<SiteRiskAssessment> & { id: string }) => {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('site_risk_assessments')
         .update(updates)
         .eq('id', id)
@@ -181,7 +181,7 @@ export function useSiteRiskAssessments(options?: {
 
   const submitAssessment = useMutation({
     mutationFn: async (id: string) => {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('site_risk_assessments')
         .update({ status: 'submitted' })
         .eq('id', id)
@@ -199,7 +199,7 @@ export function useSiteRiskAssessments(options?: {
 
   const reviewAssessment = useMutation({
     mutationFn: async (id: string) => {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('site_risk_assessments')
         .update({ status: 'reviewed', reviewed_by: user!.id, reviewed_at: new Date().toISOString() })
         .eq('id', id)

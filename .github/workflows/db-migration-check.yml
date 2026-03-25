@@ -1,4 +1,4 @@
-name: Migration check
+name: Database — Migration Check
 
 # Validates that local migration files are consistent and that no short-form
 # drift versions are present in the remote database before a deployment.
@@ -6,7 +6,7 @@ name: Migration check
 # This workflow runs automatically on push to main or pull requests that touch
 # migration files, and can also be triggered manually for ad-hoc checks.
 #
-# Required repository secrets (same as supabase-db-push.yml):
+# Required repository secrets (same as db-push.yml):
 #   SUPABASE_ACCESS_TOKEN   — Supabase personal access token (sbp_…)
 #   SUPABASE_DB_PASSWORD    — Database password for the linked project
 #   SUPABASE_PROJECT_REF    — Supabase project reference ID

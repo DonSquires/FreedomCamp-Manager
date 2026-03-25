@@ -72,7 +72,7 @@ export default function FaceRecognitionPage() {
   const { data: recentRecords, refetch } = useQuery({
     queryKey: ['face-records', user?.organization_id],
     queryFn: async () => {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('face_records')
         .select('id, photo_url, face_count, faces, detection_method, officer_id, label, notes, person_record_id, created_at')
         .order('created_at', { ascending: false })
@@ -88,7 +88,7 @@ export default function FaceRecognitionPage() {
   const { data: personOptions = [] } = useQuery({
     queryKey: ['person-records-options'],
     queryFn: async () => {
-      const { data, error } = await (supabase.from('person_records') as any)
+      const { data, error } = await ((supabase as any).from('person_records') as any)
         .select('id, full_name, is_of_interest, trespass_notice_issued')
         .order('full_name')
         .limit(500)

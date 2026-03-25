@@ -1,4 +1,14 @@
-name: Monthly Geofence Review
+name: Ops — Monthly Geofence Review
+
+# Runs the monthly zone geofence review script to flag stale or out-of-bounds
+# camping zones that need updating (docs/MONTHLY_GEOFENCE_REVIEW.md).
+#
+# Runs automatically on the 1st of each month at 02:00 UTC, and can be triggered
+# manually with an optional dry-run mode and custom review month.
+#
+# Required secrets:
+#   SUPABASE_URL              — https://YOUR_REF.supabase.co
+#   SUPABASE_SERVICE_ROLE_KEY — Supabase service role key
 
 on:
   schedule:
@@ -17,8 +27,14 @@ on:
         default: ''
         type: string
 
+env:
+  # supabase/setup-cli@v1 still bundles Node.js 20; force the runner to use
+  # Node.js 24 so the action keeps working after the June 2026 cut-over.
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   geofence-review:
+    name: Monthly Geofence Review
     runs-on: ubuntu-latest
     permissions:
       contents: read

@@ -80,7 +80,7 @@ export default function ClientOrganisationPortal() {
     queryKey: ['client-org', orgId],
     queryFn: async () => {
       if (!orgId) return null
-      const { data, error } = await (supabase.from('organizations') as any)
+      const { data, error } = await ((supabase as any).from('organizations') as any)
         .select('id, name, organization_type, contact_email, contact_phone, is_active')
         .eq('id', orgId)
         .single()
@@ -98,21 +98,21 @@ export default function ClientOrganisationPortal() {
       if (!orgId) return null
 
       const [scansResult, breachesResult, patrolsResult, enforcementResult, sitesResult] = await Promise.all([
-        (supabase.from('observations') as any)
+        ((supabase as any).from('observations') as any)
           .select('id', { count: 'exact', head: true })
           .eq('org_id', orgId),
-        (supabase.from('breach_alerts') as any)
+        ((supabase as any).from('breach_alerts') as any)
           .select('id', { count: 'exact', head: true })
           .eq('organization_id', orgId)
           .eq('status', 'open'),
-        (supabase.from('patrols') as any)
+        ((supabase as any).from('patrols') as any)
           .select('id', { count: 'exact', head: true })
           .eq('organization_id', orgId)
           .gte('created_at', new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString()),
-        (supabase.from('enforcement_actions') as any)
+        ((supabase as any).from('enforcement_actions') as any)
           .select('id', { count: 'exact', head: true })
           .eq('organization_id', orgId),
-        (supabase.from('client_sites') as any)
+        ((supabase as any).from('client_sites') as any)
           .select('id', { count: 'exact', head: true })
           .eq('organization_id', orgId)
           .eq('is_active', true),
@@ -136,7 +136,7 @@ export default function ClientOrganisationPortal() {
     queryKey: ['client-portal-patrols', orgId],
     queryFn: async () => {
       if (!orgId) return []
-      const { data, error } = await (supabase.from('patrols') as any)
+      const { data, error } = await ((supabase as any).from('patrols') as any)
         .select(`
           id, status, patrol_date, shift, created_at, updated_at,
           zone:zones(name),
@@ -157,7 +157,7 @@ export default function ClientOrganisationPortal() {
     queryKey: ['client-portal-breaches', orgId],
     queryFn: async () => {
       if (!orgId) return []
-      const { data, error } = await (supabase.from('breach_alerts') as any)
+      const { data, error } = await ((supabase as any).from('breach_alerts') as any)
         .select('id, status, breach_type, plate_number, created_at, zone:zones(name)')
         .eq('organization_id', orgId)
         .order('created_at', { ascending: false })
@@ -174,7 +174,7 @@ export default function ClientOrganisationPortal() {
     queryKey: ['client-portal-enforcement', orgId],
     queryFn: async () => {
       if (!orgId) return []
-      const { data, error } = await (supabase.from('enforcement_actions') as any)
+      const { data, error } = await ((supabase as any).from('enforcement_actions') as any)
         .select('id, action_type, plate_number, status, created_at, notes')
         .eq('organization_id', orgId)
         .order('created_at', { ascending: false })
@@ -191,7 +191,7 @@ export default function ClientOrganisationPortal() {
     queryKey: ['client-portal-zones', orgId],
     queryFn: async () => {
       if (!orgId) return []
-      const { data, error } = await (supabase.from('zones') as any)
+      const { data, error } = await ((supabase as any).from('zones') as any)
         .select('id, name, zone_type, is_active, nights_per_month, max_consecutive_nights')
         .eq('organization_id', orgId)
         .eq('is_active', true)
@@ -208,7 +208,7 @@ export default function ClientOrganisationPortal() {
     queryKey: ['client-portal-sites', orgId],
     queryFn: async () => {
       if (!orgId) return []
-      const { data, error } = await (supabase.from('client_sites') as any)
+      const { data, error } = await ((supabase as any).from('client_sites') as any)
         .select(`
           id, name, site_code, site_type, address, city,
           gps_lat, gps_lng, contact_name, contact_phone, contact_email,

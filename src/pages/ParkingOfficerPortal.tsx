@@ -876,7 +876,7 @@ export default function ParkingOfficerPortal() {
                 maxLength={8}
                 onKeyDown={e => e.key === 'Enter' && handleSearchPlate()}
               />
-              <Button onClick={handleSearchPlate} disabled={searching || !searchPlate.trim()}>
+              <Button onClick={() => handleSearchPlate()} disabled={searching || !searchPlate.trim()}>
                 {searching ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
               </Button>
             </div>
