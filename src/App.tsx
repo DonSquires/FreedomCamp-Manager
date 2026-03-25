@@ -94,6 +94,9 @@ const RosterPlanner = lazy(() => import('@/pages/RosterPlanner'))
 const OfficerSkills = lazy(() => import('@/pages/OfficerSkills'))
 const OfficerAvailability = lazy(() => import('@/pages/OfficerAvailability'))
 const ClientOrganisationPortal = lazy(() => import('@/pages/ClientOrganisationPortal'))
+const CRMModule = lazy(() => import('@/pages/CRMModule'))
+const ContractorAccountPage = lazy(() => import('@/pages/ContractorAccountPage'))
+const EMSPortal = lazy(() => import('@/pages/EMSPortal'))
 
 // ---------------------------------------------------------------------------
 // PageLoader – minimal spinner shown while a lazy page chunk is downloading.
@@ -1232,6 +1235,40 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <OfficerAvailability />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* CRM – Accounts (Clients + Contractors) */}
+          <Route
+            path="/crm"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master', 'grand_master']}>
+                  <CRMModule />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/crm/contractor/:orgId"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master', 'grand_master']}>
+                  <ContractorAccountPage />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          {/* EMS – Electronic Monitoring Services */}
+          <Route
+            path="/ems"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['officer', 'admin_officer', 'admin', 'master', 'grand_master']}>
+                  <EMSPortal />
+                </RoleRoute>
               </ProtectedRoute>
             }
           />
