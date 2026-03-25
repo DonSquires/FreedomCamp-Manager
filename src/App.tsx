@@ -98,6 +98,7 @@ const CRMModule = lazy(() => import('@/pages/CRMModule'))
 const ContractorAccountPage = lazy(() => import('@/pages/ContractorAccountPage'))
 const EMSPortal = lazy(() => import('@/pages/EMSPortal'))
 const SiteGuardPortal = lazy(() => import('@/pages/SiteGuardPortal'))
+const AccessControlPage = lazy(() => import('@/pages/AccessControlPage'))
 
 // ---------------------------------------------------------------------------
 // PageLoader – minimal spinner shown while a lazy page chunk is downloading.
@@ -307,6 +308,47 @@ function RoleRoute({
   return <>{children}</>
 }
 
+/**
+ * AreaRoute
+ *
+ * Extends RoleRoute with portal-area access control.  A user must:
+ *   1. Be authenticated (handled by the wrapping ProtectedRoute).
+ *   2. Have one of the allowedRoles OR be grand_master/master.
+ *   3. Have the portal area code in their portal_access array (if set).
+ *
+ * grand_master and master roles bypass all area restrictions (they always pass).
+ */
+function AreaRoute({
+  children,
+  allowedRoles,
+  area,
+}: {
+  children: React.ReactNode
+  allowedRoles: string[]
+  area: string
+}) {
+  const { user } = useAuthStore()
+
+  if (!user) return <Navigate to="/login" replace />
+
+  // grand_master / master bypass all restrictions
+  const isSuperUser = user.role === 'grand_master' || user.role === 'master'
+
+  // Role check
+  if (!isSuperUser && !allowedRoles.includes(user.role)) {
+    return <Navigate to="/" replace />
+  }
+
+  // Portal-area check (skip if portal_access is empty — fall back to role only)
+  if (!isSuperUser && user.portal_access && user.portal_access.length > 0) {
+    if (!user.portal_access.includes(area)) {
+      return <Navigate to="/" replace />
+    }
+  }
+
+  return <>{children}</>
+}
+
 export default function App() {
   const { user, loading, checkSession, initializeAuth, ensureLoadingResolved } = useAuthStore()
   useSessionInactivityLock()
@@ -426,9 +468,9 @@ export default function App() {
             path="/field-officer"
             element={
               <ProtectedRoute>
-                <RoleRoute allowedRoles={['officer', 'admin_officer']}>
+                <AreaRoute allowedRoles={['officer', 'admin_officer']} area="field_officer">
                   <FieldOfficerPortal />
-                </RoleRoute>
+                </AreaRoute>
               </ProtectedRoute>
             }
           />
@@ -517,9 +559,20 @@ export default function App() {
             path="/users"
             element={
               <ProtectedRoute>
-                <RoleRoute allowedRoles={['admin', 'master']}>
+                <AreaRoute allowedRoles={['admin', 'master']} area="users">
                   <UserManagement />
-                </RoleRoute>
+                </AreaRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/access-control"
+            element={
+              <ProtectedRoute>
+                <AreaRoute allowedRoles={['admin', 'master', 'grand_master']} area="users">
+                  <AccessControlPage />
+                </AreaRoute>
               </ProtectedRoute>
             }
           />
@@ -980,7 +1033,9 @@ export default function App() {
             path="/parking-officer"
             element={
               <ProtectedRoute>
-                <ParkingOfficerPortal />
+                <AreaRoute allowedRoles={['officer', 'admin_officer', 'admin', 'master']} area="parking">
+                  <ParkingOfficerPortal />
+                </AreaRoute>
               </ProtectedRoute>
             }
           />
@@ -990,9 +1045,9 @@ export default function App() {
             path="/noise-control"
             element={
               <ProtectedRoute>
-                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
+                <AreaRoute allowedRoles={['admin', 'admin_officer', 'master']} area="noise">
                   <NoiseControlPortal />
-                </RoleRoute>
+                </AreaRoute>
               </ProtectedRoute>
             }
           />
@@ -1000,7 +1055,9 @@ export default function App() {
             path="/noise-officer"
             element={
               <ProtectedRoute>
-                <NoiseOfficerPortal />
+                <AreaRoute allowedRoles={['officer', 'admin_officer', 'admin', 'master']} area="noise">
+                  <NoiseOfficerPortal />
+                </AreaRoute>
               </ProtectedRoute>
             }
           />
@@ -1267,9 +1324,9 @@ export default function App() {
             path="/ems"
             element={
               <ProtectedRoute>
-                <RoleRoute allowedRoles={['officer', 'admin_officer', 'admin', 'master', 'grand_master']}>
+                <AreaRoute allowedRoles={['officer', 'admin_officer', 'admin', 'master', 'grand_master']} area="ems">
                   <EMSPortal />
-                </RoleRoute>
+                </AreaRoute>
               </ProtectedRoute>
             }
           />
@@ -1279,9 +1336,9 @@ export default function App() {
             path="/site-guard"
             element={
               <ProtectedRoute>
-                <RoleRoute allowedRoles={['officer', 'admin_officer', 'admin', 'master', 'grand_master']}>
+                <AreaRoute allowedRoles={['officer', 'admin_officer', 'admin', 'master', 'grand_master']} area="site_guard">
                   <SiteGuardPortal />
-                </RoleRoute>
+                </AreaRoute>
               </ProtectedRoute>
             }
           />

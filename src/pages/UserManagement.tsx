@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { Button } from '@/components/ui/button'
@@ -32,12 +33,16 @@ import {
   AlertCircle,
   Award,
   Clock,
-  Building2
+  Building2,
+  ShieldCheck,
+  Globe,
+  Lock,
 } from 'lucide-react'
 import { formatDateTime, formatDate } from '@/lib/utils'
 import { AppLayout } from '@/components/features/AppLayout'
 import { GlobalFilterRibbon } from '@/components/features/GlobalFilterRibbon'
 import { uploadFile } from '@/lib/fileUpload'
+import { PORTAL_AREA_LABELS, type PortalAreaCode } from '@/hooks/usePermissions'
 
 interface Organization {
   id: string
@@ -68,12 +73,17 @@ interface UserProfile {
   credentials_verified: boolean
   credentials_verified_at: string | null
   credentials_verified_by: string | null
+  // Access control
+  portal_access: string[]
+  authorized_work_locations: string[]
+  extra_organization_ids: string[]
   // Joined data
   organization?: Organization | null
 }
 
 export default function UserManagement() {
   const { user } = useAuthStore()
+  const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [searchTerm, setSearchTerm] = useState('')
   const [showCreateDialog, setShowCreateDialog] = useState(false)
