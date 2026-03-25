@@ -36,6 +36,7 @@ jobs:
   # Gate: abort immediately if the operator did not explicitly confirm
   confirm_approval:
     runs-on: ubuntu-latest
+    permissions: {}
     steps:
       - name: Require explicit confirmation
         if: ${{ !inputs.confirmed }}
@@ -46,6 +47,8 @@ jobs:
   db_push:
     needs: confirm_approval
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     environment: production-schema   # requires manual approval from @DonSquires in GitHub UI
     steps:
       - name: Checkout repo
