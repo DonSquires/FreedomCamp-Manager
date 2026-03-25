@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/stores/authStore'
@@ -27,7 +27,8 @@ import {
   Camera, Map, FileText, History, AlertTriangle, MapPin, QrCode,
   ShieldAlert, CheckCircle, Shield, Megaphone, FileWarning, XCircle,
   Clock, Home, X, Car, Zap, Search, Printer, PlusCircle, Wrench, Heart, Users,
-  Moon, Sun, ParkingSquare, Volume2, Video,
+  Moon, Sun, ParkingSquare, Volume2, Video, Eye, Tent, Timer,
+  ScanFace,
 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
@@ -51,6 +52,63 @@ const formatBreachType = (bt: string | null | undefined): string => {
 /** Duration (ms) the "observation captured" toast stays on screen. */
 const CAPTURE_TOAST_DURATION_MS = 5000
 
+// ─── Service Types ────────────────────────────────────────────────────────────
+
+/** Service types an officer can select — determines which tools are shown. */
+type ServiceType = 'freedom_camping' | 'guarding' | 'parking' | 'noise'
+
+const SERVICE_TYPE_CONFIG: Record<ServiceType, {
+  label: string
+  description: string
+  Icon: typeof Shield
+  color: string
+  bgColor: string
+  borderColor: string
+}> = {
+  freedom_camping: {
+    label: 'Freedom Camping Patrol',
+    description: 'Vehicle scanning, breach detection, compliance',
+    Icon: Tent,
+    color: 'text-green-700 dark:text-green-400',
+    bgColor: 'bg-green-100 dark:bg-green-900',
+    borderColor: 'border-green-400 dark:border-green-700',
+  },
+  guarding: {
+    label: 'Guarding',
+    description: 'Site security, checkpoints, POI, face recognition',
+    Icon: Shield,
+    color: 'text-blue-700 dark:text-blue-400',
+    bgColor: 'bg-blue-100 dark:bg-blue-900',
+    borderColor: 'border-blue-400 dark:border-blue-700',
+  },
+  parking: {
+    label: 'Parking Enforcement',
+    description: 'Chalk pass, recheck, infringement notices',
+    Icon: ParkingSquare,
+    color: 'text-orange-700 dark:text-orange-400',
+    bgColor: 'bg-orange-100 dark:bg-orange-900',
+    borderColor: 'border-orange-400 dark:border-orange-700',
+  },
+  noise: {
+    label: 'Noise Control',
+    description: 'Assessment matrix, AN/DN/END notices, seizures',
+    Icon: Volume2,
+    color: 'text-yellow-700 dark:text-yellow-400',
+    bgColor: 'bg-yellow-100 dark:bg-yellow-900',
+    borderColor: 'border-yellow-400 dark:border-yellow-700',
+  },
+}
+
+/** Format shift duration from ms to human-readable. */
+function formatShiftDuration(startedAt: string): string {
+  const ms = Date.now() - new Date(startedAt).getTime()
+  const totalMins = Math.floor(ms / 60000)
+  const hrs = Math.floor(totalMins / 60)
+  const mins = totalMins % 60
+  if (hrs > 0) return `${hrs}h ${mins}m`
+  return `${mins}m`
+}
+
 
 export default function FieldOfficerPortal() {
   const { user } = useAuthStore()
@@ -59,6 +117,9 @@ export default function FieldOfficerPortal() {
   const queryClient = useQueryClient()
   const { themeMode, setThemeMode } = useThemePreferencesStore()
   const isNightPatrol = themeMode === 'night-patrol'
+
+  // ── Service type selection ────────────────────────────────────────────────
+  const [activeService, setActiveService] = useState<ServiceType | null>(null)
 
   // ── Scan mode: null = portal home, 'detail' = single-vehicle scan,
   //              'bulk' = quick area sweep, 'checkpoint' = QR check-in
@@ -259,6 +320,85 @@ export default function FieldOfficerPortal() {
       clearInterval(interval)
     }
   }, [user, currentPatrolZone, setZone, recordGPSUpdate, zoneName])
+
+  // ── Auto-start shift & welfare on portal load ─────────────────────────────
+  const shiftStartedRef = useRef(false)
+
+  // Fetch active shift for current officer
+  const { data: activeShift, refetch: refetchShift } = useQuery({
+    queryKey: ['officer-active-shift', user?.id],
+    queryFn: async () => {
+      if (!user?.id) return null
+      const { data, error } = await (supabase
+        .from('officer_shifts') as any)
+        .select('id, started_at, parent_zone_id, gps_start_lat, gps_start_lng')
+        .eq('officer_id', user.id)
+        .is('ended_at', null)
+        .order('started_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      if (error) return null
+      return data as { id: string; started_at: string; parent_zone_id: string | null; gps_start_lat: number | null; gps_start_lng: number | null } | null
+    },
+    enabled: !!user?.id,
+    refetchInterval: 300000, // refresh every 5 minutes — duration display updates locally via setShiftTick
+  })
+
+  // Auto-start shift when officer opens the portal (if no active shift)
+  useEffect(() => {
+    if (!user?.id || !user?.organization_id) return
+    if (shiftStartedRef.current) return
+    // activeShift is undefined while loading, null if no shift found, or a shift object
+    if (activeShift === undefined || activeShift !== null) return
+
+    shiftStartedRef.current = true
+
+    const startShift = async () => {
+      try {
+        let gpsLat: number | null = null
+        let gpsLng: number | null = null
+
+        // Try to get current GPS for shift start location
+        try {
+          const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
+            navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 5000 })
+          })
+          gpsLat = pos.coords.latitude
+          gpsLng = pos.coords.longitude
+        } catch {
+          // GPS unavailable — non-critical for shift start
+        }
+
+        const { error } = await (supabase
+          .from('officer_shifts') as any)
+          .insert({
+            officer_id: user.id,
+            organization_id: user.organization_id,
+            parent_zone_id: zoneId || null,
+            gps_start_lat: gpsLat,
+            gps_start_lng: gpsLng,
+          })
+
+        if (error) {
+          console.warn('Auto-start shift failed:', error.message)
+        } else {
+          refetchShift()
+        }
+      } catch (err) {
+        console.warn('Auto-start shift error:', err)
+      }
+    }
+
+    startShift()
+  }, [user, activeShift, zoneId, refetchShift])
+
+  // Shift duration ticker — re-render every 30s to update displayed duration
+  const [, setShiftTick] = useState(0)
+  useEffect(() => {
+    if (!activeShift) return
+    const interval = setInterval(() => setShiftTick(t => t + 1), 30000)
+    return () => clearInterval(interval)
+  }, [activeShift])
 
   // ── Detail scan: capture handler ─────────────────────────────────────────
   const handleDetailCapture = useCallback(async (file: File) => {
@@ -470,6 +610,74 @@ export default function FieldOfficerPortal() {
         </Button>
       </div>
 
+      {/* ── Shift & Welfare status bar (auto-started) ────────────────── */}
+      <div className="flex items-center gap-3 rounded-xl border border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-950/30 px-4 py-2.5 mb-4">
+        <div className="p-1.5 bg-green-200 dark:bg-green-800 rounded-full">
+          <Timer className="h-4 w-4 text-green-700 dark:text-green-300" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-sm font-semibold text-green-800 dark:text-green-200">
+              Shift Active
+            </span>
+            {activeShift && (
+              <Badge variant="outline" className="text-xs border-green-400 text-green-700 dark:text-green-300">
+                <Clock className="h-3 w-3 mr-1" />
+                {formatShiftDuration(activeShift.started_at)}
+              </Badge>
+            )}
+            <Badge variant="outline" className="text-xs border-emerald-400 text-emerald-700 dark:text-emerald-300">
+              <Heart className="h-3 w-3 mr-1" />
+              Welfare On
+            </Badge>
+          </div>
+          <p className="text-[11px] text-green-600 dark:text-green-400">
+            Shift and welfare monitoring started automatically
+          </p>
+        </div>
+      </div>
+
+      {/* ── Service Type Selector ────────────────────────────────────── */}
+      {!scanMode && !showCheckpoint && !detailCameraOpen && (
+        <div className="mb-6">
+          <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 flex items-center gap-2">
+            <Eye className="h-4 w-4" />
+            Select Service
+          </h2>
+          <div className="grid grid-cols-2 gap-3">
+            {(Object.entries(SERVICE_TYPE_CONFIG) as [ServiceType, typeof SERVICE_TYPE_CONFIG[ServiceType]][]).map(
+              ([key, cfg]) => {
+                const isActive = activeService === key
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => setActiveService(isActive ? null : key)}
+                    className={`flex items-start gap-3 rounded-xl border-2 p-3 text-left transition-all ${
+                      isActive
+                        ? `${cfg.borderColor} ${cfg.bgColor} shadow-md ring-1 ring-opacity-30`
+                        : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
+                    }`}
+                  >
+                    <div className={`p-2 rounded-lg ${cfg.bgColor} shrink-0`}>
+                      <cfg.Icon className={`h-5 w-5 ${cfg.color}`} />
+                    </div>
+                    <div className="min-w-0">
+                      <p className={`text-sm font-semibold ${isActive ? cfg.color : 'text-gray-800 dark:text-gray-200'}`}>
+                        {cfg.label}
+                      </p>
+                      <p className="text-[11px] text-muted-foreground leading-snug mt-0.5">
+                        {cfg.description}
+                      </p>
+                    </div>
+                  </button>
+                )
+              }
+            )}
+          </div>
+        </div>
+      )}
+
       {/* ── BULK SCAN MODE — full screen ────────────────────────────── */}
       {scanMode === 'live' ? (
         /* ── LIVE PATROL CAMERA ─────────────────────────────────────── */
@@ -551,259 +759,579 @@ export default function FieldOfficerPortal() {
             )}
           />
 
-          <div className="grid gap-4 grid-cols-2 sm:grid-cols-3 mb-6">
-            {/* ── Detail Scan card ────────────────────────────── */}
-            <Card
-              className="hover:shadow-lg transition-shadow border-2 border-blue-300 dark:border-blue-800 cursor-pointer"
-              onClick={() => {
-                if (!user?.id || !user?.organization_id) { toast.error('Session expired'); return }
-                if (!navigator.mediaDevices?.getUserMedia) { toast.error('Camera not available'); return }
-                setScanMode('detail')
-                setDetailCameraOpen(true)
-                setShowDetailPanel(false)
-                setDetailScanData(null)
-              }}
-            >
-              <CardHeader className="pb-2">
-                <div className="flex items-center gap-2">
-                  <div className="p-2 bg-blue-100 dark:bg-blue-900 rounded-lg shrink-0">
-                    <Search className="h-5 w-5 text-blue-600 dark:text-blue-400" />
-                  </div>
-                  <div>
-                    <CardTitle className="text-sm">Detail Scan</CardTitle>
-                    <CardDescription className="text-xs leading-snug">
-                      One vehicle — full details, notes &amp; actions
-                    </CardDescription>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent className="pt-0">
-                <p className="text-[11px] text-muted-foreground">
-                  Targeted inspection. Edit corrections, add H&amp;S, issue warnings or notices.
-                </p>
-              </CardContent>
-            </Card>
+          {/* ═══════════════════════════════════════════════════════════
+              FREEDOM CAMPING PATROL tools
+              ═══════════════════════════════════════════════════════════ */}
+          {(!activeService || activeService === 'freedom_camping') && (
+            <>
+              {activeService === 'freedom_camping' && (
+                <h3 className="text-xs font-bold text-green-700 dark:text-green-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                  <Tent className="h-3.5 w-3.5" />
+                  Freedom Camping Patrol
+                </h3>
+              )}
+              <div className="grid gap-4 grid-cols-2 sm:grid-cols-3 mb-6">
+                {/* ── Detail Scan card ────────────────────────────── */}
+                <Card
+                  className="hover:shadow-lg transition-shadow border-2 border-blue-300 dark:border-blue-800 cursor-pointer"
+                  onClick={() => {
+                    if (!user?.id || !user?.organization_id) { toast.error('Session expired'); return }
+                    if (!navigator.mediaDevices?.getUserMedia) { toast.error('Camera not available'); return }
+                    setScanMode('detail')
+                    setDetailCameraOpen(true)
+                    setShowDetailPanel(false)
+                    setDetailScanData(null)
+                  }}
+                >
+                  <CardHeader className="pb-2">
+                    <div className="flex items-center gap-2">
+                      <div className="p-2 bg-blue-100 dark:bg-blue-900 rounded-lg shrink-0">
+                        <Search className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                      </div>
+                      <div>
+                        <CardTitle className="text-sm">Detail Scan</CardTitle>
+                        <CardDescription className="text-xs leading-snug">
+                          One vehicle — full details, notes &amp; actions
+                        </CardDescription>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="pt-0">
+                    <p className="text-[11px] text-muted-foreground">
+                      Targeted inspection. Edit corrections, add H&amp;S, issue warnings or notices.
+                    </p>
+                  </CardContent>
+                </Card>
 
-            {/* ── Bulk (Zoom) Scan card ────────────────────────── */}
-            <Card
-              className="hover:shadow-lg transition-shadow border-2 border-yellow-300 dark:border-yellow-800 cursor-pointer"
-              onClick={() => {
-                if (!user?.id || !user?.organization_id) { toast.error('Session expired'); return }
-                if (!navigator.mediaDevices?.getUserMedia) { toast.error('Camera not available'); return }
-                setScanMode('bulk')
-              }}
-            >
-              <CardHeader className="pb-2">
-                <div className="flex items-center gap-2">
-                  <div className="p-2 bg-yellow-100 dark:bg-yellow-900 rounded-lg shrink-0">
-                    <Zap className="h-5 w-5 text-yellow-600 dark:text-yellow-400" />
-                  </div>
-                  <div>
-                    <CardTitle className="text-sm">Bulk Scan</CardTitle>
-                    <CardDescription className="text-xs leading-snug">
-                      Area sweep — multiple vehicles fast
-                    </CardDescription>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent className="pt-0">
-                <p className="text-[11px] text-muted-foreground">
-                  Camera stays open. Scan one after another with live breach tally.
-                </p>
-              </CardContent>
-            </Card>
+                {/* ── Bulk (Zoom) Scan card ────────────────────────── */}
+                <Card
+                  className="hover:shadow-lg transition-shadow border-2 border-yellow-300 dark:border-yellow-800 cursor-pointer"
+                  onClick={() => {
+                    if (!user?.id || !user?.organization_id) { toast.error('Session expired'); return }
+                    if (!navigator.mediaDevices?.getUserMedia) { toast.error('Camera not available'); return }
+                    setScanMode('bulk')
+                  }}
+                >
+                  <CardHeader className="pb-2">
+                    <div className="flex items-center gap-2">
+                      <div className="p-2 bg-yellow-100 dark:bg-yellow-900 rounded-lg shrink-0">
+                        <Zap className="h-5 w-5 text-yellow-600 dark:text-yellow-400" />
+                      </div>
+                      <div>
+                        <CardTitle className="text-sm">Bulk Scan</CardTitle>
+                        <CardDescription className="text-xs leading-snug">
+                          Area sweep — multiple vehicles fast
+                        </CardDescription>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="pt-0">
+                    <p className="text-[11px] text-muted-foreground">
+                      Camera stays open. Scan one after another with live breach tally.
+                    </p>
+                  </CardContent>
+                </Card>
 
-            {/* ── Live Patrol Scan card ─────────────────────────── */}
-            <Card
-              className="hover:shadow-lg transition-shadow border-2 border-green-300 dark:border-green-800 cursor-pointer col-span-2 sm:col-span-1"
-              onClick={() => {
-                if (!user?.id || !user?.organization_id) { toast.error('Session expired'); return }
-                if (!navigator.mediaDevices?.getUserMedia) { toast.error('Camera not available'); return }
-                setScanMode('live')
-              }}
-            >
-              <CardHeader className="pb-2">
-                <div className="flex items-center gap-2">
-                  <div className="p-2 bg-green-100 dark:bg-green-900 rounded-lg shrink-0">
-                    <Video className="h-5 w-5 text-green-600 dark:text-green-400" />
-                  </div>
-                  <div>
-                    <CardTitle className="text-sm">Live Patrol</CardTitle>
-                    <CardDescription className="text-xs leading-snug">
-                      Auto-scan as you drive
-                    </CardDescription>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent className="pt-0">
-                <p className="text-[11px] text-muted-foreground">
-                  Continuous camera feed auto-captures plates every few seconds. Breach alerts show instantly.
-                </p>
-              </CardContent>
-            </Card>
-          </div>
+                {/* ── Live Patrol Scan card ─────────────────────────── */}
+                <Card
+                  className="hover:shadow-lg transition-shadow border-2 border-green-300 dark:border-green-800 cursor-pointer col-span-2 sm:col-span-1"
+                  onClick={() => {
+                    if (!user?.id || !user?.organization_id) { toast.error('Session expired'); return }
+                    if (!navigator.mediaDevices?.getUserMedia) { toast.error('Camera not available'); return }
+                    setScanMode('live')
+                  }}
+                >
+                  <CardHeader className="pb-2">
+                    <div className="flex items-center gap-2">
+                      <div className="p-2 bg-green-100 dark:bg-green-900 rounded-lg shrink-0">
+                        <Video className="h-5 w-5 text-green-600 dark:text-green-400" />
+                      </div>
+                      <div>
+                        <CardTitle className="text-sm">Live Patrol</CardTitle>
+                        <CardDescription className="text-xs leading-snug">
+                          Auto-scan as you drive
+                        </CardDescription>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="pt-0">
+                    <p className="text-[11px] text-muted-foreground">
+                      Continuous camera feed auto-captures plates every few seconds. Breach alerts show instantly.
+                    </p>
+                  </CardContent>
+                </Card>
+              </div>
+            </>
+          )}
+          {/* ═══════════════════════════════════════════════════════════
+              GUARDING tools
+              ═══════════════════════════════════════════════════════════ */}
+          {(!activeService || activeService === 'guarding') && (
+            <>
+              {activeService === 'guarding' && (
+                <h3 className="text-xs font-bold text-blue-700 dark:text-blue-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                  <Shield className="h-3.5 w-3.5" />
+                  Guarding
+                </h3>
+              )}
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 mb-6">
+                {/* QR Checkpoint */}
+                <Card className="hover:shadow-lg transition-shadow border-indigo-200 dark:border-indigo-900 border-2">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <div className="p-2 bg-indigo-100 dark:bg-indigo-900 rounded-lg">
+                        <QrCode className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
+                      </div>
+                      Checkpoint
+                      <Badge variant="outline" className="ml-auto text-xs">Lone Worker</Badge>
+                    </CardTitle>
+                    <CardDescription>Scan QR/NFC at patrol checkpoint</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <Button className="w-full" onClick={() => setShowCheckpoint(true)}>
+                      Check In at Checkpoint
+                    </Button>
+                  </CardContent>
+                </Card>
 
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-          {/* QR Checkpoint Check-In */}
-          <Card className="hover:shadow-lg transition-shadow border-indigo-200 dark:border-indigo-900 border-2">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <div className="p-2 bg-indigo-100 dark:bg-indigo-900 rounded-lg">
-                  <QrCode className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
-                </div>
-                Checkpoint
-                <Badge variant="outline" className="ml-auto text-xs">Lone Worker</Badge>
-              </CardTitle>
-              <CardDescription>Scan QR/NFC at patrol checkpoint</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button className="w-full" onClick={() => setShowCheckpoint(true)}>
-                Check In at Checkpoint
-              </Button>
-            </CardContent>
-          </Card>
+                {/* Active Patrol */}
+                <Card className="hover:shadow-lg transition-shadow">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <div className="p-2 bg-green-100 dark:bg-green-900 rounded-lg">
+                        <Map className="h-5 w-5 text-green-600 dark:text-green-400" />
+                      </div>
+                      Active Patrol
+                    </CardTitle>
+                    <CardDescription>Manage your patrol session</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <Button className="w-full" variant="outline" onClick={() => toast.info('Patrol tracking active via geofence')}>
+                      Patrol Status
+                    </Button>
+                  </CardContent>
+                </Card>
 
-          {/* Secondary Actions */}
-          <Card className="hover:shadow-lg transition-shadow">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <div className="p-2 bg-green-100 dark:bg-green-900 rounded-lg">
-                  <Map className="h-5 w-5 text-green-600 dark:text-green-400" />
-                </div>
-                Active Patrol
-              </CardTitle>
-              <CardDescription>Manage your patrol session</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button className="w-full" variant="outline" onClick={() => toast.info('Patrol tracking active via geofence')}>
-                Patrol Status
-              </Button>
-            </CardContent>
-          </Card>
+                {/* Face Recognition / POI */}
+                <Card className="hover:shadow-lg transition-shadow border-purple-200 dark:border-purple-800">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <div className="p-2 bg-purple-100 dark:bg-purple-900 rounded-lg">
+                        <ScanFace className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+                      </div>
+                      Face Recognition
+                    </CardTitle>
+                    <CardDescription>POI detection &amp; trespass matching</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <Button className="w-full" variant="outline" onClick={() => navigate('/face-recognition')}>
+                      Open Face Scan
+                    </Button>
+                  </CardContent>
+                </Card>
 
-          <Card className="hover:shadow-lg transition-shadow">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <div className="p-2 bg-purple-100 dark:bg-purple-900 rounded-lg">
-                  <FileText className="h-5 w-5 text-purple-600 dark:text-purple-400" />
-                </div>
-                Create Report
-              </CardTitle>
-              <CardDescription>H&amp;S, incident or maintenance</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              <Button className="w-full" onClick={handleOpenQuickReport}>
-                <PlusCircle className="h-4 w-4 mr-2" />
-                New Quick Report
-              </Button>
-              <Button className="w-full" variant="outline" onClick={() => navigate('/incidents')}>
-                View All Reports
-              </Button>
-            </CardContent>
-          </Card>
+                {/* Person Records / POI */}
+                <Card className="hover:shadow-lg transition-shadow">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <div className="p-2 bg-amber-100 dark:bg-amber-900 rounded-lg">
+                        <Users className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+                      </div>
+                      Person Records
+                    </CardTitle>
+                    <CardDescription>Persons of interest &amp; observations</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <Button className="w-full" variant="outline" onClick={() => navigate('/person-records')}>
+                      View Records
+                    </Button>
+                  </CardContent>
+                </Card>
 
-          <Card className="hover:shadow-lg transition-shadow">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <div className="p-2 bg-orange-100 dark:bg-orange-900 rounded-lg">
-                  <History className="h-5 w-5 text-orange-600 dark:text-orange-400" />
-                </div>
-                My Scans
-              </CardTitle>
-              <CardDescription>Recent observations</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button className="w-full" variant="outline" onClick={handleViewHistory}>
-                {user?.role === 'officer' ? 'View 24h History' : 'View History'}
-              </Button>
-            </CardContent>
-          </Card>
+                {/* Create Report */}
+                <Card className="hover:shadow-lg transition-shadow">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <div className="p-2 bg-purple-100 dark:bg-purple-900 rounded-lg">
+                        <FileText className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+                      </div>
+                      Create Report
+                    </CardTitle>
+                    <CardDescription>H&amp;S, incident or maintenance</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-2">
+                    <Button className="w-full" onClick={handleOpenQuickReport}>
+                      <PlusCircle className="h-4 w-4 mr-2" />
+                      New Quick Report
+                    </Button>
+                    <Button className="w-full" variant="outline" onClick={() => navigate('/incidents')}>
+                      View All Reports
+                    </Button>
+                  </CardContent>
+                </Card>
+              </div>
+            </>
+          )}
 
-          <Card className="hover:shadow-lg transition-shadow">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <div className="p-2 bg-red-100 dark:bg-red-900 rounded-lg">
-                  <AlertTriangle className="h-5 w-5 text-red-600 dark:text-red-400" />
-                </div>
-                Breach Alerts
-              </CardTitle>
-              <CardDescription>Active notifications</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button className="w-full" variant="outline" onClick={() => navigate('/breaches')}>
-                View Alerts
-              </Button>
-            </CardContent>
-          </Card>
+          {/* ═══════════════════════════════════════════════════════════
+              PARKING ENFORCEMENT tools
+              ═══════════════════════════════════════════════════════════ */}
+          {(!activeService || activeService === 'parking') && (
+            <>
+              {activeService === 'parking' && (
+                <h3 className="text-xs font-bold text-orange-700 dark:text-orange-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                  <ParkingSquare className="h-3.5 w-3.5" />
+                  Parking Enforcement
+                </h3>
+              )}
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 mb-6">
+                <Card className="hover:shadow-lg transition-shadow border-orange-200 dark:border-orange-900 border-2">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <div className="p-2 bg-orange-100 dark:bg-orange-900 rounded-lg">
+                        <ParkingSquare className="h-5 w-5 text-orange-600 dark:text-orange-400" />
+                      </div>
+                      Parking Enforcement
+                    </CardTitle>
+                    <CardDescription>Chalk pass · Recheck · Infringement</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <Button className="w-full" variant="outline" onClick={() => navigate('/parking-officer')}>
+                      Open Parking Portal
+                    </Button>
+                  </CardContent>
+                </Card>
 
-          <Card className="hover:shadow-lg transition-shadow">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <div className="p-2 bg-teal-100 dark:bg-teal-900 rounded-lg">
-                  <MapPin className="h-5 w-5 text-teal-600 dark:text-teal-400" />
-                </div>
-                Zones
-              </CardTitle>
-              <CardDescription>Enforcement zones</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button className="w-full" variant="outline" onClick={() => navigate('/zones')}>
-                View Zones
-              </Button>
-            </CardContent>
-          </Card>
+                <Card className="hover:shadow-lg transition-shadow border-red-200 dark:border-red-900">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <div className="p-2 bg-red-100 dark:bg-red-900 rounded-lg">
+                        <Shield className="h-5 w-5 text-red-600 dark:text-red-400" />
+                      </div>
+                      Infringement Notices
+                    </CardTitle>
+                    <CardDescription>Issue fines on-site</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <Button className="w-full" variant="outline" onClick={() => navigate('/infringements')}>
+                      Issue / View Notices
+                    </Button>
+                  </CardContent>
+                </Card>
+              </div>
+            </>
+          )}
 
-          <Card className="hover:shadow-lg transition-shadow border-red-200 dark:border-red-900">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <div className="p-2 bg-red-100 dark:bg-red-900 rounded-lg">
-                  <Shield className="h-5 w-5 text-red-600 dark:text-red-400" />
-                </div>
-                Infringement Notices
-              </CardTitle>
-              <CardDescription>Issue fines on-site</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button className="w-full" variant="outline" onClick={() => navigate('/infringements')}>
-                Issue / View Notices
-              </Button>
-            </CardContent>
-          </Card>
+          {/* ═══════════════════════════════════════════════════════════
+              NOISE CONTROL tools
+              ═══════════════════════════════════════════════════════════ */}
+          {(!activeService || activeService === 'noise') && (
+            <>
+              {activeService === 'noise' && (
+                <h3 className="text-xs font-bold text-yellow-700 dark:text-yellow-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                  <Volume2 className="h-3.5 w-3.5" />
+                  Noise Control
+                </h3>
+              )}
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 mb-6">
+                <Card className="hover:shadow-lg transition-shadow border-yellow-200 dark:border-yellow-900 border-2">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <div className="p-2 bg-yellow-100 dark:bg-yellow-900 rounded-lg">
+                        <Volume2 className="h-5 w-5 text-yellow-700 dark:text-yellow-400" />
+                      </div>
+                      Noise Control
+                    </CardTitle>
+                    <CardDescription>Jobs · AN / DN / END · Seizures</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <Button className="w-full" variant="outline" onClick={() => navigate('/noise-officer')}>
+                      Open Noise Portal
+                    </Button>
+                  </CardContent>
+                </Card>
+              </div>
+            </>
+          )}
 
-          <Card className="hover:shadow-lg transition-shadow border-orange-200 dark:border-orange-900">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <div className="p-2 bg-orange-100 dark:bg-orange-900 rounded-lg">
-                  <ParkingSquare className="h-5 w-5 text-orange-600 dark:text-orange-400" />
-                </div>
-                Parking Enforcement
-              </CardTitle>
-              <CardDescription>Chalk pass · Recheck · Infringement</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button className="w-full" variant="outline" onClick={() => navigate('/parking-officer')}>
-                Open Parking Portal
-              </Button>
-            </CardContent>
-          </Card>
+          {/* ═══════════════════════════════════════════════════════════
+              COMMON TOOLS — always visible (shared across all services)
+              ═══════════════════════════════════════════════════════════ */}
+          {!activeService && (
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 mb-6">
+              {/* QR Checkpoint Check-In */}
+              <Card className="hover:shadow-lg transition-shadow border-indigo-200 dark:border-indigo-900 border-2">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <div className="p-2 bg-indigo-100 dark:bg-indigo-900 rounded-lg">
+                      <QrCode className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
+                    </div>
+                    Checkpoint
+                    <Badge variant="outline" className="ml-auto text-xs">Lone Worker</Badge>
+                  </CardTitle>
+                  <CardDescription>Scan QR/NFC at patrol checkpoint</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Button className="w-full" onClick={() => setShowCheckpoint(true)}>
+                    Check In at Checkpoint
+                  </Button>
+                </CardContent>
+              </Card>
 
-          <Card className="hover:shadow-lg transition-shadow border-yellow-200 dark:border-yellow-900">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <div className="p-2 bg-yellow-100 dark:bg-yellow-900 rounded-lg">
-                  <Volume2 className="h-5 w-5 text-yellow-700 dark:text-yellow-400" />
-                </div>
-                Noise Control
-              </CardTitle>
-              <CardDescription>Jobs · AN / DN / END · Seizures</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Button className="w-full" variant="outline" onClick={() => navigate('/noise-officer')}>
-                Open Noise Portal
-              </Button>
-            </CardContent>
-          </Card>
-        </div>
+              {/* Active Patrol */}
+              <Card className="hover:shadow-lg transition-shadow">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <div className="p-2 bg-green-100 dark:bg-green-900 rounded-lg">
+                      <Map className="h-5 w-5 text-green-600 dark:text-green-400" />
+                    </div>
+                    Active Patrol
+                  </CardTitle>
+                  <CardDescription>Manage your patrol session</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Button className="w-full" variant="outline" onClick={() => toast.info('Patrol tracking active via geofence')}>
+                    Patrol Status
+                  </Button>
+                </CardContent>
+              </Card>
+
+              {/* Create Report */}
+              <Card className="hover:shadow-lg transition-shadow">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <div className="p-2 bg-purple-100 dark:bg-purple-900 rounded-lg">
+                      <FileText className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+                    </div>
+                    Create Report
+                  </CardTitle>
+                  <CardDescription>H&amp;S, incident or maintenance</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  <Button className="w-full" onClick={handleOpenQuickReport}>
+                    <PlusCircle className="h-4 w-4 mr-2" />
+                    New Quick Report
+                  </Button>
+                  <Button className="w-full" variant="outline" onClick={() => navigate('/incidents')}>
+                    View All Reports
+                  </Button>
+                </CardContent>
+              </Card>
+
+              {/* My Scans */}
+              <Card className="hover:shadow-lg transition-shadow">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <div className="p-2 bg-orange-100 dark:bg-orange-900 rounded-lg">
+                      <History className="h-5 w-5 text-orange-600 dark:text-orange-400" />
+                    </div>
+                    My Scans
+                  </CardTitle>
+                  <CardDescription>Recent observations</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Button className="w-full" variant="outline" onClick={handleViewHistory}>
+                    {user?.role === 'officer' ? 'View 24h History' : 'View History'}
+                  </Button>
+                </CardContent>
+              </Card>
+
+              {/* Breach Alerts */}
+              <Card className="hover:shadow-lg transition-shadow">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <div className="p-2 bg-red-100 dark:bg-red-900 rounded-lg">
+                      <AlertTriangle className="h-5 w-5 text-red-600 dark:text-red-400" />
+                    </div>
+                    Breach Alerts
+                  </CardTitle>
+                  <CardDescription>Active notifications</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Button className="w-full" variant="outline" onClick={() => navigate('/breaches')}>
+                    View Alerts
+                  </Button>
+                </CardContent>
+              </Card>
+
+              {/* Zones */}
+              <Card className="hover:shadow-lg transition-shadow">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <div className="p-2 bg-teal-100 dark:bg-teal-900 rounded-lg">
+                      <MapPin className="h-5 w-5 text-teal-600 dark:text-teal-400" />
+                    </div>
+                    Zones
+                  </CardTitle>
+                  <CardDescription>Enforcement zones</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Button className="w-full" variant="outline" onClick={() => navigate('/zones')}>
+                    View Zones
+                  </Button>
+                </CardContent>
+              </Card>
+
+              {/* Infringements */}
+              <Card className="hover:shadow-lg transition-shadow border-red-200 dark:border-red-900">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <div className="p-2 bg-red-100 dark:bg-red-900 rounded-lg">
+                      <Shield className="h-5 w-5 text-red-600 dark:text-red-400" />
+                    </div>
+                    Infringement Notices
+                  </CardTitle>
+                  <CardDescription>Issue fines on-site</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Button className="w-full" variant="outline" onClick={() => navigate('/infringements')}>
+                    Issue / View Notices
+                  </Button>
+                </CardContent>
+              </Card>
+
+              {/* Parking Enforcement */}
+              <Card className="hover:shadow-lg transition-shadow border-orange-200 dark:border-orange-900">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <div className="p-2 bg-orange-100 dark:bg-orange-900 rounded-lg">
+                      <ParkingSquare className="h-5 w-5 text-orange-600 dark:text-orange-400" />
+                    </div>
+                    Parking Enforcement
+                  </CardTitle>
+                  <CardDescription>Chalk pass · Recheck · Infringement</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Button className="w-full" variant="outline" onClick={() => navigate('/parking-officer')}>
+                    Open Parking Portal
+                  </Button>
+                </CardContent>
+              </Card>
+
+              {/* Noise Control */}
+              <Card className="hover:shadow-lg transition-shadow border-yellow-200 dark:border-yellow-900">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <div className="p-2 bg-yellow-100 dark:bg-yellow-900 rounded-lg">
+                      <Volume2 className="h-5 w-5 text-yellow-700 dark:text-yellow-400" />
+                    </div>
+                    Noise Control
+                  </CardTitle>
+                  <CardDescription>Jobs · AN / DN / END · Seizures</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Button className="w-full" variant="outline" onClick={() => navigate('/noise-officer')}>
+                    Open Noise Portal
+                  </Button>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
+          {/* Service-specific common tools */}
+          {activeService && (
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 mb-6">
+              {/* My Scans — shown for freedom_camping and guarding */}
+              {(activeService === 'freedom_camping' || activeService === 'guarding') && (
+                <Card className="hover:shadow-lg transition-shadow">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <div className="p-2 bg-orange-100 dark:bg-orange-900 rounded-lg">
+                        <History className="h-5 w-5 text-orange-600 dark:text-orange-400" />
+                      </div>
+                      My Scans
+                    </CardTitle>
+                    <CardDescription>Recent observations</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <Button className="w-full" variant="outline" onClick={handleViewHistory}>
+                      {user?.role === 'officer' ? 'View 24h History' : 'View History'}
+                    </Button>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* Breach Alerts — shown for freedom_camping */}
+              {activeService === 'freedom_camping' && (
+                <>
+                  <Card className="hover:shadow-lg transition-shadow">
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <div className="p-2 bg-red-100 dark:bg-red-900 rounded-lg">
+                          <AlertTriangle className="h-5 w-5 text-red-600 dark:text-red-400" />
+                        </div>
+                        Breach Alerts
+                      </CardTitle>
+                      <CardDescription>Active notifications</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <Button className="w-full" variant="outline" onClick={() => navigate('/breaches')}>
+                        View Alerts
+                      </Button>
+                    </CardContent>
+                  </Card>
+
+                  <Card className="hover:shadow-lg transition-shadow">
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <div className="p-2 bg-teal-100 dark:bg-teal-900 rounded-lg">
+                          <MapPin className="h-5 w-5 text-teal-600 dark:text-teal-400" />
+                        </div>
+                        Zones
+                      </CardTitle>
+                      <CardDescription>Enforcement zones</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <Button className="w-full" variant="outline" onClick={() => navigate('/zones')}>
+                        View Zones
+                      </Button>
+                    </CardContent>
+                  </Card>
+
+                  <Card className="hover:shadow-lg transition-shadow border-red-200 dark:border-red-900">
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <div className="p-2 bg-red-100 dark:bg-red-900 rounded-lg">
+                          <Shield className="h-5 w-5 text-red-600 dark:text-red-400" />
+                        </div>
+                        Infringement Notices
+                      </CardTitle>
+                      <CardDescription>Issue fines on-site</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <Button className="w-full" variant="outline" onClick={() => navigate('/infringements')}>
+                        Issue / View Notices
+                      </Button>
+                    </CardContent>
+                  </Card>
+                </>
+              )}
+
+              {/* Create Report — shown for guarding */}
+              {activeService === 'guarding' && (
+                <Card className="hover:shadow-lg transition-shadow">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <div className="p-2 bg-purple-100 dark:bg-purple-900 rounded-lg">
+                        <FileText className="h-5 w-5 text-purple-600 dark:text-purple-400" />
+                      </div>
+                      Create Report
+                    </CardTitle>
+                    <CardDescription>H&amp;S, incident or maintenance</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-2">
+                    <Button className="w-full" onClick={handleOpenQuickReport}>
+                      <PlusCircle className="h-4 w-4 mr-2" />
+                      New Quick Report
+                    </Button>
+                    <Button className="w-full" variant="outline" onClick={() => navigate('/incidents')}>
+                      View All Reports
+                    </Button>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+          )}
         </>
       )}
 
