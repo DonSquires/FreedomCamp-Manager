@@ -5,6 +5,17 @@ import './index.css'
 import 'leaflet/dist/leaflet.css'
 import { supabaseConfigured } from './lib/supabase.ts'
 
+// Inject a preconnect hint for the Supabase backend at runtime so the browser
+// can open the TCP+TLS connection before any API calls are made.
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+if (supabaseUrl) {
+  const link = document.createElement('link')
+  link.rel = 'preconnect'
+  link.href = supabaseUrl
+  link.crossOrigin = 'anonymous'
+  document.head.appendChild(link)
+}
+
 const root = document.getElementById('root')!
 
 if (!supabaseConfigured) {
