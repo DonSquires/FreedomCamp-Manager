@@ -25,6 +25,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
+import { edgeFunctions } from '@/lib/edgeFunctions'
 import { useAuthStore } from '@/stores/authStore'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -197,12 +198,11 @@ export function FaceRecognition({
       const photoUrl = urlData.publicUrl
 
       // Call inference service via edge function — detect_and_match searches POI
-      const { data: faceData, error: faceError } = await supabase.functions.invoke(
-        'process-face-scan',
-        { body: { action: 'detect_and_match', photo_url: photoUrl } }
+      const { data: faceData, error: faceError } = await edgeFunctions.processFaceScan(
+        { action: 'detect_and_match', photo_url: photoUrl }
       )
 
-      if (faceError) throw new Error(faceError.message || 'Face detection failed')
+      if (faceError) throw new Error(faceError || 'Face detection failed')
 
       const poiMatches: POIMatch[] = faceData?.poi_matches ?? []
 
@@ -239,14 +239,11 @@ export function FaceRecognition({
       // Compare with existing embedding if provided
       if (compareEmbedding && result.embedding) {
         try {
-          const { data: cmpData, error: cmpError } = await supabase.functions.invoke(
-            'process-face-scan',
+          const { data: cmpData, error: cmpError } = await edgeFunctions.processFaceScan(
             {
-              body: {
-                action: 'compare',
-                embedding1: compareEmbedding,
-                embedding2: result.embedding,
-              },
+              action: 'compare',
+              embedding1: compareEmbedding,
+              embedding2: result.embedding,
             }
           )
 
