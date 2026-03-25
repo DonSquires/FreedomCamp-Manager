@@ -183,9 +183,9 @@ export function FaceRecognition({
       })
 
       // Upload to Supabase storage
+      // Path must start with user UUID to satisfy the scans bucket RLS policy
       const timestamp = Date.now()
-      const orgId = user?.organization_id ?? 'default'
-      const filePath = `face-scans/${orgId}/${timestamp}.jpg`
+      const filePath = `${user?.id}/face-scans/${timestamp}.jpg`
 
       const { error: uploadError } = await supabase.storage
         .from('scans')
