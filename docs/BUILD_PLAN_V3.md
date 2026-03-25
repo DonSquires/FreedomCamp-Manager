@@ -991,4 +991,92 @@ Tables added or modified in v3 are **bold**.
 
 ---
 
-*End of BUILD_PLAN_V3.md — Last updated 2026-04-24*
+## §11 — BCPU: Person / Vehicle of Interest & Trespass Notices (v3.1)
+
+### Overview
+
+Data-sharing layer between organisations and service providers for persons and vehicles of interest, including official trespass notices under the NZ Trespass Act 1980. All personal data handling must comply with the NZ Privacy Act 2020 (Information Privacy Principles 1–6 & 11).
+
+### Requirements
+
+1. **Persons of Interest (POI)**: Organisations can flag persons as `poi` (person of interest), `banned`, or `trespassed` with photos, descriptions, and official trespass notice documents.
+2. **Vehicles of Interest (VOI)**: Organisations can flag vehicles with plate number, make/model/colour/year, photos, and link to a POI record.
+3. **Trespass Notices**: Official trespass notices under NZ Trespass Act 1980 (s.3 & s.4). Written notices valid max 2 years (730 days). Support verbal, written, and permanent notice types.
+4. **Officer Entry**: Officers can add persons/vehicles as POI/banned/trespassed directly from the field. Includes photo capture and privacy notice acknowledgement.
+5. **Data Visibility (RLS)**: Users can only view POI/VOI data if they belong to the owning organisation. Service providers may view data only when authorised and inside the organisation's geo-fence.
+6. **NZ Privacy Act 2020 Compliance**: IPP 1 (lawful purpose), IPP 2 (direct collection), IPP 3 (inform individual), IPP 4 (proportionate collection), IPP 11 (disclosure restrictions). Privacy notice given flag recorded per record.
+
+### New Tables
+
+| Table | Purpose |
+|---|---|
+| `persons_of_interest` | Persons flagged by org (POI/banned/trespassed) |
+| `vehicles_of_interest` | Vehicles flagged by org with optional POI link |
+| `trespass_notices` | Official trespass notice records with legal basis |
+
+### Migration
+
+`20260426000001_poi_voi_trespass_risk_assessment.sql`
+
+### Frontend
+
+| File | Purpose |
+|---|---|
+| `src/pages/PointsOfInterest.tsx` | Tabbed management page (Persons / Vehicles / Trespass Notices) |
+| `src/hooks/usePointsOfInterest.ts` | CRUD hooks for POI, VOI, and trespass notices |
+
+### Route
+
+`/points-of-interest` — Roles: admin, admin_officer, master, officer
+
+---
+
+## §12 — Site Risk Assessment (v3.1)
+
+### Overview
+
+Officers can complete site risk assessments for each site visit, ad-hoc or on request from organisation/service provider. Assessments follow NZ WorkSafe HSWA 2015 guidelines with pre-selected hazard categories, checkbox-based coverage, PPE requirements, and photo evidence.
+
+### Requirements
+
+1. **Ad-hoc or Requested**: Officers may create assessments independently or in response to an organisation/service provider job request.
+2. **NZ WorkSafe HSWA 2015 Hazard Categories**: 18 pre-defined hazard checkboxes covering all major WorkSafe categories (slips/trips/falls, working at height, manual handling, vehicles/traffic, electrical, fire, hazardous substances, confined spaces, noise, weather, biological, lone working, aggressive persons, animals, water/drowning, poor lighting, uneven terrain, other).
+3. **Safety Checklist**: Emergency plan sighted, first aid available, communication coverage, safe parking, site access, signage.
+4. **PPE Selection**: Pre-defined PPE options (hi-vis, boots, hard hat, glasses, gloves, hearing, sun, wet weather, torch, first aid, comms device).
+5. **Photo Evidence**: Easy photo upload and management for site conditions.
+6. **Risk Levels**: Low, Medium, High, Critical — with visual indicators.
+7. **Workflow**: Draft → Submitted → Reviewed → Archived.
+8. **Org-scoped RLS**: Data restricted to authorised users within the organisation.
+
+### New Table
+
+| Table | Purpose |
+|---|---|
+| `site_risk_assessments` | NZ WorkSafe-guided site risk evaluations with hazard checklist |
+
+### Migration
+
+`20260426000001_poi_voi_trespass_risk_assessment.sql` (shared with §11)
+
+### Frontend
+
+| File | Purpose |
+|---|---|
+| `src/pages/SiteRiskAssessment.tsx` | Assessment management with creation form, hazard checkboxes, PPE, photos |
+| `src/hooks/useSiteRiskAssessment.ts` | CRUD hooks with hazard category constants and PPE options |
+
+### Route
+
+`/site-risk-assessment` — Roles: admin, admin_officer, master, officer
+
+### Key Learnings & Pitfalls
+
+- **#39**: POI/VOI records store photos as `TEXT[]` (Supabase Storage URLs). Use `uploadFile()` from `src/lib/fileUpload.ts` with bucket `'evidence'`.
+- **#40**: Trespass notice `duration_days` max is 730 (2 years per NZ Trespass Act 1980). `expires_at` is calculated from `issued_at + duration_days`.
+- **#41**: `privacy_notice_given` must be set before creating POI records (NZ Privacy Act IPP 3). UI displays compliance banner.
+- **#42**: Site risk assessment hazard checkboxes are individual boolean columns (not JSON) for efficient querying and filtering.
+- **#43**: Service provider geo-fence restriction for POI data visibility requires checking officer's current GPS position against the organisation's zone boundaries (future enhancement via RPC).
+
+---
+
+*End of BUILD_PLAN_V3.md — Last updated 2026-04-26*
