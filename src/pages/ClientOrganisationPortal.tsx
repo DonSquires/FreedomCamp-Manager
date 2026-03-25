@@ -2,8 +2,8 @@
  * ClientOrganisationPortal
  *
  * A read-only portal for client organisation contacts (client_viewer role).
- * Shows guard/patrol activity, compliance scan stats, infringements, KPIs and
- * risk assessments scoped to their own organisation.
+ * Shows guard/patrol activity, compliance scan stats, infringements, KPIs,
+ * risk assessments and all sites scoped to their own organisation.
  */
 
 import { useState } from 'react'
@@ -16,17 +16,14 @@ import { Badge } from '@/components/ui/badge'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Input } from '@/components/ui/input'
 import {
-  Activity,
   AlertTriangle,
   Car,
   CheckCircle2,
-  ClipboardList,
   FileText,
   MapPin,
   Search,
   Shield,
-  TrendingUp,
-  Users,
+  Building,
 } from 'lucide-react'
 import { formatDateTime } from '@/lib/utils'
 
@@ -100,7 +97,7 @@ export default function ClientOrganisationPortal() {
     queryFn: async () => {
       if (!orgId) return null
 
-      const [scansResult, breachesResult, patrolsResult, enforcementResult] = await Promise.all([
+      const [scansResult, breachesResult, patrolsResult, enforcementResult, sitesResult] = await Promise.all([
         (supabase.from('observations') as any)
           .select('id', { count: 'exact', head: true })
           .eq('org_id', orgId),
@@ -115,6 +112,10 @@ export default function ClientOrganisationPortal() {
         (supabase.from('enforcement_actions') as any)
           .select('id', { count: 'exact', head: true })
           .eq('organization_id', orgId),
+        (supabase.from('client_sites') as any)
+          .select('id', { count: 'exact', head: true })
+          .eq('organization_id', orgId)
+          .eq('is_active', true),
       ])
 
       return {
@@ -122,6 +123,7 @@ export default function ClientOrganisationPortal() {
         openBreaches:     breachesResult.count ?? 0,
         patrolsThisMonth: patrolsResult.count ?? 0,
         enforcementTotal: enforcementResult.count ?? 0,
+        activeSites:      sitesResult.count ?? 0,
       }
     },
     enabled: !!orgId,
@@ -200,6 +202,28 @@ export default function ClientOrganisationPortal() {
     enabled: !!orgId,
   })
 
+  // ── Client sites (multi-site orgs) ───────────────────────────────────────
+
+  const { data: clientSites = [] } = useQuery({
+    queryKey: ['client-portal-sites', orgId],
+    queryFn: async () => {
+      if (!orgId) return []
+      const { data, error } = await (supabase.from('client_sites') as any)
+        .select(`
+          id, name, site_code, site_type, address, city,
+          gps_lat, gps_lng, contact_name, contact_phone, contact_email,
+          emergency_contact_name, emergency_contact_phone,
+          notes, is_active
+        `)
+        .eq('organization_id', orgId)
+        .eq('is_active', true)
+        .order('name')
+      if (error) throw error
+      return data ?? []
+    },
+    enabled: !!orgId,
+  })
+
   // ── Filtered searches ────────────────────────────────────────────────────
 
   const filteredPatrols = recentPatrols.filter((p: any) => {
@@ -254,7 +278,7 @@ export default function ClientOrganisationPortal() {
         </div>
 
         {/* KPI summary cards */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
           <StatCard
             title="Total Vehicle Scans"
             value={stats?.totalScans ?? '—'}
@@ -281,6 +305,13 @@ export default function ClientOrganisationPortal() {
             icon={FileText}
             colour="amber"
             description="All time"
+          />
+          <StatCard
+            title="Active Sites"
+            value={(stats?.activeSites ?? clientSites.length) || '—'}
+            icon={Building}
+            colour="purple"
+            description="Service locations"
           />
         </div>
 
@@ -313,6 +344,15 @@ export default function ClientOrganisationPortal() {
             <TabsTrigger value="zones">
               <MapPin className="h-4 w-4 mr-1.5" />
               Zones
+            </TabsTrigger>
+            <TabsTrigger value="sites">
+              <Building className="h-4 w-4 mr-1.5" />
+              Sites
+              {clientSites.length > 0 && (
+                <span className="ml-1 bg-purple-100 text-purple-700 text-xs px-1.5 rounded-full">
+                  {clientSites.length}
+                </span>
+              )}
             </TabsTrigger>
           </TabsList>
 
@@ -484,6 +524,104 @@ export default function ClientOrganisationPortal() {
                         <CheckCircle2 className="h-4 w-4 text-green-500 ml-auto flex-shrink-0" />
                       </div>
                     ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* ── Sites tab ────────────────────────────────────────────────── */}
+          <TabsContent value="sites" className="mt-4">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Building className="h-4 w-4 text-purple-600" />
+                  Service Locations
+                  {clientSites.length > 0 && (
+                    <Badge variant="outline" className="ml-1 text-xs">
+                      {clientSites.length} {clientSites.length === 1 ? 'site' : 'sites'}
+                    </Badge>
+                  )}
+                </CardTitle>
+                <CardDescription>
+                  All sites and properties your organisation has with First Security
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {clientSites.length === 0 ? (
+                  <p className="text-sm text-gray-400 py-4 text-center">No sites configured.</p>
+                ) : (
+                  <div className="space-y-3">
+                    {clientSites
+                      .filter((s: any) => {
+                        if (!searchTerm) return true
+                        const q = searchTerm.toLowerCase()
+                        return (
+                          s.name?.toLowerCase().includes(q) ||
+                          s.city?.toLowerCase().includes(q) ||
+                          s.address?.toLowerCase().includes(q) ||
+                          s.site_code?.toLowerCase().includes(q)
+                        )
+                      })
+                      .map((site: any) => (
+                        <div
+                          key={site.id}
+                          className="border rounded-lg p-4 space-y-2 text-sm"
+                        >
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex items-start gap-2">
+                              <Building className="h-4 w-4 text-purple-500 mt-0.5 flex-shrink-0" />
+                              <div>
+                                <p className="font-semibold">{site.name}</p>
+                                {site.site_code && (
+                                  <p className="text-xs font-mono text-gray-400">{site.site_code}</p>
+                                )}
+                              </div>
+                            </div>
+                            <Badge
+                              variant="outline"
+                              className="text-xs capitalize flex-shrink-0"
+                            >
+                              {site.site_type?.replace(/_/g, ' ') ?? 'general'}
+                            </Badge>
+                          </div>
+
+                          {/* Address */}
+                          {(site.address || site.city) && (
+                            <p className="text-xs text-gray-500 flex items-center gap-1">
+                              <MapPin className="h-3 w-3" />
+                              {[site.address, site.city].filter(Boolean).join(', ')}
+                            </p>
+                          )}
+
+                          {/* Notes */}
+                          {site.notes && (
+                            <p className="text-xs text-gray-500 border-l-2 border-gray-200 pl-2">
+                              {site.notes}
+                            </p>
+                          )}
+
+                          {/* Contacts */}
+                          {(site.contact_name || site.contact_phone) && (
+                            <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-600 pt-1 border-t">
+                              {site.contact_name && (
+                                <span>📋 {site.contact_name}</span>
+                              )}
+                              {site.contact_phone && (
+                                <span>📞 {site.contact_phone}</span>
+                              )}
+                              {site.emergency_contact_name && (
+                                <span className="text-red-600">
+                                  🚨 Emergency: {site.emergency_contact_name}
+                                  {site.emergency_contact_phone
+                                    ? ` · ${site.emergency_contact_phone}`
+                                    : ''}
+                                </span>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      ))}
                   </div>
                 )}
               </CardContent>
