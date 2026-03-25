@@ -1,15 +1,20 @@
 /**
  * ORC/AI Inference Service
- * Vehicle Detection + Embedding Generation
+ * Vehicle Detection + Embedding Generation + Face Recognition
  * 
  * Stack:
  * - YOLOv8n (vehicle detection)
  * - MobileNetV3 (feature embedding)
+ * - UltraFace (face detection — optional)
  * - ONNX Runtime (inference engine)
  * 
  * API Endpoints:
- * - POST /infer - Generate vehicle embedding from photo
- * - GET /health - Health check
+ * - POST /infer      - Generate vehicle embedding from photo
+ * - POST /infer/alpr - Self-hosted ALPR
+ * - POST /infer/chalk - Chalk pass AI
+ * - POST /infer/face  - Face detection + embedding
+ * - POST /infer/compare - Cosine similarity
+ * - GET  /health     - Health check
  */
 
 const express = require('express');
@@ -51,6 +56,14 @@ const tabularRateLimit = rateLimit({
   legacyHeaders:    false,
   message:          { error: 'Too many tabular analysis requests — please slow down' },
 });
+const faceRateLimit = rateLimit({
+  windowMs:         60 * 1000,
+  max:              Number(process.env.FACE_RATE_LIMIT_RPM ?? 30),
+  standardHeaders:  true,
+  legacyHeaders:    false,
+  message:          { error: 'Too many face detection requests — please slow down' },
+});
+
 const YOLO_INPUT_SIZE = 640;
 const VEHICLE_ATTRS_PROVIDER = (process.env.VEHICLE_ATTRS_PROVIDER || 'basic').toLowerCase();
 const OPENAI_BASE_URL = process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1';
@@ -941,6 +954,227 @@ async function loadPlateDetectModel() {
   return plateDetectSession;
 }
 
+// ============================================================================
+// Face detection model (optional)
+//
+// Uses UltraFace-640 ONNX (open-source, MIT licence).
+// If the model file is not present, falls back to OpenAI vision for face
+// detection. The /infer/face endpoint works without the ONNX model — it just
+// won't return bounding-box coordinates.
+// ============================================================================
+const FACE_DETECT_MODEL_PATH = path.join(__dirname, 'models', 'face_detect.onnx');
+const FACE_DETECT_INPUT_W = 640;
+const FACE_DETECT_INPUT_H = 480;
+
+let faceDetectSession = null; // loaded on-demand, null = not available
+
+// Lazy-load the face detection model (optional — service works without it)
+async function loadFaceDetectModel() {
+  if (faceDetectSession !== null) return faceDetectSession;
+  if (!fs.existsSync(FACE_DETECT_MODEL_PATH)) return null;
+  try {
+    faceDetectSession = await ort.InferenceSession.create(FACE_DETECT_MODEL_PATH, {
+      executionProviders: ['cpu'],
+    });
+    console.log('✅ Face detection model loaded:', FACE_DETECT_MODEL_PATH);
+  } catch (err) {
+    console.warn('⚠️  Face detect model load failed (non-fatal):', err.message);
+    faceDetectSession = null;
+  }
+  return faceDetectSession;
+}
+
+/**
+ * Detect faces using UltraFace ONNX model.
+ * Returns array of { x, y, width, height, confidence } in original image
+ * pixel coordinates, or empty array if no faces found / model not available.
+ */
+async function detectFacesONNX(imageBuffer) {
+  const session = await loadFaceDetectModel();
+  if (!session) return [];
+
+  try {
+    const meta = await sharp(imageBuffer).metadata();
+    const origW = meta.width ?? 640;
+    const origH = meta.height ?? 480;
+
+    // Resize to model input size
+    const resized = await sharp(imageBuffer)
+      .resize(FACE_DETECT_INPUT_W, FACE_DETECT_INPUT_H, { fit: 'fill' })
+      .removeAlpha()
+      .raw()
+      .toBuffer();
+
+    // Build float32 tensor (CHW, normalised 0-1)
+    const floats = new Float32Array(3 * FACE_DETECT_INPUT_W * FACE_DETECT_INPUT_H);
+    const pixelCount = FACE_DETECT_INPUT_W * FACE_DETECT_INPUT_H;
+    for (let i = 0; i < pixelCount; i++) {
+      floats[i]                    = (resized[i * 3]     - 127) / 128.0; // R
+      floats[pixelCount + i]       = (resized[i * 3 + 1] - 127) / 128.0; // G
+      floats[2 * pixelCount + i]   = (resized[i * 3 + 2] - 127) / 128.0; // B
+    }
+
+    const tensor = new ort.Tensor('float32', floats, [1, 3, FACE_DETECT_INPUT_H, FACE_DETECT_INPUT_W]);
+    const inputKey = session.inputNames[0];
+    const outputs = await session.run({ [inputKey]: tensor });
+
+    // UltraFace outputs: confidences [1, N, 2] and boxes [1, N, 4]
+    const confidences = outputs[session.outputNames[0]]?.data;
+    const boxes = outputs[session.outputNames[1]]?.data;
+
+    if (!confidences || !boxes) return [];
+
+    const faces = [];
+    const numDetections = confidences.length / 2;
+    const FACE_CONF_THRESHOLD = 0.7;
+
+    for (let i = 0; i < numDetections; i++) {
+      const faceConf = confidences[i * 2 + 1]; // class 1 = face
+      if (faceConf < FACE_CONF_THRESHOLD) continue;
+
+      // Boxes are normalised [x1, y1, x2, y2]
+      const x1 = boxes[i * 4]     * origW;
+      const y1 = boxes[i * 4 + 1] * origH;
+      const x2 = boxes[i * 4 + 2] * origW;
+      const y2 = boxes[i * 4 + 3] * origH;
+
+      faces.push({
+        x:          Math.round(Math.max(0, x1)),
+        y:          Math.round(Math.max(0, y1)),
+        width:      Math.round(Math.min(origW, x2) - Math.max(0, x1)),
+        height:     Math.round(Math.min(origH, y2) - Math.max(0, y1)),
+        confidence: Math.round(faceConf * 1000) / 1000,
+      });
+    }
+
+    // Sort by confidence descending
+    faces.sort((a, b) => b.confidence - a.confidence);
+    return faces;
+  } catch (err) {
+    console.warn('⚠️  Face ONNX detection failed (non-fatal):', err.message);
+    return [];
+  }
+}
+
+/**
+ * Detect faces using OpenAI vision (fallback when ONNX model not available).
+ * Returns structured face data without pixel-level bounding boxes.
+ */
+async function detectFacesOpenAI(imageBuffer, mimeType) {
+  if (!OPENAI_API_KEY) return null;
+
+  try {
+    const imageBase64 = imageBuffer.toString('base64');
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), ATTR_TIMEOUT_MS);
+
+    const resp = await fetch(`${OPENAI_BASE_URL}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${OPENAI_API_KEY}`,
+      },
+      signal: controller.signal,
+      body: JSON.stringify({
+        model: OPENAI_MODEL,
+        temperature: 0,
+        response_format: { type: 'json_object' },
+        messages: [
+          {
+            role: 'system',
+            content:
+              'You are a face detection assistant for a security/enforcement system. ' +
+              'Analyse the image and detect any human faces present. ' +
+              'Return strict JSON with keys: ' +
+              'face_count (integer, number of faces detected), ' +
+              'faces (array of objects, each with: ' +
+              '  approximate_age (string like "20-30", "40-50", or "unknown"), ' +
+              '  gender (string: "male", "female", or "unknown"), ' +
+              '  description (short natural-language description of distinguishing features like hair colour, glasses, facial hair, hat — NO racial identifiers), ' +
+              '  confidence (0.0–1.0 how confident you are a face is present)' +
+              '). ' +
+              'If no faces are visible, return face_count: 0 and faces: []. ' +
+              'Do NOT include any personally identifiable information or attempt to identify specific individuals.',
+          },
+          {
+            role: 'user',
+            content: [
+              { type: 'text', text: 'Detect any faces in this image.' },
+              { type: 'image_url', image_url: { url: `data:${mimeType};base64,${imageBase64}` } },
+            ],
+          },
+        ],
+      }),
+    });
+
+    clearTimeout(timeout);
+
+    if (resp.ok) {
+      const payload = await resp.json();
+      const content = payload?.choices?.[0]?.message?.content;
+      if (content) {
+        return JSON.parse(content);
+      }
+    }
+  } catch (err) {
+    console.warn('⚠️  Face OpenAI detection failed (non-fatal):', err.message);
+  }
+  return null;
+}
+
+/**
+ * Generate a face embedding by cropping the face region and running MobileNetV3.
+ * Returns 384-D embedding vector or null.
+ */
+async function generateFaceEmbedding(imageBuffer, faceBbox) {
+  if (!embeddingSession) return null;
+
+  try {
+    let cropBuffer = imageBuffer;
+    if (faceBbox && faceBbox.width > 0 && faceBbox.height > 0) {
+      cropBuffer = await sharp(imageBuffer)
+        .extract({
+          left:   faceBbox.x,
+          top:    faceBbox.y,
+          width:  faceBbox.width,
+          height: faceBbox.height,
+        })
+        .toBuffer();
+    }
+
+    // Resize face crop to MobileNetV3 input (224x224)
+    const { data } = await sharp(cropBuffer)
+      .resize(224, 224, { fit: 'fill' })
+      .removeAlpha()
+      .raw()
+      .toBuffer({ resolveWithObject: true });
+
+    const float32 = new Float32Array(3 * 224 * 224);
+    for (let c = 0; c < 3; c++) {
+      for (let h = 0; h < 224; h++) {
+        for (let w = 0; w < 224; w++) {
+          float32[c * 224 * 224 + h * 224 + w] = data[(h * 224 + w) * 3 + c] / 255.0;
+        }
+      }
+    }
+
+    const inputTensor = new ort.Tensor('float32', float32, [1, 3, 224, 224]);
+    const inputKey = embeddingSession.inputNames[0];
+    const result = await embeddingSession.run({ [inputKey]: inputTensor });
+    const outputKey = embeddingSession.outputNames[0];
+    const embeddingData = result[outputKey].data;
+
+    const embedding = Array.from(embeddingData).map(v => Math.round(v * 100000) / 100000);
+    const norm = Math.sqrt(embedding.reduce((s, v) => s + v * v, 0));
+    const quality = norm > 0.1 ? Math.min(1, norm / 10) : 0;
+
+    return { embedding, quality };
+  } catch (err) {
+    console.warn('⚠️  Face embedding generation failed (non-fatal):', err.message);
+    return null;
+  }
+}
+
 // Tesseract worker — created per request (stateless) for safety on Railway/Render
 // For high-throughput deployments consider a persistent worker pool.
 async function ocrPlate(imageBuffer) {
@@ -1419,6 +1653,122 @@ app.post('/infer/chalk', inferenceRateLimit, upload.single('photo'), requireInfe
 });
 
 // ============================================================================
+// POST /infer/face — Face detection + embedding
+//
+// Accepts a photo and returns:
+//   - face_count (number of faces detected)
+//   - faces (array of face objects with bounding box, confidence, description)
+//   - primary face embedding (384-D MobileNetV3 — for comparison/matching)
+//
+// Detection pipeline:
+//   1. UltraFace ONNX model (if available) → bounding boxes + confidence
+//   2. OpenAI vision fallback (if ONNX not available) → descriptions + confidence
+//   3. Face embedding via MobileNetV3 on the primary (highest-confidence) face crop
+//
+// All components gracefully degrade: no ONNX model → no bounding boxes,
+// no OpenAI → basic ONNX-only results, no embedding model → no embedding.
+// ============================================================================
+app.post('/infer/face', faceRateLimit, upload.single('photo'), requireInferenceAuth, async (req, res) => {
+  const startTime = Date.now();
+
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No photo uploaded', field: 'photo' });
+    }
+
+    const imageBuffer = req.file.buffer;
+    const mimeType = req.file.mimetype || 'image/jpeg';
+    let detectionMethod = 'none';
+
+    // ── Step 1: Detect faces using ONNX model ─────────────────────────
+    let onnxFaces = await detectFacesONNX(imageBuffer);
+    if (onnxFaces.length > 0) {
+      detectionMethod = 'onnx_ultraface';
+    }
+
+    // ── Step 2: OpenAI vision fallback / enrichment ───────────────────
+    let openAiFaces = null;
+    if (OPENAI_API_KEY) {
+      openAiFaces = await detectFacesOpenAI(imageBuffer, mimeType);
+      if (onnxFaces.length === 0 && openAiFaces?.face_count > 0) {
+        detectionMethod = 'openai_vision';
+      }
+    }
+
+    // ── Step 3: Merge results ─────────────────────────────────────────
+    const faces = [];
+    const faceCount = Math.max(onnxFaces.length, openAiFaces?.face_count ?? 0);
+
+    if (onnxFaces.length > 0) {
+      // Use ONNX bounding boxes, enrich with OpenAI descriptions if available
+      for (let i = 0; i < onnxFaces.length; i++) {
+        const onnxFace = onnxFaces[i];
+        const aiDesc = openAiFaces?.faces?.[i] ?? null;
+        faces.push({
+          bbox:            onnxFace,
+          confidence:      onnxFace.confidence,
+          approximate_age: aiDesc?.approximate_age ?? 'unknown',
+          gender:          aiDesc?.gender ?? 'unknown',
+          description:     aiDesc?.description ?? null,
+        });
+      }
+    } else if (openAiFaces?.faces?.length > 0) {
+      // No ONNX model — use OpenAI-only results (no pixel-level bounding boxes)
+      for (const face of openAiFaces.faces) {
+        faces.push({
+          bbox:            null,
+          confidence:      face.confidence ?? 0.5,
+          approximate_age: face.approximate_age ?? 'unknown',
+          gender:          face.gender ?? 'unknown',
+          description:     face.description ?? null,
+        });
+      }
+    }
+
+    // ── Step 4: Generate embedding for the primary (highest-confidence) face
+    let embedding = null;
+    let embeddingQuality = null;
+
+    if (faces.length > 0 && faces[0].bbox) {
+      const embResult = await generateFaceEmbedding(imageBuffer, faces[0].bbox);
+      if (embResult) {
+        embedding = embResult.embedding;
+        embeddingQuality = embResult.quality;
+      }
+    } else if (faces.length > 0 && embeddingSession) {
+      // No bbox available — generate embedding from full image
+      const embResult = await generateFaceEmbedding(imageBuffer, null);
+      if (embResult) {
+        embedding = embResult.embedding;
+        embeddingQuality = embResult.quality;
+      }
+    }
+
+    const duration = Date.now() - startTime;
+
+    return res.json({
+      success:    true,
+      face_count: faceCount,
+      faces,
+      // Primary face embedding (for storage and comparison)
+      embedding,
+      embedding_quality: embeddingQuality,
+      metadata: {
+        detection_method: detectionMethod,
+        processing_time_ms: duration,
+        onnx_available:   !!faceDetectSession || fs.existsSync(FACE_DETECT_MODEL_PATH),
+        openai_available: !!OPENAI_API_KEY,
+        embedding_available: !!embeddingSession,
+      },
+    });
+
+  } catch (error) {
+    console.error('❌ /infer/face error:', error);
+    return res.status(500).json({ error: 'Face detection failed', message: error.message });
+  }
+});
+
+// ============================================================================
 // POST /infer/compare — Cosine similarity between two 384D embeddings
 //
 // Used at recheck time to determine if the same physical vehicle is present
@@ -1503,6 +1853,11 @@ app.get('/health', rateLimit({ windowMs: 60_000, max: 60, standardHeaders: true,
       local_alpr: true,                          // always available (tesseract.js)
       local_alpr_plate_model: fs.existsSync(PLATE_DETECT_MODEL_PATH),
       chalk_valve_ai: VEHICLE_ATTRS_PROVIDER === 'openai' && !!OPENAI_API_KEY,
+      // Face detection
+      face_detection: fs.existsSync(FACE_DETECT_MODEL_PATH) || !!OPENAI_API_KEY,
+      face_detection_onnx: fs.existsSync(FACE_DETECT_MODEL_PATH),
+      face_detection_openai: !!OPENAI_API_KEY,
+      face_embedding: !!embeddingSession,
     },
     uptime: process.uptime(),
     memory: process.memoryUsage()

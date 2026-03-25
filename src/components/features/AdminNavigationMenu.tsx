@@ -9,6 +9,7 @@ import {
   Activity, Database, Search, Heart, ScrollText, Lock, Gavel,
   Navigation, BookOpen, LayoutGrid, Map, Bell, Upload, Shield, Camera, Link2,
   CalendarDays, TrendingUp, Wrench, ParkingSquare, Volume2, Radio, Sparkles,
+  ScanFace,
 } from 'lucide-react'
 
 const primaryLinks = [
@@ -63,10 +64,11 @@ const moreGroups = [
   {
     label: 'People & Incidents',
     links: [
-      { to: '/person-records',   label: 'Person Records',  icon: Users },
-      { to: '/incidents',        label: 'Incidents & Maintenance', icon: Activity },
-      { to: '/incident-reports', label: 'Incident Reports',icon: FileText },
-      { to: '/investigations',   label: 'Investigations',  icon: Search },
+      { to: '/person-records',    label: 'Person Records',    icon: Users },
+      { to: '/face-recognition',  label: 'Face Recognition',  icon: ScanFace },
+      { to: '/incidents',         label: 'Incidents & Maintenance', icon: Activity },
+      { to: '/incident-reports',  label: 'Incident Reports',  icon: FileText },
+      { to: '/investigations',    label: 'Investigations',    icon: Search },
     ],
   },
   {

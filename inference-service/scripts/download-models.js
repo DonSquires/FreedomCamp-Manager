@@ -4,6 +4,8 @@
  * Downloads pretrained models for ORC/AI inference:
  * - YOLOv8n (6.2 MB) - Vehicle detection
  * - MobileNetV3 (21 MB) - Feature embeddings
+ * - License Plate Detector (5 MB) - Plate detection (optional)
+ * - UltraFace (1.2 MB) - Face detection (optional)
  * 
  * Usage: node scripts/download-models.js
  */
@@ -48,6 +50,18 @@ const MODELS = [
     filename: 'plate_detect.onnx',
     size: '5 MB',
     minSize: 1 * 1024 * 1024,  // 1 MB minimum
+    optional: true,             // service still works if this fails to download
+  },
+  {
+    name: 'Face Detector (UltraFace-640)',
+    // Open-source face detection model from Linzaer/Ultra-Light-Fast-Generic-Face-Detector
+    // (MIT licence). Input: 640x480, outputs face bounding boxes + confidence scores.
+    // Falls back gracefully if unavailable — the /infer/face endpoint works without it
+    // by using OpenAI vision for face detection.
+    url: 'https://github.com/onnx/models/raw/main/validated/vision/body_analysis/ultraface/models/version-RFB-640.onnx',
+    filename: 'face_detect.onnx',
+    size: '1.2 MB',
+    minSize: 500 * 1024,       // 500 KB minimum
     optional: true,             // service still works if this fails to download
   }
 ];

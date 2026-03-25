@@ -78,6 +78,7 @@ import NZSCVMonitor from '@/pages/NZSCVMonitor'
 import NotificationsCenter from '@/pages/NotificationsCenter'
 import ComplianceDashboard from '@/pages/ComplianceDashboard'
 import CleanDashboard from '@/pages/CleanDashboard'
+import FaceRecognitionPage from '@/pages/FaceRecognitionPage'
 
 // ---------------------------------------------------------------------------
 // ErrorBoundary – catches render-time errors so a crash on one page does not
@@ -950,6 +951,17 @@ export default function App() {
               <ProtectedRoute>
                 <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
                   <PersonRecords />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/face-recognition"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master', 'officer']}>
+                  <FaceRecognitionPage />
                 </RoleRoute>
               </ProtectedRoute>
             }

@@ -1157,4 +1157,34 @@ export const edgeFunctions = {
   } = {}) => {
     return callEdgeFunction('sync-scv-list', params, { showToast: false })
   },
+
+  /**
+   * Face detection and recognition.
+   *
+   * Detect mode (default): Accepts a photo URL, detects faces, generates
+   * embeddings, and optionally saves to face_records table.
+   *
+   * Compare mode: Accepts two face embeddings and returns cosine similarity.
+   */
+  processFaceScan: async (params: {
+    /** 'detect' (default) or 'compare' */
+    action?: 'detect' | 'compare'
+    /** Photo URL for face detection (detect mode) */
+    photo_url?: string
+    /** Embeddings for comparison (compare mode) */
+    embedding1?: number[]
+    embedding2?: number[]
+    /** Whether to save detected faces to face_records table (default true) */
+    save?: boolean
+    /** Optional linked observation ID */
+    observation_id?: string
+    /** GPS coordinates */
+    latitude?: number
+    longitude?: number
+    zone_id?: string
+    notes?: string
+    label?: string
+  }) => {
+    return callEdgeFunction('process-face-scan', params, { showToast: false })
+  },
 }
