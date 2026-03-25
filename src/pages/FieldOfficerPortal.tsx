@@ -1,9 +1,9 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/stores/authStore'
 import { useGlobalFiltersStore } from '@/stores/globalFiltersStore'
-import { monitorGeofenceAndPatrol } from '@/lib/geofence'
+import { monitorGeofenceAndPatrol, calculateDistance } from '@/lib/geofence'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -20,9 +20,11 @@ import { LivePatrolCamera } from '@/components/features/LivePatrolCamera'
 import { BulkScanSession } from '@/components/features/BulkScanSession'
 import { OfficerFollowUpQueue } from '@/components/features/OfficerFollowUpQueue'
 import { PostShiftFeedback } from '@/components/features/PostShiftFeedback'
+import { VOILookup } from '@/components/features/VOILookup'
 import { captureAndSave, SCAN_PROGRESS_LABELS, type ScanProgressStage } from '@/lib/scanPipeline'
 import { useManDownDetection } from '@/hooks/useManDownDetection'
 import { useWelfareCheckin } from '@/hooks/useWelfareCheckin'
+import { useRosteredShift } from '@/hooks/useRosteredShift'
 import { reverseGeocode } from '@/lib/geocoding'
 import { useThemePreferencesStore } from '@/stores/themePreferencesStore'
 import {
@@ -30,7 +32,7 @@ import {
   ShieldAlert, CheckCircle, Shield, Megaphone, FileWarning, XCircle,
   Clock, Home, X, Car, Zap, Search, Printer, PlusCircle, Wrench, Heart, Users,
   Moon, Sun, ParkingSquare, Volume2, Video, Eye, Tent, Timer,
-  ScanFace, CalendarPlus, Siren, Bell, PhoneCall,
+  ScanFace, CalendarPlus, Siren, Bell, PhoneCall, Lock,
 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
@@ -116,12 +118,21 @@ export default function FieldOfficerPortal() {
   const { user } = useAuthStore()
   const { zoneId, zoneName, setZone } = useGlobalFiltersStore()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const queryClient = useQueryClient()
   const { themeMode, setThemeMode } = useThemePreferencesStore()
   const isNightPatrol = themeMode === 'night-patrol'
 
-  // ── Service type selection ────────────────────────────────────────────────
-  const [activeService, setActiveService] = useState<ServiceType | null>(null)
+  // ── Roster context ────────────────────────────────────────────────────────
+  const { rosteredShift } = useRosteredShift()
+
+  // ── Service type selection — pre-fill from URL param or roster ────────────
+  const [activeService, setActiveService] = useState<ServiceType | null>(() => {
+    const param = searchParams.get('service') as ServiceType | null
+    return param && ['freedom_camping','guarding','parking','noise','patrol','alarm_response'].includes(param)
+      ? param as ServiceType
+      : null
+  })
 
   // ── Scan mode: null = portal home, 'detail' = single-vehicle scan,
   //              'bulk' = quick area sweep, 'checkpoint' = QR check-in

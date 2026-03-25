@@ -22,6 +22,8 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/stores/authStore'
 import { supabase } from '@/lib/supabase'
 import { AppLayout } from '@/components/features/AppLayout'
+import { FieldSafetyBar } from '@/components/features/FieldSafetyBar'
+import { VOILookup } from '@/components/features/VOILookup'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -40,7 +42,7 @@ import {
 } from '@/components/ui/dialog'
 import {
   AlertTriangle, MapPin, ShieldAlert, Users, FileText, Phone,
-  Camera, CheckCircle2, Clock, Search, Plus, Eye, Radio,
+  Camera, CheckCircle2, Clock, Search, Plus, Eye, Car,
   Siren, X, ChevronRight, Lock, Unlock, Building2,
 } from 'lucide-react'
 import { toast } from 'sonner'
@@ -366,6 +368,13 @@ export default function SiteGuardPortal() {
       description={site?.address ?? ''}
       showBackButton
     >
+      {/* ── Safety bar — always visible ──────────────────────────────────── */}
+      <FieldSafetyBar
+        zoneId={site?.id ?? null}
+        position={null}
+        compact
+      />
+
       {/* ── Site header ─────────────────────────────────────────────────── */}
       <div className="flex items-center justify-between mb-4 rounded-xl border p-3 bg-white shadow-sm">
         <div className="flex items-center gap-3">
@@ -418,19 +427,23 @@ export default function SiteGuardPortal() {
       )}
 
       <Tabs defaultValue="poi">
-        <TabsList className="mb-4">
+        <TabsList className="mb-4 flex-wrap h-auto gap-1">
           <TabsTrigger value="poi">
             <Users className="h-4 w-4 mr-1.5" />
-            Persons of Interest
+            POI
             {sitePOI.length > 0 && (
               <span className="ml-1.5 bg-red-100 text-red-700 text-xs px-1.5 rounded-full">
                 {sitePOI.length}
               </span>
             )}
           </TabsTrigger>
+          <TabsTrigger value="voi">
+            <Car className="h-4 w-4 mr-1.5" />
+            VOI
+          </TabsTrigger>
           <TabsTrigger value="incidents">
             <FileText className="h-4 w-4 mr-1.5" />
-            Today's Incidents
+            Incidents
             {incidents.length > 0 && (
               <span className="ml-1.5 bg-blue-100 text-blue-700 text-xs px-1.5 rounded-full">
                 {incidents.length}
@@ -442,6 +455,14 @@ export default function SiteGuardPortal() {
             Site Info
           </TabsTrigger>
         </TabsList>
+
+        {/* ── VOI Tab (available everywhere, no geofence restriction) ─────── */}
+        <TabsContent value="voi">
+          <p className="text-xs text-gray-400 mb-3">
+            Search flagged vehicles — available anywhere, not restricted to site geofence.
+          </p>
+          <VOILookup inline />
+        </TabsContent>
 
         {/* ── POI Tab ─────────────────────────────────────────────────────── */}
         <TabsContent value="poi">
