@@ -19,8 +19,10 @@ import { ScanDetailPanel, type DetailScanData } from '@/components/features/Scan
 import { LivePatrolCamera } from '@/components/features/LivePatrolCamera'
 import { BulkScanSession } from '@/components/features/BulkScanSession'
 import { OfficerFollowUpQueue } from '@/components/features/OfficerFollowUpQueue'
+import { PostShiftFeedback } from '@/components/features/PostShiftFeedback'
 import { captureAndSave, SCAN_PROGRESS_LABELS, type ScanProgressStage } from '@/lib/scanPipeline'
 import { useManDownDetection } from '@/hooks/useManDownDetection'
+import { useWelfareCheckin } from '@/hooks/useWelfareCheckin'
 import { reverseGeocode } from '@/lib/geocoding'
 import { useThemePreferencesStore } from '@/stores/themePreferencesStore'
 import {
@@ -28,7 +30,7 @@ import {
   ShieldAlert, CheckCircle, Shield, Megaphone, FileWarning, XCircle,
   Clock, Home, X, Car, Zap, Search, Printer, PlusCircle, Wrench, Heart, Users,
   Moon, Sun, ParkingSquare, Volume2, Video, Eye, Tent, Timer,
-  ScanFace, CalendarPlus,
+  ScanFace, CalendarPlus, Siren, Bell,
 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
@@ -153,6 +155,86 @@ export default function FieldOfficerPortal() {
 
   // Man-Down Detection — records GPS updates and fires alert if stationary too long
   const { recordGPSUpdate, isManDownActive } = useManDownDetection()
+
+  // ── WelfareFirst: I'm OK check-in ─────────────────────────────────────────
+  const { state: checkinState, checkIn } = useWelfareCheckin({
+    officerId:      user?.id ?? null,
+    organizationId: user?.organization_id ?? null,
+    shiftId:        null, // set below once activeShift loads
+    position:       currentLocation,
+  })
+
+  // ── SOS/Panic button state ────────────────────────────────────────────────
+  const [sosConfirmOpen, setSosConfirmOpen] = useState(false)
+  const [sosHoldProgress, setSosHoldProgress] = useState(0)
+  const sosHoldRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  // Long-press SOS: user must hold for 3 s to avoid accidental triggers
+  function startSosHold() {
+    setSosHoldProgress(0)
+    sosHoldRef.current = setInterval(() => {
+      setSosHoldProgress(p => {
+        if (p >= 100) {
+          clearInterval(sosHoldRef.current!)
+          triggerSOS()
+          return 0
+        }
+        return p + 10 // 10 steps × ~300ms = 3s
+      })
+    }, 300)
+  }
+  function cancelSosHold() {
+    if (sosHoldRef.current) clearInterval(sosHoldRef.current)
+    setSosHoldProgress(0)
+  }
+  async function triggerSOS() {
+    if (!user?.id || !user?.organization_id) return
+    try {
+      await supabase.from('officer_welfare_alerts').insert({
+        officer_id:       user.id,
+        organization_id:  user.organization_id,
+        alert_type:       'sos',
+        officer_name:     `${user.first_name ?? ''} ${user.last_name ?? ''}`.trim(),
+        gps_latitude:     currentLocation?.latitude  ?? null,
+        gps_longitude:    currentLocation?.longitude ?? null,
+        last_activity_at: new Date().toISOString(),
+        escalation_level: 2, // SOS always escalates immediately
+      })
+      toast.error('🚨 SOS ALERT SENT – Help is on the way', { duration: 0, id: 'sos-alert' })
+    } catch (err: any) {
+      toast.error(err?.message ?? 'SOS failed – call emergency services directly')
+    }
+  }
+
+  // ── Post-shift feedback ───────────────────────────────────────────────────
+  const [showShiftFeedback, setShowShiftFeedback] = useState(false)
+  const [feedbackShiftId,   setFeedbackShiftId]   = useState<string | null>(null)
+
+  // ── Unread notifications ──────────────────────────────────────────────────
+  const { data: unreadNotifications = [] } = useQuery({
+    queryKey: ['officer-unread-notifications', user?.id],
+    queryFn: async () => {
+      if (!user?.id) return []
+      const { data } = await supabase
+        .from('notifications')
+        .select('id, title, body, priority, created_at')
+        .eq('user_id', user.id)
+        .eq('read', false)
+        .in('priority', ['high', 'urgent'])
+        .order('created_at', { ascending: false })
+        .limit(5)
+      return data ?? []
+    },
+    enabled: !!user?.id,
+    refetchInterval: 60_000,
+  })
+
+  async function markNotificationRead(notifId: string) {
+    await supabase.from('notifications')
+      .update({ read: true, read_at: new Date().toISOString() })
+      .eq('id', notifId)
+    toast.dismiss()
+  }
 
   // Display-friendly zone label for the officer status card
   const displayZone = zoneName || (zoneId ? `${zoneId.substring(0, 8)}...` : 'Scanning Geofence...')
@@ -611,31 +693,131 @@ export default function FieldOfficerPortal() {
       </div>
 
       {/* ── Shift & Welfare status bar (auto-started) ────────────────── */}
-      <div className="flex items-center gap-3 rounded-xl border border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-950/30 px-4 py-2.5 mb-4">
-        <div className="p-1.5 bg-green-200 dark:bg-green-800 rounded-full">
-          <Timer className="h-4 w-4 text-green-700 dark:text-green-300" />
-        </div>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-sm font-semibold text-green-800 dark:text-green-200">
-              Shift Active
-            </span>
-            {activeShift && (
-              <Badge variant="outline" className="text-xs border-green-400 text-green-700 dark:text-green-300">
-                <Clock className="h-3 w-3 mr-1" />
-                {formatShiftDuration(activeShift.started_at)}
-              </Badge>
-            )}
-            <Badge variant="outline" className="text-xs border-emerald-400 text-emerald-700 dark:text-emerald-300">
-              <Heart className="h-3 w-3 mr-1" />
-              Welfare On
-            </Badge>
+      <div className={`rounded-xl border px-4 py-3 mb-4 ${
+        checkinState.isOverdue
+          ? 'border-orange-400 bg-orange-50 dark:bg-orange-950/30'
+          : 'border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-950/30'
+      }`}>
+        <div className="flex items-center gap-3">
+          <div className={`p-1.5 rounded-full ${checkinState.isOverdue ? 'bg-orange-200 dark:bg-orange-800' : 'bg-green-200 dark:bg-green-800'}`}>
+            <Timer className={`h-4 w-4 ${checkinState.isOverdue ? 'text-orange-700 dark:text-orange-300 animate-pulse' : 'text-green-700 dark:text-green-300'}`} />
           </div>
-          <p className="text-[11px] text-green-600 dark:text-green-400">
-            Shift and welfare monitoring started automatically
-          </p>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className={`text-sm font-semibold ${checkinState.isOverdue ? 'text-orange-800 dark:text-orange-200' : 'text-green-800 dark:text-green-200'}`}>
+                Shift Active
+              </span>
+              {activeShift && (
+                <Badge variant="outline" className="text-xs border-green-400 text-green-700 dark:text-green-300">
+                  <Clock className="h-3 w-3 mr-1" />
+                  {formatShiftDuration(activeShift.started_at)}
+                </Badge>
+              )}
+              <Badge variant="outline" className="text-xs border-emerald-400 text-emerald-700 dark:text-emerald-300">
+                <Heart className="h-3 w-3 mr-1" />
+                Welfare On
+              </Badge>
+              {checkinState.isOverdue && (
+                <Badge variant="outline" className="text-xs border-orange-400 text-orange-700 bg-orange-50 animate-pulse">
+                  Check-in Overdue!
+                </Badge>
+              )}
+              {checkinState.isDue && !checkinState.isOverdue && (
+                <Badge variant="outline" className="text-xs border-yellow-400 text-yellow-700 bg-yellow-50">
+                  Check-in Due Soon
+                </Badge>
+              )}
+            </div>
+            {checkinState.lastCheckinAt && (
+              <p className="text-[11px] text-muted-foreground mt-0.5">
+                Last check-in: {new Date(checkinState.lastCheckinAt).toLocaleTimeString('en-NZ', { hour: '2-digit', minute: '2-digit', hour12: true })}
+                {checkinState.intervalMinutes > 0 && (
+                  checkinState.secondsUntilDue !== null && checkinState.secondsUntilDue > 0
+                    ? ` · next due in ${Math.ceil(checkinState.secondsUntilDue / 60)}m`
+                    : checkinState.isOverdue ? ` · overdue by ${checkinState.minutesSinceCheckin! - checkinState.intervalMinutes}m` : ''
+                )}
+              </p>
+            )}
+            {!checkinState.lastCheckinAt && checkinState.intervalMinutes > 0 && (
+              <p className="text-[11px] text-green-600 dark:text-green-400">
+                Check in every {checkinState.intervalMinutes}m to confirm you're safe
+              </p>
+            )}
+          </div>
+          {/* I'm OK button */}
+          {checkinState.intervalMinutes > 0 && (
+            <Button
+              size="sm"
+              onClick={checkIn}
+              disabled={checkinState.isSubmitting}
+              className={`shrink-0 font-semibold ${
+                checkinState.isOverdue
+                  ? 'bg-orange-500 hover:bg-orange-600 text-white'
+                  : 'bg-green-600 hover:bg-green-700 text-white'
+              }`}
+            >
+              <CheckCircle className="h-4 w-4 mr-1.5" />
+              I'm OK
+            </Button>
+          )}
         </div>
       </div>
+
+      {/* ── Unread high-priority notifications ───────────────────────── */}
+      {unreadNotifications.length > 0 && (
+        <div className="space-y-2 mb-4">
+          {unreadNotifications.map((n: any) => (
+            <div
+              key={n.id}
+              className={`flex items-start gap-3 rounded-xl border px-4 py-3 ${
+                n.priority === 'urgent'
+                  ? 'border-red-300 bg-red-50 dark:bg-red-950/30'
+                  : 'border-yellow-300 bg-yellow-50 dark:bg-yellow-950/30'
+              }`}
+            >
+              <Bell className={`h-4 w-4 mt-0.5 shrink-0 ${n.priority === 'urgent' ? 'text-red-600 animate-pulse' : 'text-yellow-600'}`} />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-foreground">{n.title}</p>
+                <p className="text-xs text-muted-foreground line-clamp-2">{n.body}</p>
+              </div>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="shrink-0 text-xs h-7 px-2"
+                onClick={() => markNotificationRead(n.id)}
+              >
+                ✓ Read
+              </Button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ── SOS / Panic Button ────────────────────────────────────────── */}
+      {!scanMode && !showCheckpoint && !detailCameraOpen && (
+        <div className="mb-4">
+          <button
+            type="button"
+            onPointerDown={startSosHold}
+            onPointerUp={cancelSosHold}
+            onPointerLeave={cancelSosHold}
+            className="w-full relative overflow-hidden rounded-xl border-2 border-red-300 bg-red-50 dark:bg-red-950/20 dark:border-red-800 h-14 flex items-center justify-center gap-3 select-none active:scale-[0.98] transition-transform"
+            aria-label="SOS – Hold 3 seconds to send emergency alert"
+          >
+            {/* hold-progress fill */}
+            {sosHoldProgress > 0 && (
+              <div
+                className="absolute inset-0 bg-red-500/20 transition-all"
+                style={{ width: `${sosHoldProgress}%` }}
+              />
+            )}
+            <Siren className="h-5 w-5 text-red-600 dark:text-red-400 shrink-0" />
+            <span className="text-sm font-bold text-red-700 dark:text-red-300 relative z-10">
+              {sosHoldProgress > 0 ? `Hold… ${Math.round(sosHoldProgress)}%` : 'SOS – Hold 3s to send emergency alert'}
+            </span>
+          </button>
+        </div>
+      )}
 
       {/* ── Service Type Selector ────────────────────────────────────── */}
       {!scanMode && !showCheckpoint && !detailCameraOpen && (
