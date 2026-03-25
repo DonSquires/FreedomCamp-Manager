@@ -49,6 +49,7 @@ interface WelfareSettings {
   admin_escalation_time: number
   critical_escalation_time: number
   investigation_exception_enabled: boolean
+  check_in_interval_minutes: number
   user_profile: {
     first_name: string
     last_name: string
@@ -105,7 +106,7 @@ export default function OfficerWelfareSettings() {
           auto_logoff_enabled, welfare_check_enabled,
           inactivity_warning_time, auto_logoff_time,
           gps_inactivity_threshold, admin_escalation_time, critical_escalation_time,
-          investigation_exception_enabled,
+          investigation_exception_enabled, check_in_interval_minutes,
           user_profile:user_profiles!user_id(first_name, last_name, email, role)
         `)
         .eq('organization_id', orgId!)
@@ -404,6 +405,12 @@ export default function OfficerWelfareSettings() {
                               Man-Down enabled
                             </span>
                           )}
+                          {s.check_in_interval_minutes > 0 && (
+                            <span className="flex items-center gap-1 text-green-700">
+                              <CheckCircle className="h-3 w-3" />
+                              Check-in: {s.check_in_interval_minutes}m
+                            </span>
+                          )}
                         </div>
                       </div>
                       <Button size="sm" variant="outline" onClick={() => handleEdit(s)}>
@@ -493,6 +500,22 @@ export default function OfficerWelfareSettings() {
                     value={editForm.admin_escalation_time || ''}
                     onChange={e => setEditForm(f => ({ ...f, admin_escalation_time: parseInt(e.target.value) }))}
                   />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs flex items-center gap-1">
+                    <CheckCircle className="h-3.5 w-3.5 text-green-600" />
+                    I'm OK Check-in Interval (mins)
+                  </Label>
+                  <Input
+                    type="number"
+                    min="0"
+                    placeholder="0 = disabled"
+                    value={editForm.check_in_interval_minutes ?? ''}
+                    onChange={e => setEditForm(f => ({ ...f, check_in_interval_minutes: parseInt(e.target.value) || 0 }))}
+                  />
+                  <p className="text-[11px] text-muted-foreground">
+                    Officer must tap "I'm OK" within this interval. 0 disables scheduled check-ins.
+                  </p>
                 </div>
               </div>
             </div>

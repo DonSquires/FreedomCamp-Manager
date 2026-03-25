@@ -40,6 +40,8 @@ interface AuthUser {
   role: 'master' | 'admin' | 'officer' | 'admin_officer' | 'nzscv_monitor' | 'grand_master'
   organization_id: string | null
   full_name: string | null
+  first_name: string | null
+  last_name: string | null
 }
 
 interface AuthState {
@@ -109,6 +111,8 @@ export const useAuthStore = create<AuthState>()(
               role: profile.role as AuthUser['role'],
               organization_id: profile.organization_id,
               full_name: `${profile.first_name} ${profile.last_name}`,
+              first_name: profile.first_name ?? null,
+              last_name: profile.last_name ?? null,
             }
 
             set({ user: authUser, isAuthenticated: true, loading: false })
@@ -174,6 +178,8 @@ export const useAuthStore = create<AuthState>()(
           role: p.role as AuthUser['role'],
           organization_id: p.organization_id,
           full_name: `${p.first_name} ${p.last_name}`,
+          first_name: p.first_name ?? null,
+          last_name: p.last_name ?? null,
         }
 
         set({ user: authUser, isAuthenticated: true })
@@ -256,6 +262,8 @@ export const useAuthStore = create<AuthState>()(
               role: profile.role as AuthUser['role'],
               organization_id: profile.organization_id,
               full_name: `${profile.first_name} ${profile.last_name}`,
+              first_name: profile.first_name ?? null,
+              last_name: profile.last_name ?? null,
             }
             set({ user: authUser, isAuthenticated: true, loading: false })
           } else {

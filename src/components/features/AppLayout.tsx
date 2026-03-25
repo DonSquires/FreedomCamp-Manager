@@ -62,6 +62,12 @@ import {
   ScrollText,
   Layers,
   Bell,
+  Radio,
+  CalendarRange,
+  GraduationCap,
+  CalendarCheck2,
+  DollarSign,
+  ClipboardCopy,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
@@ -143,6 +149,26 @@ const navigationGroups: Array<{ label: string; icon: React.FC<{ className?: stri
       { path: '/noise-control', icon: Volume2, label: 'Noise Control', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/parking', icon: ParkingSquare, label: 'Parking Enforcement', roles: ['admin', 'admin_officer', 'master'] },
       { path: '/officer-welfare', icon: HeartPulse, label: 'Officer Welfare', roles: ['admin', 'admin_officer', 'master'] },
+    ],
+  },
+  {
+    label: 'Dispatch',
+    icon: Radio,
+    items: [
+      { path: '/dispatch', icon: Radio, label: 'Dispatch Console', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/client-sites', icon: Building2, label: 'Client Sites (CRM)', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/investigations', icon: BrainCircuit, label: 'Investigation Jobs', roles: ['admin', 'admin_officer', 'master', 'officer'] },
+    ],
+  },
+  {
+    label: 'Roster & Workforce',
+    icon: CalendarRange,
+    items: [
+      { path: '/roster', icon: CalendarRange, label: 'Roster Planner', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/open-shifts', icon: CalendarCheck2, label: 'Open Shifts', roles: ['admin', 'admin_officer', 'master', 'officer'] },
+      { path: '/availability', icon: CalendarDays, label: 'My Availability', roles: ['admin', 'admin_officer', 'master', 'officer'] },
+      { path: '/officer-skills', icon: GraduationCap, label: 'Skills & Licences', roles: ['admin', 'admin_officer', 'master'] },
+      { path: '/timesheets', icon: ClipboardCopy, label: 'Timesheets', roles: ['admin', 'admin_officer', 'master'] },
     ],
   },
   {
