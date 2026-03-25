@@ -116,22 +116,45 @@ export default function IncidentManagement() {
   // Create incident mutation
   const createMutation = useMutation({
     mutationFn: async (formData: IncidentFormData) => {
-      const { error } = await (supabase.from('incidents') as any).insert({
-        organization_id: user?.organization_id,
-        user_id:         user?.id,
-        zone_id:         formData.zone_id || null,
-        plate_number:    formData.vehicle_plate?.toUpperCase() || null,
-        incident_type:   formData.incident_type,
-        severity:        formData.severity,
+      const { data: incident, error } = await (supabase.from('incidents') as any).insert({
+        organization_id:  user?.organization_id,
+        user_id:          user?.id,
+        zone_id:          formData.zone_id || null,
+        plate_number:     formData.vehicle_plate?.toUpperCase() || null,
+        incident_type:    formData.incident_type,
+        severity:         formData.severity,
         description:     [
           formData.description,
           formData.location_description ? `Location: ${formData.location_description}` : '',
           formData.witness_details      ? `Witnesses: ${formData.witness_details}`      : '',
           formData.action_taken         ? `Action taken: ${formData.action_taken}`      : '',
         ].filter(Boolean).join('\n\n'),
-        status: 'open',
-      })
+        status:           'open',
+        person_record_id: formData.person_record_id || null,
+      }).select('id').single()
       if (error) throw error
+
+      // If a face was captured, link it to the person and incident
+      if (formData.face_record_id && incident?.id) {
+        const updates: Record<string, string> = { incident_id: incident.id }
+        if (formData.person_record_id) {
+          updates.person_record_id = formData.person_record_id
+        }
+        await supabase
+          .from('face_records')
+          .update(updates)
+          .eq('id', formData.face_record_id)
+        // Also call edge function to build the POI embedding link
+        if (formData.person_record_id) {
+          await supabase.functions.invoke('process-face-scan', {
+            body: {
+              action: 'link_poi',
+              face_record_id: formData.face_record_id,
+              person_record_id: formData.person_record_id,
+            },
+          })
+        }
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['incidents'] })
