@@ -236,6 +236,39 @@ export default function FieldOfficerPortal() {
     toast.dismiss()
   }
 
+  // ── Dispatched jobs assigned to this officer (GDS CATS job queue) ──────────
+  const qcHook = useQueryClient()
+  const { data: myDispatchJobs = [] } = useQuery({
+    queryKey: ['my-dispatch-jobs', user?.id],
+    queryFn: async () => {
+      if (!user?.id) return []
+      const { data } = await supabase
+        .from('dispatch_jobs')
+        .select('id, job_number, job_type, priority, status, title, address, description, caller_phone, response_sla_minutes, dispatched_at, created_at')
+        .eq('assigned_to', user.id)
+        .in('status', ['dispatched', 'acknowledged', 'en_route', 'on_scene'])
+        .order('priority', { ascending: false })
+        .order('created_at', { ascending: true })
+      return data ?? []
+    },
+    enabled: !!user?.id,
+    refetchInterval: 30_000,
+  })
+
+  const advanceJobStatus = useMutation({
+    mutationFn: async ({ jobId, newStatus }: { jobId: string; newStatus: string }) => {
+      const update: any = { status: newStatus }
+      if (newStatus === 'acknowledged') update.acknowledged_at = new Date().toISOString()
+      if (newStatus === 'en_route')     update.en_route_at     = new Date().toISOString()
+      if (newStatus === 'on_scene')     update.on_scene_at     = new Date().toISOString()
+      if (newStatus === 'completed')    update.completed_at    = new Date().toISOString()
+      const { error } = await supabase.from('dispatch_jobs').update(update).eq('id', jobId)
+      if (error) throw error
+    },
+    onSuccess: () => { qcHook.invalidateQueries({ queryKey: ['my-dispatch-jobs'] }) },
+    onError: (err: any) => toast.error(err?.message ?? 'Update failed'),
+  })
+
   // Display-friendly zone label for the officer status card
   const displayZone = zoneName || (zoneId ? `${zoneId.substring(0, 8)}...` : 'Scanning Geofence...')
 
@@ -1408,7 +1441,65 @@ export default function FieldOfficerPortal() {
                 </CardContent>
               </Card>
             </div>
-          )}
+
+            {/* ── Dispatched Job Queue (GDS CATS-style) ──────────────── */}
+            {myDispatchJobs.length > 0 && (
+              <div className="mb-6 space-y-3">
+                <h2 className="text-sm font-semibold flex items-center gap-2 text-foreground">
+                  <Siren className="h-4 w-4 text-blue-600" />
+                  Dispatched Jobs
+                  <Badge className="ml-1">{myDispatchJobs.length}</Badge>
+                </h2>
+                {(myDispatchJobs as any[]).map((job: any) => {
+                  const NEXT: Record<string, { label: string; next: string }> = {
+                    dispatched:   { label: 'Acknowledge',  next: 'acknowledged' },
+                    acknowledged: { label: 'En Route',     next: 'en_route'     },
+                    en_route:     { label: 'On Scene',     next: 'on_scene'     },
+                    on_scene:     { label: 'Complete Job', next: 'completed'    },
+                  }
+                  const action = NEXT[job.status]
+                  const urgentBorder = job.priority === 'urgent' ? 'border-red-400' : job.priority === 'high' ? 'border-orange-300' : 'border-blue-200'
+                  return (
+                    <Card key={job.id} className={`border-l-4 ${urgentBorder}`}>
+                      <CardContent className="p-4">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1 flex-wrap">
+                              <span className="font-mono text-xs text-muted-foreground">{job.job_number}</span>
+                              <Badge variant="outline" className={`text-xs ${job.priority === 'urgent' ? 'border-red-400 text-red-700 animate-pulse' : 'border-blue-300 text-blue-700'}`}>
+                                {job.priority.toUpperCase()}
+                              </Badge>
+                              <Badge variant="outline" className="text-xs capitalize">{job.status.replace('_', ' ')}</Badge>
+                            </div>
+                            <p className="font-semibold text-sm">{job.title}</p>
+                            {job.address && (
+                              <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
+                                <MapPin className="h-3 w-3" />{job.address}
+                              </p>
+                            )}
+                            {job.caller_phone && (
+                              <p className="text-xs text-muted-foreground flex items-center gap-1">
+                                <PhoneCall className="h-3 w-3" />{job.caller_phone}
+                              </p>
+                            )}
+                          </div>
+                          {action && (
+                            <Button
+                              size="sm"
+                              className="shrink-0"
+                              onClick={() => advanceJobStatus.mutate({ jobId: job.id, newStatus: action.next })}
+                              disabled={advanceJobStatus.isPending}
+                            >
+                              {action.label}
+                            </Button>
+                          )}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )
+                })}
+              </div>
+            )}
 
           {/* Service-specific common tools */}
           {activeService && (
