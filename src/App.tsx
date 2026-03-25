@@ -86,6 +86,13 @@ const NotificationsCenter = lazy(() => import('@/pages/NotificationsCenter'))
 const ComplianceDashboard = lazy(() => import('@/pages/ComplianceDashboard'))
 const CleanDashboard = lazy(() => import('@/pages/CleanDashboard'))
 const FaceRecognitionPage = lazy(() => import('@/pages/FaceRecognitionPage'))
+const TimesheetReview = lazy(() => import('@/pages/TimesheetReview'))
+const OpenShifts = lazy(() => import('@/pages/OpenShifts'))
+const DispatchConsole = lazy(() => import('@/pages/DispatchConsole'))
+const ClientSites = lazy(() => import('@/pages/ClientSites'))
+const RosterPlanner = lazy(() => import('@/pages/RosterPlanner'))
+const OfficerSkills = lazy(() => import('@/pages/OfficerSkills'))
+const OfficerAvailability = lazy(() => import('@/pages/OfficerAvailability'))
 
 // ---------------------------------------------------------------------------
 // PageLoader – minimal spinner shown while a lazy page chunk is downloading.
