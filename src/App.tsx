@@ -73,6 +73,8 @@ import ParkingEnforcementPortal from '@/pages/ParkingEnforcementPortal'
 import ParkingOfficerPortal from '@/pages/ParkingOfficerPortal'
 import NoiseControlPortal from '@/pages/NoiseControlPortal'
 import NoiseOfficerPortal from '@/pages/NoiseOfficerPortal'
+import PointsOfInterest from '@/pages/PointsOfInterest'
+import SiteRiskAssessment from '@/pages/SiteRiskAssessment'
 import VehicleDiscrepancies from '@/pages/VehicleDiscrepancies'
 import NZSCVMonitor from '@/pages/NZSCVMonitor'
 import NotificationsCenter from '@/pages/NotificationsCenter'
@@ -950,6 +952,28 @@ export default function App() {
               <ProtectedRoute>
                 <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
                   <PersonRecords />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/points-of-interest"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master', 'officer']}>
+                  <PointsOfInterest />
+                </RoleRoute>
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/site-risk-assessment"
+            element={
+              <ProtectedRoute>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master', 'officer']}>
+                  <SiteRiskAssessment />
                 </RoleRoute>
               </ProtectedRoute>
             }
