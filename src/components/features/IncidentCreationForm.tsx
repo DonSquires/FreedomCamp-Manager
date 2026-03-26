@@ -29,11 +29,9 @@ export interface IncidentFormData {
 }
 
 interface NewPersonFields {
-  full_name: string
+  first_name: string
+  last_name: string
   date_of_birth: string
-  contact_phone: string
-  contact_email: string
-  address: string
   notes: string
 }
 
@@ -65,11 +63,9 @@ const SEVERITY_OPTIONS: { value: IncidentFormData['severity']; label: string; co
 ]
 
 const BLANK_NEW_PERSON: NewPersonFields = {
-  full_name: '',
+  first_name: '',
+  last_name: '',
   date_of_birth: '',
-  contact_phone: '',
-  contact_email: '',
-  address: '',
   notes: '',
 }
 
@@ -92,11 +88,11 @@ export function IncidentCreationForm({
 
   // Person linking state
   const [personSearch, setPersonSearch] = useState('')
-  const [selectedPerson, setSelectedPerson] = useState<{ id: string; full_name: string } | null>(null)
+  const [selectedPerson, setSelectedPerson] = useState<{ id: string; first_name: string | null; last_name: string | null } | null>(null)
   const [showNewPersonForm, setShowNewPersonForm] = useState(false)
   const [newPersonFields, setNewPersonFields] = useState<NewPersonFields>(BLANK_NEW_PERSON)
   const [creatingPerson, setCreatingPerson] = useState(false)
-  const [newPersonErrors, setNewPersonErrors] = useState<{ full_name?: string }>({})
+  const [newPersonErrors, setNewPersonErrors] = useState<{ first_name?: string }>({})
 
   // Face capture state
   const [cameraOpen, setCameraOpen] = useState(false)
@@ -109,11 +105,11 @@ export function IncidentCreationForm({
     queryFn: async () => {
       if (!personSearch.trim()) return []
       const { data, error } = await (supabase.from('person_records') as any)
-        .select('id, full_name')
-        .ilike('full_name', `%${personSearch.trim()}%`)
+        .select('id, first_name, last_name')
+        .or(`first_name.ilike.%${personSearch.trim()}%,last_name.ilike.%${personSearch.trim()}%`)
         .limit(10)
       if (error) throw error
-      return (data || []) as { id: string; full_name: string }[]
+      return (data || []) as { id: string; first_name: string | null; last_name: string | null }[]
     },
     enabled: personSearch.trim().length >= 2 && !selectedPerson && !showNewPersonForm,
   })
@@ -128,8 +124,8 @@ export function IncidentCreationForm({
   }
 
   const validateNewPerson = () => {
-    const e: { full_name?: string } = {}
-    if (!newPersonFields.full_name.trim()) e.full_name = 'Full name is required'
+    const e: { first_name?: string } = {}
+    if (!newPersonFields.first_name.trim()) e.first_name = 'First name is required'
     setNewPersonErrors(e)
     return Object.keys(e).length === 0
   }
@@ -139,23 +135,21 @@ export function IncidentCreationForm({
     setCreatingPerson(true)
     try {
       const payload = {
-        full_name: newPersonFields.full_name.trim(),
+        first_name: newPersonFields.first_name.trim(),
+        last_name: newPersonFields.last_name.trim() || null,
         date_of_birth: newPersonFields.date_of_birth || null,
-        contact_phone: newPersonFields.contact_phone || null,
-        contact_email: newPersonFields.contact_email || null,
-        address: newPersonFields.address || null,
         notes: newPersonFields.notes || null,
       }
       const { data, error } = await (supabase.from('person_records') as any)
         .insert(payload)
-        .select('id, full_name')
+        .select('id, first_name, last_name')
         .single()
       if (error) throw error
-      setSelectedPerson({ id: data.id, full_name: data.full_name })
+      setSelectedPerson({ id: data.id, first_name: data.first_name, last_name: data.last_name })
       setShowNewPersonForm(false)
       setPersonSearch('')
     } catch (err: any) {
-      setNewPersonErrors({ full_name: err.message || 'Failed to create person' })
+      setNewPersonErrors({ first_name: err.message || 'Failed to create person' })
     } finally {
       setCreatingPerson(false)
     }
@@ -347,7 +341,7 @@ export function IncidentCreationForm({
               <div className="flex items-center gap-2 flex-wrap">
                 <Badge variant="secondary" className="flex items-center gap-1.5 text-sm py-1 px-2">
                   <User className="h-3.5 w-3.5" />
-                  {selectedPerson.full_name}
+                  {[selectedPerson.first_name, selectedPerson.last_name].filter(Boolean).join(' ') || '(No name)'}
                   <button
                     type="button"
                     onClick={clearPerson}
@@ -421,7 +415,7 @@ export function IncidentCreationForm({
                         onClick={() => { setSelectedPerson(p); setPersonSearch('') }}
                       >
                         <User className="h-3.5 w-3.5 text-muted-foreground" />
-                        {p.full_name}
+                        {[p.first_name, p.last_name].filter(Boolean).join(' ') || '(No name)'}
                       </button>
                     ))}
                   </div>
@@ -444,15 +438,23 @@ export function IncidentCreationForm({
                   </Button>
                 </div>
                 <div className="space-y-1">
-                  <Label className="text-xs">Full Name <span className="text-red-500">*</span></Label>
+                  <Label className="text-xs">First Name <span className="text-red-500">*</span></Label>
                   <Input
-                    placeholder="Full name"
-                    value={newPersonFields.full_name}
-                    onChange={(e) => setNewPersonFields(f => ({ ...f, full_name: e.target.value }))}
+                    placeholder="First name"
+                    value={newPersonFields.first_name}
+                    onChange={(e) => setNewPersonFields(f => ({ ...f, first_name: e.target.value }))}
                   />
-                  {newPersonErrors.full_name && <p className="text-xs text-red-500">{newPersonErrors.full_name}</p>}
+                  {newPersonErrors.first_name && <p className="text-xs text-red-500">{newPersonErrors.first_name}</p>}
                 </div>
                 <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label className="text-xs">Last Name</Label>
+                    <Input
+                      placeholder="Last name"
+                      value={newPersonFields.last_name}
+                      onChange={(e) => setNewPersonFields(f => ({ ...f, last_name: e.target.value }))}
+                    />
+                  </div>
                   <div className="space-y-1">
                     <Label className="text-xs">Date of Birth</Label>
                     <Input
@@ -461,31 +463,6 @@ export function IncidentCreationForm({
                       onChange={(e) => setNewPersonFields(f => ({ ...f, date_of_birth: e.target.value }))}
                     />
                   </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs">Phone</Label>
-                    <Input
-                      placeholder="+64 21 xxx xxxx"
-                      value={newPersonFields.contact_phone}
-                      onChange={(e) => setNewPersonFields(f => ({ ...f, contact_phone: e.target.value }))}
-                    />
-                  </div>
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">Email</Label>
-                  <Input
-                    type="email"
-                    placeholder="email@example.com"
-                    value={newPersonFields.contact_email}
-                    onChange={(e) => setNewPersonFields(f => ({ ...f, contact_email: e.target.value }))}
-                  />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs">Address</Label>
-                  <Input
-                    placeholder="Last known address"
-                    value={newPersonFields.address}
-                    onChange={(e) => setNewPersonFields(f => ({ ...f, address: e.target.value }))}
-                  />
                 </div>
                 <div className="space-y-1">
                   <Label className="text-xs">Notes</Label>
@@ -501,7 +478,7 @@ export function IncidentCreationForm({
                   size="sm"
                   className="w-full"
                   onClick={handleCreatePerson}
-                  disabled={creatingPerson || !newPersonFields.full_name.trim()}
+                  disabled={creatingPerson || !newPersonFields.first_name.trim()}
                 >
                   <UserPlus className="h-3.5 w-3.5 mr-1" />
                   {creatingPerson ? 'Creating…' : 'Create Person & Continue'}

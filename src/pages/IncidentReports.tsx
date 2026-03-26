@@ -62,7 +62,8 @@ interface Incident {
   } | null
   person_record: {
     id: string
-    full_name: string
+    first_name: string | null
+    last_name: string | null
   } | null
 }
 
@@ -79,7 +80,7 @@ export default function IncidentReports() {
   // Link person dialog state
   const [linkPersonSearch, setLinkPersonSearch] = useState('')
   const [showNewPersonInline, setShowNewPersonInline] = useState(false)
-  const [newPersonForm, setNewPersonForm] = useState({ full_name: '', date_of_birth: '', contact_phone: '', contact_email: '', address: '', notes: '' })
+  const [newPersonForm, setNewPersonForm] = useState({ first_name: '', last_name: '', date_of_birth: '', notes: '' })
   const [creatingPersonForLink, setCreatingPersonForLink] = useState(false)
 
   // Fetch incidents
@@ -106,7 +107,7 @@ export default function IncidentReports() {
           person_record_id,
           zone:zones(name),
           user_profile:user_profiles!incidents_user_id_fkey(first_name, last_name),
-          person_record:person_records(id, full_name)
+          person_record:person_records(id, first_name, last_name)
         `)
         
         .order('created_at', { ascending: false })
@@ -194,13 +195,13 @@ export default function IncidentReports() {
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['incidents'] })
       const newPersonRecord = variables.personRecordId && variables.personName
-        ? { id: variables.personRecordId, full_name: variables.personName }
+        ? { id: variables.personRecordId, first_name: variables.personName, last_name: null }
         : null
       setSelectedIncident(prev => prev ? { ...prev, person_record_id: variables.personRecordId, person_record: newPersonRecord } : prev)
       toast.success(variables.personRecordId ? 'Person linked to incident' : 'Person link removed')
       setLinkPersonSearch('')
       setShowNewPersonInline(false)
-      setNewPersonForm({ full_name: '', date_of_birth: '', contact_phone: '', contact_email: '', address: '', notes: '' })
+      setNewPersonForm({ first_name: '', last_name: '', date_of_birth: '', notes: '' })
     },
     onError: () => {
       toast.error('Failed to update person link')
@@ -213,32 +214,31 @@ export default function IncidentReports() {
     queryFn: async () => {
       if (!linkPersonSearch.trim()) return []
       const { data, error } = await (supabase.from('person_records') as any)
-        .select('id, full_name')
-        .ilike('full_name', `%${linkPersonSearch.trim()}%`)
+        .select('id, first_name, last_name')
+        .or(`first_name.ilike.%${linkPersonSearch.trim()}%,last_name.ilike.%${linkPersonSearch.trim()}%`)
         .limit(10)
       if (error) throw error
-      return (data || []) as { id: string; full_name: string }[]
+      return (data || []) as { id: string; first_name: string | null; last_name: string | null }[]
     },
     enabled: linkPersonSearch.trim().length >= 2 && showDetailsModal && !showNewPersonInline,
   })
 
   const handleCreateAndLinkPerson = async () => {
-    if (!newPersonForm.full_name.trim() || !selectedIncident) return
+    if (!newPersonForm.first_name.trim() || !selectedIncident) return
     setCreatingPersonForLink(true)
     try {
       const { data, error } = await (supabase.from('person_records') as any)
         .insert({
-          full_name: newPersonForm.full_name.trim(),
+          first_name: newPersonForm.first_name.trim(),
+          last_name: newPersonForm.last_name.trim() || null,
           date_of_birth: newPersonForm.date_of_birth || null,
-          contact_phone: newPersonForm.contact_phone || null,
-          contact_email: newPersonForm.contact_email || null,
-          address: newPersonForm.address || null,
           notes: newPersonForm.notes || null,
         })
-        .select('id, full_name')
+        .select('id, first_name, last_name')
         .single()
       if (error) throw error
-      await linkPersonMutation.mutateAsync({ incidentId: selectedIncident.id, personRecordId: data.id, personName: data.full_name })
+      const displayName = [data.first_name, data.last_name].filter(Boolean).join(' ')
+      await linkPersonMutation.mutateAsync({ incidentId: selectedIncident.id, personRecordId: data.id, personName: displayName })
       // The mutation onSuccess already updates selectedIncident, no need to set it again
     } catch (err: any) {
       toast.error(err.message || 'Failed to create person')
@@ -286,7 +286,7 @@ export default function IncidentReports() {
     setShowDetailsModal(true)
     setLinkPersonSearch('')
     setShowNewPersonInline(false)
-    setNewPersonForm({ full_name: '', date_of_birth: '', contact_phone: '', contact_email: '', address: '', notes: '' })
+    setNewPersonForm({ first_name: '', last_name: '', date_of_birth: '', notes: '' })
   }
 
   return (
@@ -541,7 +541,7 @@ export default function IncidentReports() {
                       <div className="flex items-center gap-2 text-sm">
                         <User className="h-4 w-4 text-green-600" />
                         <span className="text-gray-600 dark:text-gray-400">Linked Person:</span>
-                        <span className="font-medium">{incident.person_record.full_name}</span>
+                        <span className="font-medium">{[incident.person_record.first_name, incident.person_record.last_name].filter(Boolean).join(' ') || '(No name)'}</span>
                       </div>
                     </div>
                   )}
@@ -684,7 +684,7 @@ export default function IncidentReports() {
                   <div className="flex items-center gap-2">
                     <Badge variant="secondary" className="flex items-center gap-1.5 text-sm py-1 px-2">
                       <User className="h-3.5 w-3.5" />
-                      {selectedIncident.person_record.full_name}
+                      {[selectedIncident.person_record.first_name, selectedIncident.person_record.last_name].filter(Boolean).join(' ') || '(No name)'}
                     </Badge>
                   </div>
                 ) : !showNewPersonInline ? (
@@ -713,11 +713,11 @@ export default function IncidentReports() {
                             key={p.id}
                             type="button"
                             className="w-full text-left px-3 py-2 hover:bg-blue-50 dark:hover:bg-blue-950/30 flex items-center gap-2"
-                            onClick={() => linkPersonMutation.mutate({ incidentId: selectedIncident.id, personRecordId: p.id, personName: p.full_name })}
+                            onClick={() => linkPersonMutation.mutate({ incidentId: selectedIncident.id, personRecordId: p.id, personName: [p.first_name, p.last_name].filter(Boolean).join(' ') })}
                             disabled={linkPersonMutation.isPending}
                           >
                             <User className="h-3.5 w-3.5 text-muted-foreground" />
-                            {p.full_name}
+                            {[p.first_name, p.last_name].filter(Boolean).join(' ') || '(No name)'}
                           </button>
                         ))}
                       </div>
@@ -727,35 +727,27 @@ export default function IncidentReports() {
                   <div className="space-y-3">
                     <div className="flex items-center justify-between">
                       <p className="text-xs font-medium text-muted-foreground">Create New Person Record</p>
-                      <Button type="button" size="sm" variant="ghost" onClick={() => { setShowNewPersonInline(false); setNewPersonForm({ full_name: '', date_of_birth: '', contact_phone: '', contact_email: '', address: '', notes: '' }) }}>
+                      <Button type="button" size="sm" variant="ghost" onClick={() => { setShowNewPersonInline(false); setNewPersonForm({ first_name: '', last_name: '', date_of_birth: '', notes: '' }) }}>
                         <X className="h-3.5 w-3.5" />
                       </Button>
                     </div>
                     <div className="space-y-1">
-                      <Label className="text-xs">Full Name <span className="text-red-500">*</span></Label>
+                      <Label className="text-xs">First Name <span className="text-red-500">*</span></Label>
                       <Input
-                        placeholder="Full name"
-                        value={newPersonForm.full_name}
-                        onChange={(e) => setNewPersonForm(f => ({ ...f, full_name: e.target.value }))}
+                        placeholder="First name"
+                        value={newPersonForm.first_name}
+                        onChange={(e) => setNewPersonForm(f => ({ ...f, first_name: e.target.value }))}
                       />
                     </div>
                     <div className="grid grid-cols-2 gap-3">
                       <div className="space-y-1">
+                        <Label className="text-xs">Last Name</Label>
+                        <Input placeholder="Last name" value={newPersonForm.last_name} onChange={(e) => setNewPersonForm(f => ({ ...f, last_name: e.target.value }))} />
+                      </div>
+                      <div className="space-y-1">
                         <Label className="text-xs">Date of Birth</Label>
                         <Input type="date" value={newPersonForm.date_of_birth} onChange={(e) => setNewPersonForm(f => ({ ...f, date_of_birth: e.target.value }))} />
                       </div>
-                      <div className="space-y-1">
-                        <Label className="text-xs">Phone</Label>
-                        <Input placeholder="+64 21 xxx xxxx" value={newPersonForm.contact_phone} onChange={(e) => setNewPersonForm(f => ({ ...f, contact_phone: e.target.value }))} />
-                      </div>
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs">Email</Label>
-                      <Input type="email" placeholder="email@example.com" value={newPersonForm.contact_email} onChange={(e) => setNewPersonForm(f => ({ ...f, contact_email: e.target.value }))} />
-                    </div>
-                    <div className="space-y-1">
-                      <Label className="text-xs">Address</Label>
-                      <Input placeholder="Last known address" value={newPersonForm.address} onChange={(e) => setNewPersonForm(f => ({ ...f, address: e.target.value }))} />
                     </div>
                     <div className="space-y-1">
                       <Label className="text-xs">Notes</Label>
@@ -766,7 +758,7 @@ export default function IncidentReports() {
                       size="sm"
                       className="w-full"
                       onClick={handleCreateAndLinkPerson}
-                      disabled={creatingPersonForLink || !newPersonForm.full_name.trim()}
+                      disabled={creatingPersonForLink || !newPersonForm.first_name.trim()}
                     >
                       <UserPlus className="h-3.5 w-3.5 mr-1" />
                       {creatingPersonForLink ? 'Creating…' : 'Create Person & Link'}
