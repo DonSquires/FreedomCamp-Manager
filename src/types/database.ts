@@ -4493,6 +4493,7 @@ export type Database = {
           emergency_contact_name: string | null
           emergency_contact_phone: string | null
           employer_organization_id: string | null
+          extra_organization_ids: string[]
           first_name: string | null
           has_warrant: boolean | null
           id: string
@@ -4506,6 +4507,7 @@ export type Database = {
           organization_id: string | null
           permissions: Json | null
           phone: string | null
+          portal_access: string[]
           profile_photo_url: string | null
           job_title: string | null
           requires_driver_license: boolean | null
@@ -4539,6 +4541,7 @@ export type Database = {
           emergency_contact_name?: string | null
           emergency_contact_phone?: string | null
           employer_organization_id?: string | null
+          extra_organization_ids?: string[]
           first_name?: string | null
           has_warrant?: boolean | null
           id: string
@@ -4552,6 +4555,7 @@ export type Database = {
           organization_id?: string | null
           permissions?: Json | null
           phone?: string | null
+          portal_access?: string[]
           profile_photo_url?: string | null
           job_title?: string | null
           requires_driver_license?: boolean | null
@@ -4585,6 +4589,7 @@ export type Database = {
           emergency_contact_name?: string | null
           emergency_contact_phone?: string | null
           employer_organization_id?: string | null
+          extra_organization_ids?: string[]
           first_name?: string | null
           has_warrant?: boolean | null
           id?: string
@@ -4598,6 +4603,7 @@ export type Database = {
           organization_id?: string | null
           permissions?: Json | null
           phone?: string | null
+          portal_access?: string[]
           profile_photo_url?: string | null
           job_title?: string | null
           requires_driver_license?: boolean | null
