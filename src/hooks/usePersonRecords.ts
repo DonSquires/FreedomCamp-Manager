@@ -120,7 +120,7 @@ export function usePersonRecords(options?: {
   // Only updates updated_at to trigger cache invalidation on callers.
   const confirmHomelessStatus = useMutation({
     mutationFn: async ({ id, confirmed: _confirmed }: { id: string; confirmed: boolean }) => {
-      const { error } = await (supabase.from('person_records') as any)
+      const { error } = await supabase.from('person_records')
         .update({ updated_at: new Date().toISOString() })
         .eq('id', id)
 
@@ -138,7 +138,7 @@ export function usePersonRecords(options?: {
   // Update person record mutation
   const updatePersonRecord = useMutation({
     mutationFn: async ({ id, ...updates }: Partial<PersonRecord> & { id: string }) => {
-      const { error } = await (supabase.from('person_records') as any)
+      const { error } = await supabase.from('person_records')
         .update(updates)
         .eq('id', id)
 

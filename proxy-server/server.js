@@ -10,10 +10,24 @@ const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
 const nodemailer = require('nodemailer');
+const rateLimit = require('express-rate-limit');
 require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// ---------------------------------------------------------------------------
+// Per-IP rate limiter — applied to all authenticated proxy routes.
+// Default: 60 requests per minute per IP.  Override with PROXY_RATE_LIMIT_PER_MIN.
+// ---------------------------------------------------------------------------
+const RATE_LIMIT_MAX = parseInt(process.env.PROXY_RATE_LIMIT_PER_MIN || '60', 10);
+const rateLimitMiddleware = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: RATE_LIMIT_MAX,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests', message: 'Rate limit exceeded. Please try again later.' },
+});
 
 // Escape untrusted strings for safe HTML interpolation
 function escapeHtml(str) {
@@ -87,7 +101,7 @@ app.get('/health', (req, res) => {
 });
 
 // NZSCV API Proxy endpoint
-app.post('/api/nzscv/vehicle-info', async (req, res) => {
+app.post('/api/nzscv/vehicle-info', rateLimitMiddleware, async (req, res) => {
   try {
     const authResult = checkProxyAuth(req);
     if (authResult) {
@@ -148,7 +162,7 @@ app.post('/api/nzscv/vehicle-info', async (req, res) => {
 });
 
 // Invite email endpoint
-app.post('/api/email/send-invite', async (req, res) => {
+app.post('/api/email/send-invite', rateLimitMiddleware, async (req, res) => {
   try {
     const authResult = checkProxyAuth(req);
     if (authResult) {
@@ -260,7 +274,7 @@ app.post('/api/email/send-invite', async (req, res) => {
 // PLACEHOLDER — MotorWeb API credentials (MOTORWEB_API_KEY, MOTORWEB_ID_KEY)
 // have not been provisioned yet.  The endpoint returns 503 until credentials
 // are configured via environment variables.
-app.get('/motorweb/currentOwnerCheck', async (req, res) => {
+app.get('/motorweb/currentOwnerCheck', rateLimitMiddleware, async (req, res) => {
   try {
     const authResult = checkProxyAuth(req);
     if (authResult) {

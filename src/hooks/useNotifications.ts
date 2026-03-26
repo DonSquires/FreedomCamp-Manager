@@ -78,7 +78,7 @@ export function useNotifications(options?: {
   // Mark as read mutation
   const markAsRead = useMutation({
     mutationFn: async (notificationId: string) => {
-      const { error } = await (supabase.from('notifications') as any)
+      const { error } = await supabase.from('notifications')
         .update({
           read: true,
           read_at: new Date().toISOString(),
@@ -101,7 +101,7 @@ export function useNotifications(options?: {
       const targetUserId = user?.id
       if (!targetUserId) throw new Error('User not authenticated')
 
-      const { error } = await (supabase.from('notifications') as any)
+      const { error } = await supabase.from('notifications')
         .update({
           read: true,
           read_at: new Date().toISOString(),
@@ -217,7 +217,7 @@ export function usePushToken() {
     mutationFn: async (token: string) => {
       if (!user?.id) throw new Error('User not authenticated')
 
-      const { error } = await (supabase.from('user_profiles') as any)
+      const { error } = await supabase.from('user_profiles')
         .update({
           push_token: token,
           push_token_updated_at: new Date().toISOString(),

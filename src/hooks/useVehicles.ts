@@ -112,7 +112,7 @@ export function useUpdateVehicle() {
 
   return useMutation({
     mutationFn: async ({ vehicleId, updates }: { vehicleId: string; updates: Partial<Vehicle> }) => {
-      const { error } = await (supabase.from('canonical_vehicles') as any)
+      const { error } = await supabase.from('canonical_vehicles')
         .update(updates)
         .eq('vehicle_id', vehicleId)
 
@@ -133,7 +133,7 @@ export function useVehicleStats(organizationId?: string | null) {
   return useQuery({
     queryKey: ['vehicle-stats', organizationId],
     queryFn: async () => {
-      let query = (supabase.from('canonical_vehicles') as any)
+      let query = supabase.from('canonical_vehicles')
         .select('self_contained, total_breaches, homeless_status, is_exempt', { count: 'exact' })
 
       if (organizationId) {

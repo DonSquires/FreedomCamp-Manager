@@ -78,7 +78,7 @@ export function usePatrolCheckpoints(options?: { zoneId?: string; requiredOnly?:
     queryFn: async () => {
       if (!user?.organization_id) return []
 
-      let query = (supabase as any)
+      let query = supabase
         .from('patrol_checkpoints')
         .select('*')
         .eq('organization_id', user.organization_id)
@@ -109,7 +109,7 @@ export function useMyCheckpointVisits(limit = 20) {
     queryFn: async () => {
       if (!user?.id) return []
 
-      const { data, error } = await (supabase as any)
+      const { data, error } = await supabase
         .from('checkpoint_visits')
         .select(`
           *,
@@ -138,7 +138,7 @@ export function useRecordCheckpointVisit() {
       }
 
       // Fetch checkpoint details to calculate GPS distance
-      const { data: checkpointRaw, error: cpError } = await (supabase as any)
+      const { data: checkpointRaw, error: cpError } = await supabase
         .from('patrol_checkpoints')
         .select('id, name, location_lat, location_lng, check_in_radius_metres, organization_id')
         .eq('id', params.checkpointId)
@@ -168,7 +168,7 @@ export function useRecordCheckpointVisit() {
         ? distance <= checkpoint.check_in_radius_metres
         : null
 
-      const { data: visitRaw, error } = await (supabase as any)
+      const { data: visitRaw, error } = await supabase
         .from('checkpoint_visits')
         .insert({
           checkpoint_id: params.checkpointId,

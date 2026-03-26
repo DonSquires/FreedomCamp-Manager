@@ -147,7 +147,7 @@ export default function EMSPortal() {
     queryKey: ['ems_attendances', user?.id],
     queryFn: async () => {
       if (!user?.id) return []
-      const { data, error } = await (supabase as any)
+      const { data, error } = await supabase
         .from('ems_attendances')
         .select('id, attendance_date, action, start_time, end_time, attendance_address, district, offender_ref, device_serial, device_type, travel_km, officer_seniority_level, rate_per_hour, billable_hours, status, notes')
         .eq('officer_id', user.id)
@@ -167,7 +167,7 @@ export default function EMSPortal() {
     queryFn: async () => {
       if (!user?.id) return null
       const today = format(nzNow(), 'yyyy-MM-dd')
-      const { data } = await (supabase as any)
+      const { data } = await supabase
         .from('officer_activity_rates')
         .select('rate_per_hour')
         .eq('officer_id', user.id)
@@ -200,7 +200,7 @@ export default function EMSPortal() {
 
       const bh = billableHours(data.start_time, data.end_time, data.attendance_date)
 
-      const { error } = await (supabase as any).from('ems_attendances').insert({
+      const { error } = await supabase.from('ems_attendances').insert({
         organization_id:        user.organization_id,
         officer_id:             user.id,
         attendance_date:        data.attendance_date,

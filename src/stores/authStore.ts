@@ -123,10 +123,15 @@ export const useAuthStore = create<AuthState>()(
               authorized_work_locations: (profile as any).authorized_work_locations ?? [],
               extra_organization_ids: (profile as any).extra_organization_ids ?? [],
             }
+            // Null-guard: only write to store if the built authUser is valid.
             // Always write the freshly-fetched profile so the store stays
             // current even when a token refresh or tab-focus event fires while
             // the user is already authenticated.
-            set({ user: authUser, isAuthenticated: true, loading: false })
+            if (authUser?.id) {
+              set({ user: authUser, isAuthenticated: true, loading: false })
+            } else {
+              set({ user: null, isAuthenticated: false, loading: false })
+            }
           } catch (err) {
             console.warn('[authStore] onAuthStateChange handler error:', err)
             set({ user: null, isAuthenticated: false, loading: false })

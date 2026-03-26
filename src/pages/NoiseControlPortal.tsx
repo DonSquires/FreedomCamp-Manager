@@ -191,7 +191,7 @@ export default function NoiseControlPortal() {
     queryFn: async () => {
       if (!orgId) return []
       let q = supabase
-        .from('noise_jobs' as any)
+        .from('noise_jobs')
         .select('*')
         .eq('organization_id', orgId)
         .order('created_at', { ascending: false })
@@ -211,7 +211,7 @@ export default function NoiseControlPortal() {
     queryFn: async () => {
       if (!orgId) return []
       const { data, error } = await supabase
-        .from('noise_notices' as any)
+        .from('noise_notices')
         .select('*')
         .eq('organization_id', orgId)
         .order('issued_at', { ascending: false })
@@ -227,7 +227,7 @@ export default function NoiseControlPortal() {
     queryFn: async () => {
       if (!orgId) return []
       const { data, error } = await supabase
-        .from('noise_seizures' as any)
+        .from('noise_seizures')
         .select('*')
         .eq('organization_id', orgId)
         .order('seized_at', { ascending: false })
@@ -262,7 +262,7 @@ export default function NoiseControlPortal() {
       // Look up prior notices for this address to populate context flags
       const addr = newJob.address.trim().toLowerCase()
       const { data: priorNotices } = await supabase
-        .from('noise_notices' as any)
+        .from('noise_notices')
         .select('notice_type, is_permanent_end, recipient_address')
         .eq('organization_id', orgId)
         .ilike('recipient_address', `%${addr}%`)
@@ -272,17 +272,17 @@ export default function NoiseControlPortal() {
       const hasPriorAN = (priorNotices || []).some((n: any) => n.notice_type === 'abatement_notice')
       // Generate job number via RPC or DB counter
       const { data: counterRow } = await supabase
-        .from('noise_job_counters' as any)
+        .from('noise_job_counters')
         .select('last_number')
         .eq('organization_id', orgId)
         .maybeSingle()
       const nextNum = ((counterRow as any)?.last_number || 0) + 1
       const jobNumber = `NCJ-${new Date().getFullYear()}-${String(nextNum).padStart(6, '0')}`
       await supabase
-        .from('noise_job_counters' as any)
+        .from('noise_job_counters')
         .upsert({ organization_id: orgId, last_number: nextNum }, { onConflict: 'organization_id' })
       const { error } = await supabase
-        .from('noise_jobs' as any)
+        .from('noise_jobs')
         .insert({
           organization_id: orgId,
           job_number: jobNumber,
@@ -321,18 +321,18 @@ export default function NoiseControlPortal() {
     mutationFn: async () => {
       if (!orgId || !user?.id) throw new Error('Not authenticated')
       const { data: counterRow } = await supabase
-        .from('noise_notice_counters' as any)
+        .from('noise_notice_counters')
         .select('last_number')
         .eq('organization_id', orgId)
         .maybeSingle()
       const nextNum = ((counterRow as any)?.last_number || 0) + 1
       const noticeNumber = `NCN-${new Date().getFullYear()}-${String(nextNum).padStart(6, '0')}`
       await supabase
-        .from('noise_notice_counters' as any)
+        .from('noise_notice_counters')
         .upsert({ organization_id: orgId, last_number: nextNum }, { onConflict: 'organization_id' })
       const isEnd = newNotice.notice_type === 'enforcement_notice'
       const { error } = await supabase
-        .from('noise_notices' as any)
+        .from('noise_notices')
         .insert({
           organization_id: orgId,
           notice_number: noticeNumber,
@@ -353,7 +353,7 @@ export default function NoiseControlPortal() {
       // If END issued, update linked job context flags
       if (newNotice.noise_job_id && isEnd) {
         await supabase
-          .from('noise_jobs' as any)
+          .from('noise_jobs')
           .update({ has_prior_end: true })
           .eq('id', newNotice.noise_job_id)
       }
@@ -370,7 +370,7 @@ export default function NoiseControlPortal() {
   const updateJobStatusMutation = useMutation({
     mutationFn: async ({ id, status }: { id: string; status: string }) => {
       const { error } = await supabase
-        .from('noise_jobs' as any)
+        .from('noise_jobs')
         .update({ status, completed_at: status === 'completed' ? new Date().toISOString() : null, updated_at: new Date().toISOString() })
         .eq('id', id)
       if (error) throw error

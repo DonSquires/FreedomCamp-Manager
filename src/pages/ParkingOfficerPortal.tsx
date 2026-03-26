@@ -194,8 +194,8 @@ export default function ParkingOfficerPortal() {
   const { data: activeSessions = [], refetch: refetchSessions } = useQuery({
     queryKey: ['parking-officer-sessions', user?.organization_id],
     queryFn: async ({ signal }) => {
-      const { data, error } = await (supabase as any)
-        .from('parking_sessions' as any)
+      const { data, error } = await supabase
+        .from('parking_sessions')
         .select('*, parking_zones(name, max_stay_minutes, zone_type, address)')
         .eq('organization_id', user!.organization_id)
         .is('exit_time', null)
@@ -213,8 +213,8 @@ export default function ParkingOfficerPortal() {
   const { data: zones = [] } = useQuery({
     queryKey: ['parking-zones', user?.organization_id],
     queryFn: async ({ signal }) => {
-      const { data, error } = await (supabase as any)
-        .from('parking_zones' as any)
+      const { data, error } = await supabase
+        .from('parking_zones')
         .select('id, name, zone_type, max_stay_minutes, fine_amount_nzd, address')
         .eq('organization_id', user!.organization_id)
         .eq('is_active', true)
@@ -233,8 +233,8 @@ export default function ParkingOfficerPortal() {
     setSearching(true)
     try {
       // Find latest active session for this plate
-      const { data, error } = await (supabase as any)
-        .from('parking_sessions' as any)
+      const { data, error } = await supabase
+        .from('parking_sessions')
         .select('*, parking_zones(name, max_stay_minutes, fine_amount_nzd, zone_type, address)')
         .eq('organization_id', user!.organization_id)
         .eq('plate_number', plate.toUpperCase().trim())
@@ -298,8 +298,8 @@ export default function ParkingOfficerPortal() {
     setChalking(true)
     try {
       // Check if there's already an active session for this plate+zone
-      const { data: existing } = await (supabase as any)
-        .from('parking_sessions' as any)
+      const { data: existing } = await supabase
+        .from('parking_sessions')
         .select('id, entry_time')
         .eq('organization_id', user!.organization_id)
         .eq('plate_number', chalkForm.plate_number.toUpperCase())
@@ -313,8 +313,8 @@ export default function ParkingOfficerPortal() {
         return
       }
 
-      const { error } = await (supabase as any)
-        .from('parking_sessions' as any)
+      const { error } = await supabase
+        .from('parking_sessions')
         .insert({
           organization_id:      user!.organization_id,
           parking_zone_id:      chalkForm.parking_zone_id,
@@ -360,12 +360,12 @@ export default function ParkingOfficerPortal() {
     setIssuing(true)
     try {
       // Generate infringement number
-      const { data: numData, error: numErr } = await (supabase as any)
+      const { data: numData, error: numErr } = await supabase
         .rpc('next_parking_infringement_number', { p_org_id: user!.organization_id })
       if (numErr) throw numErr
 
-      const { error } = await (supabase as any)
-        .from('parking_infringements' as any)
+      const { error } = await supabase
+        .from('parking_infringements')
         .insert({
           organization_id:     user!.organization_id,
           infringement_number: numData,
@@ -388,8 +388,8 @@ export default function ParkingOfficerPortal() {
 
       // Mark session as violation
       if (infForm.session_id) {
-        await (supabase as any)
-          .from('parking_sessions' as any)
+        await supabase
+          .from('parking_sessions')
           .update({ is_violation: true, violation_reason: infForm.offence_description })
           .eq('id', infForm.session_id)
       }
@@ -410,8 +410,8 @@ export default function ParkingOfficerPortal() {
 
   // ── Mark session as vehicle moved (valve position changed) ────
   const handleVehicleMoved = useCallback(async (sessionId: string) => {
-    await (supabase as any)
-      .from('parking_sessions' as any)
+    await supabase
+      .from('parking_sessions')
       .update({ exit_time: new Date().toISOString(), notes: 'Vehicle moved — re-chalked' })
       .eq('id', sessionId)
     toast.success('Session closed — vehicle was moved. Start a new chalk pass if still parked.')
@@ -967,8 +967,8 @@ export default function ParkingOfficerPortal() {
                   onCapture={(r: ParkingPhotoCaptureResult) => {
                     setRecheckResult(prev => prev ? { ...prev, recheck_photo_url: r.photoUrl } : prev)
                     // Persist second-pass photo on the session record
-                    ;(supabase as any)
-                      .from('parking_sessions' as any)
+                    ;supabase
+                      .from('parking_sessions')
                       .update({ exit_photo_url: r.photoUrl })
                       .eq('id', recheckResult.session.id)
                   }}
@@ -1191,8 +1191,8 @@ function PermitCheckPanel({ zones, organizationId, onClose }: {
     setChecking(true)
     setResult(null)
     try {
-      const { data, error } = await (supabase as any)
-        .from('parking_permits' as any)
+      const { data, error } = await supabase
+        .from('parking_permits')
         .select('*, parking_zones(name, zone_type)')
         .eq('organization_id', organizationId)
         .eq('plate_number', plate.toUpperCase().trim())

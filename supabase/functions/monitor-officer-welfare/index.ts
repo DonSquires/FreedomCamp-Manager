@@ -69,7 +69,7 @@ Deno.serve(async (req) => {
       .select('user_id, recorded_at')
       .in('user_id', officerIds)
       .eq('activity_type', 'vehicle_scan')
-      .gte('recorded_at', tenMinutesAgo.toISOString()) // only fetch recent — if none exist we treat as inactive
+      .gte('recorded_at', tenMinutesAgo.toISOString()) // only fetch scans from the last 10 minutes; officers with no recent scans are treated as inactive
       .order('recorded_at', { ascending: false });
 
     // Keep only the most recent scan per officer

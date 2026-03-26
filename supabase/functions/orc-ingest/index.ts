@@ -161,8 +161,8 @@ serve(async (req) => {
         p_obs_id: observationId,
         p_k: 5,
         p_since: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString(), // 90 days
-        p_org: metadata.organization_id,
-        p_zone: null,
+        p_org_id: metadata.organization_id,
+        p_zone_id: null,
         p_min_quality: 0.7
       });
 

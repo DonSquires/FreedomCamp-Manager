@@ -270,7 +270,7 @@ export function useManagePermissions(userId: string | null) {
     queryFn: async () => {
       if (!userId || !hasPermission('manage_users')) return null
 
-      const { data, error } = await (supabase.from('user_profiles') as any)
+      const { data, error } = await supabase.from('user_profiles')
         .select('permissions, role')
         .eq('id', userId)
         .single()
@@ -296,7 +296,7 @@ export function useManagePermissions(userId: string | null) {
         throw new Error('Unauthorized')
       }
 
-      const { error } = await (supabase.from('user_profiles') as any)
+      const { error } = await supabase.from('user_profiles')
         .update({ permissions })
         .eq('id', userId)
 

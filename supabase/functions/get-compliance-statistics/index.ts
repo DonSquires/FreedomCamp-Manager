@@ -5,7 +5,7 @@ import { corsHeaders } from '../_shared/cors.ts';
  * GET COMPLIANCE STATISTICS - REAL-TIME REPORTS
  * 
  * This function calculates real-time compliance statistics by calling
- * calculate_vehicle_compliance() for all unique plate/zone combinations
+ * calculate_vehicle_compliance_v3() for all unique plate/zone combinations
  * 
  * Returns accurate counts for:
  * - Total vehicles
@@ -145,7 +145,7 @@ Deno.serve(async (req) => {
 
       // Call centralized compliance function
       const { data: complianceData, error: complianceError } = await supabaseAdmin
-        .rpc('calculate_vehicle_compliance', {
+        .rpc('calculate_vehicle_compliance_v3', {
           p_plate_number: vehicle.plateNumber,
           p_zone_id: vehicle.zoneId,
           p_check_date: new Date().toISOString().split('T')[0]
@@ -180,10 +180,8 @@ Deno.serve(async (req) => {
       const zoneStat = zoneStats.get(vehicle.zoneId)!;
       zoneStat.totalVehicles++;
 
-      // Determine compliance status
-      const isCompliant = compliance.is_compliant && 
-        compliance.violation_severity !== 'critical' && 
-        compliance.violation_severity !== 'moderate';
+      // Determine compliance status using v3 fields (is_compliant, at_risk, breach_type)
+      const isCompliant = compliance.is_compliant && !compliance.at_risk;
 
       if (isCompliant) {
         stats.compliantVehicles++;
@@ -192,17 +190,17 @@ Deno.serve(async (req) => {
         stats.nonCompliantVehicles++;
         zoneStat.breaches++;
 
-        // Count by severity
-        if (compliance.violation_severity === 'critical') {
+        // Count by severity derived from v3 is_compliant/at_risk flags
+        if (!compliance.is_compliant) {
           stats.criticalBreaches++;
-        } else if (compliance.violation_severity === 'warning' || compliance.violation_severity === 'moderate') {
+        } else if (compliance.at_risk) {
           stats.warnings++;
         }
 
-        // Count by breach type
-        if (compliance.violation_type) {
-          stats.breachTypes[compliance.violation_type] = 
-            (stats.breachTypes[compliance.violation_type] || 0) + 1;
+        // Count by breach type (v3 uses breach_type instead of violation_type)
+        if (compliance.breach_type) {
+          stats.breachTypes[compliance.breach_type] = 
+            (stats.breachTypes[compliance.breach_type] || 0) + 1;
         }
       }
     }
