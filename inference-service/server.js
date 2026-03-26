@@ -1897,20 +1897,23 @@ loadModels().then(() => {
   app.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 ORC/AI inference service running on port ${PORT}`);
     // Config summary — makes misconfiguration visible at a glance in Railway logs
+    const usesOllama = VEHICLE_ATTRS_PROVIDER === 'ollama' || TABULAR_NLP_PROVIDER === 'ollama';
+    const usesOpenAI = VEHICLE_ATTRS_PROVIDER === 'openai' || TABULAR_NLP_PROVIDER === 'openai';
     console.log(`⚙️  Config:`, {
       VEHICLE_ATTRS_PROVIDER,
       TABULAR_NLP_PROVIDER,
       TABULAR_NLP_TIMEOUT_MS,
-      OLLAMA_BASE_URL,
-      OLLAMA_MODEL,
+      ...(usesOllama && { OLLAMA_BASE_URL, OLLAMA_MODEL }),
       INFERENCE_API_KEY_SET: !!INFERENCE_API_KEY,
       SUPABASE_SERVICE_ROLE_KEY_SET: !!SUPABASE_SERVICE_ROLE_KEY,
       SUPABASE_JWKS_URL: SUPABASE_JWKS_URL || '(not set)',
       SUPABASE_JWT_ISSUER: SUPABASE_JWT_ISSUER || '(not set)',
-      SUPABASE_JWT_AUDIENCE: SUPABASE_JWT_AUDIENCE || '(not set)',
-      OPENAI_BASE_URL: OPENAI_BASE_URL || '(not set)',
-      OPENAI_MODEL: OPENAI_MODEL || '(not set)',
-      OPENAI_API_KEY_SET: !!OPENAI_API_KEY,
+      ...(SUPABASE_JWT_AUDIENCE && { SUPABASE_JWT_AUDIENCE }),
+      ...(usesOpenAI && {
+        OPENAI_BASE_URL: OPENAI_BASE_URL || '(not set)',
+        OPENAI_MODEL: OPENAI_MODEL || '(not set)',
+        OPENAI_API_KEY_SET: !!OPENAI_API_KEY,
+      }),
     });
     if (!INFERENCE_API_KEY && !SUPABASE_SERVICE_ROLE_KEY) {
       console.warn('⚠️  No static auth configured (INFERENCE_API_KEY and SUPABASE_SERVICE_ROLE_KEY are both unset).');
