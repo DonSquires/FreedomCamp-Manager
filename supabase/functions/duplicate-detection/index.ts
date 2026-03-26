@@ -142,10 +142,10 @@ serve(async (req) => {
     );
   }
 
-  if (profile.role !== 'master') {
+  if (profile.role !== 'master' && profile.role !== 'grand_master') {
     return new Response(
       JSON.stringify({
-        error: 'Only master users can run duplicate cleanup.',
+        error: 'Only master or grand_master users can run duplicate cleanup.',
         auth_error: 'INSUFFICIENT_ROLE',
         required_role: 'master',
       }),

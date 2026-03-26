@@ -769,6 +769,96 @@ async function inferVehicleAttributes(fullImageBuffer, vehicleCropBuffer) {
   };
 }
 
+// ── Face detection via OpenAI vision ─────────────────────────────────────────
+// Returns { face_count, faces[] } or null on failure.
+// Each face: { bbox: {x,y,w,h} (normalised 0-1), confidence, approximate_age, gender, description }
+async function detectFacesWithOpenAI(imageBuffer) {
+  if (!OPENAI_API_KEY) return null;
+
+  const imageBase64 = imageBuffer.toString('base64');
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), ATTR_TIMEOUT_MS);
+
+  try {
+    const response = await fetch(`${OPENAI_BASE_URL}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${OPENAI_API_KEY}`,
+      },
+      signal: controller.signal,
+      body: JSON.stringify({
+        model: OPENAI_MODEL,
+        temperature: 0,
+        response_format: { type: 'json_object' },
+        messages: [
+          {
+            role: 'system',
+            content:
+              'You are a face detection assistant for NZ enforcement software. ' +
+              'Return strict JSON only. Provide the minimum descriptors needed for ' +
+              'identification purposes in compliance with the NZ Privacy Act 2020.',
+          },
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'text',
+                text:
+                  'Analyse this image for human faces. Return JSON with keys: ' +
+                  '"face_count" (integer), "faces" (array). ' +
+                  'Each face object must have: ' +
+                  '"bbox" (object with x, y, width, height as fractions 0.0-1.0 of image dimensions), ' +
+                  '"confidence" (0.0-1.0), ' +
+                  '"approximate_age" (string like "25-35" or "unknown"), ' +
+                  '"gender" ("male", "female", or "unknown"), ' +
+                  '"description" (brief neutral descriptor e.g. "dark hair, glasses" or null). ' +
+                  'If no faces are present return { "face_count": 0, "faces": [] }.',
+              },
+              {
+                type: 'image_url',
+                image_url: { url: `data:image/jpeg;base64,${imageBase64}` },
+              },
+            ],
+          },
+        ],
+      }),
+    });
+
+    if (!response.ok) {
+      console.warn(`⚠️ OpenAI face detection returned HTTP ${response.status}`);
+      return null;
+    }
+
+    const payload = await response.json();
+    const content = payload?.choices?.[0]?.message?.content;
+    if (!content || typeof content !== 'string') return null;
+
+    const parsed = JSON.parse(content);
+    const faces = (Array.isArray(parsed.faces) ? parsed.faces : []).map((f) => ({
+      bbox: f.bbox
+        ? {
+            x:      clamp01(Number(f.bbox.x)      ?? 0),
+            y:      clamp01(Number(f.bbox.y)      ?? 0),
+            width:  clamp01(Number(f.bbox.width)  ?? 0.5),
+            height: clamp01(Number(f.bbox.height) ?? 0.5),
+          }
+        : null,
+      confidence:      clamp01(Number(f.confidence)   ?? 0.8),
+      approximate_age: String(f.approximate_age        ?? 'unknown'),
+      gender:          String(f.gender                 ?? 'unknown'),
+      description:     f.description != null ? String(f.description) : null,
+    }));
+
+    return { face_count: faces.length, faces };
+  } catch (err) {
+    console.warn('⚠️ OpenAI face detection failed:', err.message);
+    return null;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 // Main inference endpoint
 app.post('/infer', inferenceRateLimit, upload.single('photo'), async (req, res) => {
   const startTime = Date.now();
@@ -1473,6 +1563,98 @@ app.post('/infer/compare', inferenceRateLimit, requireInferenceAuth, async (req,
   }
 });
 
+// ============================================================================
+// POST /infer/face — Face detection + embedding
+//
+// Detects human faces in a photo and generates a 384-D MobileNetV3 embedding
+// suitable for cosine-similarity comparison via /infer/compare.
+//
+// Detection:  OpenAI vision API (primary, if OPENAI_API_KEY is set).
+//             Falls back to a no-detection pass (face_count=0) when unavailable.
+// Embedding:  MobileNetV3 run on the primary face crop (or full image when no
+//             bbox is available). Same model used for vehicle embeddings.
+//
+// Multipart body: photo (image/jpeg|png|webp)
+// Response:
+//   { face_count, faces[], embedding, embedding_quality, metadata }
+//   Each face: { bbox:{x,y,width,height}|null, confidence, approximate_age,
+//                gender, description }
+//   bbox coords are normalised fractions (0-1) of the image dimensions.
+// ============================================================================
+app.post('/infer/face', inferenceRateLimit, upload.single('photo'), requireInferenceAuth, async (req, res) => {
+  const startTime = Date.now();
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No photo uploaded' });
+    }
+
+    const imageBuffer = req.file.buffer;
+    let faces = [];
+    let detectionMethod = 'none';
+
+    // ── Step 1: Face detection via OpenAI vision ─────────────────────────────
+    if (OPENAI_API_KEY) {
+      try {
+        const visionResult = await detectFacesWithOpenAI(imageBuffer);
+        if (visionResult) {
+          faces = visionResult.faces;
+          detectionMethod = 'openai_vision';
+        }
+      } catch (err) {
+        console.warn('⚠️ /infer/face OpenAI detection failed (non-fatal):', err.message);
+      }
+    }
+
+    // ── Step 2: Generate MobileNetV3 embedding ────────────────────────────────
+    // Uses face crop when a bbox is available, otherwise the full image.
+    let embedding = null;
+    let embeddingQuality = null;
+    const embeddingAvailable = !!embeddingSession;
+
+    if (embeddingSession) {
+      try {
+        let pixelBbox = null;
+        if (faces.length > 0 && faces[0].bbox) {
+          const meta = await sharp(imageBuffer).metadata();
+          const imgW = meta.width  || 640;
+          const imgH = meta.height || 640;
+          const nb = faces[0].bbox;
+          pixelBbox = {
+            x:      nb.x      * imgW,
+            y:      nb.y      * imgH,
+            width:  nb.width  * imgW,
+            height: nb.height * imgH,
+          };
+        }
+        const embeddingInput  = await preprocessForEmbedding(imageBuffer, pixelBbox);
+        const embeddingResult = await generateEmbedding(embeddingInput);
+        embedding        = embeddingResult.embedding;
+        embeddingQuality = embeddingResult.quality;
+      } catch (err) {
+        console.warn('⚠️ /infer/face embedding generation failed (non-fatal):', err.message);
+      }
+    }
+
+    const duration = Date.now() - startTime;
+    return res.json({
+      face_count:        faces.length,
+      faces,
+      embedding,
+      embedding_quality: embeddingQuality,
+      metadata: {
+        detection_method:    detectionMethod,
+        processing_time_ms:  duration,
+        onnx_available:      embeddingAvailable,
+        openai_available:    !!OPENAI_API_KEY,
+        embedding_available: embedding !== null,
+      },
+    });
+  } catch (error) {
+    console.error('❌ /infer/face error:', error);
+    return res.status(500).json({ error: 'Face detection failed', message: error.message });
+  }
+});
+
 // Health check
 app.get('/health', rateLimit({ windowMs: 60_000, max: 60, standardHeaders: true, legacyHeaders: false }), (req, res) => {
   const modelsLoaded = !!(yoloSession && embeddingSession);
@@ -1503,6 +1685,9 @@ app.get('/health', rateLimit({ windowMs: 60_000, max: 60, standardHeaders: true,
       local_alpr: true,                          // always available (tesseract.js)
       local_alpr_plate_model: fs.existsSync(PLATE_DETECT_MODEL_PATH),
       chalk_valve_ai: VEHICLE_ATTRS_PROVIDER === 'openai' && !!OPENAI_API_KEY,
+      // Face recognition
+      face_detection: !!OPENAI_API_KEY,          // OpenAI vision (primary detection method)
+      face_embedding: modelsLoaded,              // MobileNetV3 embedding for comparison
     },
     uptime: process.uptime(),
     memory: process.memoryUsage()

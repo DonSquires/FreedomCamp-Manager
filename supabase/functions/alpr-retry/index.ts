@@ -33,7 +33,7 @@ function verifyAdmin(jwt: string): { userId: string; role: string } | null {
     const payload = JSON.parse(atob(parts[1]));
     const role = payload.user_role || payload.role;
     
-    if (role !== 'admin' && role !== 'master') {
+    if (role !== 'admin' && role !== 'master' && role !== 'grand_master') {
       return null;
     }
     
