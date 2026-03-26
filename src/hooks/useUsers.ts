@@ -1,13 +1,14 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { toast } from 'sonner'
+import type { UserRole } from '@/types'
 
 interface UserProfile {
   id: string
   email: string
   first_name: string
   last_name: string
-  role: 'master' | 'admin' | 'officer' | 'admin_officer' | 'nzscv_monitor'
+  role: UserRole
   organization_id: string | null
   is_active: boolean
   phone: string | null
@@ -251,7 +252,7 @@ export function useUserStats(organizationId?: string | null) {
         inactive: data?.filter(u => !u.is_active).length || 0,
         officers: data?.filter(u => u.role === 'officer').length || 0,
         admins: data?.filter(u => u.role === 'admin' || u.role === 'admin_officer').length || 0,
-        masters: data?.filter(u => u.role === 'master').length || 0,
+        masters: data?.filter(u => u.role === 'master' || u.role === 'grand_master').length || 0,
       }
 
       return stats

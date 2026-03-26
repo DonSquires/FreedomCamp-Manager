@@ -1159,6 +1159,69 @@ export const edgeFunctions = {
   },
 
   /**
+   * Generate an infringement notice (FCA s.20) and save to infringement_notices table.
+   */
+  generateInfringement: async (params: {
+    plate_number: string
+    zone_id?: string
+    offence_description: string
+    legal_basis?: string
+    offence_location?: string
+    offence_date?: string
+    amount_cents?: number
+    service_method?: 'hand' | 'post' | 'email'
+    recipient_name?: string
+    recipient_email?: string
+    recipient_address?: string
+    vehicle_make?: string
+    vehicle_model?: string
+    breach_alert_id?: string
+    observation_id?: string
+  }) => {
+    return callEdgeFunction('generate-infringement', params)
+  },
+
+  /**
+   * Render an existing infringement notice to HTML for printing/preview.
+   */
+  renderInfringementNotice: async (params: { notice_id: string }) => {
+    return callEdgeFunction('render-infringement-notice', params)
+  },
+
+  /**
+   * Submit a public dispute intake form for review.
+   */
+  submitDisputeIntake: async (params: {
+    notice_number: string
+    grounds: string
+    full_name: string
+    email?: string
+    phone?: string
+    address?: string
+    statement?: string
+  }) => {
+    return callEdgeFunction('submit-dispute-intake', params, { showToast: false })
+  },
+
+  /**
+   * Look up a public infringement case by notice number (unauthenticated).
+   */
+  publicCaseLookup: async (params: { notice_number: string }) => {
+    return callEdgeFunction('public-case-lookup', params, { showToast: false })
+  },
+
+  /**
+   * Send an email invite via the proxy relay.
+   */
+  sendInviteEmail: async (params: {
+    email: string
+    first_name?: string
+    invite_url: string
+  }) => {
+    return callEdgeFunction('send-invite-email', params)
+  },
+
+  /**
    * Face detection and recognition.
    *
    * Detect mode (default): Accepts a photo URL, detects faces, generates

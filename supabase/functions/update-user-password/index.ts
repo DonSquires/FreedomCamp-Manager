@@ -71,7 +71,7 @@ Deno.serve(async (req) => {
       );
     }
 
-    if (callerProfile.role !== 'master') {
+    if (callerProfile.role !== 'master' && callerProfile.role !== 'grand_master') {
       const sameOrg = callerProfile.organization_id && callerProfile.organization_id === targetProfile.organization_id;
       if (!sameOrg) {
         return new Response(
