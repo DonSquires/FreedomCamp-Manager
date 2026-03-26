@@ -220,61 +220,68 @@ CREATE POLICY "contractor_insert_own_documents"
 
 -- ── 6. Storage RLS: contractor-docs bucket ───────────────────────────────────
 
-ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;
+DO $$
+BEGIN
+  ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;
 
--- SELECT: service provider staff OR contractor's own users
-DROP POLICY IF EXISTS "contractor_docs_select" ON storage.objects;
-CREATE POLICY "contractor_docs_select"
-  ON storage.objects
-  FOR SELECT
-  TO authenticated
-  USING (
-    bucket_id = 'contractor-docs'
-    AND (
-      -- Service provider / management access
-      get_user_role(auth.uid()) IN ('grand_master', 'master', 'admin', 'admin_officer')
-      -- Contractor's own users: first path segment must equal their employer org id
-      OR (split_part(name, '/', 1) = (
-            SELECT COALESCE(employer_organization_id, organization_id)::text
-            FROM   public.user_profiles
-            WHERE  id = auth.uid()
-            LIMIT  1
-          ))
-    )
-  );
+  -- SELECT: service provider staff OR contractor's own users
+  DROP POLICY IF EXISTS "contractor_docs_select" ON storage.objects;
+  CREATE POLICY "contractor_docs_select"
+    ON storage.objects
+    FOR SELECT
+    TO authenticated
+    USING (
+      bucket_id = 'contractor-docs'
+      AND (
+        -- Service provider / management access
+        get_user_role(auth.uid()) IN ('grand_master', 'master', 'admin', 'admin_officer')
+        -- Contractor's own users: first path segment must equal their employer org id
+        OR (split_part(name, '/', 1) = (
+              SELECT COALESCE(employer_organization_id, organization_id)::text
+              FROM   public.user_profiles
+              WHERE  id = auth.uid()
+              LIMIT  1
+            ))
+      )
+    );
 
--- INSERT: service provider admins OR contractor admins uploading for their own org
-DROP POLICY IF EXISTS "contractor_docs_insert" ON storage.objects;
-CREATE POLICY "contractor_docs_insert"
-  ON storage.objects
-  FOR INSERT
-  TO authenticated
-  WITH CHECK (
-    bucket_id = 'contractor-docs'
-    AND get_user_role(auth.uid()) IN ('grand_master', 'master', 'admin', 'admin_officer')
-    AND (
-      -- Service provider roles can upload for any contractor
-      get_user_role(auth.uid()) IN ('grand_master', 'master')
-      -- Admin/admin_officer: can only upload into their own org's folder
-      OR split_part(name, '/', 1) = (
-           SELECT COALESCE(employer_organization_id, organization_id)::text
-           FROM   public.user_profiles
-           WHERE  id = auth.uid()
-           LIMIT  1
-         )
-    )
-  );
+  -- INSERT: service provider admins OR contractor admins uploading for their own org
+  DROP POLICY IF EXISTS "contractor_docs_insert" ON storage.objects;
+  CREATE POLICY "contractor_docs_insert"
+    ON storage.objects
+    FOR INSERT
+    TO authenticated
+    WITH CHECK (
+      bucket_id = 'contractor-docs'
+      AND get_user_role(auth.uid()) IN ('grand_master', 'master', 'admin', 'admin_officer')
+      AND (
+        -- Service provider roles can upload for any contractor
+        get_user_role(auth.uid()) IN ('grand_master', 'master')
+        -- Admin/admin_officer: can only upload into their own org's folder
+        OR split_part(name, '/', 1) = (
+             SELECT COALESCE(employer_organization_id, organization_id)::text
+             FROM   public.user_profiles
+             WHERE  id = auth.uid()
+             LIMIT  1
+           )
+      )
+    );
 
--- DELETE: service provider managers / grand_master only
-DROP POLICY IF EXISTS "contractor_docs_delete" ON storage.objects;
-CREATE POLICY "contractor_docs_delete"
-  ON storage.objects
-  FOR DELETE
-  TO authenticated
-  USING (
-    bucket_id = 'contractor-docs'
-    AND get_user_role(auth.uid()) IN ('grand_master', 'master', 'admin')
-  );
+  -- DELETE: service provider managers / grand_master only
+  DROP POLICY IF EXISTS "contractor_docs_delete" ON storage.objects;
+  CREATE POLICY "contractor_docs_delete"
+    ON storage.objects
+    FOR DELETE
+    TO authenticated
+    USING (
+      bucket_id = 'contractor-docs'
+      AND get_user_role(auth.uid()) IN ('grand_master', 'master', 'admin')
+    );
+EXCEPTION
+  WHEN insufficient_privilege THEN
+    RAISE WARNING 'Skipping storage.objects policy updates for contractor-docs bucket: insufficient privileges for current role.';
+END
+$$;
 
 -- ── 7. Seed empty profiles for existing contractor organisations ──────────────
 
