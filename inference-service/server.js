@@ -1910,7 +1910,7 @@ loadModels().then(() => {
       SUPABASE_JWT_AUDIENCE: SUPABASE_JWT_AUDIENCE || '(not set)',
       OPENAI_BASE_URL: OPENAI_BASE_URL || '(not set)',
       OPENAI_MODEL: OPENAI_MODEL || '(not set)',
-      OPENAI_API_KEY: OPENAI_API_KEY ? `${OPENAI_API_KEY.slice(0, 6)}…` : '(not set)',
+      OPENAI_API_KEY_SET: !!OPENAI_API_KEY,
     });
     if (!INFERENCE_API_KEY && !SUPABASE_SERVICE_ROLE_KEY) {
       console.warn('⚠️  No static auth configured (INFERENCE_API_KEY and SUPABASE_SERVICE_ROLE_KEY are both unset).');
