@@ -81,6 +81,39 @@ jobs:
             echo "No short-form/long-form migration conflicts detected."
           fi
 
+      - name: Check for exact-duplicate migration version numbers
+        run: |
+          set -euo pipefail
+          echo "Checking for exact-duplicate migration version numbers..."
+
+          # Two or more files sharing the same version prefix (YYYYMMDD or
+          # YYYYMMDDHHMMSS) will cause Supabase CLI to insert the same row into
+          # schema_migrations twice, producing a unique-constraint violation and
+          # breaking db push with a non-recoverable loop.
+
+          MIGRATION_DIR="supabase/migrations"
+          exact_dupes=0
+
+          while IFS= read -r version; do
+            count=$(find "$MIGRATION_DIR" -name "${version}_*.sql" | wc -l)
+            if [ "$count" -gt 1 ]; then
+              echo "::error::Migration version $version has $count files. Each version must be unique."
+              find "$MIGRATION_DIR" -name "${version}_*.sql" | while read -r f; do
+                echo "  $f"
+              done
+              exact_dupes=$((exact_dupes + 1))
+            fi
+          done < <(find "$MIGRATION_DIR" -name "*.sql" \
+                     | sed 's|.*/||; s|\.sql$||; s|_.*||' \
+                     | sort -u)
+
+          if [ "$exact_dupes" -gt 0 ]; then
+            echo "::error::Found $exact_dupes exact-duplicate migration version(s). Rename the conflicting files before pushing."
+            exit 1
+          else
+            echo "No exact-duplicate migration versions detected."
+          fi
+
       - name: Check for future-dated migration files
         run: |
           set -euo pipefail
