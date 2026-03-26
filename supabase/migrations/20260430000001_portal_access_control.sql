@@ -88,23 +88,7 @@ BEGIN
 
   -- For admins also include all descendants of the primary org
   IF v_role IN ('admin', 'admin_officer') AND v_org_id IS NOT NULL THEN
-    SELECT ARRAY_AGG(o.id)
-    INTO   v_result
-    FROM   public.organizations o
-    WHERE  o.id = ANY(v_result)
-       OR  (
-             -- descendants via recursive CTE equivalent
-             EXISTS (
-               WITH RECURSIVE desc AS (
-                 SELECT id FROM public.organizations WHERE id = v_org_id
-                 UNION ALL
-                 SELECT o2.id
-                 FROM   public.organizations o2
-                 JOIN   desc ON o2.parent_organization_id = desc.id
-               )
-               SELECT 1 FROM desc WHERE desc.id = o.id
-             )
-           );
+    v_result := array_cat(v_result, COALESCE(get_descendant_organizations(v_org_id), ARRAY[]::UUID[]));
   END IF;
 
   RETURN COALESCE(v_result, ARRAY[]::UUID[]);
