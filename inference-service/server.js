@@ -66,6 +66,11 @@ const SUPABASE_URL = (process.env.SUPABASE_URL || '').replace(/\/+$/, '');
 const SUPABASE_JWKS_URL = process.env.SUPABASE_JWKS_URL || (SUPABASE_URL ? `${SUPABASE_URL}/auth/v1/.well-known/jwks.json` : '');
 const SUPABASE_JWT_ISSUER = process.env.SUPABASE_JWT_ISSUER || (SUPABASE_URL ? `${SUPABASE_URL}/auth/v1` : '');
 const SUPABASE_JWT_AUDIENCE = process.env.SUPABASE_JWT_AUDIENCE || '';
+// Service role key — allows Supabase edge functions to authenticate as trusted
+// service-to-service callers without requiring a separate INFERENCE_API_KEY.
+// Set SUPABASE_SERVICE_ROLE_KEY on Railway to the same value as the Supabase
+// project's service role key.
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 
 let joseRuntimePromise = null;
 let supabaseJwks = null;
@@ -122,6 +127,14 @@ async function requireInferenceAuth(req, res, next) {
       return next();
     }
 
+    // Accept the Supabase service role key as a trusted service-to-service token.
+    // Edge functions always have SUPABASE_SERVICE_ROLE_KEY available and can send
+    // it as Authorization: Bearer <key> to authenticate against this service.
+    if (SUPABASE_SERVICE_ROLE_KEY && apiKeyCandidate && apiKeyCandidate === SUPABASE_SERVICE_ROLE_KEY) {
+      req.inferenceAuth = { method: 'service_role' };
+      return next();
+    }
+
     const bearerToken = getBearerToken(req);
     if (bearerToken && SUPABASE_JWKS_URL) {
       const jwtPayload = await verifySupabaseJwt(bearerToken);
@@ -133,7 +146,7 @@ async function requireInferenceAuth(req, res, next) {
       return next();
     }
 
-    const authConfigured = Boolean(INFERENCE_API_KEY || SUPABASE_JWKS_URL);
+    const authConfigured = Boolean(INFERENCE_API_KEY || SUPABASE_SERVICE_ROLE_KEY || SUPABASE_JWKS_URL);
     if (!authConfigured) {
       return next();
     }
@@ -1846,6 +1859,7 @@ app.get('/health', rateLimit({ windowMs: 60_000, max: 60, standardHeaders: true,
       OPENAI_MODEL: OPENAI_MODEL || null,
       OPENAI_API_KEY_SET: !!OPENAI_API_KEY,
       INFERENCE_API_KEY_SET: !!INFERENCE_API_KEY,
+      SUPABASE_SERVICE_ROLE_KEY_SET: !!SUPABASE_SERVICE_ROLE_KEY,
     },
     capabilities: {
       plate_inference: modelsLoaded,
@@ -1853,6 +1867,7 @@ app.get('/health', rateLimit({ windowMs: 60_000, max: 60, standardHeaders: true,
       tabular_nlp: true,
       tabular_nlp_auth_api_key: !!INFERENCE_API_KEY,
       tabular_nlp_auth_supabase_jwt: !!SUPABASE_JWKS_URL,
+      tabular_nlp_auth_service_role: !!SUPABASE_SERVICE_ROLE_KEY,
       // Self-hosted ALPR
       local_alpr: true,                          // always available (tesseract.js)
       local_alpr_plate_model: fs.existsSync(PLATE_DETECT_MODEL_PATH),
@@ -1889,6 +1904,7 @@ loadModels().then(() => {
       OLLAMA_BASE_URL,
       OLLAMA_MODEL,
       INFERENCE_API_KEY_SET: !!INFERENCE_API_KEY,
+      SUPABASE_SERVICE_ROLE_KEY_SET: !!SUPABASE_SERVICE_ROLE_KEY,
       SUPABASE_JWKS_URL: SUPABASE_JWKS_URL || '(not set)',
       SUPABASE_JWT_ISSUER: SUPABASE_JWT_ISSUER || '(not set)',
       SUPABASE_JWT_AUDIENCE: SUPABASE_JWT_AUDIENCE || '(not set)',
@@ -1896,6 +1912,13 @@ loadModels().then(() => {
       OPENAI_MODEL: OPENAI_MODEL || '(not set)',
       OPENAI_API_KEY: OPENAI_API_KEY ? `${OPENAI_API_KEY.slice(0, 6)}…` : '(not set)',
     });
+    if (!INFERENCE_API_KEY && !SUPABASE_SERVICE_ROLE_KEY) {
+      console.warn('⚠️  No static auth configured (INFERENCE_API_KEY and SUPABASE_SERVICE_ROLE_KEY are both unset).');
+      console.warn('   Authenticated endpoints (/infer/face, /infer/compare, /infer/alpr, /nlp/tabular/analyze)');
+      console.warn('   will only accept valid Supabase user JWTs (Bearer token verified against JWKS).');
+      console.warn('   Edge functions cannot call these endpoints without a user JWT.');
+      console.warn('   Fix: set SUPABASE_SERVICE_ROLE_KEY environment variable to enable service-to-service auth.');
+    }
     if (yoloSession && embeddingSession) {
       console.log(`📡 Ready to process vehicle photos — YOLO + embedding models loaded`);
     } else {
