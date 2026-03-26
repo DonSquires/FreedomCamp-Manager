@@ -1,0 +1,230 @@
+name: Deploy Mobile App (EAS)
+
+# Builds and publishes the React Native / Expo mobile app via EAS.
+#
+# Auto-triggers on any push to main that touches mobile-app/ files.
+# Can also be triggered manually via workflow_dispatch.
+#
+# Required secrets:
+#   EXPO_TOKEN, EXPO_PROJECT_ID
+#   EXPO_PUBLIC_SUPABASE_URL, EXPO_PUBLIC_SUPABASE_ANON_KEY
+#   ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD  (android/all platforms)
+#   ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD             (android/all platforms)
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'mobile-app/**'
+  workflow_dispatch:
+    inputs:
+      mobile_platform:
+        description: 'Target platform'
+        required: false
+        default: 'android'
+        type: choice
+        options: [android, ios, all]
+      mobile_profile:
+        description: 'EAS build profile'
+        required: false
+        default: 'production'
+        type: choice
+        options: [production, preview, development]
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  deploy-mobile-app:
+    name: Deploy Mobile App (EAS)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Check required secrets
+        id: check-secrets
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            PLATFORM="${{ github.event.inputs.mobile_platform }}"
+          else
+            PLATFORM="android"
+          fi
+
+          missing=""
+          [ -z "$EXPO_TOKEN" ]                    && missing="$missing EXPO_TOKEN"
+          [ -z "$EXPO_PROJECT_ID" ]               && missing="$missing EXPO_PROJECT_ID"
+          [ -z "$EXPO_PUBLIC_SUPABASE_URL" ]      && missing="$missing EXPO_PUBLIC_SUPABASE_URL"
+          [ -z "$EXPO_PUBLIC_SUPABASE_ANON_KEY" ] && missing="$missing EXPO_PUBLIC_SUPABASE_ANON_KEY"
+
+          NEEDS_ANDROID=false
+          if [ "$PLATFORM" = "android" ] || [ "$PLATFORM" = "all" ]; then
+            NEEDS_ANDROID=true
+            [ -z "$ANDROID_KEYSTORE_BASE64" ]   && missing="$missing ANDROID_KEYSTORE_BASE64"
+            [ -z "$ANDROID_KEYSTORE_PASSWORD" ] && missing="$missing ANDROID_KEYSTORE_PASSWORD"
+            [ -z "$ANDROID_KEY_ALIAS" ]         && missing="$missing ANDROID_KEY_ALIAS"
+            [ -z "$ANDROID_KEY_PASSWORD" ]      && missing="$missing ANDROID_KEY_PASSWORD"
+          fi
+
+          if [ -n "$missing" ]; then
+            echo "::warning::Required secrets not configured ($missing) — deployment skipped."
+            echo ""
+            echo "To enable mobile deployments, add the following secrets at:"
+            echo "  GitHub repo → Settings → Secrets and variables → Actions"
+            echo ""
+            echo "  EXPO_TOKEN:                    https://expo.dev/accounts/[account]/settings/access-tokens"
+            echo "  EXPO_PROJECT_ID:               https://expo.dev → Project Settings → Project ID"
+            echo "  EXPO_PUBLIC_SUPABASE_URL:      Your Supabase project URL"
+            echo "  EXPO_PUBLIC_SUPABASE_ANON_KEY: Your Supabase anon/public key"
+            echo ""
+            echo "  Android signing (required for android/all platform):"
+            echo "  ANDROID_KEYSTORE_BASE64:       base64 freedomcamp.keystore | tr -d '\\n'"
+            echo "  ANDROID_KEYSTORE_PASSWORD:     Keystore password"
+            echo "  ANDROID_KEY_ALIAS:             Key alias (e.g. freedomcamp)"
+            echo "  ANDROID_KEY_PASSWORD:          Key password"
+            echo "secrets_present=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "✅ Required secrets present"
+            echo "secrets_present=true" >> "$GITHUB_OUTPUT"
+          fi
+          echo "needs_android=$NEEDS_ANDROID" >> "$GITHUB_OUTPUT"
+        env:
+          EXPO_TOKEN:                    ${{ secrets.EXPO_TOKEN }}
+          EXPO_PROJECT_ID:               ${{ secrets.EXPO_PROJECT_ID }}
+          EXPO_PUBLIC_SUPABASE_URL:      ${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}
+          EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_ANON_KEY }}
+          ANDROID_KEYSTORE_BASE64:       ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD:     ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS:             ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD:          ${{ secrets.ANDROID_KEY_PASSWORD }}
+
+      - name: Checkout repository
+        if: steps.check-secrets.outputs.secrets_present == 'true'
+        uses: actions/checkout@v5
+
+      - name: Setup Node.js
+        if: steps.check-secrets.outputs.secrets_present == 'true'
+        uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: mobile-app/package-lock.json
+
+      - name: Install dependencies
+        if: steps.check-secrets.outputs.secrets_present == 'true'
+        run: |
+          cd mobile-app
+          npm install
+
+      - name: Inject Expo project ID into app.json
+        if: steps.check-secrets.outputs.secrets_present == 'true'
+        env:
+          EXPO_PROJECT_ID: ${{ secrets.EXPO_PROJECT_ID }}
+        run: |
+          cd mobile-app
+          PLACEHOLDER="REPLACE_WITH_YOUR_EXPO_PROJECT_UUID"
+          sed -i "s|$PLACEHOLDER|$EXPO_PROJECT_ID|g" app.json
+          echo "✅ Injected EXPO_PROJECT_ID into app.json"
+          if grep -q "$PLACEHOLDER" app.json; then
+            echo "::error::Placeholder UUID still found in app.json after injection:"
+            grep -n "$PLACEHOLDER" app.json
+            exit 1
+          fi
+
+      - name: Install EAS CLI
+        if: steps.check-secrets.outputs.secrets_present == 'true'
+        run: npm install -g eas-cli@latest
+
+      - name: Patch EAS project ID into app.json
+        if: steps.check-secrets.outputs.secrets_present == 'true'
+        env:
+          EXPO_PROJECT_ID: ${{ secrets.EXPO_PROJECT_ID }}
+        run: |
+          cd mobile-app
+          jq --arg id "$EXPO_PROJECT_ID" \
+            '.expo.extra.eas.projectId = $id | .expo.updates.url = ("https://u.expo.dev/" + $id)' \
+            app.json > app.json.tmp && mv app.json.tmp app.json
+          echo "✅ app.json patched with project ID: $EXPO_PROJECT_ID"
+
+      - name: Set up Android signing credentials
+        if: >-
+          steps.check-secrets.outputs.secrets_present == 'true' &&
+          steps.check-secrets.outputs.needs_android == 'true'
+        env:
+          ANDROID_KEYSTORE_BASE64:   ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS:         ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD:      ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          cd mobile-app
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode --ignore-garbage > android.keystore
+          jq -n \
+            --arg keystorePath  "android.keystore" \
+            --arg keystorePass  "$ANDROID_KEYSTORE_PASSWORD" \
+            --arg keyAlias      "$ANDROID_KEY_ALIAS" \
+            --arg keyPassword   "$ANDROID_KEY_PASSWORD" \
+            '{
+              android: {
+                keystore: {
+                  keystorePath:     $keystorePath,
+                  keystorePassword: $keystorePass,
+                  keyAlias:         $keyAlias,
+                  keyPassword:      $keyPassword
+                }
+              }
+            }' > credentials.json
+          echo "✅ Android credentials written from GitHub secrets."
+
+      - name: Resolve build platform and profile
+        if: steps.check-secrets.outputs.secrets_present == 'true'
+        id: resolve
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "platform=${{ github.event.inputs.mobile_platform }}" >> "$GITHUB_OUTPUT"
+            echo "profile=${{ github.event.inputs.mobile_profile }}"   >> "$GITHUB_OUTPUT"
+          else
+            echo "platform=android"   >> "$GITHUB_OUTPUT"
+            echo "profile=production" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build mobile app (EAS)
+        if: steps.check-secrets.outputs.secrets_present == 'true'
+        env:
+          EXPO_TOKEN:                    ${{ secrets.EXPO_TOKEN }}
+          EXPO_PUBLIC_SUPABASE_URL:      ${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}
+          EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_ANON_KEY }}
+        run: |
+          cd mobile-app
+          printf 'EXPO_PUBLIC_SUPABASE_URL=%s\nEXPO_PUBLIC_SUPABASE_ANON_KEY=%s\n' \
+            "$EXPO_PUBLIC_SUPABASE_URL" "$EXPO_PUBLIC_SUPABASE_ANON_KEY" > .env
+          PLATFORM="${{ steps.resolve.outputs.platform }}"
+          PROFILE="${{ steps.resolve.outputs.profile }}"
+          echo "🏗️  Building for platform: $PLATFORM (profile: $PROFILE)"
+          eas build \
+            --platform "$PLATFORM" \
+            --profile  "$PROFILE" \
+            --non-interactive \
+            --no-wait
+          echo ""
+          echo "✅ EAS build triggered successfully."
+          echo "📱 Monitor: https://expo.dev/accounts/iron-eagle-security/projects/freedomcamp-manager/builds"
+
+      - name: Publish OTA update (EAS Update)
+        if: steps.check-secrets.outputs.secrets_present == 'true'
+        env:
+          EXPO_TOKEN:                    ${{ secrets.EXPO_TOKEN }}
+          EXPO_PUBLIC_SUPABASE_URL:      ${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}
+          EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_ANON_KEY }}
+        run: |
+          cd mobile-app
+          printf 'EXPO_PUBLIC_SUPABASE_URL=%s\nEXPO_PUBLIC_SUPABASE_ANON_KEY=%s\n' \
+            "$EXPO_PUBLIC_SUPABASE_URL" "$EXPO_PUBLIC_SUPABASE_ANON_KEY" > .env
+          PROFILE="${{ steps.resolve.outputs.profile }}"
+          echo "📡 Publishing OTA update to branch: $PROFILE"
+          eas update \
+            --branch  "$PROFILE" \
+            --message "Deploy from GitHub Actions — ${{ github.sha }}" \
+            --non-interactive
+          echo ""
+          echo "✅ OTA update published (branch: $PROFILE)."
+          echo "📡 Verify: https://expo.dev/accounts/iron-eagle-security/projects/freedomcamp-manager/updates"

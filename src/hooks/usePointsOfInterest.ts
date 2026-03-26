@@ -101,7 +101,7 @@ export function usePersonsOfInterest(options?: {
   const query = useQuery({
     queryKey: ['persons-of-interest', orgId, options?.status, options?.search, options?.activeOnly],
     queryFn: async () => {
-      let q = supabase
+      let q = (supabase as any)
         .from('persons_of_interest')
         .select('*, creator:created_by(first_name, last_name)')
         .order('created_at', { ascending: false })
@@ -120,7 +120,7 @@ export function usePersonsOfInterest(options?: {
 
   const createPerson = useMutation({
     mutationFn: async (input: Partial<PersonOfInterest>) => {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('persons_of_interest')
         .insert({ ...input, organization_id: orgId!, created_by: user!.id })
         .select()
@@ -137,7 +137,7 @@ export function usePersonsOfInterest(options?: {
 
   const updatePerson = useMutation({
     mutationFn: async ({ id, ...updates }: Partial<PersonOfInterest> & { id: string }) => {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('persons_of_interest')
         .update(updates)
         .eq('id', id)
@@ -155,7 +155,7 @@ export function usePersonsOfInterest(options?: {
 
   const deletePerson = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from('persons_of_interest').delete().eq('id', id)
+      const { error } = await (supabase as any).from('persons_of_interest').delete().eq('id', id)
       if (error) throw error
     },
     onSuccess: () => {
@@ -182,7 +182,7 @@ export function useVehiclesOfInterest(options?: {
   const query = useQuery({
     queryKey: ['vehicles-of-interest', orgId, options?.status, options?.search, options?.activeOnly],
     queryFn: async () => {
-      let q = supabase
+      let q = (supabase as any)
         .from('vehicles_of_interest')
         .select('*, creator:created_by(first_name, last_name), linked_person:linked_person_id(full_name)')
         .order('created_at', { ascending: false })
@@ -201,7 +201,7 @@ export function useVehiclesOfInterest(options?: {
 
   const createVehicle = useMutation({
     mutationFn: async (input: Partial<VehicleOfInterest>) => {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('vehicles_of_interest')
         .insert({ ...input, organization_id: orgId!, created_by: user!.id })
         .select()
@@ -218,7 +218,7 @@ export function useVehiclesOfInterest(options?: {
 
   const updateVehicle = useMutation({
     mutationFn: async ({ id, ...updates }: Partial<VehicleOfInterest> & { id: string }) => {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('vehicles_of_interest')
         .update(updates)
         .eq('id', id)
@@ -236,7 +236,7 @@ export function useVehiclesOfInterest(options?: {
 
   const deleteVehicle = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from('vehicles_of_interest').delete().eq('id', id)
+      const { error } = await (supabase as any).from('vehicles_of_interest').delete().eq('id', id)
       if (error) throw error
     },
     onSuccess: () => {
@@ -263,7 +263,7 @@ export function useTrespassNotices(options?: {
   const query = useQuery({
     queryKey: ['trespass-notices', orgId, options?.status, options?.personId, options?.vehicleId],
     queryFn: async () => {
-      let q = supabase
+      let q = (supabase as any)
         .from('trespass_notices')
         .select('*, person:person_id(full_name), vehicle:vehicle_id(plate_number), zone:zone_id(name), issuer:issued_by(first_name, last_name)')
         .order('issued_at', { ascending: false })
@@ -285,7 +285,7 @@ export function useTrespassNotices(options?: {
       const expiresAt = input.duration_days
         ? new Date(Date.now() + (input.duration_days * 24 * 60 * 60 * 1000)).toISOString()
         : null
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('trespass_notices')
         .insert({
           ...input,
@@ -307,7 +307,7 @@ export function useTrespassNotices(options?: {
 
   const updateNotice = useMutation({
     mutationFn: async ({ id, ...updates }: Partial<TrespassNotice> & { id: string }) => {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('trespass_notices')
         .update(updates)
         .eq('id', id)

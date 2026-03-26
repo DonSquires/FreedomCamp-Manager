@@ -1,4 +1,4 @@
-name: Apply Supabase migrations (db push)
+name: Database — Apply Migrations (db push)
 
 # ⚠️ SCHEMA GOVERNANCE
 # This workflow pushes SQL migrations directly to the production database.
@@ -12,6 +12,11 @@ name: Apply Supabase migrations (db push)
 # The workflow runs in the "production-schema" environment which requires
 # a manual approval from @DonSquires before the push step executes.
 # Configure the environment at: Settings → Environments → production-schema
+#
+# Required secrets:
+#   SUPABASE_ACCESS_TOKEN   — Supabase personal access token (sbp_…)
+#   SUPABASE_DB_PASSWORD    — Database password for the linked project
+#   SUPABASE_PROJECT_REF    — Supabase project reference ID
 
 on:
   workflow_dispatch:
@@ -31,6 +36,7 @@ jobs:
   # Gate: abort immediately if the operator did not explicitly confirm
   confirm_approval:
     runs-on: ubuntu-latest
+    permissions: {}
     steps:
       - name: Require explicit confirmation
         if: ${{ !inputs.confirmed }}
@@ -41,6 +47,8 @@ jobs:
   db_push:
     needs: confirm_approval
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     environment: production-schema   # requires manual approval from @DonSquires in GitHub UI
     steps:
       - name: Checkout repo
@@ -107,8 +115,9 @@ jobs:
 
           # Always use --include-all so legacy short-form local migration files
           # are considered during reconciliation.
+          # --yes prevents interactive prompts that would stall CI.
           for attempt in 1 2 3 4 5; do
-            echo "supabase db push --include-all attempt $attempt..."
+            echo "supabase db push --include-all --yes attempt $attempt..."
             if supabase db push --include-all --yes 2>&1 | tee "$LOG_FILE"; then
               echo "Migration push succeeded on attempt $attempt"
               supabase migration list || true
@@ -187,57 +196,40 @@ jobs:
           fi
 
           # Force IPv4 with hostaddr to avoid runner environments that cannot route IPv6.
-          # Keep host for TLS/SNI while hostaddr controls socket destination.
           DB_URI="postgresql://postgres:${SUPABASE_DB_PASSWORD}@${DB_HOST}:5432/postgres?sslmode=require&hostaddr=${DB_HOSTADDR}"
 
           echo "Running post-migration breach timestamp alignment check..."
           if ! psql "$DB_URI" -v ON_ERROR_STOP=1 <<'SQL'
           WITH direct_links AS (
-            SELECT
-              ba.id,
-              ba.created_at,
-              o.recorded_at AS expected_at
+            SELECT ba.id, ba.created_at, o.recorded_at AS expected_at
             FROM public.breach_alerts ba
-            JOIN public.observations o
-              ON o.observation_id = ba.observation_id
+            JOIN public.observations o ON o.observation_id = ba.observation_id
           ),
           detail_links AS (
-            SELECT
-              ba.id,
-              ba.created_at,
-              o.recorded_at AS expected_at
+            SELECT ba.id, ba.created_at, o.recorded_at AS expected_at
             FROM public.breach_alerts ba
             JOIN public.observations o
               ON o.observation_id::text = (ba.breach_details ->> 'observation_id')
             WHERE ba.observation_id IS NULL
           ),
-          combined AS (
-            SELECT * FROM direct_links
-            UNION ALL
-            SELECT * FROM detail_links
-          ),
+          combined AS (SELECT * FROM direct_links UNION ALL SELECT * FROM detail_links),
           summary AS (
             SELECT
               COUNT(*)::bigint AS linked_rows,
               COUNT(*) FILTER (
-                WHERE expected_at IS NOT NULL
-                  AND created_at IS NOT NULL
+                WHERE expected_at IS NOT NULL AND created_at IS NOT NULL
                   AND ABS(EXTRACT(EPOCH FROM (created_at - expected_at))) <= 300
               )::bigint AS aligned_rows,
               COUNT(*) FILTER (
-                WHERE expected_at IS NOT NULL
-                  AND created_at IS NOT NULL
+                WHERE expected_at IS NOT NULL AND created_at IS NOT NULL
                   AND ABS(EXTRACT(EPOCH FROM (created_at - expected_at))) > 300
               )::bigint AS misaligned_rows
             FROM combined
           )
           SELECT
-            linked_rows,
-            aligned_rows,
-            misaligned_rows,
-            CASE
-              WHEN linked_rows = 0 THEN 0
-              ELSE ROUND((aligned_rows::numeric * 100.0) / linked_rows, 2)
+            linked_rows, aligned_rows, misaligned_rows,
+            CASE WHEN linked_rows = 0 THEN 0
+                 ELSE ROUND((aligned_rows::numeric * 100.0) / linked_rows, 2)
             END AS aligned_percent
           FROM summary;
           SQL

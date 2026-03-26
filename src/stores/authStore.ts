@@ -128,6 +128,9 @@ export const useAuthStore = create<AuthState>()(
               }
               return { user: null, isAuthenticated: false, loading: false }
             })
+          } catch (err) {
+            console.warn('[authStore] onAuthStateChange handler error:', err)
+            set({ user: null, isAuthenticated: false, loading: false })
           }
         })
       },

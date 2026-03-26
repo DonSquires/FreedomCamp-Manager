@@ -1,0 +1,202 @@
+name: Deploy Admin Portal to Vercel
+
+# Deploys the React/Vite admin portal to Vercel.
+#
+# Auto-triggers on any push to main that touches files outside the ignored paths.
+# Can also be triggered manually (workflow_dispatch) or via repository_dispatch
+# (event_type=deploy-frontend, optional payload: {"portal_environment":"preview"}).
+#
+# Required secrets:
+#   VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY
+#   SUPABASE_ACCESS_TOKEN, SUPABASE_PROJECT_REF  (for type drift check)
+#   VERCEL_TOKEN, VERCEL_ORG_ID, VERCEL_PROJECT_ID
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - 'supabase/**'
+      - 'proxy-server/**'
+      - 'inference-service/**'
+      - 'mobile-app/**'
+      - '**.md'
+  workflow_dispatch:
+    inputs:
+      portal_environment:
+        description: 'Deployment target'
+        required: false
+        default: 'production'
+        type: choice
+        options: [production, preview]
+  repository_dispatch:
+    types: [deploy-frontend, merge-all-dispatch]
+
+env:
+  # supabase/setup-cli@v1 still bundles Node.js 20; force the runner to use
+  # Node.js 24 so the action keeps working after the June 2026 cut-over.
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  deploy-admin-portal:
+    name: Deploy Admin Portal to Vercel
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Check required secrets
+        id: check-secrets
+        run: |
+          missing=""
+          [ -z "$VITE_SUPABASE_URL" ]      && missing="$missing VITE_SUPABASE_URL"
+          [ -z "$VITE_SUPABASE_ANON_KEY" ] && missing="$missing VITE_SUPABASE_ANON_KEY"
+          [ -z "$VERCEL_TOKEN" ]           && missing="$missing VERCEL_TOKEN"
+          [ -z "$VERCEL_ORG_ID" ]          && missing="$missing VERCEL_ORG_ID"
+          [ -z "$VERCEL_PROJECT_ID" ]      && missing="$missing VERCEL_PROJECT_ID"
+          if [ -n "$missing" ]; then
+            echo "::warning::Secrets not configured ($missing) — deployment skipped."
+            echo ""
+            echo "Add the following repository secrets at:"
+            echo "  GitHub repo → Settings → Secrets and variables → Actions"
+            echo ""
+            echo "  VITE_SUPABASE_URL:      https://YOUR_REF.supabase.co"
+            echo "  VITE_SUPABASE_ANON_KEY: Supabase Dashboard → Settings → API → anon key"
+            echo "  VERCEL_TOKEN:           https://vercel.com/account/tokens"
+            echo "  VERCEL_ORG_ID:          Vercel Dashboard → Settings → General → Team ID"
+            echo "  VERCEL_PROJECT_ID:      Vercel Dashboard → Project → Settings → Project ID"
+            echo "secrets_present=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "✅ All required secrets present"
+            echo "secrets_present=true" >> "$GITHUB_OUTPUT"
+          fi
+        env:
+          VITE_SUPABASE_URL:      ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          VERCEL_TOKEN:           ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID:          ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID:      ${{ secrets.VERCEL_PROJECT_ID }}
+
+      - name: Checkout repository
+        if: steps.check-secrets.outputs.secrets_present == 'true'
+        uses: actions/checkout@v5
+
+      - name: Setup Bun
+        if: steps.check-secrets.outputs.secrets_present == 'true'
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        if: steps.check-secrets.outputs.secrets_present == 'true'
+        run: bun install
+
+      - name: Setup Supabase CLI
+        if: steps.check-secrets.outputs.secrets_present == 'true'
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+
+      - name: Verify Supabase generated types (advisory)
+        if: >-
+          steps.check-secrets.outputs.secrets_present == 'true' &&
+          env.SUPABASE_ACCESS_TOKEN != '' &&
+          env.SUPABASE_PROJECT_REF != ''
+        run: |
+          set -euo pipefail
+          tmp="$(mktemp)"
+          diff_file="$(mktemp)"
+
+          supabase gen types typescript \
+            --project-id "$SUPABASE_PROJECT_REF" \
+            --schema public > "$tmp"
+
+          if ! diff -u src/types/database.ts "$tmp" > "$diff_file"; then
+            echo "::warning::src/types/database.ts is out of date with Supabase schema."
+            echo "Run: supabase gen types typescript --project-id \"$SUPABASE_PROJECT_REF\" > src/types/database.ts"
+            echo ""
+            echo "Diff preview:"
+            sed -n '1,200p' "$diff_file"
+            echo "Proceeding with deployment (type drift check is advisory)."
+          else
+            echo "✅ Supabase generated types are up to date"
+          fi
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_PROJECT_REF:  ${{ secrets.SUPABASE_PROJECT_REF }}
+
+      # TypeScript must pass before the Vite build (BUILD_PLAN_V3.md §10.1)
+      - name: Type-check (tsc -b)
+        if: steps.check-secrets.outputs.secrets_present == 'true'
+        run: bun run typecheck
+
+      - name: Build admin portal
+        if: steps.check-secrets.outputs.secrets_present == 'true'
+        run: bun run build
+        env:
+          VITE_SUPABASE_URL:      ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+
+      - name: Install Vercel CLI
+        if: steps.check-secrets.outputs.secrets_present == 'true'
+        run: npm install -g vercel
+
+      - name: Resolve portal environment
+        if: steps.check-secrets.outputs.secrets_present == 'true'
+        id: resolve-env
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = "push" ]; then
+            portal_env="production"
+          elif [ "$GITHUB_EVENT_NAME" = "repository_dispatch" ]; then
+            portal_env="${{ github.event.client_payload.portal_environment || 'production' }}"
+          else
+            portal_env="${{ github.event.inputs.portal_environment || 'production' }}"
+          fi
+
+          case "$portal_env" in
+            production|preview) ;;
+            *)
+              echo "::warning::Unknown portal environment '$portal_env'; defaulting to production"
+              portal_env="production"
+              ;;
+          esac
+
+          echo "portal_environment=$portal_env" >> "$GITHUB_OUTPUT"
+          echo "Resolved portal environment: $portal_env"
+
+      - name: Pull Vercel project settings
+        if: steps.check-secrets.outputs.secrets_present == 'true'
+        run: vercel pull --yes --environment="${{ steps.resolve-env.outputs.portal_environment }}" --token "$VERCEL_TOKEN"
+        env:
+          VERCEL_TOKEN:      ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID:     ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+      - name: Deploy to Vercel (production)
+        if: >-
+          steps.check-secrets.outputs.secrets_present == 'true' &&
+          steps.resolve-env.outputs.portal_environment == 'production'
+        run: |
+          set -euo pipefail
+          vercel deploy --prod --token "$VERCEL_TOKEN" | tee /tmp/deploy-url.txt
+          echo ""
+          echo "✅ Admin portal production deployment complete!"
+          echo "🌐 URL: $(tail -1 /tmp/deploy-url.txt)"
+        env:
+          VERCEL_TOKEN:      ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID:     ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+      - name: Deploy to Vercel (preview)
+        if: >-
+          steps.check-secrets.outputs.secrets_present == 'true' &&
+          steps.resolve-env.outputs.portal_environment == 'preview'
+        run: |
+          set -euo pipefail
+          vercel deploy --token "$VERCEL_TOKEN" | tee /tmp/deploy-url.txt
+          echo ""
+          echo "✅ Admin portal preview deployment complete!"
+          echo "🌐 URL: $(tail -1 /tmp/deploy-url.txt)"
+        env:
+          VERCEL_TOKEN:      ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID:     ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}

@@ -1,0 +1,83 @@
+name: Ops — Data Migration (Import Vehicles / Zones)
+
+# Imports canonical vehicle records and/or freedom camping zones from CSV files
+# into the Supabase database using the scripts/import-canonical-vehicles.ts and
+# scripts/import-zones.ts scripts.
+#
+# This is a legacy data-import utility that uses the V2 service role key
+# (SUPABASEV2_SERVICE_ROLE_KEY) to write to the production database.
+#
+# Required secrets:
+#   SUPABASE_URL                — https://YOUR_REF.supabase.co
+#   SUPABASEV2_SERVICE_ROLE_KEY — Supabase service role key (V2 project)
+
+on:
+  workflow_dispatch:
+    inputs:
+      script_to_run:
+        description: 'Which script to run?'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - import-vehicles
+          - import-zones
+
+env:
+  # supabase/setup-cli@v1 still bundles Node.js 20; force the runner to use
+  # Node.js 24 so the action keeps working after the June 2026 cut-over.
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  data-migration:
+    name: Data Migration (Manual Run)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Check required secrets
+        run: |
+          missing=""
+          [ -z "$SUPABASE_URL"                ] && missing="$missing SUPABASE_URL"
+          [ -z "$SUPABASEV2_SERVICE_ROLE_KEY" ] && missing="$missing SUPABASEV2_SERVICE_ROLE_KEY"
+          if [ -n "$missing" ]; then
+            echo "::error::Missing secrets:$missing"
+            echo "Add these at: GitHub repo → Settings → Secrets and variables → Actions"
+            exit 1
+          fi
+        env:
+          SUPABASE_URL:                ${{ secrets.SUPABASE_URL }}
+          SUPABASEV2_SERVICE_ROLE_KEY: ${{ secrets.SUPABASEV2_SERVICE_ROLE_KEY }}
+
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+
+      - name: Install dependencies
+        run: |
+          npm install csv-parse
+          npm install -g tsx
+
+      - name: Run Vehicles Migration
+        if: >-
+          github.event.inputs.script_to_run == 'all' ||
+          github.event.inputs.script_to_run == 'import-vehicles'
+        env:
+          SUPABASE_URL:              ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASEV2_SERVICE_ROLE_KEY }}
+        run: npx tsx scripts/import-canonical-vehicles.ts
+
+      - name: Run Zones Migration
+        if: >-
+          github.event.inputs.script_to_run == 'all' ||
+          github.event.inputs.script_to_run == 'import-zones'
+        env:
+          SUPABASE_URL:              ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASEV2_SERVICE_ROLE_KEY }}
+        run: npx tsx scripts/import-zones.ts
