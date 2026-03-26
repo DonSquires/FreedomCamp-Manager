@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { createJSONStorage, persist } from 'zustand/middleware'
 import { supabase } from '@/lib/supabase'
 import { useSessionLockStore } from './sessionLockStore'
+import { useGlobalFiltersStore } from './globalFiltersStore'
 
 let authListenerInitialized = false
 
@@ -126,7 +127,7 @@ export const useAuthStore = create<AuthState>()(
               if (state.user) {
                 return { ...state, isAuthenticated: true, loading: false }
               }
-              return { user: null, isAuthenticated: false, loading: false }
+              return { user: authUser, isAuthenticated: true, loading: false }
             })
           } catch (err) {
             console.warn('[authStore] onAuthStateChange handler error:', err)
@@ -219,6 +220,7 @@ export const useAuthStore = create<AuthState>()(
         clearClientAuthArtifacts()
         set({ user: null, isAuthenticated: false, loading: false })
         useSessionLockStore.getState().unlock()
+        useGlobalFiltersStore.getState().clearFilters()
       },
 
       checkSession: async () => {

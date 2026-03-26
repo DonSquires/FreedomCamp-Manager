@@ -14,6 +14,71 @@ export type Database = {
   }
   public: {
     Tables: {
+      admin_recalculation_actions: {
+        Row: {
+          completed_at: string | null
+          compliance_changed: number | null
+          created_at: string
+          date_range_end: string | null
+          date_range_start: string | null
+          drift_events_created: number | null
+          duration_seconds: number | null
+          error_message: string | null
+          id: string
+          observations_processed: number | null
+          performed_by: string
+          scope_type: string
+          started_at: string
+          status: string
+          target_org_ids: string[]
+          target_zone_ids: string[]
+        }
+        Insert: {
+          completed_at?: string | null
+          compliance_changed?: number | null
+          created_at?: string
+          date_range_end?: string | null
+          date_range_start?: string | null
+          drift_events_created?: number | null
+          duration_seconds?: number | null
+          error_message?: string | null
+          id?: string
+          observations_processed?: number | null
+          performed_by: string
+          scope_type?: string
+          started_at?: string
+          status?: string
+          target_org_ids?: string[]
+          target_zone_ids?: string[]
+        }
+        Update: {
+          completed_at?: string | null
+          compliance_changed?: number | null
+          created_at?: string
+          date_range_end?: string | null
+          date_range_start?: string | null
+          drift_events_created?: number | null
+          duration_seconds?: number | null
+          error_message?: string | null
+          id?: string
+          observations_processed?: number | null
+          performed_by?: string
+          scope_type?: string
+          started_at?: string
+          status?: string
+          target_org_ids?: string[]
+          target_zone_ids?: string[]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "admin_recalculation_actions_performed_by_fkey"
+            columns: ["performed_by"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       alert_acknowledgements: {
         Row: {
           acknowledged_at: string | null

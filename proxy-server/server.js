@@ -15,6 +15,17 @@ require('dotenv').config();
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+// Escape untrusted strings for safe HTML interpolation
+function escapeHtml(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 // Middleware
 app.use(cors());
 app.use(express.json());
@@ -59,9 +70,9 @@ app.get('/health', (req, res) => {
 // NZSCV API Proxy endpoint
 app.post('/api/nzscv/vehicle-info', async (req, res) => {
   try {
-    // Verify proxy secret (if configured)
+    // Verify proxy secret
     const authHeader = req.headers['x-proxy-secret'];
-    if (PROXY_SECRET && authHeader !== PROXY_SECRET) {
+    if (!authHeader || authHeader !== PROXY_SECRET) {
       console.warn('🚫 Unauthorized proxy access attempt');
       return res.status(401).json({ 
         error: 'Unauthorized',
@@ -125,7 +136,7 @@ app.post('/api/nzscv/vehicle-info', async (req, res) => {
 app.post('/api/email/send-invite', async (req, res) => {
   try {
     const authHeader = req.headers['x-proxy-secret'];
-    if (PROXY_SECRET && authHeader !== PROXY_SECRET) {
+    if (!authHeader || authHeader !== PROXY_SECRET) {
       console.warn('🚫 Unauthorized invite email request');
       return res.status(401).json({
         error: 'Unauthorized',
@@ -156,7 +167,11 @@ app.post('/api/email/send-invite', async (req, res) => {
       });
     }
 
-    const greeting = first_name ? `Hi ${first_name},` : 'Hi,';
+    // Sanitise user-supplied values before embedding in HTML
+    const safeFirstName = escapeHtml(first_name);
+    const safeInviteUrl = encodeURI(invite_url);          // normalise URL
+    const safeInviteUrlDisplay = escapeHtml(invite_url);  // display text (not href)
+    const greeting = safeFirstName ? `Hi ${safeFirstName},` : 'Hi,';
     const html = `<!DOCTYPE html>
 <html lang="en">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
@@ -177,12 +192,12 @@ app.post('/api/email/send-invite', async (req, res) => {
               You have been invited to join <strong>FreedomCamp Manager</strong>. Click below to set your password and access the platform.
             </p>
             <p style="text-align:center;margin:32px 0;">
-              <a href="${invite_url}" style="background:#1e3a5f;color:#ffffff;text-decoration:none;padding:14px 32px;border-radius:6px;font-size:15px;font-weight:600;display:inline-block;">
+              <a href="${safeInviteUrl}" style="background:#1e3a5f;color:#ffffff;text-decoration:none;padding:14px 32px;border-radius:6px;font-size:15px;font-weight:600;display:inline-block;">
                 Accept Invitation &amp; Set Password
               </a>
             </p>
             <p style="font-size:13px;color:#6b7280;margin:0 0 8px;">If the button does not work, copy and paste this link:</p>
-            <p style="font-size:12px;color:#374151;word-break:break-all;background:#f9fafb;padding:12px;border-radius:4px;margin:0 0 24px;">${invite_url}</p>
+            <p style="font-size:12px;color:#374151;word-break:break-all;background:#f9fafb;padding:12px;border-radius:4px;margin:0 0 24px;">${safeInviteUrlDisplay}</p>
             <p style="font-size:13px;color:#ef4444;margin:0 0 24px;">This link expires in <strong>24 hours</strong>.</p>
             <hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0;">
             <p style="font-size:12px;color:#9ca3af;margin:0;">If you were not expecting this invitation, you can ignore this email.<br>
@@ -213,7 +228,7 @@ app.post('/api/email/send-invite', async (req, res) => {
       to: email,
       subject: "You've been invited to FreedomCamp Manager",
       html,
-      text: `${greeting}\n\nYou have been invited to FreedomCamp Manager.\n\nAccept your invitation and set your password:\n${invite_url}\n\nThis link expires in 24 hours.`
+      text: `${greeting}\n\nYou have been invited to FreedomCamp Manager.\n\nAccept your invitation and set your password:\n${safeInviteUrl}\n\nThis link expires in 24 hours.`
     });
 
     console.log('✅ Invite email sent:', email);
@@ -235,9 +250,9 @@ app.post('/api/email/send-invite', async (req, res) => {
 // are configured via environment variables.
 app.get('/motorweb/currentOwnerCheck', async (req, res) => {
   try {
-    // Verify proxy secret (if configured)
+    // Verify proxy secret
     const authHeader = req.headers['x-proxy-secret'];
-    if (PROXY_SECRET && authHeader !== PROXY_SECRET) {
+    if (!authHeader || authHeader !== PROXY_SECRET) {
       console.warn('🚫 Unauthorized MotorWeb access attempt');
       return res.status(401).json({ 
         error: 'Unauthorized',
