@@ -26,6 +26,25 @@ function escapeHtml(str) {
     .replace(/'/g, '&#39;');
 }
 
+/**
+ * Validates the x-proxy-secret header.
+ * Returns null when auth passes, or an Express-ready {status, body} when it fails.
+ *
+ * Two distinct cases:
+ *  - PROXY_SECRET not configured  → 503  (mis-configured server, not a client fault)
+ *  - PROXY_SECRET set but header missing/wrong → 401
+ */
+function checkProxyAuth(req) {
+  if (!PROXY_SECRET) {
+    return { status: 503, body: { error: 'Service not configured', message: 'PROXY_SECRET environment variable is not set on this server.' } };
+  }
+  const authHeader = req.headers['x-proxy-secret'];
+  if (!authHeader || authHeader !== PROXY_SECRET) {
+    return { status: 401, body: { error: 'Unauthorized', message: 'Invalid proxy authentication' } };
+  }
+  return null;
+}
+
 // Middleware
 app.use(cors());
 app.use(express.json());
@@ -70,14 +89,10 @@ app.get('/health', (req, res) => {
 // NZSCV API Proxy endpoint
 app.post('/api/nzscv/vehicle-info', async (req, res) => {
   try {
-    // Verify proxy secret
-    const authHeader = req.headers['x-proxy-secret'];
-    if (!authHeader || authHeader !== PROXY_SECRET) {
+    const authResult = checkProxyAuth(req);
+    if (authResult) {
       console.warn('🚫 Unauthorized proxy access attempt');
-      return res.status(401).json({ 
-        error: 'Unauthorized',
-        message: 'Invalid proxy authentication' 
-      });
+      return res.status(authResult.status).json(authResult.body);
     }
 
     const { RegistrationNumber } = req.body;
@@ -135,13 +150,10 @@ app.post('/api/nzscv/vehicle-info', async (req, res) => {
 // Invite email endpoint
 app.post('/api/email/send-invite', async (req, res) => {
   try {
-    const authHeader = req.headers['x-proxy-secret'];
-    if (!authHeader || authHeader !== PROXY_SECRET) {
+    const authResult = checkProxyAuth(req);
+    if (authResult) {
       console.warn('🚫 Unauthorized invite email request');
-      return res.status(401).json({
-        error: 'Unauthorized',
-        message: 'Invalid proxy authentication',
-      });
+      return res.status(authResult.status).json(authResult.body);
     }
 
     if (!SMTP_HOST || !SMTP_USERNAME || !SMTP_PASSWORD || !SMTP_FROM_EMAIL) {
@@ -250,14 +262,10 @@ app.post('/api/email/send-invite', async (req, res) => {
 // are configured via environment variables.
 app.get('/motorweb/currentOwnerCheck', async (req, res) => {
   try {
-    // Verify proxy secret
-    const authHeader = req.headers['x-proxy-secret'];
-    if (!authHeader || authHeader !== PROXY_SECRET) {
+    const authResult = checkProxyAuth(req);
+    if (authResult) {
       console.warn('🚫 Unauthorized MotorWeb access attempt');
-      return res.status(401).json({ 
-        error: 'Unauthorized',
-        message: 'Invalid proxy authentication' 
-      });
+      return res.status(authResult.status).json(authResult.body);
     }
 
     if (!MOTORWEB_API_KEY || !MOTORWEB_ID_KEY) {

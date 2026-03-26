@@ -15,7 +15,7 @@
 // Improved: Safe body parsing with error handling for empty/invalid JSON bodies.
 // ============================================================================
 
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.7";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.3";
 import { corsHeaders } from "../_shared/cors.ts";
 
 function getCorsHeaders(_req?: Request) {

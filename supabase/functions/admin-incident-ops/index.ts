@@ -17,7 +17,7 @@
  * }
  */
 
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3';
 import { withCors, jsonResponse, errorResponse } from '../_shared/withCors.ts';
 
 Deno.serve(withCors(async (req) => {

@@ -18,7 +18,7 @@
  */
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3';
 import { withCors, getCorsHeaders, errorResponse } from '../_shared/withCors.ts';
 
 interface ExportRequest {
@@ -75,6 +75,13 @@ serve(withCors(async (req) => {
     return errorResponse('Unauthorized', req, 401);
   }
 
+  let body: ExportRequest;
+  try {
+    body = await req.json() as ExportRequest;
+  } catch {
+    return errorResponse('Invalid JSON body', req, 400);
+  }
+
   const {
     date_from,
     date_to,
@@ -82,7 +89,7 @@ serve(withCors(async (req) => {
     zone_id,
     search,
     bbox,
-  } = await req.json() as ExportRequest;
+  } = body;
 
   // Validate required fields
   if (!date_from || !date_to) {

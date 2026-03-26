@@ -123,12 +123,10 @@ export const useAuthStore = create<AuthState>()(
               authorized_work_locations: (profile as any).authorized_work_locations ?? [],
               extra_organization_ids: (profile as any).extra_organization_ids ?? [],
             }
-            set((state) => {
-              if (state.user) {
-                return { ...state, isAuthenticated: true, loading: false }
-              }
-              return { user: authUser, isAuthenticated: true, loading: false }
-            })
+            // Always write the freshly-fetched profile so the store stays
+            // current even when a token refresh or tab-focus event fires while
+            // the user is already authenticated.
+            set({ user: authUser, isAuthenticated: true, loading: false })
           } catch (err) {
             console.warn('[authStore] onAuthStateChange handler error:', err)
             set({ user: null, isAuthenticated: false, loading: false })
