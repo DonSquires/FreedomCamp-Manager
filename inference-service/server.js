@@ -769,6 +769,127 @@ async function inferVehicleAttributes(fullImageBuffer, vehicleCropBuffer) {
   };
 }
 
+// ============================================================================
+// UltraFace-640 face detection model
+//
+// Optional ONNX model (version-RFB-640.onnx) from the ONNX Model Zoo.
+// When present it provides fast, accurate face bounding boxes entirely on CPU
+// without requiring an external API call.
+//
+// Input  : 1×3×480×640 float32, BGR channel order, normalised (pixel−127)/128
+// Output : scores [1,4420,2]  — confidence for background (0) and face (1)
+//          boxes  [1,4420,4]  — cx, cy, w, h normalised to 0-1
+// Threshold: score[1] >= FACE_CONF_THRESHOLD is treated as a face.
+// ============================================================================
+const FACE_DETECT_MODEL_PATH   = path.join(__dirname, 'models', 'version-RFB-640.onnx');
+const FACE_DETECT_INPUT_W      = 640;
+const FACE_DETECT_INPUT_H      = 480;
+const FACE_CONF_THRESHOLD      = 0.7;
+
+let faceDetectSession = null;  // loaded on-demand, null = model not available
+
+// Lazy-load UltraFace-640 (optional — falls back to OpenAI vision)
+async function loadFaceDetectModel() {
+  if (faceDetectSession !== null) return faceDetectSession;
+  if (!fs.existsSync(FACE_DETECT_MODEL_PATH)) return null;
+  try {
+    faceDetectSession = await ort.InferenceSession.create(FACE_DETECT_MODEL_PATH, {
+      executionProviders: ['cpu'],
+    });
+    console.log('✅ UltraFace-640 face detection model loaded:', FACE_DETECT_MODEL_PATH);
+  } catch (err) {
+    console.warn('⚠️  UltraFace model load failed (non-fatal):', err.message);
+    faceDetectSession = null;
+  }
+  return faceDetectSession;
+}
+
+/**
+ * Detect face bounding boxes using UltraFace-640 ONNX model.
+ * Returns an array of { bbox:{x,y,width,height} (normalised 0-1), confidence }
+ * sorted by confidence descending, or null if the model is unavailable.
+ */
+async function detectFacesWithONNX(imageBuffer) {
+  const session = await loadFaceDetectModel();
+  if (!session) return null;
+
+  try {
+    // Resize to model input: 640×480, BGR, (pixel-127)/128
+    const { data: rawPixels, info } = await sharp(imageBuffer)
+      .resize(FACE_DETECT_INPUT_W, FACE_DETECT_INPUT_H, { fit: 'fill' })
+      .removeAlpha()
+      .raw()
+      .toBuffer({ resolveWithObject: true });
+
+    const numPixels = FACE_DETECT_INPUT_W * FACE_DETECT_INPUT_H;
+    const floats    = new Float32Array(3 * numPixels);
+
+    // Layout: CHW, BGR channel order, normalised (pixel−127)/128
+    for (let i = 0; i < numPixels; i++) {
+      const r = rawPixels[i * 3];
+      const g = rawPixels[i * 3 + 1];
+      const b = rawPixels[i * 3 + 2];
+      floats[0 * numPixels + i] = (b - 127) / 128;  // B
+      floats[1 * numPixels + i] = (g - 127) / 128;  // G
+      floats[2 * numPixels + i] = (r - 127) / 128;  // R
+    }
+
+    const inputTensor = new ort.Tensor('float32', floats,
+      [1, 3, FACE_DETECT_INPUT_H, FACE_DETECT_INPUT_W]);
+
+    const inputName = session.inputNames[0];
+    const outputs   = await session.run({ [inputName]: inputTensor });
+
+    // UltraFace output names are 'scores' and 'boxes' (or indexed output0/output1)
+    const scoresKey = session.outputNames.find(n => n.toLowerCase().includes('score')) || session.outputNames[0];
+    const boxesKey  = session.outputNames.find(n => n.toLowerCase().includes('box'))   || session.outputNames[1];
+
+    const scoresData = outputs[scoresKey].data;   // [1, 4420, 2] flattened → 8840 values
+    const boxesData  = outputs[boxesKey].data;    // [1, 4420, 4] flattened → 17680 values
+    const numAnchors = 4420;
+
+    const detections = [];
+    for (let i = 0; i < numAnchors; i++) {
+      const bgConf   = scoresData[i * 2];
+      const faceConf = scoresData[i * 2 + 1];
+      if (faceConf >= FACE_CONF_THRESHOLD) {
+        const cx = boxesData[i * 4];
+        const cy = boxesData[i * 4 + 1];
+        const bw = boxesData[i * 4 + 2];
+        const bh = boxesData[i * 4 + 3];
+        detections.push({
+          bbox: {
+            x:      Math.max(0, cx - bw / 2),
+            y:      Math.max(0, cy - bh / 2),
+            width:  Math.min(1, bw),
+            height: Math.min(1, bh),
+          },
+          confidence: Math.round(faceConf * 10000) / 10000,
+        });
+      }
+    }
+
+    // Sort by confidence descending and apply simple greedy NMS
+    detections.sort((a, b) => b.confidence - a.confidence);
+    const kept = [];
+    for (const det of detections) {
+      const overlap = kept.some(k => {
+        const ix = Math.max(0, Math.min(det.bbox.x + det.bbox.width,  k.bbox.x + k.bbox.width)  - Math.max(det.bbox.x, k.bbox.x));
+        const iy = Math.max(0, Math.min(det.bbox.y + det.bbox.height, k.bbox.y + k.bbox.height) - Math.max(det.bbox.y, k.bbox.y));
+        const inter = ix * iy;
+        const union = det.bbox.width * det.bbox.height + k.bbox.width * k.bbox.height - inter;
+        return union > 0 && (inter / union) > 0.45;
+      });
+      if (!overlap) kept.push(det);
+    }
+
+    return kept;  // array of { bbox, confidence }
+  } catch (err) {
+    console.warn('⚠️  UltraFace inference failed (non-fatal):', err.message);
+    return null;
+  }
+}
+
 // ── Face detection via OpenAI vision ─────────────────────────────────────────
 // Returns { face_count, faces[] } or null on failure.
 // Each face: { bbox: {x,y,w,h} (normalised 0-1), confidence, approximate_age, gender, description }
@@ -1569,10 +1690,13 @@ app.post('/infer/compare', inferenceRateLimit, requireInferenceAuth, async (req,
 // Detects human faces in a photo and generates a 384-D MobileNetV3 embedding
 // suitable for cosine-similarity comparison via /infer/compare.
 //
-// Detection:  OpenAI vision API (primary, if OPENAI_API_KEY is set).
-//             Falls back to a no-detection pass (face_count=0) when unavailable.
-// Embedding:  MobileNetV3 run on the primary face crop (or full image when no
-//             bbox is available). Same model used for vehicle embeddings.
+// Detection pipeline (in order of preference):
+//   1. UltraFace-640 ONNX (version-RFB-640.onnx) — fast, private, on-device
+//      Returns bboxes + confidence. Descriptions (age/gender) added via OpenAI if available.
+//   2. OpenAI vision API — full detection + description (if ONNX unavailable)
+//   3. Degraded: face_count=0 (if neither is available)
+//
+// Embedding: MobileNetV3 run on the primary face crop (or full image).
 //
 // Multipart body: photo (image/jpeg|png|webp)
 // Response:
@@ -1592,22 +1716,68 @@ app.post('/infer/face', inferenceRateLimit, upload.single('photo'), requireInfer
     let faces = [];
     let detectionMethod = 'none';
 
-    // ── Step 1: Face detection via OpenAI vision ─────────────────────────────
-    if (OPENAI_API_KEY) {
+    // ── Step 1a: UltraFace-640 ONNX (preferred — fast, private) ──────────────
+    const onnxDetections = await detectFacesWithONNX(imageBuffer);
+    const onnxAvailable  = onnxDetections !== null;
+
+    if (onnxDetections && onnxDetections.length > 0) {
+      // Build face objects with placeholder descriptions; enrich with OpenAI below
+      faces = onnxDetections.map(det => ({
+        bbox:            det.bbox,
+        confidence:      det.confidence,
+        approximate_age: 'unknown',
+        gender:          'unknown',
+        description:     null,
+      }));
+      detectionMethod = 'onnx_ultraface';
+    }
+
+    // ── Step 1b: OpenAI vision — enrich descriptions or full fallback ─────────
+    // Runs when:
+    //   • ONNX found faces → enrich age/gender/description for each face
+    //   • ONNX unavailable OR found 0 faces → full detection + description
+    if (OPENAI_API_KEY && (faces.length > 0 || !onnxAvailable)) {
       try {
         const visionResult = await detectFacesWithOpenAI(imageBuffer);
         if (visionResult) {
-          faces = visionResult.faces;
-          detectionMethod = 'openai_vision';
+          if (faces.length > 0 && visionResult.faces.length > 0) {
+            // Enrich ONNX detections with OpenAI descriptions.
+            // Simple approach: match by spatial proximity (nearest centroid).
+            const enriched = faces.map(onnxFace => {
+              const onnxCx = (onnxFace.bbox.x + onnxFace.bbox.width  / 2);
+              const onnxCy = (onnxFace.bbox.y + onnxFace.bbox.height / 2);
+              let   best   = null;
+              let   bestDist = Infinity;
+              for (const oaiFace of visionResult.faces) {
+                if (!oaiFace.bbox) continue;
+                const cx   = oaiFace.bbox.x + oaiFace.bbox.width  / 2;
+                const cy   = oaiFace.bbox.y + oaiFace.bbox.height / 2;
+                const dist = Math.hypot(cx - onnxCx, cy - onnxCy);
+                if (dist < bestDist) { bestDist = dist; best = oaiFace; }
+              }
+              return {
+                ...onnxFace,
+                approximate_age: best?.approximate_age ?? 'unknown',
+                gender:          best?.gender          ?? 'unknown',
+                description:     best?.description     ?? null,
+              };
+            });
+            faces = enriched;
+            detectionMethod = 'onnx_ultraface+openai_description';
+          } else if (faces.length === 0) {
+            // ONNX found nothing — use OpenAI result as authoritative
+            faces = visionResult.faces;
+            detectionMethod = 'openai_vision';
+          }
         }
       } catch (err) {
-        console.warn('⚠️ /infer/face OpenAI detection failed (non-fatal):', err.message);
+        console.warn('⚠️ /infer/face OpenAI enrichment failed (non-fatal):', err.message);
       }
     }
 
     // ── Step 2: Generate MobileNetV3 embedding ────────────────────────────────
-    // Uses face crop when a bbox is available, otherwise the full image.
-    let embedding = null;
+    // Run on the primary face crop when a bbox is available, else full image.
+    let embedding      = null;
     let embeddingQuality = null;
     const embeddingAvailable = !!embeddingSession;
 
@@ -1618,8 +1788,8 @@ app.post('/infer/face', inferenceRateLimit, upload.single('photo'), requireInfer
           const meta = await sharp(imageBuffer).metadata();
           const imgW = meta.width  || 640;
           const imgH = meta.height || 640;
-          const nb = faces[0].bbox;
-          pixelBbox = {
+          const nb   = faces[0].bbox;
+          pixelBbox  = {
             x:      nb.x      * imgW,
             y:      nb.y      * imgH,
             width:  nb.width  * imgW,
@@ -1644,7 +1814,8 @@ app.post('/infer/face', inferenceRateLimit, upload.single('photo'), requireInfer
       metadata: {
         detection_method:    detectionMethod,
         processing_time_ms:  duration,
-        onnx_available:      embeddingAvailable,
+        onnx_face_model:     onnxAvailable,
+        onnx_embedding:      embeddingAvailable,
         openai_available:    !!OPENAI_API_KEY,
         embedding_available: embedding !== null,
       },
@@ -1662,7 +1833,8 @@ app.get('/health', rateLimit({ windowMs: 60_000, max: 60, standardHeaders: true,
     status: 'healthy',
     models: {
       yolo: yoloSession ? 'loaded' : 'not loaded',
-      embedding: embeddingSession ? 'loaded' : 'not loaded'
+      embedding: embeddingSession ? 'loaded' : 'not loaded',
+      face_detect: faceDetectSession ? 'loaded' : (fs.existsSync(FACE_DETECT_MODEL_PATH) ? 'not loaded' : 'not present'),
     },
     config: {
       VEHICLE_ATTRS_PROVIDER,
@@ -1686,7 +1858,8 @@ app.get('/health', rateLimit({ windowMs: 60_000, max: 60, standardHeaders: true,
       local_alpr_plate_model: fs.existsSync(PLATE_DETECT_MODEL_PATH),
       chalk_valve_ai: VEHICLE_ATTRS_PROVIDER === 'openai' && !!OPENAI_API_KEY,
       // Face recognition
-      face_detection: !!OPENAI_API_KEY,          // OpenAI vision (primary detection method)
+      face_detection: !!OPENAI_API_KEY || fs.existsSync(FACE_DETECT_MODEL_PATH),
+      face_detection_onnx: fs.existsSync(FACE_DETECT_MODEL_PATH), // UltraFace-640
       face_embedding: modelsLoaded,              // MobileNetV3 embedding for comparison
     },
     uptime: process.uptime(),
@@ -1729,6 +1902,12 @@ loadModels().then(() => {
       console.log(`⚠️  Running in degraded mode — ONNX models NOT loaded`);
       console.log(`   /infer returns 503. Fix: ensure model files (yolov8n.onnx, mobilenetv3.onnx) are present at startup.`);
       console.log(`   Vehicle attributes via OpenAI will still work if VEHICLE_ATTRS_PROVIDER=openai`);
+    }
+    if (fs.existsSync(FACE_DETECT_MODEL_PATH)) {
+      console.log(`🧠 UltraFace-640 face detection model present — will load on first /infer/face request`);
+    } else {
+      console.log(`ℹ️  UltraFace-640 not present (models/version-RFB-640.onnx). Face detection will use OpenAI vision fallback.`);
+      console.log(`   Run: node scripts/download-models.js   to download all optional models.`);
     }
   });
 });

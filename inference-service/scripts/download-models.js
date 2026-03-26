@@ -49,6 +49,19 @@ const MODELS = [
     size: '5 MB',
     minSize: 1 * 1024 * 1024,  // 1 MB minimum
     optional: true,             // service still works if this fails to download
+  },
+  {
+    name: 'UltraFace-640 (Face Detector)',
+    // UltraFace from ONNX Model Zoo (MIT licence).
+    // Input:  1×3×480×640 float32, normalised (pixel − 127) / 128, BGR channel order.
+    // Output: scores [1,4420,2] + boxes [1,4420,4] (cx,cy,w,h normalised 0-1).
+    // Threshold: confidence index-1 >= 0.7 is a face.
+    // Falls back to OpenAI vision when unavailable.
+    url: 'https://github.com/onnx/models/raw/main/validated/vision/body_analysis/ultraface/models/version-RFB-640.onnx',
+    filename: 'version-RFB-640.onnx',
+    size: '1.3 MB',
+    minSize: 500 * 1024,        // 500 KB minimum
+    optional: true,             // service still works; OpenAI vision is the fallback
   }
 ];
 

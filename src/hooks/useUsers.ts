@@ -1,13 +1,14 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { toast } from 'sonner'
+import type { UserRole } from '@/types'
 
 interface UserProfile {
   id: string
   email: string
   first_name: string
   last_name: string
-  role: 'master' | 'admin' | 'officer' | 'admin_officer' | 'nzscv_monitor' | 'grand_master' | 'client_viewer'
+  role: UserRole
   organization_id: string | null
   is_active: boolean
   phone: string | null

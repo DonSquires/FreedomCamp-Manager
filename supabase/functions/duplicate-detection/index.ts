@@ -148,6 +148,7 @@ serve(async (req) => {
         error: 'Only master or grand_master users can run duplicate cleanup.',
         auth_error: 'INSUFFICIENT_ROLE',
         required_role: 'master',
+        allowed_roles: ['master', 'grand_master'],
       }),
       { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
