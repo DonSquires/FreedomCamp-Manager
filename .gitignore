@@ -40,6 +40,8 @@ tools/onspace-analysis/output/
 proxy-server/.env
 proxy-server/.env.*
 !proxy-server/.env.example
+supabase/.env.functions.local
+supabase/.env*.local
 
 # Local/sensitive artifacts
 *.keystore

@@ -144,7 +144,7 @@ export function useSiteGuardDashboard(
     queryKey: ['site_guard_site', clientSiteId],
     queryFn: async () => {
       if (!clientSiteId) return null
-      const { data, error } = await (supabase as any)
+      const { data, error } = await supabase
         .from('client_sites')
         .select(`
           id, name, site_type, address, gps_lat, gps_lng,
@@ -181,7 +181,7 @@ export function useSiteGuardDashboard(
 
       // Always load org-wide + site-specific POI.
       // The frontend gates site_specific visibility with isInsideFence.
-      const { data, error } = await (supabase as any)
+      const { data, error } = await supabase
         .from('persons_of_interest')
         .select(`
           id, full_name, description, status, photos,
@@ -210,7 +210,7 @@ export function useSiteGuardDashboard(
     queryKey: ['site_all_poi', clientSiteId, user?.organization_id],
     queryFn: async () => {
       if (!user?.organization_id || !clientSiteId) return []
-      const { data } = await (supabase as any)
+      const { data } = await supabase
         .from('persons_of_interest')
         .select('id, full_name, description, status, photos, distinguishing_features, reason, client_site_id, site_specific, active, expires_at')
         .eq('organization_id', user.organization_id)
@@ -228,7 +228,7 @@ export function useSiteGuardDashboard(
     queryKey: ['site_incidents', clientSiteId, today],
     queryFn: async () => {
       if (!clientSiteId) return []
-      const { data, error } = await (supabase as any)
+      const { data, error } = await supabase
         .from('site_incidents')
         .select(`
           id, incident_type, severity, description,
@@ -259,7 +259,7 @@ export function useSiteGuardDashboard(
   const { mutateAsync: createIncident, isPending: createLoading } = useMutation({
     mutationFn: async (data: NewIncidentData) => {
       if (!user?.id || !user?.organization_id) throw new Error('Not authenticated')
-      const { error } = await (supabase as any).from('site_incidents').insert({
+      const { error } = await supabase.from('site_incidents').insert({
         ...data,
         organization_id: user.organization_id,
         officer_id: user.id,
@@ -279,7 +279,7 @@ export function useSiteGuardDashboard(
 
   const { mutateAsync: linkPoiToIncident } = useMutation({
     mutationFn: async ({ incidentId, poiId }: { incidentId: string; poiId: string }) => {
-      const { error } = await (supabase as any)
+      const { error } = await supabase
         .from('site_incidents')
         .update({ poi_id: poiId })
         .eq('id', incidentId)

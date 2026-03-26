@@ -10,10 +10,54 @@ const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
 const nodemailer = require('nodemailer');
+const rateLimit = require('express-rate-limit');
 require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// ---------------------------------------------------------------------------
+// Per-IP rate limiter — applied to all authenticated proxy routes.
+// Default: 60 requests per minute per IP.  Override with PROXY_RATE_LIMIT_PER_MIN.
+// ---------------------------------------------------------------------------
+const RATE_LIMIT_MAX = parseInt(process.env.PROXY_RATE_LIMIT_PER_MIN || '60', 10);
+const rateLimitMiddleware = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: RATE_LIMIT_MAX,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests', message: 'Rate limit exceeded. Please try again later.' },
+});
+
+// Escape untrusted strings for safe HTML interpolation
+function escapeHtml(str) {
+  if (!str) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+/**
+ * Validates the x-proxy-secret header.
+ * Returns null when auth passes, or an Express-ready {status, body} when it fails.
+ *
+ * Two distinct cases:
+ *  - PROXY_SECRET not configured  → 503  (mis-configured server, not a client fault)
+ *  - PROXY_SECRET set but header missing/wrong → 401
+ */
+function checkProxyAuth(req) {
+  if (!PROXY_SECRET) {
+    return { status: 503, body: { error: 'Service not configured', message: 'PROXY_SECRET environment variable is not set on this server.' } };
+  }
+  const authHeader = req.headers['x-proxy-secret'];
+  if (!authHeader || authHeader !== PROXY_SECRET) {
+    return { status: 401, body: { error: 'Unauthorized', message: 'Invalid proxy authentication' } };
+  }
+  return null;
+}
 
 // Middleware
 app.use(cors());
@@ -57,16 +101,12 @@ app.get('/health', (req, res) => {
 });
 
 // NZSCV API Proxy endpoint
-app.post('/api/nzscv/vehicle-info', async (req, res) => {
+app.post('/api/nzscv/vehicle-info', rateLimitMiddleware, async (req, res) => {
   try {
-    // Verify proxy secret (if configured)
-    const authHeader = req.headers['x-proxy-secret'];
-    if (PROXY_SECRET && authHeader !== PROXY_SECRET) {
+    const authResult = checkProxyAuth(req);
+    if (authResult) {
       console.warn('🚫 Unauthorized proxy access attempt');
-      return res.status(401).json({ 
-        error: 'Unauthorized',
-        message: 'Invalid proxy authentication' 
-      });
+      return res.status(authResult.status).json(authResult.body);
     }
 
     const { RegistrationNumber } = req.body;
@@ -122,15 +162,12 @@ app.post('/api/nzscv/vehicle-info', async (req, res) => {
 });
 
 // Invite email endpoint
-app.post('/api/email/send-invite', async (req, res) => {
+app.post('/api/email/send-invite', rateLimitMiddleware, async (req, res) => {
   try {
-    const authHeader = req.headers['x-proxy-secret'];
-    if (PROXY_SECRET && authHeader !== PROXY_SECRET) {
+    const authResult = checkProxyAuth(req);
+    if (authResult) {
       console.warn('🚫 Unauthorized invite email request');
-      return res.status(401).json({
-        error: 'Unauthorized',
-        message: 'Invalid proxy authentication',
-      });
+      return res.status(authResult.status).json(authResult.body);
     }
 
     if (!SMTP_HOST || !SMTP_USERNAME || !SMTP_PASSWORD || !SMTP_FROM_EMAIL) {
@@ -156,7 +193,11 @@ app.post('/api/email/send-invite', async (req, res) => {
       });
     }
 
-    const greeting = first_name ? `Hi ${first_name},` : 'Hi,';
+    // Sanitise user-supplied values before embedding in HTML
+    const safeFirstName = escapeHtml(first_name);
+    const safeInviteUrl = encodeURI(invite_url);          // normalise URL
+    const safeInviteUrlDisplay = escapeHtml(invite_url);  // display text (not href)
+    const greeting = safeFirstName ? `Hi ${safeFirstName},` : 'Hi,';
     const html = `<!DOCTYPE html>
 <html lang="en">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
@@ -177,12 +218,12 @@ app.post('/api/email/send-invite', async (req, res) => {
               You have been invited to join <strong>FreedomCamp Manager</strong>. Click below to set your password and access the platform.
             </p>
             <p style="text-align:center;margin:32px 0;">
-              <a href="${invite_url}" style="background:#1e3a5f;color:#ffffff;text-decoration:none;padding:14px 32px;border-radius:6px;font-size:15px;font-weight:600;display:inline-block;">
+              <a href="${safeInviteUrl}" style="background:#1e3a5f;color:#ffffff;text-decoration:none;padding:14px 32px;border-radius:6px;font-size:15px;font-weight:600;display:inline-block;">
                 Accept Invitation &amp; Set Password
               </a>
             </p>
             <p style="font-size:13px;color:#6b7280;margin:0 0 8px;">If the button does not work, copy and paste this link:</p>
-            <p style="font-size:12px;color:#374151;word-break:break-all;background:#f9fafb;padding:12px;border-radius:4px;margin:0 0 24px;">${invite_url}</p>
+            <p style="font-size:12px;color:#374151;word-break:break-all;background:#f9fafb;padding:12px;border-radius:4px;margin:0 0 24px;">${safeInviteUrlDisplay}</p>
             <p style="font-size:13px;color:#ef4444;margin:0 0 24px;">This link expires in <strong>24 hours</strong>.</p>
             <hr style="border:none;border-top:1px solid #e5e7eb;margin:24px 0;">
             <p style="font-size:12px;color:#9ca3af;margin:0;">If you were not expecting this invitation, you can ignore this email.<br>
@@ -213,7 +254,7 @@ app.post('/api/email/send-invite', async (req, res) => {
       to: email,
       subject: "You've been invited to FreedomCamp Manager",
       html,
-      text: `${greeting}\n\nYou have been invited to FreedomCamp Manager.\n\nAccept your invitation and set your password:\n${invite_url}\n\nThis link expires in 24 hours.`
+      text: `${greeting}\n\nYou have been invited to FreedomCamp Manager.\n\nAccept your invitation and set your password:\n${safeInviteUrl}\n\nThis link expires in 24 hours.`
     });
 
     console.log('✅ Invite email sent:', email);
@@ -233,16 +274,12 @@ app.post('/api/email/send-invite', async (req, res) => {
 // PLACEHOLDER — MotorWeb API credentials (MOTORWEB_API_KEY, MOTORWEB_ID_KEY)
 // have not been provisioned yet.  The endpoint returns 503 until credentials
 // are configured via environment variables.
-app.get('/motorweb/currentOwnerCheck', async (req, res) => {
+app.get('/motorweb/currentOwnerCheck', rateLimitMiddleware, async (req, res) => {
   try {
-    // Verify proxy secret (if configured)
-    const authHeader = req.headers['x-proxy-secret'];
-    if (PROXY_SECRET && authHeader !== PROXY_SECRET) {
+    const authResult = checkProxyAuth(req);
+    if (authResult) {
       console.warn('🚫 Unauthorized MotorWeb access attempt');
-      return res.status(401).json({ 
-        error: 'Unauthorized',
-        message: 'Invalid proxy authentication' 
-      });
+      return res.status(authResult.status).json(authResult.body);
     }
 
     if (!MOTORWEB_API_KEY || !MOTORWEB_ID_KEY) {

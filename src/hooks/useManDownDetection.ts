@@ -85,7 +85,7 @@ export function useManDownDetection(options: UseManDownDetectionOptions = {}) {
   // ─── Resolve / acknowledge ─────────────────────────────────────────────────
 
   const resolveManDownAlert = useCallback(async (alertId: string) => {
-    const { error } = await (supabase as any)
+    const { error } = await supabase
       .from('officer_welfare_alerts')
       .update({
         status: 'resolved',
@@ -112,7 +112,7 @@ export function useManDownDetection(options: UseManDownDetectionOptions = {}) {
     if (manDownStateRef.current.isActive) return  // Already firing
 
     const pos = lastPositionRef.current
-    const { data, error } = await (supabase as any)
+    const { data, error } = await supabase
       .from('officer_welfare_alerts')
       .insert({
         officer_id: user.id,
@@ -193,7 +193,7 @@ export function useManDownDetection(options: UseManDownDetectionOptions = {}) {
             const elapsedSinceAlert = Date.now() - triggeredAt.getTime()
             if (elapsedSinceAlert >= escalationMs) {
               // Escalate to level 2
-              await (supabase as any)
+              await supabase
                 .from('officer_welfare_alerts')
                 .update({
                   escalation_level: 2,

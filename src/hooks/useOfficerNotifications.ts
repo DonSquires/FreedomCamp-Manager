@@ -222,12 +222,12 @@ export function useOfficerNotifications(options: { limit?: number; unreadOnly?: 
     notifications: alertsQuery.data,
     refetch: alertsQuery.refetch,
     markAsRead: async (id: string) => {
-      const { error } = await (supabase.from('breach_alerts') as any).update({ status: 'acknowledged' }).eq('id', id)
+      const { error } = await supabase.from('breach_alerts').update({ status: 'acknowledged' }).eq('id', id)
       if (error) console.error('Failed to acknowledge alert:', error)
       alertsQuery.refetch()
     },
     deleteNotification: async (id: string) => {
-      const { error } = await (supabase.from('breach_alerts') as any).update({ status: 'dismissed' }).eq('id', id)
+      const { error } = await supabase.from('breach_alerts').update({ status: 'dismissed' }).eq('id', id)
       if (error) console.error('Failed to dismiss alert:', error)
       alertsQuery.refetch()
     },

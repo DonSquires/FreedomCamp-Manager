@@ -151,7 +151,7 @@ export function useHealthSafety(options?: {
         payload.resolved_at = new Date().toISOString()
       }
 
-      const { error } = await (supabase.from('health_safety_reports') as any)
+      const { error } = await supabase.from('health_safety_reports')
         .update(payload)
         .eq('id', id)
 

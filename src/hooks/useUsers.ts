@@ -193,7 +193,7 @@ export function useUpdateUser() {
       userId: string
       updates: Partial<UserProfile> 
     }) => {
-      const { error } = await (supabase.from('user_profiles') as any)
+      const { error } = await supabase.from('user_profiles')
         .update(updates)
         .eq('id', userId)
 
@@ -215,7 +215,7 @@ export function useToggleUserStatus() {
 
   return useMutation({
     mutationFn: async ({ userId, isActive }: { userId: string; isActive: boolean }) => {
-      const { error } = await (supabase.from('user_profiles') as any)
+      const { error } = await supabase.from('user_profiles')
         .update({ is_active: !isActive })
         .eq('id', userId)
 
@@ -235,7 +235,7 @@ export function useUserStats(organizationId?: string | null) {
   return useQuery({
     queryKey: ['user-stats', organizationId],
     queryFn: async () => {
-      let query = (supabase.from('user_profiles') as any)
+      let query = supabase.from('user_profiles')
         .select('role, is_active', { count: 'exact' })
 
       if (organizationId) {

@@ -98,7 +98,7 @@ export function useUpdateOrganization() {
       orgId: string
       updates: Partial<Organization>
     }) => {
-      const { error } = await (supabase.from('organizations') as any)
+      const { error } = await supabase.from('organizations')
         .update(updates)
         .eq('id', orgId)
 
@@ -120,7 +120,7 @@ export function useToggleOrganizationStatus() {
 
   return useMutation({
     mutationFn: async ({ orgId, isActive }: { orgId: string; isActive: boolean }) => {
-      const { error } = await (supabase.from('organizations') as any)
+      const { error } = await supabase.from('organizations')
         .update({ is_active: !isActive })
         .eq('id', orgId)
 

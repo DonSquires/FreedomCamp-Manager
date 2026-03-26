@@ -26,7 +26,11 @@
 3. **Configure Variables**
    - `PORT` = `3000`
    - `NODE_ENV` = `production`
-   - `ALLOWED_ORIGINS` = `https://kxwjcupuxnnbnzcgmkoi.supabase.co`
+   - `SUPABASE_URL` = `https://<project>.supabase.co`
+   - `SUPABASE_SERVICE_ROLE_KEY` = `<service-role-key>`
+   - `OPENAI_API_KEY` = `<key>` (required for AI features)
+   - `VEHICLE_ATTRS_PROVIDER` = `openai`
+   - `ALLOWED_ORIGINS` = `https://<project>.supabase.co`
 
 4. **Deploy**
    - Click Deploy button

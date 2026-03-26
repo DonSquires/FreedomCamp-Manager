@@ -51,8 +51,8 @@ Deno.serve(async (req) => {
       throw new Error('Missing userId or newPassword');
     }
 
-    if (newPassword.length < 6) {
-      throw new Error('Password must be at least 6 characters');
+    if (newPassword.length < 8) {
+      throw new Error('Password must be at least 8 characters');
     }
 
     const { data: targetProfile } = await supabaseAdmin

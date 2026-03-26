@@ -16,7 +16,7 @@
  */
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3';
 import { corsHeaders } from '../_shared/cors.ts';
 import { adaptiveObservationInsert } from '../_shared/observationInsert.ts';
 
@@ -161,8 +161,8 @@ serve(async (req) => {
         p_obs_id: observationId,
         p_k: 5,
         p_since: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString(), // 90 days
-        p_org: metadata.organization_id,
-        p_zone: null,
+        p_org_id: metadata.organization_id,
+        p_zone_id: null,
         p_min_quality: 0.7
       });
 

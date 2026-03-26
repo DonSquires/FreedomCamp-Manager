@@ -156,7 +156,7 @@ export function useIncidents(options?: {
   // Update incident mutation
   const updateIncident = useMutation({
     mutationFn: async ({ id, ...updates }: UpdateIncidentInput & { id: string }) => {
-      const { error } = await (supabase.from('incidents') as any)
+      const { error } = await supabase.from('incidents')
         .update(updates)
         .eq('id', id)
 
@@ -178,7 +178,7 @@ export function useIncidents(options?: {
         ? new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString()
         : null
 
-      const { error } = await (supabase.from('incidents') as any)
+      const { error } = await supabase.from('incidents')
         .update({
           retention_hold: enable,
           retention_until: retentionDate,

@@ -1,4 +1,4 @@
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3';
 import { corsHeaders } from '../_shared/cors.ts';
 import { adaptiveObservationInsert } from '../_shared/observationInsert.ts';
 
@@ -244,7 +244,7 @@ Deno.serve(async (req) => {
 
         // Run compliance check
         const { data: complianceData } = await supabaseAdmin
-          .rpc('calculate_vehicle_compliance', {
+          .rpc('calculate_vehicle_compliance_v3', {
             p_plate_number: plateNumber,
             p_zone_id: zoneId,
             p_check_date: new Date().toISOString().split('T')[0]
@@ -252,9 +252,7 @@ Deno.serve(async (req) => {
 
         if (complianceData && complianceData.length > 0) {
           const compliance = complianceData[0];
-          const isCompliant = compliance.is_compliant && 
-            compliance.violation_severity !== 'critical' && 
-            compliance.violation_severity !== 'moderate';
+          const isCompliant = compliance.is_compliant && !compliance.at_risk;
 
           // Update observation compliance
           const newObservationId = (newRecord as any).observation_id ?? (newRecord as any).id;
@@ -265,7 +263,7 @@ Deno.serve(async (req) => {
 
           // Create breach alert if non-compliant
           if (!isCompliant) {
-            console.log(`⚠️ BREACH: ${plateNumber} - ${compliance.violation_type}`);
+            console.log(`⚠️ BREACH: ${plateNumber} - ${compliance.breach_type}`);
             
             await supabaseAdmin
               .from('breach_alerts')
@@ -273,12 +271,12 @@ Deno.serve(async (req) => {
                 organization_id: organizationId || null,
                 vehicle_record_id: null, // No vehicle_record in new schema
                 zone_id: zoneId,
-                breach_type: compliance.violation_type,
+                breach_type: compliance.breach_type,
                 breach_details: {
-                  message: compliance.violation_message,
-                  severity: compliance.violation_severity,
+                  message: compliance.violation_reasons?.join('; ') || null,
+                  severity: !compliance.is_compliant ? 'critical' : compliance.at_risk ? 'moderate' : 'advisory',
                   consecutiveNights: compliance.consecutive_nights,
-                  monthNights: compliance.month_nights,
+                  monthNights: compliance.nights_stayed,
                   observation_id: newObservationId,
                   plate_number: plateNumber,
                 },

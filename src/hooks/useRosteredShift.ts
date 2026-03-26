@@ -70,7 +70,7 @@ export function useRosteredShift(): UseRosteredShiftResult {
     queryFn: async () => {
       if (!user?.id) return null
 
-      const { data, error } = await (supabase as any)
+      const { data, error } = await supabase
         .from('roster_shifts')
         .select(`
           id, shift_date, start_time, end_time, shift_type,
@@ -125,7 +125,7 @@ export function useRosteredShift(): UseRosteredShiftResult {
     queryFn: async () => {
       if (!user?.id) return []
 
-      const { data, error } = await (supabase as any)
+      const { data, error } = await supabase
         .from('officer_activity_rates')
         .select('activity_type, rate_per_hour, effective_from, effective_to')
         .eq('officer_id', user.id)

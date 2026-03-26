@@ -92,7 +92,7 @@ export function useVehicleProfilePhoto(plateNumber?: string) {
   // Manual set photo mutation
   const setProfilePhoto = useMutation({
     mutationFn: async ({ plate, photoUrl }: { plate: string; photoUrl: string }) => {
-      const { error } = await (supabase.from('canonical_vehicles') as any)
+      const { error } = await supabase.from('canonical_vehicles')
         .update({
           profile_photo: photoUrl,
           profile_photo_selected_at: new Date().toISOString(),
@@ -121,7 +121,7 @@ export function useVehicleProfilePhoto(plateNumber?: string) {
     queryFn: async () => {
       if (!plateNumber) return []
 
-      const { data, error } = await (supabase.from('observations') as any)
+      const { data, error } = await supabase.from('observations')
         .select('photo, photo_url, recorded_at, embedding_quality, gps_accuracy')
         .eq('plate_number', plateNumber)
         .or('photo.not.is.null,photo_url.not.is.null')

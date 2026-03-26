@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { createJSONStorage, persist } from 'zustand/middleware'
 import { supabase } from '@/lib/supabase'
 import { useSessionLockStore } from './sessionLockStore'
+import { useGlobalFiltersStore } from './globalFiltersStore'
 
 let authListenerInitialized = false
 
@@ -122,12 +123,15 @@ export const useAuthStore = create<AuthState>()(
               authorized_work_locations: (profile as any).authorized_work_locations ?? [],
               extra_organization_ids: (profile as any).extra_organization_ids ?? [],
             }
-            set((state) => {
-              if (state.user) {
-                return { ...state, isAuthenticated: true, loading: false }
-              }
-              return { user: null, isAuthenticated: false, loading: false }
-            })
+            // Null-guard: only write to store if the built authUser is valid.
+            // Always write the freshly-fetched profile so the store stays
+            // current even when a token refresh or tab-focus event fires while
+            // the user is already authenticated.
+            if (authUser?.id) {
+              set({ user: authUser, isAuthenticated: true, loading: false })
+            } else {
+              set({ user: null, isAuthenticated: false, loading: false })
+            }
           } catch (err) {
             console.warn('[authStore] onAuthStateChange handler error:', err)
             set({ user: null, isAuthenticated: false, loading: false })
@@ -219,6 +223,7 @@ export const useAuthStore = create<AuthState>()(
         clearClientAuthArtifacts()
         set({ user: null, isAuthenticated: false, loading: false })
         useSessionLockStore.getState().unlock()
+        useGlobalFiltersStore.getState().clearFilters()
       },
 
       checkSession: async () => {

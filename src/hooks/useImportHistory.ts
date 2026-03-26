@@ -94,7 +94,7 @@ export function useImportHistory(options?: {
   const query = useQuery({
     queryKey: ['import-history', options],
     queryFn: async () => {
-      let query = (supabase.from('import_batches') as any)
+      let query = supabase.from('import_batches')
         .select(`
           *,
           importer:user_profiles!import_batches_uploaded_by_fkey(first_name, last_name, email)
@@ -159,7 +159,7 @@ export function useImportStats(options?: {
   return useQuery({
     queryKey: ['import-stats', options],
     queryFn: async () => {
-      let query = (supabase.from('import_batches') as any)
+      let query = supabase.from('import_batches')
         .select('*')
 
       // Organization scoping
@@ -218,7 +218,7 @@ export function useImportRecord(id: string | null) {
     queryFn: async () => {
       if (!id) return null
 
-      const { data, error } = await (supabase.from('import_batches') as any)
+      const { data, error } = await supabase.from('import_batches')
         .select(`
           *,
           importer:user_profiles!import_batches_uploaded_by_fkey(first_name, last_name, email)
