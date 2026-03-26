@@ -350,3 +350,9 @@ verify_jwt = false
 
 [functions.zone-correction]
 verify_jwt = false
+
+# process-face-scan: browser callers send ES256-signed JWTs that the Supabase
+# gateway rejects before the function runs (401, execution_id: null).
+# The function validates the caller's JWT internally via supabase.auth.getUser(token).
+[functions.process-face-scan]
+verify_jwt = false
