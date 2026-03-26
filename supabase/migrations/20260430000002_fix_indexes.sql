@@ -21,9 +21,9 @@
 -- ── 1. Replace GIN geometry index with correct GiST ──────────────────────────
 DROP INDEX IF EXISTS public.idx_zones_geometry;
 
--- CONCURRENTLY builds the index without locking the table for writes.
 -- Re-use the original name so no application code needs updating.
-CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_zones_geometry
+-- NOTE: CONCURRENTLY cannot be used inside a transaction / migration pipeline.
+CREATE INDEX IF NOT EXISTS idx_zones_geometry
   ON public.zones USING gist (geometry);
 
 -- ── 2. Drop duplicate unique constraint on canonical_vehicles.vehicle_id ──────
