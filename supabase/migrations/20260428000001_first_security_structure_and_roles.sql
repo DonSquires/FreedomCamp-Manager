@@ -260,7 +260,7 @@ DO $$ BEGIN
     TO authenticated
     USING (
       get_user_role(auth.uid()) = 'client_viewer'
-      AND org_id = (
+      AND organization_id = (
         SELECT organization_id
         FROM   public.user_profiles
         WHERE  id = auth.uid()
