@@ -52,9 +52,14 @@ interface FaceRecordRow {
 
 interface PersonOption {
   id: string
-  full_name: string
+  first_name: string | null
+  last_name: string | null
   is_of_interest: boolean | null
   trespass_notice_issued: boolean | null
+}
+
+function personDisplayName(p: { first_name: string | null; last_name: string | null }): string {
+  return [p.first_name, p.last_name].filter(Boolean).join(' ') || '(No name)'
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
@@ -89,8 +94,8 @@ export default function FaceRecognitionPage() {
     queryKey: ['person-records-options'],
     queryFn: async () => {
       const { data, error } = await ((supabase as any).from('person_records') as any)
-        .select('id, full_name, is_of_interest, trespass_notice_issued')
-        .order('full_name')
+        .select('id, first_name, last_name, is_of_interest, trespass_notice_issued')
+        .order('last_name', { ascending: true })
         .limit(500)
 
       if (error) throw error
@@ -328,7 +333,7 @@ export default function FaceRecognitionPage() {
                   {personOptions.map(p => (
                     <SelectItem key={p.id} value={p.id}>
                       <div className="flex items-center gap-2">
-                        <span>{p.full_name}</span>
+                        <span>{personDisplayName(p)}</span>
                         {p.is_of_interest && (
                           <Badge className="bg-orange-600 text-white text-[10px] ml-1">POI</Badge>
                         )}

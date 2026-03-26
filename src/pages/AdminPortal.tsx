@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button'
 import { AppLayout } from '@/components/features/AppLayout'
 import { GlobalFilterRibbon } from '@/components/features/GlobalFilterRibbon'
 import { ComplianceTrendChart, type TrendDataPoint } from '@/components/features/ComplianceTrendChart'
-import { nzDateToUTCStart, nzDateToUTCEnd } from '@/lib/timezone'
+import { nzDateToUTCStart, nzDateToUTCEnd, parseNZDate } from '@/lib/timezone'
 import { HOMELESS_UI_STATUSES } from '@/lib/homelessStatus'
 const HOMELESS_EXEMPT_STATUSES = ['confirmed', 'claimed'] as const
 
@@ -48,7 +48,10 @@ type DrillConfig = {
   label?: string
 }
 
-const SCV_ENFORCEMENT_DATE = new Date('2026-06-01')
+// SCV enforcement date: NZ midnight 1 June 2026 (NZST, UTC+12).
+// parseNZDate anchors the date to NZ timezone so the countdown is accurate
+// for NZ operators regardless of the server/browser UTC offset.
+const SCV_ENFORCEMENT_DATE = parseNZDate('2026-06-01')
 const MS_PER_DAY = 1000 * 60 * 60 * 24
 
 function scvEnforcementCountdown(): string {

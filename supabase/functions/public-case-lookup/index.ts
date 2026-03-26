@@ -145,9 +145,9 @@ Deno.serve(async (req) => {
       JSON.stringify({ success: false, error: 'No notice found for that reference.' }),
       { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
     )
-  } catch (error: any) {
+  } catch (_err) {
     return new Response(
-      JSON.stringify({ success: false, error: error?.message || 'Unexpected error.' }),
+      JSON.stringify({ success: false, error: 'Lookup failed.' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } },
     )
   }
