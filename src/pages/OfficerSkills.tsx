@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
@@ -203,7 +203,7 @@ function SkillDialog({ open, onClose, editing, officers, organizationId, userId 
   const [showSuggestions, setShowSuggestions] = useState(false)
 
   // Populate form when editing changes
-  useMemo(() => {
+  useEffect(() => {
     if (editing) {
       setForm({
         officer_id: editing.officer_id,
@@ -218,7 +218,7 @@ function SkillDialog({ open, onClose, editing, officers, organizationId, userId 
     } else {
       setForm(EMPTY_FORM)
     }
-  }, [editing, open])
+  }, [editing])
 
   const upsertMutation = useMutation({
     mutationFn: async (data: SkillFormData) => {

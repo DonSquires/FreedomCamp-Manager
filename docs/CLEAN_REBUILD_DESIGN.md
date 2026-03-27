@@ -45,7 +45,7 @@ migrations and 60+ edge functions:
 | 5 user roles | officer, admin, admin_officer, master, nzscv_monitor | nzscv_monitor is barely used; admin_officer overlap is confusing |
 | `flagged_vehicles` "deprecated then un-deprecated" | See BUILD_PLAN_V3.md §2.9 | Callers are confused about what table to use |
 | `canonical_vehicles`, `canonical_scv`, `canonical_homeless` | Three separate tables for related vehicle data | Query complexity when you just want "is this vehicle SCV?" |
-| Dead edge functions | `recalculate-compliance`, `recalculate-compliance-v2`, `alpr-retry`, `check-railway-health` | Deployed but never called |
+| Dead edge functions | `recalculate-compliance`, `recalculate-compliance-v2`, `alpr-retry` | Deployed but never called |
 | Developer-facing pages in production | `TestDashboard.tsx`, `CleanDashboard.tsx`, `DataCleanupUtility.tsx`, `SystemDiagnostics.tsx` | Clients see internal tooling |
 
 ### What works well and must be preserved
@@ -134,7 +134,7 @@ councils enforce freedom camping rules**. Everything else is supporting infrastr
 | `zone-correction` | **Fold into `cleanup-and-recalculate`** Phase 1 |
 | `check-zone-corrections` | Dev/diagnostic tool — move to internal admin |
 | `check-data-integrity` | Dev/diagnostic tool — move to internal admin |
-| `check-railway-health` | Dev/diagnostic tool — remove from production |
+| `check-railway-health` | Dev/diagnostic tool — keep internal only; now called by Railway diagnostics |
 | `check-almost-breaches` | **Fold into `cleanup-and-recalculate`** as overnight prediction phase |
 | `get-compliance-statistics` | Frontend can query the DB directly via RPC |
 | `observations-list` | Frontend queries Supabase directly |

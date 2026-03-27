@@ -247,7 +247,6 @@ export default function NoiseOfficerPortal() {
     queryKey: ['my_noise_notices', user?.id, orgId],
     queryFn: async () => {
       if (!orgId || !user?.id) return []
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const q: any = supabase.from('noise_notices' as any)
         .select('id, notice_number, notice_type, status, recipient_address, created_at')
         .eq('organization_id', orgId)
@@ -265,7 +264,6 @@ export default function NoiseOfficerPortal() {
     queryKey: ['my_noise_seizures', user?.id, orgId],
     queryFn: async () => {
       if (!orgId || !user?.id) return []
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const q: any = supabase.from('noise_seizures' as any)
         .select('id, seizure_number, status, equipment_type, equipment_make, seized_at')
         .eq('organization_id', orgId)

@@ -133,7 +133,6 @@ export function useVehicleStats(organizationId?: string | null) {
   return useQuery({
     queryKey: ['vehicle-stats', organizationId],
     queryFn: async () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       let vehicleQuery: any = supabase.from('canonical_vehicles')
         .select('self_contained, total_breaches, homeless_status, is_exempt', { count: 'exact' })
 

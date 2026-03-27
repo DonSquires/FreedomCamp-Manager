@@ -338,6 +338,7 @@ export const edgeFunctions = {
    * Bulk compliance recalculation (v2 schema – observations table, BATCH_SIZE=150).
    * Accepts both legacy and structured parameter formats.
    * Toast display is suppressed here — callers are responsible for error feedback.
+    * @deprecated No current app callers remain; keep only for compatibility until legacy consumers are retired.
    */
   recalculateCompliance: async (params: {
     // Legacy params
@@ -362,6 +363,7 @@ export const edgeFunctions = {
    *
    * Canonical runtime now routes through recalculate-compliance-v3 while
    * preserving the v2 parameter/response shape expected by existing UI.
+    * @deprecated No current app callers remain; keep only for compatibility until legacy consumers are retired.
    */
   recalculateComplianceV2: async (params: {
     zone_id?: string

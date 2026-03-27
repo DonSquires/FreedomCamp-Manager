@@ -109,7 +109,6 @@ export function useMyCheckpointVisits(limit = 20) {
     queryFn: async () => {
       if (!user?.id) return []
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data, error } = await (supabase as any)
         .from('checkpoint_visits')
         .select(`

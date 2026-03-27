@@ -63,7 +63,6 @@ async function calculateStatsManually(
   let totalObsQuery = supabase.from('observations').select('*', { count: 'exact', head: true })
   let compliantObsQuery = supabase.from('observations').select('*', { count: 'exact', head: true }).eq('is_compliant', true)
   let breachQuery = supabase.from('breach_alerts').select('observation_id').in('status', ['pending', 'acknowledged', 'enforcement_started']).not('observation_id', 'is', null)
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let vehicleQuery: any = supabase.from('canonical_vehicles').select('*', { count: 'exact', head: true })
   let patrolQuery = supabase.from('patrols').select('*', { count: 'exact', head: true }).eq('status', 'in_progress')
 
