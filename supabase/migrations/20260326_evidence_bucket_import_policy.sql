@@ -27,6 +27,8 @@ END
 $$;
 
 DO $$
+DECLARE
+  v_count INTEGER;
 BEGIN
   -- Ensure RLS is enabled on storage.objects
   ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;
@@ -69,19 +71,11 @@ BEGIN
       AND starts_with(name, 'imports/')
       AND split_part(name, '/', 2) = (auth.uid())::text
     );
-EXCEPTION
-  WHEN insufficient_privilege THEN
-    RAISE WARNING 'Skipping storage.objects policy updates: insufficient privileges for current role.';
-END
-$$;
 
--- ============================================================================
--- Verification
--- ============================================================================
-DO $$
-DECLARE
-  v_count INTEGER;
-BEGIN
+  -- ========================================================================
+  -- Verification (inside the same block so it is skipped when an
+  -- insufficient_privilege exception aborts the creation steps above)
+  -- ========================================================================
   SELECT COUNT(*)
   INTO v_count
   FROM pg_policies
@@ -98,5 +92,9 @@ BEGIN
   ELSE
     RAISE NOTICE '✅ All 3 RLS policies for evidence bucket (imports) are active';
   END IF;
+
+EXCEPTION
+  WHEN insufficient_privilege THEN
+    RAISE WARNING 'Skipping storage.objects policy updates: insufficient privileges for current role.';
 END
 $$;
