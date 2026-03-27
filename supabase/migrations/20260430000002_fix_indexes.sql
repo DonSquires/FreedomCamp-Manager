@@ -7,9 +7,11 @@
 --      method for JSONB columns.  The old GIN index is dropped and recreated
 --      under the same name so no application code needs updating.
 --
---   2. canonical_vehicles_vehicle_id_key is a duplicate unique constraint
---      for the same column already covered by idx_canonical_vehicles_vehicle_id.
---      Duplicate unique constraints add write overhead with no query benefit.
+--   2. idx_canonical_vehicles_vehicle_id is a plain (non-unique) B-tree index
+--      that duplicates the implicit index created by the UNIQUE constraint
+--      canonical_vehicles_vehicle_id_key on the same column.  The unique
+--      constraint index already handles all lookup queries, so the extra plain
+--      index adds ~3.8 MB of write overhead with no query benefit.
 --
 --   3. idx_canonical_vehicles_updated_at — 1.7 MB, 0 scans since creation.
 --
@@ -26,11 +28,20 @@ DROP INDEX IF EXISTS public.idx_zones_geometry;
 CREATE INDEX IF NOT EXISTS idx_zones_geometry
   ON public.zones USING gin (geometry);
 
--- ── 2. Drop duplicate unique constraint on canonical_vehicles.vehicle_id ──────
--- The partial unique index idx_canonical_vehicles_vehicle_id already enforces
--- uniqueness; this btree duplicate adds ~3.8 MB of write overhead for nothing.
-ALTER TABLE public.canonical_vehicles
-  DROP CONSTRAINT IF EXISTS canonical_vehicles_vehicle_id_key;
+-- ── 2. Drop duplicate plain index on canonical_vehicles.vehicle_id ───────────
+-- canonical_vehicles.vehicle_id is declared UNIQUE in the schema, which
+-- already creates an implicit B-tree unique index named
+-- canonical_vehicles_vehicle_id_key.  The explicit non-unique index
+-- idx_canonical_vehicles_vehicle_id is therefore a redundant plain B-tree
+-- index on the same column — it adds ~3.8 MB of write overhead with no query
+-- benefit over the unique-constraint index.
+--
+-- NOTE: canonical_vehicles_vehicle_id_key MUST be kept because the following
+-- FK constraints reference it:
+--   • drift_events_vehicle_id_fkey
+--   • investigation_jobs_associated_vehicle_id_fkey
+--   • notices_to_vacate_vehicle_id_fkey
+DROP INDEX IF EXISTS public.idx_canonical_vehicles_vehicle_id;
 
 -- ── 3. Drop stale index on canonical_vehicles.updated_at ─────────────────────
 DROP INDEX IF EXISTS public.idx_canonical_vehicles_updated_at;
