@@ -1,4 +1,4 @@
-name: Migration check
+name: Database — Migration Check
 
 # Validates that local migration files are consistent and that no short-form
 # drift versions are present in the remote database before a deployment.
@@ -6,7 +6,7 @@ name: Migration check
 # This workflow runs automatically on push to main or pull requests that touch
 # migration files, and can also be triggered manually for ad-hoc checks.
 #
-# Required repository secrets (same as supabase-db-push.yml):
+# Required repository secrets (same as db-push.yml):
 #   SUPABASE_ACCESS_TOKEN   — Supabase personal access token (sbp_…)
 #   SUPABASE_DB_PASSWORD    — Database password for the linked project
 #   SUPABASE_PROJECT_REF    — Supabase project reference ID
@@ -79,6 +79,39 @@ jobs:
             echo "  See docs/MIGRATION_TROUBLESHOOTING.md for resolution steps."
           else
             echo "No short-form/long-form migration conflicts detected."
+          fi
+
+      - name: Check for exact-duplicate migration version numbers
+        run: |
+          set -euo pipefail
+          echo "Checking for exact-duplicate migration version numbers..."
+
+          # Two or more files sharing the same version prefix (YYYYMMDD or
+          # YYYYMMDDHHMMSS) will cause Supabase CLI to insert the same row into
+          # schema_migrations twice, producing a unique-constraint violation and
+          # breaking db push with a non-recoverable loop.
+
+          MIGRATION_DIR="supabase/migrations"
+          exact_dupes=0
+
+          while IFS= read -r version; do
+            count=$(find "$MIGRATION_DIR" -name "${version}_*.sql" | wc -l)
+            if [ "$count" -gt 1 ]; then
+              echo "::error::Migration version $version has $count files. Each version must be unique."
+              find "$MIGRATION_DIR" -name "${version}_*.sql" | while read -r f; do
+                echo "  $f"
+              done
+              exact_dupes=$((exact_dupes + 1))
+            fi
+          done < <(find "$MIGRATION_DIR" -name "*.sql" \
+                     | sed 's|.*/||; s|\.sql$||; s|_.*||' \
+                     | sort -u)
+
+          if [ "$exact_dupes" -gt 0 ]; then
+            echo "::error::Found $exact_dupes exact-duplicate migration version(s). Rename the conflicting files before pushing."
+            exit 1
+          else
+            echo "No exact-duplicate migration versions detected."
           fi
 
       - name: Check for future-dated migration files

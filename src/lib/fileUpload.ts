@@ -6,7 +6,7 @@ import { supabase } from './supabase'
 import { toast } from 'sonner'
 
 export interface UploadOptions {
-  bucket: 'evidence' | 'incident-evidence' | 'credentials'
+  bucket: 'evidence' | 'incident-evidence' | 'credentials' | 'contractor-docs'
   path: string
   file: File
   onProgress?: (progress: number) => void

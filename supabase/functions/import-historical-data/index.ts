@@ -22,7 +22,7 @@
  * - Server-side validation
  */
 
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3';
 import { corsHeaders } from '../_shared/cors.ts';
 import * as XLSX from 'https://esm.sh/xlsx@0.18.5';
 

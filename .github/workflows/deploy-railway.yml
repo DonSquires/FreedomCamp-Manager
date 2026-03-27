@@ -1,0 +1,144 @@
+name: Deploy Inference Service to Railway
+
+# Deploys the ONNX inference service (inference-service/) to Railway.
+#
+# Auto-triggers on any push to main that touches inference-service/ files.
+# Can also be triggered manually via workflow_dispatch.
+#
+# Required secrets:
+#   RAILWAY_TOKEN      — Railway project token (not a personal token)
+#   RAILWAY_SERVICE_ID — Railway project → Service → Settings → Service ID
+#
+# Optional secrets:
+#   INFERENCE_SERVICE_URL — deployed Railway URL; enables health check after deploy
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'inference-service/**'
+  workflow_dispatch:
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  deploy-railway:
+    name: Deploy Inference Service to Railway
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Check required secrets
+        id: check-secrets
+        run: |
+          missing=""
+          [ -z "$RAILWAY_TOKEN" ]      && missing="$missing RAILWAY_TOKEN"
+          [ -z "$RAILWAY_SERVICE_ID" ] && missing="$missing RAILWAY_SERVICE_ID"
+          if [ -n "$missing" ]; then
+            echo "::warning::Required secrets not configured ($missing) — deployment skipped."
+            echo ""
+            echo "To enable Railway deployments, add the following secrets at:"
+            echo "  https://github.com/${{ github.repository }}/settings/secrets/actions"
+            echo ""
+            echo "  RAILWAY_TOKEN:      Railway token with deploy access to the target service/project"
+            echo "                      (project token recommended for CI)."
+            echo "  RAILWAY_SERVICE_ID: Railway project → Service → Settings → Service ID"
+            echo "secrets_present=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "✅ Railway secrets present"
+            echo "secrets_present=true" >> "$GITHUB_OUTPUT"
+          fi
+        env:
+          RAILWAY_TOKEN:      ${{ secrets.RAILWAY_TOKEN }}
+          RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_SERVICE_ID }}
+
+      - name: Checkout repository
+        if: steps.check-secrets.outputs.secrets_present == 'true'
+        uses: actions/checkout@v5
+
+      - name: Install Railway CLI
+        if: steps.check-secrets.outputs.secrets_present == 'true'
+        run: |
+          # Pin a known release to avoid GitHub API rate limits in install.sh.
+          RAILWAY_CLI_VERSION="4.31.0"
+          TARGET="x86_64-unknown-linux-gnu"
+          URL="https://github.com/railwayapp/cli/releases/download/v${RAILWAY_CLI_VERSION}/railway-v${RAILWAY_CLI_VERSION}-${TARGET}.tar.gz"
+          TMP_DIR=$(mktemp -d)
+          cd "$TMP_DIR"
+          curl -fsSL -o railway.tar.gz "$URL"
+          tar -xzf railway.tar.gz
+          mkdir -p "$HOME/.railway/bin"
+          install -m 0755 railway "$HOME/.railway/bin/railway"
+          echo "$HOME/.railway/bin" >> "$GITHUB_PATH"
+
+      - name: Validate Railway token
+        id: validate-token
+        if: steps.check-secrets.outputs.secrets_present == 'true'
+        env:
+          RAILWAY_TOKEN:      ${{ secrets.RAILWAY_TOKEN }}
+          RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_SERVICE_ID }}
+        run: |
+          echo "🔑 Validating Railway token..."
+          if ! railway service status --service "$RAILWAY_SERVICE_ID" --json > /dev/null 2>&1; then
+            echo ""
+            echo "::warning::RAILWAY_TOKEN is set but invalid — deployment skipped."
+            echo ""
+            echo "Common causes:"
+            echo "  1. Token is revoked/expired."
+            echo "  2. Token does not have access to the service ID in RAILWAY_SERVICE_ID."
+            echo "  3. RAILWAY_SERVICE_ID is wrong (copied from a different project/service)."
+            echo ""
+            echo "Fix: Update RAILWAY_TOKEN and/or RAILWAY_SERVICE_ID secrets at:"
+            echo "  https://github.com/${{ github.repository }}/settings/secrets/actions"
+            echo "token_valid=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "✅ Railway token and service access are valid"
+          echo "token_valid=true" >> "$GITHUB_OUTPUT"
+
+      - name: Deploy to Railway
+        if: >-
+          steps.check-secrets.outputs.secrets_present == 'true' &&
+          steps.validate-token.outputs.token_valid == 'true'
+        env:
+          RAILWAY_TOKEN:      ${{ secrets.RAILWAY_TOKEN }}
+          RAILWAY_SERVICE_ID: ${{ secrets.RAILWAY_SERVICE_ID }}
+        run: |
+          cd inference-service
+          echo "🚂 Deploying inference-service to Railway..."
+          railway up --service "$RAILWAY_SERVICE_ID" --detach
+          echo "✅ Deploy triggered. Check Railway dashboard for status."
+          echo ""
+          echo "Railway Dashboard: https://railway.app/dashboard"
+
+      - name: Wait for deployment and verify health
+        if: >-
+          steps.check-secrets.outputs.secrets_present == 'true' &&
+          steps.validate-token.outputs.token_valid == 'true'
+        env:
+          RAILWAY_TOKEN:         ${{ secrets.RAILWAY_TOKEN }}
+          INFERENCE_SERVICE_URL: ${{ secrets.INFERENCE_SERVICE_URL }}
+        run: |
+          if [ -z "$INFERENCE_SERVICE_URL" ]; then
+            echo "ℹ️  INFERENCE_SERVICE_URL not set — skipping health check."
+            echo "   Once deployed, get your URL from Railway → Settings → Networking"
+            echo "   Then add it as GitHub secret AND Supabase secret."
+            exit 0
+          fi
+
+          echo "⏳ Waiting 60s for Railway to finish deploying..."
+          sleep 60
+
+          echo "🏥 Checking health at ${INFERENCE_SERVICE_URL}/health ..."
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            --max-time 30 \
+            "${INFERENCE_SERVICE_URL}/health" || echo "000")
+
+          if [ "$HTTP_STATUS" = "200" ]; then
+            echo "✅ Health check passed! Inference service is live."
+          else
+            echo "⚠️  Health check returned HTTP $HTTP_STATUS"
+            echo "   Railway may still be starting. Check dashboard in 1-2 minutes."
+          fi

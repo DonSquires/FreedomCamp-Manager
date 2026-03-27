@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { createJSONStorage, persist } from 'zustand/middleware'
 import { supabase } from '@/lib/supabase'
 import { useSessionLockStore } from './sessionLockStore'
+import { useGlobalFiltersStore } from './globalFiltersStore'
 
 let authListenerInitialized = false
 
@@ -37,9 +38,16 @@ function clearClientAuthArtifacts() {
 interface AuthUser {
   id: string
   email: string
-  role: 'master' | 'admin' | 'officer' | 'admin_officer' | 'nzscv_monitor' | 'grand_master'
+  role: 'master' | 'admin' | 'officer' | 'admin_officer' | 'nzscv_monitor' | 'grand_master' | 'client_viewer'
   organization_id: string | null
   full_name: string | null
+  first_name: string | null
+  last_name: string | null
+  /** Portal / area codes this user is explicitly allowed to access (empty = role-based only) */
+  portal_access: string[]
+  /** Additional org/branch IDs beyond the primary organization_id */
+  authorized_work_locations: string[]
+  extra_organization_ids: string[]
 }
 
 interface AuthState {
@@ -83,7 +91,7 @@ export const useAuthStore = create<AuthState>()(
             }
 
             const { data: profile, error: profileError } = await (supabase.from('user_profiles') as any)
-              .select('id, email, role, organization_id, first_name, last_name')
+              .select('id, email, role, organization_id, first_name, last_name, portal_access, authorized_work_locations, extra_organization_ids')
               .eq('id', session.user.id)
               .single()
 
@@ -109,17 +117,24 @@ export const useAuthStore = create<AuthState>()(
               role: profile.role as AuthUser['role'],
               organization_id: profile.organization_id,
               full_name: `${profile.first_name} ${profile.last_name}`,
+              first_name: profile.first_name ?? null,
+              last_name: profile.last_name ?? null,
+              portal_access: (profile as any).portal_access ?? [],
+              authorized_work_locations: (profile as any).authorized_work_locations ?? [],
+              extra_organization_ids: (profile as any).extra_organization_ids ?? [],
             }
-
-            set({ user: authUser, isAuthenticated: true, loading: false })
-          } catch (error) {
-            console.warn('[authStore] onAuthStateChange failed:', error)
-            set((state) => {
-              if (state.user) {
-                return { ...state, isAuthenticated: true, loading: false }
-              }
-              return { user: null, isAuthenticated: false, loading: false }
-            })
+            // Null-guard: only write to store if the built authUser is valid.
+            // Always write the freshly-fetched profile so the store stays
+            // current even when a token refresh or tab-focus event fires while
+            // the user is already authenticated.
+            if (authUser?.id) {
+              set({ user: authUser, isAuthenticated: true, loading: false })
+            } else {
+              set({ user: null, isAuthenticated: false, loading: false })
+            }
+          } catch (err) {
+            console.warn('[authStore] onAuthStateChange handler error:', err)
+            set({ user: null, isAuthenticated: false, loading: false })
           }
         })
       },
@@ -159,7 +174,7 @@ export const useAuthStore = create<AuthState>()(
         // Fetch user profile
         const { data: profile, error: profileError } = await supabase
           .from('user_profiles')
-          .select('id, email, role, organization_id, first_name, last_name')
+          .select('id, email, role, organization_id, first_name, last_name, portal_access, authorized_work_locations, extra_organization_ids')
           .eq('id', data.user.id)
           .single()
 
@@ -174,6 +189,11 @@ export const useAuthStore = create<AuthState>()(
           role: p.role as AuthUser['role'],
           organization_id: p.organization_id,
           full_name: `${p.first_name} ${p.last_name}`,
+          first_name: p.first_name ?? null,
+          last_name: p.last_name ?? null,
+          portal_access: p.portal_access ?? [],
+          authorized_work_locations: p.authorized_work_locations ?? [],
+          extra_organization_ids: p.extra_organization_ids ?? [],
         }
 
         set({ user: authUser, isAuthenticated: true })
@@ -203,6 +223,7 @@ export const useAuthStore = create<AuthState>()(
         clearClientAuthArtifacts()
         set({ user: null, isAuthenticated: false, loading: false })
         useSessionLockStore.getState().unlock()
+        useGlobalFiltersStore.getState().clearFilters()
       },
 
       checkSession: async () => {
@@ -234,7 +255,7 @@ export const useAuthStore = create<AuthState>()(
 
           // Fetch user profile
           const { data: profile, error: profileError } = await (supabase.from('user_profiles') as any)
-            .select('id, email, role, organization_id, first_name, last_name')
+            .select('id, email, role, organization_id, first_name, last_name, portal_access, authorized_work_locations, extra_organization_ids')
             .eq('id', session.user.id)
             .single()
 
@@ -256,6 +277,11 @@ export const useAuthStore = create<AuthState>()(
               role: profile.role as AuthUser['role'],
               organization_id: profile.organization_id,
               full_name: `${profile.first_name} ${profile.last_name}`,
+              first_name: profile.first_name ?? null,
+              last_name: profile.last_name ?? null,
+              portal_access: (profile as any).portal_access ?? [],
+              authorized_work_locations: (profile as any).authorized_work_locations ?? [],
+              extra_organization_ids: (profile as any).extra_organization_ids ?? [],
             }
             set({ user: authUser, isAuthenticated: true, loading: false })
           } else {

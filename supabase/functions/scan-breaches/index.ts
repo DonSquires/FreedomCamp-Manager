@@ -1,4 +1,4 @@
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3';
 import { corsHeaders } from '../_shared/cors.ts';
 
 interface BreachDetection {
@@ -285,7 +285,7 @@ Deno.serve(async (req) => {
         
         // Call centralized compliance calculation function
         const { data: complianceData, error: complianceError } = await supabaseAdmin
-          .rpc('calculate_vehicle_compliance', {
+          .rpc('calculate_vehicle_compliance_v3', {
             p_plate_number: plateNumber,
             p_zone_id: zone.id,
             p_check_date: checkDate
@@ -300,15 +300,13 @@ Deno.serve(async (req) => {
         
         const compliance = complianceData[0];
 
-        // Only create breach if violation is critical (not compliant or warning/advisory)
-        if (!compliance.is_compliant || 
-            compliance.violation_severity === 'critical' || 
-            compliance.violation_severity === 'moderate') {
+        // Only create breach if violation is critical (not compliant) or at-risk (moderate warning)
+        if (!compliance.is_compliant || compliance.at_risk) {
 
-          const overstayType = compliance.violation_type === 'monthly_limit_exceeded'
-            || compliance.violation_type === 'consecutive_nights_exceeded'
-            || compliance.violation_type === 'monthly_overstay'
-            || compliance.violation_type === 'consecutive_overstay';
+          const overstayType = compliance.breach_type === 'monthly_limit_exceeded'
+            || compliance.breach_type === 'consecutive_nights_exceeded'
+            || compliance.breach_type === 'monthly_overstay'
+            || compliance.breach_type === 'consecutive_overstay';
 
           const overnightEvidenceOk = overnightMode === 'two_photo_verification'
             ? hasTwoPhotoEvidence
@@ -323,16 +321,16 @@ Deno.serve(async (req) => {
             zoneId: zone.id,
             zoneName: zone.name,
             organizationId: zone.organization_id,
-            breachType: compliance.violation_type || 'unknown',
+            breachType: compliance.breach_type || 'unknown',
             breachDetails: {
-              message: compliance.violation_message,
-              severity: compliance.violation_severity,
+              message: compliance.violation_reasons?.join('; ') || null,
+              severity: !compliance.is_compliant ? 'critical' : compliance.at_risk ? 'moderate' : 'advisory',
               consecutiveNights: compliance.consecutive_nights,
-              consecutiveLimit: compliance.consecutive_limit,
-              monthNights: compliance.month_nights,
-              monthLimit: compliance.month_limit,
-              fineAmount: compliance.fine_amount,
-              recommendedAction: compliance.recommended_action,
+              consecutiveLimit: compliance.consecutive_allowed,
+              monthNights: compliance.nights_stayed,
+              monthLimit: compliance.nights_allowed,
+              fineAmount: null,
+              recommendedAction: null,
               observation_ids: observationIds,
             },
             vehicleRecordIds: [], // No vehicle_records in new schema

@@ -146,7 +146,7 @@ serve(async (req) => {
     }
 
     // Non-master admins are always restricted to their own org
-    if (profile.role !== 'master' && !orgIdFilter) {
+    if (profile.role !== 'master' && profile.role !== 'grand_master' && !orgIdFilter) {
       orgIdFilter = profile.organization_id;
     }
 

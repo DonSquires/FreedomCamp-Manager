@@ -10,7 +10,7 @@
  * - Manual invocation from admin portal
  */
 
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3';
 import { corsHeaders } from '../_shared/cors.ts';
 
 const EXPO_PUSH_API = 'https://exp.host/--/api/v2/push/send';

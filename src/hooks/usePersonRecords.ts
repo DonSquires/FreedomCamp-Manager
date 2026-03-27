@@ -10,21 +10,18 @@ import { toast } from 'sonner'
 
 interface PersonRecord {
   id: string
-  full_name: string
+  first_name: string | null
+  last_name: string | null
   date_of_birth: string | null
-  contact_email: string | null
-  contact_phone: string | null
-  address: string | null
-  homeless_status: string | null
-  homeless_confirmed_at: string | null
-  homeless_confirmed_by: string | null
   notes: string | null
+  organization_id: string | null
   created_at: string
-  updated_at: string
-  confirmer?: {
-    first_name: string
-    last_name: string
-  }
+  updated_at: string | null
+}
+
+/** Build a display name from split first/last fields */
+function personDisplayName(r: { first_name: string | null; last_name: string | null }): string {
+  return [r.first_name, r.last_name].filter(Boolean).join(' ') || '(No name)'
 }
 
 interface PersonObservation {
@@ -42,12 +39,9 @@ interface PersonObservation {
 }
 
 interface CreatePersonRecordInput {
-  full_name: string
+  first_name: string
+  last_name?: string
   date_of_birth?: string
-  contact_email?: string
-  contact_phone?: string
-  address?: string
-  homeless_status?: string
   notes?: string
 }
 
@@ -61,11 +55,9 @@ interface CreatePersonObservationInput {
 }
 
 export function usePersonRecords(options?: {
-  homelessStatus?: 'claimed' | 'confirmed' | 'none'
   dateFrom?: string
   dateTo?: string
 }) {
-  const { user } = useAuthStore()
   const queryClient = useQueryClient()
 
   // Fetch person records
@@ -74,17 +66,10 @@ export function usePersonRecords(options?: {
     queryFn: async () => {
       let query = (supabase
         .from('person_records') as any)
-        .select('*')
-        .order('created_at', { ascending: false })
+        .select('id, first_name, last_name, date_of_birth, notes, organization_id, created_at, updated_at')
+        .order('last_name', { ascending: true })
 
       // Filters
-      if (options?.homelessStatus === 'confirmed') {
-        query = query.not('homeless_confirmed_at', 'is', null)
-      } else if (options?.homelessStatus === 'claimed') {
-        query = query.eq('homeless_status', 'claimed')
-      } else if (options?.homelessStatus === 'none') {
-        query = query.is('homeless_status', null)
-      }
       if (options?.dateFrom) {
         query = query.gte('created_at', options.dateFrom)
       }
@@ -109,13 +94,10 @@ export function usePersonRecords(options?: {
       const { data, error } = await (supabase
         .from('person_records') as any)
         .insert({
-          full_name: input.full_name,
-          date_of_birth: input.date_of_birth,
-          contact_email: input.contact_email,
-          contact_phone: input.contact_phone,
-          address: input.address,
-          homeless_status: input.homeless_status,
-          notes: input.notes,
+          first_name: input.first_name,
+          last_name: input.last_name || null,
+          date_of_birth: input.date_of_birth || null,
+          notes: input.notes || null,
         })
         .select()
         .single()
@@ -133,15 +115,13 @@ export function usePersonRecords(options?: {
     },
   })
 
-  // Confirm homeless status mutation
+  // Confirm homeless status — no-op update (canonical homeless status per
+  // vehicle plate is managed in the canonical_homeless table, not person_records).
+  // Only updates updated_at to trigger cache invalidation on callers.
   const confirmHomelessStatus = useMutation({
-    mutationFn: async ({ id, confirmed }: { id: string; confirmed: boolean }) => {
-      const { error } = await (supabase.from('person_records') as any)
-        .update({
-          homeless_status: confirmed ? 'confirmed' : null,
-          homeless_confirmed_by: confirmed ? user?.id : null,
-          homeless_confirmed_at: confirmed ? new Date().toISOString() : null,
-        })
+    mutationFn: async ({ id, confirmed: _confirmed }: { id: string; confirmed: boolean }) => {
+      const { error } = await supabase.from('person_records')
+        .update({ updated_at: new Date().toISOString() })
         .eq('id', id)
 
       if (error) {
@@ -158,7 +138,7 @@ export function usePersonRecords(options?: {
   // Update person record mutation
   const updatePersonRecord = useMutation({
     mutationFn: async ({ id, ...updates }: Partial<PersonRecord> & { id: string }) => {
-      const { error } = await (supabase.from('person_records') as any)
+      const { error } = await supabase.from('person_records')
         .update(updates)
         .eq('id', id)
 
@@ -272,7 +252,7 @@ export function usePersonObservations(personId: string | null) {
   }
 }
 
-// Hook for homeless persons
+// Hook for homeless persons (returns all persons — filter by canonical_homeless for status)
 export function useHomelessPersons() {
-  return usePersonRecords({ homelessStatus: 'confirmed' })
+  return usePersonRecords()
 }

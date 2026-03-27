@@ -14,6 +14,85 @@ export type Database = {
   }
   public: {
     Tables: {
+      admin_recalculation_actions: {
+        Row: {
+          completed_at: string | null
+          compliance_changed: number | null
+          created_at: string
+          date_range_end: string | null
+          date_range_start: string | null
+          drift_events_created: number | null
+          duration_seconds: number | null
+          error_message: string | null
+          id: string
+          observations_processed: number | null
+          performed_by: string
+          scope_type: string
+          started_at: string
+          status: string
+          target_org_ids: string[]
+          target_zone_ids: string[]
+        }
+        Insert: {
+          completed_at?: string | null
+          compliance_changed?: number | null
+          created_at?: string
+          date_range_end?: string | null
+          date_range_start?: string | null
+          drift_events_created?: number | null
+          duration_seconds?: number | null
+          error_message?: string | null
+          id?: string
+          observations_processed?: number | null
+          performed_by: string
+          scope_type?: string
+          started_at?: string
+          status?: string
+          target_org_ids?: string[]
+          target_zone_ids?: string[]
+        }
+        Update: {
+          completed_at?: string | null
+          compliance_changed?: number | null
+          created_at?: string
+          date_range_end?: string | null
+          date_range_start?: string | null
+          drift_events_created?: number | null
+          duration_seconds?: number | null
+          error_message?: string | null
+          id?: string
+          observations_processed?: number | null
+          performed_by?: string
+          scope_type?: string
+          started_at?: string
+          status?: string
+          target_org_ids?: string[]
+          target_zone_ids?: string[]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "admin_recalculation_actions_performed_by_fkey"
+            columns: ["performed_by"]
+            isOneToOne: false
+            referencedRelation: "officer_compliance_dashboard"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "admin_recalculation_actions_performed_by_fkey"
+            columns: ["performed_by"]
+            isOneToOne: false
+            referencedRelation: "user_area_access"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "admin_recalculation_actions_performed_by_fkey"
+            columns: ["performed_by"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       alert_acknowledgements: {
         Row: {
           acknowledged_at: string | null
@@ -80,6 +159,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "officer_compliance_dashboard"
             referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "alert_acknowledgements_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "user_area_access"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "alert_acknowledgements_user_id_fkey"
@@ -178,6 +264,13 @@ export type Database = {
             foreignKeyName: "alert_queue_acknowledged_by_fkey"
             columns: ["acknowledged_by"]
             isOneToOne: false
+            referencedRelation: "user_area_access"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "alert_queue_acknowledged_by_fkey"
+            columns: ["acknowledged_by"]
+            isOneToOne: false
             referencedRelation: "user_profiles"
             referencedColumns: ["id"]
           },
@@ -208,6 +301,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "officer_compliance_dashboard"
             referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "alert_queue_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "user_area_access"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "alert_queue_user_id_fkey"
@@ -255,6 +355,7 @@ export type Database = {
           id: string
           new_values: Json | null
           old_values: Json | null
+          organization_id: string | null
           performed_by: string | null
         }
         Insert: {
@@ -265,6 +366,7 @@ export type Database = {
           id?: string
           new_values?: Json | null
           old_values?: Json | null
+          organization_id?: string | null
           performed_by?: string | null
         }
         Update: {
@@ -275,9 +377,17 @@ export type Database = {
           id?: string
           new_values?: Json | null
           old_values?: Json | null
+          organization_id?: string | null
           performed_by?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "audit_log_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "audit_log_performed_by_fkey"
             columns: ["performed_by"]
@@ -289,76 +399,17 @@ export type Database = {
             foreignKeyName: "audit_log_performed_by_fkey"
             columns: ["performed_by"]
             isOneToOne: false
+            referencedRelation: "user_area_access"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "audit_log_performed_by_fkey"
+            columns: ["performed_by"]
+            isOneToOne: false
             referencedRelation: "user_profiles"
             referencedColumns: ["id"]
           },
         ]
-      }
-      dispute_intake: {
-        Row: {
-          id: string
-          organization_id: string | null
-          zone_id: string | null
-          source_type: string
-          source_reference: string | null
-          plate_number: string | null
-          claimant_name: string | null
-          claimant_email: string | null
-          claimant_phone: string | null
-          message: string
-          request_homeless_review: boolean
-          hardship_context: string | null
-          evidence_statement: string | null
-          submitted_via: string
-          status: string
-          assigned_to: string | null
-          admin_notes: string | null
-          submitted_at: string
-          updated_at: string
-        }
-        Insert: {
-          id?: string
-          organization_id?: string | null
-          zone_id?: string | null
-          source_type: string
-          source_reference?: string | null
-          plate_number?: string | null
-          claimant_name?: string | null
-          claimant_email?: string | null
-          claimant_phone?: string | null
-          message: string
-          request_homeless_review?: boolean
-          hardship_context?: string | null
-          evidence_statement?: string | null
-          submitted_via?: string
-          status?: string
-          assigned_to?: string | null
-          admin_notes?: string | null
-          submitted_at?: string
-          updated_at?: string
-        }
-        Update: {
-          id?: string
-          organization_id?: string | null
-          zone_id?: string | null
-          source_type?: string
-          source_reference?: string | null
-          plate_number?: string | null
-          claimant_name?: string | null
-          claimant_email?: string | null
-          claimant_phone?: string | null
-          message?: string
-          request_homeless_review?: boolean
-          hardship_context?: string | null
-          evidence_statement?: string | null
-          submitted_via?: string
-          status?: string
-          assigned_to?: string | null
-          admin_notes?: string | null
-          submitted_at?: string
-          updated_at?: string
-        }
-        Relationships: []
       }
       breach_alerts: {
         Row: {
@@ -454,6 +505,13 @@ export type Database = {
             foreignKeyName: "breach_alerts_admin_reviewed_by_fkey"
             columns: ["admin_reviewed_by"]
             isOneToOne: false
+            referencedRelation: "user_area_access"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "breach_alerts_admin_reviewed_by_fkey"
+            columns: ["admin_reviewed_by"]
+            isOneToOne: false
             referencedRelation: "user_profiles"
             referencedColumns: ["id"]
           },
@@ -463,6 +521,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "officer_compliance_dashboard"
             referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "breach_alerts_assigned_by_fkey"
+            columns: ["assigned_by"]
+            isOneToOne: false
+            referencedRelation: "user_area_access"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "breach_alerts_assigned_by_fkey"
@@ -477,6 +542,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "officer_compliance_dashboard"
             referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "breach_alerts_assigned_to_fkey"
+            columns: ["assigned_to"]
+            isOneToOne: false
+            referencedRelation: "user_area_access"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "breach_alerts_assigned_to_fkey"
@@ -491,6 +563,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "officer_compliance_dashboard"
             referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "breach_alerts_notified_by_fkey"
+            columns: ["notified_by"]
+            isOneToOne: false
+            referencedRelation: "user_area_access"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "breach_alerts_notified_by_fkey"
@@ -675,6 +754,13 @@ export type Database = {
             foreignKeyName: "bug_reports_resolved_by_fkey"
             columns: ["resolved_by"]
             isOneToOne: false
+            referencedRelation: "user_area_access"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bug_reports_resolved_by_fkey"
+            columns: ["resolved_by"]
+            isOneToOne: false
             referencedRelation: "user_profiles"
             referencedColumns: ["id"]
           },
@@ -689,6 +775,13 @@ export type Database = {
             foreignKeyName: "bug_reports_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
+            referencedRelation: "user_area_access"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bug_reports_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
             referencedRelation: "user_profiles"
             referencedColumns: ["id"]
           },
@@ -696,36 +789,50 @@ export type Database = {
       }
       canonical_homeless: {
         Row: {
-          plate_number: string
-          status: string
-          confirmed_by: string | null
           confirmed_at: string | null
-          source: string | null
-          notes: string | null
+          confirmed_by: string | null
           created_at: string
+          notes: string | null
+          plate_number: string
+          source: string | null
+          status: string
           updated_at: string
         }
         Insert: {
-          plate_number: string
-          status?: string
-          confirmed_by?: string | null
           confirmed_at?: string | null
-          source?: string | null
-          notes?: string | null
+          confirmed_by?: string | null
           created_at?: string
+          notes?: string | null
+          plate_number: string
+          source?: string | null
+          status?: string
           updated_at?: string
         }
         Update: {
-          plate_number?: string
-          status?: string
-          confirmed_by?: string | null
           confirmed_at?: string | null
-          source?: string | null
-          notes?: string | null
+          confirmed_by?: string | null
           created_at?: string
+          notes?: string | null
+          plate_number?: string
+          source?: string | null
+          status?: string
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "fk_canonical_homeless_confirmed_by"
+            columns: ["confirmed_by"]
+            isOneToOne: false
+            referencedRelation: "officer_compliance_dashboard"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "fk_canonical_homeless_confirmed_by"
+            columns: ["confirmed_by"]
+            isOneToOne: false
+            referencedRelation: "user_area_access"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "fk_canonical_homeless_confirmed_by"
             columns: ["confirmed_by"]
@@ -737,34 +844,34 @@ export type Database = {
       }
       canonical_scv: {
         Row: {
-          plate_number: string
-          is_self_contained: boolean
           certificate_expiry: string | null
-          source: string | null
-          verified_at: string | null
-          notes: string | null
           created_at: string
+          is_self_contained: boolean
+          notes: string | null
+          plate_number: string
+          source: string | null
           updated_at: string
+          verified_at: string | null
         }
         Insert: {
-          plate_number: string
-          is_self_contained?: boolean
           certificate_expiry?: string | null
-          source?: string | null
-          verified_at?: string | null
-          notes?: string | null
           created_at?: string
+          is_self_contained?: boolean
+          notes?: string | null
+          plate_number: string
+          source?: string | null
           updated_at?: string
+          verified_at?: string | null
         }
         Update: {
-          plate_number?: string
-          is_self_contained?: boolean
           certificate_expiry?: string | null
-          source?: string | null
-          verified_at?: string | null
-          notes?: string | null
           created_at?: string
+          is_self_contained?: boolean
+          notes?: string | null
+          plate_number?: string
+          source?: string | null
           updated_at?: string
+          verified_at?: string | null
         }
         Relationships: []
       }
@@ -943,6 +1050,13 @@ export type Database = {
             foreignKeyName: "canonical_vehicles_flagged_by_fkey"
             columns: ["flagged_by"]
             isOneToOne: false
+            referencedRelation: "user_area_access"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "canonical_vehicles_flagged_by_fkey"
+            columns: ["flagged_by"]
+            isOneToOne: false
             referencedRelation: "user_profiles"
             referencedColumns: ["id"]
           },
@@ -957,7 +1071,257 @@ export type Database = {
             foreignKeyName: "canonical_vehicles_homeless_confirmed_by_fkey"
             columns: ["homeless_confirmed_by"]
             isOneToOne: false
+            referencedRelation: "user_area_access"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "canonical_vehicles_homeless_confirmed_by_fkey"
+            columns: ["homeless_confirmed_by"]
+            isOneToOne: false
             referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      checkpoint_visits: {
+        Row: {
+          checkpoint_id: string
+          created_at: string
+          gps_accuracy: number | null
+          gps_distance_from_checkpoint: number | null
+          gps_latitude: number | null
+          gps_longitude: number | null
+          id: string
+          notes: string | null
+          officer_id: string
+          organization_id: string
+          patrol_id: string | null
+          scan_method: string
+          visited_at: string
+          within_radius: boolean | null
+        }
+        Insert: {
+          checkpoint_id: string
+          created_at?: string
+          gps_accuracy?: number | null
+          gps_distance_from_checkpoint?: number | null
+          gps_latitude?: number | null
+          gps_longitude?: number | null
+          id?: string
+          notes?: string | null
+          officer_id: string
+          organization_id: string
+          patrol_id?: string | null
+          scan_method: string
+          visited_at?: string
+          within_radius?: boolean | null
+        }
+        Update: {
+          checkpoint_id?: string
+          created_at?: string
+          gps_accuracy?: number | null
+          gps_distance_from_checkpoint?: number | null
+          gps_latitude?: number | null
+          gps_longitude?: number | null
+          id?: string
+          notes?: string | null
+          officer_id?: string
+          organization_id?: string
+          patrol_id?: string | null
+          scan_method?: string
+          visited_at?: string
+          within_radius?: boolean | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "checkpoint_visits_checkpoint_id_fkey"
+            columns: ["checkpoint_id"]
+            isOneToOne: false
+            referencedRelation: "patrol_checkpoints"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "checkpoint_visits_officer_id_fkey"
+            columns: ["officer_id"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "checkpoint_visits_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "checkpoint_visits_patrol_id_fkey"
+            columns: ["patrol_id"]
+            isOneToOne: false
+            referencedRelation: "patrols"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      client_sites: {
+        Row: {
+          access_instructions: string | null
+          address: string | null
+          city: string | null
+          contact_email: string | null
+          contact_name: string | null
+          contact_phone: string | null
+          contract_end_date: string | null
+          contract_start_date: string | null
+          created_at: string
+          created_by: string | null
+          currency_code: string | null
+          default_charge_rate: number | null
+          default_pay_rate: number | null
+          default_response_minutes: number | null
+          emergency_contact_name: string | null
+          emergency_contact_phone: string | null
+          geofence_radius_metres: number
+          gps_lat: number | null
+          gps_lng: number | null
+          hazards: string | null
+          id: string
+          invoice_frequency: string | null
+          is_active: boolean
+          m365_contract_ref: string | null
+          m365_cost_centre: string | null
+          m365_customer_id: string | null
+          name: string
+          notes: string | null
+          organization_id: string
+          overtime_pay_multiplier: number | null
+          priority_override: string | null
+          purchase_order_number: string | null
+          site_code: string | null
+          site_type: string
+          special_instructions: string | null
+          updated_at: string
+          zone_id: string | null
+        }
+        Insert: {
+          access_instructions?: string | null
+          address?: string | null
+          city?: string | null
+          contact_email?: string | null
+          contact_name?: string | null
+          contact_phone?: string | null
+          contract_end_date?: string | null
+          contract_start_date?: string | null
+          created_at?: string
+          created_by?: string | null
+          currency_code?: string | null
+          default_charge_rate?: number | null
+          default_pay_rate?: number | null
+          default_response_minutes?: number | null
+          emergency_contact_name?: string | null
+          emergency_contact_phone?: string | null
+          geofence_radius_metres?: number
+          gps_lat?: number | null
+          gps_lng?: number | null
+          hazards?: string | null
+          id?: string
+          invoice_frequency?: string | null
+          is_active?: boolean
+          m365_contract_ref?: string | null
+          m365_cost_centre?: string | null
+          m365_customer_id?: string | null
+          name: string
+          notes?: string | null
+          organization_id: string
+          overtime_pay_multiplier?: number | null
+          priority_override?: string | null
+          purchase_order_number?: string | null
+          site_code?: string | null
+          site_type?: string
+          special_instructions?: string | null
+          updated_at?: string
+          zone_id?: string | null
+        }
+        Update: {
+          access_instructions?: string | null
+          address?: string | null
+          city?: string | null
+          contact_email?: string | null
+          contact_name?: string | null
+          contact_phone?: string | null
+          contract_end_date?: string | null
+          contract_start_date?: string | null
+          created_at?: string
+          created_by?: string | null
+          currency_code?: string | null
+          default_charge_rate?: number | null
+          default_pay_rate?: number | null
+          default_response_minutes?: number | null
+          emergency_contact_name?: string | null
+          emergency_contact_phone?: string | null
+          geofence_radius_metres?: number
+          gps_lat?: number | null
+          gps_lng?: number | null
+          hazards?: string | null
+          id?: string
+          invoice_frequency?: string | null
+          is_active?: boolean
+          m365_contract_ref?: string | null
+          m365_cost_centre?: string | null
+          m365_customer_id?: string | null
+          name?: string
+          notes?: string | null
+          organization_id?: string
+          overtime_pay_multiplier?: number | null
+          priority_override?: string | null
+          purchase_order_number?: string | null
+          site_code?: string | null
+          site_type?: string
+          special_instructions?: string | null
+          updated_at?: string
+          zone_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_sites_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "officer_compliance_dashboard"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "client_sites_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "user_area_access"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_sites_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_sites_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_sites_zone_id_fkey"
+            columns: ["zone_id"]
+            isOneToOne: false
+            referencedRelation: "v_observation_zone_audit"
+            referencedColumns: ["canonical_zone_id"]
+          },
+          {
+            foreignKeyName: "client_sites_zone_id_fkey"
+            columns: ["zone_id"]
+            isOneToOne: false
+            referencedRelation: "zones"
             referencedColumns: ["id"]
           },
         ]
@@ -1000,6 +1364,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "officer_compliance_dashboard"
             referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "compliance_audit_log_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "user_area_access"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "compliance_audit_log_user_id_fkey"
@@ -1117,6 +1488,172 @@ export type Database = {
           },
         ]
       }
+      contractor_documents: {
+        Row: {
+          created_at: string
+          document_name: string
+          document_type: string
+          document_url: string
+          expiry_date: string | null
+          file_size_bytes: number | null
+          id: string
+          is_current: boolean
+          mime_type: string | null
+          notes: string | null
+          organization_id: string
+          uploaded_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          document_name: string
+          document_type: string
+          document_url: string
+          expiry_date?: string | null
+          file_size_bytes?: number | null
+          id?: string
+          is_current?: boolean
+          mime_type?: string | null
+          notes?: string | null
+          organization_id: string
+          uploaded_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          document_name?: string
+          document_type?: string
+          document_url?: string
+          expiry_date?: string | null
+          file_size_bytes?: number | null
+          id?: string
+          is_current?: boolean
+          mime_type?: string | null
+          notes?: string | null
+          organization_id?: string
+          uploaded_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contractor_documents_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contractor_documents_uploaded_by_fkey"
+            columns: ["uploaded_by"]
+            isOneToOne: false
+            referencedRelation: "officer_compliance_dashboard"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "contractor_documents_uploaded_by_fkey"
+            columns: ["uploaded_by"]
+            isOneToOne: false
+            referencedRelation: "user_area_access"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contractor_documents_uploaded_by_fkey"
+            columns: ["uploaded_by"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      contractor_profiles: {
+        Row: {
+          accounts_email: string | null
+          accounts_name: string | null
+          accounts_phone: string | null
+          contact_email: string | null
+          contact_name: string | null
+          contact_phone: string | null
+          contact_role: string | null
+          created_at: string
+          guard_rate_per_hour: number | null
+          hs_policy_expiry: string | null
+          hs_policy_verified: boolean
+          id: string
+          insurance_expiry: string | null
+          insurance_verified: boolean
+          long_term_definition: string | null
+          long_term_min_days: number | null
+          long_term_rate_per_hour: number | null
+          notes: string | null
+          organization_id: string
+          service_agreement_expiry: string | null
+          service_agreement_signed: boolean
+          short_notice_rate_per_hour: number | null
+          standby_rate_per_hour: number | null
+          travel_rate_per_km: number | null
+          updated_at: string
+        }
+        Insert: {
+          accounts_email?: string | null
+          accounts_name?: string | null
+          accounts_phone?: string | null
+          contact_email?: string | null
+          contact_name?: string | null
+          contact_phone?: string | null
+          contact_role?: string | null
+          created_at?: string
+          guard_rate_per_hour?: number | null
+          hs_policy_expiry?: string | null
+          hs_policy_verified?: boolean
+          id?: string
+          insurance_expiry?: string | null
+          insurance_verified?: boolean
+          long_term_definition?: string | null
+          long_term_min_days?: number | null
+          long_term_rate_per_hour?: number | null
+          notes?: string | null
+          organization_id: string
+          service_agreement_expiry?: string | null
+          service_agreement_signed?: boolean
+          short_notice_rate_per_hour?: number | null
+          standby_rate_per_hour?: number | null
+          travel_rate_per_km?: number | null
+          updated_at?: string
+        }
+        Update: {
+          accounts_email?: string | null
+          accounts_name?: string | null
+          accounts_phone?: string | null
+          contact_email?: string | null
+          contact_name?: string | null
+          contact_phone?: string | null
+          contact_role?: string | null
+          created_at?: string
+          guard_rate_per_hour?: number | null
+          hs_policy_expiry?: string | null
+          hs_policy_verified?: boolean
+          id?: string
+          insurance_expiry?: string | null
+          insurance_verified?: boolean
+          long_term_definition?: string | null
+          long_term_min_days?: number | null
+          long_term_rate_per_hour?: number | null
+          notes?: string | null
+          organization_id?: string
+          service_agreement_expiry?: string | null
+          service_agreement_signed?: boolean
+          short_notice_rate_per_hour?: number | null
+          standby_rate_per_hour?: number | null
+          travel_rate_per_km?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contractor_profiles_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       credential_processing_log: {
         Row: {
           ai_model: string | null
@@ -1193,6 +1730,13 @@ export type Database = {
             foreignKeyName: "credential_processing_log_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
+            referencedRelation: "user_area_access"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "credential_processing_log_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
             referencedRelation: "user_profiles"
             referencedColumns: ["id"]
           },
@@ -1207,7 +1751,343 @@ export type Database = {
             foreignKeyName: "credential_processing_log_verified_by_fkey"
             columns: ["verified_by"]
             isOneToOne: false
+            referencedRelation: "user_area_access"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "credential_processing_log_verified_by_fkey"
+            columns: ["verified_by"]
+            isOneToOne: false
             referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      dispatch_jobs: {
+        Row: {
+          acknowledged_at: string | null
+          address: string | null
+          assigned_to: string | null
+          breach_alert_id: string | null
+          caller_name: string | null
+          caller_phone: string | null
+          cancel_reason: string | null
+          cancelled_at: string | null
+          client_site_id: string | null
+          completed_at: string | null
+          completion_notes: string | null
+          completion_photo_urls: string[] | null
+          created_at: string
+          created_by: string | null
+          description: string | null
+          dispatched_at: string | null
+          dispatched_by: string | null
+          en_route_at: string | null
+          escalated_at: string | null
+          escalation_level: number
+          gps_lat: number | null
+          gps_lng: number | null
+          id: string
+          investigation_job_id: string | null
+          job_number: string | null
+          job_type: string
+          on_scene_at: string | null
+          organization_id: string
+          priority: string
+          response_sla_minutes: number | null
+          sla_breached: boolean
+          status: string
+          title: string
+          updated_at: string
+          zone_id: string | null
+        }
+        Insert: {
+          acknowledged_at?: string | null
+          address?: string | null
+          assigned_to?: string | null
+          breach_alert_id?: string | null
+          caller_name?: string | null
+          caller_phone?: string | null
+          cancel_reason?: string | null
+          cancelled_at?: string | null
+          client_site_id?: string | null
+          completed_at?: string | null
+          completion_notes?: string | null
+          completion_photo_urls?: string[] | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          dispatched_at?: string | null
+          dispatched_by?: string | null
+          en_route_at?: string | null
+          escalated_at?: string | null
+          escalation_level?: number
+          gps_lat?: number | null
+          gps_lng?: number | null
+          id?: string
+          investigation_job_id?: string | null
+          job_number?: string | null
+          job_type?: string
+          on_scene_at?: string | null
+          organization_id: string
+          priority?: string
+          response_sla_minutes?: number | null
+          sla_breached?: boolean
+          status?: string
+          title: string
+          updated_at?: string
+          zone_id?: string | null
+        }
+        Update: {
+          acknowledged_at?: string | null
+          address?: string | null
+          assigned_to?: string | null
+          breach_alert_id?: string | null
+          caller_name?: string | null
+          caller_phone?: string | null
+          cancel_reason?: string | null
+          cancelled_at?: string | null
+          client_site_id?: string | null
+          completed_at?: string | null
+          completion_notes?: string | null
+          completion_photo_urls?: string[] | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          dispatched_at?: string | null
+          dispatched_by?: string | null
+          en_route_at?: string | null
+          escalated_at?: string | null
+          escalation_level?: number
+          gps_lat?: number | null
+          gps_lng?: number | null
+          id?: string
+          investigation_job_id?: string | null
+          job_number?: string | null
+          job_type?: string
+          on_scene_at?: string | null
+          organization_id?: string
+          priority?: string
+          response_sla_minutes?: number | null
+          sla_breached?: boolean
+          status?: string
+          title?: string
+          updated_at?: string
+          zone_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dispatch_jobs_assigned_to_fkey"
+            columns: ["assigned_to"]
+            isOneToOne: false
+            referencedRelation: "officer_compliance_dashboard"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "dispatch_jobs_assigned_to_fkey"
+            columns: ["assigned_to"]
+            isOneToOne: false
+            referencedRelation: "user_area_access"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dispatch_jobs_assigned_to_fkey"
+            columns: ["assigned_to"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dispatch_jobs_breach_alert_id_fkey"
+            columns: ["breach_alert_id"]
+            isOneToOne: false
+            referencedRelation: "breach_alerts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dispatch_jobs_client_site_id_fkey"
+            columns: ["client_site_id"]
+            isOneToOne: false
+            referencedRelation: "client_sites"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dispatch_jobs_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "officer_compliance_dashboard"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "dispatch_jobs_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "user_area_access"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dispatch_jobs_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dispatch_jobs_dispatched_by_fkey"
+            columns: ["dispatched_by"]
+            isOneToOne: false
+            referencedRelation: "officer_compliance_dashboard"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "dispatch_jobs_dispatched_by_fkey"
+            columns: ["dispatched_by"]
+            isOneToOne: false
+            referencedRelation: "user_area_access"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dispatch_jobs_dispatched_by_fkey"
+            columns: ["dispatched_by"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dispatch_jobs_investigation_job_id_fkey"
+            columns: ["investigation_job_id"]
+            isOneToOne: false
+            referencedRelation: "investigation_jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dispatch_jobs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dispatch_jobs_zone_id_fkey"
+            columns: ["zone_id"]
+            isOneToOne: false
+            referencedRelation: "v_observation_zone_audit"
+            referencedColumns: ["canonical_zone_id"]
+          },
+          {
+            foreignKeyName: "dispatch_jobs_zone_id_fkey"
+            columns: ["zone_id"]
+            isOneToOne: false
+            referencedRelation: "zones"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      dispute_intake: {
+        Row: {
+          admin_notes: string | null
+          assigned_to: string | null
+          claimant_email: string | null
+          claimant_name: string | null
+          claimant_phone: string | null
+          evidence_statement: string | null
+          hardship_context: string | null
+          id: string
+          message: string
+          organization_id: string | null
+          plate_number: string | null
+          request_homeless_review: boolean
+          source_reference: string | null
+          source_type: string
+          status: string
+          submitted_at: string
+          submitted_via: string
+          updated_at: string
+          zone_id: string | null
+        }
+        Insert: {
+          admin_notes?: string | null
+          assigned_to?: string | null
+          claimant_email?: string | null
+          claimant_name?: string | null
+          claimant_phone?: string | null
+          evidence_statement?: string | null
+          hardship_context?: string | null
+          id?: string
+          message: string
+          organization_id?: string | null
+          plate_number?: string | null
+          request_homeless_review?: boolean
+          source_reference?: string | null
+          source_type: string
+          status?: string
+          submitted_at?: string
+          submitted_via?: string
+          updated_at?: string
+          zone_id?: string | null
+        }
+        Update: {
+          admin_notes?: string | null
+          assigned_to?: string | null
+          claimant_email?: string | null
+          claimant_name?: string | null
+          claimant_phone?: string | null
+          evidence_statement?: string | null
+          hardship_context?: string | null
+          id?: string
+          message?: string
+          organization_id?: string | null
+          plate_number?: string | null
+          request_homeless_review?: boolean
+          source_reference?: string | null
+          source_type?: string
+          status?: string
+          submitted_at?: string
+          submitted_via?: string
+          updated_at?: string
+          zone_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dispute_intake_assigned_to_fkey"
+            columns: ["assigned_to"]
+            isOneToOne: false
+            referencedRelation: "officer_compliance_dashboard"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "dispute_intake_assigned_to_fkey"
+            columns: ["assigned_to"]
+            isOneToOne: false
+            referencedRelation: "user_area_access"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dispute_intake_assigned_to_fkey"
+            columns: ["assigned_to"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dispute_intake_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dispute_intake_zone_id_fkey"
+            columns: ["zone_id"]
+            isOneToOne: false
+            referencedRelation: "v_observation_zone_audit"
+            referencedColumns: ["canonical_zone_id"]
+          },
+          {
+            foreignKeyName: "dispute_intake_zone_id_fkey"
+            columns: ["zone_id"]
+            isOneToOne: false
+            referencedRelation: "zones"
             referencedColumns: ["id"]
           },
         ]
@@ -1280,6 +2160,13 @@ export type Database = {
             foreignKeyName: "drift_events_reviewed_by_fkey"
             columns: ["reviewed_by"]
             isOneToOne: false
+            referencedRelation: "user_area_access"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "drift_events_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
             referencedRelation: "user_profiles"
             referencedColumns: ["id"]
           },
@@ -1302,6 +2189,157 @@ export type Database = {
             columns: ["zone_id"]
             isOneToOne: false
             referencedRelation: "zones"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ems_attendances: {
+        Row: {
+          action: string
+          admin_notes: string | null
+          approved_at: string | null
+          approved_by: string | null
+          attendance_address: string | null
+          attendance_date: string
+          billable_hours: number | null
+          created_at: string
+          device_serial: string | null
+          device_type: string | null
+          district: string | null
+          end_time: string | null
+          id: string
+          notes: string | null
+          offender_ref: string | null
+          officer_id: string
+          officer_seniority_level: number
+          officer_shift_id: string | null
+          organization_id: string
+          rate_per_hour: number | null
+          roster_shift_id: string | null
+          start_time: string | null
+          status: string
+          travel_km: number | null
+          travel_rate_per_km: number | null
+          updated_at: string
+        }
+        Insert: {
+          action: string
+          admin_notes?: string | null
+          approved_at?: string | null
+          approved_by?: string | null
+          attendance_address?: string | null
+          attendance_date?: string
+          billable_hours?: number | null
+          created_at?: string
+          device_serial?: string | null
+          device_type?: string | null
+          district?: string | null
+          end_time?: string | null
+          id?: string
+          notes?: string | null
+          offender_ref?: string | null
+          officer_id: string
+          officer_seniority_level?: number
+          officer_shift_id?: string | null
+          organization_id: string
+          rate_per_hour?: number | null
+          roster_shift_id?: string | null
+          start_time?: string | null
+          status?: string
+          travel_km?: number | null
+          travel_rate_per_km?: number | null
+          updated_at?: string
+        }
+        Update: {
+          action?: string
+          admin_notes?: string | null
+          approved_at?: string | null
+          approved_by?: string | null
+          attendance_address?: string | null
+          attendance_date?: string
+          billable_hours?: number | null
+          created_at?: string
+          device_serial?: string | null
+          device_type?: string | null
+          district?: string | null
+          end_time?: string | null
+          id?: string
+          notes?: string | null
+          offender_ref?: string | null
+          officer_id?: string
+          officer_seniority_level?: number
+          officer_shift_id?: string | null
+          organization_id?: string
+          rate_per_hour?: number | null
+          roster_shift_id?: string | null
+          start_time?: string | null
+          status?: string
+          travel_km?: number | null
+          travel_rate_per_km?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ems_attendances_approved_by_fkey"
+            columns: ["approved_by"]
+            isOneToOne: false
+            referencedRelation: "officer_compliance_dashboard"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "ems_attendances_approved_by_fkey"
+            columns: ["approved_by"]
+            isOneToOne: false
+            referencedRelation: "user_area_access"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ems_attendances_approved_by_fkey"
+            columns: ["approved_by"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ems_attendances_officer_id_fkey"
+            columns: ["officer_id"]
+            isOneToOne: false
+            referencedRelation: "officer_compliance_dashboard"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "ems_attendances_officer_id_fkey"
+            columns: ["officer_id"]
+            isOneToOne: false
+            referencedRelation: "user_area_access"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ems_attendances_officer_id_fkey"
+            columns: ["officer_id"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ems_attendances_officer_shift_id_fkey"
+            columns: ["officer_shift_id"]
+            isOneToOne: false
+            referencedRelation: "officer_shifts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ems_attendances_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ems_attendances_roster_shift_id_fkey"
+            columns: ["roster_shift_id"]
+            isOneToOne: false
+            referencedRelation: "roster_shifts"
             referencedColumns: ["id"]
           },
         ]
@@ -1388,6 +2426,13 @@ export type Database = {
             foreignKeyName: "enforcement_actions_assigned_by_fkey"
             columns: ["assigned_by"]
             isOneToOne: false
+            referencedRelation: "user_area_access"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "enforcement_actions_assigned_by_fkey"
+            columns: ["assigned_by"]
+            isOneToOne: false
             referencedRelation: "user_profiles"
             referencedColumns: ["id"]
           },
@@ -1397,6 +2442,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "officer_compliance_dashboard"
             referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "enforcement_actions_assigned_to_fkey"
+            columns: ["assigned_to"]
+            isOneToOne: false
+            referencedRelation: "user_area_access"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "enforcement_actions_assigned_to_fkey"
@@ -1411,6 +2463,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "officer_compliance_dashboard"
             referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "enforcement_actions_completed_by_fkey"
+            columns: ["completed_by"]
+            isOneToOne: false
+            referencedRelation: "user_area_access"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "enforcement_actions_completed_by_fkey"
@@ -1432,6 +2491,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "officer_compliance_dashboard"
             referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "enforcement_actions_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "user_area_access"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "enforcement_actions_created_by_fkey"
@@ -1466,6 +2532,111 @@ export type Database = {
             columns: ["zone_id"]
             isOneToOne: false
             referencedRelation: "zones"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      face_records: {
+        Row: {
+          created_at: string
+          detection_method: string | null
+          embedding: number[] | null
+          embedding_quality: number | null
+          face_count: number
+          faces: Json
+          id: string
+          incident_id: string | null
+          label: string | null
+          latitude: number | null
+          longitude: number | null
+          notes: string | null
+          observation_id: string | null
+          officer_id: string | null
+          organization_id: string
+          person_record_id: string | null
+          photo_path: string | null
+          photo_url: string
+          updated_at: string
+          zone_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          detection_method?: string | null
+          embedding?: number[] | null
+          embedding_quality?: number | null
+          face_count?: number
+          faces?: Json
+          id?: string
+          incident_id?: string | null
+          label?: string | null
+          latitude?: number | null
+          longitude?: number | null
+          notes?: string | null
+          observation_id?: string | null
+          officer_id?: string | null
+          organization_id: string
+          person_record_id?: string | null
+          photo_path?: string | null
+          photo_url: string
+          updated_at?: string
+          zone_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          detection_method?: string | null
+          embedding?: number[] | null
+          embedding_quality?: number | null
+          face_count?: number
+          faces?: Json
+          id?: string
+          incident_id?: string | null
+          label?: string | null
+          latitude?: number | null
+          longitude?: number | null
+          notes?: string | null
+          observation_id?: string | null
+          officer_id?: string | null
+          organization_id?: string
+          person_record_id?: string | null
+          photo_path?: string | null
+          photo_url?: string
+          updated_at?: string
+          zone_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "face_records_incident_id_fkey"
+            columns: ["incident_id"]
+            isOneToOne: false
+            referencedRelation: "incidents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "face_records_observation_id_fkey"
+            columns: ["observation_id"]
+            isOneToOne: false
+            referencedRelation: "observations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "face_records_observation_id_fkey"
+            columns: ["observation_id"]
+            isOneToOne: false
+            referencedRelation: "recent_observations_photo_status"
+            referencedColumns: ["observation_id"]
+          },
+          {
+            foreignKeyName: "face_records_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "face_records_person_record_id_fkey"
+            columns: ["person_record_id"]
+            isOneToOne: false
+            referencedRelation: "person_records"
             referencedColumns: ["id"]
           },
         ]
@@ -1540,6 +2711,13 @@ export type Database = {
             foreignKeyName: "flagged_vehicles_created_by_fkey"
             columns: ["created_by"]
             isOneToOne: false
+            referencedRelation: "user_area_access"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "flagged_vehicles_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
             referencedRelation: "user_profiles"
             referencedColumns: ["id"]
           },
@@ -1549,6 +2727,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "officer_compliance_dashboard"
             referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "flagged_vehicles_flagged_by_fkey"
+            columns: ["flagged_by"]
+            isOneToOne: false
+            referencedRelation: "user_area_access"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "flagged_vehicles_flagged_by_fkey"
@@ -1617,6 +2802,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "officer_compliance_dashboard"
             referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "health_safety_reports_reported_by_fkey"
+            columns: ["reported_by"]
+            isOneToOne: false
+            referencedRelation: "user_area_access"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "health_safety_reports_reported_by_fkey"
@@ -1699,6 +2891,13 @@ export type Database = {
             foreignKeyName: "homeless_records_created_by_fkey"
             columns: ["created_by"]
             isOneToOne: false
+            referencedRelation: "user_area_access"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "homeless_records_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
             referencedRelation: "user_profiles"
             referencedColumns: ["id"]
           },
@@ -1715,6 +2914,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "officer_compliance_dashboard"
             referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "homeless_records_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "user_area_access"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "homeless_records_updated_by_fkey"
@@ -1817,6 +3023,13 @@ export type Database = {
             foreignKeyName: "import_batches_uploaded_by_fkey"
             columns: ["uploaded_by"]
             isOneToOne: false
+            referencedRelation: "user_area_access"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "import_batches_uploaded_by_fkey"
+            columns: ["uploaded_by"]
+            isOneToOne: false
             referencedRelation: "user_profiles"
             referencedColumns: ["id"]
           },
@@ -1895,9 +3108,12 @@ export type Database = {
           metadata: Json | null
           notes: string | null
           organization_id: string
+          person_record_id: string | null
           plate_number: string | null
           primary_evidence_url: string | null
           reported_by: string | null
+          retention_hold: boolean | null
+          retention_until: string | null
           severity: string | null
           status: string | null
           updated_at: string | null
@@ -1917,9 +3133,12 @@ export type Database = {
           metadata?: Json | null
           notes?: string | null
           organization_id: string
+          person_record_id?: string | null
           plate_number?: string | null
           primary_evidence_url?: string | null
           reported_by?: string | null
+          retention_hold?: boolean | null
+          retention_until?: string | null
           severity?: string | null
           status?: string | null
           updated_at?: string | null
@@ -1939,9 +3158,12 @@ export type Database = {
           metadata?: Json | null
           notes?: string | null
           organization_id?: string
+          person_record_id?: string | null
           plate_number?: string | null
           primary_evidence_url?: string | null
           reported_by?: string | null
+          retention_hold?: boolean | null
+          retention_until?: string | null
           severity?: string | null
           status?: string | null
           updated_at?: string | null
@@ -1957,11 +3179,25 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "incidents_person_record_id_fkey"
+            columns: ["person_record_id"]
+            isOneToOne: false
+            referencedRelation: "person_records"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "incidents_reported_by_fkey"
             columns: ["reported_by"]
             isOneToOne: false
             referencedRelation: "officer_compliance_dashboard"
             referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "incidents_reported_by_fkey"
+            columns: ["reported_by"]
+            isOneToOne: false
+            referencedRelation: "user_area_access"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "incidents_reported_by_fkey"
@@ -1976,6 +3212,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "officer_compliance_dashboard"
             referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "incidents_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "user_area_access"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "incidents_user_id_fkey"
@@ -1999,6 +3242,30 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      infringement_notice_counters: {
+        Row: {
+          created_at: string
+          last_seq: number
+          organization_id: string
+          updated_at: string
+          year_code: string
+        }
+        Insert: {
+          created_at?: string
+          last_seq?: number
+          organization_id: string
+          updated_at?: string
+          year_code: string
+        }
+        Update: {
+          created_at?: string
+          last_seq?: number
+          organization_id?: string
+          updated_at?: string
+          year_code?: string
+        }
+        Relationships: []
       }
       infringement_notices: {
         Row: {
@@ -2042,6 +3309,8 @@ export type Database = {
           status: string
           summary_of_rights: string | null
           updated_at: string | null
+          vehicle_make: string | null
+          vehicle_model: string | null
           withdrawn_reason: string | null
           zone_id: string | null
         }
@@ -2086,6 +3355,8 @@ export type Database = {
           status?: string
           summary_of_rights?: string | null
           updated_at?: string | null
+          vehicle_make?: string | null
+          vehicle_model?: string | null
           withdrawn_reason?: string | null
           zone_id?: string | null
         }
@@ -2130,6 +3401,8 @@ export type Database = {
           status?: string
           summary_of_rights?: string | null
           updated_at?: string | null
+          vehicle_make?: string | null
+          vehicle_model?: string | null
           withdrawn_reason?: string | null
           zone_id?: string | null
         }
@@ -2152,6 +3425,13 @@ export type Database = {
             foreignKeyName: "infringement_notices_created_by_fkey"
             columns: ["created_by"]
             isOneToOne: false
+            referencedRelation: "user_area_access"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "infringement_notices_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
             referencedRelation: "user_profiles"
             referencedColumns: ["id"]
           },
@@ -2161,6 +3441,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "officer_compliance_dashboard"
             referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "infringement_notices_issued_by_fkey"
+            columns: ["issued_by"]
+            isOneToOne: false
+            referencedRelation: "user_area_access"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "infringement_notices_issued_by_fkey"
@@ -2291,6 +3578,13 @@ export type Database = {
             foreignKeyName: "investigation_job_types_created_by_fkey"
             columns: ["created_by"]
             isOneToOne: false
+            referencedRelation: "user_area_access"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "investigation_job_types_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
             referencedRelation: "user_profiles"
             referencedColumns: ["id"]
           },
@@ -2388,6 +3682,13 @@ export type Database = {
             foreignKeyName: "investigation_jobs_assigned_to_fkey"
             columns: ["assigned_to"]
             isOneToOne: false
+            referencedRelation: "user_area_access"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "investigation_jobs_assigned_to_fkey"
+            columns: ["assigned_to"]
+            isOneToOne: false
             referencedRelation: "user_profiles"
             referencedColumns: ["id"]
           },
@@ -2425,6 +3726,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "officer_compliance_dashboard"
             referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "investigation_jobs_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "user_area_access"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "investigation_jobs_created_by_fkey"
@@ -2520,6 +3828,13 @@ export type Database = {
             foreignKeyName: "missing_photo_queue_assigned_to_fkey"
             columns: ["assigned_to"]
             isOneToOne: false
+            referencedRelation: "user_area_access"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "missing_photo_queue_assigned_to_fkey"
+            columns: ["assigned_to"]
+            isOneToOne: false
             referencedRelation: "user_profiles"
             referencedColumns: ["id"]
           },
@@ -2542,6 +3857,664 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      noise_assessments: {
+        Row: {
+          action_notes: string | null
+          address: string
+          address_photo_url: string | null
+          assessed_at: string
+          created_at: string
+          district_plan_limit_db: number | null
+          exceeds_district_plan: boolean | null
+          gps_lat: number | null
+          gps_lng: number | null
+          id: string
+          measurement_location: string | null
+          measurement_method: string
+          noise_job_id: string | null
+          noise_level_db: number | null
+          noise_source: string | null
+          noise_source_address: string | null
+          noise_type: string | null
+          officer_id: string
+          organization_id: string
+          persons_present: number | null
+          photos: string[] | null
+          recommended_action: string
+          responsible_person_name: string | null
+          responsible_person_warned: boolean | null
+          time_category: string
+          verbal_warning_given: boolean | null
+          zone_classification: string | null
+        }
+        Insert: {
+          action_notes?: string | null
+          address: string
+          address_photo_url?: string | null
+          assessed_at?: string
+          created_at?: string
+          district_plan_limit_db?: number | null
+          exceeds_district_plan?: boolean | null
+          gps_lat?: number | null
+          gps_lng?: number | null
+          id?: string
+          measurement_location?: string | null
+          measurement_method?: string
+          noise_job_id?: string | null
+          noise_level_db?: number | null
+          noise_source?: string | null
+          noise_source_address?: string | null
+          noise_type?: string | null
+          officer_id: string
+          organization_id: string
+          persons_present?: number | null
+          photos?: string[] | null
+          recommended_action?: string
+          responsible_person_name?: string | null
+          responsible_person_warned?: boolean | null
+          time_category?: string
+          verbal_warning_given?: boolean | null
+          zone_classification?: string | null
+        }
+        Update: {
+          action_notes?: string | null
+          address?: string
+          address_photo_url?: string | null
+          assessed_at?: string
+          created_at?: string
+          district_plan_limit_db?: number | null
+          exceeds_district_plan?: boolean | null
+          gps_lat?: number | null
+          gps_lng?: number | null
+          id?: string
+          measurement_location?: string | null
+          measurement_method?: string
+          noise_job_id?: string | null
+          noise_level_db?: number | null
+          noise_source?: string | null
+          noise_source_address?: string | null
+          noise_type?: string | null
+          officer_id?: string
+          organization_id?: string
+          persons_present?: number | null
+          photos?: string[] | null
+          recommended_action?: string
+          responsible_person_name?: string | null
+          responsible_person_warned?: boolean | null
+          time_category?: string
+          verbal_warning_given?: boolean | null
+          zone_classification?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "noise_assessments_noise_job_id_fkey"
+            columns: ["noise_job_id"]
+            isOneToOne: false
+            referencedRelation: "noise_jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "noise_assessments_officer_id_fkey"
+            columns: ["officer_id"]
+            isOneToOne: false
+            referencedRelation: "officer_compliance_dashboard"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "noise_assessments_officer_id_fkey"
+            columns: ["officer_id"]
+            isOneToOne: false
+            referencedRelation: "user_area_access"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "noise_assessments_officer_id_fkey"
+            columns: ["officer_id"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "noise_assessments_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      noise_job_counters: {
+        Row: {
+          last_number: number
+          organization_id: string
+        }
+        Insert: {
+          last_number?: number
+          organization_id: string
+        }
+        Update: {
+          last_number?: number
+          organization_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "noise_job_counters_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      noise_jobs: {
+        Row: {
+          address: string
+          address_history_notes: string | null
+          assigned_at: string | null
+          assigned_to: string | null
+          city: string | null
+          complainant_ref: string | null
+          complaint_description: string | null
+          complaint_source: string
+          completed_at: string | null
+          completed_by: string | null
+          created_at: string
+          dispatched_by: string | null
+          eta_minutes: number | null
+          gps_lat: number | null
+          gps_lng: number | null
+          has_hs_incident: boolean
+          has_permanent_end: boolean
+          has_prior_abatement: boolean
+          has_prior_end: boolean
+          id: string
+          job_number: string
+          noise_type: string
+          organization_id: string
+          outcome: string | null
+          outcome_notes: string | null
+          prior_notice_count: number
+          prior_notice_summary: string | null
+          priority: string
+          safety_notes: string | null
+          status: string
+          suburb: string | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          address: string
+          address_history_notes?: string | null
+          assigned_at?: string | null
+          assigned_to?: string | null
+          city?: string | null
+          complainant_ref?: string | null
+          complaint_description?: string | null
+          complaint_source?: string
+          completed_at?: string | null
+          completed_by?: string | null
+          created_at?: string
+          dispatched_by?: string | null
+          eta_minutes?: number | null
+          gps_lat?: number | null
+          gps_lng?: number | null
+          has_hs_incident?: boolean
+          has_permanent_end?: boolean
+          has_prior_abatement?: boolean
+          has_prior_end?: boolean
+          id?: string
+          job_number: string
+          noise_type?: string
+          organization_id: string
+          outcome?: string | null
+          outcome_notes?: string | null
+          prior_notice_count?: number
+          prior_notice_summary?: string | null
+          priority?: string
+          safety_notes?: string | null
+          status?: string
+          suburb?: string | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          address?: string
+          address_history_notes?: string | null
+          assigned_at?: string | null
+          assigned_to?: string | null
+          city?: string | null
+          complainant_ref?: string | null
+          complaint_description?: string | null
+          complaint_source?: string
+          completed_at?: string | null
+          completed_by?: string | null
+          created_at?: string
+          dispatched_by?: string | null
+          eta_minutes?: number | null
+          gps_lat?: number | null
+          gps_lng?: number | null
+          has_hs_incident?: boolean
+          has_permanent_end?: boolean
+          has_prior_abatement?: boolean
+          has_prior_end?: boolean
+          id?: string
+          job_number?: string
+          noise_type?: string
+          organization_id?: string
+          outcome?: string | null
+          outcome_notes?: string | null
+          prior_notice_count?: number
+          prior_notice_summary?: string | null
+          priority?: string
+          safety_notes?: string | null
+          status?: string
+          suburb?: string | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "noise_jobs_assigned_to_fkey"
+            columns: ["assigned_to"]
+            isOneToOne: false
+            referencedRelation: "officer_compliance_dashboard"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "noise_jobs_assigned_to_fkey"
+            columns: ["assigned_to"]
+            isOneToOne: false
+            referencedRelation: "user_area_access"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "noise_jobs_assigned_to_fkey"
+            columns: ["assigned_to"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "noise_jobs_completed_by_fkey"
+            columns: ["completed_by"]
+            isOneToOne: false
+            referencedRelation: "officer_compliance_dashboard"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "noise_jobs_completed_by_fkey"
+            columns: ["completed_by"]
+            isOneToOne: false
+            referencedRelation: "user_area_access"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "noise_jobs_completed_by_fkey"
+            columns: ["completed_by"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "noise_jobs_dispatched_by_fkey"
+            columns: ["dispatched_by"]
+            isOneToOne: false
+            referencedRelation: "officer_compliance_dashboard"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "noise_jobs_dispatched_by_fkey"
+            columns: ["dispatched_by"]
+            isOneToOne: false
+            referencedRelation: "user_area_access"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "noise_jobs_dispatched_by_fkey"
+            columns: ["dispatched_by"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "noise_jobs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      noise_notice_counters: {
+        Row: {
+          last_number: number
+          organization_id: string
+        }
+        Insert: {
+          last_number?: number
+          organization_id: string
+        }
+        Update: {
+          last_number?: number
+          organization_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "noise_notice_counters_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      noise_notices: {
+        Row: {
+          authority: string | null
+          complied_at: string | null
+          comply_by: string | null
+          daily_penalty_nzd: number | null
+          escalated_to: string | null
+          escalation_notes: string | null
+          evidence_photos: string[] | null
+          id: string
+          is_permanent_end: boolean
+          issued_at: string
+          issuing_officer_id: string | null
+          issuing_officer_name: string | null
+          noise_assessment_id: string | null
+          noise_job_id: string | null
+          notes: string | null
+          notice_number: string
+          notice_type: string
+          offence_description: string
+          organization_id: string
+          pdf_url: string | null
+          penalty_amount_nzd: number | null
+          previous_notice_count: number
+          recipient_address: string
+          recipient_dob: string | null
+          recipient_email: string | null
+          recipient_name: string
+          recipient_phone: string | null
+          rma_section: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          authority?: string | null
+          complied_at?: string | null
+          comply_by?: string | null
+          daily_penalty_nzd?: number | null
+          escalated_to?: string | null
+          escalation_notes?: string | null
+          evidence_photos?: string[] | null
+          id?: string
+          is_permanent_end?: boolean
+          issued_at?: string
+          issuing_officer_id?: string | null
+          issuing_officer_name?: string | null
+          noise_assessment_id?: string | null
+          noise_job_id?: string | null
+          notes?: string | null
+          notice_number: string
+          notice_type: string
+          offence_description: string
+          organization_id: string
+          pdf_url?: string | null
+          penalty_amount_nzd?: number | null
+          previous_notice_count?: number
+          recipient_address: string
+          recipient_dob?: string | null
+          recipient_email?: string | null
+          recipient_name: string
+          recipient_phone?: string | null
+          rma_section?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          authority?: string | null
+          complied_at?: string | null
+          comply_by?: string | null
+          daily_penalty_nzd?: number | null
+          escalated_to?: string | null
+          escalation_notes?: string | null
+          evidence_photos?: string[] | null
+          id?: string
+          is_permanent_end?: boolean
+          issued_at?: string
+          issuing_officer_id?: string | null
+          issuing_officer_name?: string | null
+          noise_assessment_id?: string | null
+          noise_job_id?: string | null
+          notes?: string | null
+          notice_number?: string
+          notice_type?: string
+          offence_description?: string
+          organization_id?: string
+          pdf_url?: string | null
+          penalty_amount_nzd?: number | null
+          previous_notice_count?: number
+          recipient_address?: string
+          recipient_dob?: string | null
+          recipient_email?: string | null
+          recipient_name?: string
+          recipient_phone?: string | null
+          rma_section?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "noise_notices_issuing_officer_id_fkey"
+            columns: ["issuing_officer_id"]
+            isOneToOne: false
+            referencedRelation: "officer_compliance_dashboard"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "noise_notices_issuing_officer_id_fkey"
+            columns: ["issuing_officer_id"]
+            isOneToOne: false
+            referencedRelation: "user_area_access"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "noise_notices_issuing_officer_id_fkey"
+            columns: ["issuing_officer_id"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "noise_notices_noise_assessment_id_fkey"
+            columns: ["noise_assessment_id"]
+            isOneToOne: false
+            referencedRelation: "noise_assessments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "noise_notices_noise_job_id_fkey"
+            columns: ["noise_job_id"]
+            isOneToOne: false
+            referencedRelation: "noise_jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "noise_notices_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      noise_seizure_counters: {
+        Row: {
+          last_number: number
+          organization_id: string
+        }
+        Insert: {
+          last_number?: number
+          organization_id: string
+        }
+        Update: {
+          last_number?: number
+          organization_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "noise_seizure_counters_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      noise_seizures: {
+        Row: {
+          address: string
+          court_order_ref: string | null
+          created_at: string
+          disposal_method: string | null
+          equipment_condition: string | null
+          equipment_count: number
+          equipment_description: string
+          estimated_value_nzd: number | null
+          gps_lat: number | null
+          gps_lng: number | null
+          id: string
+          noise_job_id: string | null
+          noise_notice_id: string | null
+          notes: string | null
+          organization_id: string
+          photos: string[] | null
+          return_conditions: string | null
+          return_date: string | null
+          returned_to: string | null
+          rma_authority: string | null
+          seized_at: string
+          seizing_officer_id: string | null
+          seizing_officer_name: string | null
+          seizure_number: string
+          serial_numbers: string[] | null
+          status: string
+          storage_location: string | null
+          storage_reference: string | null
+          updated_at: string
+          witness_name: string | null
+        }
+        Insert: {
+          address: string
+          court_order_ref?: string | null
+          created_at?: string
+          disposal_method?: string | null
+          equipment_condition?: string | null
+          equipment_count?: number
+          equipment_description: string
+          estimated_value_nzd?: number | null
+          gps_lat?: number | null
+          gps_lng?: number | null
+          id?: string
+          noise_job_id?: string | null
+          noise_notice_id?: string | null
+          notes?: string | null
+          organization_id: string
+          photos?: string[] | null
+          return_conditions?: string | null
+          return_date?: string | null
+          returned_to?: string | null
+          rma_authority?: string | null
+          seized_at?: string
+          seizing_officer_id?: string | null
+          seizing_officer_name?: string | null
+          seizure_number: string
+          serial_numbers?: string[] | null
+          status?: string
+          storage_location?: string | null
+          storage_reference?: string | null
+          updated_at?: string
+          witness_name?: string | null
+        }
+        Update: {
+          address?: string
+          court_order_ref?: string | null
+          created_at?: string
+          disposal_method?: string | null
+          equipment_condition?: string | null
+          equipment_count?: number
+          equipment_description?: string
+          estimated_value_nzd?: number | null
+          gps_lat?: number | null
+          gps_lng?: number | null
+          id?: string
+          noise_job_id?: string | null
+          noise_notice_id?: string | null
+          notes?: string | null
+          organization_id?: string
+          photos?: string[] | null
+          return_conditions?: string | null
+          return_date?: string | null
+          returned_to?: string | null
+          rma_authority?: string | null
+          seized_at?: string
+          seizing_officer_id?: string | null
+          seizing_officer_name?: string | null
+          seizure_number?: string
+          serial_numbers?: string[] | null
+          status?: string
+          storage_location?: string | null
+          storage_reference?: string | null
+          updated_at?: string
+          witness_name?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "noise_seizures_noise_job_id_fkey"
+            columns: ["noise_job_id"]
+            isOneToOne: false
+            referencedRelation: "noise_jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "noise_seizures_noise_notice_id_fkey"
+            columns: ["noise_notice_id"]
+            isOneToOne: false
+            referencedRelation: "noise_notices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "noise_seizures_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "noise_seizures_seizing_officer_id_fkey"
+            columns: ["seizing_officer_id"]
+            isOneToOne: false
+            referencedRelation: "officer_compliance_dashboard"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "noise_seizures_seizing_officer_id_fkey"
+            columns: ["seizing_officer_id"]
+            isOneToOne: false
+            referencedRelation: "user_area_access"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "noise_seizures_seizing_officer_id_fkey"
+            columns: ["seizing_officer_id"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -2655,6 +4628,13 @@ export type Database = {
             foreignKeyName: "notices_to_vacate_authorized_by_fkey"
             columns: ["authorized_by"]
             isOneToOne: false
+            referencedRelation: "user_area_access"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notices_to_vacate_authorized_by_fkey"
+            columns: ["authorized_by"]
+            isOneToOne: false
             referencedRelation: "user_profiles"
             referencedColumns: ["id"]
           },
@@ -2664,6 +4644,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "officer_compliance_dashboard"
             referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "notices_to_vacate_compliance_verified_by_fkey"
+            columns: ["compliance_verified_by"]
+            isOneToOne: false
+            referencedRelation: "user_area_access"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "notices_to_vacate_compliance_verified_by_fkey"
@@ -2678,6 +4665,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "officer_compliance_dashboard"
             referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "notices_to_vacate_delivered_to_officer_fkey"
+            columns: ["delivered_to_officer"]
+            isOneToOne: false
+            referencedRelation: "user_area_access"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "notices_to_vacate_delivered_to_officer_fkey"
@@ -2692,6 +4686,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "officer_compliance_dashboard"
             referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "notices_to_vacate_issued_by_fkey"
+            columns: ["issued_by"]
+            isOneToOne: false
+            referencedRelation: "user_area_access"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "notices_to_vacate_issued_by_fkey"
@@ -2785,6 +4786,13 @@ export type Database = {
             foreignKeyName: "notifications_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
+            referencedRelation: "user_area_access"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notifications_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
             referencedRelation: "user_profiles"
             referencedColumns: ["id"]
           },
@@ -2837,6 +4845,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "officer_compliance_dashboard"
             referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "observation_deletions_deleted_by_fkey"
+            columns: ["deleted_by"]
+            isOneToOne: false
+            referencedRelation: "user_area_access"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "observation_deletions_deleted_by_fkey"
@@ -3147,6 +5162,13 @@ export type Database = {
             foreignKeyName: "vehicle_observations_v2_recorded_by_fkey"
             columns: ["recorded_by"]
             isOneToOne: false
+            referencedRelation: "user_area_access"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vehicle_observations_v2_recorded_by_fkey"
+            columns: ["recorded_by"]
+            isOneToOne: false
             referencedRelation: "user_profiles"
             referencedColumns: ["id"]
           },
@@ -3222,13 +5244,188 @@ export type Database = {
             foreignKeyName: "officer_activity_log_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
+            referencedRelation: "user_area_access"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "officer_activity_log_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
             referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      officer_activity_rates: {
+        Row: {
+          activity_type: string
+          created_at: string
+          created_by: string | null
+          effective_from: string
+          effective_to: string | null
+          id: string
+          notes: string | null
+          officer_id: string
+          organization_id: string
+          rate_per_hour: number
+        }
+        Insert: {
+          activity_type: string
+          created_at?: string
+          created_by?: string | null
+          effective_from?: string
+          effective_to?: string | null
+          id?: string
+          notes?: string | null
+          officer_id: string
+          organization_id: string
+          rate_per_hour: number
+        }
+        Update: {
+          activity_type?: string
+          created_at?: string
+          created_by?: string | null
+          effective_from?: string
+          effective_to?: string | null
+          id?: string
+          notes?: string | null
+          officer_id?: string
+          organization_id?: string
+          rate_per_hour?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "officer_activity_rates_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "officer_compliance_dashboard"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "officer_activity_rates_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "user_area_access"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "officer_activity_rates_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "officer_activity_rates_officer_id_fkey"
+            columns: ["officer_id"]
+            isOneToOne: false
+            referencedRelation: "officer_compliance_dashboard"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "officer_activity_rates_officer_id_fkey"
+            columns: ["officer_id"]
+            isOneToOne: false
+            referencedRelation: "user_area_access"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "officer_activity_rates_officer_id_fkey"
+            columns: ["officer_id"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "officer_activity_rates_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      officer_availability: {
+        Row: {
+          available_from: string | null
+          available_to: string | null
+          created_at: string
+          day_of_week: number | null
+          id: string
+          is_available: boolean
+          notes: string | null
+          officer_id: string
+          organization_id: string
+          specific_date: string | null
+          unavailability_reason: string | null
+          updated_at: string
+        }
+        Insert: {
+          available_from?: string | null
+          available_to?: string | null
+          created_at?: string
+          day_of_week?: number | null
+          id?: string
+          is_available?: boolean
+          notes?: string | null
+          officer_id: string
+          organization_id: string
+          specific_date?: string | null
+          unavailability_reason?: string | null
+          updated_at?: string
+        }
+        Update: {
+          available_from?: string | null
+          available_to?: string | null
+          created_at?: string
+          day_of_week?: number | null
+          id?: string
+          is_available?: boolean
+          notes?: string | null
+          officer_id?: string
+          organization_id?: string
+          specific_date?: string | null
+          unavailability_reason?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "officer_availability_officer_id_fkey"
+            columns: ["officer_id"]
+            isOneToOne: false
+            referencedRelation: "officer_compliance_dashboard"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "officer_availability_officer_id_fkey"
+            columns: ["officer_id"]
+            isOneToOne: false
+            referencedRelation: "user_area_access"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "officer_availability_officer_id_fkey"
+            columns: ["officer_id"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "officer_availability_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
         ]
       }
       officer_shifts: {
         Row: {
+          admin_notes: string | null
+          approval_status: string
+          approved_at: string | null
+          approved_by: string | null
+          client_org_id: string | null
           created_at: string
           end_reason: string | null
           ended_at: string | null
@@ -3240,10 +5437,19 @@ export type Database = {
           officer_id: string
           organization_id: string
           parent_zone_id: string | null
+          roster_shift_id: string | null
+          service_type: string | null
+          shift_feedback: string | null
+          shift_rating: number | null
           started_at: string
           updated_at: string
         }
         Insert: {
+          admin_notes?: string | null
+          approval_status?: string
+          approved_at?: string | null
+          approved_by?: string | null
+          client_org_id?: string | null
           created_at?: string
           end_reason?: string | null
           ended_at?: string | null
@@ -3255,10 +5461,19 @@ export type Database = {
           officer_id: string
           organization_id: string
           parent_zone_id?: string | null
+          roster_shift_id?: string | null
+          service_type?: string | null
+          shift_feedback?: string | null
+          shift_rating?: number | null
           started_at?: string
           updated_at?: string
         }
         Update: {
+          admin_notes?: string | null
+          approval_status?: string
+          approved_at?: string | null
+          approved_by?: string | null
+          client_org_id?: string | null
           created_at?: string
           end_reason?: string | null
           ended_at?: string | null
@@ -3270,16 +5485,55 @@ export type Database = {
           officer_id?: string
           organization_id?: string
           parent_zone_id?: string | null
+          roster_shift_id?: string | null
+          service_type?: string | null
+          shift_feedback?: string | null
+          shift_rating?: number | null
           started_at?: string
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "officer_shifts_approved_by_fkey"
+            columns: ["approved_by"]
+            isOneToOne: false
+            referencedRelation: "officer_compliance_dashboard"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "officer_shifts_approved_by_fkey"
+            columns: ["approved_by"]
+            isOneToOne: false
+            referencedRelation: "user_area_access"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "officer_shifts_approved_by_fkey"
+            columns: ["approved_by"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "officer_shifts_client_org_id_fkey"
+            columns: ["client_org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "officer_shifts_officer_id_fkey"
             columns: ["officer_id"]
             isOneToOne: false
             referencedRelation: "officer_compliance_dashboard"
             referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "officer_shifts_officer_id_fkey"
+            columns: ["officer_id"]
+            isOneToOne: false
+            referencedRelation: "user_area_access"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "officer_shifts_officer_id_fkey"
@@ -3307,6 +5561,117 @@ export type Database = {
             columns: ["parent_zone_id"]
             isOneToOne: false
             referencedRelation: "zones"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "officer_shifts_roster_shift_id_fkey"
+            columns: ["roster_shift_id"]
+            isOneToOne: false
+            referencedRelation: "roster_shifts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      officer_skills: {
+        Row: {
+          certification_number: string | null
+          created_at: string
+          document_url: string | null
+          expires_at: string | null
+          id: string
+          is_verified: boolean
+          issued_at: string | null
+          notes: string | null
+          officer_id: string
+          organization_id: string
+          skill_category: string
+          skill_name: string
+          updated_at: string
+          verified_at: string | null
+          verified_by: string | null
+        }
+        Insert: {
+          certification_number?: string | null
+          created_at?: string
+          document_url?: string | null
+          expires_at?: string | null
+          id?: string
+          is_verified?: boolean
+          issued_at?: string | null
+          notes?: string | null
+          officer_id: string
+          organization_id: string
+          skill_category?: string
+          skill_name: string
+          updated_at?: string
+          verified_at?: string | null
+          verified_by?: string | null
+        }
+        Update: {
+          certification_number?: string | null
+          created_at?: string
+          document_url?: string | null
+          expires_at?: string | null
+          id?: string
+          is_verified?: boolean
+          issued_at?: string | null
+          notes?: string | null
+          officer_id?: string
+          organization_id?: string
+          skill_category?: string
+          skill_name?: string
+          updated_at?: string
+          verified_at?: string | null
+          verified_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "officer_skills_officer_id_fkey"
+            columns: ["officer_id"]
+            isOneToOne: false
+            referencedRelation: "officer_compliance_dashboard"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "officer_skills_officer_id_fkey"
+            columns: ["officer_id"]
+            isOneToOne: false
+            referencedRelation: "user_area_access"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "officer_skills_officer_id_fkey"
+            columns: ["officer_id"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "officer_skills_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "officer_skills_verified_by_fkey"
+            columns: ["verified_by"]
+            isOneToOne: false
+            referencedRelation: "officer_compliance_dashboard"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "officer_skills_verified_by_fkey"
+            columns: ["verified_by"]
+            isOneToOne: false
+            referencedRelation: "user_area_access"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "officer_skills_verified_by_fkey"
+            columns: ["verified_by"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -3396,6 +5761,13 @@ export type Database = {
             foreignKeyName: "officer_welfare_alerts_acknowledged_by_fkey"
             columns: ["acknowledged_by"]
             isOneToOne: false
+            referencedRelation: "user_area_access"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "officer_welfare_alerts_acknowledged_by_fkey"
+            columns: ["acknowledged_by"]
+            isOneToOne: false
             referencedRelation: "user_profiles"
             referencedColumns: ["id"]
           },
@@ -3405,6 +5777,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "officer_compliance_dashboard"
             referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "officer_welfare_alerts_officer_id_fkey"
+            columns: ["officer_id"]
+            isOneToOne: false
+            referencedRelation: "user_area_access"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "officer_welfare_alerts_officer_id_fkey"
@@ -3431,6 +5810,13 @@ export type Database = {
             foreignKeyName: "officer_welfare_alerts_resolved_by_fkey"
             columns: ["resolved_by"]
             isOneToOne: false
+            referencedRelation: "user_area_access"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "officer_welfare_alerts_resolved_by_fkey"
+            columns: ["resolved_by"]
+            isOneToOne: false
             referencedRelation: "user_profiles"
             referencedColumns: ["id"]
           },
@@ -3441,6 +5827,7 @@ export type Database = {
           admin_escalation_time: number | null
           auto_logoff_enabled: boolean | null
           auto_logoff_time: number | null
+          check_in_interval_minutes: number
           created_at: string | null
           critical_escalation_time: number | null
           gps_inactivity_threshold: number | null
@@ -3456,6 +5843,7 @@ export type Database = {
           admin_escalation_time?: number | null
           auto_logoff_enabled?: boolean | null
           auto_logoff_time?: number | null
+          check_in_interval_minutes?: number
           created_at?: string | null
           critical_escalation_time?: number | null
           gps_inactivity_threshold?: number | null
@@ -3471,6 +5859,7 @@ export type Database = {
           admin_escalation_time?: number | null
           auto_logoff_enabled?: boolean | null
           auto_logoff_time?: number | null
+          check_in_interval_minutes?: number
           created_at?: string | null
           critical_escalation_time?: number | null
           gps_inactivity_threshold?: number | null
@@ -3501,7 +5890,148 @@ export type Database = {
             foreignKeyName: "officer_welfare_settings_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: true
+            referencedRelation: "user_area_access"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "officer_welfare_settings_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
             referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      open_shifts: {
+        Row: {
+          claimed_at: string | null
+          claimed_by: string | null
+          created_at: string
+          created_by: string
+          description: string | null
+          end_time: string | null
+          id: string
+          officer_shift_id: string | null
+          organization_id: string
+          priority: string
+          requirements: string | null
+          shift_date: string
+          shift_type: string
+          start_time: string | null
+          status: string
+          title: string
+          updated_at: string
+          zone_id: string | null
+        }
+        Insert: {
+          claimed_at?: string | null
+          claimed_by?: string | null
+          created_at?: string
+          created_by: string
+          description?: string | null
+          end_time?: string | null
+          id?: string
+          officer_shift_id?: string | null
+          organization_id: string
+          priority?: string
+          requirements?: string | null
+          shift_date: string
+          shift_type?: string
+          start_time?: string | null
+          status?: string
+          title: string
+          updated_at?: string
+          zone_id?: string | null
+        }
+        Update: {
+          claimed_at?: string | null
+          claimed_by?: string | null
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          end_time?: string | null
+          id?: string
+          officer_shift_id?: string | null
+          organization_id?: string
+          priority?: string
+          requirements?: string | null
+          shift_date?: string
+          shift_type?: string
+          start_time?: string | null
+          status?: string
+          title?: string
+          updated_at?: string
+          zone_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "open_shifts_claimed_by_fkey"
+            columns: ["claimed_by"]
+            isOneToOne: false
+            referencedRelation: "officer_compliance_dashboard"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "open_shifts_claimed_by_fkey"
+            columns: ["claimed_by"]
+            isOneToOne: false
+            referencedRelation: "user_area_access"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "open_shifts_claimed_by_fkey"
+            columns: ["claimed_by"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "open_shifts_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "officer_compliance_dashboard"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "open_shifts_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "user_area_access"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "open_shifts_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "open_shifts_officer_shift_id_fkey"
+            columns: ["officer_shift_id"]
+            isOneToOne: false
+            referencedRelation: "officer_shifts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "open_shifts_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "open_shifts_zone_id_fkey"
+            columns: ["zone_id"]
+            isOneToOne: false
+            referencedRelation: "v_observation_zone_audit"
+            referencedColumns: ["canonical_zone_id"]
+          },
+          {
+            foreignKeyName: "open_shifts_zone_id_fkey"
+            columns: ["zone_id"]
+            isOneToOne: false
+            referencedRelation: "zones"
             referencedColumns: ["id"]
           },
         ]
@@ -3567,6 +6097,573 @@ export type Database = {
             columns: ["parent_organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      parking_infringement_counters: {
+        Row: {
+          last_number: number
+          organization_id: string
+        }
+        Insert: {
+          last_number?: number
+          organization_id: string
+        }
+        Update: {
+          last_number?: number
+          organization_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "parking_infringement_counters_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      parking_infringements: {
+        Row: {
+          cancelled_reason: string | null
+          court_reference: string | null
+          dispute_notes: string | null
+          due_date: string | null
+          early_payment_amount: number | null
+          early_payment_days: number | null
+          evidence_photos: string[] | null
+          fine_amount_nzd: number | null
+          id: string
+          infringement_number: string
+          issued_at: string
+          location_address: string
+          location_lat: number | null
+          location_lng: number | null
+          offence_code: string | null
+          offence_description: string
+          offence_time: string
+          officer_id: string | null
+          officer_name: string | null
+          organization_id: string
+          parking_session_id: string | null
+          parking_zone_id: string | null
+          parkpow_violation_id: number | null
+          payment_method: string | null
+          payment_received_at: string | null
+          payment_reference: string | null
+          pdf_url: string | null
+          plate_number: string
+          status: string
+          updated_at: string
+          vehicle_colour: string | null
+          vehicle_make: string | null
+          vehicle_model: string | null
+        }
+        Insert: {
+          cancelled_reason?: string | null
+          court_reference?: string | null
+          dispute_notes?: string | null
+          due_date?: string | null
+          early_payment_amount?: number | null
+          early_payment_days?: number | null
+          evidence_photos?: string[] | null
+          fine_amount_nzd?: number | null
+          id?: string
+          infringement_number: string
+          issued_at?: string
+          location_address: string
+          location_lat?: number | null
+          location_lng?: number | null
+          offence_code?: string | null
+          offence_description: string
+          offence_time: string
+          officer_id?: string | null
+          officer_name?: string | null
+          organization_id: string
+          parking_session_id?: string | null
+          parking_zone_id?: string | null
+          parkpow_violation_id?: number | null
+          payment_method?: string | null
+          payment_received_at?: string | null
+          payment_reference?: string | null
+          pdf_url?: string | null
+          plate_number: string
+          status?: string
+          updated_at?: string
+          vehicle_colour?: string | null
+          vehicle_make?: string | null
+          vehicle_model?: string | null
+        }
+        Update: {
+          cancelled_reason?: string | null
+          court_reference?: string | null
+          dispute_notes?: string | null
+          due_date?: string | null
+          early_payment_amount?: number | null
+          early_payment_days?: number | null
+          evidence_photos?: string[] | null
+          fine_amount_nzd?: number | null
+          id?: string
+          infringement_number?: string
+          issued_at?: string
+          location_address?: string
+          location_lat?: number | null
+          location_lng?: number | null
+          offence_code?: string | null
+          offence_description?: string
+          offence_time?: string
+          officer_id?: string | null
+          officer_name?: string | null
+          organization_id?: string
+          parking_session_id?: string | null
+          parking_zone_id?: string | null
+          parkpow_violation_id?: number | null
+          payment_method?: string | null
+          payment_received_at?: string | null
+          payment_reference?: string | null
+          pdf_url?: string | null
+          plate_number?: string
+          status?: string
+          updated_at?: string
+          vehicle_colour?: string | null
+          vehicle_make?: string | null
+          vehicle_model?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "parking_infringements_officer_id_fkey"
+            columns: ["officer_id"]
+            isOneToOne: false
+            referencedRelation: "officer_compliance_dashboard"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "parking_infringements_officer_id_fkey"
+            columns: ["officer_id"]
+            isOneToOne: false
+            referencedRelation: "user_area_access"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "parking_infringements_officer_id_fkey"
+            columns: ["officer_id"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "parking_infringements_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "parking_infringements_parking_session_id_fkey"
+            columns: ["parking_session_id"]
+            isOneToOne: false
+            referencedRelation: "parking_sessions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "parking_infringements_parking_zone_id_fkey"
+            columns: ["parking_zone_id"]
+            isOneToOne: false
+            referencedRelation: "parking_zones"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      parking_permits: {
+        Row: {
+          created_at: string
+          holder_address: string | null
+          holder_email: string | null
+          holder_name: string | null
+          holder_phone: string | null
+          id: string
+          is_active: boolean
+          issued_by: string | null
+          notes: string | null
+          organization_id: string
+          parking_zone_id: string | null
+          parkpow_vehicle_id: number | null
+          permit_type: string
+          plate_number: string
+          updated_at: string
+          valid_from: string
+          valid_to: string | null
+        }
+        Insert: {
+          created_at?: string
+          holder_address?: string | null
+          holder_email?: string | null
+          holder_name?: string | null
+          holder_phone?: string | null
+          id?: string
+          is_active?: boolean
+          issued_by?: string | null
+          notes?: string | null
+          organization_id: string
+          parking_zone_id?: string | null
+          parkpow_vehicle_id?: number | null
+          permit_type?: string
+          plate_number: string
+          updated_at?: string
+          valid_from?: string
+          valid_to?: string | null
+        }
+        Update: {
+          created_at?: string
+          holder_address?: string | null
+          holder_email?: string | null
+          holder_name?: string | null
+          holder_phone?: string | null
+          id?: string
+          is_active?: boolean
+          issued_by?: string | null
+          notes?: string | null
+          organization_id?: string
+          parking_zone_id?: string | null
+          parkpow_vehicle_id?: number | null
+          permit_type?: string
+          plate_number?: string
+          updated_at?: string
+          valid_from?: string
+          valid_to?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "parking_permits_issued_by_fkey"
+            columns: ["issued_by"]
+            isOneToOne: false
+            referencedRelation: "officer_compliance_dashboard"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "parking_permits_issued_by_fkey"
+            columns: ["issued_by"]
+            isOneToOne: false
+            referencedRelation: "user_area_access"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "parking_permits_issued_by_fkey"
+            columns: ["issued_by"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "parking_permits_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "parking_permits_parking_zone_id_fkey"
+            columns: ["parking_zone_id"]
+            isOneToOne: false
+            referencedRelation: "parking_zones"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      parking_sessions: {
+        Row: {
+          camera_id: string | null
+          created_at: string
+          dwell_minutes: number | null
+          entry_photo_url: string | null
+          entry_time: string
+          entry_tyre_valve_pos: string | null
+          exit_photo_url: string | null
+          exit_time: string | null
+          exit_tyre_valve_pos: string | null
+          first_pass_id: string | null
+          gps_lat: number | null
+          gps_lng: number | null
+          id: string
+          is_violation: boolean
+          notes: string | null
+          officer_id: string | null
+          organization_id: string
+          parking_zone_id: string | null
+          parkpow_session_id: number | null
+          pass_number: number
+          plate_number: string
+          sign_photo_url: string | null
+          tyre_valve_photo_url: string | null
+          updated_at: string
+          vehicle_colour: string | null
+          vehicle_make: string | null
+          vehicle_model: string | null
+          violation_reason: string | null
+        }
+        Insert: {
+          camera_id?: string | null
+          created_at?: string
+          dwell_minutes?: number | null
+          entry_photo_url?: string | null
+          entry_time?: string
+          entry_tyre_valve_pos?: string | null
+          exit_photo_url?: string | null
+          exit_time?: string | null
+          exit_tyre_valve_pos?: string | null
+          first_pass_id?: string | null
+          gps_lat?: number | null
+          gps_lng?: number | null
+          id?: string
+          is_violation?: boolean
+          notes?: string | null
+          officer_id?: string | null
+          organization_id: string
+          parking_zone_id?: string | null
+          parkpow_session_id?: number | null
+          pass_number?: number
+          plate_number: string
+          sign_photo_url?: string | null
+          tyre_valve_photo_url?: string | null
+          updated_at?: string
+          vehicle_colour?: string | null
+          vehicle_make?: string | null
+          vehicle_model?: string | null
+          violation_reason?: string | null
+        }
+        Update: {
+          camera_id?: string | null
+          created_at?: string
+          dwell_minutes?: number | null
+          entry_photo_url?: string | null
+          entry_time?: string
+          entry_tyre_valve_pos?: string | null
+          exit_photo_url?: string | null
+          exit_time?: string | null
+          exit_tyre_valve_pos?: string | null
+          first_pass_id?: string | null
+          gps_lat?: number | null
+          gps_lng?: number | null
+          id?: string
+          is_violation?: boolean
+          notes?: string | null
+          officer_id?: string | null
+          organization_id?: string
+          parking_zone_id?: string | null
+          parkpow_session_id?: number | null
+          pass_number?: number
+          plate_number?: string
+          sign_photo_url?: string | null
+          tyre_valve_photo_url?: string | null
+          updated_at?: string
+          vehicle_colour?: string | null
+          vehicle_make?: string | null
+          vehicle_model?: string | null
+          violation_reason?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "parking_sessions_first_pass_id_fkey"
+            columns: ["first_pass_id"]
+            isOneToOne: false
+            referencedRelation: "parking_sessions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "parking_sessions_officer_id_fkey"
+            columns: ["officer_id"]
+            isOneToOne: false
+            referencedRelation: "officer_compliance_dashboard"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "parking_sessions_officer_id_fkey"
+            columns: ["officer_id"]
+            isOneToOne: false
+            referencedRelation: "user_area_access"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "parking_sessions_officer_id_fkey"
+            columns: ["officer_id"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "parking_sessions_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "parking_sessions_parking_zone_id_fkey"
+            columns: ["parking_zone_id"]
+            isOneToOne: false
+            referencedRelation: "parking_zones"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      parking_zones: {
+        Row: {
+          address: string | null
+          camera_ids: string[] | null
+          created_at: string
+          enforcement_hours: Json | null
+          fine_amount_nzd: number | null
+          geometry: Json | null
+          grace_period_minutes: number | null
+          id: string
+          is_active: boolean
+          max_stay_minutes: number | null
+          name: string
+          notes: string | null
+          organization_id: string
+          parkpow_lot_id: number | null
+          permit_types_accepted: string[] | null
+          updated_at: string
+          zone_id: string | null
+          zone_type: string
+        }
+        Insert: {
+          address?: string | null
+          camera_ids?: string[] | null
+          created_at?: string
+          enforcement_hours?: Json | null
+          fine_amount_nzd?: number | null
+          geometry?: Json | null
+          grace_period_minutes?: number | null
+          id?: string
+          is_active?: boolean
+          max_stay_minutes?: number | null
+          name: string
+          notes?: string | null
+          organization_id: string
+          parkpow_lot_id?: number | null
+          permit_types_accepted?: string[] | null
+          updated_at?: string
+          zone_id?: string | null
+          zone_type?: string
+        }
+        Update: {
+          address?: string | null
+          camera_ids?: string[] | null
+          created_at?: string
+          enforcement_hours?: Json | null
+          fine_amount_nzd?: number | null
+          geometry?: Json | null
+          grace_period_minutes?: number | null
+          id?: string
+          is_active?: boolean
+          max_stay_minutes?: number | null
+          name?: string
+          notes?: string | null
+          organization_id?: string
+          parkpow_lot_id?: number | null
+          permit_types_accepted?: string[] | null
+          updated_at?: string
+          zone_id?: string | null
+          zone_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "parking_zones_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "parking_zones_zone_id_fkey"
+            columns: ["zone_id"]
+            isOneToOne: false
+            referencedRelation: "v_observation_zone_audit"
+            referencedColumns: ["canonical_zone_id"]
+          },
+          {
+            foreignKeyName: "parking_zones_zone_id_fkey"
+            columns: ["zone_id"]
+            isOneToOne: false
+            referencedRelation: "zones"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      patrol_checkpoints: {
+        Row: {
+          check_in_radius_metres: number
+          created_at: string
+          created_by: string | null
+          description: string | null
+          id: string
+          is_active: boolean
+          location_lat: number | null
+          location_lng: number | null
+          name: string
+          nfc_tag_id: string | null
+          organization_id: string
+          qr_code: string
+          required_on_patrol: boolean
+          updated_at: string
+          zone_id: string | null
+        }
+        Insert: {
+          check_in_radius_metres?: number
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          location_lat?: number | null
+          location_lng?: number | null
+          name: string
+          nfc_tag_id?: string | null
+          organization_id: string
+          qr_code: string
+          required_on_patrol?: boolean
+          updated_at?: string
+          zone_id?: string | null
+        }
+        Update: {
+          check_in_radius_metres?: number
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          location_lat?: number | null
+          location_lng?: number | null
+          name?: string
+          nfc_tag_id?: string | null
+          organization_id?: string
+          qr_code?: string
+          required_on_patrol?: boolean
+          updated_at?: string
+          zone_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "patrol_checkpoints_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "patrol_checkpoints_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "patrol_checkpoints_zone_id_fkey"
+            columns: ["zone_id"]
+            isOneToOne: false
+            referencedRelation: "zones"
             referencedColumns: ["id"]
           },
         ]
@@ -3741,6 +6838,13 @@ export type Database = {
             foreignKeyName: "patrols_assigned_to_fkey"
             columns: ["assigned_to"]
             isOneToOne: false
+            referencedRelation: "user_area_access"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "patrols_assigned_to_fkey"
+            columns: ["assigned_to"]
+            isOneToOne: false
             referencedRelation: "user_profiles"
             referencedColumns: ["id"]
           },
@@ -3859,6 +6963,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "officer_compliance_dashboard"
             referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "person_interactions_officer_id_fkey"
+            columns: ["officer_id"]
+            isOneToOne: false
+            referencedRelation: "user_area_access"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "person_interactions_officer_id_fkey"
@@ -4006,6 +7117,13 @@ export type Database = {
             foreignKeyName: "person_observations_recorded_by_fkey"
             columns: ["recorded_by"]
             isOneToOne: false
+            referencedRelation: "user_area_access"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "person_observations_recorded_by_fkey"
+            columns: ["recorded_by"]
+            isOneToOne: false
             referencedRelation: "user_profiles"
             referencedColumns: ["id"]
           },
@@ -4107,6 +7225,129 @@ export type Database = {
           },
         ]
       }
+      persons_of_interest: {
+        Row: {
+          active: boolean | null
+          address: string | null
+          client_site_id: string | null
+          contact_email: string | null
+          contact_phone: string | null
+          created_at: string | null
+          created_by: string | null
+          date_of_birth: string | null
+          description: string | null
+          distinguishing_features: string | null
+          ethnicity: string | null
+          expires_at: string | null
+          full_name: string
+          gender: string | null
+          height_cm: number | null
+          id: string
+          notes: string | null
+          organization_id: string
+          photos: string[] | null
+          privacy_lawful_purpose: string | null
+          privacy_notice_given: boolean | null
+          reason: string | null
+          site_specific: boolean
+          status: string
+          updated_at: string | null
+          weight_kg: number | null
+        }
+        Insert: {
+          active?: boolean | null
+          address?: string | null
+          client_site_id?: string | null
+          contact_email?: string | null
+          contact_phone?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          date_of_birth?: string | null
+          description?: string | null
+          distinguishing_features?: string | null
+          ethnicity?: string | null
+          expires_at?: string | null
+          full_name: string
+          gender?: string | null
+          height_cm?: number | null
+          id?: string
+          notes?: string | null
+          organization_id: string
+          photos?: string[] | null
+          privacy_lawful_purpose?: string | null
+          privacy_notice_given?: boolean | null
+          reason?: string | null
+          site_specific?: boolean
+          status?: string
+          updated_at?: string | null
+          weight_kg?: number | null
+        }
+        Update: {
+          active?: boolean | null
+          address?: string | null
+          client_site_id?: string | null
+          contact_email?: string | null
+          contact_phone?: string | null
+          created_at?: string | null
+          created_by?: string | null
+          date_of_birth?: string | null
+          description?: string | null
+          distinguishing_features?: string | null
+          ethnicity?: string | null
+          expires_at?: string | null
+          full_name?: string
+          gender?: string | null
+          height_cm?: number | null
+          id?: string
+          notes?: string | null
+          organization_id?: string
+          photos?: string[] | null
+          privacy_lawful_purpose?: string | null
+          privacy_notice_given?: boolean | null
+          reason?: string | null
+          site_specific?: boolean
+          status?: string
+          updated_at?: string | null
+          weight_kg?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "persons_of_interest_client_site_id_fkey"
+            columns: ["client_site_id"]
+            isOneToOne: false
+            referencedRelation: "client_sites"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "persons_of_interest_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "officer_compliance_dashboard"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "persons_of_interest_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "user_area_access"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "persons_of_interest_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "persons_of_interest_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       photo_metadata: {
         Row: {
           created_at: string | null
@@ -4148,6 +7389,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "officer_compliance_dashboard"
             referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "photo_metadata_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "user_area_access"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "photo_metadata_user_id_fkey"
@@ -4223,6 +7471,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "officer_compliance_dashboard"
             referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "photo_recovery_audit_log_actor_id_fkey"
+            columns: ["actor_id"]
+            isOneToOne: false
+            referencedRelation: "user_area_access"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "photo_recovery_audit_log_actor_id_fkey"
@@ -4343,6 +7598,13 @@ export type Database = {
             foreignKeyName: "plate_scans_scanned_by_fkey"
             columns: ["scanned_by"]
             isOneToOne: false
+            referencedRelation: "user_area_access"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "plate_scans_scanned_by_fkey"
+            columns: ["scanned_by"]
+            isOneToOne: false
             referencedRelation: "user_profiles"
             referencedColumns: ["id"]
           },
@@ -4403,6 +7665,621 @@ export type Database = {
           },
         ]
       }
+      roster_shifts: {
+        Row: {
+          break_minutes: number
+          cancel_reason: string | null
+          cancelled_at: string | null
+          client_charge_rate: number | null
+          client_site_id: string | null
+          confirmed_at: string | null
+          conflict_reason: string | null
+          contractor_org_id: string | null
+          created_at: string
+          created_by: string | null
+          end_time: string | null
+          guard_cost_rate: number | null
+          has_conflict: boolean
+          id: string
+          internal_notes: string | null
+          is_template: boolean
+          notes: string | null
+          officer_id: string | null
+          officer_notes: string | null
+          officer_response: string | null
+          officer_response_at: string | null
+          officer_shift_id: string | null
+          organization_id: string
+          parent_template_id: string | null
+          position_title: string | null
+          published_at: string | null
+          rate_type: string | null
+          recurrence_rule: string | null
+          required_skills: string[] | null
+          service_type: string | null
+          shift_date: string
+          shift_type: string
+          start_time: string | null
+          status: string
+          updated_at: string
+          zone_id: string | null
+        }
+        Insert: {
+          break_minutes?: number
+          cancel_reason?: string | null
+          cancelled_at?: string | null
+          client_charge_rate?: number | null
+          client_site_id?: string | null
+          confirmed_at?: string | null
+          conflict_reason?: string | null
+          contractor_org_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          end_time?: string | null
+          guard_cost_rate?: number | null
+          has_conflict?: boolean
+          id?: string
+          internal_notes?: string | null
+          is_template?: boolean
+          notes?: string | null
+          officer_id?: string | null
+          officer_notes?: string | null
+          officer_response?: string | null
+          officer_response_at?: string | null
+          officer_shift_id?: string | null
+          organization_id: string
+          parent_template_id?: string | null
+          position_title?: string | null
+          published_at?: string | null
+          rate_type?: string | null
+          recurrence_rule?: string | null
+          required_skills?: string[] | null
+          service_type?: string | null
+          shift_date: string
+          shift_type?: string
+          start_time?: string | null
+          status?: string
+          updated_at?: string
+          zone_id?: string | null
+        }
+        Update: {
+          break_minutes?: number
+          cancel_reason?: string | null
+          cancelled_at?: string | null
+          client_charge_rate?: number | null
+          client_site_id?: string | null
+          confirmed_at?: string | null
+          conflict_reason?: string | null
+          contractor_org_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          end_time?: string | null
+          guard_cost_rate?: number | null
+          has_conflict?: boolean
+          id?: string
+          internal_notes?: string | null
+          is_template?: boolean
+          notes?: string | null
+          officer_id?: string | null
+          officer_notes?: string | null
+          officer_response?: string | null
+          officer_response_at?: string | null
+          officer_shift_id?: string | null
+          organization_id?: string
+          parent_template_id?: string | null
+          position_title?: string | null
+          published_at?: string | null
+          rate_type?: string | null
+          recurrence_rule?: string | null
+          required_skills?: string[] | null
+          service_type?: string | null
+          shift_date?: string
+          shift_type?: string
+          start_time?: string | null
+          status?: string
+          updated_at?: string
+          zone_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "roster_shifts_client_site_id_fkey"
+            columns: ["client_site_id"]
+            isOneToOne: false
+            referencedRelation: "client_sites"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "roster_shifts_contractor_org_id_fkey"
+            columns: ["contractor_org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "roster_shifts_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "officer_compliance_dashboard"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "roster_shifts_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "user_area_access"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "roster_shifts_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "roster_shifts_officer_id_fkey"
+            columns: ["officer_id"]
+            isOneToOne: false
+            referencedRelation: "officer_compliance_dashboard"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "roster_shifts_officer_id_fkey"
+            columns: ["officer_id"]
+            isOneToOne: false
+            referencedRelation: "user_area_access"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "roster_shifts_officer_id_fkey"
+            columns: ["officer_id"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "roster_shifts_officer_shift_id_fkey"
+            columns: ["officer_shift_id"]
+            isOneToOne: false
+            referencedRelation: "officer_shifts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "roster_shifts_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "roster_shifts_parent_template_id_fkey"
+            columns: ["parent_template_id"]
+            isOneToOne: false
+            referencedRelation: "roster_shifts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "roster_shifts_zone_id_fkey"
+            columns: ["zone_id"]
+            isOneToOne: false
+            referencedRelation: "v_observation_zone_audit"
+            referencedColumns: ["canonical_zone_id"]
+          },
+          {
+            foreignKeyName: "roster_shifts_zone_id_fkey"
+            columns: ["zone_id"]
+            isOneToOne: false
+            referencedRelation: "zones"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      site_incidents: {
+        Row: {
+          action_taken: string | null
+          admin_notes: string | null
+          camera_review_notes: string | null
+          camera_review_requested: boolean
+          camera_review_status: string | null
+          client_site_id: string | null
+          created_at: string
+          description: string
+          gps_lat: number | null
+          gps_lng: number | null
+          id: string
+          incident_type: string
+          location_description: string | null
+          officer_id: string
+          officer_shift_id: string | null
+          organization_id: string
+          outcome: string | null
+          poi_id: string | null
+          police_event_number: string | null
+          police_notes: string | null
+          police_notified: boolean
+          police_notified_at: string | null
+          police_officer_name: string | null
+          police_station: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          roster_shift_id: string | null
+          severity: string
+          status: string
+          subject_description: string | null
+          subject_dob: string | null
+          subject_name: string | null
+          subject_photos: string[] | null
+          updated_at: string
+        }
+        Insert: {
+          action_taken?: string | null
+          admin_notes?: string | null
+          camera_review_notes?: string | null
+          camera_review_requested?: boolean
+          camera_review_status?: string | null
+          client_site_id?: string | null
+          created_at?: string
+          description: string
+          gps_lat?: number | null
+          gps_lng?: number | null
+          id?: string
+          incident_type: string
+          location_description?: string | null
+          officer_id: string
+          officer_shift_id?: string | null
+          organization_id: string
+          outcome?: string | null
+          poi_id?: string | null
+          police_event_number?: string | null
+          police_notes?: string | null
+          police_notified?: boolean
+          police_notified_at?: string | null
+          police_officer_name?: string | null
+          police_station?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          roster_shift_id?: string | null
+          severity?: string
+          status?: string
+          subject_description?: string | null
+          subject_dob?: string | null
+          subject_name?: string | null
+          subject_photos?: string[] | null
+          updated_at?: string
+        }
+        Update: {
+          action_taken?: string | null
+          admin_notes?: string | null
+          camera_review_notes?: string | null
+          camera_review_requested?: boolean
+          camera_review_status?: string | null
+          client_site_id?: string | null
+          created_at?: string
+          description?: string
+          gps_lat?: number | null
+          gps_lng?: number | null
+          id?: string
+          incident_type?: string
+          location_description?: string | null
+          officer_id?: string
+          officer_shift_id?: string | null
+          organization_id?: string
+          outcome?: string | null
+          poi_id?: string | null
+          police_event_number?: string | null
+          police_notes?: string | null
+          police_notified?: boolean
+          police_notified_at?: string | null
+          police_officer_name?: string | null
+          police_station?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          roster_shift_id?: string | null
+          severity?: string
+          status?: string
+          subject_description?: string | null
+          subject_dob?: string | null
+          subject_name?: string | null
+          subject_photos?: string[] | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "site_incidents_client_site_id_fkey"
+            columns: ["client_site_id"]
+            isOneToOne: false
+            referencedRelation: "client_sites"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "site_incidents_officer_id_fkey"
+            columns: ["officer_id"]
+            isOneToOne: false
+            referencedRelation: "officer_compliance_dashboard"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "site_incidents_officer_id_fkey"
+            columns: ["officer_id"]
+            isOneToOne: false
+            referencedRelation: "user_area_access"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "site_incidents_officer_id_fkey"
+            columns: ["officer_id"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "site_incidents_officer_shift_id_fkey"
+            columns: ["officer_shift_id"]
+            isOneToOne: false
+            referencedRelation: "officer_shifts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "site_incidents_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "site_incidents_poi_id_fkey"
+            columns: ["poi_id"]
+            isOneToOne: false
+            referencedRelation: "persons_of_interest"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "site_incidents_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "officer_compliance_dashboard"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "site_incidents_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "user_area_access"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "site_incidents_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "site_incidents_roster_shift_id_fkey"
+            columns: ["roster_shift_id"]
+            isOneToOne: false
+            referencedRelation: "roster_shifts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      site_risk_assessments: {
+        Row: {
+          additional_controls: string | null
+          assessed_by: string | null
+          assessment_date: string | null
+          assessor_signature: string | null
+          communication_coverage: boolean | null
+          controls_in_place: string | null
+          created_at: string | null
+          emergency_plan_sighted: boolean | null
+          first_aid_available: boolean | null
+          gps_latitude: number | null
+          gps_longitude: number | null
+          hazard_aggressive_persons: boolean | null
+          hazard_animals: boolean | null
+          hazard_biological: boolean | null
+          hazard_confined_spaces: boolean | null
+          hazard_electrical: boolean | null
+          hazard_fire: boolean | null
+          hazard_hazardous_substances: boolean | null
+          hazard_lone_working: boolean | null
+          hazard_manual_handling: boolean | null
+          hazard_noise: boolean | null
+          hazard_other: boolean | null
+          hazard_other_description: string | null
+          hazard_poor_lighting: boolean | null
+          hazard_slips_trips_falls: boolean | null
+          hazard_uneven_terrain: boolean | null
+          hazard_vehicles_traffic: boolean | null
+          hazard_water_drowning: boolean | null
+          hazard_weather_exposure: boolean | null
+          hazard_working_at_height: boolean | null
+          id: string
+          job_reference: string | null
+          notes: string | null
+          organization_id: string
+          overall_risk_level: string
+          photos: string[] | null
+          ppe_required: string[] | null
+          request_type: string
+          reviewed_at: string | null
+          reviewed_by: string | null
+          safe_parking_available: boolean | null
+          signage_adequate: boolean | null
+          site_access_clear: boolean | null
+          site_address: string | null
+          site_name: string
+          status: string
+          updated_at: string | null
+          zone_id: string | null
+        }
+        Insert: {
+          additional_controls?: string | null
+          assessed_by?: string | null
+          assessment_date?: string | null
+          assessor_signature?: string | null
+          communication_coverage?: boolean | null
+          controls_in_place?: string | null
+          created_at?: string | null
+          emergency_plan_sighted?: boolean | null
+          first_aid_available?: boolean | null
+          gps_latitude?: number | null
+          gps_longitude?: number | null
+          hazard_aggressive_persons?: boolean | null
+          hazard_animals?: boolean | null
+          hazard_biological?: boolean | null
+          hazard_confined_spaces?: boolean | null
+          hazard_electrical?: boolean | null
+          hazard_fire?: boolean | null
+          hazard_hazardous_substances?: boolean | null
+          hazard_lone_working?: boolean | null
+          hazard_manual_handling?: boolean | null
+          hazard_noise?: boolean | null
+          hazard_other?: boolean | null
+          hazard_other_description?: string | null
+          hazard_poor_lighting?: boolean | null
+          hazard_slips_trips_falls?: boolean | null
+          hazard_uneven_terrain?: boolean | null
+          hazard_vehicles_traffic?: boolean | null
+          hazard_water_drowning?: boolean | null
+          hazard_weather_exposure?: boolean | null
+          hazard_working_at_height?: boolean | null
+          id?: string
+          job_reference?: string | null
+          notes?: string | null
+          organization_id: string
+          overall_risk_level?: string
+          photos?: string[] | null
+          ppe_required?: string[] | null
+          request_type?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          safe_parking_available?: boolean | null
+          signage_adequate?: boolean | null
+          site_access_clear?: boolean | null
+          site_address?: string | null
+          site_name: string
+          status?: string
+          updated_at?: string | null
+          zone_id?: string | null
+        }
+        Update: {
+          additional_controls?: string | null
+          assessed_by?: string | null
+          assessment_date?: string | null
+          assessor_signature?: string | null
+          communication_coverage?: boolean | null
+          controls_in_place?: string | null
+          created_at?: string | null
+          emergency_plan_sighted?: boolean | null
+          first_aid_available?: boolean | null
+          gps_latitude?: number | null
+          gps_longitude?: number | null
+          hazard_aggressive_persons?: boolean | null
+          hazard_animals?: boolean | null
+          hazard_biological?: boolean | null
+          hazard_confined_spaces?: boolean | null
+          hazard_electrical?: boolean | null
+          hazard_fire?: boolean | null
+          hazard_hazardous_substances?: boolean | null
+          hazard_lone_working?: boolean | null
+          hazard_manual_handling?: boolean | null
+          hazard_noise?: boolean | null
+          hazard_other?: boolean | null
+          hazard_other_description?: string | null
+          hazard_poor_lighting?: boolean | null
+          hazard_slips_trips_falls?: boolean | null
+          hazard_uneven_terrain?: boolean | null
+          hazard_vehicles_traffic?: boolean | null
+          hazard_water_drowning?: boolean | null
+          hazard_weather_exposure?: boolean | null
+          hazard_working_at_height?: boolean | null
+          id?: string
+          job_reference?: string | null
+          notes?: string | null
+          organization_id?: string
+          overall_risk_level?: string
+          photos?: string[] | null
+          ppe_required?: string[] | null
+          request_type?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          safe_parking_available?: boolean | null
+          signage_adequate?: boolean | null
+          site_access_clear?: boolean | null
+          site_address?: string | null
+          site_name?: string
+          status?: string
+          updated_at?: string | null
+          zone_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "site_risk_assessments_assessed_by_fkey"
+            columns: ["assessed_by"]
+            isOneToOne: false
+            referencedRelation: "officer_compliance_dashboard"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "site_risk_assessments_assessed_by_fkey"
+            columns: ["assessed_by"]
+            isOneToOne: false
+            referencedRelation: "user_area_access"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "site_risk_assessments_assessed_by_fkey"
+            columns: ["assessed_by"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "site_risk_assessments_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "site_risk_assessments_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "officer_compliance_dashboard"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "site_risk_assessments_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "user_area_access"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "site_risk_assessments_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "site_risk_assessments_zone_id_fkey"
+            columns: ["zone_id"]
+            isOneToOne: false
+            referencedRelation: "v_observation_zone_audit"
+            referencedColumns: ["canonical_zone_id"]
+          },
+          {
+            foreignKeyName: "site_risk_assessments_zone_id_fkey"
+            columns: ["zone_id"]
+            isOneToOne: false
+            referencedRelation: "zones"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       spatial_ref_sys: {
         Row: {
           auth_name: string | null
@@ -4426,6 +8303,144 @@ export type Database = {
           srtext?: string | null
         }
         Relationships: []
+      }
+      trespass_notices: {
+        Row: {
+          created_at: string | null
+          duration_days: number | null
+          expires_at: string | null
+          id: string
+          issued_at: string | null
+          issued_by: string | null
+          legal_basis: string | null
+          notes: string | null
+          notice_html: string | null
+          notice_type: string
+          organization_id: string
+          person_id: string | null
+          photos: string[] | null
+          privacy_notice_given: boolean | null
+          reference_number: string | null
+          served_method: string | null
+          status: string
+          trespass_from: string | null
+          trespass_reason: string
+          updated_at: string | null
+          vehicle_id: string | null
+          witness_name: string | null
+          witness_present: boolean | null
+          zone_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          duration_days?: number | null
+          expires_at?: string | null
+          id?: string
+          issued_at?: string | null
+          issued_by?: string | null
+          legal_basis?: string | null
+          notes?: string | null
+          notice_html?: string | null
+          notice_type?: string
+          organization_id: string
+          person_id?: string | null
+          photos?: string[] | null
+          privacy_notice_given?: boolean | null
+          reference_number?: string | null
+          served_method?: string | null
+          status?: string
+          trespass_from?: string | null
+          trespass_reason: string
+          updated_at?: string | null
+          vehicle_id?: string | null
+          witness_name?: string | null
+          witness_present?: boolean | null
+          zone_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          duration_days?: number | null
+          expires_at?: string | null
+          id?: string
+          issued_at?: string | null
+          issued_by?: string | null
+          legal_basis?: string | null
+          notes?: string | null
+          notice_html?: string | null
+          notice_type?: string
+          organization_id?: string
+          person_id?: string | null
+          photos?: string[] | null
+          privacy_notice_given?: boolean | null
+          reference_number?: string | null
+          served_method?: string | null
+          status?: string
+          trespass_from?: string | null
+          trespass_reason?: string
+          updated_at?: string | null
+          vehicle_id?: string | null
+          witness_name?: string | null
+          witness_present?: boolean | null
+          zone_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "trespass_notices_issued_by_fkey"
+            columns: ["issued_by"]
+            isOneToOne: false
+            referencedRelation: "officer_compliance_dashboard"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "trespass_notices_issued_by_fkey"
+            columns: ["issued_by"]
+            isOneToOne: false
+            referencedRelation: "user_area_access"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trespass_notices_issued_by_fkey"
+            columns: ["issued_by"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trespass_notices_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trespass_notices_person_id_fkey"
+            columns: ["person_id"]
+            isOneToOne: false
+            referencedRelation: "persons_of_interest"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trespass_notices_vehicle_id_fkey"
+            columns: ["vehicle_id"]
+            isOneToOne: false
+            referencedRelation: "vehicles_of_interest"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "trespass_notices_zone_id_fkey"
+            columns: ["zone_id"]
+            isOneToOne: false
+            referencedRelation: "v_observation_zone_audit"
+            referencedColumns: ["canonical_zone_id"]
+          },
+          {
+            foreignKeyName: "trespass_notices_zone_id_fkey"
+            columns: ["zone_id"]
+            isOneToOne: false
+            referencedRelation: "zones"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_deactivation_queue: {
         Row: {
@@ -4467,6 +8482,13 @@ export type Database = {
             foreignKeyName: "user_deactivation_queue_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
+            referencedRelation: "user_area_access"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_deactivation_queue_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
             referencedRelation: "user_profiles"
             referencedColumns: ["id"]
           },
@@ -4493,20 +8515,28 @@ export type Database = {
           emergency_contact_name: string | null
           emergency_contact_phone: string | null
           employer_organization_id: string | null
+          enabled_portals: string[]
+          extra_organization_ids: string[]
           first_name: string | null
           has_warrant: boolean | null
           id: string
           is_active: boolean | null
           issuing_authority: string | null
+          job_title: string | null
           last_gps_accuracy: number | null
           last_gps_latitude: number | null
           last_gps_longitude: number | null
           last_gps_update: string | null
           last_name: string | null
+          notification_preferences: Json | null
           organization_id: string | null
           permissions: Json | null
           phone: string | null
+          portal_access: string[]
           profile_photo_url: string | null
+          push_token: string | null
+          push_token_updated_at: string | null
+          requires_driver_license: boolean
           role: string | null
           updated_at: string | null
           warrant_acts: string[] | null
@@ -4537,20 +8567,28 @@ export type Database = {
           emergency_contact_name?: string | null
           emergency_contact_phone?: string | null
           employer_organization_id?: string | null
+          enabled_portals?: string[]
+          extra_organization_ids?: string[]
           first_name?: string | null
           has_warrant?: boolean | null
           id: string
           is_active?: boolean | null
           issuing_authority?: string | null
+          job_title?: string | null
           last_gps_accuracy?: number | null
           last_gps_latitude?: number | null
           last_gps_longitude?: number | null
           last_gps_update?: string | null
           last_name?: string | null
+          notification_preferences?: Json | null
           organization_id?: string | null
           permissions?: Json | null
           phone?: string | null
+          portal_access?: string[]
           profile_photo_url?: string | null
+          push_token?: string | null
+          push_token_updated_at?: string | null
+          requires_driver_license?: boolean
           role?: string | null
           updated_at?: string | null
           warrant_acts?: string[] | null
@@ -4581,20 +8619,28 @@ export type Database = {
           emergency_contact_name?: string | null
           emergency_contact_phone?: string | null
           employer_organization_id?: string | null
+          enabled_portals?: string[]
+          extra_organization_ids?: string[]
           first_name?: string | null
           has_warrant?: boolean | null
           id?: string
           is_active?: boolean | null
           issuing_authority?: string | null
+          job_title?: string | null
           last_gps_accuracy?: number | null
           last_gps_latitude?: number | null
           last_gps_longitude?: number | null
           last_gps_update?: string | null
           last_name?: string | null
+          notification_preferences?: Json | null
           organization_id?: string | null
           permissions?: Json | null
           phone?: string | null
+          portal_access?: string[]
           profile_photo_url?: string | null
+          push_token?: string | null
+          push_token_updated_at?: string | null
+          requires_driver_license?: boolean
           role?: string | null
           updated_at?: string | null
           warrant_acts?: string[] | null
@@ -4612,6 +8658,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "officer_compliance_dashboard"
             referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "user_profiles_credentials_verified_by_fkey"
+            columns: ["credentials_verified_by"]
+            isOneToOne: false
+            referencedRelation: "user_area_access"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "user_profiles_credentials_verified_by_fkey"
@@ -4671,6 +8724,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "officer_compliance_dashboard"
             referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "user_sessions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "user_area_access"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "user_sessions_user_id_fkey"
@@ -4959,6 +9019,183 @@ export type Database = {
         }
         Relationships: []
       }
+      vehicles_of_interest: {
+        Row: {
+          active: boolean | null
+          created_at: string | null
+          created_by: string | null
+          description: string | null
+          expires_at: string | null
+          id: string
+          linked_person_id: string | null
+          notes: string | null
+          organization_id: string
+          photos: string[] | null
+          plate_number: string
+          reason: string | null
+          status: string
+          updated_at: string | null
+          vehicle_color: string | null
+          vehicle_make: string | null
+          vehicle_model: string | null
+          vehicle_year: number | null
+        }
+        Insert: {
+          active?: boolean | null
+          created_at?: string | null
+          created_by?: string | null
+          description?: string | null
+          expires_at?: string | null
+          id?: string
+          linked_person_id?: string | null
+          notes?: string | null
+          organization_id: string
+          photos?: string[] | null
+          plate_number: string
+          reason?: string | null
+          status?: string
+          updated_at?: string | null
+          vehicle_color?: string | null
+          vehicle_make?: string | null
+          vehicle_model?: string | null
+          vehicle_year?: number | null
+        }
+        Update: {
+          active?: boolean | null
+          created_at?: string | null
+          created_by?: string | null
+          description?: string | null
+          expires_at?: string | null
+          id?: string
+          linked_person_id?: string | null
+          notes?: string | null
+          organization_id?: string
+          photos?: string[] | null
+          plate_number?: string
+          reason?: string | null
+          status?: string
+          updated_at?: string | null
+          vehicle_color?: string | null
+          vehicle_make?: string | null
+          vehicle_model?: string | null
+          vehicle_year?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vehicles_of_interest_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "officer_compliance_dashboard"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "vehicles_of_interest_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "user_area_access"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vehicles_of_interest_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vehicles_of_interest_linked_person_id_fkey"
+            columns: ["linked_person_id"]
+            isOneToOne: false
+            referencedRelation: "persons_of_interest"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vehicles_of_interest_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      welfare_checkins: {
+        Row: {
+          checked_in_at: string
+          created_at: string
+          gps_accuracy: number | null
+          gps_latitude: number | null
+          gps_longitude: number | null
+          id: string
+          is_overdue: boolean
+          officer_id: string
+          officer_shift_id: string | null
+          organization_id: string
+          overdue_minutes: number | null
+        }
+        Insert: {
+          checked_in_at?: string
+          created_at?: string
+          gps_accuracy?: number | null
+          gps_latitude?: number | null
+          gps_longitude?: number | null
+          id?: string
+          is_overdue?: boolean
+          officer_id: string
+          officer_shift_id?: string | null
+          organization_id: string
+          overdue_minutes?: number | null
+        }
+        Update: {
+          checked_in_at?: string
+          created_at?: string
+          gps_accuracy?: number | null
+          gps_latitude?: number | null
+          gps_longitude?: number | null
+          id?: string
+          is_overdue?: boolean
+          officer_id?: string
+          officer_shift_id?: string | null
+          organization_id?: string
+          overdue_minutes?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "welfare_checkins_officer_id_fkey"
+            columns: ["officer_id"]
+            isOneToOne: false
+            referencedRelation: "officer_compliance_dashboard"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "welfare_checkins_officer_id_fkey"
+            columns: ["officer_id"]
+            isOneToOne: false
+            referencedRelation: "user_area_access"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "welfare_checkins_officer_id_fkey"
+            columns: ["officer_id"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "welfare_checkins_officer_shift_id_fkey"
+            columns: ["officer_shift_id"]
+            isOneToOne: false
+            referencedRelation: "officer_shifts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "welfare_checkins_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       zone_compliance_matrix: {
         Row: {
           allowed_days: string[] | null
@@ -5119,6 +9356,7 @@ export type Database = {
           authorized_signatories: Json | null
           breach_template: string
           created_at: string | null
+          dispute_portal_url: string | null
           enforcement_authority: string | null
           enforcement_type: string
           fine_amount: number | null
@@ -5129,7 +9367,6 @@ export type Database = {
           managing_authority: string | null
           max_consecutive_nights: number | null
           max_stay_nights: number | null
-          dispute_portal_url: string | null
           objections_email: string | null
           objections_postal_address: string | null
           org_building: string | null
@@ -5143,10 +9380,10 @@ export type Database = {
           org_postcode: string
           org_street_address: string
           org_website: string | null
+          organization_id: string
           payment_bank_account: string | null
           payment_instructions: string | null
           payment_online_url: string | null
-          organization_id: string
           self_contained_required: boolean | null
           trespass_duration_years: number | null
           updated_at: string | null
@@ -5157,6 +9394,7 @@ export type Database = {
           authorized_signatories?: Json | null
           breach_template: string
           created_at?: string | null
+          dispute_portal_url?: string | null
           enforcement_authority?: string | null
           enforcement_type: string
           fine_amount?: number | null
@@ -5167,7 +9405,6 @@ export type Database = {
           managing_authority?: string | null
           max_consecutive_nights?: number | null
           max_stay_nights?: number | null
-          dispute_portal_url?: string | null
           objections_email?: string | null
           objections_postal_address?: string | null
           org_building?: string | null
@@ -5181,10 +9418,10 @@ export type Database = {
           org_postcode: string
           org_street_address: string
           org_website?: string | null
+          organization_id: string
           payment_bank_account?: string | null
           payment_instructions?: string | null
           payment_online_url?: string | null
-          organization_id: string
           self_contained_required?: boolean | null
           trespass_duration_years?: number | null
           updated_at?: string | null
@@ -5219,10 +9456,10 @@ export type Database = {
           org_postcode?: string
           org_street_address?: string
           org_website?: string | null
+          organization_id?: string
           payment_bank_account?: string | null
           payment_instructions?: string | null
           payment_online_url?: string | null
-          organization_id?: string
           self_contained_required?: boolean | null
           trespass_duration_years?: number | null
           updated_at?: string | null
@@ -5308,6 +9545,13 @@ export type Database = {
             foreignKeyName: "zone_signage_evidence_captured_by_fkey"
             columns: ["captured_by"]
             isOneToOne: false
+            referencedRelation: "user_area_access"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "zone_signage_evidence_captured_by_fkey"
+            columns: ["captured_by"]
+            isOneToOne: false
             referencedRelation: "user_profiles"
             referencedColumns: ["id"]
           },
@@ -5331,12 +9575,18 @@ export type Database = {
         Row: {
           allowed_days: string[] | null
           boundary_source: string | null
+          bylaw_clause: string | null
+          bylaw_reference: string | null
+          bylaw_source_url: string | null
           created_at: string | null
           day_visit_only: boolean | null
           description: string | null
+          enforcement_authority: string | null
           geometry: Json | null
           id: string
           is_active: boolean | null
+          land_manager: string | null
+          land_managing_agency: string | null
           location_lat: number | null
           location_lng: number | null
           max_consecutive_nights: number | null
@@ -5346,23 +9596,27 @@ export type Database = {
           organization_id: string
           parent_zone_id: string | null
           parkpow_lot_id: number | null
+          seasonal_close_month: number | null
+          seasonal_open_month: number | null
           self_contained_required: boolean | null
           updated_at: string | null
           zone_type: string | null
-          land_managing_agency: string | null
-          bylaw_reference: string | null
-          seasonal_open_month: number | null
-          seasonal_close_month: number | null
         }
         Insert: {
           allowed_days?: string[] | null
           boundary_source?: string | null
+          bylaw_clause?: string | null
+          bylaw_reference?: string | null
+          bylaw_source_url?: string | null
           created_at?: string | null
           day_visit_only?: boolean | null
           description?: string | null
+          enforcement_authority?: string | null
           geometry?: Json | null
           id?: string
           is_active?: boolean | null
+          land_manager?: string | null
+          land_managing_agency?: string | null
           location_lat?: number | null
           location_lng?: number | null
           max_consecutive_nights?: number | null
@@ -5372,23 +9626,27 @@ export type Database = {
           organization_id: string
           parent_zone_id?: string | null
           parkpow_lot_id?: number | null
+          seasonal_close_month?: number | null
+          seasonal_open_month?: number | null
           self_contained_required?: boolean | null
           updated_at?: string | null
           zone_type?: string | null
-          land_managing_agency?: string | null
-          bylaw_reference?: string | null
-          seasonal_open_month?: number | null
-          seasonal_close_month?: number | null
         }
         Update: {
           allowed_days?: string[] | null
           boundary_source?: string | null
+          bylaw_clause?: string | null
+          bylaw_reference?: string | null
+          bylaw_source_url?: string | null
           created_at?: string | null
           day_visit_only?: boolean | null
           description?: string | null
+          enforcement_authority?: string | null
           geometry?: Json | null
           id?: string
           is_active?: boolean | null
+          land_manager?: string | null
+          land_managing_agency?: string | null
           location_lat?: number | null
           location_lng?: number | null
           max_consecutive_nights?: number | null
@@ -5398,13 +9656,11 @@ export type Database = {
           organization_id?: string
           parent_zone_id?: string | null
           parkpow_lot_id?: number | null
+          seasonal_close_month?: number | null
+          seasonal_open_month?: number | null
           self_contained_required?: boolean | null
           updated_at?: string | null
           zone_type?: string | null
-          land_managing_agency?: string | null
-          bylaw_reference?: string | null
-          seasonal_open_month?: number | null
-          seasonal_close_month?: number | null
         }
         Relationships: [
           {
@@ -5664,6 +9920,41 @@ export type Database = {
           },
         ]
       }
+      user_area_access: {
+        Row: {
+          authorized_work_locations: string[] | null
+          email: string | null
+          employer_org_name: string | null
+          employer_organization_id: string | null
+          enabled_portals: string[] | null
+          extra_organization_ids: string[] | null
+          full_name: string | null
+          id: string | null
+          is_active: boolean | null
+          job_title: string | null
+          organization_id: string | null
+          portal_access: string[] | null
+          primary_org_name: string | null
+          primary_org_type: string | null
+          role: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_profiles_employer_organization_id_fkey"
+            columns: ["employer_organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_profiles_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       v_observation_zone_audit: {
         Row: {
           canonical_org_id: string | null
@@ -5729,6 +10020,10 @@ export type Database = {
       }
     }
     Functions: {
+      _next_noise_seq: {
+        Args: { p_org_id: string; p_prefix: string; p_table: string }
+        Returns: string
+      }
       _postgis_deprecate: {
         Args: { newname: string; oldname: string; version: string }
         Returns: undefined
@@ -5856,10 +10151,6 @@ export type Database = {
             }
             Returns: string
           }
-      auto_evaluate_compliance_and_create_breach: {
-        Args: { p_observation_id: string }
-        Returns: undefined
-      }
       backfill_monthly_stays_from_observations: {
         Args: never
         Returns: {
@@ -5909,6 +10200,23 @@ export type Database = {
       can_user_modify_observation: {
         Args: { p_observation_id: string; p_user_id: string }
         Returns: boolean
+      }
+      check_compliance: {
+        Args: {
+          p_plate_number: string
+          p_recorded_at?: string
+          p_zone_id: string
+        }
+        Returns: Json
+      }
+      check_duplicate_observations: {
+        Args: never
+        Returns: {
+          count: number
+          observation_ids: string[]
+          plate_number: string
+          zone_id: string
+        }[]
       }
       check_duplicate_plates: {
         Args: never
@@ -6053,10 +10361,6 @@ export type Database = {
         Returns: string
       }
       equals: { Args: { geom1: unknown; geom2: unknown }; Returns: boolean }
-      evaluate_compliance_v4: {
-        Args: { p_observation_id: string }
-        Returns: undefined
-      }
       evaluate_observation_requirements: {
         Args: { p_observation_id: string }
         Returns: Json
@@ -6080,6 +10384,10 @@ export type Database = {
           gps_confirmed?: boolean
           violation_reasons: string[]
         }
+        Returns: string
+      }
+      generate_infringement_number: {
+        Args: { p_org_id: string }
         Returns: string
       }
       generate_notice_reference: { Args: never; Returns: string }
@@ -6282,6 +10590,16 @@ export type Database = {
         Args: { org_id: string }
         Returns: string[]
       }
+      get_duplicate_observations: {
+        Args: { p_limit?: number; p_organization_id?: string }
+        Returns: {
+          count: number
+          observation_ids: string[]
+          plate_number: string
+          zone_id: string
+          zone_name: string
+        }[]
+      }
       get_effective_homeless_status: {
         Args: { p_organization_id: string; p_plate_number: string }
         Returns: string
@@ -6436,6 +10754,19 @@ export type Database = {
           zone_name: string
         }[]
       }
+      get_org_usage_summary: {
+        Args: { p_from?: string; p_to?: string }
+        Returns: {
+          breach_count: number
+          infringement_count: number
+          is_active: boolean
+          notice_count: number
+          officer_count: number
+          organization_id: string
+          organization_name: string
+          scan_count: number
+        }[]
+      }
       get_patrol_kpis: {
         Args: {
           p_from?: string
@@ -6486,6 +10817,10 @@ export type Database = {
           vehicle_model: string
           zone_name: string
         }[]
+      }
+      get_platform_stats: {
+        Args: { p_from?: string; p_to?: string }
+        Returns: Json
       }
       get_shift_period: { Args: { observation_time: string }; Returns: string }
       get_user_organization_id: { Args: { p_user_id: string }; Returns: string }
@@ -6547,48 +10882,13 @@ export type Database = {
           nights_per_month: number
           obs_count: number
           organization_name: string
-          parent_zone_id: string | null
+          parent_zone_id: string
           self_contained_required: boolean
           zone_id: string
           zone_name: string
-          zone_type: string | null
+          zone_type: string
         }[]
       }
-        check_compliance: {
-          Args: { p_plate_number: string; p_zone_id: string; p_recorded_at?: string }
-          Returns: Json
-        }
-        check_duplicate_observations: {
-          Args: Record<PropertyKey, never>
-          Returns: {
-            count: number
-            plate_number: string
-            zone_id: string
-            observation_ids: string[]
-          }[]
-        }
-        get_duplicate_observations: {
-          Args: { p_organization_id?: string; p_limit?: number }
-          Returns: {
-            plate_number: string
-            zone_id: string
-            zone_name: string
-            observation_ids: string[]
-            count: number
-          }[]
-        }
-        increment_patrol_breaches_found: {
-          Args: { p_patrol_id: string }
-          Returns: undefined
-        }
-        increment_patrol_vehicles_checked: {
-          Args: { p_patrol_id: string }
-          Returns: undefined
-        }
-        set_org_geometry: {
-          Args: { org_id: string; geojson: Json }
-          Returns: undefined
-        }
       gettransactionid: { Args: never; Returns: unknown }
       is_same_calendar_day: {
         Args: {
@@ -6598,10 +10898,7 @@ export type Database = {
         }
         Returns: boolean
       }
-      is_zone_seasonally_open: {
-        Args: { p_zone_id: string }
-        Returns: boolean
-      }
+      is_zone_seasonally_open: { Args: { p_zone_id: string }; Returns: boolean }
       log_compliance_check: {
         Args: {
           p_blocked_reason?: string
@@ -6636,6 +10933,33 @@ export type Database = {
         Args: { error_msg?: string; queue_user_id: string; success: boolean }
         Returns: undefined
       }
+      match_face: {
+        Args: {
+          p_embedding: number[]
+          p_k?: number
+          p_min_quality?: number
+          p_org_id: string
+        }
+        Returns: {
+          face_count: number
+          face_created_at: string
+          face_record_id: string
+          faces: Json
+          label: string
+          notes: string
+          person_date_of_birth: string
+          person_full_name: string
+          person_homeless_status: string
+          person_is_of_interest: boolean
+          person_notes: string
+          person_record_id: string
+          person_risk_level: string
+          person_trespass_date: string
+          person_trespass_issued: boolean
+          photo_url: string
+          similarity: number
+        }[]
+      }
       migrate_legacy_vehicles: {
         Args: {
           p_dry_run?: boolean
@@ -6649,6 +10973,13 @@ export type Database = {
           plate_number: string
           vehicle_id: string
         }[]
+      }
+      next_noise_job_number: { Args: { p_org_id: string }; Returns: string }
+      next_noise_notice_number: { Args: { p_org_id: string }; Returns: string }
+      next_noise_seizure_number: { Args: { p_org_id: string }; Returns: string }
+      next_parking_infringement_number: {
+        Args: { p_org_id: string }
+        Returns: string
       }
       normalize_plate_key: { Args: { p_plate: string }; Returns: string }
       nz_current_date: { Args: never; Returns: string }
@@ -6720,6 +11051,24 @@ export type Database = {
         }
         Returns: Json
       }
+      reassign_observations_to_current_zones: {
+        Args: {
+          p_apply?: boolean
+          p_legacy_only?: boolean
+          p_limit?: number
+          p_recorded_by?: string
+          p_update_recorded_by?: boolean
+        }
+        Returns: {
+          candidates: number
+          cross_org_moves: number
+          recorded_by_updates: number
+          scanned: number
+          unresolved: number
+          updatable: number
+          updated: number
+        }[]
+      }
       recalculate_observation_compliance: {
         Args: { p_observation_id: string }
         Returns: undefined
@@ -6734,6 +11083,10 @@ export type Database = {
         Returns: string
       }
       safe_insert_observation: { Args: { p_data: Json }; Returns: Json }
+      set_org_geometry: {
+        Args: { geojson: Json; org_id: string }
+        Returns: undefined
+      }
       should_analyze_vehicle: {
         Args: { p_vehicle_id: string }
         Returns: boolean

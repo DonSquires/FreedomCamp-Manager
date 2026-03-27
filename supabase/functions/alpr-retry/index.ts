@@ -20,7 +20,7 @@
  */
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3';
 import { withCors, jsonResponse, errorResponse } from '../_shared/withCors.ts';
 import { alprWithBytes } from '../_shared/alpr.ts';
 
@@ -33,7 +33,7 @@ function verifyAdmin(jwt: string): { userId: string; role: string } | null {
     const payload = JSON.parse(atob(parts[1]));
     const role = payload.user_role || payload.role;
     
-    if (role !== 'admin' && role !== 'master') {
+    if (role !== 'admin' && role !== 'master' && role !== 'grand_master') {
       return null;
     }
     

@@ -138,7 +138,7 @@ export function useFlaggedVehicles(options?: {
   // Update flagged vehicle mutation
   const updateFlaggedVehicle = useMutation({
     mutationFn: async ({ id, ...updates }: UpdateFlaggedVehicleInput & { id: string }) => {
-      const { error } = await (supabase.from('flagged_vehicles') as any)
+      const { error } = await supabase.from('flagged_vehicles')
         .update(updates)
         .eq('id', id)
 
@@ -156,7 +156,7 @@ export function useFlaggedVehicles(options?: {
   // Soft-delete: set is_active = false instead of hard delete
   const deleteFlaggedVehicle = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await (supabase.from('flagged_vehicles') as any)
+      const { error } = await supabase.from('flagged_vehicles')
         .update({ is_active: false })
         .eq('id', id)
 

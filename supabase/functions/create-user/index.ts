@@ -52,9 +52,9 @@ Deno.serve(async (req) => {
       .eq('id', callerUser.id)
       .single();
 
-    if (callerProfileError || !callerProfile || (callerProfile.role !== 'admin' && callerProfile.role !== 'master')) {
+    if (callerProfileError || !callerProfile || (callerProfile.role !== 'admin' && callerProfile.role !== 'master' && callerProfile.role !== 'grand_master')) {
       return new Response(
-        JSON.stringify({ error: 'Forbidden: admin or master role required' }),
+        JSON.stringify({ error: 'Forbidden: admin, master, or grand_master role required' }),
         { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }

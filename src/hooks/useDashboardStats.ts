@@ -37,14 +37,14 @@ export function useDashboardStats(params: DashboardStatsParams = {}) {
     queryKey: ['dashboard-stats', effectiveOrgId, zoneId, dateFrom, dateTo],
     queryFn: async () => {
       // Try RPC function first
-      const { data: rpcData, error: rpcError } = await (supabase as any).rpc('get_admin_dashboard_stats', {
+      const { data: rpcData, error: rpcError } = await supabase.rpc('get_admin_dashboard_stats', {
         p_organization_id: effectiveOrgId || null,
-        p_date_from: dateFrom || null,
-        p_date_to: dateTo || null,
+        p_start_date: dateFrom || null,
+        p_end_date: dateTo || null,
       })
 
       if (!rpcError && rpcData) {
-        return rpcData as DashboardStats
+        return rpcData as unknown as DashboardStats
       }
 
       // Fallback to manual calculation
@@ -60,11 +60,12 @@ async function calculateStatsManually(
   dateTo?: string | null,
 ): Promise<DashboardStats> {
   // Use separate HEAD count queries so pagination never under-counts
-  let totalObsQuery = (supabase.from('observations') as any).select('*', { count: 'exact', head: true })
-  let compliantObsQuery = (supabase.from('observations') as any).select('*', { count: 'exact', head: true }).eq('is_compliant', true)
-  let breachQuery = (supabase.from('breach_alerts') as any).select('observation_id').in('status', ['pending', 'acknowledged', 'enforcement_started']).not('observation_id', 'is', null)
-  let vehicleQuery = (supabase.from('canonical_vehicles') as any).select('*', { count: 'exact', head: true })
-  let patrolQuery = (supabase.from('patrols') as any).select('*', { count: 'exact', head: true }).eq('status', 'in_progress')
+  let totalObsQuery = supabase.from('observations').select('*', { count: 'exact', head: true })
+  let compliantObsQuery = supabase.from('observations').select('*', { count: 'exact', head: true }).eq('is_compliant', true)
+  let breachQuery = supabase.from('breach_alerts').select('observation_id').in('status', ['pending', 'acknowledged', 'enforcement_started']).not('observation_id', 'is', null)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let vehicleQuery: any = supabase.from('canonical_vehicles').select('*', { count: 'exact', head: true })
+  let patrolQuery = supabase.from('patrols').select('*', { count: 'exact', head: true }).eq('status', 'in_progress')
 
   if (organizationId) {
     totalObsQuery = totalObsQuery.eq('organization_id', organizationId)
@@ -124,7 +125,7 @@ export function useRecentActivity(organizationId?: string | null, zoneId?: strin
   return useQuery({
     queryKey: ['recent-activity', organizationId, zoneId],
     queryFn: async () => {
-      let query = (supabase.from('observations') as any)
+      let query = supabase.from('observations')
         .select(`
           id:observation_id,
           plate_number,

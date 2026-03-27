@@ -1,9 +1,9 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/stores/authStore'
 import { useGlobalFiltersStore } from '@/stores/globalFiltersStore'
-import { monitorGeofenceAndPatrol } from '@/lib/geofence'
+import { monitorGeofenceAndPatrol, calculateDistance } from '@/lib/geofence'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -19,8 +19,12 @@ import { ScanDetailPanel, type DetailScanData } from '@/components/features/Scan
 import { LivePatrolCamera } from '@/components/features/LivePatrolCamera'
 import { BulkScanSession } from '@/components/features/BulkScanSession'
 import { OfficerFollowUpQueue } from '@/components/features/OfficerFollowUpQueue'
+import { PostShiftFeedback } from '@/components/features/PostShiftFeedback'
+import { VOILookup } from '@/components/features/VOILookup'
 import { captureAndSave, SCAN_PROGRESS_LABELS, type ScanProgressStage } from '@/lib/scanPipeline'
 import { useManDownDetection } from '@/hooks/useManDownDetection'
+import { useWelfareCheckin } from '@/hooks/useWelfareCheckin'
+import { useRosteredShift } from '@/hooks/useRosteredShift'
 import { reverseGeocode } from '@/lib/geocoding'
 import { useThemePreferencesStore } from '@/stores/themePreferencesStore'
 import {
@@ -28,7 +32,7 @@ import {
   ShieldAlert, CheckCircle, Shield, Megaphone, FileWarning, XCircle,
   Clock, Home, X, Car, Zap, Search, Printer, PlusCircle, Wrench, Heart, Users,
   Moon, Sun, ParkingSquare, Volume2, Video, Eye, Tent, Timer,
-  ScanFace,
+  ScanFace, CalendarPlus, Siren, Bell, PhoneCall, Lock,
 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
@@ -114,12 +118,52 @@ export default function FieldOfficerPortal() {
   const { user } = useAuthStore()
   const { zoneId, zoneName, setZone } = useGlobalFiltersStore()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const queryClient = useQueryClient()
   const { themeMode, setThemeMode } = useThemePreferencesStore()
   const isNightPatrol = themeMode === 'night-patrol'
 
-  // ── Service type selection ────────────────────────────────────────────────
-  const [activeService, setActiveService] = useState<ServiceType | null>(null)
+  // ── Roster context ────────────────────────────────────────────────────────
+  const { rosteredShift } = useRosteredShift()
+
+  // ── Service type selection — pre-fill from URL param or roster ────────────
+  const [activeService, setActiveService] = useState<ServiceType | null>(() => {
+    const param = searchParams.get('service') as ServiceType | null
+    return param && ['freedom_camping','guarding','parking','noise','patrol','alarm_response'].includes(param)
+      ? param as ServiceType
+      : null
+  })
+
+  // ── Enabled (linked) extra portals — persisted per-officer in user_profiles ─
+  // Officers can tick which additional service portals are linked to their dashboard.
+  // Initialised from roster-shift service_type; officer can toggle extras.
+  const ALL_PORTAL_OPTIONS: ServiceType[] = ['freedom_camping', 'guarding', 'parking', 'noise']
+  const [enabledPortals, setEnabledPortals] = useState<ServiceType[]>(() => {
+    try {
+      const stored = localStorage.getItem(`enabled_portals_${user?.id}`)
+      if (stored) return JSON.parse(stored) as ServiceType[]
+    } catch { /* ignore */ }
+    return rosteredShift?.service_type
+      ? [rosteredShift.service_type as ServiceType]
+      : ['freedom_camping']
+  })
+
+  const togglePortal = (portal: ServiceType) => {
+    setEnabledPortals(prev => {
+      const next = prev.includes(portal)
+        ? prev.filter(p => p !== portal)
+        : [...prev, portal]
+      localStorage.setItem(`enabled_portals_${user?.id}`, JSON.stringify(next))
+      // Persist to user_profiles asynchronously
+      if (user?.id) {
+        ;(supabase as any).from('user_profiles')
+          .update({ enabled_portals: next })
+          .eq('id', user.id)
+          .then(() => {/* fire and forget */})
+      }
+      return next
+    })
+  }
 
   // ── Scan mode: null = portal home, 'detail' = single-vehicle scan,
   //              'bulk' = quick area sweep, 'checkpoint' = QR check-in
@@ -153,6 +197,119 @@ export default function FieldOfficerPortal() {
 
   // Man-Down Detection — records GPS updates and fires alert if stationary too long
   const { recordGPSUpdate, isManDownActive } = useManDownDetection()
+
+  // ── WelfareFirst: I'm OK check-in ─────────────────────────────────────────
+  const { state: checkinState, checkIn } = useWelfareCheckin({
+    officerId:      user?.id ?? null,
+    organizationId: user?.organization_id ?? null,
+    shiftId:        null, // set below once activeShift loads
+    position:       currentLocation,
+  })
+
+  // ── SOS/Panic button state ────────────────────────────────────────────────
+  const [sosConfirmOpen, setSosConfirmOpen] = useState(false)
+  const [sosHoldProgress, setSosHoldProgress] = useState(0)
+  const sosHoldRef = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  // Long-press SOS: user must hold for 3 s to avoid accidental triggers
+  function startSosHold() {
+    setSosHoldProgress(0)
+    sosHoldRef.current = setInterval(() => {
+      setSosHoldProgress(p => {
+        if (p >= 100) {
+          clearInterval(sosHoldRef.current!)
+          triggerSOS()
+          return 0
+        }
+        return p + 10 // 10 steps × ~300ms = 3s
+      })
+    }, 300)
+  }
+  function cancelSosHold() {
+    if (sosHoldRef.current) clearInterval(sosHoldRef.current)
+    setSosHoldProgress(0)
+  }
+  async function triggerSOS() {
+    if (!user?.id || !user?.organization_id) return
+    try {
+      await supabase.from('officer_welfare_alerts').insert({
+        officer_id:       user.id,
+        organization_id:  user.organization_id,
+        alert_type:       'sos',
+        officer_name:     `${user?.first_name ?? ''} ${user?.last_name ?? ''}`.trim(),
+        gps_latitude:     currentLocation?.latitude  ?? null,
+        gps_longitude:    currentLocation?.longitude ?? null,
+        last_activity_at: new Date().toISOString(),
+        escalation_level: 2, // SOS always escalates immediately
+      })
+      toast.error('🚨 SOS ALERT SENT – Help is on the way', { duration: 0, id: 'sos-alert' })
+    } catch (err: any) {
+      toast.error(err?.message ?? 'SOS failed – call emergency services directly')
+    }
+  }
+
+  // ── Post-shift feedback ───────────────────────────────────────────────────
+  const [showShiftFeedback, setShowShiftFeedback] = useState(false)
+  const [feedbackShiftId,   setFeedbackShiftId]   = useState<string | null>(null)
+
+  // ── Unread notifications ──────────────────────────────────────────────────
+  const { data: unreadNotifications = [] } = useQuery({
+    queryKey: ['officer-unread-notifications', user?.id],
+    queryFn: async () => {
+      if (!user?.id) return []
+      const { data } = await supabase
+        .from('notifications')
+        .select('id, title, body, priority, created_at')
+        .eq('user_id', user.id)
+        .eq('read', false)
+        .in('priority', ['high', 'urgent'])
+        .order('created_at', { ascending: false })
+        .limit(5)
+      return data ?? []
+    },
+    enabled: !!user?.id,
+    refetchInterval: 60_000,
+  })
+
+  async function markNotificationRead(notifId: string) {
+    await supabase.from('notifications')
+      .update({ read: true, read_at: new Date().toISOString() })
+      .eq('id', notifId)
+    toast.dismiss()
+  }
+
+  // ── Dispatched jobs assigned to this officer (GDS CATS job queue) ──────────
+  const qcHook = useQueryClient()
+  const { data: myDispatchJobs = [] } = useQuery({
+    queryKey: ['my-dispatch-jobs', user?.id],
+    queryFn: async () => {
+      if (!user?.id) return []
+      const { data } = await (supabase as any)
+        .from('dispatch_jobs')
+        .select('id, job_number, job_type, priority, status, title, address, description, caller_phone, response_sla_minutes, dispatched_at, created_at')
+        .eq('assigned_to', user.id)
+        .in('status', ['dispatched', 'acknowledged', 'en_route', 'on_scene'])
+        .order('priority', { ascending: false })
+        .order('created_at', { ascending: true })
+      return data ?? []
+    },
+    enabled: !!user?.id,
+    refetchInterval: 30_000,
+  })
+
+  const advanceJobStatus = useMutation({
+    mutationFn: async ({ jobId, newStatus }: { jobId: string; newStatus: string }) => {
+      const update: any = { status: newStatus }
+      if (newStatus === 'acknowledged') update.acknowledged_at = new Date().toISOString()
+      if (newStatus === 'en_route')     update.en_route_at     = new Date().toISOString()
+      if (newStatus === 'on_scene')     update.on_scene_at     = new Date().toISOString()
+      if (newStatus === 'completed')    update.completed_at    = new Date().toISOString()
+      const { error } = await (supabase as any).from('dispatch_jobs').update(update).eq('id', jobId)
+      if (error) throw error
+    },
+    onSuccess: () => { qcHook.invalidateQueries({ queryKey: ['my-dispatch-jobs'] }) },
+    onError: (err: any) => toast.error(err?.message ?? 'Update failed'),
+  })
 
   // Display-friendly zone label for the officer status card
   const displayZone = zoneName || (zoneId ? `${zoneId.substring(0, 8)}...` : 'Scanning Geofence...')
@@ -611,38 +768,143 @@ export default function FieldOfficerPortal() {
       </div>
 
       {/* ── Shift & Welfare status bar (auto-started) ────────────────── */}
-      <div className="flex items-center gap-3 rounded-xl border border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-950/30 px-4 py-2.5 mb-4">
-        <div className="p-1.5 bg-green-200 dark:bg-green-800 rounded-full">
-          <Timer className="h-4 w-4 text-green-700 dark:text-green-300" />
-        </div>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-sm font-semibold text-green-800 dark:text-green-200">
-              Shift Active
-            </span>
-            {activeShift && (
-              <Badge variant="outline" className="text-xs border-green-400 text-green-700 dark:text-green-300">
-                <Clock className="h-3 w-3 mr-1" />
-                {formatShiftDuration(activeShift.started_at)}
-              </Badge>
-            )}
-            <Badge variant="outline" className="text-xs border-emerald-400 text-emerald-700 dark:text-emerald-300">
-              <Heart className="h-3 w-3 mr-1" />
-              Welfare On
-            </Badge>
+      <div className={`rounded-xl border px-4 py-3 mb-4 ${
+        checkinState.isOverdue
+          ? 'border-orange-400 bg-orange-50 dark:bg-orange-950/30'
+          : 'border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-950/30'
+      }`}>
+        <div className="flex items-center gap-3">
+          <div className={`p-1.5 rounded-full ${checkinState.isOverdue ? 'bg-orange-200 dark:bg-orange-800' : 'bg-green-200 dark:bg-green-800'}`}>
+            <Timer className={`h-4 w-4 ${checkinState.isOverdue ? 'text-orange-700 dark:text-orange-300 animate-pulse' : 'text-green-700 dark:text-green-300'}`} />
           </div>
-          <p className="text-[11px] text-green-600 dark:text-green-400">
-            Shift and welfare monitoring started automatically
-          </p>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className={`text-sm font-semibold ${checkinState.isOverdue ? 'text-orange-800 dark:text-orange-200' : 'text-green-800 dark:text-green-200'}`}>
+                Shift Active
+              </span>
+              {activeShift && (
+                <Badge variant="outline" className="text-xs border-green-400 text-green-700 dark:text-green-300">
+                  <Clock className="h-3 w-3 mr-1" />
+                  {formatShiftDuration(activeShift.started_at)}
+                </Badge>
+              )}
+              <Badge variant="outline" className="text-xs border-emerald-400 text-emerald-700 dark:text-emerald-300">
+                <Heart className="h-3 w-3 mr-1" />
+                Welfare On
+              </Badge>
+              {checkinState.isOverdue && (
+                <Badge variant="outline" className="text-xs border-orange-400 text-orange-700 bg-orange-50 animate-pulse">
+                  Check-in Overdue!
+                </Badge>
+              )}
+              {checkinState.isDue && !checkinState.isOverdue && (
+                <Badge variant="outline" className="text-xs border-yellow-400 text-yellow-700 bg-yellow-50">
+                  Check-in Due Soon
+                </Badge>
+              )}
+            </div>
+            {checkinState.lastCheckinAt && (
+              <p className="text-[11px] text-muted-foreground mt-0.5">
+                Last check-in: {new Date(checkinState.lastCheckinAt).toLocaleTimeString('en-NZ', { hour: '2-digit', minute: '2-digit', hour12: true })}
+                {checkinState.intervalMinutes > 0 && (
+                  checkinState.secondsUntilDue !== null && checkinState.secondsUntilDue > 0
+                    ? ` · next due in ${Math.ceil(checkinState.secondsUntilDue / 60)}m`
+                    : checkinState.isOverdue ? ` · overdue by ${checkinState.minutesSinceCheckin! - checkinState.intervalMinutes}m` : ''
+                )}
+              </p>
+            )}
+            {!checkinState.lastCheckinAt && checkinState.intervalMinutes > 0 && (
+              <p className="text-[11px] text-green-600 dark:text-green-400">
+                Check in every {checkinState.intervalMinutes}m to confirm you're safe
+              </p>
+            )}
+          </div>
+          {/* I'm OK button */}
+          {checkinState.intervalMinutes > 0 && (
+            <Button
+              size="sm"
+              onClick={checkIn}
+              disabled={checkinState.isSubmitting}
+              className={`shrink-0 font-semibold ${
+                checkinState.isOverdue
+                  ? 'bg-orange-500 hover:bg-orange-600 text-white'
+                  : 'bg-green-600 hover:bg-green-700 text-white'
+              }`}
+            >
+              <CheckCircle className="h-4 w-4 mr-1.5" />
+              I'm OK
+            </Button>
+          )}
         </div>
       </div>
+
+      {/* ── Unread high-priority notifications ───────────────────────── */}
+      {unreadNotifications.length > 0 && (
+        <div className="space-y-2 mb-4">
+          {unreadNotifications.map((n: any) => (
+            <div
+              key={n.id}
+              className={`flex items-start gap-3 rounded-xl border px-4 py-3 ${
+                n.priority === 'urgent'
+                  ? 'border-red-300 bg-red-50 dark:bg-red-950/30'
+                  : 'border-yellow-300 bg-yellow-50 dark:bg-yellow-950/30'
+              }`}
+            >
+              <Bell className={`h-4 w-4 mt-0.5 shrink-0 ${n.priority === 'urgent' ? 'text-red-600 animate-pulse' : 'text-yellow-600'}`} />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-foreground">{n.title}</p>
+                <p className="text-xs text-muted-foreground line-clamp-2">{n.body}</p>
+              </div>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="shrink-0 text-xs h-7 px-2"
+                onClick={() => markNotificationRead(n.id)}
+              >
+                ✓ Read
+              </Button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ── SOS / Panic Button ────────────────────────────────────────── */}
+      {!scanMode && !showCheckpoint && !detailCameraOpen && (
+        <div className="mb-4">
+          <button
+            type="button"
+            onPointerDown={startSosHold}
+            onPointerUp={cancelSosHold}
+            onPointerLeave={cancelSosHold}
+            className="w-full relative overflow-hidden rounded-xl border-2 border-red-300 bg-red-50 dark:bg-red-950/20 dark:border-red-800 h-14 flex items-center justify-center gap-3 select-none active:scale-[0.98] transition-transform"
+            aria-label="SOS – Hold 3 seconds to send emergency alert"
+          >
+            {/* hold-progress fill */}
+            {sosHoldProgress > 0 && (
+              <div
+                className="absolute inset-0 bg-red-500/20 transition-all"
+                style={{ width: `${sosHoldProgress}%` }}
+              />
+            )}
+            <Siren className="h-5 w-5 text-red-600 dark:text-red-400 shrink-0" />
+            <span className="text-sm font-bold text-red-700 dark:text-red-300 relative z-10">
+              {sosHoldProgress > 0 ? `Hold… ${Math.round(sosHoldProgress)}%` : 'SOS – Hold 3s to send emergency alert'}
+            </span>
+          </button>
+        </div>
+      )}
 
       {/* ── Service Type Selector ────────────────────────────────────── */}
       {!scanMode && !showCheckpoint && !detailCameraOpen && (
         <div className="mb-6">
-          <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 flex items-center gap-2">
+          <h2 className={`text-sm font-semibold mb-3 flex items-center gap-2 ${isNightPatrol ? 'text-cyan-300' : 'text-gray-700 dark:text-gray-300'}`}>
             <Eye className="h-4 w-4" />
-            Select Service
+            Active Service
+            {rosteredShift?.service_type && (
+              <Badge variant="outline" className="ml-auto text-xs border-green-400 text-green-700 dark:text-green-300">
+                Rostered: {rosteredShift.service_type.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase())}
+              </Badge>
+            )}
           </h2>
           <div className="grid grid-cols-2 gap-3">
             {(Object.entries(SERVICE_TYPE_CONFIG) as [ServiceType, typeof SERVICE_TYPE_CONFIG[ServiceType]][]).map(
@@ -675,16 +937,36 @@ export default function FieldOfficerPortal() {
               }
             )}
           </div>
-          {activeService && (
-            <div className="mt-2 flex items-center gap-2">
-              <Badge className={`${SERVICE_TYPE_CONFIG[activeService].bgColor} ${SERVICE_TYPE_CONFIG[activeService].color} text-xs`}>
-                Active: {SERVICE_TYPE_CONFIG[activeService].label}
-              </Badge>
-              <Button variant="ghost" size="sm" className="h-6 text-xs text-muted-foreground" onClick={() => setActiveService(null)}>
-                Show All
-              </Button>
+
+          {/* ── Linked portals (multi-service tick boxes) ──────────────
+              Patrol officers can tick additional portals to link them
+              to their dashboard without changing primary service type. */}
+          <div className="mt-3 rounded-xl border border-gray-200 dark:border-gray-700 p-3">
+            <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2 flex items-center gap-1.5">
+              <Lock className="h-3.5 w-3.5" />
+              Linked Portals — show additional service tools
+            </p>
+            <div className="flex flex-wrap gap-x-4 gap-y-1">
+              {ALL_PORTAL_OPTIONS.map(portal => {
+                const cfg = SERVICE_TYPE_CONFIG[portal]
+                if (!cfg) return null
+                return (
+                  <label key={portal} className="flex items-center gap-1.5 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      className="rounded border-gray-300"
+                      checked={enabledPortals.includes(portal)}
+                      onChange={() => togglePortal(portal)}
+                    />
+                    <span className={`text-xs font-medium ${cfg.color}`}>{cfg.label}</span>
+                  </label>
+                )
+              })}
             </div>
-          )}
+            <p className="text-[11px] text-gray-400 mt-1.5">
+              Ticked portals show their tools below. Your choices are saved automatically.
+            </p>
+          </div>
         </div>
       )}
 
@@ -772,9 +1054,9 @@ export default function FieldOfficerPortal() {
           {/* ═══════════════════════════════════════════════════════════
               FREEDOM CAMPING PATROL tools
               ═══════════════════════════════════════════════════════════ */}
-          {(!activeService || activeService === 'freedom_camping') && (
+          {(!activeService || activeService === 'freedom_camping' || enabledPortals.includes('freedom_camping')) && (
             <>
-              {activeService === 'freedom_camping' && (
+              {(activeService === 'freedom_camping' || enabledPortals.includes('freedom_camping')) && (
                 <h3 className="text-xs font-bold text-green-700 dark:text-green-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
                   <Tent className="h-3.5 w-3.5" />
                   Freedom Camping Patrol
@@ -783,7 +1065,7 @@ export default function FieldOfficerPortal() {
               <div className="grid gap-4 grid-cols-2 sm:grid-cols-3 mb-6">
                 {/* ── Detail Scan card ────────────────────────────── */}
                 <Card
-                  className="hover:shadow-lg transition-shadow border-2 border-blue-300 dark:border-blue-800 cursor-pointer"
+                  className="hover:shadow-xl transition-all hover:scale-[1.01] active:scale-[0.99] border-2 border-blue-300 dark:border-blue-800 cursor-pointer"
                   onClick={() => {
                     if (!user?.id || !user?.organization_id) { toast.error('Session expired'); return }
                     if (!navigator.mediaDevices?.getUserMedia) { toast.error('Camera not available'); return }
@@ -815,7 +1097,7 @@ export default function FieldOfficerPortal() {
 
                 {/* ── Bulk (Zoom) Scan card ────────────────────────── */}
                 <Card
-                  className="hover:shadow-lg transition-shadow border-2 border-yellow-300 dark:border-yellow-800 cursor-pointer"
+                  className="hover:shadow-xl transition-all hover:scale-[1.01] active:scale-[0.99] border-2 border-yellow-300 dark:border-yellow-800 cursor-pointer"
                   onClick={() => {
                     if (!user?.id || !user?.organization_id) { toast.error('Session expired'); return }
                     if (!navigator.mediaDevices?.getUserMedia) { toast.error('Camera not available'); return }
@@ -844,7 +1126,7 @@ export default function FieldOfficerPortal() {
 
                 {/* ── Live Patrol Scan card ─────────────────────────── */}
                 <Card
-                  className="hover:shadow-lg transition-shadow border-2 border-green-300 dark:border-green-800 cursor-pointer col-span-2 sm:col-span-1"
+                  className="hover:shadow-xl transition-all hover:scale-[1.01] active:scale-[0.99] border-2 border-green-300 dark:border-green-800 cursor-pointer col-span-2 sm:col-span-1"
                   onClick={() => {
                     if (!user?.id || !user?.organization_id) { toast.error('Session expired'); return }
                     if (!navigator.mediaDevices?.getUserMedia) { toast.error('Camera not available'); return }
@@ -873,13 +1155,12 @@ export default function FieldOfficerPortal() {
               </div>
             </>
           )}
-
           {/* ═══════════════════════════════════════════════════════════
               GUARDING tools
               ═══════════════════════════════════════════════════════════ */}
-          {(!activeService || activeService === 'guarding') && (
+          {(!activeService || activeService === 'guarding' || enabledPortals.includes('guarding')) && (
             <>
-              {activeService === 'guarding' && (
+              {(activeService === 'guarding' || enabledPortals.includes('guarding')) && (
                 <h3 className="text-xs font-bold text-blue-700 dark:text-blue-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
                   <Shield className="h-3.5 w-3.5" />
                   Guarding
@@ -980,6 +1261,60 @@ export default function FieldOfficerPortal() {
                     </Button>
                   </CardContent>
                 </Card>
+
+                {/* VOI Lookup — available everywhere, no geofence restriction */}
+                <Card className="hover:shadow-lg transition-shadow border-blue-200 dark:border-blue-900 border-2 md:col-span-2 lg:col-span-3">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="flex items-center gap-2 text-base">
+                      <div className="p-2 bg-blue-100 dark:bg-blue-900 rounded-lg">
+                        <Car className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                      </div>
+                      Vehicle of Interest Check
+                      <Badge variant="outline" className="ml-auto text-xs border-blue-200 text-blue-600">Anywhere</Badge>
+                    </CardTitle>
+                    <CardDescription>Search flagged / banned vehicles — no geofence required</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <VOILookup inline />
+                  </CardContent>
+                </Card>
+
+                {/* POI — only when rostered and on shift */}
+                {rosteredShift && (
+                  <Card className="hover:shadow-lg transition-shadow border-orange-200 dark:border-orange-800 border-2">
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <div className="p-2 bg-orange-100 dark:bg-orange-900 rounded-lg">
+                          <Lock className="h-5 w-5 text-orange-600 dark:text-orange-400" />
+                        </div>
+                        Persons of Interest
+                        <Badge variant="outline" className="ml-auto text-xs border-green-300 text-green-700">Rostered</Badge>
+                      </CardTitle>
+                      <CardDescription>
+                        {rosteredShift.client_site_id
+                          ? `Site POI — geofence gated`
+                          : 'Org-wide POI — geofence gated'}
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      {rosteredShift.client_site_id ? (
+                        <Button
+                          className="w-full"
+                          variant="outline"
+                          onClick={() => navigate(`/site-guard?site=${rosteredShift.client_site_id}&roster=${rosteredShift.id}`)}
+                        >
+                          <Users className="h-4 w-4 mr-2" />
+                          View Site POI
+                        </Button>
+                      ) : (
+                        <Button className="w-full" variant="outline" onClick={() => navigate('/points-of-interest')}>
+                          <Users className="h-4 w-4 mr-2" />
+                          View POI
+                        </Button>
+                      )}
+                    </CardContent>
+                  </Card>
+                )}
               </div>
             </>
           )}
@@ -987,9 +1322,9 @@ export default function FieldOfficerPortal() {
           {/* ═══════════════════════════════════════════════════════════
               PARKING ENFORCEMENT tools
               ═══════════════════════════════════════════════════════════ */}
-          {(!activeService || activeService === 'parking') && (
+          {(!activeService || activeService === 'parking' || enabledPortals.includes('parking')) && (
             <>
-              {activeService === 'parking' && (
+              {(activeService === 'parking' || enabledPortals.includes('parking')) && (
                 <h3 className="text-xs font-bold text-orange-700 dark:text-orange-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
                   <ParkingSquare className="h-3.5 w-3.5" />
                   Parking Enforcement
@@ -1036,9 +1371,9 @@ export default function FieldOfficerPortal() {
           {/* ═══════════════════════════════════════════════════════════
               NOISE CONTROL tools
               ═══════════════════════════════════════════════════════════ */}
-          {(!activeService || activeService === 'noise') && (
+          {(!activeService || activeService === 'noise' || enabledPortals.includes('noise')) && (
             <>
-              {activeService === 'noise' && (
+              {(activeService === 'noise' || enabledPortals.includes('noise')) && (
                 <h3 className="text-xs font-bold text-yellow-700 dark:text-yellow-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
                   <Volume2 className="h-3.5 w-3.5" />
                   Noise Control
@@ -1238,6 +1573,65 @@ export default function FieldOfficerPortal() {
               </Card>
             </div>
           )}
+
+            {/* ── Dispatched Job Queue (GDS CATS-style) ──────────────── */}
+            {myDispatchJobs.length > 0 && (
+              <div className="mb-6 space-y-3">
+                <h2 className="text-sm font-semibold flex items-center gap-2 text-foreground">
+                  <Siren className="h-4 w-4 text-blue-600" />
+                  Dispatched Jobs
+                  <Badge className="ml-1">{myDispatchJobs.length}</Badge>
+                </h2>
+                {(myDispatchJobs as any[]).map((job: any) => {
+                  const NEXT: Record<string, { label: string; next: string }> = {
+                    dispatched:   { label: 'Acknowledge',  next: 'acknowledged' },
+                    acknowledged: { label: 'En Route',     next: 'en_route'     },
+                    en_route:     { label: 'On Scene',     next: 'on_scene'     },
+                    on_scene:     { label: 'Complete Job', next: 'completed'    },
+                  }
+                  const action = NEXT[job.status]
+                  const urgentBorder = job.priority === 'urgent' ? 'border-red-400' : job.priority === 'high' ? 'border-orange-300' : 'border-blue-200'
+                  return (
+                    <Card key={job.id} className={`border-l-4 ${urgentBorder}`}>
+                      <CardContent className="p-4">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1 flex-wrap">
+                              <span className="font-mono text-xs text-muted-foreground">{job.job_number}</span>
+                              <Badge variant="outline" className={`text-xs ${job.priority === 'urgent' ? 'border-red-400 text-red-700 animate-pulse' : 'border-blue-300 text-blue-700'}`}>
+                                {job.priority.toUpperCase()}
+                              </Badge>
+                              <Badge variant="outline" className="text-xs capitalize">{job.status.replace('_', ' ')}</Badge>
+                            </div>
+                            <p className="font-semibold text-sm">{job.title}</p>
+                            {job.address && (
+                              <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
+                                <MapPin className="h-3 w-3" />{job.address}
+                              </p>
+                            )}
+                            {job.caller_phone && (
+                              <p className="text-xs text-muted-foreground flex items-center gap-1">
+                                <PhoneCall className="h-3 w-3" />{job.caller_phone}
+                              </p>
+                            )}
+                          </div>
+                          {action && (
+                            <Button
+                              size="sm"
+                              className="shrink-0"
+                              onClick={() => advanceJobStatus.mutate({ jobId: job.id, newStatus: action.next })}
+                              disabled={advanceJobStatus.isPending}
+                            >
+                              {action.label}
+                            </Button>
+                          )}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )
+                })}
+              </div>
+            )}
 
           {/* Service-specific common tools */}
           {activeService && (

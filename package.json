@@ -4,9 +4,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "tsc -b && vite build",
     "typecheck": "tsc -b",
-    "build:strict": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
     "start": "sh -c 'vite preview --host 0.0.0.0 --port ${PORT:-4173}'",
@@ -20,6 +19,7 @@
     "test:rls": "playwright test tests/e2e/multi-org-rls.spec.ts",
     "test:reports": "playwright test tests/e2e/report-generation.spec.ts",
     "test:smoke": "playwright test --grep @smoke",
+    "test:api": "playwright test tests/e2e/api-response.spec.ts",
     "install:playwright": "playwright install"
   },
   "dependencies": {

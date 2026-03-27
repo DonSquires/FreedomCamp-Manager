@@ -53,16 +53,17 @@ const MODELS = [
     optional: true,             // service still works if this fails to download
   },
   {
-    name: 'Face Detector (UltraFace-640)',
-    // Open-source face detection model from Linzaer/Ultra-Light-Fast-Generic-Face-Detector
-    // (MIT licence). Input: 640x480, outputs face bounding boxes + confidence scores.
-    // Falls back gracefully if unavailable — the /infer/face endpoint works without it
-    // by using OpenAI vision for face detection.
+    name: 'UltraFace-640 (Face Detector)',
+    // UltraFace from ONNX Model Zoo (MIT licence).
+    // Input:  1×3×480×640 float32, normalised (pixel − 127) / 128, BGR channel order.
+    // Output: scores [1,4420,2] + boxes [1,4420,4] (cx,cy,w,h normalised 0-1).
+    // Threshold: confidence index-1 >= 0.7 is a face.
+    // Falls back to OpenAI vision when unavailable.
     url: 'https://github.com/onnx/models/raw/main/validated/vision/body_analysis/ultraface/models/version-RFB-640.onnx',
-    filename: 'face_detect.onnx',
-    size: '1.2 MB',
-    minSize: 500 * 1024,       // 500 KB minimum
-    optional: true,             // service still works if this fails to download
+    filename: 'version-RFB-640.onnx',
+    size: '1.3 MB',
+    minSize: 500 * 1024,        // 500 KB minimum
+    optional: true,             // service still works; OpenAI vision is the fallback
   }
 ];
 

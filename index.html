@@ -6,7 +6,12 @@
     <title>FreedomCamp Manager</title>
     <meta name="description" content="Admin control center for freedom camping enforcement with live patrol monitoring, breach management, zone geofencing, and compliance reporting" />
     <meta name="keywords" content="freedom camping, compliance, patrol management, enforcement, geofencing" />
-    
+    <meta name="color-scheme" content="light dark" />
+
+    <!-- Resource hints: establish early connections to external origins -->
+    <link rel="preconnect" href="https://tile.openstreetmap.org" crossorigin />
+    <link rel="dns-prefetch" href="https://tile.openstreetmap.org" />
+
     <!-- Open Graph / Facebook -->
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://www.ironeaglesecurity.co.nz" />
@@ -16,7 +21,7 @@
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
     <meta property="og:site_name" content="FreedomCamp Manager" />
-    <meta property="og:locale" content="en_US" />
+    <meta property="og:locale" content="en_NZ" />
     
     <!-- Twitter Card -->
     <meta name="twitter:card" content="summary_large_image" />
@@ -29,10 +34,12 @@
     <script type="application/ld+json">
     {
       "@context": "https://schema.org",
-      "@type": "WebSite",
+      "@type": "WebApplication",
       "name": "FreedomCamp Manager",
       "url": "https://www.ironeaglesecurity.co.nz",
-      "description": "Admin control center for freedom camping enforcement with live patrol monitoring, breach management, zone geofencing, and compliance reporting"
+      "description": "Admin control center for freedom camping enforcement with live patrol monitoring, breach management, zone geofencing, and compliance reporting",
+      "applicationCategory": "BusinessApplication",
+      "operatingSystem": "Any"
     }
     </script>
     
@@ -47,7 +54,7 @@
     <meta name="theme-color" content="#0F172A" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <meta name="apple-mobile-web-app-title" content="FreedomCamp" />
+    <meta name="apple-mobile-web-app-title" content="FC Manager" />
     <link rel="apple-touch-icon" href="/iron-eagle-security-logo.jpg" />
   </head>
   <body>

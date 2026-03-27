@@ -1,4 +1,4 @@
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3';
 import { SMTPClient } from 'https://deno.land/x/denomailer@1.0.0/mod.ts';
 import { corsHeaders } from '../_shared/cors.ts';
 

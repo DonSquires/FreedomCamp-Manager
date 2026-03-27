@@ -25,13 +25,25 @@
 // Auth: Bearer JWT (any authenticated user)
 // ============================================================================
 
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.7';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3';
 import { corsHeaders } from '../_shared/cors.ts';
 
 const SUPABASE_URL              = Deno.env.get('SUPABASE_URL')!;
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
 const INFERENCE_SERVICE_URL     = Deno.env.get('INFERENCE_SERVICE_URL');
+const INFERENCE_API_KEY         = Deno.env.get('INFERENCE_API_KEY') || '';
 const INFERENCE_TIMEOUT_MS      = Number(Deno.env.get('INFERENCE_TIMEOUT_MS') ?? '10000');
+
+/** Build authentication headers for outbound inference service calls. */
+function inferenceAuthHeaders(): Record<string, string> {
+  if (INFERENCE_API_KEY) {
+    return { 'x-inference-api-key': INFERENCE_API_KEY };
+  }
+  if (SUPABASE_SERVICE_ROLE_KEY) {
+    return { 'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}` };
+  }
+  return {};
+}
 
 Deno.serve(async (req) => {
   // ── CORS preflight ────────────────────────────────────────────────────────
@@ -104,7 +116,7 @@ Deno.serve(async (req) => {
       // Route to inference service
       const cmpResp = await fetch(`${INFERENCE_SERVICE_URL}/infer/compare`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...inferenceAuthHeaders() },
         body: JSON.stringify({ embedding1, embedding2 }),
         signal: AbortSignal.timeout(INFERENCE_TIMEOUT_MS),
       });
@@ -145,7 +157,7 @@ Deno.serve(async (req) => {
       const { data: profile } = await supabase
         .from('user_profiles')
         .select('organization_id')
-        .eq('user_id', authData.user.id)
+        .eq('id', authData.user.id)
         .single();
 
       if (!profile?.organization_id) {
@@ -281,6 +293,7 @@ Deno.serve(async (req) => {
     // Call inference service /infer/face
     const inferResp = await fetch(`${INFERENCE_SERVICE_URL}/infer/face`, {
       method: 'POST',
+      headers: inferenceAuthHeaders(),
       body: form,
       signal: AbortSignal.timeout(INFERENCE_TIMEOUT_MS),
     });
@@ -300,7 +313,7 @@ Deno.serve(async (req) => {
       const { data: profile } = await supabase
         .from('user_profiles')
         .select('organization_id')
-        .eq('user_id', authData.user.id)
+        .eq('id', authData.user.id)
         .single();
 
       orgId = profile?.organization_id ?? null;

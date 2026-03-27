@@ -11,7 +11,7 @@
  */
 
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.3';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3';
 import { corsHeaders } from '../_shared/cors.ts';
 
 const DEFAULT_DUPLICATE_TIME_WINDOW_MINUTES = 5;
@@ -142,12 +142,13 @@ serve(async (req) => {
     );
   }
 
-  if (profile.role !== 'master') {
+  if (profile.role !== 'master' && profile.role !== 'grand_master') {
     return new Response(
       JSON.stringify({
-        error: 'Only master users can run duplicate cleanup.',
+        error: 'Only master or grand_master users can run duplicate cleanup.',
         auth_error: 'INSUFFICIENT_ROLE',
         required_role: 'master',
+        allowed_roles: ['master', 'grand_master'],
       }),
       { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );

@@ -139,7 +139,7 @@ export function useVehicleCompliance(plateNumber?: string, options?: {
     queryFn: async () => {
       if (!plateNumber) return null
 
-      let query = (supabase.from('observations') as any)
+      let query = supabase.from('observations')
         .select(`
           id:observation_id,
           is_compliant,

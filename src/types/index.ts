@@ -1,14 +1,27 @@
 // Core domain types — aligned with actual database schema (database.ts)
+
+/** All possible user roles in the system. */
+export type UserRole =
+  | 'master'
+  | 'admin'
+  | 'officer'
+  | 'admin_officer'
+  | 'nzscv_monitor'
+  | 'grand_master'
+  | 'client_viewer'
+
 export interface User {
   id: string
   email: string
   first_name: string
   last_name: string
-  role: 'master' | 'admin' | 'officer' | 'admin_officer' | 'nzscv_monitor'
+  role: UserRole
   organization_id: string | null
   employer_organization_id: string | null
   authorized_work_locations: string[]
   phone: string | null
+  job_title: string | null
+  requires_driver_license: boolean
   is_active: boolean
   created_at: string
   updated_at: string
@@ -17,7 +30,7 @@ export interface User {
 export interface Organization {
   id: string
   name: string
-  organization_type: 'owner' | 'service_provider' | 'client'
+  organization_type: 'owner' | 'service_provider' | 'client' | 'contractor' | 'operator' | 'security_company'
   organization_level: number
   parent_organization_id: string | null
   contact_email: string | null

@@ -1,4 +1,4 @@
-name: Schema Extract
+name: Database — Schema Extract
 
 # Extracts the database schema without needing a direct PostgreSQL connection.
 #
@@ -19,10 +19,14 @@ on:
   workflow_dispatch:
     inputs:
       push_results:
-        description: "Push generated output to a new branch"
+        description: "Commit output to a new branch"
         required: false
         default: false
         type: boolean
+      branch_name:
+        description: 'Branch to commit results to (blank = schema-extract/YYYYMMDD)'
+        required: false
+        default: ''
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -32,6 +36,7 @@ permissions:
 
 jobs:
   extract:
+    name: Extract Database Schema
     runs-on: ubuntu-latest
 
     steps:
@@ -111,7 +116,6 @@ jobs:
           supabase link --project-ref "$SUPABASE_PROJECT_REF" --password "$SUPABASE_DB_PASSWORD"
 
           echo "Inspecting live schema via Supabase CLI …"
-
           supabase inspect db table-sizes --linked  > "$OUT/table_sizes.txt"  2>/dev/null || true
           supabase inspect db index-sizes --linked  > "$OUT/index_sizes.txt"  2>/dev/null || true
           supabase inspect db bloat --linked         > "$OUT/bloat.txt"        2>/dev/null || true
@@ -134,11 +138,8 @@ jobs:
         id: dirs
         run: |
           set -euo pipefail
-          # Migration-replay output (timestamped directory)
           REPLAY_DIR="$(ls -1dt tools/schema-extract/output/*/tables.txt 2>/dev/null | head -1 | xargs dirname 2>/dev/null || true)"
           echo "replay_dir=${REPLAY_DIR}" >> "$GITHUB_OUTPUT"
-
-          # All output for artifact upload
           echo "output_dir=tools/schema-extract/output" >> "$GITHUB_OUTPUT"
 
       - name: Upload extraction artifact
@@ -152,12 +153,15 @@ jobs:
         if: inputs.push_results
         run: |
           set -euo pipefail
-          branch="schema-extract/${{ github.run_id }}"
+          TARGET_BRANCH="${{ github.event.inputs.branch_name }}"
+          if [ -z "$TARGET_BRANCH" ]; then
+            TARGET_BRANCH="schema-extract/$(date -u +%Y%m%d)"
+          fi
 
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          git checkout -b "$branch"
+          git checkout -b "$TARGET_BRANCH"
           git add -f tools/schema-extract/output
 
           if git diff --cached --quiet; then
@@ -165,5 +169,6 @@ jobs:
             exit 0
           fi
 
-          git commit -m "chore: add schema extract output (${{ github.run_id }})"
-          git push --set-upstream origin "$branch"
+          git commit -m "chore: schema extract $(date -u +%Y-%m-%dT%H:%M:%SZ) [skip ci]"
+          git push --set-upstream origin "$TARGET_BRANCH"
+          echo "Results committed to branch: $TARGET_BRANCH"

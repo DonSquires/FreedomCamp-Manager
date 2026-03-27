@@ -26,7 +26,7 @@ export function useLocationCheck(
         return null
       }
 
-      const { data, error } = await (supabase as any).rpc('check_location_in_org', {
+      const { data, error } = await supabase.rpc('check_location_in_org', {
         org_id: organizationId,
         lon: longitude,
         lat: latitude,

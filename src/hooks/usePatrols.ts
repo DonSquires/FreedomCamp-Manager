@@ -114,7 +114,7 @@ export function useStartPatrol() {
 
   return useMutation({
     mutationFn: async (patrolId: string) => {
-      const { error } = await (supabase.from('patrols') as any)
+      const { error } = await supabase.from('patrols')
         .update({ 
           status: 'in_progress',
           started_at: new Date().toISOString(),
@@ -143,7 +143,7 @@ export function useCompletePatrol() {
       vehiclesChecked: number
       breachesFound: number
     }) => {
-      const { error } = await (supabase.from('patrols') as any)
+      const { error } = await supabase.from('patrols')
         .update({ 
           status: 'completed',
           ended_at: new Date().toISOString(),
@@ -169,7 +169,7 @@ export function usePatrolStats(organizationId?: string | null) {
   return useQuery({
     queryKey: ['patrol-stats', organizationId],
     queryFn: async () => {
-      let query = (supabase.from('patrols') as any)
+      let query = supabase.from('patrols')
         .select('status, vehicles_checked, breaches_found', { count: 'exact' })
 
       if (organizationId) {
@@ -219,7 +219,7 @@ export function useCreatePatrolSchedule() {
     mutationFn: async (params: CreateScheduleParams) => {
       if (!user?.organization_id) throw new Error('No organization')
 
-      const { data: patrol, error } = await (supabase.from('patrols') as any)
+      const { data: patrol, error } = await supabase.from('patrols')
         .insert({
           organization_id: user.organization_id,
           zone_id: params.zone_id,
@@ -246,7 +246,7 @@ export function useCreatePatrolSchedule() {
           zone_id: zId,
           visit_order: idx,
         }))
-        const { error: zoneError } = await (supabase.from('patrol_schedule_zones') as any)
+        const { error: zoneError } = await supabase.from('patrol_schedule_zones')
           .insert(rows)
         if (zoneError) console.error('Failed to insert schedule zones:', zoneError)
       }
@@ -270,7 +270,7 @@ export function useCancelPatrol() {
 
   return useMutation({
     mutationFn: async (patrolId: string) => {
-      const { error } = await (supabase.from('patrols') as any)
+      const { error } = await supabase.from('patrols')
         .update({ status: 'cancelled' })
         .eq('id', patrolId)
       if (error) throw error
@@ -337,10 +337,10 @@ export function usePatrolKPIs(options?: {
       if (options?.to) params.p_to = options.to
       if (options?.officerId) params.p_officer_id = options.officerId
 
-      const { data, error } = await (supabase as any).rpc('get_patrol_kpis', params)
+      const { data, error } = await supabase.rpc('get_patrol_kpis', params)
 
       if (error) throw error
-      return data as PatrolKPIs
+      return data as unknown as PatrolKPIs
     },
     enabled: !!user?.organization_id,
   })

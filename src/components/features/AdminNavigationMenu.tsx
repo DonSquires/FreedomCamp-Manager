@@ -9,6 +9,7 @@ import {
   Activity, Database, Search, Heart, ScrollText, Lock, Gavel,
   Navigation, BookOpen, LayoutGrid, Map, Bell, Upload, Shield, Camera, Link2,
   CalendarDays, TrendingUp, Wrench, ParkingSquare, Volume2, Radio, Sparkles,
+  ClipboardCheck, Ban,
   ScanFace,
 } from 'lucide-react'
 
@@ -64,11 +65,13 @@ const moreGroups = [
   {
     label: 'People & Incidents',
     links: [
-      { to: '/person-records',    label: 'Person Records',    icon: Users },
-      { to: '/face-recognition',  label: 'Face Recognition',  icon: ScanFace },
-      { to: '/incidents',         label: 'Incidents & Maintenance', icon: Activity },
-      { to: '/incident-reports',  label: 'Incident Reports',  icon: FileText },
-      { to: '/investigations',    label: 'Investigations',    icon: Search },
+      { to: '/person-records',      label: 'Person Records',      icon: Users },
+      { to: '/face-recognition',    label: 'Face Recognition',    icon: ScanFace },
+      { to: '/points-of-interest',  label: 'Points of Interest',  icon: Ban },
+      { to: '/incidents',           label: 'Incidents & Maintenance', icon: Activity },
+      { to: '/incident-reports',    label: 'Incident Reports',    icon: FileText },
+      { to: '/investigations',      label: 'Investigations',      icon: Search },
+      { to: '/site-risk-assessment',label: 'Site Risk Assessment', icon: ClipboardCheck },
     ],
   },
   {

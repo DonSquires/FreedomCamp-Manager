@@ -102,7 +102,7 @@ export function useUpdateZone() {
 
   return useMutation({
     mutationFn: async ({ zoneId, updates }: { zoneId: string; updates: Partial<Zone> }) => {
-      const { error } = await (supabase.from('zones') as any)
+      const { error } = await supabase.from('zones')
         .update(updates)
         .eq('id', zoneId)
 
@@ -124,7 +124,7 @@ export function useToggleZoneActive() {
 
   return useMutation({
     mutationFn: async ({ zoneId, isActive }: { zoneId: string; isActive: boolean }) => {
-      const { error } = await (supabase.from('zones') as any)
+      const { error } = await supabase.from('zones')
         .update({ is_active: !isActive })
         .eq('id', zoneId)
 
@@ -144,7 +144,7 @@ export function useZoneStats(organizationId?: string | null) {
   return useQuery({
     queryKey: ['zone-stats', organizationId],
     queryFn: async () => {
-      let query = (supabase.from('zones') as any)
+      let query = supabase.from('zones')
         .select('is_active, day_visit_only, self_contained_required', { count: 'exact' })
 
       if (organizationId) {

@@ -78,7 +78,7 @@ export function usePatrolCheckpoints(options?: { zoneId?: string; requiredOnly?:
     queryFn: async () => {
       if (!user?.organization_id) return []
 
-      let query = (supabase as any)
+      let query = supabase
         .from('patrol_checkpoints')
         .select('*')
         .eq('organization_id', user.organization_id)
@@ -109,6 +109,7 @@ export function useMyCheckpointVisits(limit = 20) {
     queryFn: async () => {
       if (!user?.id) return []
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data, error } = await (supabase as any)
         .from('checkpoint_visits')
         .select(`
@@ -118,7 +119,6 @@ export function useMyCheckpointVisits(limit = 20) {
         .eq('officer_id', user.id)
         .order('visited_at', { ascending: false })
         .limit(limit)
-
       if (error) throw error
       return (data ?? []) as (CheckpointVisit & { patrol_checkpoints: Pick<PatrolCheckpoint, 'name' | 'location_lat' | 'location_lng'> | null })[]
     },
@@ -137,12 +137,11 @@ export function useRecordCheckpointVisit() {
         throw new Error('Session expired. Please log in again.')
       }
 
-      // Fetch checkpoint details to calculate GPS distance
-      const { data: checkpointRaw, error: cpError } = await (supabase as any)
+      const { data: checkpointRaw, error: cpError } = await supabase
         .from('patrol_checkpoints')
         .select('id, name, location_lat, location_lng, check_in_radius_metres, organization_id')
         .eq('id', params.checkpointId)
-        .single() as { data: PatrolCheckpoint | null; error: unknown }
+        .single() as unknown as { data: PatrolCheckpoint | null; error: unknown }
 
       const checkpoint = checkpointRaw
       if (cpError || !checkpoint) {
@@ -168,7 +167,7 @@ export function useRecordCheckpointVisit() {
         ? distance <= checkpoint.check_in_radius_metres
         : null
 
-      const { data: visitRaw, error } = await (supabase as any)
+      const { data: visitRaw, error } = await supabase
         .from('checkpoint_visits')
         .insert({
           checkpoint_id: params.checkpointId,
@@ -184,7 +183,7 @@ export function useRecordCheckpointVisit() {
           notes: params.notes ?? null,
         })
         .select('id, visited_at, within_radius')
-        .single() as { data: Pick<CheckpointVisit, 'id' | 'visited_at' | 'within_radius'> | null; error: { message: string; code: string } | null }
+        .single() as unknown as { data: Pick<CheckpointVisit, 'id' | 'visited_at' | 'within_radius'> | null; error: { message: string; code: string } | null }
 
       if (error) throw error
       if (!visitRaw) throw new Error('Visit record not returned')

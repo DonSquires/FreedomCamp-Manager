@@ -38,6 +38,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { toast } from 'sonner'
 import { formatDateTime } from '@/lib/utils'
 import { edgeFunctions } from '@/lib/edgeFunctions'
+import { FieldSafetyBar } from '@/components/features/FieldSafetyBar'
 import {
   Volume2, ShieldAlert, AlertTriangle, FileText, Package,
   CheckCircle, Radio, MapPin, Clock, Camera, Gavel,
@@ -210,7 +211,7 @@ export default function NoiseOfficerPortal() {
     queryFn: async () => {
       if (!orgId || !user?.id) return []
       const { data, error } = await supabase
-        .from('noise_jobs' as any)
+        .from('noise_jobs')
         .select('*')
         .eq('organization_id', orgId)
         .or(`assigned_to.eq.${user?.id},status.eq.pending`)
@@ -230,7 +231,7 @@ export default function NoiseOfficerPortal() {
     queryFn: async () => {
       if (!orgId || !user?.id) return []
       const { data, error } = await supabase
-        .from('noise_assessments' as any)
+        .from('noise_assessments')
         .select('id, assessed_at, address, recommended_action, noise_level_db, noise_job_id')
         .eq('organization_id', orgId)
         .eq('officer_id', user?.id)
@@ -246,13 +247,14 @@ export default function NoiseOfficerPortal() {
     queryKey: ['my_noise_notices', user?.id, orgId],
     queryFn: async () => {
       if (!orgId || !user?.id) return []
-      const { data, error } = await supabase
-        .from('noise_notices' as any)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      let q: any = supabase.from('noise_notices' as any)
         .select('id, notice_number, notice_type, status, recipient_address, created_at')
         .eq('organization_id', orgId)
         .eq('issued_by', user?.id)
         .order('created_at', { ascending: false })
         .limit(20)
+      const { data, error } = await q
       if (error) throw error
       return data || []
     },
@@ -263,13 +265,14 @@ export default function NoiseOfficerPortal() {
     queryKey: ['my_noise_seizures', user?.id, orgId],
     queryFn: async () => {
       if (!orgId || !user?.id) return []
-      const { data, error } = await supabase
-        .from('noise_seizures' as any)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      let q: any = supabase.from('noise_seizures' as any)
         .select('id, seizure_number, status, equipment_type, equipment_make, seized_at')
         .eq('organization_id', orgId)
         .eq('seized_by', user?.id)
         .order('seized_at', { ascending: false })
         .limit(20)
+      const { data, error } = await q
       if (error) throw error
       return data || []
     },
@@ -291,7 +294,7 @@ export default function NoiseOfficerPortal() {
       // Auto-derive exceeds_district_plan from matrix score
       const exceedsDp = matrixTotal !== null ? matrixTotal >= 5 : assessment.exceeds_district_plan
       const { data, error } = await supabase
-        .from('noise_assessments' as any)
+        .from('noise_assessments')
         .insert({
           organization_id: orgId,
           noise_job_id: selectedJob.id,
@@ -323,7 +326,7 @@ export default function NoiseOfficerPortal() {
       if (error) throw error
       // Update job status to on_scene
       await supabase
-        .from('noise_jobs' as any)
+        .from('noise_jobs')
         .update({ status: 'on_scene', updated_at: new Date().toISOString() })
         .eq('id', selectedJob.id)
       return (data as any).id as string
@@ -358,7 +361,7 @@ export default function NoiseOfficerPortal() {
   const issueNoticeMutation = useMutation({
     mutationFn: async () => {
       if (!orgId || !user?.id || !selectedJob) throw new Error('No job selected')
-      const { data: noticeNumData, error: noticeNumError } = await (supabase as any).rpc('next_noise_notice_number', { p_org_id: orgId })
+      const { data: noticeNumData, error: noticeNumError } = await supabase.rpc('next_noise_notice_number', { p_org_id: orgId })
       if (noticeNumError) throw noticeNumError
       const noticeNumber: string = noticeNumData
       const isEnd = noticeForm.notice_type === 'enforcement_notice'
@@ -366,7 +369,7 @@ export default function NoiseOfficerPortal() {
         ? new Date(Date.now() + parseInt(noticeForm.comply_by_hours) * 3600_000).toISOString()
         : null
       const { error } = await supabase
-        .from('noise_notices' as any)
+        .from('noise_notices')
         .insert({
           organization_id: orgId,
           notice_number: noticeNumber,
@@ -390,7 +393,7 @@ export default function NoiseOfficerPortal() {
       // Update job context flags if END issued
       if (isEnd) {
         await supabase
-          .from('noise_jobs' as any)
+          .from('noise_jobs')
           .update({ has_prior_end: true, updated_at: new Date().toISOString() })
           .eq('id', selectedJob.id)
       }
@@ -407,11 +410,11 @@ export default function NoiseOfficerPortal() {
   const recordSeizureMutation = useMutation({
     mutationFn: async () => {
       if (!orgId || !user?.id || !selectedJob) throw new Error('No job selected')
-      const { data: seizureNumData, error: seizureNumError } = await (supabase as any).rpc('next_noise_seizure_number', { p_org_id: orgId })
+      const { data: seizureNumData, error: seizureNumError } = await supabase.rpc('next_noise_seizure_number', { p_org_id: orgId })
       if (seizureNumError) throw seizureNumError
       const seizureNumber: string = seizureNumData
       const { error } = await supabase
-        .from('noise_seizures' as any)
+        .from('noise_seizures')
         .insert({
           organization_id: orgId,
           seizure_number: seizureNumber,
@@ -449,7 +452,7 @@ export default function NoiseOfficerPortal() {
   const completeJobMutation = useMutation({
     mutationFn: async (jobId: string) => {
       const { error } = await supabase
-        .from('noise_jobs' as any)
+        .from('noise_jobs')
         .update({ status: 'completed', completed_at: new Date().toISOString(), completed_by: user?.id, updated_at: new Date().toISOString() })
         .eq('id', jobId)
       if (error) throw error
@@ -510,6 +513,9 @@ export default function NoiseOfficerPortal() {
   return (
     <AppLayout>
       <div className="p-4 space-y-5 max-w-2xl mx-auto">
+
+        {/* Safety bar — welfare, SOS, quick reports */}
+        <FieldSafetyBar compact />
 
         {/* Header */}
         <div className="flex items-center gap-3">
