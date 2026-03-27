@@ -181,7 +181,7 @@ export function useImportStats(options?: {
 
       if (error) throw error
 
-      const rows = (data || []) as ImportBatchRow[]
+      const rows = (data || []) as unknown as ImportBatchRow[]
       const mapped = rows.map(mapBatchToRecord)
 
       // Calculate statistics
@@ -231,7 +231,7 @@ export function useImportRecord(id: string | null) {
         throw error
       }
 
-      return mapBatchToRecord(data) as ImportRecord
+      return mapBatchToRecord(data as unknown as ImportBatchRow) as ImportRecord
     },
     enabled: !!id,
   })

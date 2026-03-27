@@ -78,7 +78,8 @@ export function usePatrolCheckpoints(options?: { zoneId?: string; requiredOnly?:
     queryFn: async () => {
       if (!user?.organization_id) return []
 
-      let query = supabase
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      let query: any = (supabase as any)
         .from('patrol_checkpoints')
         .select('*')
         .eq('organization_id', user.organization_id)
@@ -109,7 +110,8 @@ export function useMyCheckpointVisits(limit = 20) {
     queryFn: async () => {
       if (!user?.id) return []
 
-      const { data, error } = await supabase
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase as any)
         .from('checkpoint_visits')
         .select(`
           *,
@@ -137,8 +139,8 @@ export function useRecordCheckpointVisit() {
         throw new Error('Session expired. Please log in again.')
       }
 
-      // Fetch checkpoint details to calculate GPS distance
-      const { data: checkpointRaw, error: cpError } = await supabase
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: checkpointRaw, error: cpError } = await (supabase as any)
         .from('patrol_checkpoints')
         .select('id, name, location_lat, location_lng, check_in_radius_metres, organization_id')
         .eq('id', params.checkpointId)
@@ -168,7 +170,8 @@ export function useRecordCheckpointVisit() {
         ? distance <= checkpoint.check_in_radius_metres
         : null
 
-      const { data: visitRaw, error } = await supabase
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: visitRaw, error } = await (supabase as any)
         .from('checkpoint_visits')
         .insert({
           checkpoint_id: params.checkpointId,

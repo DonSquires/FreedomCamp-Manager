@@ -122,7 +122,7 @@ export function usePersonsOfInterest(options?: {
     mutationFn: async (input: Partial<PersonOfInterest>) => {
       const { data, error } = await supabase
         .from('persons_of_interest')
-        .insert({ ...input, organization_id: orgId!, created_by: user!.id })
+        .insert({ ...input, organization_id: orgId!, created_by: user!.id } as any)
         .select()
         .single()
       if (error) throw error
@@ -203,7 +203,7 @@ export function useVehiclesOfInterest(options?: {
     mutationFn: async (input: Partial<VehicleOfInterest>) => {
       const { data, error } = await supabase
         .from('vehicles_of_interest')
-        .insert({ ...input, organization_id: orgId!, created_by: user!.id })
+        .insert({ ...input, organization_id: orgId!, created_by: user!.id } as any)
         .select()
         .single()
       if (error) throw error
@@ -292,7 +292,7 @@ export function useTrespassNotices(options?: {
           organization_id: orgId!,
           issued_by: user!.id,
           expires_at: expiresAt,
-        })
+        } as any)
         .select()
         .single()
       if (error) throw error
