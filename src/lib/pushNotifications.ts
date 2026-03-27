@@ -47,7 +47,7 @@ export function getNotificationPermission(): NotificationPermission {
  * Register push token with user profile
  */
 export async function registerPushToken(token: string, userId: string): Promise<void> {
-  const { error } = await (supabase.from('user_profiles') as any)
+  const { error } = await supabase.from('user_profiles')
     .update({
       push_token: token,
       push_token_updated_at: new Date().toISOString(),
@@ -64,7 +64,7 @@ export async function registerPushToken(token: string, userId: string): Promise<
  * Unregister push token
  */
 export async function unregisterPushToken(userId: string): Promise<void> {
-  const { error } = await (supabase.from('user_profiles') as any)
+  const { error } = await supabase.from('user_profiles')
     .update({
       push_token: null,
       push_token_updated_at: null,
@@ -228,7 +228,7 @@ export async function updateNotificationPreferences(
     system_alerts?: boolean
   }
 ): Promise<void> {
-  const { data: current, error: fetchError } = await (supabase.from('user_profiles') as any)
+  const { data: current, error: fetchError } = await supabase.from('user_profiles')
     .select('notification_preferences')
     .eq('id', userId)
     .single()
@@ -239,11 +239,11 @@ export async function updateNotificationPreferences(
   }
 
   const updatedPreferences = {
-    ...((current as any)?.notification_preferences || {}),
+    ...((current?.notification_preferences as Record<string, unknown> | null) || {}),
     ...preferences,
   }
 
-  const { error: updateError } = await (supabase.from('user_profiles') as any)
+  const { error: updateError } = await supabase.from('user_profiles')
     .update({ notification_preferences: updatedPreferences })
     .eq('id', userId)
 
@@ -260,7 +260,7 @@ export async function hasNotificationEnabled(
   userId: string,
   notificationType: string
 ): Promise<boolean> {
-  const { data, error } = await (supabase.from('user_profiles') as any)
+  const { data, error } = await supabase.from('user_profiles')
     .select('notification_preferences')
     .eq('id', userId)
     .single()
@@ -269,5 +269,5 @@ export async function hasNotificationEnabled(
     return true // Default to enabled if no preferences set
   }
 
-  return (data.notification_preferences as any)[notificationType] !== false
+  return (data.notification_preferences as Record<string, unknown>)[notificationType] !== false
 }

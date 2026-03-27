@@ -1083,6 +1083,86 @@ export type Database = {
           },
         ]
       }
+      checkpoint_visits: {
+        Row: {
+          checkpoint_id: string
+          created_at: string
+          gps_accuracy: number | null
+          gps_distance_from_checkpoint: number | null
+          gps_latitude: number | null
+          gps_longitude: number | null
+          id: string
+          notes: string | null
+          officer_id: string
+          organization_id: string
+          patrol_id: string | null
+          scan_method: string
+          visited_at: string
+          within_radius: boolean | null
+        }
+        Insert: {
+          checkpoint_id: string
+          created_at?: string
+          gps_accuracy?: number | null
+          gps_distance_from_checkpoint?: number | null
+          gps_latitude?: number | null
+          gps_longitude?: number | null
+          id?: string
+          notes?: string | null
+          officer_id: string
+          organization_id: string
+          patrol_id?: string | null
+          scan_method: string
+          visited_at?: string
+          within_radius?: boolean | null
+        }
+        Update: {
+          checkpoint_id?: string
+          created_at?: string
+          gps_accuracy?: number | null
+          gps_distance_from_checkpoint?: number | null
+          gps_latitude?: number | null
+          gps_longitude?: number | null
+          id?: string
+          notes?: string | null
+          officer_id?: string
+          organization_id?: string
+          patrol_id?: string | null
+          scan_method?: string
+          visited_at?: string
+          within_radius?: boolean | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "checkpoint_visits_checkpoint_id_fkey"
+            columns: ["checkpoint_id"]
+            isOneToOne: false
+            referencedRelation: "patrol_checkpoints"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "checkpoint_visits_officer_id_fkey"
+            columns: ["officer_id"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "checkpoint_visits_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "checkpoint_visits_patrol_id_fkey"
+            columns: ["patrol_id"]
+            isOneToOne: false
+            referencedRelation: "patrols"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       client_sites: {
         Row: {
           access_instructions: string | null
@@ -3032,6 +3112,8 @@ export type Database = {
           plate_number: string | null
           primary_evidence_url: string | null
           reported_by: string | null
+          retention_hold: boolean | null
+          retention_until: string | null
           severity: string | null
           status: string | null
           updated_at: string | null
@@ -3055,6 +3137,8 @@ export type Database = {
           plate_number?: string | null
           primary_evidence_url?: string | null
           reported_by?: string | null
+          retention_hold?: boolean | null
+          retention_until?: string | null
           severity?: string | null
           status?: string | null
           updated_at?: string | null
@@ -3078,6 +3162,8 @@ export type Database = {
           plate_number?: string | null
           primary_evidence_url?: string | null
           reported_by?: string | null
+          retention_hold?: boolean | null
+          retention_until?: string | null
           severity?: string | null
           status?: string | null
           updated_at?: string | null
@@ -6506,6 +6592,82 @@ export type Database = {
           },
         ]
       }
+      patrol_checkpoints: {
+        Row: {
+          check_in_radius_metres: number
+          created_at: string
+          created_by: string | null
+          description: string | null
+          id: string
+          is_active: boolean
+          location_lat: number | null
+          location_lng: number | null
+          name: string
+          nfc_tag_id: string | null
+          organization_id: string
+          qr_code: string
+          required_on_patrol: boolean
+          updated_at: string
+          zone_id: string | null
+        }
+        Insert: {
+          check_in_radius_metres?: number
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          location_lat?: number | null
+          location_lng?: number | null
+          name: string
+          nfc_tag_id?: string | null
+          organization_id: string
+          qr_code: string
+          required_on_patrol?: boolean
+          updated_at?: string
+          zone_id?: string | null
+        }
+        Update: {
+          check_in_radius_metres?: number
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          location_lat?: number | null
+          location_lng?: number | null
+          name?: string
+          nfc_tag_id?: string | null
+          organization_id?: string
+          qr_code?: string
+          required_on_patrol?: boolean
+          updated_at?: string
+          zone_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "patrol_checkpoints_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "user_profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "patrol_checkpoints_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "patrol_checkpoints_zone_id_fkey"
+            columns: ["zone_id"]
+            isOneToOne: false
+            referencedRelation: "zones"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       patrol_schedule_zones: {
         Row: {
           actual_duration_minutes: number | null
@@ -8366,11 +8528,14 @@ export type Database = {
           last_gps_longitude: number | null
           last_gps_update: string | null
           last_name: string | null
+          notification_preferences: Json | null
           organization_id: string | null
           permissions: Json | null
           phone: string | null
           portal_access: string[]
           profile_photo_url: string | null
+          push_token: string | null
+          push_token_updated_at: string | null
           requires_driver_license: boolean
           role: string | null
           updated_at: string | null
@@ -8415,11 +8580,14 @@ export type Database = {
           last_gps_longitude?: number | null
           last_gps_update?: string | null
           last_name?: string | null
+          notification_preferences?: Json | null
           organization_id?: string | null
           permissions?: Json | null
           phone?: string | null
           portal_access?: string[]
           profile_photo_url?: string | null
+          push_token?: string | null
+          push_token_updated_at?: string | null
           requires_driver_license?: boolean
           role?: string | null
           updated_at?: string | null
@@ -8464,11 +8632,14 @@ export type Database = {
           last_gps_longitude?: number | null
           last_gps_update?: string | null
           last_name?: string | null
+          notification_preferences?: Json | null
           organization_id?: string | null
           permissions?: Json | null
           phone?: string | null
           portal_access?: string[]
           profile_photo_url?: string | null
+          push_token?: string | null
+          push_token_updated_at?: string | null
           requires_driver_license?: boolean
           role?: string | null
           updated_at?: string | null

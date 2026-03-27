@@ -135,7 +135,7 @@ export function useSiteRiskAssessments(options?: {
 
       const { data, error } = await q
       if (error) throw error
-      return (data ?? []) as SiteRiskAssessment[]
+      return (data ?? []) as unknown as SiteRiskAssessment[]
     },
     enabled: !!orgId,
   })
@@ -148,7 +148,7 @@ export function useSiteRiskAssessments(options?: {
           ...input,
           organization_id: orgId!,
           assessed_by: user!.id,
-        })
+        } as any)
         .select()
         .single()
       if (error) throw error

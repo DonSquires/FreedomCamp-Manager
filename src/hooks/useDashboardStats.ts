@@ -39,12 +39,12 @@ export function useDashboardStats(params: DashboardStatsParams = {}) {
       // Try RPC function first
       const { data: rpcData, error: rpcError } = await supabase.rpc('get_admin_dashboard_stats', {
         p_organization_id: effectiveOrgId || null,
-        p_date_from: dateFrom || null,
-        p_date_to: dateTo || null,
+        p_start_date: dateFrom || null,
+        p_end_date: dateTo || null,
       })
 
       if (!rpcError && rpcData) {
-        return rpcData as DashboardStats
+        return rpcData as unknown as DashboardStats
       }
 
       // Fallback to manual calculation
@@ -63,7 +63,8 @@ async function calculateStatsManually(
   let totalObsQuery = supabase.from('observations').select('*', { count: 'exact', head: true })
   let compliantObsQuery = supabase.from('observations').select('*', { count: 'exact', head: true }).eq('is_compliant', true)
   let breachQuery = supabase.from('breach_alerts').select('observation_id').in('status', ['pending', 'acknowledged', 'enforcement_started']).not('observation_id', 'is', null)
-  let vehicleQuery = supabase.from('canonical_vehicles').select('*', { count: 'exact', head: true })
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let vehicleQuery: any = supabase.from('canonical_vehicles').select('*', { count: 'exact', head: true })
   let patrolQuery = supabase.from('patrols').select('*', { count: 'exact', head: true }).eq('status', 'in_progress')
 
   if (organizationId) {

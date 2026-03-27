@@ -133,14 +133,15 @@ export function useVehicleStats(organizationId?: string | null) {
   return useQuery({
     queryKey: ['vehicle-stats', organizationId],
     queryFn: async () => {
-      let query = supabase.from('canonical_vehicles')
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      let vehicleQuery: any = supabase.from('canonical_vehicles')
         .select('self_contained, total_breaches, homeless_status, is_exempt', { count: 'exact' })
 
       if (organizationId) {
-        query = query.eq('organization_id', organizationId)
+        vehicleQuery = vehicleQuery.eq('organization_id', organizationId)
       }
 
-      const { data, error, count } = await query
+      const { data, error, count } = await vehicleQuery
 
       if (error) throw error
 

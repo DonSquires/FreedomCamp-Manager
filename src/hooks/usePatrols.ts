@@ -340,7 +340,7 @@ export function usePatrolKPIs(options?: {
       const { data, error } = await supabase.rpc('get_patrol_kpis', params)
 
       if (error) throw error
-      return data as PatrolKPIs
+      return data as unknown as PatrolKPIs
     },
     enabled: !!user?.organization_id,
   })
