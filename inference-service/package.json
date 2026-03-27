@@ -11,8 +11,10 @@
   },
   "keywords": [
     "vehicle-detection",
+    "face-detection",
     "yolo",
     "mobilenet",
+    "ultraface",
     "onnx",
     "embeddings"
   ],
