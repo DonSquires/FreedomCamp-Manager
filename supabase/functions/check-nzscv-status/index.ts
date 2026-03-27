@@ -77,110 +77,119 @@ serve(async (req) => {
 
     console.log('🔍 Checking NZSCV status for:', plate_number);
 
-    // ── Step 1: Check canonical_scv first (authoritative SCV registry) ────
-    // canonical_scv is the single source of truth for SCV certification,
-    // populated by sync-scv-list.  The NZSCV API may be pointing to a test
-    // endpoint and returning inaccurate data, so canonical_scv is preferred.
+    // API-first flow: query NZSCV via proxy as primary source.
+    // Fall back to canonical_scv only if the API is unavailable.
+    const normalizedPlate = plate_number.toUpperCase().trim();
     const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
     const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
-    if (SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY) {
-      try {
-        const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-        const normalizedPlate = plate_number.toUpperCase().trim();
+    const supabaseAdmin = (SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY)
+      ? createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
+      : null;
 
+    const getCanonicalFallbackResponse = async (reason: string): Promise<Response | null> => {
+      if (!supabaseAdmin) return null;
+      try {
         const { data: scvRow } = await (supabaseAdmin.from('canonical_scv') as any)
-          .select('is_self_contained, certificate_expiry, certificate_issue_date, certificate_status, vin, max_occupants, logo_url')
+          .select('is_self_contained, certificate_expiry, certificate_issue_date, certificate_status, vin, max_occupants, logo_url, verified_at')
           .eq('plate_number', normalizedPlate)
           .maybeSingle();
 
-        if (scvRow && scvRow.is_self_contained === true) {
-          const expiry = scvRow.certificate_expiry ?? null;
-          const isExpired = expiry != null && new Date(expiry) < new Date();
-          if (!isExpired) {
-            // Optionally grab vehicle attributes from canonical_vehicles
-            let vehicleMake: string | null = null;
-            let vehicleModel: string | null = null;
-            let vehicleYear: number | null = null;
-            let vehicleColor: string | null = null;
-            try {
-              const { data: cv } = await supabaseAdmin
-                .from('canonical_vehicles')
-                .select('vehicle_make, vehicle_model, vehicle_year, vehicle_color')
-                .eq('plate_number', normalizedPlate)
-                .maybeSingle();
-              if (cv) {
-                vehicleMake  = cv.vehicle_make ?? null;
-                vehicleModel = cv.vehicle_model ?? null;
-                vehicleYear  = cv.vehicle_year != null ? Number(cv.vehicle_year) : null;
-                vehicleColor = cv.vehicle_color ?? null;
-              }
-            } catch { /* vehicle attributes are optional */ }
+        if (!scvRow) return null;
 
-            console.log('✅ SCV status from canonical_scv (trusted):', {
-              plate: normalizedPlate,
-              self_contained: true,
-              expiry,
-            });
-            return new Response(
-              JSON.stringify({
-                found: true,
-                source: 'canonical_scv',
-                plate_number: normalizedPlate,
-                result: {
-                  is_self_contained: true,
-                  expiry_date: expiry,
-                  issue_date: scvRow.certificate_issue_date ?? null,
-                  status: scvRow.certificate_status ?? 'Current',
-                  make: vehicleMake,
-                  model: vehicleModel,
-                  year: vehicleYear,
-                  vin: scvRow.vin ?? null,
-                  colour: vehicleColor,
-                  max_occupants: scvRow.max_occupants ?? null,
-                },
-                logo_url: scvRow.logo_url ?? null,
-                checked_at: new Date().toISOString(),
-              }),
-              { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-            );
+        let vehicleMake: string | null = null;
+        let vehicleModel: string | null = null;
+        let vehicleYear: number | null = null;
+        let vehicleColor: string | null = null;
+
+        try {
+          const { data: cv } = await supabaseAdmin
+            .from('canonical_vehicles')
+            .select('vehicle_make, vehicle_model, vehicle_year, vehicle_color')
+            .eq('plate_number', normalizedPlate)
+            .maybeSingle();
+          if (cv) {
+            vehicleMake = cv.vehicle_make ?? null;
+            vehicleModel = cv.vehicle_model ?? null;
+            vehicleYear = cv.vehicle_year != null ? Number(cv.vehicle_year) : null;
+            vehicleColor = cv.vehicle_color ?? null;
           }
+        } catch {
+          // optional vehicle attributes
         }
-      } catch (canonicalErr: any) {
-        console.warn('⚠️ canonical_scv lookup failed (will fall back to NZSCV API):', canonicalErr.message);
-      }
-    }
 
-    // ── Step 2: Fall back to NZSCV API ──────────────────────────────────────
-    // Only reached if canonical_scv has no record or says not self-contained.
-    // NOTE: The NZSCV API may be pointing to a test endpoint — results may be
-    // inaccurate. canonical_scv (updated by sync-scv-list) is preferred.
+        return new Response(
+          JSON.stringify({
+            found: true,
+            source: 'canonical_scv',
+            fallback_reason: reason,
+            plate_number: normalizedPlate,
+            result: {
+              is_self_contained: scvRow.is_self_contained === true,
+              expiry_date: scvRow.certificate_expiry ?? null,
+              issue_date: scvRow.certificate_issue_date ?? null,
+              certificate_status: scvRow.certificate_status ?? null,
+              make: vehicleMake,
+              model: vehicleModel,
+              year: vehicleYear,
+              vin: scvRow.vin ?? null,
+              colour: vehicleColor,
+              max_occupants: scvRow.max_occupants ?? null,
+            },
+            logo_url: scvRow.logo_url ?? null,
+            checked_at: new Date().toISOString(),
+          }),
+          { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      } catch (fallbackErr: any) {
+        console.warn('⚠️ canonical_scv fallback failed:', fallbackErr?.message || fallbackErr);
+        return null;
+      }
+    };
+
+    // ── Step 1: Query NZSCV API via proxy (PRIMARY) ─────────────────────────
 
     // Get proxy server URL and secret from environment
     const PROXY_URL = Deno.env.get('NZSCV_PROXY_URL');
     const PROXY_SECRET = Deno.env.get('NZSCV_PROXY_SECRET');
 
     if (!PROXY_URL) {
-      console.error('❌ NZSCV_PROXY_URL not configured');
+      console.error('❌ NZSCV_PROXY_URL not configured, attempting canonical fallback');
+      const fallback = await getCanonicalFallbackResponse('nzscv_proxy_not_configured');
+      if (fallback) return fallback;
       return new Response(
-        JSON.stringify({ 
+        JSON.stringify({
           error: 'NZSCV proxy not configured',
-          details: 'Contact system administrator to set up NZSCV_PROXY_URL' 
+          details: 'Contact system administrator to set up NZSCV_PROXY_URL',
         }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
     // Call proxy server
-    const proxyResponse = await fetch(`${PROXY_URL}/api/nzscv/vehicle-info`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Proxy-Secret': PROXY_SECRET || '',
-      },
-      body: JSON.stringify({
-        RegistrationNumber: plate_number.toUpperCase().trim(),
-      }),
-    });
+    let proxyResponse: Response;
+    try {
+      proxyResponse = await fetch(`${PROXY_URL}/api/nzscv/vehicle-info`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Proxy-Secret': PROXY_SECRET || '',
+        },
+        body: JSON.stringify({
+          RegistrationNumber: normalizedPlate,
+        }),
+      });
+    } catch (proxyErr: any) {
+      console.error('❌ NZSCV API unavailable (network/proxy error):', proxyErr?.message || proxyErr);
+      const fallback = await getCanonicalFallbackResponse('nzscv_api_unavailable');
+      if (fallback) return fallback;
+      return new Response(
+        JSON.stringify({
+          error: 'NZSCV API unavailable',
+          details: proxyErr?.message || String(proxyErr),
+        }),
+        { status: 503, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
     if (!proxyResponse.ok) {
       const errorData = await proxyResponse.json().catch(() => ({ error: 'Unknown error' }));
@@ -202,11 +211,15 @@ serve(async (req) => {
         );
       }
 
+      // API returned an error (but not 404). Treat as unavailable and fallback.
+      const fallback = await getCanonicalFallbackResponse(`nzscv_api_http_${proxyResponse.status}`);
+      if (fallback) return fallback;
+
       return new Response(
-        JSON.stringify({ 
+        JSON.stringify({
           error: 'NZSCV API request failed',
           status: proxyResponse.status,
-          details: errorData 
+          details: errorData,
         }),
         { status: proxyResponse.status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
