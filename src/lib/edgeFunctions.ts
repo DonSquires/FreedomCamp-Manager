@@ -630,7 +630,12 @@ export const edgeFunctions = {
   },
 
   /**
-   * Unified ORC/AI pipeline with fallbacks
+   * @deprecated Use ingestVehicleObservation instead.
+   *
+   * Legacy wrapper retained for compatibility. Historically this wrapper sent a
+   * JSON payload to `orc-ingest`, while that function expects multipart form
+   * data (`photo` + `metadata`). To avoid a hard runtime failure for any
+   * lingering callers, we now map to the canonical `vehicle-ingest` pipeline.
    */
   orcIngest: async (params: {
     photo_url: string
@@ -639,8 +644,19 @@ export const edgeFunctions = {
     officer_id: string
     organization_id: string
     zone_id: string
+    plate_number?: string
+    notes?: string
   }) => {
-    return callEdgeFunction('orc-ingest', params)
+    return callEdgeFunction('vehicle-ingest', {
+      photo_url: params.photo_url,
+      gpsLatitude: params.latitude,
+      gpsLongitude: params.longitude,
+      officerId: params.officer_id,
+      organizationId: params.organization_id,
+      zoneId: params.zone_id,
+      plate: params.plate_number,
+      officer_notes: params.notes,
+    })
   },
 
   /**
@@ -684,12 +700,24 @@ export const edgeFunctions = {
   },
 
   /**
-   * AI vehicle analysis (make/model/year/colour)
+   * AI vehicle analysis (make/model/year/colour + NZSCV validation).
+   *
+   * Accepts both camelCase and snake_case for compatibility and maps to the
+   * edge function contract: { plateNumber, photoUrl, vehicleId }.
    */
   analyzeVehiclePhoto: async (params: {
-    photo_url: string
+    plateNumber?: string
+    plate_number?: string
+    photoUrl?: string
+    photo_url?: string
+    vehicleId?: string
+    vehicle_id?: string
   }) => {
-    return callEdgeFunction('analyze-vehicle-photo', params)
+    return callEdgeFunction('analyze-vehicle-photo', {
+      plateNumber: params.plateNumber ?? params.plate_number,
+      photoUrl: params.photoUrl ?? params.photo_url,
+      vehicleId: params.vehicleId ?? params.vehicle_id,
+    })
   },
 
   /**
