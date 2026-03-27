@@ -11,6 +11,7 @@ import { AppLayout } from '@/components/features/AppLayout'
 import { GlobalFilterRibbon } from '@/components/features/GlobalFilterRibbon'
 import { ComplianceTrendChart, type TrendDataPoint } from '@/components/features/ComplianceTrendChart'
 import { nzDateToUTCStart, nzDateToUTCEnd, parseNZDate } from '@/lib/timezone'
+import { format } from 'date-fns'
 import { HOMELESS_UI_STATUSES } from '@/lib/homelessStatus'
 const HOMELESS_EXEMPT_STATUSES = ['confirmed', 'claimed'] as const
 
