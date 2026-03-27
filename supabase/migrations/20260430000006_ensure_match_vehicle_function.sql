@@ -22,6 +22,9 @@ CREATE EXTENSION IF NOT EXISTS vector;
 
 -- Convert vehicle_embedding from jsonb to vector(384) if it was incorrectly
 -- created as jsonb by migration 20260309000002.
+-- We NULL out existing values first because they were stored when match_vehicle()
+-- didn't exist (so the <=> operator was never usable), making the jsonb data
+-- effectively unusable. Nulling avoids any jsonb→vector cast failure.
 DO $$
 BEGIN
   IF EXISTS (
@@ -31,12 +34,10 @@ BEGIN
       AND column_name  = 'vehicle_embedding'
       AND data_type    = 'jsonb'
   ) THEN
+    UPDATE public.observations SET vehicle_embedding = NULL
+      WHERE vehicle_embedding IS NOT NULL;
     ALTER TABLE public.observations
-      ALTER COLUMN vehicle_embedding TYPE vector(384)
-      USING CASE
-        WHEN vehicle_embedding IS NULL THEN NULL
-        ELSE (vehicle_embedding::text)::vector
-      END;
+      ALTER COLUMN vehicle_embedding TYPE vector(384);
     RAISE NOTICE 'Converted observations.vehicle_embedding from jsonb to vector(384)';
   END IF;
 END $$;
