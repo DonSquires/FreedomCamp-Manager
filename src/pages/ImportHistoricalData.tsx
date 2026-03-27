@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
+import { edgeFunctions } from '@/lib/edgeFunctions'
 import { useAuthStore } from '@/stores/authStore'
 import { useGlobalFiltersStore } from '@/stores/globalFiltersStore'
 import { getEffectiveOrgId } from '@/lib/orgUtils'
@@ -179,14 +180,12 @@ export default function ImportHistoricalData() {
       if (!uploadError) {
         setUploadProgress(45)
         console.info('Invoking import-historical-data via', runtimeFunctionEndpoint)
-        ;({ data, error } = await supabase.functions.invoke('import-historical-data', {
-          body: {
-            filePath: storagePath,
-            bucket: 'evidence',
-            fileName: file.name,
-            batchName: batchName.trim(),
-            organizationId: orgId,
-          },
+        ;({ data, error } = await edgeFunctions.importHistoricalData({
+          filePath: storagePath,
+          bucket: 'evidence',
+          fileName: file.name,
+          batchName: batchName.trim(),
+          organizationId: orgId,
         }))
       } else {
         // Compatibility fallback for environments where storage upload policies
@@ -205,13 +204,11 @@ export default function ImportHistoricalData() {
         setUploadProgress(35)
         console.info('Invoking import-historical-data via inline fallback at', runtimeFunctionEndpoint)
 
-        ;({ data, error } = await supabase.functions.invoke('import-historical-data', {
-          body: {
-            fileContent,
-            fileName: file.name,
-            batchName: batchName.trim(),
-            organizationId: orgId,
-          },
+        ;({ data, error } = await edgeFunctions.importHistoricalData({
+          fileContent,
+          fileName: file.name,
+          batchName: batchName.trim(),
+          organizationId: orgId,
         }))
       }
 

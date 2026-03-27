@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
+import { edgeFunctions } from '@/lib/edgeFunctions'
 import { useAuthStore } from '@/stores/authStore'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -129,9 +130,7 @@ export default function SystemDiagnostics() {
   // Run integrity check
   const integrityCheckMutation = useMutation({
     mutationFn: async () => {
-      const { data, error } = await supabase.functions.invoke('check-data-integrity', {
-        body: { comprehensive: true }
-      })
+      const { data, error } = await edgeFunctions.checkDataIntegrity({ comprehensive: true })
       if (error) throw error
       return data
     },

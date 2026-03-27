@@ -11,6 +11,7 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
+import { edgeFunctions } from '@/lib/edgeFunctions'
 import { useAuthStore } from '@/stores/authStore'
 import { toast } from 'sonner'
 
@@ -255,12 +256,10 @@ export function useValidateImport() {
     mutationFn: async (file: File) => {
       const fileContent = await file.text()
 
-      const { data, error } = await supabase.functions.invoke('import-data', {
-        body: {
-          fileContent,
-          fileName: file.name,
-          isImage: file.type.startsWith('image/'),
-        },
+      const { data, error } = await edgeFunctions.importData({
+        fileContent,
+        fileName: file.name,
+        isImage: file.type.startsWith('image/'),
       })
 
       if (error) {
@@ -295,14 +294,12 @@ export function useImportData() {
     }) => {
       const fileContent = await file.text()
 
-      const { data, error } = await supabase.functions.invoke('import-data', {
-        body: {
-          fileContent,
-          fileName: file.name,
-          isImage: file.type.startsWith('image/'),
-          importType,
-          organizationId: user?.organization_id || undefined,
-        },
+      const { data, error } = await edgeFunctions.importData({
+        fileContent,
+        fileName: file.name,
+        isImage: file.type.startsWith('image/'),
+        importType,
+        organizationId: user?.organization_id || undefined,
       })
 
       if (error) {

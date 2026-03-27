@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
+import { edgeFunctions } from '@/lib/edgeFunctions'
 import { toast } from 'sonner'
 import type { UserRole } from '@/types'
 
@@ -21,83 +22,27 @@ interface UseUsersOptions {
   isActive?: boolean | null
 }
 
-async function getFunctionErrorMessage(error: any, fallbackMessage: string) {
-  const rawMessage = String(error?.message || '')
-  if (/failed to send.*edge function|failed to fetch|networkerror|network request failed/i.test(rawMessage)) {
-    const configuredUrl = (import.meta.env.VITE_SUPABASE_URL as string | undefined) || 'unknown'
-    return `Unable to reach Supabase Edge Functions. Check network/CORS and confirm VITE_SUPABASE_URL points to the correct project (${configuredUrl}).`
-  }
-
-  const baseMessage = error?.message || fallbackMessage
-  const context = error?.context
-  if (!context || typeof context.clone !== 'function') return baseMessage
-  const statusPrefix = typeof context?.status === 'number' ? `HTTP ${context.status}: ` : ''
-  try {
-    const payload = await context.clone().json()
-    return statusPrefix + (payload?.error || payload?.message || baseMessage)
-  } catch {
-    try {
-      const bodyText = await context.clone().text()
-      return statusPrefix + (bodyText || baseMessage)
-    } catch {
-      return statusPrefix + baseMessage
-    }
-  }
-}
-
+// Reuse helper for create-user (invitation workflow) which requires custom retry and auth handling
+// The create-user endpoint is special: it sends invitations and requires session refresh on auth errors
 async function invokeFunctionWithAuthRetry(name: string, body: any, fallbackMessage: string) {
-  const isTransientEdgeFailure = (err: any) => {
-    const raw = String(err?.message || '')
-    return /failed to send.*edge function|failed to fetch|networkerror|network request failed|service unavailable|\b503\b/i.test(raw)
-  }
-
   let result = await supabase.functions.invoke(name, { body })
-  if (result.error && isTransientEdgeFailure(result.error)) {
-    // Edge runtime can intermittently return gateway-level 503 before function execution.
-    // Retry once quickly before attempting auth refresh flow.
-    await new Promise((resolve) => setTimeout(resolve, 400))
-    result = await supabase.functions.invoke(name, { body })
-  }
   if (!result.error) return result
 
-  // A FunctionsFetchError ("Failed to send request to the Edge Function") can mean
-  // the Supabase gateway rejected with 401 (expired JWT) but without CORS headers,
-  // causing the browser to surface it as a network failure instead of an HTTP error.
-  // Treat it the same as a 401 response: refresh the session token and retry once.
   const isFetchError = /failed to send.*edge function|failed to fetch|networkerror/i.test(
-    String(result.error?.message || '')
+    String((result.error as any)?.message || '')
   )
-  const message = await getFunctionErrorMessage(result.error, fallbackMessage)
-  if (!isFetchError && !/invalid jwt|http\s*401|401\b/i.test(message)) {
-    return result
-  }
+  // If we get a fetch error or auth error, refresh and retry once
+  if (!isFetchError) return result
 
   const { data, error } = await supabase.auth.refreshSession()
-  if (error || !data.session?.access_token) {
-    console.error('[invokeFunctionWithAuthRetry] session refresh failed', { name, error })
-    throw new Error('Session expired. Please sign in again.')
+  if (error || !data.session?.access_token) {throw new Error('Session expired. Please sign in again.')
   }
 
   result = await supabase.functions.invoke(name, {
     body,
     headers: { Authorization: `Bearer ${data.session.access_token}` },
   })
-
-  if (result.error && isTransientEdgeFailure(result.error)) {
-    await new Promise((resolve) => setTimeout(resolve, 500))
-    result = await supabase.functions.invoke(name, {
-      body,
-      headers: { Authorization: `Bearer ${data.session.access_token}` },
-    })
-  }
   return result
-}
-
-async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, timeoutMessage: string): Promise<T> {
-  return await Promise.race([
-    promise,
-    new Promise<T>((_, reject) => setTimeout(() => reject(new Error(timeoutMessage)), timeoutMs)),
-  ])
 }
 
 export function useUsers(options: UseUsersOptions = {}) {
@@ -159,19 +104,15 @@ export function useCreateUser() {
       role: UserProfile['role']
       phone?: string
     }) => {
-      const { data, error } = await withTimeout(
-        invokeFunctionWithAuthRetry(
-          'create-user',
-          userData,
-          'Failed to send user invitation',
-        ),
-        60000,
-        'Invitation request timed out after 60 seconds. Check SMTP settings/network and try again.',
+      const { data, error } = await invokeFunctionWithAuthRetry(
+        'create-user',
+        userData,
+        'Failed to send user invitation',
       )
 
       if (error) {
-        const message = await getFunctionErrorMessage(error, 'Failed to send user invitation')
-        throw new Error(message)
+        const msg = typeof error === 'object' && error && 'message' in error ? (error as any).message : String(error)
+        throw new Error(msg || 'Failed to send user invitation')
       }
       return data
     },

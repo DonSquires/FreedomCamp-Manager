@@ -910,7 +910,24 @@ export const edgeFunctions = {
    * Generate legal Notice to Vacate
    */
   generateNoticeToVacate: async (params: {
-    breach_alert_id: string
+    zoneId?: string
+    zone_id?: string
+    plateNumber?: string
+    plate_number?: string
+    nightsStayed?: number
+    nights_stayed?: number
+    breachDetails?: any
+    breachDate?: string
+    issuedBy?: string
+    issued_by?: string
+    deliveryMethod?: string
+    delivery_method?: string
+    deliverToEmail?: string
+    deliver_to_email?: string
+    breachAlertId?: string
+    breach_alert_id?: string
+    vehicleId?: string
+    vehicle_id?: string
   }) => {
     return callEdgeFunction('generate-notice-to-vacate', params)
   },

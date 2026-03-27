@@ -117,15 +117,14 @@ export async function sendPushNotification(
     priority?: 'low' | 'normal' | 'high' | 'urgent'
   }
 ): Promise<void> {
-  const { error } = await supabase.functions.invoke('send-push-notification', {
-    body: {
-      user_id: userId,
-      type: notification.type,
-      title: notification.title,
-      body: notification.body,
-      data: notification.data,
-      priority: notification.priority || 'normal',
-    },
+  const { edgeFunctions } = await import('./edgeFunctions')
+  const { error } = await edgeFunctions.sendPushNotification({
+    user_id: userId,
+    type: notification.type,
+    title: notification.title,
+    body: notification.body,
+    data: notification.data,
+    priority: notification.priority || 'normal',
   })
 
   if (error) {

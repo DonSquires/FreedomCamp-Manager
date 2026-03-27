@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
+import { edgeFunctions } from '@/lib/edgeFunctions'
 import { useAuthStore } from '@/stores/authStore'
 import { useGlobalFiltersStore } from '@/stores/globalFiltersStore'
 import { nzDateToUTCStart, nzDateToUTCEnd } from '@/lib/timezone'
@@ -89,14 +90,12 @@ export default function ObservationsReport() {
       const today = new Date().toISOString().slice(0, 10)
       const defaultFrom = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
 
-      const { data, error } = await supabase.functions.invoke('observations-export', {
-        body: {
-          organization_id: orgId,
-          zone_id: zoneId || undefined,
-          date_from: dateFrom || defaultFrom,
-          date_to: dateTo || today,
-          search: search || undefined,
-        },
+      const { data, error } = await edgeFunctions.exportObservations({
+        organization_id: orgId,
+        zone_id: zoneId || undefined,
+        date_from: dateFrom || defaultFrom,
+        date_to: dateTo || today,
+        search: search || undefined,
       })
       if (error) throw new Error(error.message)
 

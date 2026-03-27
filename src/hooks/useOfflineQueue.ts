@@ -6,24 +6,9 @@
 import { useEffect, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/stores/authStore'
+import { edgeFunctions } from '@/lib/edgeFunctions'
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
-
-async function getEdgeFunctionAuthHeaders() {
-  const { data, error } = await supabase.auth.getSession()
-  if (error) {
-    throw new Error(error.message || 'Unable to read current session')
-  }
-
-  const accessToken = data.session?.access_token
-  if (!accessToken) {
-    throw new Error('No active session found. Please sign in again before syncing queued scans.')
-  }
-
-  return {
-    Authorization: `Bearer ${accessToken}`,
-  }
-}
 
 interface QueuedObservation {
   id: string
@@ -248,26 +233,24 @@ export function useOfflineQueue() {
         }
 
         // Call vehicle-ingest Edge Function to sync observation
-        const headers = await getEdgeFunctionAuthHeaders()
-
-        const { error: invokeError } = await supabase.functions.invoke('vehicle-ingest', {
-          body: {
-            plate: observation.plate_number,
-            zoneId: observation.zone_id,
-            organizationId: observation.organization_id,
-            idempotencyKey: observation.idempotency_key,
-            gpsLatitude: observation.gps_latitude,
-            gpsLongitude: observation.gps_longitude,
-            gpsAccuracy: observation.gps_accuracy,
-            recordedAt: observation.recorded_at,
-            notes: observation.officer_notes,
-            ...(imageDataUrl ? { image: imageDataUrl } : {}),
-            ...(observation.photo_url && !imageDataUrl ? { photo_url: observation.photo_url } : {}),
-            requires_manual_entry: !observation.plate_number,
-          },
-          headers,
+        const { error: invokeError } = await edgeFunctions.ingestVehicleObservation({
+          plate: observation.plate_number,
+          zoneId: observation.zone_id,
+          organizationId: observation.organization_id,
+          idempotencyKey: observation.idempotency_key,
+          gpsLatitude: observation.gps_latitude,
+          gpsLongitude: observation.gps_longitude,
+          gpsAccuracy: observation.gps_accuracy,
+          recordedAt: observation.recorded_at,
+          notes: observation.officer_notes,
+          ...(imageDataUrl ? { image: imageDataUrl } : {}),
+          ...(observation.photo_url && !imageDataUrl ? { photo_url: observation.photo_url } : {}),
+          requires_manual_entry: !observation.plate_number,
         })
-        if (invokeError) throw new Error(invokeError.message)
+        if (invokeError) {
+          const msg = typeof invokeError === 'object' && invokeError && 'message' in invokeError ? (invokeError as any).message : String(invokeError)
+          throw new Error(msg || 'Unknown error')
+        }
 
         // Mark as synced and remove from queue
         await updateInDB(id, { status: 'synced' })

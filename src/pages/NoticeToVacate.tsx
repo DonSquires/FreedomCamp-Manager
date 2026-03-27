@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { FunctionsHttpError } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase'
+import { edgeFunctions } from '@/lib/edgeFunctions'
 import { useAuthStore } from '@/stores/authStore'
 import { useGlobalFiltersStore } from '@/stores/globalFiltersStore'
 import { AppLayout } from '@/components/features/AppLayout'
@@ -106,74 +106,6 @@ export default function NoticeToVacate() {
   })
   const [issuing, setIssuing] = useState(false)
   const [issueFeedback, setIssueFeedback] = useState<null | { type: 'loading' | 'success' | 'error'; message: string }>(null)
-
-  const withTimeout = async <T,>(promise: Promise<T>, ms: number, timeoutMessage: string): Promise<T> => {
-    return await new Promise<T>((resolve, reject) => {
-      const timer = window.setTimeout(() => reject(new Error(timeoutMessage)), ms)
-      promise
-        .then((value) => {
-          window.clearTimeout(timer)
-          resolve(value)
-        })
-        .catch((error) => {
-          window.clearTimeout(timer)
-          reject(error)
-        })
-    })
-  }
-
-  const getFunctionErrorMessage = async (error: unknown, fallbackMessage: string): Promise<string> => {
-    const rawMessage = String((error as any)?.message || '')
-    if (/failed to send.*edge function|failed to fetch|networkerror/i.test(rawMessage)) {
-      return `Unable to reach Edge Function. Check your session or network and try again.`
-    }
-    if (!(error instanceof FunctionsHttpError)) {
-      return rawMessage || fallbackMessage
-    }
-
-    const context = error.context
-    if (!context) return fallbackMessage
-
-    const statusPrefix = context.status ? `HTTP ${context.status}: ` : ''
-
-    try {
-      const payload = await context.clone().json()
-      return statusPrefix + (payload?.error || payload?.message || fallbackMessage)
-    } catch {
-      try {
-        const bodyText = await context.clone().text()
-        return statusPrefix + (bodyText || fallbackMessage)
-      } catch {
-        return statusPrefix + fallbackMessage
-      }
-    }
-  }
-
-  const invokeFunctionWithAuthRetry = async (name: string, body: any, fallbackMessage: string) => {
-    let result = await supabase.functions.invoke(name, { body })
-
-    if (!result.error) return result
-
-    const isFetchError = /failed to send.*edge function|failed to fetch|networkerror/i.test(
-      String((result.error as any)?.message || '')
-    )
-    const message = await getFunctionErrorMessage(result.error, fallbackMessage)
-    if (!isFetchError && !/invalid jwt|http\s*401|401\b/i.test(message)) {
-      return result
-    }
-
-    const { data, error } = await supabase.auth.refreshSession()
-    if (error || !data.session?.access_token) {
-      throw new Error('Session expired. Please sign in again.')
-    }
-
-    result = await supabase.functions.invoke(name, {
-      body,
-      headers: { Authorization: `Bearer ${data.session.access_token}` },
-    })
-
-    return result
-  }
 
   const openPreviewWindow = (mode: 'open' | 'print') => {
     if (!previewHtml) {
@@ -324,27 +256,20 @@ export default function NoticeToVacate() {
     setIssueFeedback({ type: 'loading', message: 'Generating notice, please wait…' })
     setIssuing(true)
     try {
-      const { data, error } = await withTimeout(
-        invokeFunctionWithAuthRetry(
-          'generate-notice-to-vacate',
-          {
-            zoneId: form.zoneId,
-            plateNumber: form.plateNumber.toUpperCase().trim(),
-            nightsStayed: form.nightsStayed ? parseInt(form.nightsStayed) : undefined,
-            breachDetails: form.breachDetails ? { notes: form.breachDetails } : undefined,
-            issuedBy: user.id,
-            deliveryMethod: form.deliveryMethod,
-            deliverToEmail: form.deliverToEmail || undefined,
-            breachAlertId: form.breachAlertId || undefined,
-          },
-          'Failed to issue notice',
-        ),
-        25000,
-        'Notice generation timed out. Please try again.',
-      )
+      const { data, error } = await edgeFunctions.generateNoticeToVacate({
+        zoneId: form.zoneId,
+        plateNumber: form.plateNumber.toUpperCase().trim(),
+        nightsStayed: form.nightsStayed ? parseInt(form.nightsStayed) : undefined,
+        breachDetails: form.breachDetails ? { notes: form.breachDetails } : undefined,
+        issuedBy: user.id,
+        deliveryMethod: form.deliveryMethod,
+        deliverToEmail: form.deliverToEmail || undefined,
+        breachAlertId: form.breachAlertId || undefined,
+      })
 
-      if (error) throw new Error(await getFunctionErrorMessage(error, 'Failed to issue notice'))
-      if (!data?.success) throw new Error(data?.error || 'Failed to issue notice')
+      if (error) {
+        throw new Error(typeof error === 'object' && error && 'message' in error ? (error as any).message : String(error) || 'Failed to issue notice')
+      }
 
       const referenceNumber = data.notice?.reference_number || 'generated'
       setIssueFeedback({ type: 'success', message: `Notice ${referenceNumber} issued successfully.` })

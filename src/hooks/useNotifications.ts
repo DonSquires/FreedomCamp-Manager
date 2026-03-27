@@ -5,6 +5,7 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
+import { edgeFunctions } from '@/lib/edgeFunctions'
 import { useAuthStore } from '@/stores/authStore'
 import { toast } from 'sonner'
 
@@ -142,15 +143,13 @@ export function useNotifications(options?: {
   // Send notification mutation (admin only)
   const sendNotification = useMutation({
     mutationFn: async (input: SendNotificationInput) => {
-      const { data, error } = await supabase.functions.invoke('send-push-notification', {
-        body: {
-          user_id: input.user_id,
-          type: input.type,
-          title: input.title,
-          body: input.body,
-          data: input.data,
-          priority: input.priority || 'normal',
-        },
+      const { data, error } = await edgeFunctions.sendPushNotification({
+        user_id: input.user_id,
+        type: input.type,
+        title: input.title,
+        body: input.body,
+        data: input.data,
+        priority: input.priority || 'normal',
       })
 
       if (error) {

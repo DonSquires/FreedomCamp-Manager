@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
 import { AlertTriangle, MapPin, Calendar, Camera, FileText, Loader2 } from 'lucide-react'
-import { supabase } from '@/lib/supabase'
+import { edgeFunctions } from '@/lib/edgeFunctions'
 import { toast } from 'sonner'
 
 interface ViolationEvidenceModalProps {
@@ -38,12 +38,10 @@ export function ViolationEvidenceModal({ open, onClose, violation }: ViolationEv
   const handleGenerateNotice = async () => {
     setGeneratingNotice(true)
     try {
-      const { data, error } = await supabase.functions.invoke('generate-notice-to-vacate', {
-        body: {
-          plateNumber: violation.plate_number,
-          deliveryMethod: 'printed_onsite',
-          breachDetails: { notes: violation.violation_reason },
-        },
+      const { data, error } = await edgeFunctions.generateNoticeToVacate({
+        plateNumber: violation.plate_number,
+        deliveryMethod: 'printed_onsite',
+        breachDetails: { notes: violation.violation_reason },
       })
       if (error) throw new Error(error.message)
       if (!data?.success) throw new Error(data?.error || 'Failed to generate notice')

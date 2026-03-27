@@ -7,6 +7,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { supabase } from '@/lib/supabase'
+import { edgeFunctions } from '@/lib/edgeFunctions'
 import { toast } from 'sonner'
 import { AlertTriangle, Search, Send, ShieldCheck } from 'lucide-react'
 
@@ -58,11 +59,9 @@ export default function PublicDisputePortal() {
 
     setLoading(true)
     try {
-      const { data, error } = await supabase.functions.invoke('public-case-lookup', {
-        body: {
-          reference: reference.trim(),
-          plate_number: plateNumber.trim().toUpperCase() || undefined,
-        },
+      const { data, error } = await edgeFunctions.publicCaseLookup({
+        reference: reference.trim(),
+        plate_number: plateNumber.trim().toUpperCase() || undefined,
       })
 
       if (error) throw error
@@ -83,19 +82,17 @@ export default function PublicDisputePortal() {
 
     setSubmitting(true)
     try {
-      const { data, error } = await supabase.functions.invoke('submit-dispute-intake', {
-        body: {
-          source_type: caseData.case_type,
-          source_reference: caseData.case.reference,
-          plate_number: caseData.case.plate_number,
-          claimant_name: claimantName || undefined,
-          claimant_email: claimantEmail || undefined,
-          claimant_phone: claimantPhone || undefined,
-          message: message.trim(),
-          request_homeless_review: requestHomelessReview,
-          hardship_context: hardshipContext || undefined,
-          evidence_statement: evidenceStatement || undefined,
-        },
+      const { data, error } = await edgeFunctions.submitDisputeIntake({
+        source_type: caseData.case_type,
+        source_reference: caseData.case.reference,
+        plate_number: caseData.case.plate_number,
+        claimant_name: claimantName || undefined,
+        claimant_email: claimantEmail || undefined,
+        claimant_phone: claimantPhone || undefined,
+        message: message.trim(),
+        request_homeless_review: requestHomelessReview,
+        hardship_context: hardshipContext || undefined,
+        evidence_statement: evidenceStatement || undefined,
       })
 
       if (error) throw error
