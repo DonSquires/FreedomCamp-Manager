@@ -696,7 +696,7 @@ export default function App() {
             path="/live-tracking"
             element={
               <ProtectedRoute>
-                <RoleRoute allowedRoles={['admin', 'master']}>
+                <RoleRoute allowedRoles={['admin', 'admin_officer', 'master']}>
                   <LiveOfficerTracking />
                 </RoleRoute>
               </ProtectedRoute>

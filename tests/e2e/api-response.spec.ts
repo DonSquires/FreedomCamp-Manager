@@ -15,8 +15,9 @@
  */
 
 import { test, expect } from '@playwright/test'
+import { getApiBearerToken, getApiTestCredentials } from './auth'
 
-let cachedBearerToken = (process.env.API_TEST_BEARER_TOKEN || '').trim() || null
+let cachedBearerToken = getApiBearerToken()
 let bearerBootstrapAttempted = false
 
 const DEFAULT_SUPABASE_URL = 'https://kxwjcupuxnnbnzcgmkoi.supabase.co'
@@ -86,12 +87,15 @@ function authHeaders(bearerToken?: string): Record<string, string> {
 }
 
 async function resolveBearerToken(): Promise<string | null> {
-  if (cachedBearerToken) return cachedBearerToken
+  if (cachedBearerToken) {
+    const isValid = await isBearerTokenValid(cachedBearerToken)
+    if (isValid) return cachedBearerToken
+    cachedBearerToken = null
+  }
   if (bearerBootstrapAttempted) return null
   bearerBootstrapAttempted = true
 
-  const email = (process.env.API_TEST_EMAIL || 'master@test.com').trim()
-  const password = process.env.API_TEST_PASSWORD || 'Test123!'
+  const { email, password } = getApiTestCredentials()
   if (!email || !password) return null
 
   const response = await fetch(
@@ -117,31 +121,46 @@ async function resolveBearerToken(): Promise<string | null> {
   return null
 }
 
+async function isBearerTokenValid(token: string): Promise<boolean> {
+  const response = await fetch(`${supabaseBaseUrl()}/auth/v1/user`, {
+    method: 'GET',
+    headers: authHeaders(token),
+  })
+
+  return response.ok
+}
+
+async function requireBearerToken(): Promise<string> {
+  const token = await resolveBearerToken()
+  if (token) return token
+
+  throw new Error(
+    'API response tests require live auth. Set API_TEST_BEARER_TOKEN or provide API_TEST_EMAIL/API_TEST_PASSWORD for a live user.'
+  )
+}
+
 // ---------------------------------------------------------------------------
 // Test suite
 // ---------------------------------------------------------------------------
 
 test.describe('API Response Tests – Supabase Edge Functions', () => {
   test.beforeAll(async () => {
-    await resolveBearerToken()
+    await requireBearerToken()
   })
 
   // --------------------------------------------------------------------------
   // check-railway-health
   // --------------------------------------------------------------------------
   test('check-railway-health returns a JSON response', async () => {
-    const token = await resolveBearerToken()
-    const hasBearerToken = !!token
+    const token = await requireBearerToken()
     const url = edgeFunctionUrl('check-railway-health')
 
     const response = await fetch(url, {
       method: 'GET',
-      headers: authHeaders(token || undefined),
+      headers: authHeaders(token),
     })
 
-    // Protected endpoint: 200 with valid bearer token; 401 when omitted.
-    const expectedStatuses = hasBearerToken ? [200] : [401]
-    expect(expectedStatuses).toContain(response.status)
+    expect([200]).toContain(response.status)
     expect(response.headers.get('content-type') || '').toContain('application/json')
 
     const body = await response.json()
@@ -149,36 +168,25 @@ test.describe('API Response Tests – Supabase Edge Functions', () => {
     expect(body).not.toBeNull()
     expect(typeof body).toBe('object')
 
-    if (response.status === 200) {
-      // Core shape for successful health response.
-      expect(body).toHaveProperty('proxy')
-      expect(body).toHaveProperty('inference')
-      expect(body).toHaveProperty('checked_at')
-    } else {
-      expect(body).toHaveProperty('message')
-    }
+    expect(body).toHaveProperty('proxy')
+    expect(body).toHaveProperty('inference')
+    expect(body).toHaveProperty('checked_at')
   })
 
   // --------------------------------------------------------------------------
   // check-nzscv-status
   // --------------------------------------------------------------------------
   test('check-nzscv-status returns a JSON response for a test plate', async () => {
-    const token = await resolveBearerToken()
-    const hasBearerToken = !!token
+    const token = await requireBearerToken()
     const url = edgeFunctionUrl('check-nzscv-status')
 
     const response = await fetch(url, {
       method: 'POST',
-      headers: authHeaders(token || undefined),
+      headers: authHeaders(token),
       body: JSON.stringify({ plate_number: 'TEST001' }),
     })
 
-    // Protected endpoint: returns 401 without bearer token.
-    // With bearer token, it may return success or service/misconfig errors.
-    const expectedStatuses = hasBearerToken
-      ? [200, 400, 500, 503]
-      : [401]
-    expect(expectedStatuses).toContain(response.status)
+    expect([200, 400, 500, 503]).toContain(response.status)
     expect(response.headers.get('content-type') || '').toContain('application/json')
 
     const body = await response.json()
@@ -187,48 +195,38 @@ test.describe('API Response Tests – Supabase Edge Functions', () => {
   })
 
   test('check-nzscv-status returns 400 when plate_number is missing', async () => {
-    const token = await resolveBearerToken()
-    const hasBearerToken = !!token
+    const token = await requireBearerToken()
     const url = edgeFunctionUrl('check-nzscv-status')
 
     const response = await fetch(url, {
       method: 'POST',
-      headers: authHeaders(token || undefined),
+      headers: authHeaders(token),
       body: JSON.stringify({}),
     })
 
-    const expectedStatuses = hasBearerToken ? [400] : [401]
-    expect(expectedStatuses).toContain(response.status)
+    expect([400]).toContain(response.status)
     expect(response.headers.get('content-type') || '').toContain('application/json')
 
     const body = await response.json()
-    if (response.status === 400) {
-      expect(body).toHaveProperty('error')
-    } else {
-      expect(body).toHaveProperty('message')
-    }
+    expect(body).toHaveProperty('error')
   })
 
   // --------------------------------------------------------------------------
   // enrich-from-motorweb
   // --------------------------------------------------------------------------
   test('enrich-from-motorweb returns a JSON response', async () => {
-    const token = await resolveBearerToken()
-    const hasBearerToken = !!token
+    const token = await requireBearerToken()
     const url = edgeFunctionUrl('enrich-from-motorweb')
 
     // This endpoint is currently a placeholder and returns 503 until MotorWeb
     // credentials are provisioned, which is the expected behaviour.
     const response = await fetch(url, {
       method: 'POST',
-      headers: authHeaders(token || undefined),
+      headers: authHeaders(token),
       body: JSON.stringify({ plateNumber: 'TEST001' }),
     })
 
-    // Protected endpoint: returns 401 without bearer token.
-    // With bearer token, placeholder currently returns 503.
-    const expectedStatuses = hasBearerToken ? [200, 503] : [401]
-    expect(expectedStatuses).toContain(response.status)
+    expect([200, 503]).toContain(response.status)
     expect(response.headers.get('content-type') || '').toContain('application/json')
 
     const body = await response.json()
@@ -240,13 +238,13 @@ test.describe('API Response Tests – Supabase Edge Functions', () => {
   // get-weather
   // --------------------------------------------------------------------------
   test('get-weather returns a JSON response for Auckland coordinates', async () => {
-    const token = await resolveBearerToken()
+    const token = await requireBearerToken()
     const url = edgeFunctionUrl('get-weather')
 
     // Auckland, NZ coordinates
     const response = await fetch(url, {
       method: 'POST',
-      headers: authHeaders(token || undefined),
+      headers: authHeaders(token),
       body: JSON.stringify({ latitude: -36.8485, longitude: 174.7633 }),
     })
 
@@ -260,12 +258,12 @@ test.describe('API Response Tests – Supabase Edge Functions', () => {
   })
 
   test('get-weather returns an error response when coordinates are missing', async () => {
-    const token = await resolveBearerToken()
+    const token = await requireBearerToken()
     const url = edgeFunctionUrl('get-weather')
 
     const response = await fetch(url, {
       method: 'POST',
-      headers: authHeaders(token || undefined),
+      headers: authHeaders(token),
       body: JSON.stringify({}),
     })
 
@@ -281,22 +279,16 @@ test.describe('API Response Tests – Supabase Edge Functions', () => {
   // get-compliance-statistics
   // --------------------------------------------------------------------------
   test('get-compliance-statistics returns a JSON response', async () => {
-    const token = await resolveBearerToken()
-    const hasBearerToken = !!token
+    const token = await requireBearerToken()
     const url = edgeFunctionUrl('get-compliance-statistics')
 
     const response = await fetch(url, {
       method: 'POST',
-      headers: authHeaders(token || undefined),
+      headers: authHeaders(token),
       body: JSON.stringify({}),
     })
 
-    // Protected endpoint: returns 401 without bearer token.
-    // With bearer token, allow app-level auth and DB outcomes.
-    const expectedStatuses = hasBearerToken
-      ? [200, 401, 403, 500]
-      : [401]
-    expect(expectedStatuses).toContain(response.status)
+    expect([200, 403, 500]).toContain(response.status)
     expect(response.headers.get('content-type') || '').toContain('application/json')
 
     const body = await response.json()

@@ -43,12 +43,21 @@ Create 4 test users:
 ### Step 4: Run Tests
 
 ```bash
+# Protected API tests now require live auth.
+# Prefer a bearer token, or supply live credentials so the harness can mint one.
+export API_TEST_BEARER_TOKEN=eyJ...
+# or
+export API_TEST_EMAIL=live-user@example.com
+export API_TEST_PASSWORD=your-live-password
+
 # Run all tests
 npx playwright test
 
 # Or run with UI mode
 npx playwright test --ui
 ```
+
+On Alpine dev containers, Playwright auto-detects the native browser at `/usr/bin/chromium`.
 
 ### Step 5: View Results
 

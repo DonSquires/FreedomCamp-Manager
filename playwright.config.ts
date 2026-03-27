@@ -1,4 +1,11 @@
+import { existsSync } from 'node:fs'
 import { defineConfig, devices } from '@playwright/test'
+
+const nativeChromiumExecutablePath = [
+  process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH,
+  '/usr/bin/chromium',
+  '/usr/bin/chromium-browser',
+].find((candidate) => !!candidate && existsSync(candidate))
 
 /**
  * Playwright Configuration for FreedomCamp Manager
@@ -48,7 +55,12 @@ export default defineConfig({
   projects: [
     {
       name: 'chromium',
-      use: { ...devices['Desktop Chrome'] },
+      use: {
+        ...devices['Desktop Chrome'],
+        ...(nativeChromiumExecutablePath
+          ? { launchOptions: { executablePath: nativeChromiumExecutablePath } }
+          : {}),
+      },
     },
 
     {
@@ -64,7 +76,12 @@ export default defineConfig({
     // Mobile viewports
     {
       name: 'Mobile Chrome',
-      use: { ...devices['Pixel 5'] },
+      use: {
+        ...devices['Pixel 5'],
+        ...(nativeChromiumExecutablePath
+          ? { launchOptions: { executablePath: nativeChromiumExecutablePath } }
+          : {}),
+      },
     },
     {
       name: 'Mobile Safari',

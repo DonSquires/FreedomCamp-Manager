@@ -53,7 +53,18 @@ Create `.env.test` file:
 VITE_SUPABASE_URL=https://your-project.supabase.co
 VITE_SUPABASE_ANON_KEY=your-anon-key
 PLAYWRIGHT_BASE_URL=http://localhost:5173
+
+# Required for protected API response tests.
+# Prefer a live bearer token from a real session.
+API_TEST_BEARER_TOKEN=eyJ...
+
+# Or let the test bootstrap a live token from a real user.
+API_TEST_EMAIL=live-user@example.com
+API_TEST_PASSWORD=your-live-password
 ```
+
+On Alpine dev containers, Playwright now auto-detects the native browser at `/usr/bin/chromium`.
+Override it only if needed with `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH`.
 
 ---
 
