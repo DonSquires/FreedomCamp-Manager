@@ -43,7 +43,23 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { organizationId, startDate, endDate } = await req.json();
+    // Parse request body (if present) — GET requests may not have a body
+    let organizationId = 'all';
+    let startDate: string | undefined;
+    let endDate: string | undefined;
+
+    if (req.method === 'POST' || req.method === 'PUT') {
+      const body = await req.json();
+      organizationId = body.organizationId || 'all';
+      startDate = body.startDate;
+      endDate = body.endDate;
+    } else {
+      // For GET requests, try to parse query parameters
+      const url = new URL(req.url);
+      organizationId = url.searchParams.get('organizationId') || 'all';
+      startDate = url.searchParams.get('startDate') || undefined;
+      endDate = url.searchParams.get('endDate') || undefined;
+    }
 
     const supabaseAdmin = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
