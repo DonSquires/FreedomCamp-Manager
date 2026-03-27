@@ -256,6 +256,13 @@ const OPTIONAL_INFERENCE_COLUMNS = new Set([
   'embedding_quality',
   'embedding_model_version',
   'embedding_created_at',
+  // NZSCV registry fields for vehicle mismatch detection
+  'nzscv_certificate_status',
+  'nzscv_certificate_issue_date',
+  'vehicle_vin',
+  'vehicle_max_occupants',
+  'nzscv_logo_url',
+  'nzscv_checked_at',
 ]);
 
 /**

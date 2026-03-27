@@ -230,6 +230,7 @@ serve(async (req) => {
 
     // Return SC certification fields (guaranteed) + any optional vehicle detail
     // fields that NZSCV may provide. All optional fields are null when absent.
+    // For inference service mismatch detection: include all NZSCV fields
     return new Response(
       JSON.stringify({
         found: true,
@@ -239,7 +240,7 @@ serve(async (req) => {
           is_self_contained: isSelfContained,
           expiry_date:       expiry,
           issue_date:        vr?.CertificateIssueDate ?? null,
-          status:            status,
+          certificate_status: status, // For inference service to detect revoked/expired
           // Optional vehicle detail fields — null when not provided by NZSCV
           make:          vr?.make          ?? null,
           model:         vr?.model         ?? null,
@@ -249,6 +250,7 @@ serve(async (req) => {
           max_occupants: vr?.MaxOccupants  ?? null,
         },
         logo_url:   data.LogoURL ?? null,
+        source:     'nzscv_register', // Track which authority provided this data
         checked_at: new Date().toISOString(),
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

@@ -4901,6 +4901,10 @@ export type Database = {
           movement_vehicle_bbox_iou: number | null
           nights_stayed_this_month: number | null
           notes_reference_previous: boolean | null
+          nzscv_certificate_issue_date: string | null
+          nzscv_certificate_status: string | null
+          nzscv_checked_at: string | null
+          nzscv_logo_url: string | null
           observation_id: string
           observation_notes: string | null
           officer_notes: string | null
@@ -4936,6 +4940,8 @@ export type Database = {
           vehicle_make_confidence: number | null
           vehicle_model: string | null
           vehicle_model_confidence: number | null
+          vehicle_max_occupants: number | null
+          vehicle_vin: string | null
           vehicle_year: number | null
           zone_id: string
           zone_name_at_import: string | null
@@ -4978,6 +4984,10 @@ export type Database = {
           movement_vehicle_bbox_iou?: number | null
           nights_stayed_this_month?: number | null
           notes_reference_previous?: boolean | null
+          nzscv_certificate_issue_date?: string | null
+          nzscv_certificate_status?: string | null
+          nzscv_checked_at?: string | null
+          nzscv_logo_url?: string | null
           observation_id?: string
           observation_notes?: string | null
           officer_notes?: string | null
@@ -5013,6 +5023,8 @@ export type Database = {
           vehicle_make_confidence?: number | null
           vehicle_model?: string | null
           vehicle_model_confidence?: number | null
+          vehicle_max_occupants?: number | null
+          vehicle_vin?: string | null
           vehicle_year?: number | null
           zone_id: string
           zone_name_at_import?: string | null
@@ -5055,6 +5067,10 @@ export type Database = {
           movement_vehicle_bbox_iou?: number | null
           nights_stayed_this_month?: number | null
           notes_reference_previous?: boolean | null
+          nzscv_certificate_issue_date?: string | null
+          nzscv_certificate_status?: string | null
+          nzscv_checked_at?: string | null
+          nzscv_logo_url?: string | null
           observation_id?: string
           observation_notes?: string | null
           officer_notes?: string | null
@@ -5090,6 +5106,8 @@ export type Database = {
           vehicle_make_confidence?: number | null
           vehicle_model?: string | null
           vehicle_model_confidence?: number | null
+          vehicle_max_occupants?: number | null
+          vehicle_vin?: string | null
           vehicle_year?: number | null
           zone_id?: string
           zone_name_at_import?: string | null
