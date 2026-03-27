@@ -301,7 +301,12 @@ function RoleRoute({
 }) {
   const { user } = useAuthStore()
 
-  if (!user || !allowedRoles.includes(user.role)) {
+  if (!user) return <Navigate to="/login" replace />
+
+  // grand_master is the platform owner — bypasses all role restrictions
+  if (user.role === 'grand_master') return <>{children}</>
+
+  if (!allowedRoles.includes(user.role)) {
     return <Navigate to="/" replace />
   }
 
