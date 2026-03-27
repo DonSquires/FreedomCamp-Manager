@@ -183,12 +183,16 @@ export function usePermissions() {
    * Returns true when the user is authorised to access data belonging to the
    * given organisation.  Checks primary org, authorized_work_locations and
    * extra_organization_ids.
+   *
+   * grand_master has unrestricted access to all organisations.
+   * master has full access but only for organisations assigned to them by
+   * grand_master (primary org + extra_organization_ids).
    */
   const canAccessOrganization = (organizationId: string): boolean => {
     if (!user) return false
 
-    // Grand master and master can access all organizations
-    if (user.role === 'grand_master' || user.role === 'master') return true
+    // Grand master is the platform owner — unrestricted cross-org access
+    if (user.role === 'grand_master') return true
 
     // Check primary org
     if (user.organization_id === organizationId) return true
@@ -196,7 +200,8 @@ export function usePermissions() {
     // Check authorized_work_locations
     if (user.authorized_work_locations?.includes(organizationId)) return true
 
-    // Check extra_organization_ids
+    // Check extra_organization_ids (grand_master assigns these to master users
+    // to grant them access to specific organisations)
     if (user.extra_organization_ids?.includes(organizationId)) return true
 
     return false
