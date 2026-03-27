@@ -16,21 +16,41 @@ import { HOMELESS_UI_STATUSES } from '@/lib/homelessStatus'
 const HOMELESS_EXEMPT_STATUSES = ['confirmed', 'claimed'] as const
 
 import { toast } from 'sonner'
-import { 
+import {
+  Activity,
   AlertTriangle,
   ArrowRight,
+  Ban,
+  BarChart3,
+  Building2,
+  CalendarCheck2,
   CalendarDays,
+  Camera,
   Car,
+  CheckCircle2,
   ClipboardCheck,
+  Clock,
+  Database,
   Eye,
+  FileBarChart,
+  FileText,
   FileWarning,
   Gavel,
+  GraduationCap,
+  Heart,
   Home,
+  LayoutGrid,
+  Lock,
   Map,
+  MapPin,
   Navigation,
   ParkingSquare,
+  PieChart,
   Printer,
   Radio,
+  Receipt,
+  ScanLine,
+  ScrollText,
   Search,
   Shield,
   Sparkles,
@@ -38,6 +58,8 @@ import {
   UserCheck,
   Users,
   Volume2,
+  Zap,
+  AlertCircle,
 } from 'lucide-react'
 
 type DrillConfig = {
@@ -451,6 +473,55 @@ export default function AdminPortal() {
     enabled: !!effectiveOrganizationId,
   })
 
+  // Welfare alerts — Welfare First inspired: surface officer safety issues immediately
+  const { data: welfareAlertCount = 0 } = useQuery({
+    queryKey: ['admin-welfare-alert-count', effectiveOrganizationId],
+    queryFn: async () => {
+      let q = (supabase.from('officer_welfare_alerts') as any)
+        .select('id', { count: 'exact', head: true })
+        .in('status', ['pending', 'acknowledged'])
+      if (effectiveOrganizationId) q = q.eq('organization_id', effectiveOrganizationId)
+      const { count } = await q
+      return count ?? 0
+    },
+    staleTime: 1000 * 30,
+  })
+
+  // Active patrols today — Wilsar inspired: show guard tour progress
+  const { data: activePatrolCount = 0 } = useQuery({
+    queryKey: ['admin-active-patrol-count', effectiveOrganizationId],
+    queryFn: async () => {
+      const nzToday = new Date().toLocaleDateString('en-CA', { timeZone: 'Pacific/Auckland' })
+      let q = (supabase.from('patrols') as any)
+        .select('id', { count: 'exact', head: true })
+        .eq('status', 'in_progress')
+        .eq('patrol_date', nzToday)
+      if (effectiveOrganizationId) q = q.eq('organization_id', effectiveOrganizationId)
+      const { count } = await q
+      return count ?? 0
+    },
+    staleTime: 1000 * 30,
+  })
+
+  // Today's roster shifts — Deputy / InTime inspired: show who is on duty today
+  const { data: todayRosterShifts = [] } = useQuery({
+    queryKey: ['admin-today-roster', effectiveOrganizationId],
+    queryFn: async () => {
+      const nzToday = new Date().toLocaleDateString('en-CA', { timeZone: 'Pacific/Auckland' })
+      let q = (supabase.from('roster_shifts') as any)
+        .select(`id, start_time, end_time, status, position_title, service_type,
+          officer:user_profiles!roster_shifts_officer_id_fkey(first_name, last_name)`)
+        .eq('shift_date', nzToday)
+        .in('status', ['published', 'confirmed', 'in_progress'])
+        .order('start_time', { ascending: true })
+        .limit(8)
+      if (effectiveOrganizationId) q = q.eq('organization_id', effectiveOrganizationId)
+      const { data } = await q
+      return (data ?? []) as any[]
+    },
+    staleTime: 1000 * 60,
+  })
+
   const metrics = useMemo(() => {
     const totalObservations = data?.totalObservations ?? 0
     const compliant         = data?.compliantCount    ?? 0
@@ -542,6 +613,25 @@ export default function AdminPortal() {
     const days = Math.max(1, Math.round((end - start) / 86400000) + 1)
     return `${days}d`
   }, [dateFrom, dateTo])
+
+  // RAG operational status — Rapid Global / Lighthouse IO inspired
+  const ragStatus = useMemo((): 'green' | 'amber' | 'red' | 'loading' => {
+    if (isLoading) return 'loading'
+    if (welfareAlertCount > 0) return 'red'
+    if (metrics.complianceRate >= 80 && metrics.activeBreaches < 5) return 'green'
+    if (metrics.complianceRate >= 60 && metrics.activeBreaches <= 20) return 'amber'
+    return 'red'
+  }, [isLoading, metrics.complianceRate, metrics.activeBreaches, welfareAlertCount])
+
+  const SERVICE_TYPE_LABELS: Record<string, string> = {
+    freedom_camping: 'Freedom Camping',
+    guarding: 'Guarding',
+    parking: 'Parking',
+    noise: 'Noise Control',
+    patrol: 'Patrol',
+    alarm_response: 'Alarm Response',
+    ems: 'EMS',
+  }
 
   useEffect(() => {
     if (isError) {
@@ -838,91 +928,82 @@ export default function AdminPortal() {
 
   return (
     <AppLayout
-      title="Primary Operations Dashboard"
-      description={user?.role === 'master' ? 'BI command view across organisations' : 'BI command view for your organisation'}
+      title="Command Centre"
+      description={user?.role === 'master' ? 'All systems · All organisations' : `All systems · ${user?.full_name ?? user?.email ?? ''}`}
     >
-      {/* Filters anchored directly below the title */}
       <GlobalFilterRibbon />
 
       <div className="space-y-4">
-        <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-          <Card
-            className="bg-white dark:bg-gray-900 shadow-sm cursor-pointer hover:shadow-md transition-shadow"
-            onClick={() => navigate('/live-tracking')}
-          >
-            <CardContent className="pt-5 pb-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs text-muted-foreground uppercase tracking-wide">Active Officers</p>
-                  <p className="text-2xl font-bold">{isLoading ? '...' : ((data as any)?.activeOfficers ?? 0)}</p>
-                </div>
-                <UserCheck className="h-5 w-5 text-cyan-500" />
-              </div>
-            </CardContent>
-          </Card>
 
-          <Card className="bg-white dark:bg-gray-900 shadow-sm">
-            <CardContent className="pt-5 pb-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs text-muted-foreground uppercase tracking-wide">Checks Today</p>
-                  <p className="text-2xl font-bold">{isLoading ? '...' : ((data as any)?.checksToday ?? 0)}</p>
-                </div>
-                <ClipboardCheck className="h-5 w-5 text-blue-500" />
-              </div>
-            </CardContent>
-          </Card>
+        {/* ── RAG OPERATIONAL STATUS BANNER — Rapid Global / Lighthouse IO inspired ── */}
+        <div className={`flex items-center gap-3 rounded-xl border px-4 py-3 transition-colors ${
+          ragStatus === 'green' ? 'bg-emerald-50 dark:bg-emerald-950/20 border-emerald-300 dark:border-emerald-700'
+          : ragStatus === 'amber' ? 'bg-amber-50 dark:bg-amber-950/20 border-amber-300 dark:border-amber-700'
+          : ragStatus === 'red'   ? 'bg-red-50 dark:bg-red-950/20 border-red-300 dark:border-red-700'
+          : 'bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700'
+        }`}>
+          <div className={`h-3 w-3 rounded-full shrink-0 ${
+            ragStatus === 'green' ? 'bg-emerald-500'
+            : ragStatus === 'amber' ? 'bg-amber-500'
+            : ragStatus === 'red'   ? 'bg-red-500 animate-pulse'
+            : 'bg-gray-400'
+          }`} />
+          <div className="flex-1 min-w-0">
+            <span className={`text-sm font-semibold ${
+              ragStatus === 'green' ? 'text-emerald-800 dark:text-emerald-200'
+              : ragStatus === 'amber' ? 'text-amber-800 dark:text-amber-200'
+              : ragStatus === 'red'   ? 'text-red-800 dark:text-red-200'
+              : 'text-gray-700 dark:text-gray-300'
+            }`}>
+              {ragStatus === 'green' ? 'Operations Normal'
+              : ragStatus === 'amber' ? 'Attention Required'
+              : ragStatus === 'red'   ? 'Immediate Action Required'
+              : 'Loading operational status…'}
+            </span>
+            {!isLoading && (
+              <span className="text-xs text-muted-foreground ml-2">
+                {ragStatus === 'green' && `Compliance ${metrics.complianceRate}% · No critical issues`}
+                {ragStatus === 'amber' && `Compliance ${metrics.complianceRate}% · ${metrics.activeBreaches} active breaches — review required`}
+                {ragStatus === 'red'   && `${welfareAlertCount > 0 ? `${welfareAlertCount} welfare alert${welfareAlertCount > 1 ? 's' : ''} · ` : ''}Compliance ${metrics.complianceRate}% · ${metrics.activeBreaches} breaches`}
+              </span>
+            )}
+          </div>
+          {welfareAlertCount > 0 && (
+            <button
+              onClick={() => navigate('/officer-welfare')}
+              className="flex items-center gap-1.5 rounded-lg bg-red-600 hover:bg-red-700 text-white text-xs font-semibold px-3 py-1.5 transition-colors shrink-0"
+            >
+              <Heart className="h-3.5 w-3.5" />
+              {welfareAlertCount} Welfare Alert{welfareAlertCount > 1 ? 's' : ''}
+            </button>
+          )}
+        </div>
 
-          <Card
-            className="bg-white dark:bg-gray-900 shadow-sm cursor-pointer hover:shadow-md transition-shadow"
-            onClick={() => navigate('/infringements')}
-          >
-            <CardContent className="pt-5 pb-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs text-muted-foreground uppercase tracking-wide">Infringements Issued</p>
-                  <p className="text-2xl font-bold">{isLoading ? '...' : ((data as any)?.infringementsIssued ?? 0)}</p>
-                </div>
-                <Gavel className="h-5 w-5 text-red-500" />
+        {/* ── LIVE OPS STATUS BAR — 5 key real-time metrics ───────────────────────── */}
+        <section className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
+          {[
+            { label: 'Active Officers', value: (data as any)?.activeOfficers ?? 0, Icon: UserCheck, colorClass: 'text-cyan-700 dark:text-cyan-400', bgClass: 'bg-cyan-50 dark:bg-cyan-900/20 border-cyan-200 dark:border-cyan-800', path: '/live-tracking' },
+            { label: 'Checks Today', value: (data as any)?.checksToday ?? 0, Icon: ClipboardCheck, colorClass: 'text-blue-700 dark:text-blue-400', bgClass: 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800', path: null },
+            { label: 'Active Patrols', value: activePatrolCount, Icon: Navigation, colorClass: 'text-green-700 dark:text-green-400', bgClass: 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800', path: '/live-patrol' },
+            { label: 'Infringements Today', value: (data as any)?.infringementsIssued ?? 0, Icon: Gavel, colorClass: 'text-red-700 dark:text-red-400', bgClass: 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800', path: '/infringements' },
+            { label: 'Disputes Pending', value: (data as any)?.disputesPending ?? 0, Icon: FileWarning, colorClass: 'text-amber-700 dark:text-amber-400', bgClass: 'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800', path: '/disputes' },
+          ].map(({ label, value, Icon, colorClass, bgClass, path }) => (
+            <button
+              key={label}
+              onClick={() => path && navigate(path)}
+              disabled={!path}
+              className={`flex items-center gap-2.5 rounded-xl border px-3 py-2.5 text-left transition-all ${bgClass} ${path ? 'cursor-pointer hover:shadow-sm active:scale-[0.98]' : 'cursor-default'}`}
+            >
+              <Icon className={`h-4 w-4 shrink-0 ${colorClass}`} />
+              <div className="min-w-0">
+                <p className={`text-xl font-bold leading-tight ${colorClass}`}>{isLoading ? '—' : value}</p>
+                <p className="text-[11px] text-muted-foreground truncate">{label}</p>
               </div>
-            </CardContent>
-          </Card>
-
-          <Card className="bg-white dark:bg-gray-900 shadow-sm">
-            <CardContent className="pt-5 pb-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs text-muted-foreground uppercase tracking-wide">Disputes Pending</p>
-                  <p className="text-2xl font-bold">{isLoading ? '...' : ((data as any)?.disputesPending ?? 0)}</p>
-                </div>
-                <FileWarning className="h-5 w-5 text-amber-500" />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card
-            className="bg-white dark:bg-gray-900 shadow-sm cursor-pointer hover:shadow-md transition-shadow"
-            onClick={() => openDrilldown({
-              to: '/investigations',
-              metric: 'active_investigations',
-              period: periodLabel,
-              status: 'active',
-              label: 'Active Investigations',
-            })}
-          >
-            <CardContent className="pt-5 pb-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs text-muted-foreground uppercase tracking-wide">Active Investigations</p>
-                  <p className="text-2xl font-bold">{isLoading ? '...' : ((data as any)?.activeInvestigations ?? 0)}</p>
-                </div>
-                <Search className="h-5 w-5 text-indigo-500" />
-              </div>
-            </CardContent>
-          </Card>
+            </button>
+          ))}
         </section>
 
-        {/* ── STATUS: Primary KPIs — the "Big Three" ───────────────────────── */}
+        {/* ── PRIMARY KPIs — Big Three ──────────────────────────────────────────────── */}
         <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {primaryKPIs.map((kpi) => {
             const Icon = kpi.icon
@@ -946,43 +1027,295 @@ export default function AdminPortal() {
                   </div>
                 </CardHeader>
                 <CardContent className="pt-0 pb-3">
-                  {kpi.subtitle && (
-                    <p className="text-xs text-muted-foreground">{kpi.subtitle}</p>
-                  )}
+                  {kpi.subtitle && <p className="text-xs text-muted-foreground">{kpi.subtitle}</p>}
                 </CardContent>
               </Card>
             )
           })}
         </section>
 
-        {/* ── Secondary KPI summary row — reduced visual weight ──────────── */}
-        <section className="grid gap-3 grid-cols-3">
+        {/* ── SECONDARY KPIs — attention items ─────────────────────────────────────── */}
+        <section className="grid gap-2 grid-cols-2 sm:grid-cols-4 lg:grid-cols-7">
           {secondaryKPIs.map((kpi) => {
             const Icon = kpi.icon
             return (
               <button
                 key={kpi.title}
                 onClick={() => openDrilldown(kpi.config)}
-                className="flex items-center gap-3 rounded-lg border bg-white dark:bg-gray-900 px-4 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors shadow-sm"
+                className="flex items-center gap-2 rounded-lg border bg-white dark:bg-gray-900 px-3 py-2.5 text-left hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors shadow-sm"
               >
-                <Icon className={`h-4 w-4 shrink-0 ${kpi.iconColor}`} />
+                <Icon className={`h-3.5 w-3.5 shrink-0 ${kpi.iconColor}`} />
                 <div className="min-w-0">
-                  <p className="text-lg font-semibold text-gray-900 dark:text-white leading-tight">{kpi.value}</p>
-                  <p className="text-xs text-muted-foreground truncate">{kpi.title}</p>
+                  <p className="text-base font-semibold text-gray-900 dark:text-white leading-tight">{kpi.value}</p>
+                  <p className="text-[11px] text-muted-foreground truncate">{kpi.title}</p>
                 </div>
               </button>
             )
           })}
         </section>
 
-        {/* ── Diagnostics (only when errors present) ─────────────────────── */}
+        {/* ── TODAY'S ROSTER — Deputy / InTime Rostering inspired ──────────────────── */}
+        {todayRosterShifts.length > 0 && (
+          <section>
+            <Card className="bg-white dark:bg-gray-900 shadow-sm overflow-hidden">
+              <div className="h-1 w-full bg-gradient-to-r from-indigo-500 to-violet-600" />
+              <CardHeader className="pb-3 pt-4">
+                <CardTitle className="flex items-center justify-between text-base">
+                  <span className="flex items-center gap-2">
+                    <CalendarCheck2 className="h-4 w-4 text-indigo-600" />
+                    Today's Roster
+                    <Badge variant="secondary" className="text-xs ml-1">{format(new Date(), 'EEE d MMM')}</Badge>
+                  </span>
+                  <button
+                    onClick={() => navigate('/roster')}
+                    className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    Full Roster <ArrowRight className="h-3 w-3 ml-0.5" />
+                  </button>
+                </CardTitle>
+                <CardDescription className="text-xs">Officers rostered on for today — {todayRosterShifts.length} shift{todayRosterShifts.length > 1 ? 's' : ''} scheduled</CardDescription>
+              </CardHeader>
+              <CardContent className="pt-0">
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+                  {todayRosterShifts.map((shift: any) => {
+                    const officer = Array.isArray(shift.officer) ? (shift.officer.length > 0 ? shift.officer[0] : null) : shift.officer
+                    const officerName = officer ? `${officer.first_name ?? ''} ${officer.last_name ?? ''}`.trim() || 'Unassigned' : 'Unassigned'
+                    const startTime = shift.start_time ? shift.start_time.slice(0, 5) : '—'
+                    const endTime = shift.end_time ? shift.end_time.slice(0, 5) : '—'
+                    const serviceLabel = SERVICE_TYPE_LABELS[shift.service_type] ?? shift.position_title ?? 'Shift'
+                    const isActive = shift.status === 'in_progress'
+                    return (
+                      <div
+                        key={shift.id}
+                        className={`rounded-lg border p-2.5 text-sm ${
+                          isActive
+                            ? 'border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-950/20'
+                            : 'border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/40'
+                        }`}
+                      >
+                        <div className="flex items-center gap-1.5 mb-1">
+                          {isActive && <span className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse shrink-0" />}
+                          <span className="font-medium text-xs truncate">{officerName}</span>
+                        </div>
+                        <p className="text-[11px] text-muted-foreground">{startTime} – {endTime}</p>
+                        <p className="text-[11px] text-muted-foreground truncate">{serviceLabel}</p>
+                      </div>
+                    )
+                  })}
+                </div>
+              </CardContent>
+            </Card>
+          </section>
+        )}
+
+        {/* ── ALL SYSTEMS HUB — integrated navigation grid ─────────────────────────── */}
+        <section>
+          <Card className="bg-white dark:bg-gray-900 shadow-sm overflow-hidden">
+            <div className="h-1 w-full bg-gradient-to-r from-slate-400 to-slate-600" />
+            <CardHeader className="pb-3 pt-4">
+              <CardTitle className="flex items-center gap-2 text-sm font-semibold">
+                <LayoutGrid className="h-4 w-4 text-gray-500" />
+                All Systems
+              </CardTitle>
+              <CardDescription className="text-xs">Every operational module — click any tile to navigate</CardDescription>
+            </CardHeader>
+            <CardContent className="pt-0 space-y-5">
+
+              {/* Compliance & Enforcement */}
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-1.5">
+                  <BarChart3 className="h-3 w-3 text-blue-500" /> Compliance & Enforcement
+                </p>
+                <div className="grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-6 gap-2">
+                  {[
+                    { path: '/compliance',                 label: 'Compliance',       Icon: BarChart3,     color: 'text-blue-600',   bg: 'bg-blue-50 dark:bg-blue-900/20' },
+                    { path: '/breaches',                   label: 'Breaches',         Icon: AlertTriangle, color: 'text-red-600',    bg: 'bg-red-50 dark:bg-red-900/20',    badge: metrics.activeBreaches > 0 ? metrics.activeBreaches : undefined },
+                    { path: '/enforcement-command-center', label: 'Command Centre',   Icon: Gavel,         color: 'text-indigo-600', bg: 'bg-indigo-50 dark:bg-indigo-900/20' },
+                    { path: '/enforcement-review',         label: 'Review',           Icon: ClipboardCheck,color: 'text-teal-600',   bg: 'bg-teal-50 dark:bg-teal-900/20' },
+                    { path: '/disputes',                   label: 'Disputes',         Icon: FileWarning,   color: 'text-amber-600',  bg: 'bg-amber-50 dark:bg-amber-900/20', badge: (data as any)?.openDisputeIntake > 0 ? (data as any)?.openDisputeIntake : undefined },
+                    { path: '/infringements',              label: 'Infringements',    Icon: Receipt,       color: 'text-orange-600', bg: 'bg-orange-50 dark:bg-orange-900/20' },
+                    { path: '/breach-notices',             label: 'Breach Notices',   Icon: ScrollText,    color: 'text-rose-600',   bg: 'bg-rose-50 dark:bg-rose-900/20' },
+                    { path: '/notice-to-vacate',           label: 'Notice to Vacate', Icon: FileText,      color: 'text-purple-600', bg: 'bg-purple-50 dark:bg-purple-900/20' },
+                    { path: '/compliance-analytics',       label: 'Analytics',        Icon: PieChart,      color: 'text-violet-600', bg: 'bg-violet-50 dark:bg-violet-900/20' },
+                    { path: '/spatial-compliance',         label: 'Spatial',          Icon: Map,           color: 'text-cyan-600',   bg: 'bg-cyan-50 dark:bg-cyan-900/20' },
+                  ].map(({ path, label, Icon, color, bg, badge }) => (
+                    <button key={path} onClick={() => navigate(path)}
+                      className={`relative flex flex-col items-center gap-1.5 rounded-lg border p-2.5 text-center ${bg} border-transparent hover:border-gray-200 dark:hover:border-gray-700 hover:shadow-sm transition-all`}
+                    >
+                      {badge !== undefined && (
+                        <span className="absolute top-1 right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[9px] font-bold text-white">{badge > 99 ? '99+' : badge}</span>
+                      )}
+                      <Icon className={`h-5 w-5 ${color}`} />
+                      <span className="text-[11px] font-medium text-gray-700 dark:text-gray-300 leading-tight">{label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Patrol & Officers */}
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-1.5">
+                  <Navigation className="h-3 w-3 text-green-500" /> Patrol & Officers
+                </p>
+                <div className="grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-6 gap-2">
+                  {[
+                    { path: '/live-patrol',        label: 'Live Patrol',     Icon: Activity,      color: 'text-green-600',  bg: 'bg-green-50 dark:bg-green-900/20',   badge: activePatrolCount > 0 ? activePatrolCount : undefined },
+                    { path: '/live-tracking',      label: 'Officer Tracking',Icon: Navigation,    color: 'text-cyan-600',   bg: 'bg-cyan-50 dark:bg-cyan-900/20',     badge: (data as any)?.activeOfficers > 0 ? (data as any)?.activeOfficers : undefined },
+                    { path: '/officer-welfare',    label: 'Welfare',         Icon: Heart,         color: 'text-pink-600',   bg: 'bg-pink-50 dark:bg-pink-900/20',     badge: welfareAlertCount > 0 ? welfareAlertCount : undefined },
+                    { path: '/patrol-schedule',    label: 'Schedule',        Icon: CalendarDays,  color: 'text-blue-600',   bg: 'bg-blue-50 dark:bg-blue-900/20' },
+                    { path: '/patrol-kpis',        label: 'Patrol KPIs',     Icon: TrendingUp,    color: 'text-indigo-600', bg: 'bg-indigo-50 dark:bg-indigo-900/20' },
+                    { path: '/patrol-checkpoints', label: 'Checkpoints',     Icon: ScanLine,      color: 'text-teal-600',   bg: 'bg-teal-50 dark:bg-teal-900/20' },
+                  ].map(({ path, label, Icon, color, bg, badge }) => (
+                    <button key={path} onClick={() => navigate(path)}
+                      className={`relative flex flex-col items-center gap-1.5 rounded-lg border p-2.5 text-center ${bg} border-transparent hover:border-gray-200 dark:hover:border-gray-700 hover:shadow-sm transition-all`}
+                    >
+                      {badge !== undefined && (
+                        <span className={`absolute top-1 right-1 flex h-4 w-4 items-center justify-center rounded-full ${path === '/officer-welfare' ? 'bg-red-500' : 'bg-green-500'} text-[9px] font-bold text-white`}>{badge > 99 ? '99+' : badge}</span>
+                      )}
+                      <Icon className={`h-5 w-5 ${color}`} />
+                      <span className="text-[11px] font-medium text-gray-700 dark:text-gray-300 leading-tight">{label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Vehicles & Zones */}
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-1.5">
+                  <Car className="h-3 w-3 text-slate-500" /> Vehicles & Zones
+                </p>
+                <div className="grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-6 gap-2">
+                  {[
+                    { path: '/vehicles',               label: 'Vehicles',          Icon: Car,           color: 'text-slate-600',  bg: 'bg-slate-50 dark:bg-slate-900/30' },
+                    { path: '/vehicle-registry',       label: 'Registry',          Icon: Database,      color: 'text-gray-600',   bg: 'bg-gray-100 dark:bg-gray-800/30' },
+                    { path: '/zones',                  label: 'Zones',             Icon: MapPin,        color: 'text-green-600',  bg: 'bg-green-50 dark:bg-green-900/20' },
+                    { path: '/hotspots',               label: 'Hotspots',          Icon: Map,           color: 'text-red-600',    bg: 'bg-red-50 dark:bg-red-900/20' },
+                    { path: '/admin/nzscv',            label: 'NZSCV Monitor',     Icon: Shield,        color: 'text-blue-600',   bg: 'bg-blue-50 dark:bg-blue-900/20', badge: (data as any)?.scvExpiringSoon > 0 ? (data as any)?.scvExpiringSoon : undefined },
+                    { path: '/admin/discrepancies',    label: 'Discrepancies',     Icon: AlertTriangle, color: 'text-amber-600',  bg: 'bg-amber-50 dark:bg-amber-900/20', badge: (data as any)?.discrepanciesPending > 0 ? (data as any)?.discrepanciesPending : undefined },
+                    { path: '/admin/canonical-records',label: 'Canonical Records', Icon: Database,      color: 'text-purple-600', bg: 'bg-purple-50 dark:bg-purple-900/20' },
+                  ].map(({ path, label, Icon, color, bg, badge }) => (
+                    <button key={path} onClick={() => navigate(path)}
+                      className={`relative flex flex-col items-center gap-1.5 rounded-lg border p-2.5 text-center ${bg} border-transparent hover:border-gray-200 dark:hover:border-gray-700 hover:shadow-sm transition-all`}
+                    >
+                      {badge !== undefined && (
+                        <span className="absolute top-1 right-1 flex h-4 w-4 items-center justify-center rounded-full bg-amber-500 text-[9px] font-bold text-white">{badge > 99 ? '99+' : badge}</span>
+                      )}
+                      <Icon className={`h-5 w-5 ${color}`} />
+                      <span className="text-[11px] font-medium text-gray-700 dark:text-gray-300 leading-tight">{label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* People & Records */}
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-1.5">
+                  <Users className="h-3 w-3 text-orange-500" /> People & Records
+                </p>
+                <div className="grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-6 gap-2">
+                  {[
+                    { path: '/person-records',      label: 'Person Records',    Icon: Users,         color: 'text-orange-600', bg: 'bg-orange-50 dark:bg-orange-900/20' },
+                    { path: '/face-recognition',    label: 'Face Recognition',  Icon: Camera,        color: 'text-teal-600',   bg: 'bg-teal-50 dark:bg-teal-900/20' },
+                    { path: '/points-of-interest',  label: 'Points of Interest',Icon: Ban,           color: 'text-red-600',    bg: 'bg-red-50 dark:bg-red-900/20' },
+                    { path: '/incidents',           label: 'Incidents',         Icon: Shield,        color: 'text-slate-600',  bg: 'bg-slate-50 dark:bg-slate-900/30' },
+                    { path: '/investigations',      label: 'Investigations',    Icon: Search,        color: 'text-indigo-600', bg: 'bg-indigo-50 dark:bg-indigo-900/20', badge: (data as any)?.activeInvestigations > 0 ? (data as any)?.activeInvestigations : undefined },
+                    { path: '/observation-records', label: 'Observations',      Icon: Eye,           color: 'text-blue-600',   bg: 'bg-blue-50 dark:bg-blue-900/20' },
+                    { path: '/site-risk-assessment',label: 'Risk Assessment',   Icon: ClipboardCheck,color: 'text-amber-600',  bg: 'bg-amber-50 dark:bg-amber-900/20' },
+                  ].map(({ path, label, Icon, color, bg, badge }) => (
+                    <button key={path} onClick={() => navigate(path)}
+                      className={`relative flex flex-col items-center gap-1.5 rounded-lg border p-2.5 text-center ${bg} border-transparent hover:border-gray-200 dark:hover:border-gray-700 hover:shadow-sm transition-all`}
+                    >
+                      {badge !== undefined && (
+                        <span className="absolute top-1 right-1 flex h-4 w-4 items-center justify-center rounded-full bg-indigo-500 text-[9px] font-bold text-white">{badge}</span>
+                      )}
+                      <Icon className={`h-5 w-5 ${color}`} />
+                      <span className="text-[11px] font-medium text-gray-700 dark:text-gray-300 leading-tight">{label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Specialist Services */}
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-1.5">
+                  <Lock className="h-3 w-3 text-teal-500" /> Specialist Services
+                </p>
+                <div className="grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-6 gap-2">
+                  {[
+                    { path: '/parking',      label: 'Parking',      Icon: ParkingSquare, color: 'text-orange-600', bg: 'bg-orange-50 dark:bg-orange-900/20' },
+                    { path: '/noise-control',label: 'Noise Control', Icon: Volume2,       color: 'text-yellow-700', bg: 'bg-yellow-50 dark:bg-yellow-900/20' },
+                    { path: '/ems',          label: 'EMS',           Icon: Zap,           color: 'text-red-700',    bg: 'bg-red-50 dark:bg-red-900/20' },
+                    { path: '/site-guard',   label: 'Site Guard',    Icon: Lock,          color: 'text-teal-600',   bg: 'bg-teal-50 dark:bg-teal-900/20' },
+                    { path: '/client-sites', label: 'Client Sites',  Icon: Building2,     color: 'text-purple-600', bg: 'bg-purple-50 dark:bg-purple-900/20' },
+                    { path: '/dispatch',     label: 'Dispatch',      Icon: Radio,         color: 'text-cyan-600',   bg: 'bg-cyan-50 dark:bg-cyan-900/20' },
+                  ].map(({ path, label, Icon, color, bg }) => (
+                    <button key={path} onClick={() => navigate(path)}
+                      className={`flex flex-col items-center gap-1.5 rounded-lg border p-2.5 text-center ${bg} border-transparent hover:border-gray-200 dark:hover:border-gray-700 hover:shadow-sm transition-all`}
+                    >
+                      <Icon className={`h-5 w-5 ${color}`} />
+                      <span className="text-[11px] font-medium text-gray-700 dark:text-gray-300 leading-tight">{label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Workforce */}
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-1.5">
+                  <CalendarDays className="h-3 w-3 text-violet-500" /> Workforce
+                </p>
+                <div className="grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-6 gap-2">
+                  {[
+                    { path: '/roster',        label: 'Roster Planner',   Icon: CalendarDays,  color: 'text-violet-600', bg: 'bg-violet-50 dark:bg-violet-900/20' },
+                    { path: '/timesheets',    label: 'Timesheets',       Icon: Clock,         color: 'text-slate-600',  bg: 'bg-slate-50 dark:bg-slate-900/30' },
+                    { path: '/open-shifts',   label: 'Open Shifts',      Icon: CalendarCheck2,color: 'text-green-600',  bg: 'bg-green-50 dark:bg-green-900/20' },
+                    { path: '/officer-skills',label: 'Skills & Licences',Icon: GraduationCap, color: 'text-amber-600',  bg: 'bg-amber-50 dark:bg-amber-900/20' },
+                    { path: '/availability',  label: 'Availability',     Icon: CalendarDays,  color: 'text-blue-600',   bg: 'bg-blue-50 dark:bg-blue-900/20' },
+                  ].map(({ path, label, Icon, color, bg }) => (
+                    <button key={path} onClick={() => navigate(path)}
+                      className={`flex flex-col items-center gap-1.5 rounded-lg border p-2.5 text-center ${bg} border-transparent hover:border-gray-200 dark:hover:border-gray-700 hover:shadow-sm transition-all`}
+                    >
+                      <Icon className={`h-5 w-5 ${color}`} />
+                      <span className="text-[11px] font-medium text-gray-700 dark:text-gray-300 leading-tight">{label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Reports & Analytics */}
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground mb-2 flex items-center gap-1.5">
+                  <FileBarChart className="h-3 w-3 text-gray-500" /> Reports & Analytics
+                </p>
+                <div className="grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-6 gap-2">
+                  {[
+                    { path: '/reports-hub',         label: 'Reports Hub',         Icon: FileBarChart,  color: 'text-gray-600',   bg: 'bg-gray-100 dark:bg-gray-800/30' },
+                    { path: '/ai-analysis',          label: 'AI Analysis',         Icon: Sparkles,      color: 'text-violet-600', bg: 'bg-violet-50 dark:bg-violet-900/20' },
+                    { path: '/compliance-analytics', label: 'Compliance Analytics',Icon: PieChart,      color: 'text-blue-600',   bg: 'bg-blue-50 dark:bg-blue-900/20' },
+                    { path: '/observations-report',  label: 'Obs. Report',         Icon: LayoutGrid,    color: 'text-indigo-600', bg: 'bg-indigo-50 dark:bg-indigo-900/20' },
+                    { path: '/audit-log',            label: 'Audit Log',           Icon: ScrollText,    color: 'text-gray-600',   bg: 'bg-gray-100 dark:bg-gray-800/30' },
+                    { path: '/users',                label: 'Users',               Icon: Users,         color: 'text-slate-600',  bg: 'bg-slate-50 dark:bg-slate-900/30' },
+                  ].map(({ path, label, Icon, color, bg }) => (
+                    <button key={path} onClick={() => navigate(path)}
+                      className={`flex flex-col items-center gap-1.5 rounded-lg border p-2.5 text-center ${bg} border-transparent hover:border-gray-200 dark:hover:border-gray-700 hover:shadow-sm transition-all`}
+                    >
+                      <Icon className={`h-5 w-5 ${color}`} />
+                      <span className="text-[11px] font-medium text-gray-700 dark:text-gray-300 leading-tight">{label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+            </CardContent>
+          </Card>
+        </section>
+
+        {/* ── Diagnostics ───────────────────────────────────────────────────────────── */}
         {Array.isArray((data as any)?.diagnostics) && (data as any).diagnostics.length > 0 && (
           <Card className="border-amber-300 bg-amber-50/60 dark:border-amber-800 dark:bg-amber-950/20">
             <CardHeader className="pb-2">
               <CardTitle className="text-sm">Dashboard Data Diagnostics</CardTitle>
-              <CardDescription>
-                Some KPI queries failed and may show partial/zero values.
-              </CardDescription>
+              <CardDescription>Some KPI queries failed and may show partial/zero values.</CardDescription>
             </CardHeader>
             <CardContent className="pt-0 text-xs text-amber-900 dark:text-amber-200 space-y-1">
               {(data as any).diagnostics.map((d: string, idx: number) => (
@@ -992,16 +1325,13 @@ export default function AdminPortal() {
           </Card>
         )}
 
-        {/* ── ANALYSIS: Hero chart + Urgent Actions feed ─────────────────── */}
+        {/* ── COMPLIANCE TREND CHART + QUICK ACTIONS ───────────────────────────────── */}
         <section className="grid gap-4 xl:grid-cols-[1fr_320px]">
-          {/* Hero: Compliance Performance chart */}
           <ComplianceTrendChart
             data={metrics.trendData}
             title="Compliance Performance"
             description="Rolling compliance vs breach signal for current filter scope"
           />
-
-          {/* Pulse: Urgent actions / quick navigation */}
           <Card className="bg-white dark:bg-gray-900 shadow-sm">
             <CardHeader className="pb-3">
               <CardTitle className="flex items-center gap-2 text-base">
@@ -1011,7 +1341,7 @@ export default function AdminPortal() {
               <CardDescription className="text-xs">Jump into key operational workflows.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-1.5 pt-0">
-              {drilldowns.slice(0, 5).map(({ title, to, icon: Icon, metric, config }) => (
+              {drilldowns.map(({ title, to, icon: Icon, metric, config }) => (
                 <button
                   key={to}
                   className="flex w-full items-center justify-between rounded-lg border bg-gray-50 dark:bg-gray-800 px-3 py-2.5 text-left hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors group"
@@ -1022,27 +1352,7 @@ export default function AdminPortal() {
                     <span className="text-sm font-medium truncate">{title}</span>
                   </span>
                   <span className="flex items-center gap-1.5 shrink-0">
-                    <Badge variant="secondary" className="text-[10px] py-0 px-1.5 hidden group-hover:inline-flex">
-                      {metric}
-                    </Badge>
-                    <ArrowRight className="h-3.5 w-3.5 text-muted-foreground" />
-                  </span>
-                </button>
-              ))}
-              {drilldowns.length > 5 && drilldowns.slice(5).map(({ title, to, icon: Icon, metric, config }) => (
-                <button
-                  key={to}
-                  className="flex w-full items-center justify-between rounded-lg border bg-gray-50 dark:bg-gray-800 px-3 py-2.5 text-left hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors group"
-                  onClick={() => openDrilldown(config)}
-                >
-                  <span className="flex items-center gap-2 min-w-0">
-                    <Icon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                    <span className="text-sm font-medium truncate">{title}</span>
-                  </span>
-                  <span className="flex items-center gap-1.5 shrink-0">
-                    <Badge variant="secondary" className="text-[10px] py-0 px-1.5 hidden group-hover:inline-flex">
-                      {metric}
-                    </Badge>
+                    <Badge variant="secondary" className="text-[10px] py-0 px-1.5 hidden group-hover:inline-flex">{metric}</Badge>
                     <ArrowRight className="h-3.5 w-3.5 text-muted-foreground" />
                   </span>
                 </button>
@@ -1051,106 +1361,35 @@ export default function AdminPortal() {
           </Card>
         </section>
 
+        {/* ── RECENT OBSERVATIONS ──────────────────────────────────────────────────── */}
         <section>
           <Card className="bg-white dark:bg-gray-900 shadow-sm">
             <CardHeader className="pb-3">
-              <CardTitle className="text-base">Historical Observations</CardTitle>
-              <CardDescription className="text-xs">
-                Print a ticket from prior observations in current filter scope.
-              </CardDescription>
+              <CardTitle className="flex items-center justify-between text-base">
+                <span>Recent Observations</span>
+                <Button variant="ghost" size="sm" className="h-7 text-xs gap-1" onClick={() => navigate('/observation-records')}>
+                  View all <ArrowRight className="h-3 w-3" />
+                </Button>
+              </CardTitle>
+              <CardDescription className="text-xs">Latest scans — click Print Ticket to issue an infringement from any observation.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-2 pt-0">
               {recentHistoricalObservations.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No historical observations found.</p>
+                <p className="text-sm text-muted-foreground">No recent observations found.</p>
               ) : recentHistoricalObservations.map((obs: any) => (
-                <div
-                  key={obs.observation_id}
-                  className="flex items-center justify-between gap-3 rounded-lg border bg-gray-50 dark:bg-gray-800 px-3 py-2"
-                >
+                <div key={obs.observation_id} className="flex items-center justify-between gap-3 rounded-lg border bg-gray-50 dark:bg-gray-800 px-3 py-2">
                   <div className="min-w-0">
                     <p className="font-mono text-sm font-semibold truncate">{obs.plate_number || 'UNKNOWN'}</p>
                     <p className="text-xs text-muted-foreground truncate">
                       {obs?.zone?.name || 'Unknown zone'} · {new Date(obs.recorded_at).toLocaleString('en-NZ')}
                     </p>
                   </div>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="gap-1.5 shrink-0"
-                    onClick={() => openInfringementFromObservation(obs.observation_id)}
-                  >
+                  <Button size="sm" variant="outline" className="gap-1.5 shrink-0" onClick={() => openInfringementFromObservation(obs.observation_id)}>
                     <Printer className="h-3.5 w-3.5" />
                     Print Ticket
                   </Button>
                 </div>
               ))}
-            </CardContent>
-          </Card>
-        </section>
-        {/* ── Specialist Portals ─────────────────────────────────────────── */}
-        <section>
-          <Card className="bg-white dark:bg-gray-900 shadow-sm">
-            <CardHeader className="pb-3">
-              <CardTitle className="flex items-center gap-2 text-base">
-                <Shield className="h-4 w-4 text-indigo-600" />
-                Specialist Enforcement Portals
-              </CardTitle>
-              <CardDescription className="text-xs">
-                Open dedicated admin portals for parking and noise control enforcement.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="grid gap-2 sm:grid-cols-2 pt-0">
-              <button
-                className="flex items-center gap-3 rounded-lg border bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-800 px-4 py-3 text-left hover:bg-orange-100 dark:hover:bg-orange-900/40 transition-colors group"
-                onClick={() => navigate('/parking')}
-              >
-                <ParkingSquare className="h-5 w-5 text-orange-600 shrink-0" />
-                <div className="min-w-0">
-                  <p className="text-sm font-semibold text-orange-900 dark:text-orange-100">Parking Enforcement</p>
-                  <p className="text-xs text-orange-600 dark:text-orange-400 truncate">Sessions · Infringements · Permits</p>
-                </div>
-                <ArrowRight className="h-4 w-4 text-orange-400 ml-auto shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
-              </button>
-              <button
-                className="flex items-center gap-3 rounded-lg border bg-yellow-50 dark:bg-yellow-900/20 border-yellow-200 dark:border-yellow-800 px-4 py-3 text-left hover:bg-yellow-100 dark:hover:bg-yellow-900/40 transition-colors group"
-                onClick={() => navigate('/noise-control')}
-              >
-                <Volume2 className="h-5 w-5 text-yellow-700 shrink-0" />
-                <div className="min-w-0">
-                  <p className="text-sm font-semibold text-yellow-900 dark:text-yellow-100">Noise Control</p>
-                  <p className="text-xs text-yellow-700 dark:text-yellow-400 truncate">Jobs · AN / DN / END · Seizures</p>
-                </div>
-                <ArrowRight className="h-4 w-4 text-yellow-500 ml-auto shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
-              </button>
-            </CardContent>
-          </Card>
-        </section>
-
-        {/* ── AI ─────────────────────────────────────────────────────────────── */}
-        <section>
-          <Card className="bg-white dark:bg-gray-900 shadow-sm overflow-hidden">
-            <div className="h-1 w-full bg-gradient-to-r from-violet-500 to-indigo-600" />
-            <CardHeader className="pb-3 pt-4">
-              <CardTitle className="flex items-center gap-2 text-base">
-                <Sparkles className="h-4 w-4 text-violet-600" />
-                AI
-              </CardTitle>
-              <p className="text-xs text-muted-foreground">
-                AI-powered analysis, legislation guidance and operational advice — uses your own AI backend.
-              </p>
-            </CardHeader>
-            <CardContent className="pt-0">
-              <button
-                className="flex w-full items-center gap-3 rounded-lg border bg-violet-50 dark:bg-violet-900/20 border-violet-200 dark:border-violet-800 px-4 py-3 text-left hover:bg-violet-100 dark:hover:bg-violet-900/40 transition-colors group"
-                onClick={() => navigate('/ai-analysis')}
-              >
-                <Sparkles className="h-5 w-5 text-violet-600 shrink-0" />
-                <div className="min-w-0">
-                  <p className="text-sm font-semibold text-violet-900 dark:text-violet-100">Open AI Assistant</p>
-                  <p className="text-xs text-violet-600 dark:text-violet-400 truncate">Compliance · Enforcement · Legislation · Reports</p>
-                </div>
-                <ArrowRight className="h-4 w-4 text-violet-400 ml-auto shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
-              </button>
             </CardContent>
           </Card>
         </section>

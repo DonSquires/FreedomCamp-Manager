@@ -108,196 +108,150 @@ export default function PortalSelection() {
   // admin_officer — show the chooser
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-950 to-slate-900 flex items-center justify-center p-4">
-      <div className="w-full max-w-md space-y-4">
+      <div className="w-full max-w-2xl space-y-5">
+
         {/* Logo / greeting */}
-        <div className="text-center text-white mb-6">
-          <h1 className="text-3xl font-bold">FreedomCamp Manager</h1>
-          <p className="text-blue-300 mt-1">
-            Welcome back, {user?.full_name || user?.email}
-          </p>
-          <p className="text-sm text-blue-400 mt-0.5">Select your portal to continue</p>
+        <div className="flex items-center gap-4 text-white">
+          <img
+            src="/iron-eagle-security-logo.jpg"
+            alt="Iron Eagle Security"
+            className="h-12 w-12 rounded-xl object-cover shadow-md shrink-0"
+          />
+          <div>
+            <h1 className="text-2xl font-bold leading-tight">FreedomCamp Manager</h1>
+            <p className="text-blue-300 text-sm">
+              Welcome back, {user?.full_name || user?.email}
+            </p>
+            <p className="text-xs text-blue-400 mt-0.5">Select your portal to continue</p>
+          </div>
         </div>
 
         {/* Roster banner */}
         {rosterBanner}
 
-        {/* Admin portal */}
-        <Card
-          className="cursor-pointer hover:shadow-xl transition-all hover:scale-[1.02] border-blue-500/30 bg-white/5 backdrop-blur"
-          onClick={() => selectPortal('/admin')}
-        >
-          <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-3 text-white">
-              <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center">
-                <Shield className="h-5 w-5 text-white" />
-              </div>
-              Admin Portal
-            </CardTitle>
-            <CardDescription className="text-blue-200">
-              Compliance dashboards, enforcement management, reports and data tools
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button className="w-full bg-blue-600 hover:bg-blue-700 text-white">
-              Open Admin Portal
-              <ChevronRight className="h-4 w-4 ml-2" />
-            </Button>
-          </CardContent>
-        </Card>
+        {/* 2-column portal grid */}
+        <div className="grid grid-cols-2 gap-3">
 
-        {/* Field officer portal */}
-        <Card
-          className="cursor-pointer hover:shadow-xl transition-all hover:scale-[1.02] border-green-500/30 bg-white/5 backdrop-blur"
-          onClick={() => selectPortal('/field-officer')}
-        >
-          <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-3 text-white">
-              <div className="w-10 h-10 rounded-full bg-green-600 flex items-center justify-center">
-                <Radio className="h-5 w-5 text-white" />
-              </div>
-              Field Officer Portal
-            </CardTitle>
-            <CardDescription className="text-green-200">
-              Vehicle scanning, patrol management and real-time compliance checking
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button className="w-full bg-green-600 hover:bg-green-700 text-white">
-              Open Field Portal
-              <ChevronRight className="h-4 w-4 ml-2" />
-            </Button>
-          </CardContent>
-        </Card>
+          {/* Admin */}
+          <div
+            className="flex items-center gap-3 rounded-xl border border-blue-500/30 bg-white/5 backdrop-blur px-4 py-3 cursor-pointer hover:bg-white/10 hover:border-blue-400/50 transition-all group"
+            onClick={() => selectPortal('/admin')}
+          >
+            <div className="w-10 h-10 rounded-full bg-blue-600 flex items-center justify-center shrink-0">
+              <Shield className="h-5 w-5 text-white" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold text-white leading-tight">Admin Portal</p>
+              <p className="text-xs text-blue-300 truncate">Compliance, enforcement & reports</p>
+            </div>
+            <span className="text-xs text-blue-400 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">Open →</span>
+          </div>
 
-        {/* Site Guard portal */}
-        <Card
-          className="cursor-pointer hover:shadow-xl transition-all hover:scale-[1.02] border-teal-500/30 bg-white/5 backdrop-blur"
-          onClick={() => {
-            if (rosteredShift?.service_type === 'guarding' && rosteredShift.client_site_id) {
-              navigate(`/site-guard?site=${rosteredShift.client_site_id}&roster=${rosteredShift.id}`)
-            } else {
-              navigate('/site-guard')
-            }
-          }}
-        >
-          <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-3 text-white">
-              <div className="w-10 h-10 rounded-full bg-teal-600 flex items-center justify-center">
-                <Lock className="h-5 w-5 text-white" />
-              </div>
-              Site Guard Portal
-              {rosteredShift?.service_type === 'guarding' && (
-                <Badge className="ml-auto bg-green-600 text-white text-xs">Rostered</Badge>
-              )}
-            </CardTitle>
-            <CardDescription className="text-teal-200">
-              Static guard dashboard — site POI, incident reports, police and camera review
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button className="w-full bg-teal-600 hover:bg-teal-700 text-white">
-              Open Site Guard Portal
-              <ChevronRight className="h-4 w-4 ml-2" />
-            </Button>
-          </CardContent>
-        </Card>
+          {/* Field Officer */}
+          <div
+            className="flex items-center gap-3 rounded-xl border border-green-500/30 bg-white/5 backdrop-blur px-4 py-3 cursor-pointer hover:bg-white/10 hover:border-green-400/50 transition-all group"
+            onClick={() => selectPortal('/field-officer')}
+          >
+            <div className="w-10 h-10 rounded-full bg-green-600 flex items-center justify-center shrink-0">
+              <Radio className="h-5 w-5 text-white" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold text-white leading-tight">Field Officer</p>
+              <p className="text-xs text-green-300 truncate">Scanning, patrol & compliance</p>
+            </div>
+            <span className="text-xs text-green-400 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">Open →</span>
+          </div>
 
-        {/* Parking officer portal */}
-        <Card
-          className="cursor-pointer hover:shadow-xl transition-all hover:scale-[1.02] border-orange-500/30 bg-white/5 backdrop-blur"
-          onClick={() => navigate('/parking-officer')}
-        >
-          <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-3 text-white">
-              <div className="w-10 h-10 rounded-full bg-orange-600 flex items-center justify-center">
-                <ParkingSquare className="h-5 w-5 text-white" />
-              </div>
-              Parking Enforcement
-            </CardTitle>
-            <CardDescription className="text-orange-200">
-              TicketOr2-style chalk pass, recheck, permit check and infringement issuance
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button className="w-full bg-orange-600 hover:bg-orange-700 text-white">
-              Open Parking Portal
-              <ChevronRight className="h-4 w-4 ml-2" />
-            </Button>
-          </CardContent>
-        </Card>
+          {/* Site Guard */}
+          <div
+            className="flex items-center gap-3 rounded-xl border border-teal-500/30 bg-white/5 backdrop-blur px-4 py-3 cursor-pointer hover:bg-white/10 hover:border-teal-400/50 transition-all group"
+            onClick={() => {
+              if (rosteredShift?.service_type === 'guarding' && rosteredShift.client_site_id) {
+                navigate(`/site-guard?site=${rosteredShift.client_site_id}&roster=${rosteredShift.id}`)
+              } else {
+                navigate('/site-guard')
+              }
+            }}
+          >
+            <div className="w-10 h-10 rounded-full bg-teal-600 flex items-center justify-center shrink-0">
+              <Lock className="h-5 w-5 text-white" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold text-white leading-tight flex items-center gap-1.5">
+                Site Guard
+                {rosteredShift?.service_type === 'guarding' && (
+                  <Badge className="bg-green-600 text-white text-[10px] py-0 px-1.5">Rostered</Badge>
+                )}
+              </p>
+              <p className="text-xs text-teal-300 truncate">POI, incidents & camera review</p>
+            </div>
+            <span className="text-xs text-teal-400 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">Open →</span>
+          </div>
 
-        {/* Noise control officer portal */}
-        <Card
-          className="cursor-pointer hover:shadow-xl transition-all hover:scale-[1.02] border-yellow-500/30 bg-white/5 backdrop-blur"
-          onClick={() => navigate('/noise-officer')}
-        >
-          <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-3 text-white">
-              <div className="w-10 h-10 rounded-full bg-yellow-600 flex items-center justify-center">
-                <Volume2 className="h-5 w-5 text-white" />
-              </div>
-              Noise Control
-            </CardTitle>
-            <CardDescription className="text-yellow-200">
-              NZ RMA noise assessments, AN / DN / END notices and equipment seizures
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button className="w-full bg-yellow-600 hover:bg-yellow-700 text-white">
-              Open Noise Control Portal
-              <ChevronRight className="h-4 w-4 ml-2" />
-            </Button>
-          </CardContent>
-        </Card>
+          {/* Parking */}
+          <div
+            className="flex items-center gap-3 rounded-xl border border-orange-500/30 bg-white/5 backdrop-blur px-4 py-3 cursor-pointer hover:bg-white/10 hover:border-orange-400/50 transition-all group"
+            onClick={() => navigate('/parking-officer')}
+          >
+            <div className="w-10 h-10 rounded-full bg-orange-600 flex items-center justify-center shrink-0">
+              <ParkingSquare className="h-5 w-5 text-white" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold text-white leading-tight">Parking Enforcement</p>
+              <p className="text-xs text-orange-300 truncate">Chalk pass, permit check & notices</p>
+            </div>
+            <span className="text-xs text-orange-400 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">Open →</span>
+          </div>
 
-        {/* EMS portal */}
-        <Card
-          className="cursor-pointer hover:shadow-xl transition-all hover:scale-[1.02] border-red-500/30 bg-white/5 backdrop-blur"
-          onClick={() => navigate('/ems')}
-        >
-          <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-3 text-white">
-              <div className="w-10 h-10 rounded-full bg-red-700 flex items-center justify-center">
-                <Zap className="h-5 w-5 text-white" />
-              </div>
-              EMS
-              <Badge variant="outline" className="text-xs border-red-400 text-red-300 ml-1">Electronic Monitoring</Badge>
-            </CardTitle>
-            <CardDescription className="text-red-200">
-              Electronic Monitoring Services — device fit, removal, checks and escort
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button className="w-full bg-red-700 hover:bg-red-800 text-white">
-              Open EMS Portal
-              <ChevronRight className="h-4 w-4 ml-2" />
-            </Button>
-          </CardContent>
-        </Card>
+          {/* Noise Control */}
+          <div
+            className="flex items-center gap-3 rounded-xl border border-yellow-500/30 bg-white/5 backdrop-blur px-4 py-3 cursor-pointer hover:bg-white/10 hover:border-yellow-400/50 transition-all group"
+            onClick={() => navigate('/noise-officer')}
+          >
+            <div className="w-10 h-10 rounded-full bg-yellow-600 flex items-center justify-center shrink-0">
+              <Volume2 className="h-5 w-5 text-white" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold text-white leading-tight">Noise Control</p>
+              <p className="text-xs text-yellow-300 truncate">RMA assessments & notices</p>
+            </div>
+            <span className="text-xs text-yellow-400 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">Open →</span>
+          </div>
 
-        {/* Client organisation portal */}
-        <Card
-          className="cursor-pointer hover:shadow-xl transition-all hover:scale-[1.02] border-purple-500/30 bg-white/5 backdrop-blur"
-          onClick={() => navigate('/client-portal')}
-        >
-          <CardHeader className="pb-2">
-            <CardTitle className="flex items-center gap-3 text-white">
-              <div className="w-10 h-10 rounded-full bg-purple-600 flex items-center justify-center">
-                <Building2 className="h-5 w-5 text-white" />
-              </div>
-              Client Organisation Portal
-            </CardTitle>
-            <CardDescription className="text-purple-200">
-              View guard activity, KPIs, risk assessments and infringements for your organisation
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <Button className="w-full bg-purple-600 hover:bg-purple-700 text-white">
-              Open Client Portal
-              <ChevronRight className="h-4 w-4 ml-2" />
-            </Button>
-          </CardContent>
-        </Card>
+          {/* EMS */}
+          <div
+            className="flex items-center gap-3 rounded-xl border border-red-500/30 bg-white/5 backdrop-blur px-4 py-3 cursor-pointer hover:bg-white/10 hover:border-red-400/50 transition-all group"
+            onClick={() => navigate('/ems')}
+          >
+            <div className="w-10 h-10 rounded-full bg-red-700 flex items-center justify-center shrink-0">
+              <Zap className="h-5 w-5 text-white" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold text-white leading-tight flex items-center gap-1.5">
+                EMS
+                <Badge variant="outline" className="text-[10px] py-0 px-1.5 border-red-400 text-red-300">Electronic Monitoring</Badge>
+              </p>
+              <p className="text-xs text-red-300 truncate">Device fit, removal & checks</p>
+            </div>
+            <span className="text-xs text-red-400 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">Open →</span>
+          </div>
+
+          {/* Client Portal — full width */}
+          <div
+            className="col-span-2 flex items-center gap-3 rounded-xl border border-purple-500/30 bg-white/5 backdrop-blur px-4 py-3 cursor-pointer hover:bg-white/10 hover:border-purple-400/50 transition-all group"
+            onClick={() => navigate('/client-portal')}
+          >
+            <div className="w-10 h-10 rounded-full bg-purple-600 flex items-center justify-center shrink-0">
+              <Building2 className="h-5 w-5 text-white" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold text-white leading-tight">Client Organisation Portal</p>
+              <p className="text-xs text-purple-300 truncate">Guard activity, KPIs, risk assessments & infringements for your organisation</p>
+            </div>
+            <span className="text-xs text-purple-400 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">Open →</span>
+          </div>
+
+        </div>
       </div>
     </div>
   )
