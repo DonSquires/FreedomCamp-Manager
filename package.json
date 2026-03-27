@@ -1,7 +1,6 @@
 {
   "name": "vite_react_shadcn_ts",
   "private": true,
-  "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
@@ -19,7 +18,7 @@
     "test:rls": "playwright test tests/e2e/multi-org-rls.spec.ts",
     "test:reports": "playwright test tests/e2e/report-generation.spec.ts",
     "test:smoke": "playwright test --grep @smoke",
-    "test:api": "playwright test tests/e2e/api-response.spec.ts",
+    "test:api": "playwright test -c playwright.api.config.ts",
     "install:playwright": "playwright install"
   },
   "dependencies": {

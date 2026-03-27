@@ -176,6 +176,7 @@ jobs:
         run: |
           success=0
           failed=0
+          failed_functions=""
           FUNCTIONS_TO_DEPLOY='${{ steps.resolve-functions.outputs.functions }}'
 
           if [ -z "$FUNCTIONS_TO_DEPLOY" ]; then
@@ -197,6 +198,7 @@ jobs:
               success=$((success + 1))
             else
               echo "::warning::  ⚠️  $fn failed – continuing with remaining functions"
+              failed_functions="$failed_functions $fn"
               failed=$((failed + 1))
             fi
           done <<'FUNCLIST'
@@ -206,6 +208,25 @@ jobs:
           echo ""
           echo "========================================="
           echo "Deploy complete: $success succeeded, $failed failed"
+          if [ "$failed" -gt 0 ]; then
+            failed_functions=$(echo "$failed_functions" | xargs)
+            echo "Failed functions: $failed_functions"
+            echo "::error::Edge Function deploy failures: $failed_functions"
+            {
+              echo "## Edge Function Deploy Summary"
+              echo ""
+              echo "- Succeeded: $success"
+              echo "- Failed: $failed"
+              echo "- Failed functions: $failed_functions"
+            } >> "$GITHUB_STEP_SUMMARY"
+          else
+            {
+              echo "## Edge Function Deploy Summary"
+              echo ""
+              echo "- Succeeded: $success"
+              echo "- Failed: 0"
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
           echo "========================================="
           [ "$failed" -gt 0 ] && exit 1 || exit 0
 

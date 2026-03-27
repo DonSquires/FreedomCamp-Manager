@@ -20,27 +20,31 @@
 
 CREATE EXTENSION IF NOT EXISTS vector;
 
--- Convert vehicle_embedding from jsonb to vector(384) if it was incorrectly
--- created as jsonb by migration 20260309000002.
--- We NULL out existing values first because they were stored when match_vehicle()
--- didn't exist (so the <=> operator was never usable), making the jsonb data
--- effectively unusable. Nulling avoids any jsonb→vector cast failure.
+-- Some environments received observations.vehicle_embedding as jsonb from
+-- 20260309000002_add_observation_embedding_columns.sql. The match_vehicle
+-- function requires pgvector operators, so normalize the column type first.
 DO $$
 BEGIN
   IF EXISTS (
-    SELECT 1 FROM information_schema.columns
+    SELECT 1
+    FROM information_schema.columns
     WHERE table_schema = 'public'
-      AND table_name   = 'observations'
-      AND column_name  = 'vehicle_embedding'
-      AND data_type    = 'jsonb'
+      AND table_name = 'observations'
+      AND column_name = 'vehicle_embedding'
+      AND data_type = 'jsonb'
   ) THEN
-    UPDATE public.observations SET vehicle_embedding = NULL
-      WHERE vehicle_embedding IS NOT NULL;
+    UPDATE public.observations
+    SET vehicle_embedding = NULL
+    WHERE vehicle_embedding IS NOT NULL;
+
     ALTER TABLE public.observations
-      ALTER COLUMN vehicle_embedding TYPE vector(384);
+      ALTER COLUMN vehicle_embedding TYPE vector(384)
+      USING NULL::vector(384);
+
     RAISE NOTICE 'Converted observations.vehicle_embedding from jsonb to vector(384)';
   END IF;
-END $$;
+END
+$$;
 
 DROP FUNCTION IF EXISTS public.match_vehicle(uuid, int, timestamptz, uuid, uuid, real);
 
