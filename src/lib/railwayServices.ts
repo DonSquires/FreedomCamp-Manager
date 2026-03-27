@@ -6,7 +6,7 @@
  * 2. Inference Service (ORC/AI vehicle detection)
  */
 
-import { supabase } from './supabase'
+import { edgeFunctions } from './edgeFunctions'
 
 /**
  * Response type from the check-railway-health Edge Function.
@@ -31,7 +31,7 @@ async function getRailwayServiceURLs(): Promise<{
 }> {
   try {
     // Call Edge Function to retrieve Railway URLs and health from backend secrets
-    const { data, error } = await supabase.functions.invoke('check-railway-health')
+    const { data, error } = await edgeFunctions.checkRailwayHealth()
 
     if (error) {
       return {

@@ -1,4 +1,4 @@
-import { supabase } from './supabase'
+import { edgeFunctions } from './edgeFunctions'
 
 export interface ObservationListParams {
   dateFrom: string
@@ -33,22 +33,20 @@ export async function fetchAllObservations(params: ObservationListParams): Promi
   const rows: ObservationListRow[] = []
 
   while (rows.length < total) {
-    const { data, error } = await supabase.functions.invoke('observations-list', {
-      body: {
-        date_from: params.dateFrom,
-        date_to: params.dateTo,
-        organization_id: params.organizationId || null,
-        zone_id: params.zoneId || null,
-        recorded_by: params.recordedBy || null,
-        search: params.search || '',
-        page,
-        page_size: pageSize,
-        sort: [{ field: 'recorded_at', dir: 'desc' }],
-      },
+    const { data, error } = await edgeFunctions.listObservations({
+      date_from: params.dateFrom,
+      date_to: params.dateTo,
+      organization_id: params.organizationId || null,
+      zone_id: params.zoneId || null,
+      recorded_by: params.recordedBy || null,
+      search: params.search || '',
+      page,
+      page_size: pageSize,
+      sort: [{ field: 'recorded_at', dir: 'desc' }],
     })
 
     if (error) {
-      throw new Error(error.message || 'Failed to fetch observations')
+      throw new Error(error || 'Failed to fetch observations')
     }
 
     const payloadRows = (data?.rows || []) as ObservationListRow[]

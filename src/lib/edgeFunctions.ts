@@ -778,8 +778,34 @@ export const edgeFunctions = {
   /**
    * Check data integrity (duplicates, orphans, invalid plates)
    */
-  checkDataIntegrity: async () => {
-    return callEdgeFunction('check-data-integrity')
+  checkDataIntegrity: async (params?: {
+    comprehensive?: boolean
+  }) => {
+    return callEdgeFunction('check-data-integrity', params)
+  },
+
+  /**
+   * Run the nightly privacy cleanup task on demand.
+   */
+  nightlyPrivacyCleanup: async (params?: {
+    dryRun?: boolean
+    dry_run?: boolean
+  }) => {
+    return callEdgeFunction('nightly-privacy-cleanup', params)
+  },
+
+  /**
+   * Sync spatial layers and derived jurisdiction metadata.
+   */
+  syncSpatialLayers: async () => {
+    return callEdgeFunction('sync-spatial-layers')
+  },
+
+  /**
+   * Check health of Railway-backed proxy and inference services.
+   */
+  checkRailwayHealth: async () => {
+    return callEdgeFunction('check-railway-health')
   },
 
   /**
@@ -814,8 +840,20 @@ export const edgeFunctions = {
    * AI-powered file import
    */
   importData: async (params: {
-    file_url: string
-    file_type: string
+    file_url?: string
+    fileUrl?: string
+    fileContent?: string
+    fileName?: string
+    file_name?: string
+    file_type?: string
+    isImage?: boolean
+    is_image?: boolean
+    recordDate?: string
+    record_date?: string
+    importType?: string
+    import_type?: string
+    organizationId?: string
+    organization_id?: string
   }) => {
     return callEdgeFunction('import-data', params)
   },
@@ -836,6 +874,18 @@ export const edgeFunctions = {
     organizationId?: string
   }) => {
     return callEdgeFunction('import-historical-data', params)
+  },
+
+  /**
+   * Scrape candidate vehicle photos from external listing sources.
+   */
+  scrapeVehiclePhotos: async (params: {
+    plate_number?: string
+    plateNumber?: string
+    force_update?: boolean
+    forceUpdate?: boolean
+  }) => {
+    return callEdgeFunction('scrape-vehicle-photos', params)
   },
 
   // ============================================================================
@@ -1094,9 +1144,13 @@ export const edgeFunctions = {
     first_name: string
     last_name: string
     role: string
-    organization_id: string
+    organization_id?: string | null
     employer_organization_id?: string
     phone?: string
+    job_title?: string | null
+    requires_driver_license?: boolean
+    authorized_work_locations?: string[]
+    permissions?: Record<string, unknown>
   }) => {
     return callEdgeFunction('create-user', params)
   },
@@ -1246,13 +1300,23 @@ export const edgeFunctions = {
    * Submit a public dispute intake form for review.
    */
   submitDisputeIntake: async (params: {
-    notice_number: string
-    grounds: string
-    full_name: string
+    notice_number?: string
+    source_type?: string
+    source_reference?: string
+    plate_number?: string
+    grounds?: string
+    full_name?: string
+    claimant_name?: string
     email?: string
+    claimant_email?: string
     phone?: string
+    claimant_phone?: string
     address?: string
     statement?: string
+    message?: string
+    request_homeless_review?: boolean
+    hardship_context?: string
+    evidence_statement?: string
   }) => {
     return callEdgeFunction('submit-dispute-intake', params, { showToast: false })
   },
@@ -1260,7 +1324,11 @@ export const edgeFunctions = {
   /**
    * Look up a public infringement case by notice number (unauthenticated).
    */
-  publicCaseLookup: async (params: { notice_number: string }) => {
+  publicCaseLookup: async (params: {
+    notice_number?: string
+    reference?: string
+    plate_number?: string
+  }) => {
     return callEdgeFunction('public-case-lookup', params, { showToast: false })
   },
 

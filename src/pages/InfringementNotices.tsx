@@ -9,6 +9,7 @@ import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
+import { edgeFunctions } from '@/lib/edgeFunctions'
 import { useAuthStore } from '@/stores/authStore'
 import { useGlobalFiltersStore } from '@/stores/globalFiltersStore'
 import { AppLayout } from '@/components/features/AppLayout'
@@ -112,57 +113,6 @@ export default function InfringementNotices() {
     timeZone: 'Pacific/Auckland',
   })
 
-  const getFunctionErrorMessage = async (err: any, fallback: string) => {
-    const rawMessage = String(err?.message || '')
-    if (/failed to send.*edge function|failed to fetch|networkerror/i.test(rawMessage)) {
-      return `Unable to reach Edge Function. Check your session or network and try again.`
-    }
-    const baseMessage = rawMessage || fallback
-    const context = err?.context
-    if (!context || typeof context.clone !== 'function') return baseMessage
-    const statusPrefix = typeof context?.status === 'number' ? `HTTP ${context.status}: ` : ''
-    try {
-      const payload = await context.clone().json()
-      return statusPrefix + (payload?.error || payload?.message || baseMessage)
-    } catch {
-      try {
-        const bodyText = await context.clone().text()
-        return statusPrefix + (bodyText || baseMessage)
-      } catch {
-        return statusPrefix + baseMessage
-      }
-    }
-  }
-
-  // Invoke an edge function; the Supabase client supplies the session token
-  // automatically. Refresh + retry once on 401 OR FunctionsFetchError (which
-  // can happen when the gateway rejects an expired JWT without CORS headers).
-  const invokeFunctionWithAuthRetry = async (name: string, body: any, fallbackMessage: string) => {
-    let result = await supabase.functions.invoke(name, { body })
-
-    if (!result.error) return result
-
-    const isFetchError = /failed to send.*edge function|failed to fetch|networkerror/i.test(
-      String(result.error?.message || '')
-    )
-    const message = await getFunctionErrorMessage(result.error, fallbackMessage)
-    if (!isFetchError && !/invalid jwt|http\s*401|401\b/i.test(message)) {
-      return result
-    }
-
-    // Auth error or network-level rejection — force a token refresh and try once more.
-    const { data, error } = await supabase.auth.refreshSession()
-    if (error || !data.session?.access_token) {
-      throw new Error('Session expired. Please sign in again.')
-    }
-
-    result = await supabase.functions.invoke(name, {
-      body,
-      headers: { Authorization: `Bearer ${data.session.access_token}` },
-    })
-
-    return result
-  }
 
   const copyIssueError = async () => {
     if (!issueErrorDetail) return
@@ -413,18 +363,11 @@ export default function InfringementNotices() {
       if (form.observation_id)  body.observation_id = form.observation_id
 
       const { data, error } = await withTimeout(
-        invokeFunctionWithAuthRetry(
-          'generate-infringement',
-          body,
-          'Failed to generate notice',
-        ),
+        edgeFunctions.generateInfringement(body),
         30000,
         'Notice generation timed out. Please retry.',
       )
-      if (error) {
-        const errMsg = await getFunctionErrorMessage(error, 'Failed to generate notice')
-        throw new Error(errMsg)
-      }
+      if (error) throw new Error(error)
       if (!data?.success) throw new Error(data?.error || 'Failed to generate notice')
 
       toast.success(`Notice ${data.notice_number} issued successfully`)
@@ -492,15 +435,11 @@ export default function InfringementNotices() {
     setReprintingNoticeId(noticeId)
     try {
       const { data, error } = await withTimeout(
-        invokeFunctionWithAuthRetry(
-          'render-infringement-notice',
-          { notice_id: noticeId },
-          'Failed to load printable notice',
-        ),
+        edgeFunctions.renderInfringementNotice({ notice_id: noticeId }),
         25000,
         'Ticket render timed out. Please try again.',
       )
-      if (error) throw new Error(await getFunctionErrorMessage(error, 'Failed to load printable notice'))
+      if (error) throw new Error(error)
       if (!data?.success || !data?.html) throw new Error(data?.error || 'Printable notice unavailable')
       setPreviewHtml(data.html)
     } catch (err: any) {

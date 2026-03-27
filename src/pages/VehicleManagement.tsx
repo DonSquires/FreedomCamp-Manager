@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
+import { edgeFunctions } from '@/lib/edgeFunctions'
 import { useAuthStore } from '@/stores/authStore'
 import { useGlobalFiltersStore } from '@/stores/globalFiltersStore'
 import { Button } from '@/components/ui/button'
@@ -811,8 +812,9 @@ export default function VehicleManagement() {
   const handleScrapeVehicle = async (plateNumber: string, forceUpdate = false) => {
     setScrapingSales(true)
     try {
-      const { data, error } = await supabase.functions.invoke('scrape-vehicle-photos', {
-        body: { plate_number: plateNumber, force_update: forceUpdate },
+      const { data, error } = await edgeFunctions.scrapeVehiclePhotos({
+        plate_number: plateNumber,
+        force_update: forceUpdate,
       })
       if (error) { toast.error(`Scrape failed: ${error.message}`); return }
       if (data?.skipped) {

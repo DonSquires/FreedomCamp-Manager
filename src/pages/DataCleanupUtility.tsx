@@ -256,9 +256,7 @@ export default function DataCleanupUtility() {
       icon: Archive,
       severity: 'low',
       action: async () => {
-        const { data, error } = await supabase.functions.invoke('nightly-privacy-cleanup', {
-          body: { dryRun: false },
-        })
+        const { data, error } = await edgeFunctions.nightlyPrivacyCleanup({ dryRun: false })
 
         if (error) throw error
 

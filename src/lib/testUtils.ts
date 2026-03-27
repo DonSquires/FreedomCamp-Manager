@@ -5,6 +5,7 @@
  */
 
 import { supabase } from './supabase'
+import { edgeFunctions } from './edgeFunctions'
 import { checkRailwayServicesHealth } from './railway'
 import type { Database } from '@/types/database'
 
@@ -246,9 +247,7 @@ export const smokeTests = {
     
     try {
       // Test a simple edge function
-      const { data, error } = await supabase.functions.invoke('get-compliance-statistics', {
-        body: {}
-      })
+      const { data, error } = await edgeFunctions.getComplianceStatistics({})
       
       if (error) throw error
       

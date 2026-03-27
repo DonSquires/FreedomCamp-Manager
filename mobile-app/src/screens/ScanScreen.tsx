@@ -9,6 +9,7 @@ import * as Location from 'expo-location'
 import * as FileSystem from 'expo-file-system'
 import { Ionicons } from '@expo/vector-icons'
 import { toast } from 'sonner-native'
+import { edgeFunctions } from '../lib/edgeFunctions'
 import { useAuthStore } from '../stores/authStore'
 import { supabase } from '../lib/supabase'
 
@@ -106,13 +107,11 @@ export default function ScanScreen({ navigation }: any) {
       toast.loading('Running plate detection...')
       const alprTimeoutMs = 5000
       const alprResult = await Promise.race([
-        supabase.functions.invoke('alpr-process', {
-          body: {
-            photo_url: photoUrl,
-            latitude: loc.coords.latitude,
-            longitude: loc.coords.longitude,
-            accuracy: loc.coords.accuracy,
-          },
+        edgeFunctions.processALPR({
+          photo_url: photoUrl,
+          latitude: loc.coords.latitude,
+          longitude: loc.coords.longitude,
+          accuracy: loc.coords.accuracy,
         }),
         new Promise<{ data: null; error: { message: string } }>((resolve) => {
           setTimeout(() => resolve({ data: null, error: { message: 'ALPR pre-detect timed out' } }), alprTimeoutMs)
@@ -129,36 +128,25 @@ export default function ScanScreen({ navigation }: any) {
       const detectedPlate = alprData?.plate || alprData?.plate_number || null
       const detectedConfidence = alprData?.confidence || null
 
-      const { data: sessionData, error: sessionError } = await supabase.auth.getSession()
-      if (sessionError) throw new Error(sessionError.message || 'Unable to read current session')
-
-      const accessToken = sessionData.session?.access_token
-      if (!accessToken) throw new Error('No active session found. Please sign in again.')
-
       // 6. Create observation via unified ingest pipeline
       toast.loading('Saving...')
       const idempotencyKey = `scan-${user?.id}-${timestamp}`
-      const { data: ingestData, error: ingestError } = await supabase.functions.invoke('vehicle-ingest', {
-        body: {
-          image: imageDataUrl,
-          gpsLatitude: loc.coords.latitude,
-          gpsLongitude: loc.coords.longitude,
-          gpsAccuracy: loc.coords.accuracy,
-          recordedAt: new Date().toISOString(),
-          officerId: user?.id,
-          organizationId: user?.organization_id,
-          zoneId,
-          idempotencyKey,
-          plate: detectedPlate,
-          confidence: detectedConfidence,
-          requires_manual_entry: !detectedPlate,
-        },
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-        },
+      const { data: ingestData, error: ingestError } = await edgeFunctions.ingestVehicleObservation({
+        image: imageDataUrl,
+        gpsLatitude: loc.coords.latitude,
+        gpsLongitude: loc.coords.longitude,
+        gpsAccuracy: loc.coords.accuracy,
+        recordedAt: new Date().toISOString(),
+        officerId: user?.id,
+        organizationId: user?.organization_id,
+        zoneId,
+        idempotencyKey,
+        plate: detectedPlate,
+        confidence: detectedConfidence,
+        requires_manual_entry: !detectedPlate,
       })
 
-      if (ingestError) throw new Error(`Save failed: ${ingestError.message}`)
+      if (ingestError) throw new Error(`Save failed: ${ingestError}`)
 
       Vibration.vibrate(40)
 

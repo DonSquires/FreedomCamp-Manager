@@ -23,6 +23,7 @@ import { Ionicons } from '@expo/vector-icons'
 import { toast } from 'sonner-native'
 import { useRoute } from '@react-navigation/native'
 import { useAuthStore } from '../stores/authStore'
+import { edgeFunctions, withTimeout } from '../lib/edgeFunctions'
 import { supabase } from '../lib/supabase'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -87,158 +88,6 @@ export default function InfringementNoticesScreen() {
   const [openingPrint, setOpeningPrint] = useState(false)
   const [reprintingNoticeId, setReprintingNoticeId] = useState<string | null>(null)
 
-  const getFunctionErrorMessage = async (err: any, fallback: string) => {
-    const baseMessage = err?.message || fallback
-    const context = err?.context
-    if (!context || typeof context.clone !== 'function') return baseMessage
-    try {
-      const payload = await context.clone().json()
-      return payload?.error || payload?.message || baseMessage
-    } catch {
-      return baseMessage
-    }
-  }
-
-  const withAuthTimeout = async <T,>(promise: Promise<T>, ms: number, timeoutMessage: string): Promise<T> => {
-    return await new Promise<T>((resolve, reject) => {
-      const timer = setTimeout(() => reject(new Error(timeoutMessage)), ms)
-      promise
-        .then((value) => {
-          clearTimeout(timer)
-          resolve(value)
-        })
-        .catch((error) => {
-          clearTimeout(timer)
-          reject(error)
-        })
-    })
-  }
-
-  const getValidAccessToken = async () => {
-    try {
-      const { data, error } = await withAuthTimeout(
-        supabase.auth.refreshSession(),
-        6000,
-        'Auth refresh timed out',
-      )
-      if (!error && data.session?.access_token) {
-        return data.session.access_token
-      }
-    } catch {
-      // Fall back to existing session token if refresh stalls.
-    }
-
-    const { data: { session } } = await withAuthTimeout(
-      supabase.auth.getSession(),
-      4000,
-      'Session lookup timed out',
-    )
-    if (session?.access_token) return session.access_token
-
-    throw new Error('Session expired. Please sign in again.')
-  }
-
-  const invokeFunctionWithAuthRetry = async (name: string, body: any, fallbackMessage: string) => {
-    const token = await getValidAccessToken()
-    let result = await supabase.functions.invoke(name, {
-      body,
-      headers: { Authorization: `Bearer ${token}` },
-    })
-
-    if (!result.error) return result
-
-    const message = await getFunctionErrorMessage(result.error, fallbackMessage)
-    if (!/invalid jwt|http\s*401|401\b/i.test(message)) {
-      return result
-    }
-
-    const { data, error } = await supabase.auth.refreshSession()
-    if (error || !data.session?.access_token) {
-      throw new Error('Session expired. Please sign in again.')
-    }
-
-    result = await supabase.functions.invoke(name, {
-      body,
-      headers: { Authorization: `Bearer ${data.session.access_token}` },
-    })
-
-    return result
-  }
-
-  const invokeFunctionDirectHttp = async (name: string, body: any, token: string) => {
-    const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL
-    const anonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY
-    if (!supabaseUrl || !anonKey) {
-      throw new Error('Missing Supabase environment configuration')
-    }
-
-    const controller = new AbortController()
-    const timer = setTimeout(() => controller.abort(), 15000)
-    try {
-      const response = await fetch(`${supabaseUrl}/functions/v1/${name}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          apikey: anonKey,
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify(body),
-        signal: controller.signal,
-      })
-
-      const payload = await response.json().catch(() => ({}))
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${payload?.error || payload?.message || 'Request failed'}`)
-      }
-
-      return payload
-    } catch (error: any) {
-      if (error?.name === 'AbortError') {
-        throw new Error('Ticket generation timed out. Please try again.')
-      }
-      throw error
-    } finally {
-      clearTimeout(timer)
-    }
-  }
-
-  const invokeFunctionDirectHttpWithAuthRetry = async (name: string, body: any, fallbackMessage: string) => {
-    try {
-      const token = await getValidAccessToken()
-      return await invokeFunctionDirectHttp(name, body, token)
-    } catch (error: any) {
-      const message = String(error?.message || fallbackMessage)
-      if (!/invalid jwt|http\s*401|401\b/i.test(message)) {
-        throw new Error(message || fallbackMessage)
-      }
-
-      const { data, error: refreshError } = await withAuthTimeout(
-        supabase.auth.refreshSession(),
-        6000,
-        'Auth refresh timed out',
-      )
-      if (refreshError || !data.session?.access_token) {
-        throw new Error('Session expired. Please sign in again.')
-      }
-
-      return await invokeFunctionDirectHttp(name, body, data.session.access_token)
-    }
-  }
-
-  const withTimeout = async <T,>(promise: Promise<T>, ms: number, timeoutMessage: string): Promise<T> => {
-    return await new Promise<T>((resolve, reject) => {
-      const timer = setTimeout(() => reject(new Error(timeoutMessage)), ms)
-      promise
-        .then((value) => {
-          clearTimeout(timer)
-          resolve(value)
-        })
-        .catch((error) => {
-          clearTimeout(timer)
-          reject(error)
-        })
-    })
-  }
 
   // Issue form state
   const [form, setForm] = useState({
@@ -354,8 +203,7 @@ export default function InfringementNoticesScreen() {
     }
     setIssuing(true)
     try {
-      const data = await invokeFunctionDirectHttpWithAuthRetry(
-        'generate-infringement',
+      const data = await edgeFunctions.generateInfringement(
         {
           plate_number: form.plate_number.toUpperCase().trim(),
           zone_id: form.zone_id,
@@ -369,7 +217,6 @@ export default function InfringementNoticesScreen() {
           breach_alert_id: form.breach_alert_id || undefined,
           observation_id: form.observation_id || undefined,
         },
-        'Failed to issue notice',
       )
       if (!data?.success) throw new Error(data?.error || 'Failed')
 
@@ -398,15 +245,11 @@ export default function InfringementNoticesScreen() {
     setReprintingNoticeId(noticeId)
     try {
       const { data, error } = await withTimeout(
-        invokeFunctionWithAuthRetry(
-          'render-infringement-notice',
-          { notice_id: noticeId },
-          'Failed to load printable notice',
-        ),
+        edgeFunctions.renderInfringementNotice({ notice_id: noticeId }),
         25000,
         'Ticket render timed out. Please try again.',
       )
-      if (error) throw new Error(await getFunctionErrorMessage(error, 'Failed to load printable notice'))
+      if (error) throw new Error(error)
       if (!data?.success || !data?.html) throw new Error(data?.error || 'Printable notice unavailable')
 
       setPrintableHtml(data.html)

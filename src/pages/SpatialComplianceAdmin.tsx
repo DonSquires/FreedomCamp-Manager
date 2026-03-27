@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
+import { edgeFunctions } from '@/lib/edgeFunctions'
 import { useAuthStore } from '@/stores/authStore'
 import { AppLayout } from '@/components/features/AppLayout'
 import { GeoJsonUploader } from '@/components/features/GeoJsonUploader'
@@ -216,7 +217,7 @@ export default function SpatialComplianceAdmin() {
   const handleSync = async () => {
     setSyncing(true)
     try {
-      const { error } = await supabase.functions.invoke('sync-spatial-layers')
+      const { error } = await edgeFunctions.syncSpatialLayers()
       if (error) throw error
       toast.success('Spatial layers synced successfully')
       refetchJurisdictions()

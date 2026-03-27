@@ -80,7 +80,7 @@ export async function selectBestVehiclePhoto(photoUrls: string[]) {
  */
 export async function checkRailwayServicesHealth() {
   try {
-    const { data, error } = await supabase.functions.invoke('check-railway-health')
+    const { data, error } = await edgeFunctions.checkRailwayHealth()
     
     if (error) {
       console.error('Railway health check failed:', error)

@@ -258,12 +258,10 @@ export default function ImportHistoricalData() {
     queryClient.invalidateQueries({ queryKey: ['historical-batches'] })
 
     try {
-      const { data, error } = await supabase.functions.invoke('import-historical-data', {
-        body: {
-          fileUrl: storageSource.trim(),
-          batchName: storageBatchName.trim() || `Storage import ${new Date().toISOString().slice(0, 10)}`,
-          organizationId: orgId,
-        },
+      const { data, error } = await edgeFunctions.importHistoricalData({
+        fileUrl: storageSource.trim(),
+        batchName: storageBatchName.trim() || `Storage import ${new Date().toISOString().slice(0, 10)}`,
+        organizationId: orgId,
       })
 
       setUploadProgress(100)

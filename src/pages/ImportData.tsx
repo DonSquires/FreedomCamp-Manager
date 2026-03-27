@@ -117,14 +117,12 @@ export default function ImportData() {
     setResult(null)
     try {
       const isImage = file.type.startsWith('image/')
-      const { data, error } = await supabase.functions.invoke('import-data', {
-        body: {
-          fileContent,
-          fileName: file.name,
-          isImage,
-          recordDate: recordDate || undefined,
-          organizationId: orgId,
-        },
+      const { data, error } = await edgeFunctions.importData({
+        fileContent,
+        fileName: file.name,
+        isImage,
+        recordDate: recordDate || undefined,
+        organizationId: orgId,
       })
       if (error) throw new Error(error.message)
       setResult(data)

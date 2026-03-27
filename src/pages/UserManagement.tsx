@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
+import { edgeFunctions } from '@/lib/edgeFunctions'
 import { useAuthStore } from '@/stores/authStore'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -121,80 +122,11 @@ export default function UserManagement() {
   const [uploadingCOA, setUploadingCOA] = useState(false)
   const [uploadingWarrant, setUploadingWarrant] = useState(false)
 
-  const getFunctionErrorMessage = async (error: any, fallbackMessage: string) => {
-    const rawMessage = String(error?.message || '')
-    if (/failed to send.*edge function|failed to fetch|networkerror|network request failed/i.test(rawMessage)) {
-      const configuredUrl = (import.meta.env.VITE_SUPABASE_URL as string | undefined) || 'unknown'
-      return `Unable to reach Supabase Edge Functions. Check network/CORS and confirm VITE_SUPABASE_URL points to the correct project (${configuredUrl}).`
-    }
-
-    const baseMessage = error?.message || fallbackMessage
-    const context = error?.context
-    if (!context || typeof context.clone !== 'function') return baseMessage
-    const statusPrefix = typeof context?.status === 'number' ? `HTTP ${context.status}: ` : ''
-    try {
-      const payload = await context.clone().json()
-      return statusPrefix + (payload?.error || payload?.message || baseMessage)
-    } catch {
-      try {
-        const bodyText = await context.clone().text()
-        return statusPrefix + (bodyText || baseMessage)
-      } catch {
-        return statusPrefix + baseMessage
-      }
-    }
-  }
-
   const withTimeout = async <T,>(promise: Promise<T>, timeoutMs: number, timeoutMessage: string): Promise<T> => {
     return await Promise.race([
       promise,
       new Promise<T>((_, reject) => setTimeout(() => reject(new Error(timeoutMessage)), timeoutMs)),
     ])
-  }
-
-  const invokeFunctionWithAuthRetry = async (name: string, body: any, fallbackMessage: string) => {
-    const isTransientEdgeFailure = (err: any) => {
-      const raw = String(err?.message || '')
-      return /failed to send.*edge function|failed to fetch|networkerror|network request failed|service unavailable|\b503\b/i.test(raw)
-    }
-
-    let result = await supabase.functions.invoke(name, { body })
-    if (result.error && isTransientEdgeFailure(result.error)) {
-      // Retry once for transient edge gateway failures before token refresh.
-      await new Promise((resolve) => setTimeout(resolve, 400))
-      result = await supabase.functions.invoke(name, { body })
-    }
-    if (!result.error) return result
-
-    // A FunctionsFetchError means the gateway rejected without CORS headers
-    // (e.g. expired JWT at gateway level). Treat it like a 401 and refresh first.
-    const isFetchError = /failed to send.*edge function|failed to fetch|networkerror/i.test(
-      String(result.error?.message || '')
-    )
-    const message = await getFunctionErrorMessage(result.error, fallbackMessage)
-    if (!isFetchError && !/invalid jwt|http\s*401|401\b/i.test(message)) {
-      return result
-    }
-
-    const { data, error } = await supabase.auth.refreshSession()
-    if (error || !data.session?.access_token) {
-      console.error('[invokeFunctionWithAuthRetry] session refresh failed', { name, error })
-      throw new Error('Session expired. Please sign in again.')
-    }
-
-    result = await supabase.functions.invoke(name, {
-      body,
-      headers: { Authorization: `Bearer ${data.session.access_token}` },
-    })
-
-    if (result.error && isTransientEdgeFailure(result.error)) {
-      await new Promise((resolve) => setTimeout(resolve, 500))
-      result = await supabase.functions.invoke(name, {
-        body,
-        headers: { Authorization: `Bearer ${data.session.access_token}` },
-      })
-    }
-    return result
   }
 
   // Check user role
@@ -300,18 +232,11 @@ export default function UserManagement() {
       }
 
       const { data, error } = await withTimeout(
-        invokeFunctionWithAuthRetry(
-          'create-user',
-          payload,
-          'Failed to create user',
-        ),
+        edgeFunctions.createUser(payload),
         60000,
         'Request timed out after 60 seconds.',
       )
-      if (error) {
-        const message = await getFunctionErrorMessage(error, 'Failed to create user')
-        throw new Error(message)
-      }
+      if (error) throw new Error(error)
       return data
     },
     onSuccess: () => {
@@ -329,18 +254,11 @@ export default function UserManagement() {
   const setPasswordMutation = useMutation({
     mutationFn: async ({ userId, newPwd }: { userId: string; newPwd: string }) => {
       const { data, error } = await withTimeout(
-        invokeFunctionWithAuthRetry(
-          'set-user-password',
-          { user_id: userId, new_password: newPwd },
-          'Failed to update password',
-        ),
+        edgeFunctions.setUserPassword({ user_id: userId, new_password: newPwd }),
         30000,
         'Request timed out after 30 seconds.',
       )
-      if (error) {
-        const message = await getFunctionErrorMessage(error, 'Failed to update password')
-        throw new Error(message)
-      }
+      if (error) throw new Error(error)
       return data
     },
     onSuccess: () => {

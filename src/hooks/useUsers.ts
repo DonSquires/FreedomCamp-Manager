@@ -22,29 +22,6 @@ interface UseUsersOptions {
   isActive?: boolean | null
 }
 
-// Reuse helper for create-user (invitation workflow) which requires custom retry and auth handling
-// The create-user endpoint is special: it sends invitations and requires session refresh on auth errors
-async function invokeFunctionWithAuthRetry(name: string, body: any, fallbackMessage: string) {
-  let result = await supabase.functions.invoke(name, { body })
-  if (!result.error) return result
-
-  const isFetchError = /failed to send.*edge function|failed to fetch|networkerror/i.test(
-    String((result.error as any)?.message || '')
-  )
-  // If we get a fetch error or auth error, refresh and retry once
-  if (!isFetchError) return result
-
-  const { data, error } = await supabase.auth.refreshSession()
-  if (error || !data.session?.access_token) {throw new Error('Session expired. Please sign in again.')
-  }
-
-  result = await supabase.functions.invoke(name, {
-    body,
-    headers: { Authorization: `Bearer ${data.session.access_token}` },
-  })
-  return result
-}
-
 export function useUsers(options: UseUsersOptions = {}) {
   const { searchQuery = '', role = 'all', isActive = null } = options
 
@@ -99,26 +76,25 @@ export function useCreateUser() {
   return useMutation({
     mutationFn: async (userData: {
       email: string
+      password: string
       first_name: string
       last_name: string
       role: UserProfile['role']
+      organization_id?: string | null
+      employer_organization_id?: string
       phone?: string
+      job_title?: string | null
+      requires_driver_license?: boolean
+      authorized_work_locations?: string[]
+      permissions?: Record<string, unknown>
     }) => {
-      const { data, error } = await invokeFunctionWithAuthRetry(
-        'create-user',
-        userData,
-        'Failed to send user invitation',
-      )
-
-      if (error) {
-        const msg = typeof error === 'object' && error && 'message' in error ? (error as any).message : String(error)
-        throw new Error(msg || 'Failed to send user invitation')
-      }
+      const { data, error } = await edgeFunctions.createUser(userData)
+      if (error) throw new Error(error)
       return data
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['users'] })
-      toast.success('User invitation sent')
+      toast.success('User created successfully')
     },
     onError: (error: any) => {
       toast.error(error.message || 'Failed to create user')
