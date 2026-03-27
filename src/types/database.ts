@@ -4931,7 +4931,7 @@ export type Database = {
           vehicle_attribute_sources: Json | null
           vehicle_color: string | null
           vehicle_color_confidence: number | null
-          vehicle_embedding: Json | null
+          vehicle_embedding: string | null
           vehicle_make: string | null
           vehicle_make_confidence: number | null
           vehicle_model: string | null
@@ -5008,7 +5008,7 @@ export type Database = {
           vehicle_attribute_sources?: Json | null
           vehicle_color?: string | null
           vehicle_color_confidence?: number | null
-          vehicle_embedding?: Json | null
+          vehicle_embedding?: string | null
           vehicle_make?: string | null
           vehicle_make_confidence?: number | null
           vehicle_model?: string | null
@@ -5085,7 +5085,7 @@ export type Database = {
           vehicle_attribute_sources?: Json | null
           vehicle_color?: string | null
           vehicle_color_confidence?: number | null
-          vehicle_embedding?: Json | null
+          vehicle_embedding?: string | null
           vehicle_make?: string | null
           vehicle_make_confidence?: number | null
           vehicle_model?: string | null
