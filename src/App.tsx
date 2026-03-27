@@ -1105,6 +1105,7 @@ export default function App() {
           />
 
           <Route
+            path="/face-recognition"
             element={
               <ProtectedRoute>
                 <RoleRoute allowedRoles={['admin', 'admin_officer', 'master', 'officer']}>
