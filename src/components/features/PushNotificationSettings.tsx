@@ -60,7 +60,7 @@ export function PushNotificationSettings() {
   // Update preferences mutation
   const updatePreferencesMutation = useMutation({
     mutationFn: async (newPreferences: any) => {
-      const { error } = await (supabase.from('user_profiles') as any)
+      const { error } = await supabase.from('user_profiles')
         .update({ notification_preferences: newPreferences })
         .eq('id', user?.id)
 
@@ -90,10 +90,11 @@ export function PushNotificationSettings() {
     }
 
     try {
-      const token = await requestNotificationPermission()
-      if (token) {
-        // Save push token
-        const { error } = await (supabase.from('user_profiles') as any)
+      const granted = await requestNotificationPermission()
+      if (granted) {
+        // Store a web-push placeholder token until full FCM integration is added
+        const token = `web-${Date.now()}`
+        const { error } = await supabase.from('user_profiles')
           .update({ 
             push_token: token,
             push_token_updated_at: new Date().toISOString(),
@@ -116,7 +117,7 @@ export function PushNotificationSettings() {
 
   const handleDisablePush = async () => {
     try {
-      const { error } = await (supabase.from('user_profiles') as any)
+      const { error } = await supabase.from('user_profiles')
         .update({ 
           push_token: null,
           push_token_updated_at: null,

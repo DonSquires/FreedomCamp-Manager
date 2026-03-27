@@ -221,7 +221,7 @@ export function usePushToken() {
         .update({
           push_token: token,
           push_token_updated_at: new Date().toISOString(),
-        } as any)
+        })
         .eq('id', user.id)
 
       if (error) {

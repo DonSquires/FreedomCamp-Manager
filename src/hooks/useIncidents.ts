@@ -182,7 +182,7 @@ export function useIncidents(options?: {
         .update({
           retention_hold: enable,
           retention_until: retentionDate,
-        } as any)
+        })
         .eq('id', id)
 
       if (error) {

@@ -248,13 +248,13 @@ export default function NoiseOfficerPortal() {
     queryFn: async () => {
       if (!orgId || !user?.id) return []
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data, error } = await (supabase as any)
-        .from('noise_notices')
+      let q: any = supabase.from('noise_notices' as any)
         .select('id, notice_number, notice_type, status, recipient_address, created_at')
         .eq('organization_id', orgId)
         .eq('issued_by', user?.id)
         .order('created_at', { ascending: false })
         .limit(20)
+      const { data, error } = await q
       if (error) throw error
       return data || []
     },
@@ -266,13 +266,13 @@ export default function NoiseOfficerPortal() {
     queryFn: async () => {
       if (!orgId || !user?.id) return []
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data, error } = await (supabase as any)
-        .from('noise_seizures')
+      let q: any = supabase.from('noise_seizures' as any)
         .select('id, seizure_number, status, equipment_type, equipment_make, seized_at')
         .eq('organization_id', orgId)
         .eq('seized_by', user?.id)
         .order('seized_at', { ascending: false })
         .limit(20)
+      const { data, error } = await q
       if (error) throw error
       return data || []
     },
