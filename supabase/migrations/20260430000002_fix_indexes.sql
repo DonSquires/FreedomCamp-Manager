@@ -2,10 +2,10 @@
 -- Fix indexes — identified via Database Schema Extract run #1 (2026-03-26)
 --
 -- Problems fixed:
---   1. idx_zones_geometry was created with USING GIN (wrong for PostGIS).
---      PostGIS spatial operators (ST_Within, ST_Intersects, &&) require a
---      GiST index.  The GIN index was 435 MB, had 0 scans, and caused 43 k+
---      sequential scans on zones because the planner could never use it.
+--   1. idx_zones_geometry: zones.geometry is stored as JSONB (GeoJSON), not a
+--      PostGIS geometry type.  GiST requires PostGIS; GIN is the correct access
+--      method for JSONB columns.  The old GIN index is dropped and recreated
+--      under the same name so no application code needs updating.
 --
 --   2. canonical_vehicles_vehicle_id_key is a duplicate unique constraint
 --      for the same column already covered by idx_canonical_vehicles_vehicle_id.
@@ -18,13 +18,13 @@
 --      used in JOIN / filter queries and cascade DELETEs.
 -- =============================================================================
 
--- ── 1. Replace GIN geometry index with correct GiST ──────────────────────────
+-- ── 1. Recreate GIN geometry index (zones.geometry is JSONB, not PostGIS) ────
 DROP INDEX IF EXISTS public.idx_zones_geometry;
 
 -- Re-use the original name so no application code needs updating.
 -- NOTE: CONCURRENTLY cannot be used inside a transaction / migration pipeline.
 CREATE INDEX IF NOT EXISTS idx_zones_geometry
-  ON public.zones USING gist (geometry);
+  ON public.zones USING gin (geometry);
 
 -- ── 2. Drop duplicate unique constraint on canonical_vehicles.vehicle_id ──────
 -- The partial unique index idx_canonical_vehicles_vehicle_id already enforces
