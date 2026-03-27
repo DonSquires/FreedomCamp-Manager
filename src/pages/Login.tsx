@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { toast } from 'sonner'
+import { CheckCircle2 } from 'lucide-react'
 
 export default function Login() {
   const [email, setEmail] = useState('')
@@ -117,22 +118,64 @@ export default function Login() {
   }
 
   return (
-    <div className="h-screen overflow-hidden bg-gray-50 dark:bg-gray-900 high-contrast:bg-white flex items-center justify-center p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader className="text-center">
-          <div className="flex justify-center mb-4">
+    <div className="min-h-screen flex">
+      {/* ── Left hero panel (desktop only) ───────────────────────────────── */}
+      <div className="hidden lg:flex lg:w-[440px] lg:flex-col lg:justify-between bg-gradient-to-b from-slate-900 via-blue-950 to-slate-900 p-10 text-white shrink-0">
+        <div>
+          <div className="flex items-center gap-3 mb-8">
             <img
               src="/iron-eagle-security-logo.jpg"
               alt="Iron Eagle Security"
-              className="h-20 w-20 rounded-2xl object-cover shadow-md"
+              className="h-16 w-16 rounded-2xl object-cover shadow-lg"
             />
+            <div>
+              <h1 className="text-xl font-bold leading-tight">FreedomCamp Manager</h1>
+              <p className="text-blue-300 text-sm mt-0.5">NZ Freedom Camping Enforcement Platform</p>
+            </div>
           </div>
-          <CardTitle className="text-2xl">FreedomCamp Manager</CardTitle>
-          <CardDescription>
-            {isPasswordSetupMode ? 'Set your password to continue' : 'Sign in to your account'}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
+
+          <ul className="space-y-4 mt-6">
+            {[
+              'Real-time vehicle compliance & ALPR scanning',
+              'Officer patrol tracking & welfare monitoring',
+              'Automated breach detection & enforcement pipeline',
+              'Roster, timesheets & workforce management',
+              'AI-powered analysis & legislation guidance',
+            ].map((feature) => (
+              <li key={feature} className="flex items-start gap-3">
+                <CheckCircle2 className="h-5 w-5 text-blue-400 shrink-0 mt-0.5" />
+                <span className="text-sm text-blue-100 leading-snug">{feature}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        <p className="text-xs text-blue-400/70 mt-8">
+          Trusted by Iron Eagle Security · OnSpace AI
+        </p>
+      </div>
+
+      {/* ── Right form panel ─────────────────────────────────────────────── */}
+      <div className="flex-1 flex items-center justify-center p-6 bg-white dark:bg-gray-950">
+        <div className="w-full max-w-sm">
+          {/* Mobile-only logo */}
+          <div className="lg:hidden flex flex-col items-center mb-8">
+            <img
+              src="/iron-eagle-security-logo.jpg"
+              alt="Iron Eagle Security"
+              className="h-16 w-16 rounded-2xl object-cover shadow-md mb-3"
+            />
+            <h1 className="text-xl font-bold text-gray-900 dark:text-white">FreedomCamp Manager</h1>
+            <p className="text-sm text-gray-500 mt-0.5">NZ Freedom Camping Enforcement Platform</p>
+          </div>
+
+          <h2 className="text-2xl font-semibold text-gray-900 dark:text-white mb-1">
+            {isPasswordSetupMode ? 'Set your password' : 'Sign in'}
+          </h2>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
+            {isPasswordSetupMode ? 'Create a secure password to access your account.' : 'Enter your credentials to continue.'}
+          </p>
+
           {isPasswordSetupMode ? (
             <form onSubmit={handleSetPassword} className="space-y-4">
               <div>
@@ -217,12 +260,11 @@ export default function Login() {
             </form>
           )}
 
-          <div className="mt-6 text-center text-sm text-gray-600 dark:text-gray-400">
-            <p>Iron Eagle Security</p>
-            <p className="mt-1">NZ Freedom Camping Enforcement</p>
+          <div className="mt-8 text-center text-xs text-gray-400 dark:text-gray-500">
+            <p>Iron Eagle Security · NZ Freedom Camping Enforcement</p>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </div>
   )
 }

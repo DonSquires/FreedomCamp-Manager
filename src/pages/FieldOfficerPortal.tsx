@@ -897,9 +897,14 @@ export default function FieldOfficerPortal() {
       {/* ── Service Type Selector ────────────────────────────────────── */}
       {!scanMode && !showCheckpoint && !detailCameraOpen && (
         <div className="mb-6">
-          <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3 flex items-center gap-2">
+          <h2 className={`text-sm font-semibold mb-3 flex items-center gap-2 ${isNightPatrol ? 'text-cyan-300' : 'text-gray-700 dark:text-gray-300'}`}>
             <Eye className="h-4 w-4" />
-            Select Service
+            Active Service
+            {rosteredShift?.service_type && (
+              <Badge variant="outline" className="ml-auto text-xs border-green-400 text-green-700 dark:text-green-300">
+                Rostered: {rosteredShift.service_type.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase())}
+              </Badge>
+            )}
           </h2>
           <div className="grid grid-cols-2 gap-3">
             {(Object.entries(SERVICE_TYPE_CONFIG) as [ServiceType, typeof SERVICE_TYPE_CONFIG[ServiceType]][]).map(
@@ -1060,7 +1065,7 @@ export default function FieldOfficerPortal() {
               <div className="grid gap-4 grid-cols-2 sm:grid-cols-3 mb-6">
                 {/* ── Detail Scan card ────────────────────────────── */}
                 <Card
-                  className="hover:shadow-lg transition-shadow border-2 border-blue-300 dark:border-blue-800 cursor-pointer"
+                  className="hover:shadow-xl transition-all hover:scale-[1.01] active:scale-[0.99] border-2 border-blue-300 dark:border-blue-800 cursor-pointer"
                   onClick={() => {
                     if (!user?.id || !user?.organization_id) { toast.error('Session expired'); return }
                     if (!navigator.mediaDevices?.getUserMedia) { toast.error('Camera not available'); return }
@@ -1092,7 +1097,7 @@ export default function FieldOfficerPortal() {
 
                 {/* ── Bulk (Zoom) Scan card ────────────────────────── */}
                 <Card
-                  className="hover:shadow-lg transition-shadow border-2 border-yellow-300 dark:border-yellow-800 cursor-pointer"
+                  className="hover:shadow-xl transition-all hover:scale-[1.01] active:scale-[0.99] border-2 border-yellow-300 dark:border-yellow-800 cursor-pointer"
                   onClick={() => {
                     if (!user?.id || !user?.organization_id) { toast.error('Session expired'); return }
                     if (!navigator.mediaDevices?.getUserMedia) { toast.error('Camera not available'); return }
@@ -1121,7 +1126,7 @@ export default function FieldOfficerPortal() {
 
                 {/* ── Live Patrol Scan card ─────────────────────────── */}
                 <Card
-                  className="hover:shadow-lg transition-shadow border-2 border-green-300 dark:border-green-800 cursor-pointer col-span-2 sm:col-span-1"
+                  className="hover:shadow-xl transition-all hover:scale-[1.01] active:scale-[0.99] border-2 border-green-300 dark:border-green-800 cursor-pointer col-span-2 sm:col-span-1"
                   onClick={() => {
                     if (!user?.id || !user?.organization_id) { toast.error('Session expired'); return }
                     if (!navigator.mediaDevices?.getUserMedia) { toast.error('Camera not available'); return }
