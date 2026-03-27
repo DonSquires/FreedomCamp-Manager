@@ -54,11 +54,11 @@ env:
     get-compliance-statistics get-weather hotspot-data import-data
     import-historical-data link-evidence-photos monitor-officer-welfare
     nightly-privacy-cleanup observations-export observations-in-bounds
-    observations-list onspace-ai-chat orc-ingest parkpow-photo-sync
+    observations-list onspace-ai-chat parkpow-photo-sync
     parkpow-sync photo-recovery plate-scanner-photo-first
     process-credential-document process-face-scan process-homeless-data
     process-investigation-document process-officer-scan public-case-lookup
-    recalculate-compliance recalculate-compliance-v2 recalculate-compliance-v3
+    recalculate-compliance-v3
     reingest-photos render-infringement-notice scan-breaches
     scrape-vehicle-photos select-best-vehicle-photo send-invite-email
     send-push-notification send-report-email set-user-password stream-webhook

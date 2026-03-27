@@ -19,87 +19,6 @@ async function readFunctionsErrorText(error: FunctionsHttpError): Promise<string
 
     // Clone to avoid consuming the original body stream for other handlers.
     const readable = typeof response.clone === 'function' ? response.clone() : response
-    return await readable.text()
-  } catch {
-    return ''
-  }
-}
-
-async function isJwtAuthError(error: unknown): Promise<boolean> {
-  if (!(error instanceof FunctionsHttpError)) return false
-
-  const statusCode = error.context?.status ?? 0
-  if (statusCode !== 401) return false
-
-  // Treat all 401 responses as potentially recoverable by token refresh.
-  // Some Supabase gateway 401 responses vary in body shape/message even when
-  // the underlying issue is an expired or transiently rejected token.
-  return true
-}
-
-async function tryRefreshAccessToken(): Promise<string | null> {
-  const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession()
-  if (refreshError || !refreshData.session) {
-    return null
-  }
-  return refreshData.session.access_token
-}
-
-async function getValidAccessToken(): Promise<string | null> {
-  const { data: sessionData, error: sessionError } = await supabase.auth.getSession()
-
-  if (sessionError) {
-    throw new Error(sessionError.message || 'Unable to read current session')
-  }
-
-  if (!sessionData.session) {
-    // Recover from transient client state where refresh token exists but active
-    // session has not been rehydrated yet.
-    return tryRefreshAccessToken()
-  }
-
-  const session = sessionData.session
-  const expiresAtMs = session.expires_at ? session.expires_at * 1000 : 0
-
-  // Refresh when: expiry is unknown (0), token has already expired, or expiry is within buffer window
-  const shouldRefresh = expiresAtMs === 0 || (expiresAtMs - Date.now()) < ACCESS_TOKEN_REFRESH_BUFFER_MS
-
-  if (shouldRefresh) {
-    const refreshedAccessToken = await tryRefreshAccessToken()
-    if (refreshedAccessToken) {
-      return refreshedAccessToken
-    }
-
-    // Graceful fallback: if current token is still technically valid, allow one attempt.
-    if (expiresAtMs > Date.now()) {
-      return session.access_token
-    }
-
-    throw new Error('Session refresh failed. Please retry. If the problem continues, sign in again.')
-  }
-
-  return session.access_token
-}
-
-/**
- * Try to extract a human-readable message from the raw response text.
- * Edge functions return `{ "error": "..." }` or `{ "message": "..." }`.
- * Falls back to the raw text when it isn't JSON.
- */
-function extractUsableMessage(raw: string): string {
-  if (!raw || !raw.trim()) return ''
-
-  // If the text looks like HTML (gateway / proxy error page), discard it.
-  if (/^\s*<[!a-z]/i.test(raw.trim())) {
-    return 'The server returned an HTML error page instead of JSON. This is usually a transient gateway or proxy error — please retry.'
-  }
-
-  try {
-    const parsed = JSON.parse(raw)
-    const candidate: string = parsed?.error ?? parsed?.message ?? ''
-    // Guard against whitespace-only messages that occasionally leak from upstream HTML error pages.
-    if (candidate && candidate.trim()) return candidate.trim()
-    // JSON parsed successfully but the error/message field was empty or whitespace-only.
     // This typically happens when a gateway returns an empty HTML error page whose content
     // was forwarded as the error string. Return a helpful fallback.
     if (parsed && (typeof parsed.error === 'string' || typeof parsed.message === 'string')) {
@@ -629,36 +548,6 @@ export const edgeFunctions = {
     raw_candidates?: string[]
   }) => {
     return callEdgeFunction('vehicle-ingest', params)
-  },
-
-  /**
-   * @deprecated Use ingestVehicleObservation instead.
-   *
-   * Legacy wrapper retained for compatibility. Historically this wrapper sent a
-   * JSON payload to `orc-ingest`, while that function expects multipart form
-   * data (`photo` + `metadata`). To avoid a hard runtime failure for any
-   * lingering callers, we now map to the canonical `vehicle-ingest` pipeline.
-   */
-  orcIngest: async (params: {
-    photo_url: string
-    latitude: number
-    longitude: number
-    officer_id: string
-    organization_id: string
-    zone_id: string
-    plate_number?: string
-    notes?: string
-  }) => {
-    return callEdgeFunction('vehicle-ingest', {
-      photo_url: params.photo_url,
-      gpsLatitude: params.latitude,
-      gpsLongitude: params.longitude,
-      officerId: params.officer_id,
-      organizationId: params.organization_id,
-      zoneId: params.zone_id,
-      plate: params.plate_number,
-      officer_notes: params.notes,
-    })
   },
 
   /**
