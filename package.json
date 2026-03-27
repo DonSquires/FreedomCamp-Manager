@@ -19,6 +19,7 @@
     "test:rls": "playwright test tests/e2e/multi-org-rls.spec.ts",
     "test:reports": "playwright test tests/e2e/report-generation.spec.ts",
     "test:smoke": "playwright test --grep @smoke",
+    "test:api": "playwright test tests/e2e/api-response.spec.ts",
     "install:playwright": "playwright install"
   },
   "dependencies": {
