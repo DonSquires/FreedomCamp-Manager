@@ -197,10 +197,15 @@ serve(async (req) => {
 
       // 404 = plate not on the NZSCV register (vehicle is NOT self-contained certified)
       if (proxyResponse.status === 404) {
+        // If API says not found but we have canonical data, treat API response as
+        // unavailable/incomplete for this plate and fall back to canonical.
+        const fallback = await getCanonicalFallbackResponse('nzscv_api_http_404_with_canonical');
+        if (fallback) return fallback;
+
         return new Response(
           JSON.stringify({ 
             found: false,
-            plate_number: plate_number.toUpperCase(),
+            plate_number: normalizedPlate,
             result: {
               is_self_contained: false,
               expiry_date: null,
