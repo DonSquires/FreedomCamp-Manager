@@ -5,6 +5,7 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
+import { edgeFunctions } from '@/lib/edgeFunctions'
 import { useAuthStore } from '@/stores/authStore'
 import { toast } from 'sonner'
 
@@ -78,8 +79,9 @@ export function useVehicleAnalysis(plateNumber?: string) {
   // Analyze photo mutation
   const analyzePhoto = useMutation({
     mutationFn: async ({ photo_url, plate_number }: AnalyzePhotoInput) => {
-      const { data, error } = await supabase.functions.invoke('analyze-vehicle-photo', {
-        body: { photo_url, plate_number },
+      const { data, error } = await edgeFunctions.analyzeVehiclePhoto({
+        photo_url,
+        plate_number,
       })
 
       if (error) {
@@ -103,9 +105,10 @@ export function useVehicleAnalysis(plateNumber?: string) {
       const results = []
       for (const url of photoUrls) {
         try {
-          const { data } = await supabase.functions.invoke('analyze-vehicle-photo', {
-            body: { photo_url: url },
+          const { data, error } = await edgeFunctions.analyzeVehiclePhoto({
+            photo_url: url,
           })
+          if (error) throw new Error(error)
           results.push({ url, success: true, data })
         } catch (error) {
           results.push({ url, success: false, error })
@@ -147,14 +150,12 @@ export function useAnalyzeObservation(observationId: string | null) {
       if (obsError) throw obsError
 
       // Analyze photo
-      const { data, error } = await supabase.functions.invoke('analyze-vehicle-photo', {
-        body: { 
-          photo_url: obs.photo ?? obs.photo_url,
-          plate_number: obs.plate_number,
-        },
+      const { data, error } = await edgeFunctions.analyzeVehiclePhoto({
+        photo_url: obs.photo ?? obs.photo_url,
+        plate_number: obs.plate_number,
       })
 
-      if (error) throw error
+      if (error) throw new Error(error)
 
       return data
     },

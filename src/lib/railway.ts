@@ -7,6 +7,7 @@
  */
 
 import { supabase } from './supabase'
+import { edgeFunctions } from './edgeFunctions'
 
 // Railway service endpoints (set via Supabase Edge Function secrets)
 // These are NOT exposed to the frontend - only Edge Functions can access them
@@ -20,8 +21,8 @@ const INFERENCE_SERVICE_URL = import.meta.env.VITE_INFERENCE_SERVICE_URL
  * @returns NZSCV warrant details if found
  */
 export async function checkNZSCVStatus(plateNumber: string) {
-  const { data, error } = await supabase.functions.invoke('check-nzscv-status', {
-    body: { plateNumber }
+  const { data, error } = await edgeFunctions.checkNZSCVStatus({
+    plate_number: plateNumber,
   })
 
   if (error) throw error
@@ -35,8 +36,8 @@ export async function checkNZSCVStatus(plateNumber: string) {
  * @returns Vehicle details (make, model, year, etc.)
  */
 export async function enrichFromMotorWeb(plateNumber: string) {
-  const { data, error } = await supabase.functions.invoke('enrich-from-motorweb', {
-    body: { plateNumber }
+  const { data, error } = await edgeFunctions.enrichFromMotorWeb({
+    plate_number: plateNumber,
   })
 
   if (error) throw error
@@ -50,8 +51,8 @@ export async function enrichFromMotorWeb(plateNumber: string) {
  * @returns Vehicle detection results + 384-D embedding
  */
 export async function analyzeVehiclePhoto(photoUrl: string) {
-  const { data, error } = await supabase.functions.invoke('analyze-vehicle-photo', {
-    body: { photoUrl }
+  const { data, error } = await edgeFunctions.analyzeVehiclePhoto({
+    photoUrl,
   })
 
   if (error) throw error
@@ -65,8 +66,8 @@ export async function analyzeVehiclePhoto(photoUrl: string) {
  * @returns Best photo URL + quality score
  */
 export async function selectBestVehiclePhoto(photoUrls: string[]) {
-  const { data, error } = await supabase.functions.invoke('select-best-vehicle-photo', {
-    body: { photoUrls }
+  const { data, error } = await edgeFunctions.selectBestVehiclePhoto({
+    photoUrls,
   })
 
   if (error) throw error

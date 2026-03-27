@@ -15,6 +15,7 @@ import { AppLayout } from '@/components/features/AppLayout'
 import { PaperworkSearchAnimation } from '@/components/features/PaperworkSearchAnimation'
 import { IncidentCreationForm, IncidentFormData } from '@/components/features/IncidentCreationForm'
 import { toast } from 'sonner'
+import { edgeFunctions } from '@/lib/edgeFunctions'
 
 interface Incident {
   id: string
@@ -146,13 +147,12 @@ export default function IncidentManagement() {
           .eq('id', formData.face_record_id)
         // Also call edge function to build the POI embedding link
         if (formData.person_record_id) {
-          await supabase.functions.invoke('process-face-scan', {
-            body: {
+            const { error: linkError } = await edgeFunctions.processFaceScan({
               action: 'link_poi',
               face_record_id: formData.face_record_id,
               person_record_id: formData.person_record_id,
-            },
           })
+            if (linkError) throw new Error(linkError)
         }
       }
     },

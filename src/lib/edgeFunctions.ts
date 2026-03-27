@@ -724,9 +724,18 @@ export const edgeFunctions = {
    * AI profile photo selection
    */
   selectBestVehiclePhoto: async (params: {
-    plate_number: string
+    plate_number?: string
+    plateNumber?: string
+    photoUrls?: string[]
+    photo_urls?: string[]
+    forceUpdate?: boolean
+    force_update?: boolean
   }) => {
-    return callEdgeFunction('select-best-vehicle-photo', params)
+    return callEdgeFunction('select-best-vehicle-photo', {
+      plateNumber: params.plateNumber ?? params.plate_number,
+      photoUrls: params.photoUrls ?? params.photo_urls,
+      forceUpdate: params.forceUpdate ?? params.force_update,
+    })
   },
 
   /**

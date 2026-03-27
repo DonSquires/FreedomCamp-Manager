@@ -457,7 +457,7 @@ Create 4 test users with different roles:
 3. Wait for completion
 
 **Expected:**
-- ✅ Edge Function: recalculate-compliance-v2 called
+- ✅ Edge Function: recalculate-compliance-v3 called
 - ✅ All observations re-evaluated
 - ✅ New breaches detected
 - ✅ drift_events entry created

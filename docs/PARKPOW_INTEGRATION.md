@@ -18,7 +18,7 @@ ParkPow turns raw plate-recognition scans into a complete **enforcement workflow
 
 ## How the Integration Works (Step by Step)
 
-When an officer scans a plate, `orc-ingest` runs this pipeline:
+When an officer scans a plate, the canonical ingest path (`vehicle-ingest` + background enrichment) runs this pipeline:
 
 ```
 📷 Photo captured
@@ -132,9 +132,9 @@ The migration `20260225_parkpow_integration.sql` adds:
 
 ---
 
-## Response Fields in `orc-ingest`
+## Response Fields in Canonical Ingest
 
-After integration, `orc-ingest` responses include:
+After integration, canonical ingest responses include:
 
 ```json
 {

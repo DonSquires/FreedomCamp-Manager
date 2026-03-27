@@ -27,6 +27,7 @@ import { AppLayout } from '@/components/features/AppLayout'
 import { FaceRecognition, type POIMatch } from '@/components/features/FaceRecognition'
 import { useAuthStore } from '@/stores/authStore'
 import { supabase } from '@/lib/supabase'
+import { edgeFunctions } from '@/lib/edgeFunctions'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 
@@ -115,12 +116,10 @@ export default function FaceRecognitionPage() {
     if (!linkDialog || !selectedPersonId) return
 
     try {
-      const { error } = await supabase.functions.invoke('process-face-scan', {
-        body: {
-          action: 'link_poi',
-          face_record_id: linkDialog.faceRecordId,
-          person_record_id: selectedPersonId,
-        },
+      const { error } = await edgeFunctions.processFaceScan({
+        action: 'link_poi',
+        face_record_id: linkDialog.faceRecordId,
+        person_record_id: selectedPersonId,
       })
 
       if (error) throw error

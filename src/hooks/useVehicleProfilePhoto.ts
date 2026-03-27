@@ -5,6 +5,7 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { supabase } from '@/lib/supabase'
+import { edgeFunctions } from '@/lib/edgeFunctions'
 import { useAuthStore } from '@/stores/authStore'
 import { getObservationPhotoUrl } from '@/lib/photoUtils'
 import { toast } from 'sonner'
@@ -71,13 +72,13 @@ export function useVehicleProfilePhoto(plateNumber?: string) {
   // Auto-select best photo mutation
   const selectBestPhoto = useMutation({
     mutationFn: async (plate: string) => {
-      const { data, error } = await supabase.functions.invoke('select-best-vehicle-photo', {
-        body: { plate_number: plate },
+      const { data, error } = await edgeFunctions.selectBestVehiclePhoto({
+        plate_number: plate,
       })
 
       if (error) {
         toast.error('Failed to select best photo')
-        throw error
+        throw new Error(error)
       }
 
       return data
@@ -159,9 +160,10 @@ export function useBatchProfilePhotoSelection() {
       const results = []
       for (const plate of plateNumbers) {
         try {
-          const { data } = await supabase.functions.invoke('select-best-vehicle-photo', {
-            body: { plate_number: plate },
+          const { data, error } = await edgeFunctions.selectBestVehiclePhoto({
+            plate_number: plate,
           })
+          if (error) throw new Error(error)
           results.push({ plate, success: true, data })
         } catch (error) {
           results.push({ plate, success: false, error })
