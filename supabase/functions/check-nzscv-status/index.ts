@@ -25,6 +25,7 @@ import { corsHeaders } from '../_shared/cors.ts';
 
 interface NZSCVRequest {
   plate_number: string;
+  plateNumber?: string;
 }
 
 // Represents the raw NZSCV API response shape.
@@ -64,7 +65,8 @@ serve(async (req) => {
   }
 
   try {
-    const { plate_number }: NZSCVRequest = await req.json();
+    const requestBody: NZSCVRequest = await req.json();
+    const plate_number = (requestBody.plate_number || requestBody.plateNumber || '').trim();
 
     if (!plate_number || plate_number.trim() === '') {
       return new Response(
@@ -87,7 +89,7 @@ serve(async (req) => {
         const normalizedPlate = plate_number.toUpperCase().trim();
 
         const { data: scvRow } = await (supabaseAdmin.from('canonical_scv') as any)
-          .select('is_self_contained, certificate_expiry')
+          .select('is_self_contained, certificate_expiry, certificate_issue_date, certificate_status, vin, max_occupants, logo_url')
           .eq('plate_number', normalizedPlate)
           .maybeSingle();
 
@@ -127,15 +129,16 @@ serve(async (req) => {
                 result: {
                   is_self_contained: true,
                   expiry_date: expiry,
-                  issue_date: null,
-                  status: 'Current',
+                  issue_date: scvRow.certificate_issue_date ?? null,
+                  status: scvRow.certificate_status ?? 'Current',
                   make: vehicleMake,
                   model: vehicleModel,
                   year: vehicleYear,
-                  vin: null,
+                  vin: scvRow.vin ?? null,
                   colour: vehicleColor,
-                  max_occupants: null,
+                  max_occupants: scvRow.max_occupants ?? null,
                 },
+                logo_url: scvRow.logo_url ?? null,
                 checked_at: new Date().toISOString(),
               }),
               { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -224,9 +227,38 @@ serve(async (req) => {
     // Determine if SC certificate is currently valid
     const status  = vr?.CertificateStatus ?? null;
     const expiry  = vr?.CertificateExpiryDate ?? null;
+    const issueDate = vr?.CertificateIssueDate ?? null;
+    const vin = vr?.vin ?? null;
+    const maxOccupants = vr?.MaxOccupants ?? null;
+    const logoUrl = data.LogoURL ?? null;
     const isCurrentByStatus = status === 'Current' || status === 'Issued';
     const isCurrentByExpiry = expiry != null && new Date(expiry) > new Date();
     const isSelfContained   = isCurrentByStatus || (!status && isCurrentByExpiry);
+
+    // Persist full NZSCV payload so observations can be backfilled later.
+    // Best effort only — lookup response must succeed even if persistence fails.
+    if (SUPABASE_URL && SUPABASE_SERVICE_ROLE_KEY) {
+      try {
+        const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+        const normalizedPlate = (vr?.VehicleRegistration ?? plate_number).toUpperCase().trim();
+        await (supabaseAdmin.from('canonical_scv') as any).upsert({
+          plate_number: normalizedPlate,
+          is_self_contained: isSelfContained,
+          certificate_expiry: expiry,
+          certificate_issue_date: issueDate,
+          certificate_status: status,
+          vin,
+          max_occupants: maxOccupants,
+          logo_url: logoUrl,
+          raw_payload: data,
+          source: 'nzscv_api',
+          verified_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        }, { onConflict: 'plate_number' });
+      } catch (persistErr: any) {
+        console.warn('⚠️ Failed to persist NZSCV payload to canonical_scv:', persistErr?.message || persistErr);
+      }
+    }
 
     // Return SC certification fields (guaranteed) + any optional vehicle detail
     // fields that NZSCV may provide. All optional fields are null when absent.
@@ -239,17 +271,17 @@ serve(async (req) => {
           // SC certification — core purpose of NZSCV lookup
           is_self_contained: isSelfContained,
           expiry_date:       expiry,
-          issue_date:        vr?.CertificateIssueDate ?? null,
+          issue_date:        issueDate,
           certificate_status: status, // For inference service to detect revoked/expired
           // Optional vehicle detail fields — null when not provided by NZSCV
           make:          vr?.make          ?? null,
           model:         vr?.model         ?? null,
           year:          vr?.year != null ? parseInt(String(vr.year), 10) : null,
-          vin:           vr?.vin           ?? null,
+          vin:           vin,
           colour:        vr?.colour        ?? null,
-          max_occupants: vr?.MaxOccupants  ?? null,
+          max_occupants: maxOccupants,
         },
-        logo_url:   data.LogoURL ?? null,
+        logo_url:   logoUrl,
         source:     'nzscv_register', // Track which authority provided this data
         checked_at: new Date().toISOString(),
       }),

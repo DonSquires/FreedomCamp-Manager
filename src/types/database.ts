@@ -844,34 +844,52 @@ export type Database = {
       }
       canonical_scv: {
         Row: {
+          certificate_issue_date: string | null
+          certificate_status: string | null
           certificate_expiry: string | null
           created_at: string
           is_self_contained: boolean
+          logo_url: string | null
+          max_occupants: number | null
           notes: string | null
           plate_number: string
+          raw_payload: Json | null
           source: string | null
           updated_at: string
           verified_at: string | null
+          vin: string | null
         }
         Insert: {
+          certificate_issue_date?: string | null
+          certificate_status?: string | null
           certificate_expiry?: string | null
           created_at?: string
           is_self_contained?: boolean
+          logo_url?: string | null
+          max_occupants?: number | null
           notes?: string | null
           plate_number: string
+          raw_payload?: Json | null
           source?: string | null
           updated_at?: string
           verified_at?: string | null
+          vin?: string | null
         }
         Update: {
+          certificate_issue_date?: string | null
+          certificate_status?: string | null
           certificate_expiry?: string | null
           created_at?: string
           is_self_contained?: boolean
+          logo_url?: string | null
+          max_occupants?: number | null
           notes?: string | null
           plate_number?: string
+          raw_payload?: Json | null
           source?: string | null
           updated_at?: string
           verified_at?: string | null
+          vin?: string | null
         }
         Relationships: []
       }
