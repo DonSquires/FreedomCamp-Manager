@@ -159,7 +159,6 @@ Deno.serve(async (req) => {
           notice_id: notice.id,
           reference: notice.reference_number,
         },
-      ]), // Native JSONB array, not stringified
       });
 
     if (enforcementError) {
