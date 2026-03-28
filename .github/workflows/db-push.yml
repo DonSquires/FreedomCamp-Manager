@@ -154,8 +154,18 @@ jobs:
             fi
 
             # Case 3: duplicate insert in migration history table.
-            if grep -q 'duplicate key value violates unique constraint "schema_migrations_pkey"' "$LOG_FILE"; then
-              DUP_VERSION=$(grep -oE 'Key \(version\)=\([0-9]+\)' "$LOG_FILE" | sed -E 's/.*\(([0-9]+)\).*/\1/' | head -n1)
+            # Some CLI versions format this differently; match broadly and
+            # recover using either the explicit key or the currently applying
+            # migration filename.
+            if grep -Eaq 'schema_migrations_pkey|Key \(version\)=\([0-9]+\) already exists|SQLSTATE 23505' "$LOG_FILE"; then
+              DUP_VERSION=$(grep -Eo 'Key \(version\)=\([0-9]+\)' "$LOG_FILE" | sed -E 's/.*\(([0-9]+)\).*/\1/' | head -n1)
+
+              if [ -z "${DUP_VERSION:-}" ]; then
+                DUP_VERSION=$(grep -Eo 'Applying migration [0-9]{8,14}_[^[:space:]]+\.sql' "$LOG_FILE" \
+                  | sed -E 's/.* ([0-9]{8,14})_.*/\1/' \
+                  | tail -n1)
+              fi
+
               if [ -n "${DUP_VERSION:-}" ]; then
                 echo "Detected duplicate schema_migrations version: $DUP_VERSION"
                 echo "Repairing by marking the version applied, then retrying..."
