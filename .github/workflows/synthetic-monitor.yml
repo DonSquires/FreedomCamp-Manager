@@ -183,7 +183,12 @@ jobs:
               const hasErrorOverlay = await page.locator('text=/Something went wrong|Error boundary|Unhandled/i').count() > 0;
 
               const filteredErrors = isVercelProtection
-                ? errors.filter((e) => !/(401|403)/.test(e))
+                ? errors.filter((e) => {
+                    const lower = e.toLowerCase();
+                    const hasAuthStatus = /\b(401|403)\b/.test(e);
+                    const mentionsVercel = lower.includes('vercel');
+                    return !(hasAuthStatus || mentionsVercel);
+                  })
                 : errors;
 
               console.log(JSON.stringify({
