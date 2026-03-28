@@ -175,27 +175,37 @@ jobs:
               const title = await page.title();
               const bodyText = await page.locator('body').innerText().catch(() => '');
               const hasContent = bodyText.length > 50;
+              const isVercelProtection =
+                (status === 401 || status === 403) &&
+                (/vercel/i.test(title) || /vercel/i.test(bodyText));
 
               // Check for crash/error screens
               const hasErrorOverlay = await page.locator('text=/Something went wrong|Error boundary|Unhandled/i').count() > 0;
+
+              const filteredErrors = isVercelProtection
+                ? errors.filter((e) => !/(401|403)/.test(e))
+                : errors;
 
               console.log(JSON.stringify({
                 status,
                 title,
                 hasContent,
                 hasErrorOverlay,
-                jsErrors: errors,
+                jsErrors: filteredErrors,
+                vercelProtection: isVercelProtection,
               }));
 
-              if (status >= 400) {
+              if (isVercelProtection) {
+                console.warn(`Vercel protection login detected (HTTP ${status}); treating as soft pass for monitor`);
+              } else if (status >= 400) {
                 process.exitCode = 1;
                 console.error(`Page returned HTTP ${status}`);
               } else if (hasErrorOverlay) {
                 process.exitCode = 1;
                 console.error('Error overlay detected on page');
-              } else if (errors.length > 2) {
+              } else if (filteredErrors.length > 2) {
                 process.exitCode = 1;
-                console.error(`${errors.length} JS errors on page load`);
+                console.error(`${filteredErrors.length} JS errors on page load`);
               }
             } catch (err) {
               console.error(err.message);
