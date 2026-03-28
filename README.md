@@ -150,6 +150,7 @@ Vercel's integration handles the deployment independently.
 
 ## Further reading
 
+- [docs/CAPABILITY_OVERVIEW.md](docs/CAPABILITY_OVERVIEW.md) — full platform capability guide for service providers and clients (start here if you are evaluating the platform)
 - [docs/NEW_PROJECT_SETUP.md](docs/NEW_PROJECT_SETUP.md) — original baseline plan for full new-project provisioning
 - [docs/DEPLOYMENT_GUIDE.md](docs/DEPLOYMENT_GUIDE.md) — operational companion for rollout checks and drift recovery
 - [ONLINE_DEPLOYMENT_GUIDE.md](ONLINE_DEPLOYMENT_GUIDE.md) — browser-only deployment walkthrough (Supabase + Vercel + Railway)
