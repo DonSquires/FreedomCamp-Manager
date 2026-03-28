@@ -543,12 +543,15 @@ export default function FieldOfficerPortal() {
 
       // Deactivate welfare push schedule
       if (user?.id) {
-        await supabase
+          const { error: deactivateError } = await supabase
           .from('welfare_push_schedule' as any)
           .update({ is_active: false })
           .eq('officer_id', user.id)
           .eq('is_active', true)
-          .catch(() => { /* non-critical */ })
+          if (deactivateError) {
+            // non-critical: shift has ended even if schedule cleanup fails
+            console.warn('Failed to deactivate welfare push schedule:', deactivateError)
+          }
       }
 
       // Notify service worker to dismiss welfare notifications

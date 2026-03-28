@@ -66,6 +66,7 @@ export function FieldSafetyBar({
     organizationId: user?.organization_id ?? null,
     shiftId:        officerShiftId,
     position,
+    isShiftActive:  !!officerShiftId,
   })
 
   // ── SOS hold ──────────────────────────────────────────────────────────────

@@ -64,7 +64,7 @@ export async function subscribeWebPush(userId: string): Promise<boolean> {
     if (!subscription) {
       subscription = await registration.pushManager.subscribe({
         userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array(vapidPublicKey),
+          applicationServerKey: urlBase64ToUint8Array(vapidPublicKey) as unknown as BufferSource,
       })
     }
 
@@ -180,7 +180,7 @@ export async function subscribeToPush(): Promise<PushSubscription | null> {
     if (!vapidKey) return null
     return await registration.pushManager.subscribe({
       userVisibleOnly: true,
-      applicationServerKey: urlBase64ToUint8Array(vapidKey),
+        applicationServerKey: urlBase64ToUint8Array(vapidKey) as unknown as BufferSource,
     })
   } catch (err) {
     console.error('Failed to subscribe to push:', err)

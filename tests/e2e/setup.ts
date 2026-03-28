@@ -52,6 +52,8 @@ export { expect } from '@playwright/test'
  * Helper functions
  */
 export const helpers = {
+  supabase,
+
   /**
    * Wait for toast notification
    */
