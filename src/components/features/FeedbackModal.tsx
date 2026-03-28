@@ -22,6 +22,7 @@ import {
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { getFeedbackSnapshot, clearCapturedErrors, type FeedbackSnapshot } from '@/hooks/useFeedbackCapture'
+import { edgeFunctions } from '@/lib/edgeFunctions'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -98,7 +99,7 @@ export function FeedbackModal({ open, onClose }: FeedbackModalProps) {
     const finalSnapshot = getFeedbackSnapshot()
 
     try {
-      const { error } = await supabase.from('bug_reports').insert({
+      const { data: inserted, error } = await supabase.from('bug_reports').insert({
         user_id: user.id,
         organization_id: user.organization_id ?? null,
         user_role: user.role,
@@ -118,13 +119,21 @@ export function FeedbackModal({ open, onClose }: FeedbackModalProps) {
         app_version: finalSnapshot.appVersion,
         status: 'submitted',
         admin_notified: false,
-      })
+      }).select('id').single()
 
       if (error) throw error
 
       clearCapturedErrors()
       setSubmitted(true)
       toast.success('Report submitted — thank you!')
+
+      // Fire-and-forget: auto-analyse the report with AI in the background.
+      // This runs asynchronously so it never blocks the user flow.
+      if (inserted?.id) {
+        edgeFunctions.autoAnalyseReport({ report_id: inserted.id }).catch(() => {
+          // Silent — analysis failure doesn't affect the user experience
+        })
+      }
     } catch (err: any) {
       toast.error('Failed to submit report', { description: err.message })
     } finally {

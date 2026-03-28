@@ -1198,6 +1198,19 @@ export const edgeFunctions = {
   },
 
   /**
+   * Auto-analyse a newly-submitted bug report.
+   *
+   * Called fire-and-forget from FeedbackModal immediately after the bug_reports
+   * row is inserted.  The function fetches the report, checks GitHub Actions CI
+   * status (when GITHUB_TOKEN is configured), and persists an AI-generated
+   * diagnosis + fix suggestion back to the row automatically — no grand-master
+   * action required.
+   */
+  autoAnalyseReport: async (params: { report_id: string }) => {
+    return callEdgeFunction('auto-analyse-report', params, { showToast: false })
+  },
+
+  /**
    * Sync canonical_vehicles self-contained status against the NZSCV SCV Excel list.
    *
    * Reads the published SCV list from Supabase Storage, compares every plate in
