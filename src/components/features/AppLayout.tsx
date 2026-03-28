@@ -68,6 +68,8 @@ import {
   CalendarCheck2,
   DollarSign,
   ClipboardCopy,
+  Globe,
+  LayoutDashboard,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
@@ -84,8 +86,10 @@ type NavItem = { path: string; icon: React.FC<{ className?: string }>; label: st
 
 // Pinned items always visible at the top of the sidebar
 const pinnedItems: NavItem[] = [
+  { path: '/platform', icon: Globe, label: 'Platform Overview', roles: ['grand_master'] },
+  { path: '/admin', icon: LayoutDashboard, label: 'Command Centre', roles: ['grand_master'] },
   { path: '/', icon: Home, label: 'Home', roles: ['admin', 'admin_officer', 'master', 'officer', 'nzscv_monitor'] },
-  { path: '/search', icon: Search, label: 'Search', roles: ['admin', 'admin_officer', 'master', 'officer', 'nzscv_monitor'] },
+  { path: '/search', icon: Search, label: 'Search', roles: ['admin', 'admin_officer', 'master', 'officer', 'nzscv_monitor', 'grand_master'] },
 ]
 
 // Grouped navigation — collapsed by default, each bucket holds related items
@@ -202,10 +206,13 @@ function NavigationLinks({ onClick }: { onClick?: () => void }) {
   const { user } = useAuthStore()
   const [openGroups, setOpenGroups] = useState<Set<string>>(new Set())
 
+  // grand_master sees the same grouped nav items as master
+  const effectiveNavRole = user?.role === 'grand_master' ? 'master' : user?.role
+
   // Auto-expand the group containing the active path on navigation
   useEffect(() => {
     for (const group of navigationGroups) {
-      if (group.items.some(item => location.pathname === item.path && user && item.roles.includes(user.role))) {
+      if (group.items.some(item => location.pathname === item.path && item.roles.includes(effectiveNavRole ?? ''))) {
         setOpenGroups(prev => {
           if (prev.has(group.label)) return prev
           const next = new Set(prev)
@@ -214,7 +221,7 @@ function NavigationLinks({ onClick }: { onClick?: () => void }) {
         })
       }
     }
-  }, [location.pathname, user])
+  }, [location.pathname, effectiveNavRole])
 
   const toggleGroup = (label: string) => {
     setOpenGroups(prev => {
@@ -256,7 +263,7 @@ function NavigationLinks({ onClick }: { onClick?: () => void }) {
       {/* Grouped navigation with accordion */}
       {navigationGroups.map((group) => {
         const GroupIcon = group.icon
-        const visibleItems = group.items.filter(item => user && item.roles.includes(user.role))
+        const visibleItems = group.items.filter(item => item.roles.includes(effectiveNavRole ?? ''))
         if (visibleItems.length === 0) return null
 
         const isOpen = openGroups.has(group.label)
@@ -466,7 +473,8 @@ export function AppLayout({ children, title, description, showBackButton }: AppL
                       {user?.full_name}
                     </p>
                     <p className="text-xs text-gray-500 dark:text-gray-500">
-                      {user?.role === 'master' ? 'System Admin' : 
+                      {user?.role === 'grand_master' ? 'Platform Administrator' :
+                       user?.role === 'master' ? 'System Admin' : 
                        user?.role === 'admin' ? 'Admin' :
                         user?.role === 'admin_officer' ? 'Admin Officer' :
                         user?.role === 'nzscv_monitor' ? 'NZSCV Monitor' : 'Officer'}
@@ -534,7 +542,8 @@ export function AppLayout({ children, title, description, showBackButton }: AppL
                   {user?.full_name}
                 </p>
                 <p className="text-xs text-cyan-200 mt-0.5">
-                  {user?.role === 'master' ? 'System Administrator' : 
+                  {user?.role === 'grand_master' ? 'Platform Administrator' :
+                   user?.role === 'master' ? 'System Administrator' : 
                    user?.role === 'admin' ? 'Administrator' :
                   user?.role === 'admin_officer' ? 'Admin Officer' :
                   user?.role === 'nzscv_monitor' ? 'NZSCV Monitor' : 'Field Officer'}

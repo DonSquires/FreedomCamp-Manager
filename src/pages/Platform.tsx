@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { Button } from '@/components/ui/button'
@@ -13,7 +14,10 @@ import {
   Building2, Users, Scan, AlertTriangle, FileText, TrendingUp, Shield,
   Activity, Globe, DollarSign, Bug, Lightbulb, Zap, ChevronDown, ChevronUp,
   Sparkles, CheckCircle2, Clock, Loader2, Navigation, MonitorDot, RefreshCw,
-  Code2,
+  Code2, BarChart3, MapPin, Car, Database, Gavel, Receipt, Map, PieChart,
+  BrainCircuit, ScanLine, CalendarRange, HeartPulse, Radio, Upload, Camera,
+  ScrollText, ClipboardCheck, FlameKindling, Settings, User, Search,
+  ArrowRight, MonitorPlay,
 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -68,11 +72,139 @@ interface FeedbackReport {
   resolution_notes: string | null
 }
 
+// ─── Feature navigation groups (all sections of the build) ───────────────────
+
+const FEATURE_GROUPS = [
+  {
+    label: 'Operations',
+    icon: Activity,
+    items: [
+      { path: '/admin', label: 'Command Centre', icon: BarChart3 },
+      { path: '/compliance', label: 'Compliance', icon: CheckCircle2 },
+      { path: '/observation-records', label: 'Observations', icon: ScanLine },
+      { path: '/observations-report', label: 'Observations Report', icon: FileText },
+      { path: '/breaches', label: 'Breaches & Alerts', icon: AlertTriangle },
+      { path: '/breach-notices', label: 'Breach Notices', icon: ScrollText },
+      { path: '/enforcement-actions', label: 'Enforcement Actions', icon: Gavel },
+      { path: '/enforcement-review', label: 'Enforcement Review', icon: ClipboardCheck },
+      { path: '/disputes', label: 'Disputes', icon: AlertTriangle },
+      { path: '/admin/discrepancies', label: 'Discrepancies', icon: AlertTriangle },
+      { path: '/infringements', label: 'Infringements', icon: Receipt },
+      { path: '/enforcement-command-center', label: 'Command Centre Ops', icon: MonitorPlay },
+    ],
+  },
+  {
+    label: 'Live Monitoring',
+    icon: Activity,
+    items: [
+      { path: '/live-tracking', label: 'Live Tracking', icon: Navigation },
+      { path: '/live-patrol', label: 'Live Patrol Monitor', icon: MonitorPlay },
+      { path: '/hotspots', label: 'Hotspots Map', icon: FlameKindling },
+      { path: '/compliance-analytics', label: 'Compliance Analytics', icon: PieChart },
+      { path: '/officer-welfare', label: 'Officer Welfare', icon: HeartPulse },
+    ],
+  },
+  {
+    label: 'Patrol Management',
+    icon: Navigation,
+    items: [
+      { path: '/patrol-checkpoints', label: 'Checkpoints', icon: ScanLine },
+      { path: '/patrol-schedule', label: 'Patrol Schedule', icon: CalendarRange },
+      { path: '/patrol-kpis', label: 'Patrol KPIs', icon: TrendingUp },
+      { path: '/dispatch', label: 'Dispatch Console', icon: Radio },
+      { path: '/investigations', label: 'Investigation Jobs', icon: BrainCircuit },
+    ],
+  },
+  {
+    label: 'Vehicles & Zones',
+    icon: Car,
+    items: [
+      { path: '/vehicles', label: 'Vehicles', icon: Car },
+      { path: '/vehicle-registry', label: 'Vehicle Registry', icon: Car },
+      { path: '/admin/nzscv', label: 'NZSCV Monitor', icon: Car },
+      { path: '/admin/canonical-records', label: 'Canonical Records', icon: Database },
+      { path: '/zones', label: 'Zones', icon: MapPin },
+      { path: '/spatial-compliance', label: 'Spatial Compliance', icon: Map },
+      { path: '/hotspots', label: 'Hotspots', icon: FlameKindling },
+      { path: '/points-of-interest', label: 'Points of Interest', icon: MapPin },
+    ],
+  },
+  {
+    label: 'People & Records',
+    icon: Users,
+    items: [
+      { path: '/persons', label: 'Person Records', icon: Users },
+      { path: '/users', label: 'User Management', icon: Users },
+      { path: '/organizations', label: 'Organisations', icon: Building2 },
+      { path: '/organization-profile', label: 'Org Profile', icon: Building2 },
+      { path: '/access-control', label: 'Access Control', icon: Shield },
+      { path: '/face-recognition', label: 'Face Recognition', icon: User },
+    ],
+  },
+  {
+    label: 'Reports',
+    icon: FileText,
+    items: [
+      { path: '/reports', label: 'Reports', icon: FileText },
+      { path: '/reports-hub', label: 'Reports Hub', icon: FileText },
+      { path: '/compliance-dashboard', label: 'Compliance Dashboard', icon: BarChart3 },
+      { path: '/ai-analysis', label: 'AI Analysis', icon: BrainCircuit },
+      { path: '/incidents', label: 'Incidents & Evidence', icon: Shield },
+      { path: '/incident-reports', label: 'Incident Reports', icon: FileText },
+    ],
+  },
+  {
+    label: 'Roster & Workforce',
+    icon: CalendarRange,
+    items: [
+      { path: '/roster', label: 'Roster Planner', icon: CalendarRange },
+      { path: '/open-shifts', label: 'Open Shifts', icon: CalendarRange },
+      { path: '/timesheets', label: 'Timesheets', icon: FileText },
+      { path: '/officer-skills', label: 'Skills & Licences', icon: CheckCircle2 },
+      { path: '/availability', label: 'Availability', icon: CalendarRange },
+    ],
+  },
+  {
+    label: 'Client & Dispatch',
+    icon: Building2,
+    items: [
+      { path: '/client-sites', label: 'Client Sites (CRM)', icon: Building2 },
+      { path: '/client-portal', label: 'Client Portal', icon: Building2 },
+    ],
+  },
+  {
+    label: 'Data & Tools',
+    icon: Database,
+    items: [
+      { path: '/data', label: 'Data Management', icon: Database },
+      { path: '/admin/data-hub', label: 'Data Hub', icon: Database },
+      { path: '/import-historical', label: 'Import Data', icon: Upload },
+      { path: '/photo-reingest', label: 'Photo Reingest', icon: Camera },
+      { path: '/compliance-recalculation', label: 'Recalculation', icon: RefreshCw },
+      { path: '/admin/cleanup-recalculate', label: 'Cleanup & Recalculate', icon: RefreshCw },
+      { path: '/admin/data-integrity', label: 'Data Integrity', icon: Database },
+    ],
+  },
+  {
+    label: 'System',
+    icon: Settings,
+    items: [
+      { path: '/diagnostics', label: 'Diagnostics', icon: Settings },
+      { path: '/audit-log', label: 'Audit Log', icon: ScrollText },
+      { path: '/notifications', label: 'Notifications', icon: AlertTriangle },
+      { path: '/settings', label: 'Settings', icon: Settings },
+      { path: '/profile', label: 'My Profile', icon: User },
+      { path: '/search', label: 'Universal Search', icon: Search },
+    ],
+  },
+]
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function Platform() {
   const { user } = useAuthStore()
   const queryClient = useQueryClient()
+  const navigate = useNavigate()
   const [periodDays, setPeriodDays] = useState(30)
   const [analyzingId, setAnalyzingId] = useState<string | null>(null)
   const [expandedId, setExpandedId] = useState<string | null>(null)
@@ -98,7 +230,7 @@ export default function Platform() {
   })
 
   // Per-org usage
-  const { data: orgUsage, isLoading: orgLoading } = useQuery<OrgUsageSummary[]>({
+  const { data: orgUsage, isLoading: orgLoading, isError: isOrgError } = useQuery<OrgUsageSummary[]>({
     queryKey: ['org-usage-summary', periodDays],
     queryFn: async ({ signal }) => {
       const { data, error } = await (supabase as any).rpc('get_org_usage_summary', {
@@ -306,8 +438,9 @@ Be specific. Name exact files and line-level changes where possible.`
         </div>
 
         {/* Main Tabs */}
-        <Tabs defaultValue="organisations">
+        <Tabs defaultValue="features">
           <TabsList>
+            <TabsTrigger value="features">All Features</TabsTrigger>
             <TabsTrigger value="organisations">Organisations</TabsTrigger>
             <TabsTrigger value="billing">Usage / Billing</TabsTrigger>
             <TabsTrigger value="feedback" className="gap-1.5">
@@ -320,19 +453,64 @@ Be specific. Name exact files and line-level changes where possible.`
             </TabsTrigger>
           </TabsList>
 
+          {/* All Features tab — quick-access grid to every section of the build */}
+          <TabsContent value="features" className="mt-4">
+            <div className="space-y-6">
+              <p className="text-sm text-muted-foreground">
+                Direct access to every section of FreedomCamp Manager. All pages are unrestricted for the Platform Administrator role.
+              </p>
+
+              {FEATURE_GROUPS.map(group => (
+                <div key={group.label}>
+                  <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2 flex items-center gap-1.5">
+                    <group.icon className="h-3.5 w-3.5" />
+                    {group.label}
+                  </h3>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2">
+                    {group.items.map(item => (
+                      <button
+                        key={item.path}
+                        onClick={() => navigate(item.path)}
+                        className="flex items-center gap-2.5 rounded-lg border bg-white dark:bg-gray-900 px-3 py-2.5 text-left hover:bg-gray-50 dark:hover:bg-gray-800 hover:border-primary/40 transition-all shadow-sm group"
+                      >
+                        <item.icon className="h-4 w-4 shrink-0 text-muted-foreground group-hover:text-primary transition-colors" />
+                        <span className="text-sm font-medium leading-tight truncate">{item.label}</span>
+                        <ArrowRight className="h-3 w-3 ml-auto shrink-0 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </TabsContent>
+
           {/* Organisations tab */}
           <TabsContent value="organisations" className="mt-4">
             <Card>
-              <CardHeader>
-                <CardTitle>All Organisations</CardTitle>
-                <CardDescription>
-                  Every client organisation on the platform.
-                  Use the Admin Portal for detailed per-org management.
-                </CardDescription>
+              <CardHeader className="flex flex-row items-start justify-between gap-4">
+                <div>
+                  <CardTitle>All Organisations</CardTitle>
+                  <CardDescription>
+                    Every client organisation on the platform.
+                    Use the Admin Portal for detailed per-org management.
+                  </CardDescription>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => navigate('/organizations')}
+                  className="shrink-0"
+                >
+                  Manage Orgs
+                </Button>
               </CardHeader>
               <CardContent>
                 {orgLoading ? (
                   <p className="text-muted-foreground text-sm">Loading…</p>
+                ) : isOrgError ? (
+                  <p className="text-sm text-red-600 dark:text-red-400">
+                    Failed to load organisation data. The platform statistics RPC may not be deployed yet.
+                  </p>
                 ) : (
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
