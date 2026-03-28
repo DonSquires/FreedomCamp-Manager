@@ -129,15 +129,13 @@ jobs:
       - name: Install Playwright
         if: steps.check-secrets.outputs.secrets_present == 'true'
         run: |
-          npm install --no-save playwright@latest
-          npx playwright install --with-deps chromium
+          npx --yes --package=playwright playwright install --with-deps chromium
 
       - name: Check — Playwright page render
         if: steps.check-secrets.outputs.secrets_present == 'true'
         id: check-playwright
         run: |
-          export NODE_PATH="$(npm root)"
-          node - <<'EOF'
+          npx --yes --package=playwright node - <<'EOF'
           const { chromium } = require('playwright');
           const FRONTEND_URL = process.env.FRONTEND_URL;
 
