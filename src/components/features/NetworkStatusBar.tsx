@@ -39,7 +39,7 @@ export function NetworkStatusBar() {
           : 'bg-red-600 text-white'
       )}
     >
-      <div className="flex items-center justify-center gap-2">
+      <div className="flex items-center justify-center gap-2" data-testid="network-status-bar">
         {isOnline ? (
           <>
             <Wifi className="h-4 w-4" />
@@ -48,7 +48,7 @@ export function NetworkStatusBar() {
         ) : (
           <>
             <WifiOff className="h-4 w-4" />
-            <span>No internet connection - working offline</span>
+            <span>Offline mode - no internet connection, working offline</span>
           </>
         )}
       </div>

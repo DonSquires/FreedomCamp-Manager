@@ -37,7 +37,9 @@ import {
 import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
 import { supabase } from '@/lib/supabase'
+import { edgeFunctions } from '@/lib/edgeFunctions'
 import { formatDateTime } from '@/lib/utils'
+import { useOfflineQueue, useOfflineQueueStats } from '@/hooks/useOfflineQueue'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -155,9 +157,18 @@ export default function FieldOfficerPortal() {
   const [scanProgressLabel, setScanProgressLabel]  = useState(SCAN_PROGRESS_LABELS.gps)
   const [detailScanData,    setDetailScanData]     = useState<DetailScanData | null>(null)
   const [showDetailPanel,   setShowDetailPanel]    = useState(false)
+  const [showManualEntry,   setShowManualEntry]    = useState(false)
+  const [manualPlate,       setManualPlate]        = useState('')
+  const [manualZoneId,      setManualZoneId]       = useState('')
+  const [manualSubmitting,  setManualSubmitting]   = useState(false)
 
   // Admin-assigned follow-up count — used to show badge on the queue card header
   const [followUpCount,     setFollowUpCount]      = useState(0)
+
+  // ── Offline queue — for saving observations when network is unavailable ──
+  const { addToQueue } = useOfflineQueue()
+  const { data: offlineStats } = useOfflineQueueStats()
+  const pendingSyncCount = offlineStats?.pending ?? 0
 
   const [currentPatrolZone, setCurrentPatrolZone] = useState<string | null>(zoneId)
   const [currentLocation, setCurrentLocation] = useState<{ latitude: number; longitude: number } | null>(null)
@@ -304,6 +315,45 @@ export default function FieldOfficerPortal() {
     refetchOnReconnect: true,
     refetchOnMount: 'always',
   })
+
+  // ── Zones for manual fallback entry ───────────────────────────────────────
+  const { data: manualZones = [] } = useQuery({
+    queryKey: ['manual-zones', user?.organization_id],
+    queryFn: async () => {
+      if (!user?.organization_id) return []
+
+      const fetchOrgScoped = async () => {
+        const { data, error } = await supabase
+          .from('zones')
+          .select('zone_id, name')
+          .eq('organization_id', user.organization_id)
+          .order('name', { ascending: true })
+        if (error) return []
+        return (data ?? []) as Array<{ zone_id: string; name: string }>
+      }
+
+      const orgZones = await fetchOrgScoped()
+      if (orgZones.length > 0) return orgZones
+
+      // Fallback: under RLS this still returns only zones visible to the user.
+      const { data: fallback, error: fallbackError } = await supabase
+        .from('zones')
+        .select('zone_id, name')
+        .order('name', { ascending: true })
+        .limit(50)
+      if (fallbackError) return []
+      return (fallback ?? []) as Array<{ zone_id: string; name: string }>
+    },
+    enabled: !!user?.organization_id,
+    staleTime: 5 * 60_000,
+    gcTime: 10 * 60_000,
+  })
+
+  useEffect(() => {
+    if (!manualZoneId && manualZones.length > 0) {
+      setManualZoneId(manualZones[0].zone_id)
+    }
+  }, [manualZoneId, manualZones])
 
   // ── Fetch officer's recent observations ───────────────────────────────────
   const { data: recentScans = [], refetch: refetchScans } = useQuery({
@@ -682,6 +732,71 @@ export default function FieldOfficerPortal() {
     }
   }, [user, zoneId, zoneName, recordGPSUpdate, refetchScans])
 
+  const handleManualEntrySubmit = useCallback(async () => {
+    if (!user?.id || !user?.organization_id) {
+      toast.error('Session expired — please log out and back in')
+      return
+    }
+
+    const normalizedPlate = manualPlate.trim().toUpperCase().replace(/\s+/g, '')
+    if (!/^[A-Z0-9]{2,8}$/.test(normalizedPlate)) {
+      toast.error('Enter a valid plate number')
+      return
+    }
+
+    if (!manualZoneId) {
+      toast.error('Please select a zone')
+      return
+    }
+
+    setManualSubmitting(true)
+    const isOffline = !navigator.onLine
+
+    try {
+      if (isOffline) {
+        await addToQueue.mutateAsync({
+          plate_number: normalizedPlate,
+          photo_url: '',
+          zone_id: manualZoneId,
+          gps_latitude: currentLocation?.latitude ?? 0,
+          gps_longitude: currentLocation?.longitude ?? 0,
+          gps_accuracy: null,
+          recorded_at: new Date().toISOString(),
+        })
+        // Toast handled by useOfflineQueue addToQueue onSuccess.
+      } else {
+        const { error } = await edgeFunctions.ingestVehicleObservation({
+          officerId: user.id,
+          organizationId: user.organization_id,
+          zoneId: manualZoneId,
+          plate: normalizedPlate,
+          requires_manual_entry: true,
+          recordedAt: new Date().toISOString(),
+          gpsLatitude: currentLocation?.latitude,
+          gpsLongitude: currentLocation?.longitude,
+          idempotencyKey: `manual-${user.id}-${Date.now()}`,
+        })
+
+        if (error) {
+          throw new Error(error)
+        }
+
+        toast.success(`Vehicle ${normalizedPlate} scanned successfully`)
+        refetchScans()
+      }
+
+      setManualPlate('')
+      setManualZoneId('')
+      setShowManualEntry(false)
+      setDetailCameraOpen(false)
+      setScanMode(null)
+    } catch (err: any) {
+      toast.error(err?.message || 'Manual entry failed')
+    } finally {
+      setManualSubmitting(false)
+    }
+  }, [user, manualPlate, manualZoneId, currentLocation, refetchScans, addToQueue])
+
   const handleViewHistory = () => {
     if (user?.role === 'officer') {
       const panel = document.getElementById('recent-scans-panel')
@@ -741,27 +856,52 @@ export default function FieldOfficerPortal() {
             incident_type:   qrIncidentType,
             severity:        qrSeverity,
             description:     descFull,
-            status:          'pending',
           })
         if (error) throw error
-        toast.success('H&S report submitted — admin notified')
+        toast.success('H&S report submitted successfully — admin notified')
       } else {
-        const { error } = await (supabase.from('incidents') as any)
+        const incidentPayload = {
+          organization_id: user.organization_id,
+          zone_id:         zoneId || null,
+          plate_number:    qrVehiclePlate.trim().toUpperCase() || null,
+          incident_type:   qrReportType === 'maintenance' ? 'Maintenance Report' : qrIncidentType,
+          severity:        qrSeverity,
+          description:     descFull,
+          location_address: qrLocationAddress.trim() || null,
+          location_lat:    currentLocation?.latitude ?? null,
+          location_lng:    currentLocation?.longitude ?? null,
+        }
+
+        const { error: reportedByError } = await (supabase.from('incidents') as any)
           .insert({
-            organization_id: user.organization_id,
-            reported_by:     user.id,
-            zone_id:         zoneId || null,
-            plate_number:    qrVehiclePlate.trim().toUpperCase() || null,
-            incident_type:   qrReportType === 'maintenance' ? 'Maintenance Report' : qrIncidentType,
-            severity:        qrSeverity,
-            description:     descFull,
-            location_address: qrLocationAddress.trim() || null,
-            location_lat:    currentLocation?.latitude ?? null,
-            location_lng:    currentLocation?.longitude ?? null,
-            status:          'open',
+            ...incidentPayload,
+            reported_by: user.id,
           })
-        if (error) throw error
-        toast.success(qrReportType === 'maintenance' ? 'Maintenance report submitted' : 'Incident report submitted — admin notified')
+
+        if (reportedByError) {
+          const reportedByErrorMessage = String((reportedByError as any)?.message || '').toLowerCase()
+          const shouldRetryWithUserId =
+            reportedByErrorMessage.includes('reported_by') ||
+            reportedByErrorMessage.includes('user_id')
+
+          if (!shouldRetryWithUserId) {
+            throw reportedByError
+          }
+
+          const { error: userIdError } = await (supabase.from('incidents') as any)
+            .insert({
+              ...incidentPayload,
+              user_id: user.id,
+            })
+
+          if (userIdError) throw userIdError
+        }
+
+        toast.success(
+          qrReportType === 'maintenance'
+            ? 'Maintenance report submitted successfully — admin notified'
+            : 'Incident report submitted successfully — admin notified'
+        )
       }
       setShowQuickReport(false)
       setQRDescription('')
@@ -1130,6 +1270,83 @@ export default function FieldOfficerPortal() {
       ) : detailCameraOpen ? (
         /* ── DETAIL SCAN — camera ───────────────────────────────────── */
         <div className="flex flex-col gap-3">
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="text-sm font-semibold text-foreground">Vehicle Scanner</h2>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowManualEntry(false)}
+                disabled={isProcessing || manualSubmitting}
+              >
+                Camera Capture
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowManualEntry(v => !v)}
+                disabled={isProcessing || manualSubmitting}
+              >
+                Manual Entry
+              </Button>
+            </div>
+          </div>
+
+          {showManualEntry && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Manual Entry</CardTitle>
+                <CardDescription>Use this fallback when camera capture is unavailable.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="space-y-1.5">
+                  <Label htmlFor="manual-plate">Plate Number</Label>
+                  <Input
+                    id="manual-plate"
+                    placeholder="Enter plate"
+                    value={manualPlate}
+                    onChange={(e) => setManualPlate(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))}
+                    maxLength={8}
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <Label>Zone</Label>
+                  <Select value={manualZoneId} onValueChange={setManualZoneId}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select zone" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {manualZones.map((z) => (
+                        <SelectItem key={z.zone_id} value={z.zone_id}>{z.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="flex gap-2">
+                  <Button
+                    onClick={handleManualEntrySubmit}
+                    disabled={!manualPlate.trim() || !manualZoneId || manualSubmitting}
+                  >
+                    {manualSubmitting ? 'Submitting...' : 'Submit'}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    onClick={() => {
+                      setShowManualEntry(false)
+                      setManualPlate('')
+                      setManualZoneId('')
+                    }}
+                    disabled={manualSubmitting}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {isProcessing && (
             <div className="flex items-center gap-3 rounded-xl border border-blue-200 bg-blue-50 dark:bg-blue-950/30 p-3">
               <div className="h-4 w-4 shrink-0 animate-spin rounded-full border-2 border-blue-500 border-t-transparent" />
@@ -1149,12 +1366,20 @@ export default function FieldOfficerPortal() {
               statusLabel={scanProgressLabel}
             />
           </div>
+
         </div>
 
       ) : (
         /* ── PORTAL HOME ────────────────────────────────────────────── */
         <>
-          {/* ── Admin-assigned follow-ups — shown first so officer sees tasks immediately */}
+          {/* ── Offline sync status badge ────────────────────────── */}
+          {pendingSyncCount > 0 && (
+            <div className="flex items-center gap-2 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 px-3 py-2 mb-3 text-sm text-amber-800 dark:text-amber-200">
+              <Clock className="h-4 w-4 shrink-0" />
+              <span>{pendingSyncCount} pending sync</span>
+            </div>
+          )}
+
           <OfficerFollowUpQueue
             onCountChange={setFollowUpCount}
             orgWorkflow={orgWorkflow || 'admin_first'}
@@ -1183,9 +1408,14 @@ export default function FieldOfficerPortal() {
                   className="hover:shadow-xl transition-all hover:scale-[1.01] active:scale-[0.99] border-2 border-blue-300 dark:border-blue-800 cursor-pointer"
                   onClick={() => {
                     if (!user?.id || !user?.organization_id) { toast.error('Session expired'); return }
-                    if (!navigator.mediaDevices?.getUserMedia) { toast.error('Camera not available'); return }
+                    const offline = !navigator.onLine
+                    const noCamera = !navigator.mediaDevices?.getUserMedia
                     setScanMode('detail')
                     setDetailCameraOpen(true)
+                    // Auto-open manual entry form when offline or camera unavailable
+                    setShowManualEntry(offline || noCamera)
+                    setManualPlate('')
+                    setManualZoneId('')
                     setShowDetailPanel(false)
                     setDetailScanData(null)
                   }}
@@ -1196,7 +1426,7 @@ export default function FieldOfficerPortal() {
                         <Search className="h-5 w-5 text-blue-600 dark:text-blue-400" />
                       </div>
                       <div>
-                        <CardTitle className="text-sm">Detail Scan</CardTitle>
+                        <CardTitle className="text-sm">Scan Vehicle (Detail)</CardTitle>
                         <CardDescription className="text-xs leading-snug">
                           One vehicle — full details, notes &amp; actions
                         </CardDescription>

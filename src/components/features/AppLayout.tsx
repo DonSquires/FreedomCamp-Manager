@@ -504,6 +504,8 @@ export function AppLayout({ children, title, description, showBackButton }: AppL
           <Link
             to="/notifications"
             title="Notifications"
+            aria-label="Notifications"
+            data-testid="notification-bell"
             className="relative flex items-center justify-center h-9 w-9 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
           >
             <Bell className="h-5 w-5 text-gray-500 dark:text-gray-400" />
@@ -610,6 +612,8 @@ export function AppLayout({ children, title, description, showBackButton }: AppL
               <Link
                 to="/notifications"
                 title="Notifications"
+                aria-label="Notifications"
+                data-testid="notification-bell"
                 className="relative flex items-center justify-center h-9 w-9 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
               >
                 <Bell className="h-5 w-5 text-gray-500 dark:text-gray-400" />

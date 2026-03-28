@@ -132,16 +132,16 @@ export default function ClientOrganisationPortal() {
 
       const [scansResult, compliantResult, breachesResult, patrolsResult, enforcementResult, sitesResult] = await Promise.all([
         ((supabase as any).from('observations') as any)
-          .select('id', { count: 'exact', head: true })
-          .eq('org_id', orgId),
+          .select('observation_id', { count: 'exact', head: true })
+          .eq('organization_id', orgId),
         ((supabase as any).from('observations') as any)
-          .select('id', { count: 'exact', head: true })
-          .eq('org_id', orgId)
+          .select('observation_id', { count: 'exact', head: true })
+          .eq('organization_id', orgId)
           .eq('is_compliant', true),
         ((supabase as any).from('breach_alerts') as any)
           .select('id', { count: 'exact', head: true })
           .eq('organization_id', orgId)
-          .in('status', ['pending', 'acknowledged', 'open']),
+          .in('status', ['pending', 'acknowledged', 'enforcement_started']),
         ((supabase as any).from('patrols') as any)
           .select('id', { count: 'exact', head: true })
           .eq('organization_id', orgId)
