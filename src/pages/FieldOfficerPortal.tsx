@@ -40,6 +40,7 @@ import { supabase } from '@/lib/supabase'
 import { edgeFunctions } from '@/lib/edgeFunctions'
 import { formatDateTime } from '@/lib/utils'
 import { useOfflineQueue, useOfflineQueueStats } from '@/hooks/useOfflineQueue'
+import type { Database } from '@/types/database'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -62,6 +63,8 @@ const CAPTURE_TOAST_DURATION_MS = 5000
 
 /** Service types an officer can select — determines which tools are shown. */
 type ServiceType = 'freedom_camping' | 'guarding' | 'parking' | 'noise'
+type ZoneOption = { zone_id: string; name: string }
+type ZoneRow = Pick<Database['public']['Tables']['zones']['Row'], 'id' | 'name'>
 
 const SERVICE_TYPE_CONFIG: Record<ServiceType, {
   label: string
@@ -136,36 +139,15 @@ export default function FieldOfficerPortal() {
       : null
   })
 
-  // ── Enabled (linked) extra portals — persisted per-officer in user_profiles ─
-  // Officers can tick which additional service portals are linked to their dashboard.
-  // Initialised from roster-shift service_type; officer can toggle extras.
-  const ALL_PORTAL_OPTIONS: ServiceType[] = ['freedom_camping', 'guarding', 'parking', 'noise']
-  const [enabledPortals, setEnabledPortals] = useState<ServiceType[]>(() => {
-    try {
-      const stored = localStorage.getItem(`enabled_portals_${user?.id}`)
-      if (stored) return JSON.parse(stored) as ServiceType[]
-    } catch { /* ignore */ }
-    return rosteredShift?.service_type
-      ? [rosteredShift.service_type as ServiceType]
-      : ['freedom_camping']
-  })
-
-  const togglePortal = (portal: ServiceType) => {
-    setEnabledPortals(prev => {
-      const next = prev.includes(portal)
-        ? prev.filter(p => p !== portal)
-        : [...prev, portal]
-      localStorage.setItem(`enabled_portals_${user?.id}`, JSON.stringify(next))
-      // Persist to user_profiles asynchronously
-      if (user?.id) {
-        ;(supabase as any).from('user_profiles')
-          .update({ enabled_portals: next })
-          .eq('id', user.id)
-          .then(() => {/* fire and forget */})
-      }
-      return next
-    })
-  }
+  // Auto-select service type from rostered shift when no URL param was given
+  useEffect(() => {
+    if (activeService) return // URL param already set it
+    if (!rosteredShift?.service_type) return
+    const rosterService = rosteredShift.service_type as ServiceType
+    if (['freedom_camping', 'guarding', 'parking', 'noise'].includes(rosterService)) {
+      setActiveService(rosterService)
+    }
+  }, [rosteredShift?.service_type]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Scan mode: null = portal home, 'detail' = single-vehicle scan,
   //              'bulk' = quick area sweep, 'checkpoint' = QR check-in
@@ -208,14 +190,6 @@ export default function FieldOfficerPortal() {
 
   // Man-Down Detection — records GPS updates and fires alert if stationary too long
   const { recordGPSUpdate, isManDownActive } = useManDownDetection()
-
-  // ── WelfareFirst: I'm OK check-in ─────────────────────────────────────────
-  const { state: checkinState, checkIn } = useWelfareCheckin({
-    officerId:      user?.id ?? null,
-    organizationId: user?.organization_id ?? null,
-    shiftId:        null, // set below once activeShift loads
-    position:       currentLocation,
-  })
 
   // ── SOS/Panic button state ────────────────────────────────────────────────
   const [sosConfirmOpen, setSosConfirmOpen] = useState(false)
@@ -354,11 +328,11 @@ export default function FieldOfficerPortal() {
       const fetchOrgScoped = async () => {
         const { data, error } = await supabase
           .from('zones')
-          .select('zone_id, name')
+          .select('id, name')
           .eq('organization_id', user.organization_id)
           .order('name', { ascending: true })
         if (error) return []
-        return (data ?? []) as Array<{ zone_id: string; name: string }>
+        return ((data ?? []) as ZoneRow[]).map((z): ZoneOption => ({ zone_id: z.id, name: z.name }))
       }
 
       const orgZones = await fetchOrgScoped()
@@ -367,11 +341,11 @@ export default function FieldOfficerPortal() {
       // Fallback: under RLS this still returns only zones visible to the user.
       const { data: fallback, error: fallbackError } = await supabase
         .from('zones')
-        .select('zone_id, name')
+        .select('id, name')
         .order('name', { ascending: true })
         .limit(50)
       if (fallbackError) return []
-      return (fallback ?? []) as Array<{ zone_id: string; name: string }>
+      return ((fallback ?? []) as ZoneRow[]).map((z): ZoneOption => ({ zone_id: z.id, name: z.name }))
     },
     enabled: !!user?.organization_id,
     staleTime: 5 * 60_000,
@@ -528,9 +502,7 @@ export default function FieldOfficerPortal() {
     }
   }, [user, currentPatrolZone, setZone, recordGPSUpdate, zoneName])
 
-  // ── Auto-start shift & welfare on portal load ─────────────────────────────
-  const shiftStartedRef = useRef(false)
-
+  // ── Shift management — explicit Start/End (not auto-start) ──────────────
   // Fetch active shift for current officer
   const { data: activeShift, refetch: refetchShift } = useQuery({
     queryKey: ['officer-active-shift', user?.id],
@@ -548,56 +520,106 @@ export default function FieldOfficerPortal() {
       return data as { id: string; started_at: string; parent_zone_id: string | null; gps_start_lat: number | null; gps_start_lng: number | null } | null
     },
     enabled: !!user?.id,
-    refetchInterval: 300000, // refresh every 5 minutes — duration display updates locally via setShiftTick
+    refetchInterval: 300000,
   })
 
-  // Auto-start shift when officer opens the portal (if no active shift)
-  useEffect(() => {
+  const [isStartingShift, setIsStartingShift] = useState(false)
+  const [isEndingShift,   setIsEndingShift]   = useState(false)
+
+  const handleStartShift = useCallback(async () => {
     if (!user?.id || !user?.organization_id) return
-    if (shiftStartedRef.current) return
-    // activeShift is undefined while loading, null if no shift found, or a shift object
-    if (activeShift === undefined || activeShift !== null) return
-
-    shiftStartedRef.current = true
-
-    const startShift = async () => {
+    setIsStartingShift(true)
+    try {
+      let gpsLat: number | null = null
+      let gpsLng: number | null = null
       try {
-        let gpsLat: number | null = null
-        let gpsLng: number | null = null
+        const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
+          navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 5000 })
+        })
+        gpsLat = pos.coords.latitude
+        gpsLng = pos.coords.longitude
+      } catch { /* GPS optional */ }
 
-        // Try to get current GPS for shift start location
-        try {
-          const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
-            navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 5000 })
-          })
-          gpsLat = pos.coords.latitude
-          gpsLng = pos.coords.longitude
-        } catch {
-          // GPS unavailable — non-critical for shift start
-        }
+      const { data: shiftRow, error } = await (supabase.from('officer_shifts') as any).insert({
+        officer_id:      user.id,
+        organization_id: user.organization_id,
+        parent_zone_id:  zoneId || null,
+        gps_start_lat:   gpsLat,
+        gps_start_lng:   gpsLng,
+      }).select('id').single()
+      if (error) throw error
 
-        const { error } = await (supabase
-          .from('officer_shifts') as any)
-          .insert({
-            officer_id: user.id,
-            organization_id: user.organization_id,
-            parent_zone_id: zoneId || null,
-            gps_start_lat: gpsLat,
-            gps_start_lng: gpsLng,
-          })
+      // Register welfare push schedule on server (enables background reminders)
+      await (supabase.rpc as any)('upsert_welfare_push_schedule', {
+        p_officer_id:       user.id,
+        p_organization_id:  user.organization_id,
+        p_shift_id:         shiftRow?.id ?? null,
+        p_interval_minutes: 30, // default; overridden by officer_welfare_settings
+        p_last_checkin_at:  new Date().toISOString(),
+      }).catch(() => { /* non-critical */ })
 
-        if (error) {
-          console.warn('Auto-start shift failed:', error.message)
-        } else {
-          refetchShift()
-        }
-      } catch (err) {
-        console.warn('Auto-start shift error:', err)
+      // Notify service worker to clear stale welfare notifications
+      if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+        navigator.serviceWorker.controller.postMessage({
+          type: 'WELFARE_SHIFT_START',
+          payload: { officerId: user.id },
+        })
       }
-    }
 
-    startShift()
-  }, [user, activeShift, zoneId, refetchShift])
+      refetchShift()
+      toast.success('Shift started — welfare monitoring active')
+    } catch (err: any) {
+      toast.error(err?.message ?? 'Failed to start shift')
+    } finally {
+      setIsStartingShift(false)
+    }
+  }, [user, zoneId, refetchShift])
+
+  const handleEndShift = useCallback(async () => {
+    if (!activeShift?.id) return
+    setIsEndingShift(true)
+    try {
+      let gpsLat: number | null = null
+      let gpsLng: number | null = null
+      try {
+        const pos = await new Promise<GeolocationPosition>((resolve, reject) => {
+          navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 5000 })
+        })
+        gpsLat = pos.coords.latitude
+        gpsLng = pos.coords.longitude
+      } catch { /* GPS optional */ }
+
+      const { error } = await (supabase.from('officer_shifts') as any)
+        .update({ ended_at: new Date().toISOString(), gps_end_lat: gpsLat, gps_end_lng: gpsLng })
+        .eq('id', activeShift.id)
+      if (error) throw error
+
+      // Deactivate welfare push schedule
+      if (user?.id) {
+          const { error: deactivateError } = await supabase
+          .from('welfare_push_schedule' as any)
+          .update({ is_active: false })
+          .eq('officer_id', user.id)
+          .eq('is_active', true)
+          if (deactivateError) {
+            // non-critical: shift has ended even if schedule cleanup fails
+            console.warn('Failed to deactivate welfare push schedule:', deactivateError)
+          }
+      }
+
+      // Notify service worker to dismiss welfare notifications
+      if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+        navigator.serviceWorker.controller.postMessage({ type: 'WELFARE_SHIFT_END' })
+      }
+
+      refetchShift()
+      toast.success('Shift ended — welfare monitoring stopped')
+    } catch (err: any) {
+      toast.error(err?.message ?? 'Failed to end shift')
+    } finally {
+      setIsEndingShift(false)
+    }
+  }, [activeShift, user, refetchShift])
 
   // Shift duration ticker — re-render every 30s to update displayed duration
   const [, setShiftTick] = useState(0)
@@ -606,6 +628,45 @@ export default function FieldOfficerPortal() {
     const interval = setInterval(() => setShiftTick(t => t + 1), 30000)
     return () => clearInterval(interval)
   }, [activeShift])
+
+  // ── WelfareFirst: I'm OK check-in (only active while shift is running) ────
+  const { state: checkinState, checkIn: rawCheckIn } = useWelfareCheckin({
+    officerId:      user?.id ?? null,
+    organizationId: user?.organization_id ?? null,
+    shiftId:        activeShift?.id ?? null,
+    position:       currentLocation,
+    isShiftActive:  !!activeShift,
+  })
+
+  // Wrap checkIn to also update server schedule + notify SW
+  const checkIn = useCallback(() => {
+    rawCheckIn()
+    // Update server-side welfare push schedule so next reminder is rescheduled
+    if (user?.id && user?.organization_id && activeShift?.id) {
+      ;(supabase.rpc as any)('upsert_welfare_push_schedule', {
+        p_officer_id:       user.id,
+        p_organization_id:  user.organization_id,
+        p_shift_id:         activeShift.id,
+        p_interval_minutes: checkinState.intervalMinutes || 30,
+        p_last_checkin_at:  new Date().toISOString(),
+      }).catch(() => { /* non-critical */ })
+    }
+    // Dismiss background welfare notifications
+    if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+      navigator.serviceWorker.controller.postMessage({ type: 'WELFARE_CHECKIN' })
+    }
+  }, [rawCheckIn, user, activeShift, checkinState.intervalMinutes])
+
+  // Listen for the service-worker "I'm OK" action (tapped from notification)
+  useEffect(() => {
+    const handler = (event: MessageEvent) => {
+      if (event.data?.type === 'WELFARE_CHECKIN_ACTION') {
+        checkIn()
+      }
+    }
+    navigator.serviceWorker?.addEventListener('message', handler)
+    return () => navigator.serviceWorker?.removeEventListener('message', handler)
+  }, [checkIn])
 
   // ── Detail scan: capture handler ─────────────────────────────────────────
   const handleDetailCapture = useCallback(async (file: File) => {
@@ -907,76 +968,163 @@ export default function FieldOfficerPortal() {
         </Button>
       </div>
 
-      {/* ── Shift & Welfare status bar (auto-started) ────────────────── */}
-      <div className={`rounded-xl border px-4 py-3 mb-4 ${
-        checkinState.isOverdue
-          ? 'border-orange-400 bg-orange-50 dark:bg-orange-950/30'
-          : 'border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-950/30'
-      }`}>
-        <div className="flex items-center gap-3">
-          <div className={`p-1.5 rounded-full ${checkinState.isOverdue ? 'bg-orange-200 dark:bg-orange-800' : 'bg-green-200 dark:bg-green-800'}`}>
-            <Timer className={`h-4 w-4 ${checkinState.isOverdue ? 'text-orange-700 dark:text-orange-300 animate-pulse' : 'text-green-700 dark:text-green-300'}`} />
+      {/* ── Shift & Welfare status bar ───────────────────────────────── */}
+      {!activeShift ? (
+        /* No active shift — show "online" status + Start Shift button */
+        <div className="rounded-xl border border-blue-300 dark:border-blue-700 bg-blue-50 dark:bg-blue-950/30 px-4 py-3 mb-4">
+          <div className="flex items-center gap-3">
+            <div className="p-1.5 rounded-full bg-blue-200 dark:bg-blue-800">
+              <MapPin className="h-4 w-4 text-blue-700 dark:text-blue-300" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <span className="text-sm font-semibold text-blue-800 dark:text-blue-200">Online</span>
+              {currentLocation && (
+                <p className="text-[11px] text-blue-600 dark:text-blue-400 mt-0.5">
+                  {currentLocation.latitude.toFixed(5)}, {currentLocation.longitude.toFixed(5)}
+                </p>
+              )}
+              <p className="text-[11px] text-blue-500 dark:text-blue-500 mt-0.5">
+                Shift not started — welfare monitoring is off
+              </p>
+            </div>
+            <Button
+              size="sm"
+              onClick={handleStartShift}
+              disabled={isStartingShift}
+              className="shrink-0 bg-green-600 hover:bg-green-700 text-white font-semibold"
+            >
+              {isStartingShift
+                ? <span className="flex items-center gap-1.5"><span className="h-3 w-3 rounded-full border-2 border-white border-t-transparent animate-spin" />Starting…</span>
+                : <><Clock className="h-4 w-4 mr-1.5" />Start Shift</>}
+            </Button>
           </div>
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className={`text-sm font-semibold ${checkinState.isOverdue ? 'text-orange-800 dark:text-orange-200' : 'text-green-800 dark:text-green-200'}`}>
-                Shift Active
-              </span>
-              {activeShift && (
+        </div>
+      ) : (
+        /* Shift active — show welfare countdown + I'm OK + End Shift */
+        <div className={`rounded-xl border px-4 py-3 mb-4 transition-colors ${
+          checkinState.isOverdue
+            ? 'border-red-400 bg-red-50 dark:bg-red-950/30'
+            : checkinState.isDueSoon5
+              ? 'border-orange-400 bg-orange-50 dark:bg-orange-950/30'
+              : checkinState.isDueSoon10
+                ? 'border-yellow-400 bg-yellow-50 dark:bg-yellow-950/30'
+                : 'border-green-300 dark:border-green-700 bg-green-50 dark:bg-green-950/30'
+        }`}>
+          <div className="flex items-center gap-3">
+            <div className={`p-1.5 rounded-full ${
+              checkinState.isOverdue
+                ? 'bg-red-200 dark:bg-red-800'
+                : checkinState.isDueSoon5
+                  ? 'bg-orange-200 dark:bg-orange-800'
+                  : checkinState.isDueSoon10
+                    ? 'bg-yellow-200 dark:bg-yellow-800'
+                    : 'bg-green-200 dark:bg-green-800'
+            }`}>
+              <Timer className={`h-4 w-4 ${
+                checkinState.isOverdue
+                  ? 'text-red-700 dark:text-red-300 animate-pulse'
+                  : checkinState.isDueSoon5
+                    ? 'text-orange-700 dark:text-orange-300 animate-pulse'
+                    : checkinState.isDueSoon10
+                      ? 'text-yellow-700 dark:text-yellow-300'
+                      : 'text-green-700 dark:text-green-300'
+              }`} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className={`text-sm font-semibold ${
+                  checkinState.isOverdue
+                    ? 'text-red-800 dark:text-red-200'
+                    : checkinState.isDueSoon5
+                      ? 'text-orange-800 dark:text-orange-200'
+                      : 'text-green-800 dark:text-green-200'
+                }`}>
+                  Shift Active
+                </span>
                 <Badge variant="outline" className="text-xs border-green-400 text-green-700 dark:text-green-300">
                   <Clock className="h-3 w-3 mr-1" />
                   {formatShiftDuration(activeShift.started_at)}
                 </Badge>
-              )}
-              <Badge variant="outline" className="text-xs border-emerald-400 text-emerald-700 dark:text-emerald-300">
-                <Heart className="h-3 w-3 mr-1" />
-                Welfare On
-              </Badge>
-              {checkinState.isOverdue && (
-                <Badge variant="outline" className="text-xs border-orange-400 text-orange-700 bg-orange-50 animate-pulse">
-                  Check-in Overdue!
+                <Badge variant="outline" className="text-xs border-emerald-400 text-emerald-700 dark:text-emerald-300">
+                  <Heart className="h-3 w-3 mr-1" />
+                  Welfare On
                 </Badge>
-              )}
-              {checkinState.isDue && !checkinState.isOverdue && (
-                <Badge variant="outline" className="text-xs border-yellow-400 text-yellow-700 bg-yellow-50">
-                  Check-in Due Soon
-                </Badge>
+                {checkinState.isOverdue && (
+                  <Badge className="text-xs bg-red-500 text-white animate-pulse border-0">
+                    ⚠ Check-in OVERDUE
+                  </Badge>
+                )}
+                {checkinState.isDueSoon5 && !checkinState.isOverdue && (
+                  <Badge className="text-xs bg-orange-500 text-white border-0">
+                    5 min warning
+                  </Badge>
+                )}
+                {checkinState.isDueSoon10 && !checkinState.isDueSoon5 && !checkinState.isOverdue && (
+                  <Badge className="text-xs bg-yellow-500 text-white border-0">
+                    10 min warning
+                  </Badge>
+                )}
+              </div>
+              {/* Countdown timer */}
+              {checkinState.intervalMinutes > 0 && (
+                <p className={`text-[12px] font-mono font-semibold mt-0.5 ${
+                  checkinState.isOverdue
+                    ? 'text-red-700 dark:text-red-300'
+                    : checkinState.isDueSoon5
+                      ? 'text-orange-700 dark:text-orange-300'
+                      : checkinState.isDueSoon10
+                        ? 'text-yellow-700 dark:text-yellow-300'
+                        : 'text-green-700 dark:text-green-300'
+                }`}>
+                  {checkinState.secondsUntilDue !== null
+                    ? checkinState.secondsUntilDue < 0
+                      ? `Overdue by ${Math.abs(Math.ceil(checkinState.secondsUntilDue / 60))}m ${Math.abs(checkinState.secondsUntilDue % 60)}s`
+                      : (() => {
+                          const s = checkinState.secondsUntilDue
+                          const m = Math.floor(s / 60)
+                          const sec = s % 60
+                          return `Next check-in: ${m}:${String(sec).padStart(2, '0')}`
+                        })()
+                    : checkinState.lastCheckinAt
+                      ? `Last: ${new Date(checkinState.lastCheckinAt).toLocaleTimeString('en-NZ', { hour: '2-digit', minute: '2-digit', hour12: true })}`
+                      : `Check in every ${checkinState.intervalMinutes}m to confirm you're safe`
+                  }
+                </p>
               )}
             </div>
-            {checkinState.lastCheckinAt && (
-              <p className="text-[11px] text-muted-foreground mt-0.5">
-                Last check-in: {new Date(checkinState.lastCheckinAt).toLocaleTimeString('en-NZ', { hour: '2-digit', minute: '2-digit', hour12: true })}
-                {checkinState.intervalMinutes > 0 && (
-                  checkinState.secondsUntilDue !== null && checkinState.secondsUntilDue > 0
-                    ? ` · next due in ${Math.ceil(checkinState.secondsUntilDue / 60)}m`
-                    : checkinState.isOverdue ? ` · overdue by ${checkinState.minutesSinceCheckin! - checkinState.intervalMinutes}m` : ''
-                )}
-              </p>
-            )}
-            {!checkinState.lastCheckinAt && checkinState.intervalMinutes > 0 && (
-              <p className="text-[11px] text-green-600 dark:text-green-400">
-                Check in every {checkinState.intervalMinutes}m to confirm you're safe
-              </p>
-            )}
+            <div className="flex flex-col gap-1.5 shrink-0">
+              {/* I'm OK button */}
+              {checkinState.intervalMinutes > 0 && (
+                <Button
+                  size="sm"
+                  onClick={checkIn}
+                  disabled={checkinState.isSubmitting}
+                  className={`font-semibold ${
+                    checkinState.isOverdue
+                      ? 'bg-red-500 hover:bg-red-600 text-white'
+                      : checkinState.isDueSoon5
+                        ? 'bg-orange-500 hover:bg-orange-600 text-white'
+                        : 'bg-green-600 hover:bg-green-700 text-white'
+                  }`}
+                >
+                  <CheckCircle className="h-4 w-4 mr-1.5" />
+                  I'm OK
+                </Button>
+              )}
+              {/* End Shift button */}
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleEndShift}
+                disabled={isEndingShift}
+                className="text-xs border-gray-400 text-gray-700 dark:text-gray-300 hover:border-red-400 hover:text-red-600"
+              >
+                {isEndingShift ? 'Ending…' : 'End Shift'}
+              </Button>
+            </div>
           </div>
-          {/* I'm OK button */}
-          {checkinState.intervalMinutes > 0 && (
-            <Button
-              size="sm"
-              onClick={checkIn}
-              disabled={checkinState.isSubmitting}
-              className={`shrink-0 font-semibold ${
-                checkinState.isOverdue
-                  ? 'bg-orange-500 hover:bg-orange-600 text-white'
-                  : 'bg-green-600 hover:bg-green-700 text-white'
-              }`}
-            >
-              <CheckCircle className="h-4 w-4 mr-1.5" />
-              I'm OK
-            </Button>
-          )}
         </div>
-      </div>
+      )}
 
       {/* ── Unread high-priority notifications ───────────────────────── */}
       {unreadNotifications.length > 0 && (
@@ -1076,36 +1224,6 @@ export default function FieldOfficerPortal() {
                 )
               }
             )}
-          </div>
-
-          {/* ── Linked portals (multi-service tick boxes) ──────────────
-              Patrol officers can tick additional portals to link them
-              to their dashboard without changing primary service type. */}
-          <div className="mt-3 rounded-xl border border-gray-200 dark:border-gray-700 p-3">
-            <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2 flex items-center gap-1.5">
-              <Lock className="h-3.5 w-3.5" />
-              Linked Portals — show additional service tools
-            </p>
-            <div className="flex flex-wrap gap-x-4 gap-y-1">
-              {ALL_PORTAL_OPTIONS.map(portal => {
-                const cfg = SERVICE_TYPE_CONFIG[portal]
-                if (!cfg) return null
-                return (
-                  <label key={portal} className="flex items-center gap-1.5 cursor-pointer select-none">
-                    <input
-                      type="checkbox"
-                      className="rounded border-gray-300"
-                      checked={enabledPortals.includes(portal)}
-                      onChange={() => togglePortal(portal)}
-                    />
-                    <span className={`text-xs font-medium ${cfg.color}`}>{cfg.label}</span>
-                  </label>
-                )
-              })}
-            </div>
-            <p className="text-[11px] text-gray-400 mt-1.5">
-              Ticked portals show their tools below. Your choices are saved automatically.
-            </p>
           </div>
         </div>
       )}
@@ -1279,9 +1397,9 @@ export default function FieldOfficerPortal() {
           {/* ═══════════════════════════════════════════════════════════
               FREEDOM CAMPING PATROL tools
               ═══════════════════════════════════════════════════════════ */}
-          {(!activeService || activeService === 'freedom_camping' || enabledPortals.includes('freedom_camping')) && (
+          {activeService === 'freedom_camping' && (
             <>
-              {(activeService === 'freedom_camping' || enabledPortals.includes('freedom_camping')) && (
+              {activeService === 'freedom_camping' && (
                 <h3 className="text-xs font-bold text-green-700 dark:text-green-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
                   <Tent className="h-3.5 w-3.5" />
                   Freedom Camping Patrol
@@ -1388,9 +1506,9 @@ export default function FieldOfficerPortal() {
           {/* ═══════════════════════════════════════════════════════════
               GUARDING tools
               ═══════════════════════════════════════════════════════════ */}
-          {(!activeService || activeService === 'guarding' || enabledPortals.includes('guarding')) && (
+          {activeService === 'guarding' && (
             <>
-              {(activeService === 'guarding' || enabledPortals.includes('guarding')) && (
+              {activeService === 'guarding' && (
                 <h3 className="text-xs font-bold text-blue-700 dark:text-blue-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
                   <Shield className="h-3.5 w-3.5" />
                   Guarding
@@ -1552,9 +1670,9 @@ export default function FieldOfficerPortal() {
           {/* ═══════════════════════════════════════════════════════════
               PARKING ENFORCEMENT tools
               ═══════════════════════════════════════════════════════════ */}
-          {(!activeService || activeService === 'parking' || enabledPortals.includes('parking')) && (
+          {activeService === 'parking' && (
             <>
-              {(activeService === 'parking' || enabledPortals.includes('parking')) && (
+              {activeService === 'parking' && (
                 <h3 className="text-xs font-bold text-orange-700 dark:text-orange-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
                   <ParkingSquare className="h-3.5 w-3.5" />
                   Parking Enforcement
@@ -1601,9 +1719,9 @@ export default function FieldOfficerPortal() {
           {/* ═══════════════════════════════════════════════════════════
               NOISE CONTROL tools
               ═══════════════════════════════════════════════════════════ */}
-          {(!activeService || activeService === 'noise' || enabledPortals.includes('noise')) && (
+          {activeService === 'noise' && (
             <>
-              {(activeService === 'noise' || enabledPortals.includes('noise')) && (
+              {activeService === 'noise' && (
                 <h3 className="text-xs font-bold text-yellow-700 dark:text-yellow-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
                   <Volume2 className="h-3.5 w-3.5" />
                   Noise Control

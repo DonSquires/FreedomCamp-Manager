@@ -1,4 +1,16 @@
 #!/usr/bin/env node
+/**
+ * Generate a VAPID key pair for Web Push notifications.
+ *
+ * Usage:
+ *   node scripts/generate-vapid-keys.js
+ *
+ * Copy the output into:
+ *   .env              - VITE_VAPID_PUBLIC_KEY=<public key>
+ *   Supabase secrets  - VAPID_PUBLIC_KEY + VAPID_PRIVATE_KEY + VAPID_SUBJECT
+ *
+ * NEVER commit the private key to source control.
+ */
 
 const { generateKeyPairSync } = require('node:crypto')
 
@@ -30,18 +42,32 @@ function generateVapidKeys() {
   const x = b64urlToBuffer(publicKey.x)
   const y = b64urlToBuffer(publicKey.y)
   const d = b64urlToBuffer(privateKey.d)
-
   const uncompressedPublicKey = Buffer.concat([Buffer.from([0x04]), x, y])
 
   return {
     publicKey: toBase64Url(uncompressedPublicKey),
     privateKey: toBase64Url(d),
+    publicKeyBytes: uncompressedPublicKey.length,
+    privateKeyBytes: d.length,
   }
 }
 
-const { publicKey, privateKey } = generateVapidKeys()
+function main() {
+  const { publicKey, privateKey, publicKeyBytes, privateKeyBytes } = generateVapidKeys()
 
-console.log('VITE_VAPID_PUBLIC_KEY=' + publicKey)
-console.log('VAPID_PUBLIC_KEY=' + publicKey)
-console.log('VAPID_PRIVATE_KEY=' + privateKey)
-console.log('VAPID_SUBJECT=mailto:security@yourdomain.com')
+  console.log('=== VAPID Key Pair ===')
+  console.log('')
+  console.log('Add to .env (safe to commit):')
+  console.log(`  VITE_VAPID_PUBLIC_KEY=${publicKey}`)
+  console.log('')
+  console.log('Add to Supabase Edge Function Secrets (NEVER commit):')
+  console.log(`  VAPID_PUBLIC_KEY=${publicKey}`)
+  console.log(`  VAPID_PRIVATE_KEY=${privateKey}`)
+  console.log(`  VAPID_SUBJECT=mailto:admin@fcmanager.co.nz`)
+  console.log('')
+  console.log('Key length checks:')
+  console.log(`  Public key bytes : ${publicKeyBytes} (expected 65)`)
+  console.log(`  Private key bytes: ${privateKeyBytes} (expected 32)`)
+}
+
+main()

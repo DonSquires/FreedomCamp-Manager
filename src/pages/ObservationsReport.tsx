@@ -97,7 +97,7 @@ export default function ObservationsReport() {
         date_to: dateTo || today,
         search: search || undefined,
       })
-      if (error) throw new Error(error.message)
+      if (error) throw new Error(error)
 
       // Download the CSV - handle both string and {csv: string} response shapes
       const csvContent = typeof data === 'string' ? data : (data?.csv || data?.data || '')

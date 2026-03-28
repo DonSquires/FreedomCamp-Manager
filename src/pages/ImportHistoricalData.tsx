@@ -214,7 +214,7 @@ export default function ImportHistoricalData() {
 
       setUploadProgress(100)
 
-      if (error) throw new Error(error.message)
+      if (error) throw new Error(error)
 
       if (data?.batchId) {
         setActiveBatchId(data.batchId)
@@ -266,7 +266,7 @@ export default function ImportHistoricalData() {
 
       setUploadProgress(100)
 
-      if (error) throw new Error(error.message)
+      if (error) throw new Error(error)
 
       if (data?.batchId) {
         setActiveBatchId(data.batchId)

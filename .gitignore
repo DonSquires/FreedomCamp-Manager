@@ -71,3 +71,6 @@ scv_*.txt
 scv_*.json
 node_modules/
 package-lock.json
+.env
+test-results/
+playwright-report/
