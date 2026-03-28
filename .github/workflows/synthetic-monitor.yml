@@ -205,13 +205,16 @@ jobs:
 
               // Expose additional diagnostics to later steps
               if (process.env.GITHUB_OUTPUT) {
-                const outputs = [
-                  `status=${status}`,
-                  `vercel_protection=${isVercelProtection}`,
-                  `has_content=${hasContent}`,
-                  `has_error_overlay=${hasErrorOverlay}`,
-                ];
-                fs.appendFileSync(process.env.GITHUB_OUTPUT, outputs.join('\n') + '\n');
+                const sanitize = (value) => String(value).replace(/\\r?\\n/g, ' ');
+                const outputs = {
+                  status,
+                  vercel_protection: isVercelProtection,
+                  has_content: hasContent,
+                  has_error_overlay: hasErrorOverlay,
+                };
+                for (const [key, value] of Object.entries(outputs)) {
+                  fs.appendFileSync(process.env.GITHUB_OUTPUT, `${key}=${sanitize(value)}\n`);
+                }
               }
 
               if (isVercelProtection) {
@@ -256,15 +259,21 @@ jobs:
 
           # If the site is intentionally behind Vercel protection, treat
           # the HTTP status checks as a soft pass to avoid noisy alerts.
-          if [ "$playwright_vercel" == "true" ]; then
-            if [ "$frontend_ok" != "true" ]; then
-              echo "::notice::Frontend requires Vercel protection login (HTTP ${frontend_code}); soft passing frontend check"
-              frontend_ok="true"
-            fi
-            if [ "$supabase_ok" != "true" ]; then
-              echo "::notice::Supabase REST blocked due to Vercel protection; soft passing Supabase check"
-              supabase_ok="true"
-            fi
+          if [ "$playwright_vercel" = "true" ]; then
+            soft_pass() {
+              local label="$1"
+              local code="$2"
+              local current="$3"
+              if [ "$current" != "true" ]; then
+                echo "::notice::${label} requires Vercel protection login (HTTP ${code}); soft passing ${label} check"
+                echo "true"
+              else
+                echo "$current"
+              fi
+            }
+
+            frontend_ok=$(soft_pass "Frontend" "$frontend_code" "$frontend_ok")
+            supabase_ok=$(soft_pass "Supabase REST" "$supabase_code" "$supabase_ok")
           fi
 
           if [ "$frontend_ok" != "true" ] || [ "$supabase_ok" != "true" ] || [ "$playwright_ok" != "true" ]; then
