@@ -205,7 +205,7 @@ jobs:
 
               // Expose additional diagnostics to later steps
               if (process.env.GITHUB_OUTPUT) {
-                const sanitizeForGitHubOutput = (value) => String(value).replace(/\r?\n/g, ' ');
+                const removeNewlinesForGitHubOutput = (value) => String(value).replace(/\r?\n/g, ' ');
                 const outputs = {
                   status,
                   vercel_protection: isVercelProtection,
@@ -213,7 +213,7 @@ jobs:
                   has_error_overlay: hasErrorOverlay,
                 };
                 for (const [key, value] of Object.entries(outputs)) {
-                  fs.appendFileSync(process.env.GITHUB_OUTPUT, `${key}=${sanitizeForGitHubOutput(value)}\n`);
+                  fs.appendFileSync(process.env.GITHUB_OUTPUT, `${key}=${removeNewlinesForGitHubOutput(value)}\n`);
                 }
               }
 
@@ -261,14 +261,14 @@ jobs:
           # the HTTP status checks as a soft pass to avoid noisy alerts.
           if [ "$playwright_vercel" = "true" ]; then
             soft_pass() {
-              local label="$1"
-              local code="$2"
-              local current="$3"
-              if [ "$current" != "true" ]; then
-                echo "::notice::${label} requires Vercel protection login (HTTP ${code}); soft passing ${label} check"
+              local check_label="$1"
+              local http_code="$2"
+              local current_status="$3"
+              if [ "$current_status" != "true" ]; then
+                echo "::notice::${check_label} requires Vercel protection login (HTTP ${http_code}); soft passing ${check_label} check"
                 echo "true"
               else
-                echo "$current"
+                echo "$current_status"
               fi
             }
 
