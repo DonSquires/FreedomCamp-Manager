@@ -637,6 +637,7 @@ export type Database = {
           ai_analyzed: boolean | null
           ai_suggested_fix: string | null
           app_version: string
+          auto_reported: boolean | null
           browser_info: Json | null
           console_errors: Json | null
           created_at: string | null
@@ -672,6 +673,7 @@ export type Database = {
           ai_analyzed?: boolean | null
           ai_suggested_fix?: string | null
           app_version: string
+          auto_reported?: boolean | null
           browser_info?: Json | null
           console_errors?: Json | null
           created_at?: string | null
@@ -707,6 +709,7 @@ export type Database = {
           ai_analyzed?: boolean | null
           ai_suggested_fix?: string | null
           app_version?: string
+          auto_reported?: boolean | null
           browser_info?: Json | null
           console_errors?: Json | null
           created_at?: string | null

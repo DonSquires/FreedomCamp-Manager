@@ -13,7 +13,7 @@ import {
   Building2, Users, Scan, AlertTriangle, FileText, TrendingUp, Shield,
   Activity, Globe, DollarSign, Bug, Lightbulb, Zap, ChevronDown, ChevronUp,
   Sparkles, CheckCircle2, Clock, Loader2, Navigation, MonitorDot, RefreshCw,
-  Code2,
+  Code2, Bot,
 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -66,6 +66,7 @@ interface FeedbackReport {
   ai_analysis: any
   requires_human_review: boolean | null
   resolution_notes: string | null
+  auto_reported: boolean | null
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -621,6 +622,16 @@ function FeedbackReportCard({
             <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${SEV_BADGE[report.severity] ?? SEV_BADGE.low}`}>
               {report.severity}
             </span>
+            {report.auto_reported && report.app_version === 'synthetic-monitor' && (
+              <span className="flex items-center gap-1 text-[10px] bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-full px-2 py-0.5 font-medium">
+                <MonitorDot className="h-3 w-3" /> Synthetic monitor
+              </span>
+            )}
+            {report.auto_reported && report.app_version !== 'synthetic-monitor' && (
+              <span className="flex items-center gap-1 text-[10px] bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 rounded-full px-2 py-0.5 font-medium">
+                <Bot className="h-3 w-3" /> Auto-detected
+              </span>
+            )}
             {report.ai_analyzed && (
               <span className="flex items-center gap-1 text-[10px] text-violet-600 dark:text-violet-400 font-medium">
                 <Sparkles className="h-3 w-3" /> AI analysed

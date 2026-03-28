@@ -4,6 +4,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useAuthStore } from '@/stores/authStore'
 import { useSessionLockStore } from '@/stores/sessionLockStore'
 import { useFeedbackCapture } from '@/hooks/useFeedbackCapture'
+import { useAutoErrorReporter } from '@/hooks/useAutoErrorReporter'
 import { FeedbackModal } from '@/components/features/FeedbackModal'
 import { useNotificationCount } from '@/hooks/useNotifications'
 import { useSessionPreferencesStore } from '@/stores/sessionPreferencesStore'
@@ -339,6 +340,8 @@ export function AppLayout({ children, title, description, showBackButton }: AppL
 
   // Passive context capture for feedback reports
   useFeedbackCapture()
+  // Automatic crash detection — submits bug reports without user action
+  useAutoErrorReporter()
   const { data: notifCount = 0 } = useNotificationCount()
 
   useEffect(() => {

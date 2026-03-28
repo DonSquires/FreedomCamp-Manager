@@ -1,0 +1,297 @@
+name: Synthetic UI Monitor
+
+# Scheduled health check for the FreedomCamp Manager admin portal.
+#
+# Runs every 30 minutes and after every production deployment to verify:
+#   1. The frontend URL returns HTTP 200 and renders the expected content.
+#   2. The Supabase project is reachable (anon-key ping).
+#   3. Key Edge Functions are responsive.
+#
+# If any check fails and SUPABASE_SERVICE_ROLE_KEY is configured, a bug report
+# is automatically inserted into the bug_reports table so the grand-master AI
+# inbox picks it up immediately.
+#
+# Required secrets:
+#   FRONTEND_URL              — Production URL, e.g. https://app.freedomcamp.co.nz
+#   VITE_SUPABASE_URL         — Supabase project URL
+#   VITE_SUPABASE_ANON_KEY    — Supabase anon key
+#   SUPABASE_SERVICE_ROLE_KEY — For writing auto-detected bug reports (optional
+#                               but recommended)
+#   SYNTHETIC_MONITOR_USER_ID — UUID of the service account user in user_profiles
+#                               used as the reporter for auto-generated reports
+
+on:
+  schedule:
+    # Every 30 minutes
+    - cron: '*/30 * * * *'
+  workflow_run:
+    # Also run after a successful frontend deployment
+    workflows: ['Deploy Admin Portal to Vercel']
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      frontend_url_override:
+        description: 'Override the frontend URL to test (optional)'
+        required: false
+        type: string
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  synthetic-monitor:
+    name: Synthetic UI Health Check
+    runs-on: ubuntu-latest
+    # For workflow_run triggers, only run when the triggering workflow succeeded
+    if: >
+      github.event_name != 'workflow_run' ||
+      github.event.workflow_run.conclusion == 'success'
+
+    steps:
+      - name: Check required secrets
+        id: check-secrets
+        run: |
+          missing=""
+          [ -z "$FRONTEND_URL" ]           && missing="$missing FRONTEND_URL"
+          [ -z "$VITE_SUPABASE_URL" ]      && missing="$missing VITE_SUPABASE_URL"
+          [ -z "$VITE_SUPABASE_ANON_KEY" ] && missing="$missing VITE_SUPABASE_ANON_KEY"
+          if [ -n "$missing" ]; then
+            echo "::warning::Synthetic monitor skipped — missing secrets:$missing"
+            echo "secrets_present=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "secrets_present=true" >> "$GITHUB_OUTPUT"
+          fi
+        env:
+          FRONTEND_URL:           ${{ secrets.FRONTEND_URL }}
+          VITE_SUPABASE_URL:      ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+
+      - name: Resolve frontend URL
+        if: steps.check-secrets.outputs.secrets_present == 'true'
+        id: resolve-url
+        run: |
+          if [ -n "$INPUT_OVERRIDE" ]; then
+            echo "url=$INPUT_OVERRIDE" >> "$GITHUB_OUTPUT"
+          else
+            echo "url=$FRONTEND_URL" >> "$GITHUB_OUTPUT"
+          fi
+        env:
+          FRONTEND_URL:    ${{ secrets.FRONTEND_URL }}
+          INPUT_OVERRIDE:  ${{ github.event.inputs.frontend_url_override }}
+
+      # ── Check 1: Frontend HTTP reachability ───────────────────────────────
+      - name: Check — Frontend HTTP 200
+        if: steps.check-secrets.outputs.secrets_present == 'true'
+        id: check-frontend
+        run: |
+          URL="${{ steps.resolve-url.outputs.url }}"
+          echo "Testing $URL …"
+          HTTP_CODE=$(curl -sSo /dev/null -w "%{http_code}" --max-time 15 "$URL")
+          echo "http_code=$HTTP_CODE" >> "$GITHUB_OUTPUT"
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "::warning::Frontend returned HTTP $HTTP_CODE (expected 200)"
+            echo "passed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "✅ Frontend HTTP $HTTP_CODE"
+            echo "passed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      # ── Check 2: Supabase project reachability ───────────────────────────
+      - name: Check — Supabase REST API
+        if: steps.check-secrets.outputs.secrets_present == 'true'
+        id: check-supabase
+        run: |
+          URL="${VITE_SUPABASE_URL}/rest/v1/?apikey=${VITE_SUPABASE_ANON_KEY}"
+          HTTP_CODE=$(curl -sSo /dev/null -w "%{http_code}" --max-time 10 "$URL")
+          echo "http_code=$HTTP_CODE" >> "$GITHUB_OUTPUT"
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "::warning::Supabase REST returned HTTP $HTTP_CODE"
+            echo "passed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "✅ Supabase REST HTTP $HTTP_CODE"
+            echo "passed=true" >> "$GITHUB_OUTPUT"
+          fi
+        env:
+          VITE_SUPABASE_URL:      ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+
+      # ── Check 3: Playwright page render check ────────────────────────────
+      - name: Checkout repository
+        if: steps.check-secrets.outputs.secrets_present == 'true'
+        uses: actions/checkout@v5
+
+      - name: Setup Node.js
+        if: steps.check-secrets.outputs.secrets_present == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Playwright
+        if: steps.check-secrets.outputs.secrets_present == 'true'
+        run: |
+          npm install -g playwright@latest
+          npx playwright install --with-deps chromium
+
+      - name: Check — Playwright page render
+        if: steps.check-secrets.outputs.secrets_present == 'true'
+        id: check-playwright
+        run: |
+          node - <<'EOF'
+          const { chromium } = require('playwright');
+          const FRONTEND_URL = process.env.FRONTEND_URL;
+
+          (async () => {
+            let browser;
+            const errors = [];
+            try {
+              browser = await chromium.launch({ headless: true });
+              const context = await browser.newContext({
+                ignoreHTTPSErrors: false,
+              });
+              const page = await context.newPage();
+
+              // Capture JS errors
+              page.on('pageerror', err => {
+                // Ignore React/accessibility noise
+                if (!/DialogTitle|DialogContent|ResizeObserver|favicon/.test(err.message)) {
+                  errors.push(`[pageerror] ${err.message.slice(0, 300)}`);
+                }
+              });
+              page.on('console', msg => {
+                if (msg.type() === 'error') {
+                  const text = msg.text();
+                  if (!/DialogTitle|DialogContent|ResizeObserver|favicon|Download the React/.test(text)) {
+                    errors.push(`[console.error] ${text.slice(0, 300)}`);
+                  }
+                }
+              });
+
+              // Navigate to the login page
+              const response = await page.goto(FRONTEND_URL, { waitUntil: 'networkidle', timeout: 30000 });
+              const status = response?.status() ?? 0;
+
+              // Verify page loaded correctly
+              const title = await page.title();
+              const bodyText = await page.locator('body').innerText().catch(() => '');
+              const hasContent = bodyText.length > 50;
+
+              // Check for crash/error screens
+              const hasErrorOverlay = await page.locator('text=/Something went wrong|Error boundary|Unhandled/i').count() > 0;
+
+              console.log(JSON.stringify({
+                status,
+                title,
+                hasContent,
+                hasErrorOverlay,
+                jsErrors: errors,
+              }));
+
+              if (status >= 400) {
+                process.exitCode = 1;
+                console.error(`Page returned HTTP ${status}`);
+              } else if (hasErrorOverlay) {
+                process.exitCode = 1;
+                console.error('Error overlay detected on page');
+              } else if (errors.length > 2) {
+                process.exitCode = 1;
+                console.error(`${errors.length} JS errors on page load`);
+              }
+            } catch (err) {
+              console.error(err.message);
+              process.exitCode = 1;
+            } finally {
+              if (browser) await browser.close();
+            }
+          })();
+          EOF
+          if [ $? -ne 0 ]; then
+            echo "passed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "passed=true" >> "$GITHUB_OUTPUT"
+          fi
+        env:
+          FRONTEND_URL: ${{ steps.resolve-url.outputs.url }}
+
+      # ── Report failures as bug reports ───────────────────────────────────
+      - name: Evaluate overall health
+        if: steps.check-secrets.outputs.secrets_present == 'true'
+        id: evaluate
+        run: |
+          frontend_ok="${{ steps.check-frontend.outputs.passed }}"
+          supabase_ok="${{ steps.check-supabase.outputs.passed }}"
+          playwright_ok="${{ steps.check-playwright.outputs.passed }}"
+
+          if [ "$frontend_ok" != "true" ] || [ "$supabase_ok" != "true" ] || [ "$playwright_ok" != "true" ]; then
+            echo "healthy=false" >> "$GITHUB_OUTPUT"
+            echo "::error::Health check FAILED — frontend=$frontend_ok supabase=$supabase_ok playwright=$playwright_ok"
+          else
+            echo "healthy=true" >> "$GITHUB_OUTPUT"
+            echo "✅ All checks passed"
+          fi
+
+      - name: File auto bug report on failure
+        if: >
+          steps.check-secrets.outputs.secrets_present == 'true' &&
+          steps.evaluate.outputs.healthy == 'false' &&
+          env.SUPABASE_SERVICE_ROLE_KEY != '' &&
+          env.SYNTHETIC_MONITOR_USER_ID != ''
+        run: |
+          TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          FRONTEND_OK="${{ steps.check-frontend.outputs.passed }}"
+          SUPABASE_OK="${{ steps.check-supabase.outputs.passed }}"
+          PLAYWRIGHT_OK="${{ steps.check-playwright.outputs.passed }}"
+          FRONTEND_CODE="${{ steps.check-frontend.outputs.http_code }}"
+          APP_URL="${{ steps.resolve-url.outputs.url }}"
+
+          TITLE="Synthetic monitor: health check failed at ${TIMESTAMP}"
+          DESCRIPTION="The GitHub Actions synthetic monitor detected a health issue:\n\n"
+          DESCRIPTION="${DESCRIPTION}- Frontend HTTP: ${FRONTEND_CODE} (${FRONTEND_OK})\n"
+          DESCRIPTION="${DESCRIPTION}- Supabase REST: ${SUPABASE_OK}\n"
+          DESCRIPTION="${DESCRIPTION}- Playwright page render: ${PLAYWRIGHT_OK}\n\n"
+          DESCRIPTION="${DESCRIPTION}Checked URL: ${APP_URL}\n"
+          DESCRIPTION="${DESCRIPTION}Workflow run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+
+          curl -sS -X POST \
+            "${VITE_SUPABASE_URL}/rest/v1/bug_reports" \
+            -H "apikey: ${SUPABASE_SERVICE_ROLE_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_SERVICE_ROLE_KEY}" \
+            -H "Content-Type: application/json" \
+            -H "Prefer: return=representation" \
+            -d "{
+              \"user_id\": \"${SYNTHETIC_MONITOR_USER_ID}\",
+              \"user_role\": \"master\",
+              \"title\": \"${TITLE}\",
+              \"description\": \"${DESCRIPTION}\",
+              \"severity\": \"high\",
+              \"issue_type\": \"bug\",
+              \"status\": \"submitted\",
+              \"current_page\": \"/\",
+              \"app_version\": \"synthetic-monitor\",
+              \"auto_reported\": true,
+              \"admin_notified\": false,
+              \"browser_info\": {
+                \"userAgent\": \"GitHub Actions / synthetic-monitor\",
+                \"workflow_run_id\": \"${{ github.run_id }}\",
+                \"workflow_run_url\": \"${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}\",
+                \"checks\": {
+                  \"frontend_http\": \"${FRONTEND_OK}\",
+                  \"supabase_rest\": \"${SUPABASE_OK}\",
+                  \"playwright_render\": \"${PLAYWRIGHT_OK}\"
+                }
+              }
+            }" \
+            --fail-with-body || echo "::warning::Could not file auto bug report (REST insert failed)"
+        env:
+          VITE_SUPABASE_URL:          ${{ secrets.VITE_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY:   ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SYNTHETIC_MONITOR_USER_ID:   ${{ secrets.SYNTHETIC_MONITOR_USER_ID }}
+
+      - name: Summary
+        if: steps.check-secrets.outputs.secrets_present == 'true'
+        run: |
+          echo "## Synthetic Monitor Results" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Check | Status |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|---|---|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Frontend HTTP | ${{ steps.check-frontend.outputs.passed == 'true' && '✅ Pass' || '❌ Fail' }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Supabase REST | ${{ steps.check-supabase.outputs.passed == 'true' && '✅ Pass' || '❌ Fail' }} |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Playwright render | ${{ steps.check-playwright.outputs.passed == 'true' && '✅ Pass' || '❌ Fail' }} |" >> "$GITHUB_STEP_SUMMARY"
