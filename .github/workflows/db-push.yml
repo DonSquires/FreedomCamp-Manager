@@ -103,6 +103,13 @@ jobs:
             supabase migration repair --status reverted "$version" || true
           done
 
+          # Known replay edge case: some environments contain a stale applied row
+          # for this long-form migration version and then attempt to apply it
+          # again, failing with schema_migrations_pkey. Reverting upfront is safe
+          # because the migration SQL is idempotent (CREATE ... IF NOT EXISTS,
+          # DROP POLICY IF EXISTS, etc.) and can be re-applied cleanly.
+          supabase migration repair --status reverted 20260426000001 || true
+
       - name: Apply migrations
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
