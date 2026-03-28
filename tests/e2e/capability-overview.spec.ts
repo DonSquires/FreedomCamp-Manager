@@ -114,34 +114,23 @@ test.describe('Public Dispute Portal', () => {
 
   test('renders a notice reference number input', async ({ page }) => {
     await page.goto('/public/dispute')
-    // Wait for React to mount and render the form
-    await page.waitForLoadState('networkidle')
-
-    // Input is a shadcn Input component (renders as <input>) with a placeholder
-    const hasInput =
-      (await page.locator('input[placeholder]').count()) > 0
-    expect(hasInput, 'Dispute portal should have a text input for notice reference').toBe(true)
+    // Wait for the specific reference input to appear (rendered by React)
+    const refInput = page.locator('input[placeholder*="INF"]')
+    await expect(refInput).toBeVisible({ timeout: 10000 })
   })
 
-  test('renders a submit / dispute button', async ({ page }) => {
+  test('renders a Find Notice button', async ({ page }) => {
     await page.goto('/public/dispute')
-    // Wait for React to mount and render the form
-    await page.waitForLoadState('networkidle')
-
-    // Portal has a "Find Notice" button (and a "Submit" button after lookup)
-    const hasButton =
-      (await page.locator('button').count()) > 0
-    expect(hasButton, 'Dispute portal should have buttons').toBe(true)
+    // Wait for the Find Notice button to appear (rendered by React)
+    const findBtn = page.locator('button').filter({ hasText: /find notice/i }).first()
+    await expect(findBtn).toBeVisible({ timeout: 10000 })
   })
 
   test('shows a heading describing the dispute process', async ({ page }) => {
     await page.goto('/public/dispute')
-    // Wait for React to mount and render the form
-    await page.waitForLoadState('networkidle')
-
-    // CardTitle renders as h3 in this codebase
-    const heading = page.locator('h1, h2, h3').first()
-    await expect(heading).toBeVisible({ timeout: 8000 })
+    // CardTitle renders as h3; wait for the specific portal heading
+    const heading = page.locator('h3').filter({ hasText: /notice.*review|dispute.*portal/i }).first()
+    await expect(heading).toBeVisible({ timeout: 10000 })
   })
 })
 
