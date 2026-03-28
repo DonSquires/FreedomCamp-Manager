@@ -57,8 +57,8 @@ export function SplitScanCamera({ onCapture, onCancel, isProcessing = false, sta
       setHasZoom('zoom' in caps)
       setIsStreaming(true)
     } catch {
-      toast.error('Camera access denied or unavailable')
-      onCancel()
+      toast.error('Camera access denied or unavailable. Use Manual Entry to continue.')
+      setIsStreaming(false)
     }
   }, [stopCamera, onCancel])
 

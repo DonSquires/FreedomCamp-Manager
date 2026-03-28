@@ -1,5 +1,6 @@
 import { test as base } from '@playwright/test'
 import { createClient } from '@supabase/supabase-js'
+import { loginAs } from './auth'
 
 const supabaseUrl = process.env.VITE_SUPABASE_URL || ''
 const supabaseAnonKey = process.env.VITE_SUPABASE_ANON_KEY || ''
@@ -17,31 +18,19 @@ export const test = base.extend<{
 }>({
   // Master user authentication
   masterUser: async ({ page }, use) => {
-    await page.goto('/login')
-    await page.fill('input[type="email"]', 'master@test.com')
-    await page.fill('input[type="password"]', 'Test123!')
-    await page.click('button[type="submit"]')
-    await page.waitForURL('/')
+    await loginAs(page, 'master')
     await use(page)
   },
 
   // Admin user authentication
   adminUser: async ({ page }, use) => {
-    await page.goto('/login')
-    await page.fill('input[type="email"]', 'admin@org1.com')
-    await page.fill('input[type="password"]', 'Test123!')
-    await page.click('button[type="submit"]')
-    await page.waitForURL('/')
+    await loginAs(page, 'adminOrg1')
     await use(page)
   },
 
   // Officer user authentication
   officerUser: async ({ page }, use) => {
-    await page.goto('/login')
-    await page.fill('input[type="email"]', 'officer@org1.com')
-    await page.fill('input[type="password"]', 'Test123!')
-    await page.click('button[type="submit"]')
-    await page.waitForURL('/')
+    await loginAs(page, 'officerOrg1')
     await use(page)
   },
 })
@@ -52,6 +41,8 @@ export { expect } from '@playwright/test'
  * Helper functions
  */
 export const helpers = {
+  supabase,
+
   /**
    * Wait for toast notification
    */

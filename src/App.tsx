@@ -207,10 +207,10 @@ function RouteChangeCleanup() {
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 1000 * 30, // 30 seconds
-      refetchOnWindowFocus: true,
+      staleTime: 1000 * 60 * 2, // 2 minutes — reduces waterfall re-fetches on navigation
+      refetchOnWindowFocus: false,
       refetchOnReconnect: true,
-      refetchOnMount: true,
+      refetchOnMount: false,
     },
   },
 })
@@ -283,7 +283,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   // Client viewer users are limited to their organisation's client portal.
   if (
     user.role === 'client_viewer' &&
-    location.pathname === '/'
+    !['/client-portal', '/profile', '/settings'].includes(location.pathname)
   ) {
     return <Navigate to="/client-portal" replace />
   }
@@ -367,7 +367,7 @@ export default function App() {
     // Safety net: never block routing indefinitely on auth init.
     const loadingFallback = window.setTimeout(() => {
       ensureLoadingResolved()
-    }, 12000)
+    }, 3000)
 
     return () => {
       window.clearTimeout(loadingFallback)
@@ -478,6 +478,11 @@ export default function App() {
                 </AreaRoute>
               </ProtectedRoute>
             }
+          />
+          {/* Legacy deep-link support */}
+          <Route
+            path="/field"
+            element={<Navigate to="/field-officer" replace />}
           />
           {/* Protected routes */}
           <Route

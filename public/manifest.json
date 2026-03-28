@@ -1,6 +1,6 @@
 {
-  "name": "FreedomCamp Manager - Iron Eagle Security",
-  "short_name": "FC Manager",
+  "name": "FreedomCamp Manager",
+  "short_name": "FreedomCamp",
   "description": "Iron Eagle Security vehicle tracking and compliance management for field officers",
   "start_url": "/",
   "scope": "/",

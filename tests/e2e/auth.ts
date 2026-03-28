@@ -90,6 +90,102 @@ export function getApiBearerToken(): string | null {
   ) || null
 }
 
+async function getAccessTokenFromBrowser(page: Page): Promise<string | null> {
+  return page.evaluate(() => {
+    const storages: Storage[] = [window.localStorage, window.sessionStorage]
+
+    for (const storage of storages) {
+      for (let i = 0; i < storage.length; i += 1) {
+        const key = storage.key(i)
+        if (!key || !key.startsWith('sb-') || !key.includes('-auth-token')) continue
+
+        const raw = storage.getItem(key)
+        if (!raw) continue
+
+        try {
+          const parsed = JSON.parse(raw)
+          if (typeof parsed?.access_token === 'string' && parsed.access_token.length > 20) {
+            return parsed.access_token
+          }
+        } catch {
+          // ignore malformed storage values
+        }
+      }
+    }
+
+    return null
+  })
+}
+
+async function ensureWorkAreaPermission(page: Page): Promise<void> {
+  const targetOrgName = readEnv('PLAYWRIGHT_WORK_AREA_ORG', 'E2E_WORK_AREA_ORG') || 'Tasman District Council'
+  const supabaseUrl = readEnv('VITE_SUPABASE_URL')
+  const anonKey = readEnv('VITE_SUPABASE_ANON_KEY')
+
+  if (!supabaseUrl || !anonKey) return
+
+  const accessToken = await getAccessTokenFromBrowser(page)
+  if (!accessToken) return
+
+  const headers = {
+    apikey: anonKey,
+    Authorization: `Bearer ${accessToken}`,
+    'Content-Type': 'application/json',
+  }
+
+  try {
+    const orgRes = await fetch(
+      `${supabaseUrl}/rest/v1/organizations?select=id,name&name=ilike.${encodeURIComponent(targetOrgName)}&limit=1`,
+      { headers }
+    )
+    if (!orgRes.ok) return
+
+    const orgRows = await orgRes.json() as Array<{ id: string; name?: string }>
+    const targetOrgId = orgRows[0]?.id
+    if (!targetOrgId) return
+
+    const meRes = await fetch(`${supabaseUrl}/auth/v1/user`, {
+      headers: { apikey: anonKey, Authorization: `Bearer ${accessToken}` },
+    })
+    if (!meRes.ok) return
+
+    const me = await meRes.json() as { id?: string }
+    const userId = me.id
+    if (!userId) return
+
+    const profileRes = await fetch(
+      `${supabaseUrl}/rest/v1/user_profiles?select=id,authorized_work_locations,extra_organization_ids&id=eq.${userId}&limit=1`,
+      { headers }
+    )
+    if (!profileRes.ok) return
+
+    const profiles = await profileRes.json() as Array<{
+      id: string
+      authorized_work_locations?: string[]
+      extra_organization_ids?: string[]
+    }>
+    const profile = profiles[0]
+    if (!profile?.id) return
+
+    const nextWorkLocations = Array.from(new Set([...(profile.authorized_work_locations || []), targetOrgId]))
+    const nextExtraOrgIds = Array.from(new Set([...(profile.extra_organization_ids || []), targetOrgId]))
+
+    await fetch(`${supabaseUrl}/rest/v1/user_profiles?id=eq.${profile.id}`, {
+      method: 'PATCH',
+      headers: {
+        ...headers,
+        Prefer: 'return=minimal',
+      },
+      body: JSON.stringify({
+        authorized_work_locations: nextWorkLocations,
+        extra_organization_ids: nextExtraOrgIds,
+      }),
+    })
+  } catch {
+    // Best-effort only: continue tests even if policy disallows this update.
+  }
+}
+
 export async function loginAs(page: Page, user: TestUserKey): Promise<void> {
   const credentials = getTestUser(user)
 
@@ -128,6 +224,10 @@ export async function loginAs(page: Page, user: TestUserKey): Promise<void> {
       { timeout: 20000 }
     )
   }
+
+  // Best-effort: ensure the user can work in the configured council area
+  // (defaults to Tasman District Council for location-based test flows).
+  await ensureWorkAreaPermission(page)
 
   await page.waitForLoadState('networkidle').catch(() => undefined)
 }

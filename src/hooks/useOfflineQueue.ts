@@ -180,6 +180,8 @@ export function useOfflineQueue() {
       )
     },
     refetchInterval: 5000, // Refresh every 5 seconds
+    staleTime: 0,        // Always re-fetch because IndexedDB can change externally
+    gcTime: 60_000,
   })
 
   // Add to queue mutation
@@ -200,7 +202,7 @@ export function useOfflineQueue() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['offline-queue'] })
-      toast.success('Observation queued for upload')
+      toast.success('Saved offline')
     },
     onError: () => {
       toast.error('Failed to queue observation')

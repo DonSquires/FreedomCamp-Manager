@@ -50,6 +50,8 @@ export function useDashboardStats(params: DashboardStatsParams = {}) {
       // Fallback to manual calculation
       return await calculateStatsManually(effectiveOrgId, zoneId, dateFrom, dateTo)
     },
+    staleTime: 60_000,
+    gcTime: 5 * 60_000,
   })
 }
 
@@ -70,7 +72,8 @@ async function calculateStatsManually(
     totalObsQuery = totalObsQuery.eq('organization_id', organizationId)
     compliantObsQuery = compliantObsQuery.eq('organization_id', organizationId)
     breachQuery = breachQuery.eq('organization_id', organizationId)
-    vehicleQuery = vehicleQuery.eq('organization_id', organizationId)
+    // Live schema has no organization_id on canonical_vehicles.
+    // Keep global vehicle count rather than querying a non-existent column.
     patrolQuery = patrolQuery.eq('organization_id', organizationId)
   }
 
@@ -154,5 +157,7 @@ export function useRecentActivity(organizationId?: string | null, zoneId?: strin
         status: 'recorded',
       }))
     },
+    staleTime: 30_000,
+    gcTime: 5 * 60_000,
   })
 }

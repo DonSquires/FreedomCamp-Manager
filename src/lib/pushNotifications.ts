@@ -149,7 +149,7 @@ export async function subscribeToPush(): Promise<PushSubscription | null> {
       userVisibleOnly: true,
       applicationServerKey: urlBase64ToUint8Array(
         // In production, use actual VAPID public key
-        process.env.VITE_VAPID_PUBLIC_KEY || ''
+        import.meta.env.VITE_VAPID_PUBLIC_KEY || ''
       ) as unknown as BufferSource,
     })
 

@@ -4,6 +4,7 @@ import App from './App.tsx'
 import './index.css'
 import 'leaflet/dist/leaflet.css'
 import { supabaseConfigured } from './lib/supabase.ts'
+import { registerServiceWorker } from './lib/pwa.ts'
 
 // Inject a preconnect hint for the Supabase backend at runtime so the browser
 // can open the TCP+TLS connection before any API calls are made.
@@ -17,6 +18,12 @@ if (supabaseUrl) {
 }
 
 const root = document.getElementById('root')!
+
+if (supabaseConfigured && typeof window !== 'undefined' && 'serviceWorker' in navigator) {
+  registerServiceWorker().catch(() => {
+    // Non-blocking: app should still load if SW registration fails.
+  })
+}
 
 if (!supabaseConfigured) {
   createRoot(root).render(

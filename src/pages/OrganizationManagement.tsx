@@ -59,7 +59,7 @@ export default function OrganizationManagement() {
   const [createParentOrgId, setCreateParentOrgId] = useState<string | null>(null)
 
   // Check user role
-  const isMaster = user?.role === 'master'
+  const isMaster = user?.role === 'master' || user?.role === 'grand_master'
 
   // Fetch organizations
   const { data: organizations, isLoading } = useQuery({
