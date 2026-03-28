@@ -136,6 +136,7 @@ jobs:
         if: steps.check-secrets.outputs.secrets_present == 'true'
         id: check-playwright
         run: |
+          export NODE_PATH="$(npm root)"
           node - <<'EOF'
           const { chromium } = require('playwright');
           const FRONTEND_URL = process.env.FRONTEND_URL;
