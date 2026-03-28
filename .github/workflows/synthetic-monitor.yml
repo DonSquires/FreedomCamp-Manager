@@ -205,7 +205,7 @@ jobs:
 
               // Expose additional diagnostics to later steps
               if (process.env.GITHUB_OUTPUT) {
-                const sanitize = (value) => String(value).replace(/\\r?\\n/g, ' ');
+                const sanitize = (value) => String(value).replace(/\r?\n/g, ' ');
                 const outputs = {
                   status,
                   vercel_protection: isVercelProtection,
