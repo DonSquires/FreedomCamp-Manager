@@ -2,9 +2,13 @@
  * FeedbackModal
  *
  * Enhanced report dialog for bugs, feature requests, and performance issues.
+ * Offers two modes:
+ *   - Form: traditional structured form (manual fill)
+ *   - Chat: AI-guided intake — the AI asks targeted questions and submits the
+ *           report automatically (AiFeedbackChat component)
+ *
  * Auto-captures rich context (navigation history, console errors, browser info)
- * via getFeedbackSnapshot() and shows the user a "what we'll send" preview
- * before submitting.
+ * via getFeedbackSnapshot() regardless of mode.
  *
  * Saves to the bug_reports table.  Grand-master users can review and trigger
  * AI-assisted fix analysis from Platform.tsx.
@@ -17,12 +21,13 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import {
   Bug, Lightbulb, Zap, ChevronDown, ChevronUp,
-  Navigation, AlertTriangle, Monitor, CheckCircle2,
+  Navigation, AlertTriangle, Monitor, CheckCircle2, Bot, FileText,
 } from 'lucide-react'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { getFeedbackSnapshot, clearCapturedErrors, type FeedbackSnapshot } from '@/hooks/useFeedbackCapture'
 import { edgeFunctions } from '@/lib/edgeFunctions'
+import { AiFeedbackChat } from '@/components/features/AiFeedbackChat'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -52,9 +57,12 @@ const labelCls = 'block text-xs font-medium text-muted-foreground mb-1'
 
 // ── Component ─────────────────────────────────────────────────────────────────
 
+type InputMode = 'form' | 'chat'
+
 export function FeedbackModal({ open, onClose }: FeedbackModalProps) {
   const { user } = useAuthStore()
 
+  const [mode, setMode] = useState<InputMode>('form')
   const [type, setType] = useState<FeedbackType>('bug')
   const [severity, setSeverity] = useState<Severity>('medium')
   const [title, setTitle] = useState('')
@@ -71,6 +79,7 @@ export function FeedbackModal({ open, onClose }: FeedbackModalProps) {
 
   const handleClose = () => {
     if (loading) return
+    setMode('form')
     setType('bug')
     setSeverity('medium')
     setTitle('')
@@ -155,8 +164,7 @@ export function FeedbackModal({ open, onClose }: FeedbackModalProps) {
             <div>
               <p className="font-semibold text-base">Report Received</p>
               <p className="text-sm text-muted-foreground mt-1">
-                Your {TYPE_CONFIG[type].label.toLowerCase()} has been sent to the platform team.
-                They can see everything you were doing at the time.
+                Your report has been sent to the platform team. AI will analyse it automatically.
               </p>
             </div>
             <Button onClick={handleClose} className="w-full">Done</Button>
@@ -177,6 +185,42 @@ export function FeedbackModal({ open, onClose }: FeedbackModalProps) {
           <DialogTitle className="text-base">Send Feedback</DialogTitle>
         </DialogHeader>
 
+        {/* ── Mode toggle ───────────────────────────────────────────────── */}
+        <div className="flex gap-1 rounded-lg border border-gray-200 dark:border-gray-700 p-1 bg-gray-50 dark:bg-gray-800/50">
+          <button
+            type="button"
+            onClick={() => setMode('form')}
+            className={`flex-1 flex items-center justify-center gap-1.5 rounded-md py-1.5 text-xs font-medium transition-colors ${
+              mode === 'form'
+                ? 'bg-white dark:bg-gray-700 shadow-sm text-foreground'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <FileText className="h-3.5 w-3.5" /> Form
+          </button>
+          <button
+            type="button"
+            onClick={() => setMode('chat')}
+            className={`flex-1 flex items-center justify-center gap-1.5 rounded-md py-1.5 text-xs font-medium transition-colors ${
+              mode === 'chat'
+                ? 'bg-white dark:bg-gray-700 shadow-sm text-foreground'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            <Bot className="h-3.5 w-3.5" /> Chat with AI
+          </button>
+        </div>
+
+        {/* ── Chat mode ────────────────────────────────────────────────── */}
+        {mode === 'chat' && (
+          <AiFeedbackChat
+            onSubmitted={() => setSubmitted(true)}
+            onCancel={handleClose}
+          />
+        )}
+
+        {/* ── Form mode ────────────────────────────────────────────────── */}
+        {mode === 'form' && (
         <form onSubmit={handleSubmit} className="space-y-4">
 
           {/* Type selector */}
@@ -353,6 +397,7 @@ export function FeedbackModal({ open, onClose }: FeedbackModalProps) {
             </Button>
           </DialogFooter>
         </form>
+        )} {/* end form mode */}
       </DialogContent>
     </Dialog>
   )

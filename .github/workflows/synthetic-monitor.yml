@@ -282,9 +282,9 @@ jobs:
             }" \
             --fail-with-body || echo "::warning::Could not file auto bug report (REST insert failed)"
         env:
-          VITE_SUPABASE_URL:          ${{ secrets.VITE_SUPABASE_URL }}
-          SUPABASE_SERVICE_ROLE_KEY:   ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          SYNTHETIC_MONITOR_USER_ID:   ${{ secrets.SYNTHETIC_MONITOR_USER_ID }}
+          VITE_SUPABASE_URL:         ${{ secrets.VITE_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SYNTHETIC_MONITOR_USER_ID: ${{ secrets.SYNTHETIC_MONITOR_USER_ID }}
 
       - name: Summary
         if: steps.check-secrets.outputs.secrets_present == 'true'

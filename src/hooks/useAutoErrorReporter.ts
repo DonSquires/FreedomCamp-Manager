@@ -54,6 +54,9 @@ const _reportedHashes = new Set<string>()
 let _lastAutoReportMs = 0
 const MIN_INTERVAL_MS = 5 * 60 * 1000 // 5 minutes between auto-reports
 const CHECK_INTERVAL_MS = 90_000        // check every 90 seconds
+// Delay before the first check: long enough for the initial page render and
+// React hydration to complete so transient startup errors are not captured.
+const INITIAL_CHECK_DELAY_MS = 15_000
 
 /** Cheap 32-bit string hash for deduplication. */
 function hashString(s: string): string {
@@ -151,7 +154,7 @@ export function useAutoErrorReporter() {
     }
 
     // Run once shortly after mount, then on interval
-    const initialTimer = setTimeout(check, 15_000)
+    const initialTimer = setTimeout(check, INITIAL_CHECK_DELAY_MS)
     intervalRef.current = setInterval(check, CHECK_INTERVAL_MS)
 
     return () => {
