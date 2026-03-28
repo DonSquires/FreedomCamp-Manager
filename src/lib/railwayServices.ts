@@ -39,7 +39,7 @@ async function getRailwayServiceURLs(): Promise<{
         inferenceUrl: null,
         proxyHealth: null,
         inferenceHealth: null,
-        error: error.message || 'Failed to get Railway service URLs',
+        error: error || 'Failed to get Railway service URLs',
       }
     }
 

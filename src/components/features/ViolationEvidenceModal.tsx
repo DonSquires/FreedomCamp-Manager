@@ -43,7 +43,7 @@ export function ViolationEvidenceModal({ open, onClose, violation }: ViolationEv
         deliveryMethod: 'printed_onsite',
         breachDetails: { notes: violation.violation_reason },
       })
-      if (error) throw new Error(error.message)
+      if (error) throw new Error(error)
       if (!data?.success) throw new Error(data?.error || 'Failed to generate notice')
       toast.success(`Notice ${data.notice?.reference_number || ''} generated`)
       onClose()

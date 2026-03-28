@@ -124,7 +124,7 @@ export default function ImportData() {
         recordDate: recordDate || undefined,
         organizationId: orgId,
       })
-      if (error) throw new Error(error.message)
+      if (error) throw new Error(error)
       setResult(data)
       toast.success(data?.success ? `✅ Import complete — ${data?.records_inserted || 0} records imported` : '⚠️ Import finished with warnings')
       queryClient.invalidateQueries({ queryKey: ['import-batches'] })

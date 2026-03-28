@@ -816,7 +816,7 @@ export default function VehicleManagement() {
         plate_number: plateNumber,
         force_update: forceUpdate,
       })
-      if (error) { toast.error(`Scrape failed: ${error.message}`); return }
+      if (error) { toast.error(`Scrape failed: ${error}`); return }
       if (data?.skipped) {
         toast.info('Vehicle already has a profile photo. Use "Force Update" to replace it.')
         return

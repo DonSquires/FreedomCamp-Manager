@@ -12,6 +12,58 @@ import { useSessionLockStore } from '@/stores/sessionLockStore'
 
 const ACCESS_TOKEN_REFRESH_BUFFER_MS = 60_000
 
+/** Retrieve the current session's access token, or null if not signed in. */
+async function getValidAccessToken(): Promise<string | null> {
+  const { data: { session } } = await supabase.auth.getSession()
+  if (!session?.access_token) return null
+
+  // Proactively refresh when the token is close to expiry.
+  const expiresAt = (session.expires_at ?? 0) * 1000
+  if (Date.now() + ACCESS_TOKEN_REFRESH_BUFFER_MS >= expiresAt) {
+    const { data: refreshed } = await supabase.auth.refreshSession()
+    return refreshed.session?.access_token ?? null
+  }
+
+  return session.access_token
+}
+
+/** Force-refresh the Supabase session and return the new access token, or null on failure. */
+async function tryRefreshAccessToken(): Promise<string | null> {
+  try {
+    const { data, error } = await supabase.auth.refreshSession()
+    if (error || !data.session) return null
+    return data.session.access_token
+  } catch {
+    return null
+  }
+}
+
+/** Return true when the error is a 401 JWT-related failure from the Supabase gateway. */
+async function isJwtAuthError(error: any): Promise<boolean> {
+  if (!(error instanceof FunctionsHttpError)) return false
+  const status = (error.context as Response | undefined)?.status ?? 0
+  return status === 401
+}
+
+/**
+ * Strip HTML tags and boilerplate from an error body and return a concise
+ * human-readable string.  Returns an empty string if nothing useful is found.
+ */
+function extractUsableMessage(text: string): string {
+  if (!text) return ''
+  // Strip HTML tags produced by gateway error pages.
+  const stripped = text.replace(/<[^>]+>/g, ' ').replace(/\s{2,}/g, ' ').trim()
+  // Ignore generic gateway pages that contain no actionable information.
+  if (
+    stripped.toLowerCase().includes('<!doctype') ||
+    stripped.toLowerCase().startsWith('bad gateway') ||
+    stripped.toLowerCase().startsWith('service unavailable')
+  ) {
+    return ''
+  }
+  return stripped.length > 300 ? stripped.slice(0, 300) + '…' : stripped
+}
+
 async function readFunctionsErrorText(error: FunctionsHttpError): Promise<string> {
   try {
     const response = error.context as Response | undefined
@@ -19,18 +71,26 @@ async function readFunctionsErrorText(error: FunctionsHttpError): Promise<string
 
     // Clone to avoid consuming the original body stream for other handlers.
     const readable = typeof response.clone === 'function' ? response.clone() : response
-    // This typically happens when a gateway returns an empty HTML error page whose content
-    // was forwarded as the error string. Return a helpful fallback.
-    if (parsed && (typeof parsed.error === 'string' || typeof parsed.message === 'string')) {
-      return 'The server returned an empty error message. This is usually a transient gateway or proxy error — please retry.'
-    }
-  } catch {
-    // Not JSON — use the raw text as-is, but cap its length for readability.
-  }
+    const raw = await (readable as Response).text()
 
-  const trimmed = raw.trim()
-  if (!trimmed) return ''
-  return trimmed.length > 300 ? trimmed.slice(0, 300) + '…' : trimmed
+    // Attempt JSON parse — the gateway often returns {"error":"…"} or {"message":"…"}.
+    try {
+      const parsed = JSON.parse(raw)
+      // This typically happens when a gateway returns an empty HTML error page whose content
+      // was forwarded as the error string. Return a helpful fallback.
+      if (parsed && (typeof parsed.error === 'string' || typeof parsed.message === 'string')) {
+        return 'The server returned an empty error message. This is usually a transient gateway or proxy error — please retry.'
+      }
+    } catch {
+      // Not JSON — use the raw text as-is, but cap its length for readability.
+    }
+
+    const trimmed = raw.trim()
+    if (!trimmed) return ''
+    return trimmed.length > 300 ? trimmed.slice(0, 300) + '…' : trimmed
+  } catch {
+    return ''
+  }
 }
 
 /**
@@ -586,6 +646,7 @@ export const edgeFunctions = {
     zone_id?: string
     date_from?: string
     date_to?: string
+    search?: string
   }) => {
     return callEdgeFunction('observations-export', params)
   },
@@ -763,6 +824,10 @@ export const edgeFunctions = {
     batchName?: string
     organization_id?: string
     organizationId?: string
+    fileName?: string
+    file_name?: string
+    fileContent?: string
+    file_content?: string
   }) => {
     return callEdgeFunction('import-historical-data', params)
   },
@@ -998,6 +1063,8 @@ export const edgeFunctions = {
     title: string
     body: string
     data?: any
+    type?: string
+    priority?: 'low' | 'normal' | 'high' | 'urgent'
   }) => {
     return callEdgeFunction('send-push-notification', params)
   },
