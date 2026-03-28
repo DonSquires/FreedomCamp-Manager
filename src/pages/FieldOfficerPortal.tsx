@@ -134,36 +134,15 @@ export default function FieldOfficerPortal() {
       : null
   })
 
-  // ── Enabled (linked) extra portals — persisted per-officer in user_profiles ─
-  // Officers can tick which additional service portals are linked to their dashboard.
-  // Initialised from roster-shift service_type; officer can toggle extras.
-  const ALL_PORTAL_OPTIONS: ServiceType[] = ['freedom_camping', 'guarding', 'parking', 'noise']
-  const [enabledPortals, setEnabledPortals] = useState<ServiceType[]>(() => {
-    try {
-      const stored = localStorage.getItem(`enabled_portals_${user?.id}`)
-      if (stored) return JSON.parse(stored) as ServiceType[]
-    } catch { /* ignore */ }
-    return rosteredShift?.service_type
-      ? [rosteredShift.service_type as ServiceType]
-      : ['freedom_camping']
-  })
-
-  const togglePortal = (portal: ServiceType) => {
-    setEnabledPortals(prev => {
-      const next = prev.includes(portal)
-        ? prev.filter(p => p !== portal)
-        : [...prev, portal]
-      localStorage.setItem(`enabled_portals_${user?.id}`, JSON.stringify(next))
-      // Persist to user_profiles asynchronously
-      if (user?.id) {
-        ;(supabase as any).from('user_profiles')
-          .update({ enabled_portals: next })
-          .eq('id', user.id)
-          .then(() => {/* fire and forget */})
-      }
-      return next
-    })
-  }
+  // Auto-select service type from rostered shift when no URL param was given
+  useEffect(() => {
+    if (activeService) return // URL param already set it
+    if (!rosteredShift?.service_type) return
+    const rosterService = rosteredShift.service_type as ServiceType
+    if (['freedom_camping', 'guarding', 'parking', 'noise'].includes(rosterService)) {
+      setActiveService(rosterService)
+    }
+  }, [rosteredShift?.service_type]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Scan mode: null = portal home, 'detail' = single-vehicle scan,
   //              'bulk' = quick area sweep, 'checkpoint' = QR check-in
@@ -937,36 +916,6 @@ export default function FieldOfficerPortal() {
               }
             )}
           </div>
-
-          {/* ── Linked portals (multi-service tick boxes) ──────────────
-              Patrol officers can tick additional portals to link them
-              to their dashboard without changing primary service type. */}
-          <div className="mt-3 rounded-xl border border-gray-200 dark:border-gray-700 p-3">
-            <p className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2 flex items-center gap-1.5">
-              <Lock className="h-3.5 w-3.5" />
-              Linked Portals — show additional service tools
-            </p>
-            <div className="flex flex-wrap gap-x-4 gap-y-1">
-              {ALL_PORTAL_OPTIONS.map(portal => {
-                const cfg = SERVICE_TYPE_CONFIG[portal]
-                if (!cfg) return null
-                return (
-                  <label key={portal} className="flex items-center gap-1.5 cursor-pointer select-none">
-                    <input
-                      type="checkbox"
-                      className="rounded border-gray-300"
-                      checked={enabledPortals.includes(portal)}
-                      onChange={() => togglePortal(portal)}
-                    />
-                    <span className={`text-xs font-medium ${cfg.color}`}>{cfg.label}</span>
-                  </label>
-                )
-              })}
-            </div>
-            <p className="text-[11px] text-gray-400 mt-1.5">
-              Ticked portals show their tools below. Your choices are saved automatically.
-            </p>
-          </div>
         </div>
       )}
 
@@ -1054,9 +1003,9 @@ export default function FieldOfficerPortal() {
           {/* ═══════════════════════════════════════════════════════════
               FREEDOM CAMPING PATROL tools
               ═══════════════════════════════════════════════════════════ */}
-          {(!activeService || activeService === 'freedom_camping' || enabledPortals.includes('freedom_camping')) && (
+          {activeService === 'freedom_camping' && (
             <>
-              {(activeService === 'freedom_camping' || enabledPortals.includes('freedom_camping')) && (
+              {activeService === 'freedom_camping' && (
                 <h3 className="text-xs font-bold text-green-700 dark:text-green-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
                   <Tent className="h-3.5 w-3.5" />
                   Freedom Camping Patrol
@@ -1158,9 +1107,9 @@ export default function FieldOfficerPortal() {
           {/* ═══════════════════════════════════════════════════════════
               GUARDING tools
               ═══════════════════════════════════════════════════════════ */}
-          {(!activeService || activeService === 'guarding' || enabledPortals.includes('guarding')) && (
+          {activeService === 'guarding' && (
             <>
-              {(activeService === 'guarding' || enabledPortals.includes('guarding')) && (
+              {activeService === 'guarding' && (
                 <h3 className="text-xs font-bold text-blue-700 dark:text-blue-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
                   <Shield className="h-3.5 w-3.5" />
                   Guarding
