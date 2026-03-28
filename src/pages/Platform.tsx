@@ -17,7 +17,7 @@ import {
   Code2, BarChart3, MapPin, Car, Database, Gavel, Receipt, Map, PieChart,
   BrainCircuit, ScanLine, CalendarRange, HeartPulse, Radio, Upload, Camera,
   ScrollText, ClipboardCheck, FlameKindling, Settings, User, Search,
-  ArrowRight, MonitorPlay,
+  ArrowRight, MonitorPlay, Bot,
 } from 'lucide-react'
 import { toast } from 'sonner'
 
@@ -70,6 +70,7 @@ interface FeedbackReport {
   ai_analysis: any
   requires_human_review: boolean | null
   resolution_notes: string | null
+  auto_reported: boolean | null
 }
 
 // ─── Feature navigation groups (all sections of the build) ───────────────────
@@ -316,7 +317,7 @@ Be specific. Name exact files and line-level changes where possible.`
         .update({
           ai_analyzed: true,
           ai_suggested_fix: aiText,
-          ai_analysis: { analyzed_at: new Date().toISOString(), model: result.data?.model ?? 'unknown' } as any,
+          ai_analysis: { analyzed_at: new Date().toISOString(), model: result.data?.model ?? 'unknown', provider: result.data?.provider ?? 'unknown' } as any,
           status: 'in_progress',
           requires_human_review: true,
         })
@@ -799,6 +800,16 @@ function FeedbackReportCard({
             <span className={`rounded-full px-2 py-0.5 text-[10px] font-medium ${SEV_BADGE[report.severity] ?? SEV_BADGE.low}`}>
               {report.severity}
             </span>
+            {report.auto_reported && report.app_version === 'synthetic-monitor' && (
+              <span className="flex items-center gap-1 text-[10px] bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-full px-2 py-0.5 font-medium">
+                <MonitorDot className="h-3 w-3" /> Synthetic monitor
+              </span>
+            )}
+            {report.auto_reported && report.app_version !== 'synthetic-monitor' && (
+              <span className="flex items-center gap-1 text-[10px] bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 rounded-full px-2 py-0.5 font-medium">
+                <Bot className="h-3 w-3" /> Auto-detected
+              </span>
+            )}
             {report.ai_analyzed && (
               <span className="flex items-center gap-1 text-[10px] text-violet-600 dark:text-violet-400 font-medium">
                 <Sparkles className="h-3 w-3" /> AI analysed
@@ -891,6 +902,11 @@ function FeedbackReportCard({
               <div className="flex items-center gap-2 px-3 py-2 border-b border-violet-200 dark:border-violet-800">
                 <Sparkles className="h-3.5 w-3.5 text-violet-600" />
                 <span className="text-xs font-semibold text-violet-700 dark:text-violet-300">AI Diagnosis & Fix Suggestion</span>
+                {report.ai_analysis?.provider && (
+                  <span className="text-[10px] bg-violet-100 dark:bg-violet-800/50 text-violet-600 dark:text-violet-300 rounded px-1.5 py-0.5 font-medium">
+                    {report.ai_analysis.provider === 'github-copilot' ? '⚡ GitHub Copilot' : report.ai_analysis.provider}
+                  </span>
+                )}
                 {report.ai_analysis?.analyzed_at && (
                   <span className="text-[10px] text-muted-foreground ml-auto">
                     {new Date(report.ai_analysis.analyzed_at).toLocaleString('en-NZ')}

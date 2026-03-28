@@ -1,4 +1,4 @@
-import { Dialog, DialogContent } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Siren, MapPin, Clock, ShieldCheck } from 'lucide-react'
@@ -46,6 +46,7 @@ export function OfficerWelfareWarningModal({
         onInteractOutside={(e) => e.preventDefault()}
         onEscapeKeyDown={(e) => e.preventDefault()}
       >
+        <DialogTitle className="sr-only">Welfare Alert — {ALERT_LABELS[alertType]}</DialogTitle>
         {/* Header */}
         <div className={`${ALERT_COLORS[alertType]} px-6 py-5 text-white`}>
           <div className="flex items-center gap-3 mb-1">

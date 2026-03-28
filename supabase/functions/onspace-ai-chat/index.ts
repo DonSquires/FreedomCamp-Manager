@@ -3,14 +3,21 @@
  *
  * AI-powered analysis and chat for FreedomCamp Manager admins.
  * Supports any OpenAI-compatible API endpoint so operators can point it at
- * their own self-hosted model (e.g. Ollama, vLLM, LM Studio) or the default
- * OpenAI service.
+ * their own self-hosted model (e.g. Ollama, vLLM, LM Studio), the default
+ * OpenAI service, or GitHub Copilot.
  *
- * Configuration (Supabase Edge Function secrets):
- *   OPENAI_API_KEY    — API key for the AI provider
+ * Configuration (Supabase Edge Function secrets) — in priority order:
+ *   GITHUB_TOKEN      — GitHub personal access token with `copilot` scope.
+ *                       When set, the function uses the GitHub Copilot API
+ *                       (https://api.githubcopilot.com) as the AI provider.
+ *                       This is the recommended provider for code-level fix
+ *                       analysis (grand-master feedback inbox).
+ *   OPENAI_API_KEY    — API key for the OpenAI (or compatible) provider.
+ *                       Used when GITHUB_TOKEN is not set.
  *   OPENAI_BASE_URL   — Base URL of the OpenAI-compatible API
- *                       (default: https://api.openai.com/v1)
- *                       Set to e.g. http://my-server:11434/v1 for Ollama
+ *                       (default: https://api.openai.com/v1).
+ *                       Set to e.g. http://my-server:11434/v1 for Ollama.
+ *                       Ignored when GITHUB_TOKEN is set.
  *   AI_DEFAULT_MODEL  — Model name to use (default: gpt-4o)
  *
  * POST body (two accepted formats):
@@ -20,7 +27,7 @@
  *     { message: string, context?: any, model?, temperature? }
  *
  * Response:
- *   { response: string, model: string, usage: { prompt_tokens, completion_tokens, total_tokens } }
+ *   { response: string, model: string, provider: string, usage: { prompt_tokens, completion_tokens, total_tokens } }
  */
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.45.3'
@@ -122,20 +129,34 @@ Deno.serve(async (req: Request) => {
     }
 
     // ── AI Provider ──────────────────────────────────────────────────────────
-    const apiKey = Deno.env.get('OPENAI_API_KEY')
-    const baseUrl = (Deno.env.get('OPENAI_BASE_URL') ?? 'https://api.openai.com/v1').replace(/\/$/, '')
+    // Priority: GITHUB_TOKEN (GitHub Copilot) → OPENAI_API_KEY (OpenAI/custom)
+    const githubToken = Deno.env.get('GITHUB_TOKEN')
+    const openaiApiKey = Deno.env.get('OPENAI_API_KEY')
 
-    if (!apiKey) {
+    let apiKey: string
+    let baseUrl: string
+    let providerName: string
+
+    if (githubToken) {
+      // Use GitHub Copilot API — OpenAI-compatible endpoint
+      apiKey = githubToken
+      baseUrl = 'https://api.githubcopilot.com'
+      providerName = 'github-copilot'
+    } else if (openaiApiKey) {
+      apiKey = openaiApiKey
+      baseUrl = (Deno.env.get('OPENAI_BASE_URL') ?? 'https://api.openai.com/v1').replace(/\/$/, '')
+      providerName = 'openai'
+    } else {
       return new Response(
         JSON.stringify({
           error: 'AI service not configured',
-          details: 'OPENAI_API_KEY secret is not set. Configure it in Supabase Dashboard > Edge Functions > Secrets, or point OPENAI_BASE_URL to your own AI server.',
+          details: 'No AI provider configured. Set GITHUB_TOKEN (recommended — uses GitHub Copilot) or OPENAI_API_KEY in Supabase Dashboard > Edge Functions > Secrets.',
         }),
         { status: 503, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
-    console.log(`[AI] user=${user.email} model=${model} messages=${messages.length} provider=${baseUrl}`)
+    console.log(`[AI] user=${user.email} model=${model} messages=${messages.length} provider=${providerName}`)
 
     const controller = new AbortController()
     const timeoutId = setTimeout(() => controller.abort(), 60_000)
@@ -178,6 +199,7 @@ Deno.serve(async (req: Request) => {
       JSON.stringify({
         response: responseText,
         model: aiData.model ?? model,
+        provider: providerName,
         usage: aiData.usage ?? null,
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

@@ -9,7 +9,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Dialog, DialogContent } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { supabase } from '@/lib/supabase'
 import { getObservationPhotoUrl } from '@/lib/photoUtils'
 import { 
@@ -325,6 +325,7 @@ export function VehiclePhotoGallery({
       {lightboxPhoto && (
         <Dialog open={!!lightboxPhoto} onOpenChange={() => closeLightbox()}>
           <DialogContent className="max-w-4xl">
+            <DialogTitle className="sr-only">Vehicle Photo</DialogTitle>
             <img
               src={lightboxPhoto}
               alt="Full size"

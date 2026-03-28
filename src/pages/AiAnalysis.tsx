@@ -4,9 +4,11 @@
  * AI — AI-powered analysis and chat for admins and master users.
  *
  * Uses the onspace-ai-chat edge function which connects to any
- * OpenAI-compatible backend.  Operators can point OPENAI_BASE_URL at their
- * own self-hosted model (Ollama, vLLM, LM Studio, etc.) by setting the
- * Supabase Edge Function secret, making this a fully independent AI system.
+ * OpenAI-compatible backend.  Supported providers (in priority order):
+ *   1. GitHub Copilot  — set GITHUB_TOKEN secret in Supabase Edge Functions.
+ *                        Recommended for code-level fix analysis.
+ *   2. OpenAI / custom — set OPENAI_API_KEY (and optionally OPENAI_BASE_URL)
+ *                        to point at OpenAI, Azure, Ollama, vLLM, etc.
  *
  * Features:
  *   - Multi-turn conversation with full message history
