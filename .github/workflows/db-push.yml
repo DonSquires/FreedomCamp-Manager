@@ -103,12 +103,11 @@ jobs:
             supabase migration repair --status reverted "$version" || true
           done
 
-          # Known replay edge case: some environments contain a stale applied row
-          # for this long-form migration version and then attempt to apply it
-          # again, failing with schema_migrations_pkey. Reverting upfront is safe
-          # because the migration SQL is idempotent (CREATE ... IF NOT EXISTS,
-          # DROP POLICY IF EXISTS, etc.) and can be re-applied cleanly.
-          supabase migration repair --status reverted 20260426000001 || true
+          # Known replay edge case: some environments have this version in a
+          # non-applied state in migration history, which makes db push try to
+          # execute it again and then fail inserting the same version key.
+          # Normalize it to applied before push to prevent duplicate-key loops.
+          supabase migration repair --status applied 20260426000001 || true
 
       - name: Apply migrations
         env:
@@ -181,8 +180,7 @@ jobs:
 
               if [ -n "${DUP_VERSION:-}" ]; then
                 echo "Detected duplicate schema_migrations version: $DUP_VERSION"
-                echo "Repairing duplicate by normalizing migration state, then retrying..."
-                supabase migration repair --status reverted "$DUP_VERSION" || true
+                echo "Repairing duplicate by marking version applied, then retrying..."
                 supabase migration repair --status applied "$DUP_VERSION" || true
                 handled=true
               fi
