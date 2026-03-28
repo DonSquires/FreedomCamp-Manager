@@ -113,12 +113,18 @@ jobs:
 
           LOG_FILE="$(mktemp)"
 
-          # Always use --include-all so legacy short-form local migration files
-          # are considered during reconciliation.
-          # --yes prevents interactive prompts that would stall CI.
+          # First try a normal push to avoid include-all replay behavior on some
+          # remote histories. Fall back to --include-all on later attempts when
+          # reconciliation is needed.
           for attempt in 1 2 3 4 5; do
-            echo "supabase db push --include-all --yes attempt $attempt..."
-            if supabase db push --include-all --yes 2>&1 | tee "$LOG_FILE"; then
+            if [ "$attempt" -eq 1 ]; then
+              PUSH_CMD="supabase db push --yes"
+            else
+              PUSH_CMD="supabase db push --include-all --yes"
+            fi
+
+            echo "$PUSH_CMD attempt $attempt..."
+            if $PUSH_CMD 2>&1 | tee "$LOG_FILE"; then
               echo "Migration push succeeded on attempt $attempt"
               supabase migration list || true
               exit 0
@@ -168,7 +174,8 @@ jobs:
 
               if [ -n "${DUP_VERSION:-}" ]; then
                 echo "Detected duplicate schema_migrations version: $DUP_VERSION"
-                echo "Repairing by marking the version applied, then retrying..."
+                echo "Repairing duplicate by normalizing migration state, then retrying..."
+                supabase migration repair --status reverted "$DUP_VERSION" || true
                 supabase migration repair --status applied "$DUP_VERSION" || true
                 handled=true
               fi
