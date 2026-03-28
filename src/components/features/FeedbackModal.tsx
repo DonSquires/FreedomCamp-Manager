@@ -138,6 +138,7 @@ export function FeedbackModal({ open, onClose }: FeedbackModalProps) {
     return (
       <Dialog open={open} onOpenChange={v => { if (!v) handleClose() }}>
         <DialogContent className="max-w-sm">
+          <DialogTitle className="sr-only">Report Received</DialogTitle>
           <div className="flex flex-col items-center gap-4 py-6 text-center">
             <div className="w-14 h-14 rounded-full bg-green-100 dark:bg-green-900/30 flex items-center justify-center">
               <CheckCircle2 className="h-7 w-7 text-green-600" />

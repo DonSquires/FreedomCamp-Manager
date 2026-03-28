@@ -10,7 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { Dialog, DialogContent } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { AppLayout } from '@/components/features/AppLayout'
 import { GlobalFilterRibbon } from '@/components/features/GlobalFilterRibbon'
 import { LoadingSpinner } from '@/components/features/LoadingSpinner'
@@ -517,6 +517,9 @@ function ObservationsTab({
           {/* Photo lightbox */}
           <Dialog open={!!selectedPhoto} onOpenChange={(open) => { if (!open) setSelectedPhoto(null) }}>
             <DialogContent className="max-w-3xl p-0 overflow-hidden">
+              <DialogTitle className="sr-only">
+                {selectedPhoto ? `Photo — ${selectedPhoto.plate_number ?? 'Observation'}` : 'Photo'}
+              </DialogTitle>
               {selectedPhoto && (
                 <div>
                   <img
