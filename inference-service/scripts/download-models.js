@@ -4,6 +4,8 @@
  * Downloads pretrained models for ORC/AI inference:
  * - YOLOv8n (6.2 MB) - Vehicle detection
  * - MobileNetV3 (21 MB) - Feature embeddings
+ * - License Plate Detector (5 MB) - Plate detection (optional)
+ * - UltraFace (1.2 MB) - Face detection (optional)
  * 
  * Usage: node scripts/download-models.js
  */

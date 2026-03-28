@@ -412,6 +412,169 @@ export async function analyzeVehiclePhoto(photoUrl: string): Promise<{
 }
 
 // ============================================================================
+// FACE DETECTION + RECOGNITION
+// The inference service exposes POST /infer/face which accepts a photo and
+// returns face detection results + 384-D embedding for comparison.
+// ============================================================================
+
+export interface FaceDetectionResult {
+  /** Number of faces detected in the image */
+  face_count: number
+  /** Array of detected faces with details */
+  faces: Array<{
+    bbox: { x: number; y: number; width: number; height: number } | null
+    confidence: number
+    approximate_age: string
+    gender: string
+    description: string | null
+  }>
+  /** 384-D MobileNetV3 embedding of the primary (highest-confidence) face */
+  embedding: number[] | null
+  embedding_quality: number | null
+  metadata: {
+    detection_method: string
+    processing_time_ms: number
+    onnx_available: boolean
+    openai_available: boolean
+    embedding_available: boolean
+  }
+}
+
+/**
+ * Detect faces in a photo via the inference service /infer/face endpoint.
+ * Returns face bounding boxes, descriptions, and an embedding for the
+ * primary face (for comparison/matching).
+ */
+export async function inferFace(
+  photoUrl: string
+): Promise<{ data: FaceDetectionResult | null; error: string | null }> {
+  const { inferenceUrl, error: urlError } = await getRailwayServiceURLs()
+
+  if (urlError || !inferenceUrl) {
+    return {
+      data: null,
+      error: urlError || 'Inference service URL not configured',
+    }
+  }
+
+  try {
+    // Download the photo from storage so we can send it as a file
+    const photoResponse = await fetch(photoUrl)
+    if (!photoResponse.ok) {
+      return { data: null, error: `Failed to download photo: ${photoResponse.status}` }
+    }
+    const photoBlob = await photoResponse.blob()
+
+    const form = new FormData()
+    form.append('photo', photoBlob, 'photo.jpg')
+
+    const response = await fetch(`${inferenceUrl}/infer/face`, {
+      method: 'POST',
+      body: form,
+    })
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      return {
+        data: null,
+        error: `Face detection failed: ${response.status} - ${errorText}`,
+      }
+    }
+
+    const json = await response.json()
+    if (!json.success) {
+      return { data: null, error: 'Face detection returned no results' }
+    }
+
+    return {
+      data: {
+        face_count:        json.face_count ?? 0,
+        faces:             json.faces ?? [],
+        embedding:         json.embedding ?? null,
+        embedding_quality: json.embedding_quality ?? null,
+        metadata:          json.metadata ?? {
+          detection_method: 'unknown',
+          processing_time_ms: 0,
+          onnx_available: false,
+          openai_available: false,
+          embedding_available: false,
+        },
+      },
+      error: null,
+    }
+  } catch (error: any) {
+    return {
+      data: null,
+      error: error.message || 'Network error contacting inference service',
+    }
+  }
+}
+
+/**
+ * Compare two face embeddings using the inference service /infer/compare
+ * endpoint (same cosine similarity engine used for vehicle embeddings).
+ */
+export async function compareFaceEmbeddings(
+  embedding1: number[],
+  embedding2: number[]
+): Promise<{
+  data: {
+    similarity: number
+    same_person: boolean
+    confidence: string
+    interpretation: string
+  } | null
+  error: string | null
+}> {
+  const { inferenceUrl, error: urlError } = await getRailwayServiceURLs()
+
+  if (urlError || !inferenceUrl) {
+    return {
+      data: null,
+      error: urlError || 'Inference service URL not configured',
+    }
+  }
+
+  try {
+    const response = await fetch(`${inferenceUrl}/infer/compare`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ embedding1, embedding2 }),
+    })
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      return {
+        data: null,
+        error: `Face comparison failed: ${response.status} - ${errorText}`,
+      }
+    }
+
+    const json = await response.json()
+    const similarity = typeof json.similarity === 'number' ? json.similarity : 0
+    return {
+      data: {
+        similarity,
+        same_person:    similarity >= 0.80,
+        confidence:     similarity >= 0.90 ? 'high'
+                      : similarity >= 0.80 ? 'medium'
+                      : similarity >= 0.65 ? 'low'
+                      : 'different',
+        interpretation: similarity >= 0.80
+          ? `Likely same person (${(similarity * 100).toFixed(1)}% match)`
+          : `Different person (${(similarity * 100).toFixed(1)}% match)`,
+      },
+      error: null,
+    }
+  } catch (error: any) {
+    return {
+      data: null,
+      error: error.message || 'Network error contacting inference service',
+    }
+  }
+}
+
+// ============================================================================
 // HEALTH CHECKS
 // ============================================================================
 

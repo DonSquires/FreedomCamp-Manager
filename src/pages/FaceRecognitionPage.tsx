@@ -63,6 +63,7 @@ function personDisplayName(p: { first_name: string | null; last_name: string | n
   return [p.first_name, p.last_name].filter(Boolean).join(' ') || '(No name)'
 }
 
+
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export default function FaceRecognitionPage() {
@@ -463,3 +464,4 @@ function FaceRecordGrid({
     </div>
   )
 }
+
