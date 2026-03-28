@@ -487,14 +487,32 @@ export default function FieldOfficerPortal() {
         gpsLng = pos.coords.longitude
       } catch { /* GPS optional */ }
 
-      const { error } = await (supabase.from('officer_shifts') as any).insert({
+      const { data: shiftRow, error } = await (supabase.from('officer_shifts') as any).insert({
         officer_id:      user.id,
         organization_id: user.organization_id,
         parent_zone_id:  zoneId || null,
         gps_start_lat:   gpsLat,
         gps_start_lng:   gpsLng,
-      })
+      }).select('id').single()
       if (error) throw error
+
+      // Register welfare push schedule on server (enables background reminders)
+      await (supabase.rpc as any)('upsert_welfare_push_schedule', {
+        p_officer_id:       user.id,
+        p_organization_id:  user.organization_id,
+        p_shift_id:         shiftRow?.id ?? null,
+        p_interval_minutes: 30, // default; overridden by officer_welfare_settings
+        p_last_checkin_at:  new Date().toISOString(),
+      }).catch(() => { /* non-critical */ })
+
+      // Notify service worker to clear stale welfare notifications
+      if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+        navigator.serviceWorker.controller.postMessage({
+          type: 'WELFARE_SHIFT_START',
+          payload: { officerId: user.id },
+        })
+      }
+
       refetchShift()
       toast.success('Shift started — welfare monitoring active')
     } catch (err: any) {
@@ -522,6 +540,22 @@ export default function FieldOfficerPortal() {
         .update({ ended_at: new Date().toISOString(), gps_end_lat: gpsLat, gps_end_lng: gpsLng })
         .eq('id', activeShift.id)
       if (error) throw error
+
+      // Deactivate welfare push schedule
+      if (user?.id) {
+        await supabase
+          .from('welfare_push_schedule' as any)
+          .update({ is_active: false })
+          .eq('officer_id', user.id)
+          .eq('is_active', true)
+          .catch(() => { /* non-critical */ })
+      }
+
+      // Notify service worker to dismiss welfare notifications
+      if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+        navigator.serviceWorker.controller.postMessage({ type: 'WELFARE_SHIFT_END' })
+      }
+
       refetchShift()
       toast.success('Shift ended — welfare monitoring stopped')
     } catch (err: any) {
@@ -529,7 +563,7 @@ export default function FieldOfficerPortal() {
     } finally {
       setIsEndingShift(false)
     }
-  }, [activeShift, refetchShift])
+  }, [activeShift, user, refetchShift])
 
   // Shift duration ticker — re-render every 30s to update displayed duration
   const [, setShiftTick] = useState(0)
@@ -540,13 +574,43 @@ export default function FieldOfficerPortal() {
   }, [activeShift])
 
   // ── WelfareFirst: I'm OK check-in (only active while shift is running) ────
-  const { state: checkinState, checkIn } = useWelfareCheckin({
+  const { state: checkinState, checkIn: rawCheckIn } = useWelfareCheckin({
     officerId:      user?.id ?? null,
     organizationId: user?.organization_id ?? null,
     shiftId:        activeShift?.id ?? null,
     position:       currentLocation,
     isShiftActive:  !!activeShift,
   })
+
+  // Wrap checkIn to also update server schedule + notify SW
+  const checkIn = useCallback(() => {
+    rawCheckIn()
+    // Update server-side welfare push schedule so next reminder is rescheduled
+    if (user?.id && user?.organization_id && activeShift?.id) {
+      ;(supabase.rpc as any)('upsert_welfare_push_schedule', {
+        p_officer_id:       user.id,
+        p_organization_id:  user.organization_id,
+        p_shift_id:         activeShift.id,
+        p_interval_minutes: checkinState.intervalMinutes || 30,
+        p_last_checkin_at:  new Date().toISOString(),
+      }).catch(() => { /* non-critical */ })
+    }
+    // Dismiss background welfare notifications
+    if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+      navigator.serviceWorker.controller.postMessage({ type: 'WELFARE_CHECKIN' })
+    }
+  }, [rawCheckIn, user, activeShift, checkinState.intervalMinutes])
+
+  // Listen for the service-worker "I'm OK" action (tapped from notification)
+  useEffect(() => {
+    const handler = (event: MessageEvent) => {
+      if (event.data?.type === 'WELFARE_CHECKIN_ACTION') {
+        checkIn()
+      }
+    }
+    navigator.serviceWorker?.addEventListener('message', handler)
+    return () => navigator.serviceWorker?.removeEventListener('message', handler)
+  }, [checkIn])
 
   // ── Detail scan: capture handler ─────────────────────────────────────────
   const handleDetailCapture = useCallback(async (file: File) => {

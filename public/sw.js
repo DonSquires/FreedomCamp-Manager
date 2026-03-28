@@ -247,56 +247,154 @@ function syncQueuedScans() {
     });
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
 // Push notification handler
+// Receives VAPID-encrypted push messages from the send-push-notification or
+// send-welfare-reminders edge functions and shows a rich notification even
+// when the app tab is closed.
+// ─────────────────────────────────────────────────────────────────────────────
 self.addEventListener('push', function(event) {
-  console.log('[SW] Push notification received:', event);
-  
+  console.log('[SW] Push notification received');
+
   if (!event.data) return;
 
-  var data = event.data.json();
+  var data;
+  try {
+    data = event.data.json();
+  } catch (e) {
+    data = { title: 'FreedomCamp Manager', body: event.data.text() };
+  }
+
+  // Map notification type → vibration pattern + urgency
+  var vibrate = [200, 100, 200];
+  var requireInteraction = false;
+  var notifType = (data.data && data.data.type) || data.tag || '';
+
+  if (notifType === 'welfare' && (data.data && data.data.alertType) === 'overdue') {
+    vibrate = [500, 200, 500, 200, 500, 200, 500];
+    requireInteraction = true;
+  } else if (notifType === 'welfare') {
+    vibrate = [300, 150, 300];
+    requireInteraction = true;
+  } else if (notifType === 'shift_posted') {
+    vibrate = [200, 100, 200, 100, 200];
+  }
+
+  var url = (data.data && data.data.url) || data.url || '/';
+
   var options = {
-    body: data.body || '',
-    icon: '/iron-eagle-security-logo.jpg',
-    badge: '/iron-eagle-security-logo.jpg',
-    vibrate: [200, 100, 200],
+    body:               data.body    || '',
+    icon:               data.icon    || '/iron-eagle-security-logo.jpg',
+    badge:              data.badge   || '/iron-eagle-security-logo.jpg',
+    tag:                data.tag     || notifType || 'fcm-general',
+    vibrate:            vibrate,
+    requireInteraction: requireInteraction,
+    silent:             false,
+    renotify:           true,  // always re-alert even if same tag
     data: {
-      url: data.url || '/',
+      url:  url,
+      type: notifType,
     },
+    actions: notifType === 'welfare'
+      ? [{ action: 'checkin', title: "✓ I'm OK" }]
+      : notifType === 'shift_posted'
+        ? [{ action: 'view', title: 'View Shift' }]
+        : [],
   };
 
   event.waitUntil(
-    self.registration.showNotification(data.title || 'FreedomCamp Manager', options)
+    self.registration.showNotification(
+      data.title || 'FreedomCamp Manager',
+      options
+    )
   );
 });
 
-// Notification click handler
+// ─────────────────────────────────────────────────────────────────────────────
+// Notification click + action handler
+// ─────────────────────────────────────────────────────────────────────────────
 self.addEventListener('notificationclick', function(event) {
-  console.log('[SW] Notification clicked');
+  console.log('[SW] Notification clicked, action:', event.action);
   event.notification.close();
 
+  var targetUrl = event.notification.data.url || '/';
+  var notifType = event.notification.data.type || '';
+
+  // "I'm OK" action — open app at /field-officer with a checkin trigger param
+  if (event.action === 'checkin') {
+    targetUrl = '/field-officer?welfare_checkin=1';
+  } else if (event.action === 'view') {
+    targetUrl = event.notification.data.url || '/';
+  }
+
   event.waitUntil(
-    self.clients.matchAll({ type: 'window' }).then(function(clientList) {
-      // Focus existing window if available
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(function(clientList) {
+      // Focus an existing window at the same origin if possible
       for (var i = 0; i < clientList.length; i++) {
         var client = clientList[i];
-        if (client.url === event.notification.data.url && 'focus' in client) {
+        if ('focus' in client) {
+          if (event.action === 'checkin') {
+            // Post a message so the React app performs the check-in
+            client.postMessage({ type: 'WELFARE_CHECKIN_ACTION' });
+          }
           return client.focus();
         }
       }
-      // Open new window if needed
+      // No existing window — open a new one (use targetUrl which reflects action)
       if (self.clients.openWindow) {
-        return self.clients.openWindow(event.notification.data.url);
+        return self.clients.openWindow(targetUrl);
       }
     })
   );
 });
 
-// Listen for skip waiting message
+// ─────────────────────────────────────────────────────────────────────────────
+// Message handler
+// Accepts messages from the React app to coordinate welfare state and SW updates.
+//
+// Protocol:
+//   { type: 'SKIP_WAITING' }
+//   { type: 'WELFARE_SHIFT_START', payload: { officerId, intervalMinutes } }
+//   { type: 'WELFARE_CHECKIN',     payload: { officerId } }
+//   { type: 'WELFARE_SHIFT_END',   payload: { officerId } }
+// ─────────────────────────────────────────────────────────────────────────────
 self.addEventListener('message', function(event) {
-  if (event.data && event.data.type === 'SKIP_WAITING') {
-    console.log('[SW] Skip waiting message received');
-    self.skipWaiting();
+  if (!event.data) return;
+
+  switch (event.data.type) {
+    case 'SKIP_WAITING':
+      console.log('[SW] Skip waiting');
+      self.skipWaiting();
+      break;
+
+    case 'WELFARE_SHIFT_START':
+      console.log('[SW] Welfare shift started for officer', event.data.payload && event.data.payload.officerId);
+      // The actual reminder scheduling is handled server-side (send-welfare-reminders cron).
+      // This message is informational — the SW dismisses any stale welfare notifications.
+      self.registration.getNotifications({ tag: 'welfare-10min' }).then(function(ns) { ns.forEach(function(n) { n.close(); }); });
+      self.registration.getNotifications({ tag: 'welfare-5min'  }).then(function(ns) { ns.forEach(function(n) { n.close(); }); });
+      self.registration.getNotifications({ tag: 'welfare-overdue' }).then(function(ns) { ns.forEach(function(n) { n.close(); }); });
+      break;
+
+    case 'WELFARE_CHECKIN':
+      console.log('[SW] Welfare check-in recorded');
+      self.registration.getNotifications({ tag: 'welfare-10min'  }).then(function(ns) { ns.forEach(function(n) { n.close(); }); });
+      self.registration.getNotifications({ tag: 'welfare-5min'   }).then(function(ns) { ns.forEach(function(n) { n.close(); }); });
+      self.registration.getNotifications({ tag: 'welfare-overdue' }).then(function(ns) { ns.forEach(function(n) { n.close(); }); });
+      break;
+
+    case 'WELFARE_SHIFT_END':
+      console.log('[SW] Welfare shift ended');
+      self.registration.getNotifications({ tag: 'welfare-10min'  }).then(function(ns) { ns.forEach(function(n) { n.close(); }); });
+      self.registration.getNotifications({ tag: 'welfare-5min'   }).then(function(ns) { ns.forEach(function(n) { n.close(); }); });
+      self.registration.getNotifications({ tag: 'welfare-overdue' }).then(function(ns) { ns.forEach(function(n) { n.close(); }); });
+      break;
+
+    default:
+      // Unknown message type — ignore
+      break;
   }
 });
 
 console.log('[SW] Service Worker loaded - version', CACHE_VERSION);
+
