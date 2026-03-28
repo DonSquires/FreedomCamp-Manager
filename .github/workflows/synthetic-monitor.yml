@@ -62,8 +62,8 @@ jobs:
             echo "secrets_present=true" >> "$GITHUB_OUTPUT"
           fi
         env:
-          FRONTEND_URL:           ${{ secrets.FRONTEND_URL }}
-          VITE_SUPABASE_URL:      ${{ secrets.VITE_SUPABASE_URL }}
+          FRONTEND_URL: ${{ secrets.FRONTEND_URL }}
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
 
       - name: Resolve frontend URL
