@@ -1016,7 +1016,7 @@ Data-sharing layer between organisations and service providers for persons and v
 
 ### Migration
 
-`20260426000001_poi_voi_trespass_risk_assessment.sql`
+`20260426000011_poi_voi_trespass_risk_assessment.sql`
 
 ### Frontend
 
@@ -1056,7 +1056,7 @@ Officers can complete site risk assessments for each site visit, ad-hoc or on re
 
 ### Migration
 
-`20260426000001_poi_voi_trespass_risk_assessment.sql` (shared with §11)
+`20260426000011_poi_voi_trespass_risk_assessment.sql` (shared with §11)
 
 ### Frontend
 

@@ -103,12 +103,6 @@ jobs:
             supabase migration repair --status reverted "$version" || true
           done
 
-          # Known replay edge case: some environments have this version in a
-          # non-applied state in migration history, which makes db push try to
-          # execute it again and then fail inserting the same version key.
-          # Normalize it to applied before push to prevent duplicate-key loops.
-          supabase migration repair --status applied 20260426000001 || true
-
       - name: Apply migrations
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
