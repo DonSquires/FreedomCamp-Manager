@@ -211,7 +211,7 @@ jobs:
                   `has_content=${hasContent}`,
                   `has_error_overlay=${hasErrorOverlay}`,
                 ];
-                fs.appendFileSync(process.env.GITHUB_OUTPUT, outputs.join('\\n') + '\\n');
+                fs.appendFileSync(process.env.GITHUB_OUTPUT, outputs.join('\n') + '\n');
               }
 
               if (isVercelProtection) {
