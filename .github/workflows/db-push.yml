@@ -113,12 +113,18 @@ jobs:
 
           LOG_FILE="$(mktemp)"
 
-          # Always use --include-all so legacy short-form local migration files
-          # are considered during reconciliation.
-          # --yes prevents interactive prompts that would stall CI.
+          # First try a normal push to avoid include-all replay behavior on some
+          # remote histories. Fall back to --include-all on later attempts when
+          # reconciliation is needed.
           for attempt in 1 2 3 4 5; do
-            echo "supabase db push --include-all --yes attempt $attempt..."
-            if supabase db push --include-all --yes 2>&1 | tee "$LOG_FILE"; then
+            if [ "$attempt" -eq 1 ]; then
+              PUSH_CMD="supabase db push --yes"
+            else
+              PUSH_CMD="supabase db push --include-all --yes"
+            fi
+
+            echo "$PUSH_CMD attempt $attempt..."
+            if $PUSH_CMD 2>&1 | tee "$LOG_FILE"; then
               echo "Migration push succeeded on attempt $attempt"
               supabase migration list || true
               exit 0
@@ -154,11 +160,21 @@ jobs:
             fi
 
             # Case 3: duplicate insert in migration history table.
-            if grep -q 'duplicate key value violates unique constraint "schema_migrations_pkey"' "$LOG_FILE"; then
-              DUP_VERSION=$(grep -oE 'Key \(version\)=\([0-9]+\)' "$LOG_FILE" | sed -E 's/.*\(([0-9]+)\).*/\1/' | head -n1)
+            # Some CLI versions format this differently; match broadly and
+            # recover using either the explicit key or the currently applying
+            # migration filename.
+            if grep -Eaq 'schema_migrations_pkey|Key \(version\)=\([0-9]+\) already exists|SQLSTATE 23505' "$LOG_FILE"; then
+              DUP_VERSION=$(grep -Eo 'Key \(version\)=\([0-9]+\)' "$LOG_FILE" | sed -E 's/.*\(([0-9]+)\).*/\1/' | head -n1)
+
+              if [ -z "${DUP_VERSION:-}" ]; then
+                DUP_VERSION=$(grep -Eo 'Applying migration [0-9]{8,14}_[^[:space:]]+\.sql' "$LOG_FILE" \
+                  | sed -E 's/.* ([0-9]{8,14})_.*/\1/' \
+                  | tail -n1)
+              fi
+
               if [ -n "${DUP_VERSION:-}" ]; then
                 echo "Detected duplicate schema_migrations version: $DUP_VERSION"
-                echo "Repairing by marking the version applied, then retrying..."
+                echo "Repairing duplicate by marking version applied, then retrying..."
                 supabase migration repair --status applied "$DUP_VERSION" || true
                 handled=true
               fi
