@@ -40,6 +40,7 @@ import { supabase } from '@/lib/supabase'
 import { edgeFunctions } from '@/lib/edgeFunctions'
 import { formatDateTime } from '@/lib/utils'
 import { useOfflineQueue, useOfflineQueueStats } from '@/hooks/useOfflineQueue'
+import type { Database } from '@/types/database'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -62,6 +63,8 @@ const CAPTURE_TOAST_DURATION_MS = 5000
 
 /** Service types an officer can select — determines which tools are shown. */
 type ServiceType = 'freedom_camping' | 'guarding' | 'parking' | 'noise'
+type ZoneOption = { zone_id: string; name: string }
+type ZoneRow = Pick<Database['public']['Tables']['zones']['Row'], 'id' | 'name'>
 
 const SERVICE_TYPE_CONFIG: Record<ServiceType, {
   label: string
@@ -325,11 +328,11 @@ export default function FieldOfficerPortal() {
       const fetchOrgScoped = async () => {
         const { data, error } = await supabase
           .from('zones')
-          .select('zone_id, name')
+          .select('id, name')
           .eq('organization_id', user.organization_id)
           .order('name', { ascending: true })
         if (error) return []
-        return (data ?? []) as Array<{ zone_id: string; name: string }>
+        return ((data ?? []) as ZoneRow[]).map((z): ZoneOption => ({ zone_id: z.id, name: z.name }))
       }
 
       const orgZones = await fetchOrgScoped()
@@ -338,11 +341,11 @@ export default function FieldOfficerPortal() {
       // Fallback: under RLS this still returns only zones visible to the user.
       const { data: fallback, error: fallbackError } = await supabase
         .from('zones')
-        .select('zone_id, name')
+        .select('id, name')
         .order('name', { ascending: true })
         .limit(50)
       if (fallbackError) return []
-      return (fallback ?? []) as Array<{ zone_id: string; name: string }>
+      return ((fallback ?? []) as ZoneRow[]).map((z): ZoneOption => ({ zone_id: z.id, name: z.name }))
     },
     enabled: !!user?.organization_id,
     staleTime: 5 * 60_000,
