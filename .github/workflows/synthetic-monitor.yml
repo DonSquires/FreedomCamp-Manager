@@ -129,7 +129,8 @@ jobs:
       - name: Install Playwright
         if: steps.check-secrets.outputs.secrets_present == 'true'
         run: |
-          npm install -g playwright@latest
+          npm init -y
+          npm install playwright
           npx playwright install --with-deps chromium
 
       - name: Check — Playwright page render
