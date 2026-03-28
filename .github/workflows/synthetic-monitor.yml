@@ -205,7 +205,7 @@ jobs:
 
               // Expose additional diagnostics to later steps
               if (process.env.GITHUB_OUTPUT) {
-                const sanitizeForOutput = (value) => String(value).replace(/\r?\n/g, ' ');
+                const sanitizeValue = (value) => String(value).replace(/\r?\n/g, ' ');
                 const outputs = {
                   status,
                   vercel_protection: isVercelProtection,
@@ -213,7 +213,7 @@ jobs:
                   has_error_overlay: hasErrorOverlay,
                 };
                 for (const [key, value] of Object.entries(outputs)) {
-                  fs.appendFileSync(process.env.GITHUB_OUTPUT, `${key}=${sanitizeForOutput(value)}\n`);
+                  fs.appendFileSync(process.env.GITHUB_OUTPUT, `${key}=${sanitizeValue(value)}\n`);
                 }
               }
 
