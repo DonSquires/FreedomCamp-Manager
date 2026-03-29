@@ -1158,7 +1158,7 @@ app.post('/infer', inferenceRateLimit, upload.single('photo'), async (req, res) 
 
 const { createWorker } = require('tesseract.js');
 const PLATE_DETECT_MODEL_PATH = path.join(__dirname, 'models', 'plate_detect.onnx');
-const PLATE_DETECT_INPUT_SIZE  = 320;  // YOLOv9-nano-1d-320 input
+const PLATE_DETECT_INPUT_SIZE  = 384;  // yolo-v9-t-384-license-plates-end2end input
 
 let plateDetectSession = null;  // loaded on-demand, null = not available
 
@@ -1455,91 +1455,89 @@ async function prepPlateRegion(imageBuffer, bbox = null) {
     .toBuffer();
 }
 
-// Detect license plate region using the plate detection ONNX model
-// Returns { x, y, width, height } in PIXEL coordinates of original image
+// Detect license plate region using the plate detection ONNX model.
+// Uses yolo-v9-t-384-license-plates-end2end.onnx (end2end = NMS baked in).
+// Output tensor: [N, 7] — each row: [batch_idx, x1, y1, x2, y2, class_id, score]
+// Coordinates are in letterboxed-image pixel space; de-letterboxed before returning.
+// Returns { x, y, width, height, confidence } in PIXEL coordinates of original image
 // or null if no plate found above threshold.
 async function detectPlateRegion(imageBuffer) {
   const session = await loadPlateDetectModel();
   if (!session) return null;
 
   try {
-    const meta     = await sharp(imageBuffer).metadata();
-    const origW    = meta.width  ?? 640;
-    const origH    = meta.height ?? 640;
-    const size     = PLATE_DETECT_INPUT_SIZE;
+    const meta  = await sharp(imageBuffer).metadata();
+    const origW = meta.width  ?? 640;
+    const origH = meta.height ?? 640;
+    const size  = PLATE_DETECT_INPUT_SIZE;
 
-    // Resize to model input size preserving aspect ratio with letterboxing
-    const resized  = await sharp(imageBuffer)
+    // Letterbox resize: maintain aspect ratio, pad with gray-114 to square.
+    // Compute ratio and padding to de-letterbox predictions back to original coords.
+    const ratio = Math.min(size / origH, size / origW);
+    const newW  = Math.round(origW * ratio);
+    const newH  = Math.round(origH * ratio);
+    const dw    = (size - newW) / 2;  // horizontal padding per side
+    const dh    = (size - newH) / 2;  // vertical padding per side
+
+    const resized = await sharp(imageBuffer)
       .resize(size, size, { fit: 'contain', background: { r: 114, g: 114, b: 114 } })
       .removeAlpha()
       .raw()
       .toBuffer();
 
-    // Build float32 tensor (CHW, normalised 0-1) matching YOLOv9 expectations
-    const floats   = new Float32Array(3 * size * size);
+    // Build float32 CHW tensor (RGB, 0-1 normalised) matching YOLOv9 expectations
+    const floats = new Float32Array(3 * size * size);
     for (let i = 0; i < size * size; i++) {
-      floats[i]               = resized[i * 3]     / 255.0;  // R
-      floats[size * size + i] = resized[i * 3 + 1] / 255.0;  // G
-      floats[2 * size * size + i] = resized[i * 3 + 2] / 255.0;  // B
+      floats[i]                    = resized[i * 3]     / 255.0;  // R
+      floats[size * size + i]      = resized[i * 3 + 1] / 255.0;  // G
+      floats[2 * size * size + i]  = resized[i * 3 + 2] / 255.0;  // B
     }
 
-    const tensor   = new ort.Tensor('float32', floats, [1, 3, size, size]);
-    const inputKey = session.inputNames[0];
-    const outputs  = await session.run({ [inputKey]: tensor });
-    const output   = outputs[session.outputNames[0]].data;
+    const tensor    = new ort.Tensor('float32', floats, [1, 3, size, size]);
+    const inputKey  = session.inputNames[0];
+    const outputs   = await session.run({ [inputKey]: tensor });
+    const outTensor = outputs[session.outputNames[0]];
+    const output    = outTensor.data;
 
-    // Parse detections (standard YOLOv9 output: [batch, 5+classes, anchors])
-    // Format: cx, cy, w, h, confidence (all in 0-1 normalised coords)
-    const numAnchors = outputs[session.outputNames[0]].dims[2] ?? 8400;
-    const stride     = 5;  // cx, cy, w, h, conf (single class: plate)
-    const threshold  = 0.35;
+    // End2end YOLOv9 output shape: [N, 7]
+    //   col 0: batch index (ignore)
+    //   col 1-4: x1, y1, x2, y2 in letterboxed pixel space
+    //   col 5: class id
+    //   col 6: confidence score
+    const numDets  = outTensor.dims[0] ?? 0;
+    const STRIDE   = 7;
+    const threshold = 0.35;
 
-    let bestConf  = 0;
+    let bestScore = 0;
     let bestBbox  = null;
 
-    for (let i = 0; i < numAnchors; i++) {
-      const conf = output[4 * numAnchors + i] ?? output[stride * i + 4];
-      if (!Number.isFinite(conf) || conf <= threshold || conf <= bestConf) continue;
+    for (let i = 0; i < numDets; i++) {
+      const score = output[i * STRIDE + 6];
+      if (!Number.isFinite(score) || score < threshold || score <= bestScore) continue;
 
-      // Coordinates may be in column-major or row-major depending on YOLO variant
-      // Try both layouts and use the one that produces a valid-looking box
-      const cx = output[0 * numAnchors + i] ?? output[stride * i];
-      const cy = output[1 * numAnchors + i] ?? output[stride * i + 1];
-      const w  = output[2 * numAnchors + i] ?? output[stride * i + 2];
-      const h  = output[3 * numAnchors + i] ?? output[stride * i + 3];
+      const x1s = output[i * STRIDE + 1];  // x1 in letterboxed space
+      const y1s = output[i * STRIDE + 2];  // y1 in letterboxed space
+      const x2s = output[i * STRIDE + 3];  // x2 in letterboxed space
+      const y2s = output[i * STRIDE + 4];  // y2 in letterboxed space
 
-      if (![cx, cy, w, h].every(Number.isFinite)) continue;
-      if (Math.abs(w) < 1 || Math.abs(h) < 1) continue;
+      if (![x1s, y1s, x2s, y2s].every(Number.isFinite)) continue;
 
-      // Scale back to original image coordinates
-      const scaleX = origW / size;
-      const scaleY = origH / size;
-      const rawX = (cx - w / 2) * scaleX;
-      const rawY = (cy - h / 2) * scaleY;
-      const rawW = w * scaleX;
-      const rawH = h * scaleY;
+      // De-letterbox: remove padding offset and scale back to original image coords
+      const x1 = clamp((x1s - dw) / ratio, 0, origW);
+      const y1 = clamp((y1s - dh) / ratio, 0, origH);
+      const x2 = clamp((x2s - dw) / ratio, 0, origW);
+      const y2 = clamp((y2s - dh) / ratio, 0, origH);
 
-      // Normalise negative sizes into top-left + positive dimensions.
-      const x = rawW < 0 ? rawX + rawW : rawX;
-      const y = rawH < 0 ? rawY + rawH : rawY;
-      const width = Math.abs(rawW);
-      const height = Math.abs(rawH);
-      const clampedLeft = clamp(x, 0, origW - 1);
-      const clampedTop = clamp(y, 0, origH - 1);
-      const clampedRight = clamp(x + width, clampedLeft + 1, origW);
-      const clampedBottom = clamp(y + height, clampedTop + 1, origH);
-      const finalW = clampedRight - clampedLeft;
-      const finalH = clampedBottom - clampedTop;
-
-      if (finalW > 1 && finalH > 1) {
-        // Coordinates may be in column-major or row-major depending on YOLO variant
-        bestConf = conf;
-        bestBbox = {
-          x:      clampedLeft,
-          y:      clampedTop,
-          width:  finalW,
-          height: finalH,
-          confidence: conf,
+      const width  = x2 - x1;
+      const height = y2 - y1;
+      if (width > 1 && height > 1) {
+        bestScore = score;
+        bestBbox  = {
+          x:          Math.round(x1),
+          y:          Math.round(y1),
+          width:      Math.round(width),
+          height:     Math.round(height),
+          confidence: score,
         };
       }
     }
