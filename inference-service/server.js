@@ -1178,36 +1178,6 @@ async function loadPlateDetectModel() {
   return plateDetectSession;
 }
 
-// ============================================================================
-// Face detection model (optional)
-//
-// Uses UltraFace-640 ONNX (open-source, MIT licence).
-// If the model file is not present, falls back to OpenAI vision for face
-// detection. The /infer/face endpoint works without the ONNX model — it just
-// won't return bounding-box coordinates.
-// ============================================================================
-const FACE_DETECT_MODEL_PATH = path.join(__dirname, 'models', 'face_detect.onnx');
-const FACE_DETECT_INPUT_W = 640;
-const FACE_DETECT_INPUT_H = 480;
-
-let faceDetectSession = null; // loaded on-demand, null = not available
-
-// Lazy-load the face detection model (optional — service works without it)
-async function loadFaceDetectModel() {
-  if (faceDetectSession !== null) return faceDetectSession;
-  if (!fs.existsSync(FACE_DETECT_MODEL_PATH)) return null;
-  try {
-    faceDetectSession = await ort.InferenceSession.create(FACE_DETECT_MODEL_PATH, {
-      executionProviders: ['cpu'],
-    });
-    console.log('✅ Face detection model loaded:', FACE_DETECT_MODEL_PATH);
-  } catch (err) {
-    console.warn('⚠️  Face detect model load failed (non-fatal):', err.message);
-    faceDetectSession = null;
-  }
-  return faceDetectSession;
-}
-
 /**
  * Detect faces using UltraFace ONNX model.
  * Returns array of { x, y, width, height, confidence } in original image
