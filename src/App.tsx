@@ -99,6 +99,7 @@ const ContractorAccountPage = lazy(() => import('@/pages/ContractorAccountPage')
 const EMSPortal = lazy(() => import('@/pages/EMSPortal'))
 const SiteGuardPortal = lazy(() => import('@/pages/SiteGuardPortal'))
 const AccessControlPage = lazy(() => import('@/pages/AccessControlPage'))
+const TeamChat = lazy(() => import('@/pages/TeamChat'))
 
 // ---------------------------------------------------------------------------
 // PageLoader – minimal spinner shown while a lazy page chunk is downloading.
@@ -947,6 +948,15 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <UniversalSearch />
+              </ProtectedRoute>
+            }
+          />
+
+          <Route
+            path="/team-chat"
+            element={
+              <ProtectedRoute>
+                <TeamChat />
               </ProtectedRoute>
             }
           />

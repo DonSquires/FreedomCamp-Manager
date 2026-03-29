@@ -10,7 +10,7 @@ function clearClientAuthArtifacts() {
   if (typeof window === 'undefined') return
 
   const storages: Storage[] = [window.localStorage, window.sessionStorage]
-  const knownKeys = ['auth-storage', 'adminOfficerPortalChoice']
+  const knownKeys = ['auth-storage', 'adminOfficerPortalChoice', 'chat-target']
 
   // Remove known app keys first.
   for (const storage of storages) {

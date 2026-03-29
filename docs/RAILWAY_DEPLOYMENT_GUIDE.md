@@ -206,6 +206,43 @@ curl -X POST $PROXY_URL/api/motorweb/lookup \
 
 ---
 
+## Service 3: Frontend (Vite Web App) on Railway
+
+The web UI can be self-hosted on Railway using the existing `start` script (`npm run start` wraps `vite preview --host 0.0.0.0 --port $PORT`).
+
+### Deploy (GitHub or CLI)
+
+```bash
+railway login
+railway init        # or railway link
+railway up          # from repo root
+```
+
+If using the GitHub flow in the dashboard, set **Root Directory** to `/` and keep the default Nix pack. Railway will run `npm install` and `npm run start`.
+
+### Required environment variables (Frontend)
+
+```
+VITE_SUPABASE_URL=...your Supabase project URL...
+VITE_SUPABASE_ANON_KEY=...your anon key...
+# Optional but recommended so the UI can display service status
+VITE_PROXY_SERVER_URL=https://your-proxy.railway.app
+VITE_INFERENCE_SERVICE_URL=https://your-inference.railway.app
+```
+
+### Smoke test
+
+```bash
+curl -I https://<frontend>.railway.app || true   # expect 200/302 depending on auth
+```
+
+Then open the URL in the browser and:
+- Sign in via Supabase Auth
+- Open **System Diagnostics** → verify Proxy/Inference cards show “Online”
+- Open **Vehicle Management** → run NZSCV check (uses proxy)
+
+---
+
 ## Step 3: Configure Supabase Edge Functions
 
 Once both services are deployed, update Supabase secrets:
