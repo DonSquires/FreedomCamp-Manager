@@ -490,6 +490,162 @@ Once Railway services are deployed and tested:
 
 ---
 
+## Service 4: PTT Signaling Server (Push-to-Talk)
+
+The PTT signaling server provides WebSocket-based signaling for real-time push-to-talk voice communication between officers and admin staff.
+
+### Overview
+
+- **Purpose**: WebRTC signaling, presence tracking, channel management
+- **Protocol**: HTTP REST + WebSocket
+- **Auth**: JWT tokens minted by Supabase Edge Function
+
+### Local Testing
+
+```bash
+# Navigate to PTT server
+cd ptt-server
+
+# Install dependencies
+npm install
+
+# Copy environment file
+cp .env.example .env
+# Edit .env and set PROXY_SECRET and PTT_JWT_SECRET
+
+# Start local server
+npm run dev
+
+# Test health endpoint
+curl http://localhost:3002/health
+
+# Test info endpoint
+curl http://localhost:3002/api/info
+```
+
+### Deploy to Railway (CLI Method)
+
+```bash
+# Navigate to PTT server
+cd ptt-server
+
+# Login and link
+railway login
+railway link
+# OR
+railway init
+
+# Set environment variables
+railway variables set PROXY_SECRET=your-actual-secret
+railway variables set PTT_JWT_SECRET=your-jwt-secret
+railway variables set PORT=3002
+
+# Deploy
+railway up
+
+# Get deployment URL
+railway status
+# Copy the deployment URL (e.g., https://freedomcamp-ptt.railway.app)
+```
+
+### Deploy to Railway (GitHub Method)
+
+1. Push code to GitHub
+2. Railway dashboard → **"New Project"** → **"Deploy from GitHub"**
+3. Select repository and set **Root Directory**: `ptt-server/`
+4. Add environment variables:
+   - `PROXY_SECRET`: Shared secret with Edge Functions
+   - `PTT_JWT_SECRET`: JWT signing secret
+   - `PORT`: 3002 (Railway auto-assigns)
+5. Deploy and copy URL
+
+### Required Environment Variables (PTT Server)
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `PORT` | Auto | Server port (Railway sets this) |
+| `PROXY_SECRET` | Yes | Authenticates requests from Edge Functions |
+| `PTT_JWT_SECRET` | Yes | Signs/verifies channel access tokens |
+| `MAX_PARTICIPANTS_PER_CHANNEL` | No | Limit per channel (default: 50) |
+| `MAX_CLIP_DURATION_SECONDS` | No | Max recording length (default: 30) |
+| `TURN_URL` | No | TURN server URL for NAT traversal |
+| `TURN_USERNAME` | No | TURN server username |
+| `TURN_CREDENTIAL` | No | TURN server password |
+
+### Configure Supabase Edge Function
+
+After deploying the PTT server, configure the Edge Function secret:
+
+```bash
+# Set PTT server URL in Supabase secrets
+supabase secrets set PTT_SERVER_URL=https://your-ptt.railway.app
+supabase secrets set PTT_JWT_SECRET=your-jwt-secret
+
+# Deploy the Edge Function
+supabase functions deploy ptt-signaling-token
+```
+
+### Test Deployed PTT Server
+
+```bash
+# Set your Railway URL
+PTT_URL="https://your-ptt.railway.app"
+
+# Health check
+curl $PTT_URL/health
+
+# Expected response:
+# {"status":"ok","timestamp":"...","service":"PTT Signaling Server","channels":0,"connectedUsers":0}
+
+# Service info
+curl $PTT_URL/api/info
+```
+
+### WebSocket Test (Browser Console)
+
+```javascript
+// Connect with token (get token from ptt-signaling-token Edge Function first)
+const ws = new WebSocket('wss://your-ptt.railway.app/ws?token=YOUR_JWT_TOKEN');
+
+ws.onopen = () => console.log('Connected!');
+ws.onmessage = (e) => console.log('Message:', JSON.parse(e.data));
+ws.onclose = (e) => console.log('Closed:', e.code, e.reason);
+
+// Send ping
+ws.send(JSON.stringify({ type: 'ping' }));
+```
+
+### Troubleshooting PTT
+
+#### Issue: WebSocket Connection Refused
+
+**Cause**: Server not running or wrong URL
+
+**Solution:**
+- Check Railway deployment status
+- Verify URL includes `/ws` path
+- Check Railway logs for errors
+
+#### Issue: Token Expired (4002)
+
+**Cause**: JWT token has expired
+
+**Solution:**
+- Tokens are valid for 10 minutes
+- Request a new token from `ptt-signaling-token` Edge Function
+- Implement auto-refresh in client
+
+#### Issue: Channel Full (4003)
+
+**Cause**: Max participants reached
+
+**Solution:**
+- Default is 50 participants per channel
+- Adjust `MAX_PARTICIPANTS_PER_CHANNEL` env var
+- Create additional channels for large teams
+
+---
+
 **Deployment Complete! 🚀**
 
 Railway services are now integrated with FreedomCamp Manager.

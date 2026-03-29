@@ -1351,4 +1351,21 @@ export const edgeFunctions = {
   }) => {
     return callEdgeFunction('process-face-scan', params, { showToast: false })
   },
+
+  // ============================================================================
+  // PUSH-TO-TALK (PTT) (1 function)
+  // ============================================================================
+
+  /**
+   * Get PTT signaling token for channel access.
+   *
+   * Returns a short-lived JWT for connecting to the PTT WebSocket server,
+   * along with ICE server configuration for WebRTC.
+   */
+  pttSignalingToken: async (params: {
+    /** Channel scope: 'org:<uuid>', 'incident:<uuid>', or 'direct:<uuid>' */
+    channelScope: string
+  }) => {
+    return callEdgeFunction('ptt-signaling-token', params, { showToast: false })
+  },
 }

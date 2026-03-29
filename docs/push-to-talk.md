@@ -1,6 +1,55 @@
 # Push-to-Talk (PTT) Blueprint
 
-Status: **Not yet implemented** — this document outlines the smallest viable approach to add Zello/Voxer–style push-to-talk inside FreedomCamp Manager while reusing existing Supabase + Railway infrastructure.
+Status: **In Progress** — Railway signaling server, database schema, and frontend foundation implemented. WebRTC integration and UI pending.
+
+## Implementation Progress
+
+### ✅ Completed (Phase 1: Railway Foundation)
+
+1. **PTT Signaling Server** (`ptt-server/`)
+   - WebSocket-based signaling for WebRTC peer connections
+   - Half-duplex voice (one speaker at a time per channel)
+   - Channel management (org-wide, incident-specific, direct 1:1)
+   - Presence tracking (online, busy, off-shift)
+   - JWT token-based authentication
+   - ICE server configuration (STUN + optional TURN)
+   - Railway deployment ready with Dockerfile
+
+2. **Database Schema** (`supabase/migrations/20260329000001_ptt_tables.sql`)
+   - `ptt_messages`: Audio clip metadata for replay/audit
+   - `ptt_presence`: User presence state
+   - `ptt_channels`: Channel configuration
+   - RLS policies for org-scoped access
+   - Cleanup function for old clips
+
+3. **Edge Function** (`supabase/functions/ptt-signaling-token/`)
+   - Mints short-lived JWT tokens for channel access
+   - Validates user auth and org membership
+   - Returns ICE server configuration
+
+4. **Frontend Foundation**
+   - `src/stores/pttStore.ts`: Zustand store for PTT state
+   - `src/lib/ptt.ts`: WebRTC & WebSocket utilities
+   - `src/lib/edgeFunctions.ts`: PTT token function
+
+### 🔲 Pending (Phase 2: UI Integration)
+
+1. **PTT Bar Component** for TeamChat
+   - Hold-to-talk button
+   - Channel selector
+   - Presence indicator
+   - Speaker indicator
+   - Last clip replay
+
+2. **WebRTC Audio Stream**
+   - Microphone capture
+   - Noise suppression
+   - Audio playback
+   - Fallback clip upload
+
+3. **Mobile Integration** (Expo app)
+   - Background audio permissions
+   - Hardware PTT button support
 
 ## Goals (lifted from proven PTT apps)
 - **Low-latency voice hold-to-talk** (tap/hold, auto-stop on release)
