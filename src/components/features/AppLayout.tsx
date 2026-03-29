@@ -6,6 +6,9 @@ import { useSessionLockStore } from '@/stores/sessionLockStore'
 import { useFeedbackCapture } from '@/hooks/useFeedbackCapture'
 import { useAutoErrorReporter } from '@/hooks/useAutoErrorReporter'
 import { FeedbackModal } from '@/components/features/FeedbackModal'
+import { PTTBar } from '@/components/features/PTTBar'
+import { usePTTStore } from '@/stores/pttStore'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { useNotificationCount } from '@/hooks/useNotifications'
 import { useSessionPreferencesStore } from '@/stores/sessionPreferencesStore'
 import { useThemePreferencesStore } from '@/stores/themePreferencesStore'
@@ -325,6 +328,8 @@ export function AppLayout({ children, title, description, showBackButton }: AppL
   const brandLogoUrl = '/iron-eagle-security-logo.jpg'
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [feedbackOpen, setFeedbackOpen] = useState(false)
+  const [pttFabOpen, setPttFabOpen] = useState(false)
+  const pttConnectionStatus = usePTTStore((s) => s.connectionStatus)
   const [desktopNavOpen, setDesktopNavOpen] = useState(() => {
     // Default to open (true). Only closes if the user has explicitly set it to 'false'.
     try { return localStorage.getItem('fc_sidebar_open') !== 'false' } catch { return true }
@@ -644,6 +649,39 @@ export function AppLayout({ children, title, description, showBackButton }: AppL
         {/* Page Content */}
         <main className="p-4 lg:p-6 relative">
           {children}
+
+          {/* PTT / Team Chat floating action button */}
+          {user && !isLocked && (
+            <Popover open={pttFabOpen} onOpenChange={setPttFabOpen}>
+              <PopoverTrigger asChild>
+                <button
+                  title="Push-to-Talk / Team Chat"
+                  className="fixed bottom-16 right-4 z-40 flex items-center gap-2 rounded-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-lg px-3 py-2 text-xs font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-all hover:shadow-xl group"
+                >
+                  <span className="relative">
+                    <Radio className="h-4 w-4 text-blue-500 group-hover:scale-110 transition-transform" />
+                    <span
+                      className={cn(
+                        'absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full border border-white dark:border-gray-800',
+                        pttConnectionStatus === 'connected' && 'bg-green-500',
+                        pttConnectionStatus === 'connecting' || pttConnectionStatus === 'reconnecting' ? 'bg-amber-400 animate-pulse' : '',
+                        pttConnectionStatus === 'disconnected' || pttConnectionStatus === 'error' ? 'bg-gray-400' : '',
+                      )}
+                    />
+                  </span>
+                  <span className="hidden sm:inline">PTT</span>
+                </button>
+              </PopoverTrigger>
+              <PopoverContent
+                side="top"
+                align="end"
+                className="w-80 p-0"
+                sideOffset={8}
+              >
+                <PTTBar />
+              </PopoverContent>
+            </Popover>
+          )}
 
           {/* Global feedback button — visible to all authenticated users */}
           {user && !isLocked && (
