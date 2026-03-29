@@ -297,9 +297,9 @@ jobs:
           env.SYNTHETIC_MONITOR_USER_ID != ''
         run: |
           TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
-          FRONTEND_OK="${{ steps.check-frontend.outputs.passed }}"
-          SUPABASE_OK="${{ steps.check-supabase.outputs.passed }}"
-          PLAYWRIGHT_OK="${{ steps.check-playwright.outputs.passed }}"
+          FRONTEND_OK="${{ steps.evaluate.outputs.frontend_effective }}"
+          SUPABASE_OK="${{ steps.evaluate.outputs.supabase_effective }}"
+          PLAYWRIGHT_OK="${{ steps.evaluate.outputs.playwright_effective }}"
           FRONTEND_CODE="${{ steps.check-frontend.outputs.http_code }}"
           APP_URL="${{ steps.resolve-url.outputs.url }}"
 
