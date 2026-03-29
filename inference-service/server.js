@@ -1402,26 +1402,53 @@ async function prepPlateRegion(imageBuffer, bbox = null) {
   let pipeline = sharp(imageBuffer);
 
   if (bbox) {
-    const { x, y, width, height } = bbox;
-    // Add 10% padding around the detected plate region
-    const meta   = await sharp(imageBuffer).metadata();
-    const imgW   = meta.width  ?? 640;
-    const imgH   = meta.height ?? 640;
-    const pad    = Math.max(4, Math.round(Math.min(width, height) * 0.10));
-    const left   = Math.max(0, Math.round(x - pad));
-    const top    = Math.max(0, Math.round(y - pad));
-    const right  = Math.min(imgW, Math.round(x + width  + pad));
-    const bottom = Math.min(imgH, Math.round(y + height + pad));
-    pipeline = pipeline.extract({ left, top, width: right - left, height: bottom - top });
+    const rawX = Number(bbox.x);
+    const rawY = Number(bbox.y);
+    const rawW = Number(bbox.width);
+    const rawH = Number(bbox.height);
+
+    if (![rawX, rawY, rawW, rawH].every(Number.isFinite)) {
+      console.warn('⚠️ Invalid ALPR bbox values; falling back to full-image OCR');
+    } else {
+      // Normalise potentially negative width/height to a top-left + positive-size box.
+      const safeX = rawW < 0 ? rawX + rawW : rawX;
+      const safeY = rawH < 0 ? rawY + rawH : rawY;
+      const safeW = Math.abs(rawW);
+      const safeH = Math.abs(rawH);
+
+      if (safeW < 2 || safeH < 2) {
+        console.warn('⚠️ ALPR bbox too small; falling back to full-image OCR');
+      } else {
+        // Add 10% padding around the detected plate region
+        const meta   = await sharp(imageBuffer).metadata();
+        const imgW   = meta.width  ?? 640;
+        const imgH   = meta.height ?? 640;
+        const pad    = Math.max(4, Math.round(Math.min(safeW, safeH) * 0.10));
+        const left   = Math.max(0, Math.round(safeX - pad));
+        const top    = Math.max(0, Math.round(safeY - pad));
+        const right  = Math.min(imgW, Math.round(safeX + safeW + pad));
+        const bottom = Math.min(imgH, Math.round(safeY + safeH + pad));
+        const cropW = right - left;
+        const cropH = bottom - top;
+
+        if (cropW > 1 && cropH > 1) {
+          pipeline = pipeline.extract({ left, top, width: cropW, height: cropH });
+        } else {
+          console.warn('⚠️ ALPR bbox crop invalid after clamping; falling back to full-image OCR');
+        }
+      }
+    }
   }
 
   // Upscale: OCR benefits greatly from a minimum ~100px tall region
   const cropped  = await pipeline.toBuffer();
   const cropMeta = await sharp(cropped).metadata();
-  const scale    = cropMeta.height < 100 ? Math.ceil(100 / (cropMeta.height || 1)) : 2;
+  const cropHeight = cropMeta.height || 1;
+  const cropWidth = cropMeta.width || 200;
+  const scale    = cropHeight < 100 ? Math.ceil(100 / cropHeight) : 2;
 
   return sharp(cropped)
-    .resize({ width: (cropMeta.width ?? 200) * scale, kernel: sharp.kernel.lanczos3 })
+    .resize({ width: cropWidth * scale, kernel: sharp.kernel.lanczos3 })
     .greyscale()
     .normalise()                    // stretch histogram to full range
     .sharpen({ sigma: 1.5 })
@@ -1472,22 +1499,46 @@ async function detectPlateRegion(imageBuffer) {
 
     for (let i = 0; i < numAnchors; i++) {
       const conf = output[4 * numAnchors + i] ?? output[stride * i + 4];
-      if (conf > threshold && conf > bestConf) {
+      if (!Number.isFinite(conf) || conf <= threshold || conf <= bestConf) continue;
+
+      // Coordinates may be in column-major or row-major depending on YOLO variant
+      // Try both layouts and use the one that produces a valid-looking box
+      const cx = output[0 * numAnchors + i] ?? output[stride * i];
+      const cy = output[1 * numAnchors + i] ?? output[stride * i + 1];
+      const w  = output[2 * numAnchors + i] ?? output[stride * i + 2];
+      const h  = output[3 * numAnchors + i] ?? output[stride * i + 3];
+
+      if (![cx, cy, w, h].every(Number.isFinite)) continue;
+      if (Math.abs(w) < 1 || Math.abs(h) < 1) continue;
+
+      // Scale back to original image coordinates
+      const scaleX = origW / size;
+      const scaleY = origH / size;
+      const rawX = (cx - w / 2) * scaleX;
+      const rawY = (cy - h / 2) * scaleY;
+      const rawW = w * scaleX;
+      const rawH = h * scaleY;
+
+      // Normalise negative sizes into top-left + positive dimensions.
+      const x = rawW < 0 ? rawX + rawW : rawX;
+      const y = rawH < 0 ? rawY + rawH : rawY;
+      const width = Math.abs(rawW);
+      const height = Math.abs(rawH);
+      const clampedLeft = clamp(x, 0, origW - 1);
+      const clampedTop = clamp(y, 0, origH - 1);
+      const clampedRight = clamp(x + width, clampedLeft + 1, origW);
+      const clampedBottom = clamp(y + height, clampedTop + 1, origH);
+      const finalW = clampedRight - clampedLeft;
+      const finalH = clampedBottom - clampedTop;
+
+      if (finalW > 1 && finalH > 1) {
         // Coordinates may be in column-major or row-major depending on YOLO variant
-        // Try both layouts and use the one that produces a valid-looking box
-        const cx = output[0 * numAnchors + i] ?? output[stride * i];
-        const cy = output[1 * numAnchors + i] ?? output[stride * i + 1];
-        const w  = output[2 * numAnchors + i] ?? output[stride * i + 2];
-        const h  = output[3 * numAnchors + i] ?? output[stride * i + 3];
         bestConf = conf;
-        // Scale back to original image coordinates
-        const scaleX = origW / size;
-        const scaleY = origH / size;
         bestBbox = {
-          x:      (cx - w / 2) * scaleX,
-          y:      (cy - h / 2) * scaleY,
-          width:  w * scaleX,
-          height: h * scaleY,
+          x:      clampedLeft,
+          y:      clampedTop,
+          width:  finalW,
+          height: finalH,
           confidence: conf,
         };
       }
