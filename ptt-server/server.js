@@ -170,12 +170,12 @@ app.post('/api/token/mint', rateLimitMiddleware, (req, res) => {
     });
   }
 
-  // Validate channel scope format
-  const validScopePattern = /^(org|incident|direct):[a-f0-9-]+$/;
+  // Validate channel scope format - supports org, incident, direct, team, deployment
+  const validScopePattern = /^(org|incident|direct|team|deployment):[a-f0-9-]+$/;
   if (!validScopePattern.test(channelScope)) {
     return res.status(400).json({
       error: 'Invalid channelScope',
-      message: 'channelScope must be org:<uuid>, incident:<uuid>, or direct:<uuid>',
+      message: 'channelScope must be org:<uuid>, incident:<uuid>, direct:<uuid>, team:<uuid>, or deployment:<uuid>',
     });
   }
 

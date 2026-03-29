@@ -2,11 +2,13 @@
  * PTT Store - Push-to-Talk State Management
  * 
  * Manages PTT state including:
- * - Current channel (org-wide, incident, direct)
+ * - Current channel (org-wide, team/deployment, incident, direct)
  * - Connection status
  * - Speaking state (who's talking)
  * - Presence (who's online)
  * - Audio mute state
+ * - Input mode (PTT, VOX, Toggle)
+ * - Bluetooth device state
  * - Last clip metadata for replay
  */
 
@@ -35,6 +37,20 @@ export interface PTTClip {
 /** WebSocket connection status */
 export type PTTConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'reconnecting' | 'error'
 
+/** Input mode for PTT */
+export type PTTInputMode = 'ptt' | 'vox' | 'toggle'
+
+/** Channel type */
+export type PTTChannelType = 'org' | 'team' | 'deployment' | 'incident' | 'direct'
+
+/** Bluetooth device info */
+export interface BluetoothDevice {
+  id: string
+  name: string
+  connected: boolean
+  batteryLevel?: number
+}
+
 interface PTTState {
   // Connection
   connectionStatus: PTTConnectionStatus
@@ -44,7 +60,8 @@ interface PTTState {
 
   // Channel
   channelId: string | null
-  channelType: 'org' | 'incident' | 'direct' | null
+  channelType: PTTChannelType | null
+  channelName: string | null
 
   // Speaking
   isSpeaking: boolean
@@ -57,6 +74,18 @@ interface PTTState {
   // Audio
   isMuted: boolean
   audioEnabled: boolean
+  audioLevel: number // 0-100 for VOX visualization
+
+  // Input Mode
+  inputMode: PTTInputMode
+  voxThreshold: number // 0-100, audio level to trigger VOX
+  voxEnabled: boolean
+  toggleState: boolean // For toggle mode: true = transmitting
+
+  // Bluetooth
+  bluetoothEnabled: boolean
+  bluetoothDevice: BluetoothDevice | null
+  bluetoothPttButtonPressed: boolean
 
   // Clips
   lastClips: PTTClip[]
@@ -68,7 +97,7 @@ interface PTTState {
   // Actions
   setConnection: (status: PTTConnectionStatus, wsUrl?: string, token?: string) => void
   setIceServers: (servers: RTCIceServer[]) => void
-  setChannel: (channelId: string | null, type?: 'org' | 'incident' | 'direct' | null) => void
+  setChannel: (channelId: string | null, type?: PTTChannelType | null, name?: string | null) => void
   setSpeaking: (isSpeaking: boolean) => void
   setSpeaker: (speakerId: string | null, speakerName?: string | null) => void
   setPresence: (presence: PTTPresence[]) => void
@@ -77,6 +106,14 @@ interface PTTState {
   updatePresenceStatus: (userId: string, status: PTTPresence['status']) => void
   setMuted: (muted: boolean) => void
   setAudioEnabled: (enabled: boolean) => void
+  setAudioLevel: (level: number) => void
+  setInputMode: (mode: PTTInputMode) => void
+  setVoxThreshold: (threshold: number) => void
+  setVoxEnabled: (enabled: boolean) => void
+  setToggleState: (state: boolean) => void
+  setBluetoothEnabled: (enabled: boolean) => void
+  setBluetoothDevice: (device: BluetoothDevice | null) => void
+  setBluetoothPttButtonPressed: (pressed: boolean) => void
   addClip: (clip: PTTClip) => void
   setError: (error: string | null) => void
   reset: () => void
@@ -89,12 +126,21 @@ const initialState = {
   iceServers: [],
   channelId: null,
   channelType: null,
+  channelName: null,
   isSpeaking: false,
   speakerId: null,
   speakerName: null,
   presence: [],
   isMuted: false,
   audioEnabled: true,
+  audioLevel: 0,
+  inputMode: 'ptt' as PTTInputMode,
+  voxThreshold: 30, // Default VOX threshold
+  voxEnabled: false,
+  toggleState: false,
+  bluetoothEnabled: false,
+  bluetoothDevice: null,
+  bluetoothPttButtonPressed: false,
   lastClips: [],
   maxClipsToKeep: 10,
   error: null,
@@ -115,10 +161,11 @@ export const usePTTStore = create<PTTState>()(
 
       setIceServers: (servers) => set({ iceServers: servers }),
 
-      setChannel: (channelId, type) =>
+      setChannel: (channelId, type, name) =>
         set({
           channelId,
           channelType: type ?? null,
+          channelName: name ?? null,
           // Reset state when changing channels
           presence: [],
           speakerId: null,
@@ -156,6 +203,22 @@ export const usePTTStore = create<PTTState>()(
 
       setAudioEnabled: (enabled) => set({ audioEnabled: enabled }),
 
+      setAudioLevel: (level) => set({ audioLevel: Math.min(100, Math.max(0, level)) }),
+
+      setInputMode: (mode) => set({ inputMode: mode, toggleState: false }),
+
+      setVoxThreshold: (threshold) => set({ voxThreshold: Math.min(100, Math.max(0, threshold)) }),
+
+      setVoxEnabled: (enabled) => set({ voxEnabled: enabled }),
+
+      setToggleState: (state) => set({ toggleState: state }),
+
+      setBluetoothEnabled: (enabled) => set({ bluetoothEnabled: enabled }),
+
+      setBluetoothDevice: (device) => set({ bluetoothDevice: device }),
+
+      setBluetoothPttButtonPressed: (pressed) => set({ bluetoothPttButtonPressed: pressed }),
+
       addClip: (clip) =>
         set((state) => {
           const clips = [clip, ...state.lastClips].slice(0, state.maxClipsToKeep)
@@ -169,12 +232,16 @@ export const usePTTStore = create<PTTState>()(
     {
       name: 'ptt-state',
       storage: createJSONStorage(() => localStorage),
-      version: 1,
-      // Only persist non-sensitive state
+      version: 2,
+      // Only persist user preferences
       partialize: (state) => ({
         isMuted: state.isMuted,
         audioEnabled: state.audioEnabled,
         maxClipsToKeep: state.maxClipsToKeep,
+        inputMode: state.inputMode,
+        voxThreshold: state.voxThreshold,
+        voxEnabled: state.voxEnabled,
+        bluetoothEnabled: state.bluetoothEnabled,
       }),
     }
   )
@@ -196,4 +263,28 @@ export const usePTTCanSpeak = () =>
       !state.isMuted &&
       state.audioEnabled &&
       (state.speakerId === null || state.isSpeaking)
+  )
+
+/**
+ * Selector for checking if VOX should trigger transmission
+ */
+export const usePTTVoxActive = () =>
+  usePTTStore(
+    (state) =>
+      state.inputMode === 'vox' &&
+      state.voxEnabled &&
+      state.audioLevel >= state.voxThreshold &&
+      !state.isMuted &&
+      state.audioEnabled
+  )
+
+/**
+ * Selector for checking if Bluetooth PTT is active
+ */
+export const usePTTBluetoothActive = () =>
+  usePTTStore(
+    (state) =>
+      state.bluetoothEnabled &&
+      state.bluetoothDevice?.connected &&
+      state.bluetoothPttButtonPressed
   )

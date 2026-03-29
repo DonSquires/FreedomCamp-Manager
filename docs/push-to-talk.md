@@ -2,6 +2,27 @@
 
 Status: **In Progress** — Railway signaling server, database schema, and frontend foundation implemented. WebRTC integration and UI pending.
 
+## Channel Types (Required)
+
+1. **Ad-hoc (Direct)** - 1:1 PTT calls to individual users (`direct:<user_id>`)
+2. **Global (Organization)** - Broadcast to all users in the organization (`org:<org_id>`)
+3. **Team (Deployment)** - Team/deployment-scoped channels (`team:<team_id>` or `deployment:<deployment_id>`)
+4. **Incident** - Incident-specific channels (`incident:<incident_id>`)
+
+## Input Modes
+
+1. **Push-to-Talk (PTT)** - Hold button to talk, release to stop (default)
+2. **Voice Activated (VOX)** - Automatic transmission when voice detected above threshold
+3. **Toggle** - Click to start talking, click again to stop
+
+## Hardware Support
+
+1. **Bluetooth Headsets** - Full support for Bluetooth audio devices
+2. **Bluetooth PTT Button** - Map answer/hangup button as PTT trigger:
+   - Press button → Start transmitting (microphone open)
+   - Release button → Stop transmitting (microphone closed)
+3. **Hardware PTT Buttons** - Support dedicated PTT hardware on mobile
+
 ## Implementation Progress
 
 ### ✅ Completed (Phase 1: Railway Foundation)
@@ -9,7 +30,7 @@ Status: **In Progress** — Railway signaling server, database schema, and front
 1. **PTT Signaling Server** (`ptt-server/`)
    - WebSocket-based signaling for WebRTC peer connections
    - Half-duplex voice (one speaker at a time per channel)
-   - Channel management (org-wide, incident-specific, direct 1:1)
+   - Channel management (org-wide, incident-specific, direct 1:1, team)
    - Presence tracking (online, busy, off-shift)
    - JWT token-based authentication
    - ICE server configuration (STUN + optional TURN)
@@ -32,24 +53,33 @@ Status: **In Progress** — Railway signaling server, database schema, and front
    - `src/lib/ptt.ts`: WebRTC & WebSocket utilities
    - `src/lib/edgeFunctions.ts`: PTT token function
 
-### 🔲 Pending (Phase 2: UI Integration)
+### 🔲 Pending (Phase 2: Advanced Features)
 
-1. **PTT Bar Component** for TeamChat
-   - Hold-to-talk button
-   - Channel selector
+1. **VOX (Voice Activated) Mode**
+   - Audio level detection with configurable threshold
+   - Automatic transmission start/stop
+   - Visual feedback for audio levels
+
+2. **Bluetooth Integration**
+   - Bluetooth device detection and pairing
+   - Answer/hangup button mapping for PTT
+   - Audio routing to Bluetooth device
+
+3. **Team/Deployment Channels**
+   - Link channels to roster deployments
+   - Auto-join based on active shift
+
+4. **PTT Bar Component** for TeamChat
+   - Hold-to-talk button (or VOX indicator)
+   - Channel selector (direct/org/team)
    - Presence indicator
    - Speaker indicator
    - Last clip replay
 
-2. **WebRTC Audio Stream**
-   - Microphone capture
-   - Noise suppression
-   - Audio playback
-   - Fallback clip upload
-
-3. **Mobile Integration** (Expo app)
+5. **Mobile Integration** (Expo app)
    - Background audio permissions
    - Hardware PTT button support
+   - Bluetooth headset integration
 
 ## Goals (lifted from proven PTT apps)
 - **Low-latency voice hold-to-talk** (tap/hold, auto-stop on release)

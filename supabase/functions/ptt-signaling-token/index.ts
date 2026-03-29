@@ -95,13 +95,13 @@ Deno.serve(async (req) => {
       )
     }
 
-    // Validate channel scope format
-    const validScopePattern = /^(org|incident|direct):[a-f0-9-]+$/
+    // Validate channel scope format - now supports org, incident, direct, team, deployment
+    const validScopePattern = /^(org|incident|direct|team|deployment):[a-f0-9-]+$/
     if (!channelScope || !validScopePattern.test(channelScope)) {
       return new Response(
         JSON.stringify({
           error: 'Invalid channelScope',
-          message: 'channelScope must be org:<uuid>, incident:<uuid>, or direct:<uuid>',
+          message: 'channelScope must be org:<uuid>, incident:<uuid>, direct:<uuid>, team:<uuid>, or deployment:<uuid>',
         }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
@@ -139,6 +139,12 @@ Deno.serve(async (req) => {
           { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         )
       }
+    } else if (scopeType === 'team' || scopeType === 'deployment') {
+      // Team/deployment channels - verify user is part of the deployment or has access
+      // For now, allow access within same organization
+      // Future: Check roster_assignments or deployment_members table
+      // This allows all org members to join team channels for the MVP
+      console.log(`PTT: User ${user.id} accessing ${scopeType} channel ${scopeId}`)
     } else if (scopeType === 'direct') {
       // Direct channel: scopeId is target user ID
       // Verify target user exists and is in same org

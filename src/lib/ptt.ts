@@ -7,11 +7,13 @@
  * - Microphone capture with noise suppression
  * - Audio playback for incoming streams
  * - Fallback clip upload to Supabase Storage
+ * - VOX (Voice Operated Exchange) mode
+ * - Bluetooth headset support with PTT button mapping
  */
 
 import { supabase } from './supabase'
 import { edgeFunctions } from './edgeFunctions'
-import { usePTTStore, PTTPresence, PTTClip } from '@/stores/pttStore'
+import { usePTTStore, PTTPresence, PTTClip, PTTChannelType } from '@/stores/pttStore'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -65,10 +67,19 @@ let reconnectTimeout: ReturnType<typeof setTimeout> | null = null
 let pingInterval: ReturnType<typeof setInterval> | null = null
 let localStream: MediaStream | null = null
 const peerConnections: Map<string, RTCPeerConnection> = new Map()
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-const audioContext: AudioContext | null = null
 let mediaRecorder: MediaRecorder | null = null
 let recordedChunks: Blob[] = []
+let recordingStartTime: number | null = null
+
+// VOX state
+let audioContext: AudioContext | null = null
+let analyserNode: AnalyserNode | null = null
+let voxCheckInterval: ReturnType<typeof setInterval> | null = null
+let voxSilenceTimeout: ReturnType<typeof setTimeout> | null = null
+const VOX_SILENCE_DELAY_MS = 500 // Stop transmitting after 500ms of silence
+
+// Bluetooth state
+let bluetoothMediaSession: MediaSession | null = null
 
 // ---------------------------------------------------------------------------
 // Token Management
@@ -93,7 +104,7 @@ export async function requestPTTToken(channelScope: string): Promise<PTTTokenRes
 /**
  * Connect to the PTT signaling server
  */
-export async function connectToPTT(channelScope: string): Promise<void> {
+export async function connectToPTT(channelScope: string, channelName?: string): Promise<void> {
   const store = usePTTStore.getState()
 
   // Disconnect existing connection
@@ -102,7 +113,8 @@ export async function connectToPTT(channelScope: string): Promise<void> {
   }
 
   store.setConnection('connecting')
-  store.setChannel(channelScope, channelScope.split(':')[0] as 'org' | 'incident' | 'direct')
+  const channelType = channelScope.split(':')[0] as PTTChannelType
+  store.setChannel(channelScope, channelType, channelName || null)
 
   try {
     // Get token from Edge Function
@@ -422,6 +434,7 @@ export async function startSpeaking(): Promise<void> {
 
     // Start recording for fallback clip
     recordedChunks = []
+    recordingStartTime = Date.now()
     const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
       ? 'audio/webm;codecs=opus'
       : 'audio/webm'
@@ -489,7 +502,10 @@ export async function stopSpeaking(): Promise<void> {
     // Upload clip to Supabase Storage
     if (recordedChunks.length > 0) {
       const blob = new Blob(recordedChunks, { type: 'audio/webm' })
-      duration = Math.round(blob.size / 8000) // Rough estimate
+      // Calculate actual duration from recording start time
+      duration = recordingStartTime
+        ? Math.round((Date.now() - recordingStartTime) / 1000)
+        : undefined
 
       try {
         const result = await uploadClip(blob, store.channelId || 'unknown')
@@ -513,6 +529,7 @@ export async function stopSpeaking(): Promise<void> {
 
   recordedChunks = []
   mediaRecorder = null
+  recordingStartTime = null
 
   console.log('🎤 PTT: Stopped speaking')
 }
@@ -573,4 +590,265 @@ export function toggleMute(): boolean {
   const newMuted = !store.isMuted
   store.setMuted(newMuted)
   return newMuted
+}
+
+// ---------------------------------------------------------------------------
+// VOX (Voice Operated Exchange) Mode
+// ---------------------------------------------------------------------------
+
+/**
+ * Start VOX monitoring - automatically transmits when voice is detected
+ */
+export async function startVoxMonitoring(): Promise<void> {
+  const store = usePTTStore.getState()
+
+  if (store.inputMode !== 'vox') {
+    store.setInputMode('vox')
+  }
+
+  try {
+    // Get microphone for monitoring
+    const stream = await navigator.mediaDevices.getUserMedia({
+      audio: {
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true,
+      },
+    })
+
+    // Create audio context for level monitoring
+    audioContext = new AudioContext()
+    const source = audioContext.createMediaStreamSource(stream)
+    analyserNode = audioContext.createAnalyser()
+    analyserNode.fftSize = 256
+    analyserNode.smoothingTimeConstant = 0.8
+    source.connect(analyserNode)
+
+    // Start monitoring audio levels
+    const dataArray = new Uint8Array(analyserNode.frequencyBinCount)
+
+    voxCheckInterval = setInterval(() => {
+      if (!analyserNode) return
+
+      analyserNode.getByteFrequencyData(dataArray)
+      const average = dataArray.reduce((a, b) => a + b, 0) / dataArray.length
+      const normalizedLevel = Math.round((average / 255) * 100)
+
+      store.setAudioLevel(normalizedLevel)
+
+      const threshold = store.voxThreshold
+      const isSpeaking = store.isSpeaking
+
+      // Start speaking if level exceeds threshold
+      if (normalizedLevel >= threshold && !isSpeaking && store.voxEnabled) {
+        if (voxSilenceTimeout) {
+          clearTimeout(voxSilenceTimeout)
+          voxSilenceTimeout = null
+        }
+        startSpeaking().catch(console.error)
+      }
+
+      // Stop speaking after silence delay
+      if (normalizedLevel < threshold && isSpeaking) {
+        if (!voxSilenceTimeout) {
+          voxSilenceTimeout = setTimeout(() => {
+            stopSpeaking().catch(console.error)
+            voxSilenceTimeout = null
+          }, VOX_SILENCE_DELAY_MS)
+        }
+      } else if (normalizedLevel >= threshold && voxSilenceTimeout) {
+        clearTimeout(voxSilenceTimeout)
+        voxSilenceTimeout = null
+      }
+    }, 50) // Check every 50ms
+
+    store.setVoxEnabled(true)
+    console.log('🎤 PTT: VOX monitoring started')
+  } catch (error: any) {
+    console.error('🎤 PTT: Failed to start VOX monitoring', error)
+    store.setError(error.message || 'Failed to access microphone for VOX')
+    throw error
+  }
+}
+
+/**
+ * Stop VOX monitoring
+ */
+export function stopVoxMonitoring(): void {
+  const store = usePTTStore.getState()
+
+  if (voxCheckInterval) {
+    clearInterval(voxCheckInterval)
+    voxCheckInterval = null
+  }
+
+  if (voxSilenceTimeout) {
+    clearTimeout(voxSilenceTimeout)
+    voxSilenceTimeout = null
+  }
+
+  if (audioContext) {
+    audioContext.close().catch(console.error)
+    audioContext = null
+  }
+
+  analyserNode = null
+  store.setVoxEnabled(false)
+  store.setAudioLevel(0)
+
+  console.log('🎤 PTT: VOX monitoring stopped')
+}
+
+/**
+ * Set VOX threshold (0-100)
+ */
+export function setVoxThreshold(threshold: number): void {
+  const store = usePTTStore.getState()
+  store.setVoxThreshold(Math.min(100, Math.max(0, threshold)))
+}
+
+// ---------------------------------------------------------------------------
+// Bluetooth Support
+// ---------------------------------------------------------------------------
+
+/**
+ * Initialize Bluetooth PTT button support using Media Session API
+ * Maps the answer/hangup button to PTT (press=talk, release=stop)
+ */
+export function initBluetoothPTT(): void {
+  const store = usePTTStore.getState()
+
+  if (!('mediaSession' in navigator)) {
+    console.warn('🎤 PTT: Media Session API not supported')
+    store.setError('Bluetooth PTT not supported on this device')
+    return
+  }
+
+  try {
+    // Create a silent audio element to enable Media Session
+    const silentAudio = new Audio()
+    silentAudio.src = 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA'
+    silentAudio.loop = true
+
+    // Set up Media Session handlers for Bluetooth buttons
+    navigator.mediaSession.setActionHandler('play', () => {
+      // Answer/Play button pressed - start talking
+      console.log('🎤 PTT: Bluetooth PTT button pressed')
+      store.setBluetoothPttButtonPressed(true)
+      startSpeaking().catch(console.error)
+    })
+
+    navigator.mediaSession.setActionHandler('pause', () => {
+      // Hangup/Pause button pressed - stop talking
+      console.log('🎤 PTT: Bluetooth PTT button released')
+      store.setBluetoothPttButtonPressed(false)
+      stopSpeaking().catch(console.error)
+    })
+
+    navigator.mediaSession.setActionHandler('stop', () => {
+      // Stop button - stop talking
+      console.log('🎤 PTT: Bluetooth stop button pressed')
+      store.setBluetoothPttButtonPressed(false)
+      stopSpeaking().catch(console.error)
+    })
+
+    // Set metadata for Bluetooth display
+    navigator.mediaSession.metadata = new MediaMetadata({
+      title: 'Push to Talk',
+      artist: 'FreedomCamp Manager',
+      album: 'PTT Channel',
+    })
+
+    // Play silent audio to keep Media Session active
+    silentAudio.play().catch(() => {
+      // Autoplay may be blocked - user interaction required
+      console.log('🎤 PTT: Bluetooth PTT requires user interaction to activate')
+    })
+
+    bluetoothMediaSession = navigator.mediaSession
+    store.setBluetoothEnabled(true)
+
+    console.log('🎤 PTT: Bluetooth PTT initialized')
+  } catch (error: any) {
+    console.error('🎤 PTT: Failed to initialize Bluetooth PTT', error)
+    store.setError(error.message || 'Failed to initialize Bluetooth PTT')
+  }
+}
+
+/**
+ * Clean up Bluetooth PTT handlers
+ */
+export function cleanupBluetoothPTT(): void {
+  const store = usePTTStore.getState()
+
+  if ('mediaSession' in navigator) {
+    navigator.mediaSession.setActionHandler('play', null)
+    navigator.mediaSession.setActionHandler('pause', null)
+    navigator.mediaSession.setActionHandler('stop', null)
+    navigator.mediaSession.metadata = null
+  }
+
+  bluetoothMediaSession = null
+  store.setBluetoothEnabled(false)
+  store.setBluetoothPttButtonPressed(false)
+
+  console.log('🎤 PTT: Bluetooth PTT cleaned up')
+}
+
+/**
+ * Check if Bluetooth audio devices are available
+ */
+export async function getBluetoothDevices(): Promise<MediaDeviceInfo[]> {
+  try {
+    const devices = await navigator.mediaDevices.enumerateDevices()
+    return devices.filter(
+      (device) =>
+        device.kind === 'audioinput' &&
+        (device.label.toLowerCase().includes('bluetooth') ||
+          device.label.toLowerCase().includes('wireless') ||
+          device.label.toLowerCase().includes('headset'))
+    )
+  } catch (error) {
+    console.error('🎤 PTT: Failed to enumerate Bluetooth devices', error)
+    return []
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Channel Helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Connect to organization-wide channel (global call)
+ */
+export async function connectToOrgChannel(organizationId: string, orgName?: string): Promise<void> {
+  await connectToPTT(`org:${organizationId}`, orgName || 'Organization')
+}
+
+/**
+ * Connect to team/deployment channel
+ */
+export async function connectToTeamChannel(teamId: string, teamName?: string): Promise<void> {
+  await connectToPTT(`team:${teamId}`, teamName || 'Team')
+}
+
+/**
+ * Connect to deployment channel
+ */
+export async function connectToDeploymentChannel(deploymentId: string, deploymentName?: string): Promise<void> {
+  await connectToPTT(`deployment:${deploymentId}`, deploymentName || 'Deployment')
+}
+
+/**
+ * Connect to direct 1:1 channel (ad-hoc call)
+ */
+export async function connectToDirectChannel(targetUserId: string, targetUserName?: string): Promise<void> {
+  await connectToPTT(`direct:${targetUserId}`, targetUserName || 'Direct')
+}
+
+/**
+ * Connect to incident channel
+ */
+export async function connectToIncidentChannel(incidentId: string, incidentName?: string): Promise<void> {
+  await connectToPTT(`incident:${incidentId}`, incidentName || 'Incident')
 }
