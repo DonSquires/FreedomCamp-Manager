@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { RealtimeChannel } from '@supabase/supabase-js'
 import { AppLayout } from '@/components/features/AppLayout'
@@ -10,7 +10,6 @@ import { useChatTargetStore, ChatTarget } from '@/stores/chatTargetStore'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Separator } from '@/components/ui/separator'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -316,6 +315,7 @@ export default function TeamChat() {
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [inspectUserId, setInspectUserId] = useState<string | null>(null)
   const [channel, setChannel] = useState<RealtimeChannel | null>(null)
+  const targetUserRef = useRef<Participant | null>(target.type === 'user' ? target.user : null)
 
   const effectiveOrgId = useMemo(
     () => (user?.role === 'master' ? organizationId || null : user?.organization_id || null),
@@ -339,26 +339,28 @@ export default function TeamChat() {
 
   // Keep persisted target in sync with available members (for push-to-talk + chat)
   useEffect(() => {
-    if (target.type === 'user') {
-      const match = members.find((m) => m.id === target.user.id)
-      if (!match) {
-        setTarget({ type: 'admin' })
-        setInspectUserId(null)
-        return
-      }
-      const changed =
-        match.first_name !== target.user.first_name ||
-        match.last_name !== target.user.last_name ||
-        match.role !== target.user.role ||
-        match.organization_id !== target.user.organization_id
-      if (changed) {
-        setTarget({ type: 'user', user: match })
-      }
-      setInspectUserId((prev) => prev || match.id)
-    } else {
+    targetUserRef.current = target.type === 'user' ? target.user : null
+    setInspectUserId(target.type === 'user' ? target.user.id : null)
+  }, [target])
+
+  useEffect(() => {
+    const current = targetUserRef.current
+    if (!current) return
+    const match = members.find((m) => m.id === current.id)
+    if (!match) {
+      setTarget({ type: 'admin' })
       setInspectUserId(null)
+      return
     }
-  }, [members, setTarget, target])
+    const changed =
+      match.first_name !== current.first_name ||
+      match.last_name !== current.last_name ||
+      match.role !== current.role ||
+      match.organization_id !== current.organization_id
+    if (changed) {
+      setTarget({ type: 'user', user: match })
+    }
+  }, [members, setTarget])
 
   // Real-time channel for org chat (broadcast only, no persistence)
   useEffect(() => {
@@ -575,12 +577,6 @@ export default function TeamChat() {
                 Realtime chat is scoped to your organisation. Messages are broadcast and not persisted.
               </div>
               <div className="flex items-center gap-2">
-                <Input
-                  type="hidden"
-                  aria-hidden
-                  value={target.type === 'user' ? target.user.id : 'admin'}
-                  readOnly
-                />
                 <Button onClick={sendMessage} disabled={!message.trim()}>
                   Send
                 </Button>
