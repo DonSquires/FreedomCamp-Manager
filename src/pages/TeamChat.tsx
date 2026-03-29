@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { RealtimeChannel } from '@supabase/supabase-js'
 import { AppLayout } from '@/components/features/AppLayout'
 import { GlobalFilterRibbon } from '@/components/features/GlobalFilterRibbon'
+import { PTTBar } from '@/components/features/PTTBar'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { useGlobalFiltersStore } from '@/stores/globalFiltersStore'
@@ -555,6 +556,9 @@ export default function TeamChat() {
           </ScrollArea>
 
           <Separator />
+
+          {/* Push-to-Talk Bar */}
+          <PTTBar className="mx-4 my-2" />
 
           <div className="p-4 space-y-2">
             <Textarea

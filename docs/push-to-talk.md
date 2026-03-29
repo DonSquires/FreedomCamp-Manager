@@ -53,33 +53,36 @@ Status: **In Progress** — Railway signaling server, database schema, and front
    - `src/lib/ptt.ts`: WebRTC & WebSocket utilities
    - `src/lib/edgeFunctions.ts`: PTT token function
 
-### 🔲 Pending (Phase 2: Advanced Features)
+5. **Background Service & Auto-Connect**
+   - `src/lib/pttBackground.ts`: Always-on PTT service
+   - `src/hooks/usePTTAutoConnect.ts`: Auto-connect hook
+   - Auto-connects to org channel on login
+   - Runs in background while using other parts of app
+   - Web Notifications for incoming calls when page hidden
+   - Wake Lock API support for keeping screen on during calls
+   - Automatic reconnection with exponential backoff
 
-1. **VOX (Voice Activated) Mode**
-   - Audio level detection with configurable threshold
-   - Automatic transmission start/stop
-   - Visual feedback for audio levels
+6. **PTT Bar UI Component**
+   - `src/components/features/PTTBar.tsx`: Full PTT control bar
+   - Integrated into TeamChat page
+   - Hold-to-talk, toggle, and VOX modes
+   - Channel switching (org/direct based on chat target)
+   - Presence indicators and speaker status
+   - Last clip replay
+   - Bluetooth PTT settings
+   - VOX threshold slider with level indicator
 
-2. **Bluetooth Integration**
-   - Bluetooth device detection and pairing
-   - Answer/hangup button mapping for PTT
-   - Audio routing to Bluetooth device
+### 🔲 Pending (Phase 3: Mobile & Advanced Features)
 
-3. **Team/Deployment Channels**
+1. **Team/Deployment Channels**
    - Link channels to roster deployments
    - Auto-join based on active shift
 
-4. **PTT Bar Component** for TeamChat
-   - Hold-to-talk button (or VOX indicator)
-   - Channel selector (direct/org/team)
-   - Presence indicator
-   - Speaker indicator
-   - Last clip replay
-
-5. **Mobile Integration** (Expo app)
-   - Background audio permissions
+2. **Mobile Integration** (Expo app)
+   - Foreground service for background audio
    - Hardware PTT button support
    - Bluetooth headset integration
+   - Native push notifications
 
 ## Goals (lifted from proven PTT apps)
 - **Low-latency voice hold-to-talk** (tap/hold, auto-stop on release)
