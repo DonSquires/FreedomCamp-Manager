@@ -165,6 +165,9 @@ ${ciStatus}
 2. **Fix**: Provide a concrete, actionable code fix. Include file paths and the specific change.
 3. **Severity**: Confirm or revise (low/medium/high/critical) with justification.
 4. **Effort**: Low (< 1 h) / Medium (half day) / High (1-2 days).
+5. **PR plan**: Outline the PR you would raise (files to change, tests to add/update).
+6. **Build impact**: Note any build/devops changes and the expected outcome once applied.
+7. **Where to view**: Mention the Admin → Platform → Feedback inbox (grand master only) and that the GitHub AI response is stored with the report.
 
 Be specific. Name exact files and line-level changes where possible.`
 
