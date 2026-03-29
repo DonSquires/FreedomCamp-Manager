@@ -1179,144 +1179,6 @@ async function loadPlateDetectModel() {
 }
 
 /**
- * Detect faces using UltraFace ONNX model.
- * Returns array of { x, y, width, height, confidence } in original image
- * pixel coordinates, or empty array if no faces found / model not available.
- */
-async function detectFacesONNX(imageBuffer) {
-  const session = await loadFaceDetectModel();
-  if (!session) return [];
-
-  try {
-    const meta = await sharp(imageBuffer).metadata();
-    const origW = meta.width ?? 640;
-    const origH = meta.height ?? 480;
-
-    // Resize to model input size
-    const resized = await sharp(imageBuffer)
-      .resize(FACE_DETECT_INPUT_W, FACE_DETECT_INPUT_H, { fit: 'fill' })
-      .removeAlpha()
-      .raw()
-      .toBuffer();
-
-    // Build float32 tensor (CHW, normalised 0-1)
-    const floats = new Float32Array(3 * FACE_DETECT_INPUT_W * FACE_DETECT_INPUT_H);
-    const pixelCount = FACE_DETECT_INPUT_W * FACE_DETECT_INPUT_H;
-    for (let i = 0; i < pixelCount; i++) {
-      floats[i]                    = (resized[i * 3]     - 127) / 128.0; // R
-      floats[pixelCount + i]       = (resized[i * 3 + 1] - 127) / 128.0; // G
-      floats[2 * pixelCount + i]   = (resized[i * 3 + 2] - 127) / 128.0; // B
-    }
-
-    const tensor = new ort.Tensor('float32', floats, [1, 3, FACE_DETECT_INPUT_H, FACE_DETECT_INPUT_W]);
-    const inputKey = session.inputNames[0];
-    const outputs = await session.run({ [inputKey]: tensor });
-
-    // UltraFace outputs: confidences [1, N, 2] and boxes [1, N, 4]
-    const confidences = outputs[session.outputNames[0]]?.data;
-    const boxes = outputs[session.outputNames[1]]?.data;
-
-    if (!confidences || !boxes) return [];
-
-    const faces = [];
-    const numDetections = confidences.length / 2;
-    const FACE_CONF_THRESHOLD = 0.7;
-
-    for (let i = 0; i < numDetections; i++) {
-      const faceConf = confidences[i * 2 + 1]; // class 1 = face
-      if (faceConf < FACE_CONF_THRESHOLD) continue;
-
-      // Boxes are normalised [x1, y1, x2, y2]
-      const x1 = boxes[i * 4]     * origW;
-      const y1 = boxes[i * 4 + 1] * origH;
-      const x2 = boxes[i * 4 + 2] * origW;
-      const y2 = boxes[i * 4 + 3] * origH;
-
-      faces.push({
-        x:          Math.round(Math.max(0, x1)),
-        y:          Math.round(Math.max(0, y1)),
-        width:      Math.round(Math.min(origW, x2) - Math.max(0, x1)),
-        height:     Math.round(Math.min(origH, y2) - Math.max(0, y1)),
-        confidence: Math.round(faceConf * 1000) / 1000,
-      });
-    }
-
-    // Sort by confidence descending
-    faces.sort((a, b) => b.confidence - a.confidence);
-    return faces;
-  } catch (err) {
-    console.warn('⚠️  Face ONNX detection failed (non-fatal):', err.message);
-    return [];
-  }
-}
-
-/**
- * Detect faces using OpenAI vision (fallback when ONNX model not available).
- * Returns structured face data without pixel-level bounding boxes.
- */
-async function detectFacesOpenAI(imageBuffer, mimeType) {
-  if (!OPENAI_API_KEY) return null;
-
-  try {
-    const imageBase64 = imageBuffer.toString('base64');
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), ATTR_TIMEOUT_MS);
-
-    const resp = await fetch(`${OPENAI_BASE_URL}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${OPENAI_API_KEY}`,
-      },
-      signal: controller.signal,
-      body: JSON.stringify({
-        model: OPENAI_MODEL,
-        temperature: 0,
-        response_format: { type: 'json_object' },
-        messages: [
-          {
-            role: 'system',
-            content:
-              'You are a face detection assistant for a security/enforcement system. ' +
-              'Analyse the image and detect any human faces present. ' +
-              'Return strict JSON with keys: ' +
-              'face_count (integer, number of faces detected), ' +
-              'faces (array of objects, each with: ' +
-              '  approximate_age (string like "20-30", "40-50", or "unknown"), ' +
-              '  gender (string: "male", "female", or "unknown"), ' +
-              '  description (short natural-language description of distinguishing features like hair colour, glasses, facial hair, hat — NO racial identifiers), ' +
-              '  confidence (0.0–1.0 how confident you are a face is present)' +
-              '). ' +
-              'If no faces are visible, return face_count: 0 and faces: []. ' +
-              'Do NOT include any personally identifiable information or attempt to identify specific individuals.',
-          },
-          {
-            role: 'user',
-            content: [
-              { type: 'text', text: 'Detect any faces in this image.' },
-              { type: 'image_url', image_url: { url: `data:${mimeType};base64,${imageBase64}` } },
-            ],
-          },
-        ],
-      }),
-    });
-
-    clearTimeout(timeout);
-
-    if (resp.ok) {
-      const payload = await resp.json();
-      const content = payload?.choices?.[0]?.message?.content;
-      if (content) {
-        return JSON.parse(content);
-      }
-    }
-  } catch (err) {
-    console.warn('⚠️  Face OpenAI detection failed (non-fatal):', err.message);
-  }
-  return null;
-}
-
-/**
  * Generate a face embedding by cropping the face region and running MobileNetV3.
  * Returns 384-D embedding vector or null.
  */
@@ -1445,13 +1307,14 @@ async function prepPlateRegion(imageBuffer, bbox = null) {
   const cropMeta = await sharp(cropped).metadata();
   const cropHeight = cropMeta.height || 1;
   const cropWidth = cropMeta.width || 200;
-  const scale    = cropHeight < 100 ? Math.ceil(100 / cropHeight) : 2;
+  const scale    = cropHeight < 150 ? Math.ceil(150 / cropHeight) : 2;
 
   return sharp(cropped)
     .resize({ width: cropWidth * scale, kernel: sharp.kernel.lanczos3 })
     .greyscale()
     .normalise()                    // stretch histogram to full range
-    .sharpen({ sigma: 1.5 })
+    .sharpen({ sigma: 2 })
+    .threshold(128)                  // binarise for crisper OCR input
     .toBuffer();
 }
 
@@ -1582,6 +1445,32 @@ function normaliseNZPlate(rawText) {
   return { plate: cleaned, valid: false, pattern: 'unknown' };
 }
 
+function plateOcrVariants(rawText) {
+  if (!rawText) return [];
+  const cleaned = rawText.toUpperCase().replace(/[^A-Z0-9]/g, '');
+  if (!cleaned) return [];
+
+  const replacements = [
+    ['0', 'O'],
+    ['O', '0'],
+    ['1', 'I'],
+    ['I', '1'],
+    ['5', 'S'],
+    ['S', '5'],
+    ['2', 'Z'],
+    ['Z', '2'],
+    ['8', 'B'],
+    ['B', '8'],
+  ];
+
+  const variants = new Set([cleaned]);
+  for (const [a, b] of replacements) {
+    if (cleaned.includes(a)) variants.add(cleaned.replaceAll(a, b));
+  }
+
+  return Array.from(variants);
+}
+
 // ── POST /infer/alpr — Self-hosted ALPR ─────────────────────────────────────
 // Drop-in alternative to Plate Recognizer. Returns the same response shape so
 // _shared/alpr.ts and all callers work unchanged.
@@ -1637,20 +1526,54 @@ app.post('/infer/alpr', alprRateLimit, upload.single('photo'), requireInferenceA
     // ── Step 4: OCR ───────────────────────────────────────────────
     const ocrResult = await ocrPlate(ocrInput);
 
-    // ── Step 5: Normalise for NZ plates ──────────────────────────
-    const normalised = normaliseNZPlate(ocrResult.text);
+    // ── Step 5: Normalise + score candidates for NZ plates ───────
+    const candidateScores = new Map();
+    const addCandidate = (raw, sourceConfidence) => {
+      const srcConf = Math.max(0, Math.min(1, Number(sourceConfidence) || 0));
+      for (const variant of plateOcrVariants(raw)) {
+        const n = normaliseNZPlate(variant);
+        if (!n || !n.plate || n.plate.length < 2) continue;
+        let score = srcConf;
+        if (n.valid) score += 0.15;
+        if (n.pattern === 'standard_modern' || n.pattern === 'standard_older') score += 0.07;
+        if (n.pattern === 'unknown') score -= 0.05;
+        const prev = candidateScores.get(n.plate) ?? 0;
+        if (score > prev) candidateScores.set(n.plate, score);
+      }
+    };
 
-    // Build all_candidates from Tesseract word-level results
-    const candidates = ocrResult.words
-      .map(w => normaliseNZPlate(w.text))
-      .filter(n => n && n.plate && n.plate.length >= 2)
-      .map(n => ({ plate: n.plate, confidence: ocrResult.confidence / 100 }));
+    addCandidate(ocrResult.text, ocrResult.confidence / 100);
+    for (const word of ocrResult.words || []) {
+      const wordConf = Number.isFinite(word?.confidence)
+        ? Number(word.confidence) / 100
+        : (ocrResult.confidence / 100) * 0.85;
+      addCandidate(word?.text || '', wordConf);
+    }
 
-    // Use normalised plate, or first candidate
-    const bestPlate = normalised?.plate ?? candidates[0]?.plate ?? null;
-    const confidence = bestPlate
-      ? Math.min(0.99, (ocrResult.confidence / 100) * (normalised?.valid ? 1.15 : 0.75))
-      : 0;
+    // If no plate candidate emerged from plate crop OCR, run one fallback OCR pass
+    // on the full image so we don't miss cases where bbox localisation is off.
+    if (candidateScores.size === 0 && plateBbox) {
+      const fallbackInput = await prepPlateRegion(imageBuffer, null);
+      const fallbackOcr = await ocrPlate(fallbackInput);
+      addCandidate(fallbackOcr.text, (fallbackOcr.confidence / 100) * 0.85);
+      for (const word of fallbackOcr.words || []) {
+        const wordConf = Number.isFinite(word?.confidence)
+          ? (Number(word.confidence) / 100) * 0.8
+          : (fallbackOcr.confidence / 100) * 0.75;
+        addCandidate(word?.text || '', wordConf);
+      }
+      detectionMethod = `${detectionMethod}+full_image_ocr_fallback`;
+    }
+
+    const sortedCandidates = Array.from(candidateScores.entries())
+      .sort((a, b) => b[1] - a[1]);
+    const bestPlate = sortedCandidates[0]?.[0] ?? null;
+    const confidence = bestPlate ? Math.min(0.99, sortedCandidates[0][1]) : 0;
+    const normalised = bestPlate ? normaliseNZPlate(bestPlate) : null;
+    const candidates = sortedCandidates.slice(0, 8).map(([plate, score]) => ({
+      plate,
+      confidence: Math.max(0, Math.min(0.99, score)),
+    }));
 
     const duration = Date.now() - startTime;
 
@@ -1892,122 +1815,6 @@ app.post('/infer/chalk', inferenceRateLimit, upload.single('photo'), requireInfe
   } catch (error) {
     console.error('❌ /infer/chalk error:', error);
     return res.status(500).json({ error: 'Chalk inference failed', message: error.message });
-  }
-});
-
-// ============================================================================
-// POST /infer/face — Face detection + embedding
-//
-// Accepts a photo and returns:
-//   - face_count (number of faces detected)
-//   - faces (array of face objects with bounding box, confidence, description)
-//   - primary face embedding (384-D MobileNetV3 — for comparison/matching)
-//
-// Detection pipeline:
-//   1. UltraFace ONNX model (if available) → bounding boxes + confidence
-//   2. OpenAI vision fallback (if ONNX not available) → descriptions + confidence
-//   3. Face embedding via MobileNetV3 on the primary (highest-confidence) face crop
-//
-// All components gracefully degrade: no ONNX model → no bounding boxes,
-// no OpenAI → basic ONNX-only results, no embedding model → no embedding.
-// ============================================================================
-app.post('/infer/face', faceRateLimit, upload.single('photo'), requireInferenceAuth, async (req, res) => {
-  const startTime = Date.now();
-
-  try {
-    if (!req.file) {
-      return res.status(400).json({ error: 'No photo uploaded', field: 'photo' });
-    }
-
-    const imageBuffer = req.file.buffer;
-    const mimeType = req.file.mimetype || 'image/jpeg';
-    let detectionMethod = 'none';
-
-    // ── Step 1: Detect faces using ONNX model ─────────────────────────
-    let onnxFaces = await detectFacesONNX(imageBuffer);
-    if (onnxFaces.length > 0) {
-      detectionMethod = 'onnx_ultraface';
-    }
-
-    // ── Step 2: OpenAI vision fallback / enrichment ───────────────────
-    let openAiFaces = null;
-    if (OPENAI_API_KEY) {
-      openAiFaces = await detectFacesOpenAI(imageBuffer, mimeType);
-      if (onnxFaces.length === 0 && openAiFaces?.face_count > 0) {
-        detectionMethod = 'openai_vision';
-      }
-    }
-
-    // ── Step 3: Merge results ─────────────────────────────────────────
-    const faces = [];
-    const faceCount = Math.max(onnxFaces.length, openAiFaces?.face_count ?? 0);
-
-    if (onnxFaces.length > 0) {
-      // Use ONNX bounding boxes, enrich with OpenAI descriptions if available
-      for (let i = 0; i < onnxFaces.length; i++) {
-        const onnxFace = onnxFaces[i];
-        const aiDesc = openAiFaces?.faces?.[i] ?? null;
-        faces.push({
-          bbox:            onnxFace,
-          confidence:      onnxFace.confidence,
-          approximate_age: aiDesc?.approximate_age ?? 'unknown',
-          gender:          aiDesc?.gender ?? 'unknown',
-          description:     aiDesc?.description ?? null,
-        });
-      }
-    } else if (openAiFaces?.faces?.length > 0) {
-      // No ONNX model — use OpenAI-only results (no pixel-level bounding boxes)
-      for (const face of openAiFaces.faces) {
-        faces.push({
-          bbox:            null,
-          confidence:      face.confidence ?? 0.5,
-          approximate_age: face.approximate_age ?? 'unknown',
-          gender:          face.gender ?? 'unknown',
-          description:     face.description ?? null,
-        });
-      }
-    }
-
-    // ── Step 4: Generate embedding for the primary (highest-confidence) face
-    let embedding = null;
-    let embeddingQuality = null;
-
-    if (faces.length > 0 && faces[0].bbox) {
-      const embResult = await generateFaceEmbedding(imageBuffer, faces[0].bbox);
-      if (embResult) {
-        embedding = embResult.embedding;
-        embeddingQuality = embResult.quality;
-      }
-    } else if (faces.length > 0 && embeddingSession) {
-      // No bbox available — generate embedding from full image
-      const embResult = await generateFaceEmbedding(imageBuffer, null);
-      if (embResult) {
-        embedding = embResult.embedding;
-        embeddingQuality = embResult.quality;
-      }
-    }
-
-    const duration = Date.now() - startTime;
-
-    return res.json({
-      success:    true,
-      face_count: faceCount,
-      faces,
-      // Primary face embedding (for storage and comparison)
-      embedding,
-      embedding_quality: embeddingQuality,
-      metadata: {
-        detection_method: detectionMethod,
-        processing_time_ms: duration,
-        onnx_available:   !!faceDetectSession || fs.existsSync(FACE_DETECT_MODEL_PATH),
-        openai_available: !!OPENAI_API_KEY,
-        embedding_available: !!embeddingSession,
-      },
-    });
-
-  } catch (error) {
-    console.error('❌ /infer/face error:', error);
-    return res.status(500).json({ error: 'Face detection failed', message: error.message });
   }
 });
 
