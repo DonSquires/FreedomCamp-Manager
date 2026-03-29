@@ -7,7 +7,12 @@
 import { supabase } from './supabase'
 import { edgeFunctions } from './edgeFunctions'
 import { checkRailwayServicesHealth } from './railway'
-import { isTerminalBugReportStatus, shouldAutoAcknowledge } from '@/lib/bugReportStatus'
+import {
+  BUG_REPORT_STATUSES,
+  isKnownBugReportStatus,
+  isTerminalBugReportStatus,
+  shouldAutoAcknowledge,
+} from '@/lib/bugReportStatus'
 import type { Database } from '@/types/database'
 
 // Type aliases for query results
@@ -484,16 +489,11 @@ export const performanceTests = {
  * Deep-dive validation for the bug fix system (bug_reports intake → AI analysis → status transitions).
  * Does not mutate data; reads the most recent reports and highlights anomalies.
  */
-const BUG_REPORT_STATUSES = [
-  'submitted',
-  'acknowledged',
-  'investigating',
-  'in_progress',
-  'resolved',
-  'closed',
-  'wont_fix',
-  'duplicate',
-] as const
+// Source of truth: bug_reports.status enum (see migrations/20250215000001_bug_reporting_system.sql).
+// Use shared constants so the list remains consistent across client and edge functions.
+const STALE_REPORT_THRESHOLD_HOURS = 24
+const MILLISECONDS_PER_HOUR = 1000 * 60 * 60
+const HOURS_PRECISION = 1
 
 type BugReportProjection = Pick<
   BugReport,
@@ -504,9 +504,6 @@ type BugReportProjection = Pick<
   | 'requires_human_review'
   | 'auto_reported'
   | 'created_at'
-  | 'issue_type'
-  | 'severity'
-  | 'user_role'
 >
 
 export async function runBugFixDeepDive(limit = 30) {
@@ -514,7 +511,7 @@ export async function runBugFixDeepDive(limit = 30) {
 
   const { data, error } = await supabase
     .from('bug_reports')
-    .select('id, status, ai_analyzed, ai_suggested_fix, requires_human_review, auto_reported, created_at, issue_type, severity, user_role')
+    .select('id, status, ai_analyzed, ai_suggested_fix, requires_human_review, auto_reported, created_at')
     .order('created_at', { ascending: false })
     .limit(limit)
 
@@ -527,12 +524,21 @@ export async function runBugFixDeepDive(limit = 30) {
   const anomalies: string[] = []
   const now = Date.now()
 
+  const summary = {
+    total: reports.length,
+    aiAnalyzed: 0,
+    autoReported: 0,
+    terminal: 0,
+    withHumanReview: 0,
+  }
+
   for (const report of reports) {
-    if (report.status && !BUG_REPORT_STATUSES.includes(report.status as (typeof BUG_REPORT_STATUSES)[number])) {
+    if (report.status && !isKnownBugReportStatus(report.status)) {
       anomalies.push(`Report ${report.id} has unknown status "${report.status}"`)
     }
 
-    if (report.ai_analyzed && (!report.ai_suggested_fix || report.ai_suggested_fix.trim().length === 0)) {
+    const aiFix = typeof report.ai_suggested_fix === 'string' ? report.ai_suggested_fix.trim() : ''
+    if (report.ai_analyzed && !aiFix) {
       anomalies.push(`Report ${report.id} is marked ai_analyzed without a suggested fix payload`)
     }
 
@@ -544,21 +550,19 @@ export async function runBugFixDeepDive(limit = 30) {
       anomalies.push(`Report ${report.id} is terminal (${report.status}) but still flagged requires_human_review`)
     }
 
-    if (!report.ai_analyzed && shouldAutoAcknowledge(report.status)) {
+    const isAwaitingAnalysis = !report.ai_analyzed && (!report.status || report.status === 'submitted')
+    if (isAwaitingAnalysis) {
       const createdAt = report.created_at ? new Date(report.created_at).getTime() : NaN
-      const ageHours = Number.isFinite(createdAt) ? (now - createdAt) / (1000 * 60 * 60) : 0
-      if (ageHours > 24) {
-        anomalies.push(`Report ${report.id} has been ${report.status ?? 'submitted'} for ${ageHours.toFixed(1)}h without AI analysis`)
+      const ageHours = Number.isFinite(createdAt) ? (now - createdAt) / MILLISECONDS_PER_HOUR : 0
+      if (ageHours > STALE_REPORT_THRESHOLD_HOURS) {
+        anomalies.push(`Report ${report.id} has been ${report.status ?? 'submitted'} for ${ageHours.toFixed(HOURS_PRECISION)} hours without AI analysis`)
       }
     }
-  }
 
-  const summary = {
-    total: reports.length,
-    aiAnalyzed: reports.filter(r => r.ai_analyzed).length,
-    autoReported: reports.filter(r => r.auto_reported).length,
-    terminal: reports.filter(r => isTerminalBugReportStatus(r.status)).length,
-    withHumanReview: reports.filter(r => r.requires_human_review).length,
+    if (report.ai_analyzed) summary.aiAnalyzed += 1
+    if (report.auto_reported) summary.autoReported += 1
+    if (isTerminalBugReportStatus(report.status)) summary.terminal += 1
+    if (report.requires_human_review) summary.withHumanReview += 1
   }
 
   console.log('📊 Bug Fix Snapshot:', summary)
