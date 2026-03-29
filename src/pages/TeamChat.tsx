@@ -6,6 +6,7 @@ import { GlobalFilterRibbon } from '@/components/features/GlobalFilterRibbon'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from '@/stores/authStore'
 import { useGlobalFiltersStore } from '@/stores/globalFiltersStore'
+import { useChatTargetStore, ChatTarget } from '@/stores/chatTargetStore'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -35,9 +36,7 @@ interface Participant {
   organization_id: string | null
 }
 
-type ConversationTarget =
-  | { type: 'admin' }
-  | { type: 'user'; user: Participant }
+type ConversationTarget = ChatTarget
 
 interface ChatMessage {
   id: string
@@ -312,9 +311,9 @@ function OfficerContextPanel({ userId, title = 'Officer context', organizationId
 export default function TeamChat() {
   const { user } = useAuthStore()
   const { organizationId } = useGlobalFiltersStore()
+  const { target, setTarget } = useChatTargetStore()
   const [message, setMessage] = useState('')
   const [messages, setMessages] = useState<ChatMessage[]>([])
-  const [target, setTarget] = useState<ConversationTarget>({ type: 'admin' })
   const [inspectUserId, setInspectUserId] = useState<string | null>(null)
   const [channel, setChannel] = useState<RealtimeChannel | null>(null)
 
@@ -337,6 +336,29 @@ export default function TeamChat() {
     },
     enabled: !!effectiveOrgId,
   })
+
+  // Keep persisted target in sync with available members (for push-to-talk + chat)
+  useEffect(() => {
+    if (target.type === 'user') {
+      const match = members.find((m) => m.id === target.user.id)
+      if (!match) {
+        setTarget({ type: 'admin' })
+        setInspectUserId(null)
+        return
+      }
+      const changed =
+        match.first_name !== target.user.first_name ||
+        match.last_name !== target.user.last_name ||
+        match.role !== target.user.role ||
+        match.organization_id !== target.user.organization_id
+      if (changed) {
+        setTarget({ type: 'user', user: match })
+      }
+      setInspectUserId((prev) => prev || match.id)
+    } else {
+      setInspectUserId(null)
+    }
+  }, [members, setTarget, target])
 
   // Real-time channel for org chat (broadcast only, no persistence)
   useEffect(() => {
@@ -419,7 +441,7 @@ export default function TeamChat() {
   return (
     <AppLayout
       title="Team Chat"
-      description="Message your organisation and quickly open a live support view for the sender."
+      description="Message your organisation and quickly open a live support view for the sender. Your selected contact is remembered for push-to-talk."
     >
       <GlobalFilterRibbon />
 
