@@ -5,6 +5,7 @@ import { Toaster } from 'sonner'
 import { useAuthStore } from '@/stores/authStore'
 import { useSessionInactivityLock } from '@/hooks/useSessionInactivityLock'
 import { useThemeMode } from '@/hooks/useThemeMode'
+import { usePTTAutoConnect } from '@/hooks/usePTTAutoConnect'
 import { NetworkStatusBar } from '@/components/features/NetworkStatusBar'
 import { PWAInstallPrompt } from '@/components/features/PWAInstallPrompt'
 import { GlobalOperationsBar } from '@/components/features/GlobalOperationsBar'
@@ -220,6 +221,9 @@ const queryClient = new QueryClient({
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuthStore()
   const location = useLocation()
+
+  // Auto-connect to PTT when authenticated
+  usePTTAutoConnect()
 
   const hasPortalChoice = () => {
     if (typeof window === 'undefined') return false
